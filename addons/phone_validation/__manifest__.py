@@ -28,6 +28,12 @@ records numbers. """,
         'base',
         'mail',
     ],
+    'external_dependencies': {
+        'python': ['phonenumbers'],
+        'apt': {
+            'phonenumbers': 'python3-phonenumbers',
+        },
+    },
     'auto_install': True,
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',

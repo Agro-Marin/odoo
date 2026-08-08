@@ -17,6 +17,12 @@ Updated for Odoo 9 by Bringsvor Consulting AS <www.bringsvor.com>
         'account',
         'account_edi_ubl_cii',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['account'],
     'data': [
         'data/account_tax_report_data.xml',

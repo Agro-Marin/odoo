@@ -20,9 +20,10 @@
         'account_edi_ubl_cii',
     ],
     'external_dependencies': {
-        'python': ['phonenumbers'],
+        'python': ['phonenumbers', 'python-stdnum'],
         'apt': {
             'phonenumbers': 'python3-phonenumbers',
+            'python-stdnum': 'python3-stdnum',
         },
     },
     'data': [

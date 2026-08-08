@@ -12,6 +12,12 @@ Attachments list and document indexation
 The `pdfminer.six` Python library has to be installed in order to index PDF files
 """,
     'depends': ['web'],
+    'external_dependencies': {
+        'python': ['defusedxml'],
+        'apt': {
+            'defusedxml': 'python3-defusedxml',
+        },
+    },
     'installable': True,
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',

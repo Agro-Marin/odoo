@@ -1,3 +1,12 @@
+# Python dependencies of the IoT box image and of the `iot_handlers/` trees
+# shipped by iot_drivers (core) and by l10n_se_pos, pos_blackbox_be,
+# pos_iot_adam_scale and quality_iot (enterprise).
+#
+# iot_handlers/ runs on the IoT box, never inside a server process, and
+# iot_drivers itself is `installable: False` — so none of this may be declared
+# in a manifest's external_dependencies and none of it belongs in the server's
+# requirements.txt, where pyserial, pyusb and pywin32 used to sit.
+
 # The following requirements are needed only on Raspberry Pi IoT:
 gatt; sys_platform == "linux" and "rpi" in platform_release
 /home/pi/odoo/addons/iot_box_image/configuration/aiortc-1.4.0-py3-none-any.whl; sys_platform == "linux" and "rpi" in platform_release
@@ -14,7 +23,12 @@ schedule==1.2.1; sys_platform == "win32"
 
 # The following requirements are needed on every platforms:
 python-escpos==3.1
+pyserial==3.5  # serial_base_driver.py, serial_scale_driver.py, l10n_ke_edi_serial_driver.py
+pyusb==1.3.1  # printer/scale USB interfaces
 websocket-client==1.9.0
+
+# Windows Virtual IoT only: printer_driver_W.py / printer_interface_W.py
+pywin32==312 ; sys_platform == "win32"
 
 # The following requirements are needed only on Test IoT server:
 ./addons/iot_box_image/configuration/aiortc-1.4.0-py3-none-any.whl; sys_platform == "linux" and "rpi" not in platform_release

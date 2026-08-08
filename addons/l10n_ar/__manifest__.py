@@ -74,6 +74,12 @@ Master Data:
         'l10n_latam_base',
         'account',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['account'],
     'data': [
         'security/ir.model.access.csv',

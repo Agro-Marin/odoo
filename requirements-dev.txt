@@ -14,3 +14,12 @@ mypy==1.19.1
 # Build tooling for the odoo_rust native extension (crates/odoo_rust).
 # The upper bound matches what every workflow already installs inline.
 maturin>=1.0,<2
+
+# Autoreload backends for --dev=reload / --dev=assets. Dev-only by
+# construction: service/lifecycle.py starts a watcher only when one of those
+# dev_mode flags is set, so neither belongs in the server runtime file.
+# _watcher.py prefers inotify and falls back to watchdog; watchdog was the
+# fallback in code but was declared nowhere, so off Linux the branch could
+# never fire and --dev=reload silently had no backend.
+inotify==0.2.12 ; sys_platform == 'linux'
+watchdog==6.0.0 ; sys_platform != 'linux'

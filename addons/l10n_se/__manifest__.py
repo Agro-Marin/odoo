@@ -19,6 +19,12 @@ It also includes the invoice OCR payment reference handling.
         'base_vat',
         'account_edi_ubl_cii',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['account'],
     'data': [
         'data/account.account.tag.csv',

@@ -46,6 +46,12 @@ There are 2 main Payment Methods additions:
         'account',
         'base_vat',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'data': [
         'data/account_payment_method_data.xml',
         'wizards/l10n_latam_payment_mass_transfer_views.xml',

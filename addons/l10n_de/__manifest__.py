@@ -23,6 +23,12 @@ By default, the audit trail is enabled for GoBD compliance.
         'account',
         'account_edi_ubl_cii',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['account'],
     'data': [
         'data/account_account_tags_data.xml',

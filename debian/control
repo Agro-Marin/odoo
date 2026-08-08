@@ -23,17 +23,19 @@ Depends:
  libjs-underscore,
  lsb-base,
  postgresql-client,
+# Depends mirrors requirements.txt (the server and the always-loaded addons);
+# the dependencies of individual bundled addons — requirements-addons.txt — are
+# Recommends below, which apt installs by default but which a --no-install-
+# recommends deployment can leave out.
  python3-asn1crypto,
  python3-babel,
+ python3-blake3,
+ python3-bs4,
  python3-cbor2,
- python3-chardet,
  python3-cryptography,
  python3-dateutil,
  python3-docutils,
- python3-freezegun,
  python3-geoip2,
- python3-gevent,
- python3-greenlet,
  python3-idna,
  python3-pil,
  python3-jinja2,
@@ -42,34 +44,52 @@ Depends:
  python3-magic,
  python3-markupsafe,
  python3-num2words,
- python3-ofxparse,
- python3-openpyxl,
+ python3-orjson,
  python3-polib,
  python3-psutil,
  python3-protobuf,
- python3-psycopg2,
+# psycopg 3. python3-psycopg2 was listed here until 19.0-marin, which is the one
+# driver odoo/db/ may not use — the .deb installed it and shipped no psycopg 3
+# at all. There is no python3-psycopg3: the psycopg-3 source package is named
+# python3-psycopg.
+ python3-psycopg,
+ python3-psycopg-pool,
  python3-openssl,
- python3-pypdf2 | python3-pypdf,
+ python3-pypdf,
  python3-rjsmin,
- python3-qrcode,
  python3-renderpm,
  python3-reportlab,
  python3-requests,
- python3-stdnum,
+ python3-rlpycairo,
  python3-tz,
  python3-urllib3,
- python3-vobject,
+ weasyprint,
  python3-werkzeug,
  python3-xlsxwriter,
- python3-xlrd,
- python3-zeep,
 Pre-Depends: ${misc:Pre-Depends}
 Conflicts: tinyerp-server, openerp-server, openerp-web, openerp
 Replaces: tinyerp-server, openerp-server, openerp-web, openerp
+# Dependencies of individual bundled addons: requirements-addons.txt, and the
+# same set each owning module declares in its __manifest__.py
+# external_dependencies. apt installs Recommends by default, so the usual
+# install is unchanged; a minimal one can now drop them.
 Recommends:
  ${python3:Recommends},
  postgresql,
+ python3-chardet,
+ python3-defusedxml,
+ python3-fitz,
+ python3-google-auth,
  python3-ldap,
+ python3-odf,
+ python3-openpyxl,
+ python3-pdfminer,
+ python3-phonenumbers,
+ python3-qrcode,
+ python3-stdnum,
+ python3-vobject,
+ python3-xlrd,
+ python3-zeep,
 Description: Open Source Apps To Grow Your Business
  Odoo, formerly known as OpenERP, is a suite of open-source business apps
  written in Python and released under the LGPLv3 license. This suite of

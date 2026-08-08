@@ -10,6 +10,12 @@ The specific and easy-to-use Invoicing system in Odoo allows you to keep track o
 You could use this simplified accounting in case you work with an (external) account to keep your books, and you still want to keep track of payments. This module also offers you an easy method of registering payments, without having to encode complete abstracts of account.
     """,
     "depends": ["base_account", "base_tax", "onboarding", "analytic", "digest"],
+    "external_dependencies": {
+        "python": ["python-stdnum"],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
+        },
+    },
     "category": "Accounting/Accounting",
     "sequence": 10,
     "data": [

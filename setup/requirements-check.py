@@ -380,9 +380,15 @@ def main(args: argparse.Namespace) -> None:
         platform_headers.append(checker._release[:5])
         python_headers.append(version)
 
-    reqs = parse_requirements(
-        (Path.cwd() / __file__).parent.parent / "requirements.txt"
-    )
+    # Both runtime files, not just requirements.txt: the dependencies of the
+    # bundled addons moved to requirements-addons.txt, and a check that reads
+    # only the server file silently stops comparing them against the distro.
+    repo_root = (Path.cwd() / __file__).parent.parent
+    reqs = parse_requirements(repo_root / "requirements.txt")
+    for name, options in parse_requirements(
+        repo_root / "requirements-addons.txt"
+    ).items():
+        reqs.setdefault(name, []).extend(options)
     if args.filter:
         reqs = {
             r: o for r, o in reqs.items() if any(f in r for f in args.filter.split(","))

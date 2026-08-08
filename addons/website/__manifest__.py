@@ -15,8 +15,9 @@
         "html_builder",
     ],
     "external_dependencies": {
-        "python": ["geoip2"],
+        "python": ["defusedxml", "geoip2"],
         "apt": {
+            "defusedxml": "python3-defusedxml",
             "geoip2": "python3-geoip2",
         },
     },

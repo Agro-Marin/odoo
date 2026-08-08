@@ -12,6 +12,12 @@ Auto-complete partner companies' data
     "depends": [
         "iap_mail",
     ],
+    "external_dependencies": {
+        "python": ["python-stdnum"],
+        "apt": {
+            "python-stdnum": "python3-stdnum",
+        },
+    },
     "data": [
         "views/res_company_views.xml",
         "views/res_config_settings_views.xml",

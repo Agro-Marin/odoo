@@ -6,6 +6,12 @@
         'account_edi_proxy_client',
         'account_debit_note',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['l10n_it'],
     'description': """
 E-invoice implementation

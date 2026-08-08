@@ -34,6 +34,12 @@ such as Chile, Colombia, Mexico, Norway or Russia. For unsupported countries,
 only the country code will be validated.
     """,
     'depends': ['account'],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'data': [
         'views/res_config_settings_views.xml',
         'views/res_partner_views.xml',

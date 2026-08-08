@@ -35,6 +35,12 @@ configuration of their taxes and fiscal positions manually.
         'account_edi_ubl_cii',
         'l10n_fr',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['account'],
     'data': [
         'data/account_chart_template_data.xml',

@@ -44,8 +44,13 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
 - **Python ≥ 3.14** — the floor is `MIN_PY_VERSION` in `odoo/release.py`, enforced
   at import by `odoo/init.py`.
 - **PostgreSQL** — every CI lane runs 18.
-- **`pip install -r requirements.txt`** for the runtime; `requirements-dev.txt`
-  for the gates.
+- **`pip install -r requirements.txt -r requirements-addons.txt`** for the
+  runtime; `requirements-dev.txt` for the gates. The two runtime files split on
+  ownership: `requirements.txt` is what a server process imports whatever is
+  installed, `requirements-addons.txt` is what individual bundled addons own and
+  declare in their `external_dependencies`. A development checkout wants both;
+  only a deployment that knows which modules it loads wants the first alone.
+  `requirements-test.txt` pulls in both, so every test lane is unaffected.
 - **psycopg 3** (`psycopg[c,binary]>=3.3.2`) is the only driver `odoo/db/` uses.
   Never add a `psycopg2` import.
 - **`crates/odoo_rust` must be built into the environment.** with a Rust toolchain on `PATH`:

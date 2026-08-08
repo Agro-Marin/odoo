@@ -27,6 +27,12 @@ The generation of the QR-bill is automatic if you meet the previous criteria. Th
         'base_iban',
         'l10n_din5008',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['account'],
     'data': [
         'security/ir.model.access.csv',

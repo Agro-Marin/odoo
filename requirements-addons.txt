@@ -1,0 +1,50 @@
+# Python dependencies of individual bundled addons.
+#
+# Split out of requirements.txt so a server install does not carry the
+# dependencies of modules it will never load. Nothing here is imported by the
+# framework or by an always-loaded addon; each line names the module that owns
+# it. Install alongside the server requirements whenever `odoo/addons` is on the
+# addons_path — which, for a normal development checkout, is always:
+#
+#     pip install -r requirements.txt -r requirements-addons.txt
+#
+# coding_guidelines.rst §1.2 requires each of these to ALSO be declared in the
+# owning module's __manifest__.py `external_dependencies`, so a missing one is a
+# named MissingDependencyError on the install path rather than an ImportError at
+# import time. Two rules on that declaration:
+#
+#   * Declare only imports the module cannot start without. A package behind a
+#     `find_spec` guard, a function-local import or a `try/except ImportError`
+#     is OPTIONAL, and declaring it would turn a degraded feature into a refused
+#     install. Those lines are marked "optional" below and are deliberately
+#     absent from the manifests.
+#   * `external_dependencies` is not consulted for auto_install modules —
+#     odoo/modules/db.py marks that closure in raw SQL — so a dependency of an
+#     auto_install module has to stay pinned in requirements.txt instead. cbor2
+#     is the one such case and lives there.
+#
+# Do NOT "simplify" chardet away to charset-normalizer: measured on 26 KB of
+# cp1252/latin-1 Mexican Spanish (the shape agromarin marin/bbva_parser.py
+# reads), charset-normalizer picks cp1250 at confidence 1.0 and mangles the text
+# ('º'->'ş', 'ñ'->'ń') on BOTH its detect() shim and its native
+# from_bytes().best(), while chardet answers ISO-8859-1 and round-trips exactly.
+# It also returns 'utf-8' rather than None for undetectable input, which would
+# silently disable the "could not detect the encoding" error in base_import.
+# The pin is held two majors below the current 7.x for that reason.
+chardet==5.2.0  # base_import, mail
+defusedxml==0.7.1  # attachment_indexation, website
+google-auth==2.56.3  # cloud_storage_google
+odfpy==1.4.1  # base_import: .ods reader (models/odf_ods_reader.py) — optional
+openpyxl==3.1.5  # attachment_indexation, base_import, survey — optional
+pdfminer.six==20260107  # attachment_indexation — optional, degrades without it
+phonenumbers==9.0.36  # phone_validation
+# AGPL-3.0-or-commercial, which is why base/ir_actions_report guards the import
+# and degrades rather than depending on it. setup.py offers the same package as
+# the `pdf-raster` extra.
+PyMuPDF==1.28.2  # base — optional
+python-ldap==3.4.7 ; sys_platform != 'win32'  # auth_ldap
+python-stdnum==2.2  # base_vat + 15 l10n modules. Fixes operation_timeout in SOAP client
+qrcode==8.2  # auth_totp, pos_self_order
+vobject==0.9.9  # calendar, event, web, website_event_track — optional
+xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader — optional
+zeep==4.3.3  # base_vat (via the stdnum SOAP client patched in _monkeypatches) — optional

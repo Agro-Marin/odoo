@@ -7,6 +7,12 @@
         "account_edi",
         "l10n_in",
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'description': """
 Indian - E-invoicing
 ====================

@@ -25,6 +25,12 @@ Sheet, now only Vertical format has been permitted Which is Supported By Odoo.
         'account',
         'iap',
     ],
+    'external_dependencies': {
+        'python': ['python-stdnum'],
+        'apt': {
+            'python-stdnum': 'python3-stdnum',
+        },
+    },
     'auto_install': ['account'],
     'data': [
         'security/l10n_in_security.xml',

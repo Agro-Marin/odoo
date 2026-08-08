@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.4
-:Date: 2026-08-07
+:Version: 5.5
+:Date: 2026-08-08
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -448,12 +448,36 @@ Keys must come from the known set and appear in the canonical order
 * **``license``** must match how the module is actually distributed. The fork
   ships a mix (``LGPL-3``, ``OPL-1``, ``AGPL-3``, ``OEEL-1``); copying a
   neighbour's value without checking is how a module ends up mislicensed.
-* **External dependencies** are declared in the manifest *and* pinned in a
-  ``requirements.txt`` at the addon root:
+* **External dependencies** are declared in the manifest *and* pinned in the
+  requirements file of the repo that owns the module — ``requirements-addons.txt``
+  in ``odoo``, ``requirements.txt`` in ``enterprise`` and ``agromarin``. The
+  server's own ``odoo/requirements.txt`` is not that file: it carries only what
+  the framework and the always-loaded addons import, so adding a module's
+  dependency there puts it on every install that will never load the module.
 
   .. code-block:: python
 
      "external_dependencies": {"python": ["requests"], "bin": ["wkhtmltopdf"]},
+
+  Use the **PyPI distribution name**, not the import name
+  (``python-ldap``, not ``ldap``): ``check_python_external_dependency`` resolves
+  it through ``importlib.metadata.version``, and falls back to importing the
+  name only after logging a warning.
+
+  **Declare only what the module cannot start without.** A dependency behind a
+  ``find_spec`` guard, a function-local import or ``try/except ImportError`` is
+  optional by construction, and declaring it converts a feature that degrades
+  into an install that is refused. ``base_import`` is the worked example: it
+  declares ``chardet``, which it imports at module level, and deliberately does
+  not declare ``xlrd``, ``odfpy`` or ``openpyxl``, which it imports inside the
+  reader for each format.
+
+  **An ``auto_install`` module cannot rely on the declaration at all.**
+  ``odoo/modules/db.py`` marks the auto-install closure in raw SQL and never
+  consults ``external_dependencies``, which is checked only on the UI install
+  path — so the dependency has to be pinned as a server requirement instead.
+  ``cbor2`` (``auth_passkey``) and ``ofxparse``
+  (``account_bank_statement_import_ofx``) are the two such cases.
 
 1.3 File naming
 ---------------
@@ -3294,6 +3318,23 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.5
+     - 2026-08-08
+     - **§1.2 names the right requirements file, and states when NOT to
+       declare.** External dependencies are pinned in the file of the repo that
+       owns the module — the new ``odoo/requirements-addons.txt``, not
+       ``odoo/requirements.txt``, which now carries only what the framework and
+       the always-loaded addons import. Seventeen packages moved out of the
+       server file, where they had been installed on every deployment for
+       modules it would never load; ``pyserial``, ``pyusb`` and ``pywin32`` moved
+       further, to ``addons/iot_box_image/configuration/requirements.txt``, since
+       every import of them is under an ``iot_handlers/`` tree that never runs in
+       a server process and ``iot_drivers`` is ``installable: False``. Added the
+       three rules the split depends on: use the PyPI distribution name, declare
+       only imports the module cannot start without (a guarded import declared
+       turns a degrading feature into a refused install), and an ``auto_install``
+       module's declaration never fires because ``odoo/modules/db.py`` marks that
+       closure in raw SQL.
    * - 5.4
      - 2026-08-07
      - **Cyclomatic complexity is gated**, as a ninth ratchet (``c901``, floor 46,

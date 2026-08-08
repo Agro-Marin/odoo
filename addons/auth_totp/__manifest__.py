@@ -15,6 +15,12 @@ where it is enabled. In order to be able to execute RPC scripts, the user
 can setup API keys to replace their main password.
     """,
     'depends': ['web'],
+    'external_dependencies': {
+        'python': ['qrcode'],
+        'apt': {
+            'qrcode': 'python3-qrcode',
+        },
+    },
     'category': 'Extra Tools',
     'auto_install': True,
     'data': [

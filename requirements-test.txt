@@ -2,10 +2,13 @@
 #
 # Split out of requirements.txt so a production install does not carry test
 # machinery, and split out of requirements-dev.txt so CI test lanes do not
-# install linters and type checkers they never invoke. The workflows that
-# execute tests install this file; test_lint.yml and asset_lint.yml install
-# plain requirements.txt, which is what keeps the split honest.
+# install linters and type checkers they never invoke.
+#
+# requirements-addons.txt is pulled in because the suites install and exercise
+# the bundled addons, so they need every dependency those modules own — a test
+# lane is exactly the case where the server/addons split must NOT apply.
 -r requirements.txt
+-r requirements-addons.txt
 
 aiosmtpd==1.4.6  # odoo/addons/base/tests/test_ir_mail_server_smtpd.py
 freezegun==1.5.5  # 486 test modules across core, enterprise and agromarin

@@ -62,6 +62,12 @@ For more specific needs, you may also assign custom-defined actions
     """,
     "website": "https://www.odoo.com/app/discuss",
     "depends": ["web_tour", "html_editor"],
+    "external_dependencies": {
+        "python": ["chardet"],
+        "apt": {
+            "chardet": "python3-chardet",
+        },
+    },
     "data": [
         "data/mail_groups.xml",
         "wizard/mail_activity_schedule_views.xml",

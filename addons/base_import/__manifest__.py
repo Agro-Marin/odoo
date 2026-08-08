@@ -22,6 +22,12 @@ Re-implement Odoo's file import system:
   need or want an online import can avoid it being available to users.
 """,
     'depends': ['web'],
+    'external_dependencies': {
+        'python': ['chardet'],
+        'apt': {
+            'chardet': 'python3-chardet',
+        },
+    },
     'version': '2.2',
     'category': 'Hidden/Tools',
     'installable': True,

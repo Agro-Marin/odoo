@@ -1,26 +1,29 @@
-# Runtime dependencies for the Odoo server and a default addon install.
+# Runtime dependencies of the Odoo server itself.
 #
 # What belongs where:
-#   requirements.txt       the server and a default addon install
-#   requirements-test.txt  needed to RUN the suites, not to run the server
-#   requirements-dev.txt   linters, type checkers, native-extension build tools
+#   requirements.txt         the framework (`odoo/`) plus the always-loaded
+#                            addons — what every server process imports no
+#                            matter which modules are installed
+#   requirements-addons.txt  dependencies reached from one bundled addon, owned
+#                            by the module that imports them
+#   requirements-test.txt    needed to RUN the suites, not to run the server
+#   requirements-dev.txt     linters, type checkers, native-extension build tools
 #
-# Six pins are deliberately held below their latest release. Each needs work
+# The admission rule for this file: the framework imports it, or an addon that
+# is always present (`base`, `web`) imports it *unguarded*. A package reached
+# only from a specific module belongs in requirements-addons.txt and is declared
+# in that module's __manifest__.py `external_dependencies`, so a missing one
+# reports as a named MissingDependencyError on the install path instead of an
+# ImportError at import time — coding_guidelines.rst §1.2.
+#
+#     pip install -r requirements.txt                          # server only
+#     pip install -r requirements.txt -r requirements-addons.txt   # + bundled addons
+#
+# Four pins are deliberately held below their latest release. Each needs work
 # these lines cannot carry on their own, so bump them one at a time, not in a
 # sweep:
 #   cbor2 (6.x)         major; auth_passkey's vendored webauthn decodes with it
-#   chardet (7.x)       two majors. Do NOT "simplify" this away to
-#                       charset-normalizer: measured on 26 KB of cp1252/latin-1
-#                       Mexican Spanish (the shape marin/bbva_parser.py reads),
-#                       charset-normalizer picks cp1250 at confidence 1.0 and
-#                       mangles the text ('º'->'ş', 'ñ'->'ń') on BOTH its
-#                       detect() shim and its native from_bytes().best(), while
-#                       chardet answers ISO-8859-1 and round-trips exactly. It
-#                       also returns 'utf-8' rather than None for undetectable
-#                       input, which would silently disable the "could not
-#                       detect the encoding" error in base_import.
 #   cryptography (50.x) four majors across 54 call sites
-#   protobuf (8.x)      blocked on regenerating the vendored SCSS gencode
 #   pyopenssl (26.x)    major. It is load-bearing, not legacy cruft: mail
 #                       servers store certificate material in the database and
 #                       base/ir_mail_server.py feeds it to a PyOpenSSLContext
@@ -48,54 +51,47 @@
 # 1.5.1 IS the latest release. Do not swap it for cryptography.
 asn1crypto==1.5.1
 Babel==2.18.0
+beautifulsoup4==4.15.0  # odoo/_monkeypatches/bs4.py, html_editor
 blake3==1.0.9  # content/cache digests (odoo/tools/hashing.py)
-cbor2==5.8.0  # web/auth_passkey (auto_install, so effectively always present)
-chardet==5.2.0
+cbor2==5.8.0  # web/auth_passkey. auto_install, and odoo/modules/db.py marks the
+              # auto-install closure in raw SQL without consulting
+              # external_dependencies — so the manifest declaration alone would
+              # not fire, and the pin has to stay global.
 cryptography==46.0.4
-docutils==0.23
-geoip2==5.3.0
+docutils==0.23  # base renders module descriptions through it (ir_module)
+geoip2==5.3.0  # odoo/http/geoip.py
 idna==3.18
-inotify==0.2.12 ; sys_platform == 'linux'  # autoreload backend for --dev=reload; preferred over watchdog on Linux
 Jinja2==3.1.6
 lxml==6.1.1
 lxml-html-clean  # (removed from lxml, unpinned for future security patches)
 MarkupSafe==3.0.3
-num2words==0.5.14
-odfpy==1.4.1  # base_import: .ods reader (models/odf_ods_reader.py)
-openpyxl==3.1.5
+num2words==0.5.14  # base/res_currency.py imports it unguarded
 orjson==3.11.9
-pdfminer.six==20260107  # optional: attachment_indexation degrades without it (find_spec-guarded)
-phonenumbers==9.0.36
 Pillow==12.3.0
 polib==1.2.0
+# The <8 cap is preemptive, not a hold: 7.35.1 is the current release and this
+# range already admits it. The vendored SCSS gencode
+# (odoo/libs/_vendor/embedded_sass_pb2.py) is stamped against 6.31.1 and must be
+# regenerated before the cap moves to <9.
 protobuf>=6.31.0,<8
 psutil==7.2.2
-psycopg[c,binary]>=3.3.4
+# `binary` ships a self-contained wheel and is what a plain `pip install` can
+# always satisfy; setup.py declares the same extra. Deployments with a build
+# toolchain and libpq headers can swap in psycopg[c] for the faster C
+# implementation — psycopg prefers `c` over `binary` when both are present.
+psycopg[binary]>=3.3.4
 psycopg-pool>=3.3.1
-PyMuPDF==1.28.2  # AGPL-3.0-or-commercial; base/ir_actions_report guards the import and degrades
-pyopenssl==25.3.0
-pypdf==6.15.0
-pywin32==312 ; sys_platform == 'win32'
-pyserial==3.5  # iot_handlers/ only; iot_drivers is installable=False so no manifest can declare it
+pyopenssl==25.3.0  # base/ir_mail_server.py imports it unguarded
+pypdf==6.15.0  # odoo/tools/pdf/_pypdf.py
 python-dateutil==2.9.0.post0
-python-magic==0.4.27 ; sys_platform != 'win32'
-python-ldap==3.4.7 ; sys_platform != 'win32'
-python-stdnum==2.2  # Fixes operation_timeout in SOAP client
+python-magic==0.4.27 ; sys_platform != 'win32'  # odoo/libs/filesystem/mimetypes.py
 pytz  # no version pinning to avoid OS perturbations
-pyusb==1.3.1  # iot_handlers/ only; see pyserial above
-qrcode==8.2
-reportlab==4.4.10
+reportlab==4.4.10  # odoo/libs/barcode.py, odoo/tools/pdf/
 requests==2.34.2
-rjsmin==1.2.5
+rjsmin==1.2.5  # base assets pipeline (ir_qweb_assets, assetsbundle)
 rl-renderPM==4.0.3 ; sys_platform == 'win32'  # Needed by reportlab but included in deb package
 rlPyCairo==0.4.0  # Cairo backend for reportlab barcode/chart rendering (not in deb package)
 urllib3==2.7.0
-vobject==0.9.9
-weasyprint==69.0
+weasyprint==69.0  # base/ir_actions_report.py imports it unguarded
 Werkzeug==3.1.8
-xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader
 XlsxWriter==3.2.9
-zeep==4.3.3  # _monkeypatches, base_vat, and l10n/HR modules in enterprise + agromarin
-beautifulsoup4==4.15.0  # odoo/_monkeypatches/bs4.py, html_editor
-defusedxml==0.7.1  # attachment_indexation, website
-google-auth==2.56.3  # cloud_storage_google, enterprise/social_push_notifications
