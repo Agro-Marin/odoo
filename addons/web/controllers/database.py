@@ -130,13 +130,13 @@ class Database(http.Controller):
     @http.route("/web/database/selector", type="http", auth="none")
     def selector(self, **kw) -> str:
         if request.db:
-            request.env.cr.close()
+            request.detach_database()
         return self._render_template(manage=False)
 
     @http.route("/web/database/manager", type="http", auth="none")
     def manager(self, **kw) -> str:
         if request.db:
-            request.env.cr.close()
+            request.detach_database()
         return self._render_template()
 
     @http.route(
@@ -216,7 +216,7 @@ class Database(http.Controller):
                 [master_pwd, name, new_name, str2bool(neutralize_database)],
             )
             if request.db == name:
-                request.env.cr.close()
+                request.detach_database()
             return request.redirect("/web/database/manager")
         except Exception as e:
             _logger.exception("Database duplication error.")
@@ -236,7 +236,7 @@ class Database(http.Controller):
             if not dispatch_rpc("db", "drop", [master_pwd, name]):
                 raise RuntimeError(f"Database {name!r} was not found")
             if request.session.db == name:
-                request.env.cr.close()
+                request.detach_database()
                 request.session.logout()
             return request.redirect("/web/database/manager")
         except Exception as e:

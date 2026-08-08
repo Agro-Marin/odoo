@@ -88,6 +88,26 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self.registry: Registry | None = None
         self.env: odoo.api.Environment | None = None
         self._post_init_done: bool = False
+        self.database_detached: bool = False
+
+    def detach_database(self) -> None:
+        """Close this request's cursor and declare the detachment deliberate.
+
+        For the handful of handlers that must finish *without* a transaction on
+        the database they were routed to — the database manager and its
+        operations, which may back up, duplicate or drop that very database, and
+        the RPC entry point that dispatches outside the ORM. Closing the cursor
+        by hand is the mechanism; this method is the declaration.
+
+        ``retrying()`` warns when it finds the cursor closed, because normally
+        that means a handler silently lost its work and no registry signal was
+        sent. That warning is worth keeping sharp, so the deliberate cases say
+        so here rather than tripping it: every ``/web/database/manager`` request
+        logged one, which is how a real accidental close would have hidden.
+        """
+        self.database_detached = True
+        if self.env is not None and not self.env.cr.closed:
+            self.env.cr.close()
 
     def _post_init(self) -> None:
         if self._post_init_done:

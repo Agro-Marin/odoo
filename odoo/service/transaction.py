@@ -124,12 +124,20 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
         raise
 
     if env.cr.closed:
-        _logger.warning(
-            "retrying(): the cursor was closed before commit; %s's work was "
-            "NOT committed and no registry signal was sent. The handler closed "
-            "its own cursor, or something else did.",
-            getattr(func, "__qualname__", func),
-        )
+        # `getattr` rather than attribute access: this runs on the tail of every
+        # served request, and `request` is not always a real `Request` (tests
+        # patch it, `borrow_request` swaps it). Missing the warning on such a
+        # stand-in is a far smaller failure than raising from here.
+        current_request = http.request
+        if not (
+            current_request and getattr(current_request, "database_detached", False)
+        ):
+            _logger.warning(
+                "retrying(): the cursor was closed before commit; %s's work was "
+                "NOT committed and no registry signal was sent. The handler closed "
+                "its own cursor, or something else did.",
+                getattr(func, "__qualname__", func),
+            )
         return result
 
     commits_before = env.cr.commit_count

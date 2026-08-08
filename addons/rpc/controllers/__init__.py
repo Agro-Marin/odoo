@@ -13,7 +13,7 @@ https://www.odoo.com/documentation/latest/developer/reference/external_api.html#
 
 def _check_request():
     if request.db:
-        request.env.cr.close()
+        request.detach_database()
 
 
 from .jsonrpc import JSONRPC
