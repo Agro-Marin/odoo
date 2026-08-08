@@ -71,7 +71,7 @@ DOC_PATHS = (
     _ARCH_DOCS / "gates.md",
     _ARCH_DOCS / "risks.md",
     _ARCH_DOCS / "qualities.md",
-    _ARCH_DOCS / "MEASUREMENTS.md",
+    _ARCH_DOCS / "findings.md",
 )
 for _p in DOC_PATHS:
     if not _p.is_file():
