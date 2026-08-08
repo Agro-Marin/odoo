@@ -22,7 +22,7 @@ from odoo.exceptions import AccessError, MissingError, UserError, ValidationErro
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.sql import escape_psql
-from odoo.libs.web.urls import _contains_dot_segments
+from odoo.libs.web import contains_dot_segments
 from odoo.modules.module import get_manifest
 from odoo.tools import SQL, Query
 from odoo.tools.image import image_process
@@ -553,7 +553,7 @@ class Website(models.Model):
                     _("The provided website domain is not a valid URL.")
                 ) from None
 
-            if _contains_dot_segments(parsed.path):
+            if contains_dot_segments(parsed.path):
                 raise ValidationError(
                     _(
                         "The domain path cannot contain relative path segments like '/./' or '/../'."
