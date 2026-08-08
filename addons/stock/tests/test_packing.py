@@ -557,7 +557,7 @@ class TestPacking(TestPackingCommon):
             }
         )
 
-        pick_move._assign_picking()
+        pick_move._update_picking()
         picking = pick_move.picking_id
         picking.action_confirm()
         picking.action_put_in_pack()

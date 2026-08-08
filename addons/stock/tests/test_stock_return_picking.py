@@ -324,7 +324,7 @@ class TestReturnPicking(TestStockCommon):
             return_picking.move_line_ids.lot_id.ids,
             original_picking.move_line_ids[:3].lot_id.ids,
         )
-        self.assertEqual(return_picking.move_ids.display_assign_serial, False)
+        self.assertEqual(return_picking.move_ids.show_lot_actions, False)
 
         # Exchange: no returns, type in, 3 item
         self.assertEqual(exchange_picking.return_count, 0)
@@ -333,7 +333,7 @@ class TestReturnPicking(TestStockCommon):
         # There should be not pre-selected serial IDs for the exchange picking
         # and it should be possible to create new serial numbers because it's an incoming picking.
         self.assertListEqual(exchange_picking.move_line_ids.lot_id.ids, [])
-        self.assertEqual(exchange_picking.move_ids.display_assign_serial, True)
+        self.assertEqual(exchange_picking.move_ids.show_lot_actions, True)
 
     def test_return_picking_with_different_uom(self):
         """

@@ -628,7 +628,7 @@ class StockMoveLine(models.Model):
                         )
                         quants = lots.quant_ids.filtered(
                             lambda q: (
-                                q.quantity != 0
+                                not q.product_uom_id.is_zero(q.quantity)
                                 and q.location_id.usage
                                 in ["customer", "internal", "transit"]
                             )
@@ -1612,7 +1612,15 @@ class StockMoveLine(models.Model):
         moves = self.picking_id.move_ids.filtered(
             lambda x: x.product_id == self.product_id
         )
-        return moves.sorted(key=lambda m: m.quantity < m.product_qty, reverse=True)
+        # Moves still short of their demand first. Both operands must be in the
+        # *move's* UoM: `product_qty` is the demand converted to the product's UoM,
+        # so comparing it against `quantity` (which is in `product_uom_id`) reported
+        # every move of a non-product UoM as short -- a move of 1 Dozen reads
+        # quantity=1 against product_qty=12 even when fully picked.
+        return moves.sorted(
+            key=lambda m: m.product_uom_id.compare(m.quantity, m.product_uom_qty) < 0,
+            reverse=True,
+        )
 
     def _get_write_field_updates(self, vals):
         """Resolve the reservation-affecting relational fields present in `vals` to recordsets,
@@ -2007,7 +2015,8 @@ class StockMoveLine(models.Model):
                 )
 
             if (
-                "quantity" in vals and vals["quantity"] != ml.quantity
+                "quantity" in vals
+                and ml.product_uom_id.compare(vals["quantity"], ml.quantity)
             ) or "product_uom_id" in vals:
                 moves_to_recompute_state |= ml.move_id
         return moves_to_recompute_state

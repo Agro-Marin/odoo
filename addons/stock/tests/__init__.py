@@ -41,3 +41,4 @@ from . import test_audit_fixes_procure
 from . import test_audit_fixes_picking
 from . import test_audit_fixes_core
 from . import test_audit_fixes_v2
+from . import test_generate_lot_line_vals

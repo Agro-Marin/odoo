@@ -144,8 +144,8 @@ class StockMove(models.Model):
     # HELPER METHODS
     # ------------------------------------------------------------
 
-    def _assign_picking_post_process(self, new=False):
-        super()._assign_picking_post_process(new=new)
+    def _post_process_picking(self, new=False):
+        super()._post_process_picking(new=new)
         if new:
             picking_id = self.mapped("picking_id")
             sale_order_ids = self.mapped("sale_line_id.order_id")

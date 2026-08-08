@@ -132,9 +132,7 @@ class StockReplenishmentInfo(models.TransientModel):
                 if isinstance(line[1], str):
                     formatted_description.append((line[0], line[1], False))
                 else:
-                    intermediary_date = intermediary_date + relativedelta(
-                        days=int(line[1])
-                    )
+                    intermediary_date += relativedelta(days=int(line[1]))
                     formatted_description.append(
                         (line[0], format_date(self.env, intermediary_date), True)
                     )
@@ -183,13 +181,13 @@ class StockReplenishmentInfo(models.TransientModel):
         today = fields.Datetime.now()
         start_date = limit_date = today
         if self.based_on == "one_week":
-            start_date = start_date - relativedelta(weeks=1)
+            start_date -= relativedelta(weeks=1)
         elif self.based_on == "one_month":
-            start_date = start_date - relativedelta(months=1)
+            start_date -= relativedelta(months=1)
         elif self.based_on == "three_months":
-            start_date = start_date - relativedelta(months=3)
+            start_date -= relativedelta(months=3)
         elif self.based_on == "one_year":
-            start_date = start_date - relativedelta(years=1)
+            start_date -= relativedelta(years=1)
         else:  # Relative period of time.
             start_date = datetime(year=today.year - 1, month=today.month, day=1)
             if self.based_on == "last_year_2":
@@ -397,7 +395,10 @@ class StockReplenishmentOption(models.TransientModel):
     def _compute_warning_message(self):
         self.warning_message = ""
         for record in self:
-            if record.qty_free < record.qty_to_order:
+            if (
+                record.product_id.uom_id.compare(record.qty_free, record.qty_to_order)
+                < 0
+            ):
                 record.warning_message = _(
                     "%(warehouse)s can only provide %(free_qty)s %(uom)s, while the quantity to order is %(qty_to_order)s %(uom)s.",
                     warehouse=record.warehouse_id.name,
@@ -407,7 +408,7 @@ class StockReplenishmentOption(models.TransientModel):
                 )
 
     def select_route(self):
-        if self.qty_free < self.qty_to_order:
+        if self.product_id.uom_id.compare(self.qty_free, self.qty_to_order) < 0:
             return {
                 "type": "ir.actions.act_window",
                 "res_model": "stock.replenishment.option",

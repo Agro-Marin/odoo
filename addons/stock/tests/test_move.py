@@ -2552,8 +2552,8 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_availability_1(self):
-        """Check that the `availability` field on a move is correctly computed when there is
-        more than enough products in stock.
+        """A freshly created (draft) move reserves nothing: the stock stays fully
+        available even though the move asks for part of it.
         """
         # make some stock
         self.env["stock.quant"]._update_available_quantity(
@@ -2573,6 +2573,7 @@ class TestStockMove(TestStockCommon):
             }
         )
 
+        self.assertEqual(move1.state, "draft")
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.productA, self.stock_location
@@ -2582,11 +2583,10 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(
             len(self.gather_relevant(self.productA, self.stock_location)), 1.0
         )
-        self.assertEqual(move1.availability, 100.0)
 
     def test_availability_2(self):
-        """Check that the `availability` field on a move is correctly computed when there is
-        not enough products in stock.
+        """Same, when the move asks for more than the stock holds: a draft move still
+        reserves nothing.
         """
         # make some stock
         self.env["stock.quant"]._update_available_quantity(
@@ -2606,6 +2606,7 @@ class TestStockMove(TestStockCommon):
             }
         )
 
+        self.assertEqual(move1.state, "draft")
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.productA, self.stock_location
@@ -2615,7 +2616,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(
             len(self.gather_relevant(self.productA, self.stock_location)), 1.0
         )
-        self.assertEqual(move1.availability, 50.0)
 
     def test_availability_3(self):
         lot1 = self.env["stock.lot"].create(
@@ -3152,7 +3152,6 @@ class TestStockMove(TestStockCommon):
             ),
             150.0,
         )
-        self.assertEqual(move1.availability, 120.0)
 
         # confirmation
         move1._action_confirm()
@@ -3208,7 +3207,6 @@ class TestStockMove(TestStockCommon):
             ),
             150.0,
         )
-        self.assertEqual(move1.availability, 100.0)
 
         # confirmation
         move1._action_confirm()
@@ -10022,3 +10020,91 @@ class TestStockMove(TestStockCommon):
         # All the move lines are also picked
         for move_line in delivery.move_ids.move_line_ids:
             self.assertTrue(move_line.picked)
+
+    def test_show_lot_actions_follows_state(self):
+        """`show_lot_actions` gates the Generate/Import Serials-Lots buttons on the
+        Detailed Operations form. Its body reads `state` and `origin_returned_move_id`,
+        so both must be in its `@api.depends`: they were not, and the buttons kept
+        showing on a move that had just been validated until something else forced a
+        recompute. Asserted without invalidating the cache -- that is the whole point.
+        """
+        picking_type = self.env.ref("stock.picking_type_in")
+        self.assertTrue(picking_type.use_create_lots)
+        product = self.env["product.product"].create(
+            {"name": "SN product", "is_storable": True, "tracking": "serial"}
+        )
+        receipt = self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": product.id,
+                            "product_uom_id": product.uom_id.id,
+                            "product_uom_qty": 1.0,
+                        }
+                    )
+                ],
+            }
+        )
+        move = receipt.move_ids
+        receipt.action_confirm()
+        self.assertTrue(move.show_lot_actions)
+
+        # Confirming an incoming serial move already lays down one line per unit;
+        # name the serial on it rather than adding a second, lot-less one.
+        self.assertEqual(len(move.move_line_ids), 1)
+        move.move_line_ids.lot_name = "sn-1"
+        move.picked = True
+        receipt.button_validate()
+
+        self.assertEqual(move.state, "done")
+        self.assertFalse(
+            move.show_lot_actions,
+            "a done move must not offer the lot buttons any more",
+        )
+
+    def test_show_lot_actions_follows_origin_returned_move(self):
+        """Same for `origin_returned_move_id`: a move that becomes a return stops
+        offering to create lots, and the flag must follow without a manual flush.
+        """
+        picking_type = self.env.ref("stock.picking_type_in")
+        product = self.env["product.product"].create(
+            {"name": "SN product 2", "is_storable": True, "tracking": "serial"}
+        )
+        receipt = self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": product.id,
+                            "product_uom_id": product.uom_id.id,
+                            "product_uom_qty": 1.0,
+                        }
+                    )
+                ],
+            }
+        )
+        move = receipt.move_ids
+        receipt.action_confirm()
+        self.assertTrue(move.show_lot_actions)
+
+        origin = self.env["stock.move"].create(
+            {
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.supplier_location.id,
+                "product_id": product.id,
+                "product_uom_id": product.uom_id.id,
+                "product_uom_qty": 1.0,
+            }
+        )
+        move.origin_returned_move_id = origin
+        self.assertFalse(
+            move.show_lot_actions,
+            "a return move must not offer to create new lots",
+        )

@@ -63,9 +63,9 @@ class StockMove(models.Model):
             'project_id': self.sale_line_id.order_id.project_id.id,
         }
 
-    def _assign_picking_values(self, picking):
+    def _prepare_picking_values(self, picking):
         return {
-            **super()._assign_picking_values(picking),
+            **super()._prepare_picking_values(picking),
             'project_id': self[:1].sale_line_id.order_id.project_id.id,
         }
 

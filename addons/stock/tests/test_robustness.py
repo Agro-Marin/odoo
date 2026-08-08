@@ -761,35 +761,3 @@ class TestRobustness(TransactionCase):
             ]
         )
         self.assertEqual(found, move)
-
-    def test_availability_cache_shared_product_location(self):
-        """Multiple moves with same (product, location) should share availability computation."""
-        product = self.env["product.product"].create(
-            {
-                "name": "Shared Product",
-                "is_storable": True,
-            }
-        )
-        self.env["stock.quant"]._update_available_quantity(
-            product, self.stock_location, 100.0
-        )
-
-        # Create 3 moves for the same product+location
-        moves = self.env["stock.move"].create(
-            [
-                {
-                    "location_id": self.stock_location.id,
-                    "location_dest_id": self.customer_location.id,
-                    "product_id": product.id,
-                    "product_uom_qty": qty,
-                    "product_uom_id": self.uom_unit.id,
-                }
-                for qty in (10.0, 20.0, 30.0)
-            ]
-        )
-        moves._action_confirm()
-
-        # Each move's availability should be capped at its own product_qty
-        self.assertEqual(moves[0].availability, 10.0)
-        self.assertEqual(moves[1].availability, 20.0)
-        self.assertEqual(moves[2].availability, 30.0)

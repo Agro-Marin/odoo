@@ -193,7 +193,7 @@ class StockPackage(models.Model):
                     vals["location_id"]
                 )
                 quant_to_move = self.contained_quant_ids.filtered(
-                    lambda q: q.quantity > 0
+                    lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
                 )
                 quant_to_move.move_quants(
                     location_dest_id,
@@ -208,7 +208,7 @@ class StockPackage(models.Model):
                 # NEW -> OLD within the same package: it nets the OLD quant to
                 # zero and recreates the -N at NEW.
                 negative_quants = self.contained_quant_ids.filtered(
-                    lambda q: q.quantity < 0
+                    lambda q: q.product_uom_id.compare(q.quantity, 0) < 0
                 )
                 if negative_quants:
                     message = _("Package manually relocated")

@@ -400,7 +400,7 @@ class TestOldRules(TestStockCommon):
         )
 
         # create chained pick/pack moves to test with
-        ship_move._assign_picking()
+        ship_move._update_picking()
         ship_move._action_confirm()
         pack_move = ship_move.move_orig_ids[0]
         pick_move = pack_move.move_orig_ids[0]
@@ -441,7 +441,7 @@ class TestOldRules(TestStockCommon):
         )
 
         # create chained pick/pack moves to test with
-        ship_move._assign_picking()
+        ship_move._update_picking()
         ship_move._action_confirm()
         pack_move = ship_move.move_orig_ids[0]
         pick_move = pack_move.move_orig_ids[0]

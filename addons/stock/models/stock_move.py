@@ -328,12 +328,6 @@ class StockMove(models.Model):
         string="Packages",
         compute="_compute_package_ids",
     )
-    availability = fields.Float(
-        string="Forecasted Quantity",
-        compute="_compute_product_availability",
-        readonly=True,
-        help="Quantity in stock that can still be reserved for this move",
-    )
     # used to depict a restriction on the ownership of quants to consider when marking this move as 'done'
     restrict_partner_id = fields.Many2one(
         comodel_name="res.partner",
@@ -399,8 +393,16 @@ class StockMove(models.Model):
         compute="_compute_is_quantity_done_editable",
     )
     move_lines_count = fields.Integer(compute="_compute_move_lines_count")
-    display_assign_serial = fields.Boolean(compute="_compute_display_assign_serial")
-    display_import_lot = fields.Boolean(compute="_compute_display_assign_serial")
+    # One flag, not two: `display_assign_serial` and `display_import_lot` were two
+    # fields carrying the same value (`display_assign_serial = display_import_lot`),
+    # each gating one of the two lot buttons on the Detailed Operations form. Both
+    # buttons are offered under exactly the same condition -- this move accepts
+    # hand-entered lots -- so it is one flag.
+    show_lot_actions = fields.Boolean(
+        string="Show Lot/Serial Actions",
+        compute="_compute_show_lot_actions",
+        help="Whether the Generate/Import Serials-Lots buttons apply to this move.",
+    )
     next_serial = fields.Char("First SN/Lot")
     next_serial_count = fields.Integer("Number of SN/Lots")
     orderpoint_id = fields.Many2one(
@@ -678,22 +680,27 @@ class StockMove(models.Model):
                 location_dest = move.location_final_id
             move.location_dest_id = location_dest
 
+    # The dependency list mirrors the body exactly. It used to declare
+    # `picking_type_id.use_existing_lots`, which the body never reads, while omitting
+    # `state` and `origin_returned_move_id`, which it does -- so the buttons kept
+    # showing on a move that had just been validated, cancelled or turned into a
+    # return, until something else forced a recompute.
     @api.depends(
         "has_tracking",
-        "picking_type_id.use_create_lots",
-        "picking_type_id.use_existing_lots",
         "product_id",
+        "picking_type_id.use_create_lots",
+        "origin_returned_move_id",
+        "state",
     )
-    def _compute_display_assign_serial(self):
+    def _compute_show_lot_actions(self):
         for move in self:
-            move.display_import_lot = (
+            move.show_lot_actions = (
                 move.has_tracking != "none"
                 and move.product_id
                 and move.picking_type_id.use_create_lots
                 and not move.origin_returned_move_id.id
                 and move.state not in ("done", "cancel")
             )
-            move.display_assign_serial = move.display_import_lot
 
     @api.depends("move_line_ids.result_package_id")
     def _compute_has_lines_without_result_package(self):
@@ -880,61 +887,41 @@ class StockMove(models.Model):
         field will be used in `_action_done` in order to know if the move will need a backorder or
         an extra move.
         """
-        if not any(self._ids):
-            # onchange
-            for move in self:
-                move.quantity = move._quantity_sml()
-        else:
-            # compute
-            move_lines_ids = set()
-            for move in self:
-                move_lines_ids |= set(move.move_line_ids.ids)
+        # Partition rather than branch on `any(self._ids)`. Unsaved moves have to sum
+        # their lines from the cache (their lines are not in the database yet), saved
+        # ones are aggregated in one query. The old form picked ONE branch for the
+        # whole recordset from `any(...)`, so a set holding both sent the unsaved
+        # moves down the query path, where `sum_qty[NewId]` hit the defaultdict and
+        # silently yielded 0.0. Unreachable today -- onchange turns every record of an
+        # x2many into a `NewId`, so the set is never mixed -- but it was correct by
+        # accident, and nothing in the method said so.
+        new_moves = self.browse(move_id for move_id in self._ids if not move_id)
+        for move in new_moves:
+            move.quantity = move._quantity_sml()
 
-            data = self.env["stock.move.line"]._read_group(
-                [("id", "in", list(move_lines_ids))],
-                ["move_id", "product_uom_id"],
-                ["quantity:sum"],
-            )
-            sum_qty = defaultdict(float)
-            for move, product_uom_id, qty_sum in data:
-                uom = move.product_uom_id
-                sum_qty[move.id] += product_uom_id._compute_quantity(
-                    qty_sum,
-                    uom,
-                    round=False,
-                )
-
-            for move in self:
-                move.quantity = sum_qty[move.id]
-
-    @api.depends("state", "product_id", "product_qty", "location_id")
-    def _compute_product_availability(self):
-        """Fill the `availability` field on a stock move, which is the quantity to potentially
-        reserve. When the move is done, `availability` is set to the quantity the move did actually
-        move.
-        """
-        for move in self:
-            if move.state == "done":
-                move.availability = move.product_qty
-            elif not move.product_id:
-                move.availability = 0.0
-
-        # One _get_available_quantity call per unique (product, location) instead of
-        # one per move: moves sharing the same product+location share the cached value.
-        non_done = self.filtered(lambda m: m.state != "done" and m.product_id)
-        if not non_done:
+        saved_moves = self - new_moves
+        if not saved_moves:
             return
+        move_lines_ids = set()
+        for move in saved_moves:
+            move_lines_ids |= set(move.move_line_ids.ids)
 
-        Quant = self.env["stock.quant"]
-        availability_cache = {}
-        for move in non_done:
-            key = (move.product_id.id, move.location_id.id)
-            if key not in availability_cache:
-                availability_cache[key] = Quant._get_available_quantity(
-                    move.product_id,
-                    move.location_id,
-                )
-            move.availability = min(move.product_qty, availability_cache[key])
+        data = self.env["stock.move.line"]._read_group(
+            [("id", "in", list(move_lines_ids))],
+            ["move_id", "product_uom_id"],
+            ["quantity:sum"],
+        )
+        sum_qty = defaultdict(float)
+        for move, product_uom_id, qty_sum in data:
+            uom = move.product_uom_id
+            sum_qty[move.id] += product_uom_id._compute_quantity(
+                qty_sum,
+                uom,
+                round=False,
+            )
+
+        for move in saved_moves:
+            move.quantity = sum_qty[move.id]
 
     @api.depends(
         "product_id",
@@ -1563,41 +1550,61 @@ Please change the quantity done or the rounding precision of your unit of measur
         count,
         lot_text,
     ):
+        """Build the move line values the Generate/Import Serials-Lots dialog creates.
+
+        RPC entry point: every argument comes from the client, so each phase below
+        validates before it allocates. Kept as a five-step outline; the steps carry
+        the detail.
+        """
+        default_vals = self._prepare_lot_generation_defaults(context_data, mode)
+        lot_names, lot_qties = self._prepare_lot_generation_names(
+            default_vals, mode, first_lot, count, lot_text
+        )
+        vals_list = self._prepare_generated_move_line_vals(
+            default_vals, lot_names, lot_qties
+        )
+        product = self.env["product.product"].browse(default_vals["product_id"])
+        if default_vals.get("picking_type_id"):
+            picking_type = self.env["stock.picking.type"].browse(
+                default_vals["picking_type_id"],
+            )
+            if picking_type.use_existing_lots or context_data.get("force_lot_m2o"):
+                # `default_company_id` is not guaranteed by every client context
+                # (RPC boundary); the callee accepts a falsy company.
+                self._create_lot_ids_from_move_line_vals(
+                    vals_list,
+                    default_vals["product_id"],
+                    default_vals.get("company_id", False),
+                )
+        self._format_move_line_vals_for_client(vals_list)
+        # Only generated names come from the sequence; import mode's names are
+        # user-pasted (split_lots), so advancing the sequence for them would
+        # skip numbers whenever the pasted `first_lot` happened to match.
+        if mode == "generate":
+            self._update_lot_sequence(product, first_lot, len(lot_qties))
+        return vals_list
+
+    @api.model
+    def _prepare_lot_generation_defaults(self, context_data, mode):
+        """Normalise the client context into move line defaults, rejecting a request
+        that cannot produce them.
+
+        Raises rather than returns on a bad request: the fields dereferenced by the
+        later phases come straight from the client-supplied context, and a missing key
+        must surface as a clean UserError, not a raw KeyError -> Fault 500.
+        """
         if not context_data.get("default_product_id"):
             raise UserError(_("No product found to generate Serials/Lots for."))
         if mode not in ("generate", "import"):
             # RPC-reachable method: a real exception, not an `assert` that
             # disappears under `python -O`.
             raise UserError(_("Invalid mode %s.", mode))
+
         default_vals = {}
-
-        def generate_lot_qty(quantity, qty_per_lot):
-            if qty_per_lot <= 0:
-                raise UserError(
-                    _("The quantity per lot should always be a positive value."),
-                )
-            line_count = int(quantity // qty_per_lot)
-            if line_count > GENERATED_LOT_VALS_MAX:
-                # Bound before the list is materialised (client-supplied values).
-                raise UserError(
-                    _(
-                        "You cannot generate more than %s Serials/Lots at once.",
-                        GENERATED_LOT_VALS_MAX,
-                    ),
-                )
-            leftover = quantity % qty_per_lot
-            qty_array = [qty_per_lot] * line_count
-            if leftover:
-                qty_array.append(leftover)
-            return qty_array
-
         for key in context_data:
             if key.startswith("default_"):
                 default_vals[key.removeprefix("default_")] = context_data[key]
 
-        # RPC boundary: the fields dereferenced below come straight from the
-        # client-supplied context. A missing key must surface as a clean
-        # UserError, not a raw KeyError -> Fault 500.
         required_keys = ["tracking", "location_dest_id"]
         if default_vals.get("tracking") == "lot" and mode == "generate":
             required_keys.append("quantity")
@@ -1609,19 +1616,25 @@ Please change the quantity done or the rounding precision of your unit of measur
                     keys=", ".join(missing),
                 ),
             )
+        return default_vals
 
+    @api.model
+    def _prepare_lot_generation_names(
+        self, default_vals, mode, first_lot, count, lot_text
+    ):
+        """Resolve the lot names to create and the quantity carried by each.
+
+        :return: ``(lot_names, lot_qties)``, of equal length and each bounded by
+            `GENERATED_LOT_VALS_MAX` -- the bound is applied *before* any list is
+            materialised, because `count` and `quantity` are client-supplied and an
+            absurd value would otherwise allocate gigabytes here.
+        """
         if default_vals["tracking"] == "lot" and mode == "generate":
-            lot_qties = generate_lot_qty(default_vals["quantity"], count)
+            lot_qties = self._prepare_lot_generation_split(
+                default_vals["quantity"], count
+            )
         else:
-            # Bound before the list is materialised: `count` comes straight from
-            # the client and an absurd value would allocate gigabytes here.
-            if count > GENERATED_LOT_VALS_MAX:
-                raise UserError(
-                    _(
-                        "You cannot generate more than %s Serials/Lots at once.",
-                        GENERATED_LOT_VALS_MAX,
-                    ),
-                )
+            self._check_generated_lot_count(count)
             lot_qties = [1] * count
 
         if mode == "generate":
@@ -1629,10 +1642,31 @@ Please change the quantity done or the rounding precision of your unit of measur
                 first_lot,
                 len(lot_qties),
             )
-        elif mode == "import":
+        else:
             lot_names = self.split_lots(lot_text)
             lot_qties = [1] * len(lot_names)
-        if len(lot_qties) > GENERATED_LOT_VALS_MAX:
+        self._check_generated_lot_count(len(lot_qties))
+        return lot_names, lot_qties
+
+    @api.model
+    def _prepare_lot_generation_split(self, quantity, qty_per_lot):
+        """Split `quantity` into one entry per lot of `qty_per_lot`, plus the leftover."""
+        if qty_per_lot <= 0:
+            raise UserError(
+                _("The quantity per lot should always be a positive value."),
+            )
+        line_count = int(quantity // qty_per_lot)
+        self._check_generated_lot_count(line_count)
+        leftover = quantity % qty_per_lot
+        qty_array = [qty_per_lot] * line_count
+        if leftover:
+            qty_array.append(leftover)
+        return qty_array
+
+    @api.model
+    def _check_generated_lot_count(self, count):
+        """Bound a client-supplied line count before anything is allocated for it."""
+        if count > GENERATED_LOT_VALS_MAX:
             raise UserError(
                 _(
                     "You cannot generate more than %s Serials/Lots at once.",
@@ -1640,6 +1674,9 @@ Please change the quantity done or the rounding precision of your unit of measur
                 ),
             )
 
+    @api.model
+    def _prepare_generated_move_line_vals(self, default_vals, lot_names, lot_qties):
+        """One move line values dict per lot, each routed by the putaway strategy."""
         vals_list = []
         loc_dest = self.env["stock.location"].browse(
             default_vals["location_dest_id"],
@@ -1657,27 +1694,22 @@ Please change the quantity done or the rounding precision of your unit of measur
                     "product_uom_id": default_vals.get("uom_id", product.uom_id.id),
                 },
             )
-        if default_vals.get("picking_type_id"):
-            picking_type = self.env["stock.picking.type"].browse(
-                default_vals["picking_type_id"],
-            )
-            if picking_type.use_existing_lots or context_data.get("force_lot_m2o"):
-                # `default_company_id` is not guaranteed by every client context
-                # (RPC boundary); the callee accepts a falsy company.
-                self._create_lot_ids_from_move_line_vals(
-                    vals_list,
-                    default_vals["product_id"],
-                    default_vals.get("company_id", False),
-                )
-        # format many2one values for webclient, id + display_name
+        return vals_list
+
+    @api.model
+    def _format_move_line_vals_for_client(self, vals_list):
+        """Rewrite every relational value in place as the webclient's
+        ``{id, display_name}`` shape.
+
+        Resolves `display_name` with one browse per field (records prefetch together)
+        instead of one browse per value across every row (N+1).
+        """
         MoveLine = self.env["stock.move.line"]
         relational_fields = {
             f_name
             for f_name in MoveLine._fields
             if isinstance(MoveLine[f_name], models.Model)
         }
-        # Resolve `display_name` with one browse per field (records prefetch
-        # together) instead of one browse per value across every row (N+1).
         ids_by_field = defaultdict(OrderedSet)
         for values in vals_list:
             for f_name in values.keys() & relational_fields:
@@ -1694,28 +1726,29 @@ Please change the quantity done or the rounding precision of your unit of measur
                     "id": value,
                     "display_name": name_by_field_id.get((f_name, value), False),
                 }
-        # Only generated names come from the sequence; import mode's names are
-        # user-pasted (split_lots), so advancing the sequence for them would
-        # skip numbers whenever the pasted `first_lot` happened to match.
-        if mode == "generate" and product.lot_sequence_id and first_lot:
-            current_sequence = product.lot_sequence_id._get_current_sequence()
-            increment = product.lot_sequence_id.number_increment
-            first_number = current_sequence.number_next_actual - increment
-            final_number = first_number
-            # Since the value might have been incremented by the "New" button of the "Generate Serial Numbers" wizard
-            # we need to consider both the decremented and the current value of the sequence
-            if first_lot == product.lot_sequence_id.get_next_char(first_number):
-                final_number = first_number + len(lot_qties)
-            elif first_lot == product.lot_sequence_id.get_next_char(
-                first_number + increment
-            ):
-                final_number = first_number + increment + len(lot_qties)
-            # This sudo() write is steered by the client-supplied `first_lot`:
-            # clamp it so the sequence can only ever advance, never rewind.
-            final_number = max(final_number, current_sequence.number_next_actual)
-            if final_number != current_sequence.number_next_actual:
-                current_sequence.sudo().write({"number_next_actual": final_number})
-        return vals_list
+
+    @api.model
+    def _update_lot_sequence(self, product, first_lot, generated_count):
+        """Advance the product's lot sequence past the names just generated."""
+        if not product.lot_sequence_id or not first_lot:
+            return
+        current_sequence = product.lot_sequence_id._get_current_sequence()
+        increment = product.lot_sequence_id.number_increment
+        first_number = current_sequence.number_next_actual - increment
+        final_number = first_number
+        # Since the value might have been incremented by the "New" button of the "Generate Serial Numbers" wizard
+        # we need to consider both the decremented and the current value of the sequence
+        if first_lot == product.lot_sequence_id.get_next_char(first_number):
+            final_number = first_number + generated_count
+        elif first_lot == product.lot_sequence_id.get_next_char(
+            first_number + increment
+        ):
+            final_number = first_number + increment + generated_count
+        # This sudo() write is steered by the client-supplied `first_lot`:
+        # clamp it so the sequence can only ever advance, never rewind.
+        final_number = max(final_number, current_sequence.number_next_actual)
+        if final_number != current_sequence.number_next_actual:
+            current_sequence.sudo().write({"number_next_actual": final_number})
 
     def _action_confirm(self, merge=True, merge_into=False, create_proc=True):
         """Confirms stock move or put it in waiting if it's linked to another move.
@@ -1800,7 +1833,7 @@ Please change the quantity done or the rounding precision of your unit of measur
         for moves_ids in to_assign.values():
             self.browse(moves_ids).with_context(
                 clean_context(self.env.context),
-            )._assign_picking()
+            )._update_picking()
 
         self._check_company()
         moves = self
@@ -1956,14 +1989,14 @@ Please change the quantity done or the rounding precision of your unit of measur
                 rounding_method="HALF-UP",
             )
             if move._should_bypass_reservation():
-                move._assign_reserved_bypass(
+                move._update_reserved_bypass(
                     missing_reserved_quantity,
                     move_line_vals_list,
                     assigned_moves_ids,
                     partially_available_moves_ids,
                     moves_to_redirect,
                 )
-            elif not move._assign_reserved_with_stock(
+            elif not move._update_reserved_with_stock(
                 missing_reserved_quantity,
                 rounding,
                 force_qty,
@@ -2281,7 +2314,7 @@ Please change the quantity done or the rounding precision of your unit of measur
             )
         self.write({"move_line_ids": move_lines_commands})
 
-    def _assign_picking(self):
+    def _update_picking(self):
         """Try to assign the moves to an existing picking that has not been
         reserved yet and has the same procurement group, locations and picking
         type (moves should already have them identical). Otherwise, create a new
@@ -2298,7 +2331,7 @@ Please change the quantity done or the rounding precision of your unit of measur
                 # If a picking is found, we'll append `move` to its move list and thus its
                 # `partner_id` and `ref` field will refer to multiple records. In this
                 # case, we chose to wipe them.
-                vals = moves._assign_picking_values(picking)
+                vals = moves._prepare_picking_values(picking)
                 if vals:
                     picking.write(vals)
             else:
@@ -2313,10 +2346,10 @@ Please change the quantity done or the rounding precision of your unit of measur
                 picking = Picking.create(moves._get_new_picking_values())
 
             moves.write({"picking_id": picking.id})
-            moves._assign_picking_post_process(new=new_picking)
+            moves._post_process_picking(new=new_picking)
         return True
 
-    def _assign_picking_values(self, picking):
+    def _prepare_picking_values(self, picking):
         vals = {}
         if any(picking.partner_id != m.partner_id for m in self):
             vals["partner_id"] = False
@@ -2328,10 +2361,10 @@ Please change the quantity done or the rounding precision of your unit of measur
                 vals["origin"] = new_origin
         return vals
 
-    def _assign_picking_post_process(self, new=False):
+    def _post_process_picking(self, new=False):
         pass
 
-    def _assign_reserved_bypass(
+    def _update_reserved_bypass(
         self,
         missing_reserved_quantity,
         move_line_vals_list,
@@ -2414,7 +2447,7 @@ Please change the quantity done or the rounding precision of your unit of measur
         assigned_moves_ids.add(self.id)
         moves_to_redirect.add(self.id)
 
-    def _assign_reserved_with_stock(
+    def _update_reserved_with_stock(
         self,
         missing_reserved_quantity,
         rounding,
@@ -2577,7 +2610,7 @@ Please change the quantity done or the rounding precision of your unit of measur
             if move.picking_type_id.return_picking_type_id:
                 vals["picking_type_id"] = move.picking_type_id.return_picking_type_id.id
             move.write(vals)
-        self._assign_picking()
+        self._update_picking()
 
     def _break_mto_link(self, parent_move):
         self.move_orig_ids = [Command.unlink(parent_move.id)]
@@ -2907,9 +2940,10 @@ Please change the quantity done or the rounding precision of your unit of measur
         ):
             return "partially_available"
         least_important_move = moves_todo[-1:]
-        if (
-            least_important_move.state == "confirmed"
-            and least_important_move.product_uom_qty == 0
+        if least_important_move.state == "confirmed" and (
+            least_important_move.product_uom_id.is_zero(
+                least_important_move.product_uom_qty
+            )
         ):
             return "assigned"
         return moves_todo[-1:].state or "draft"
@@ -4218,7 +4252,7 @@ Please change the quantity done or the rounding precision of your unit of measur
         # picking whose reference set is covered by the move's own: the union
         # after assignment then equals the move's set, so the picking never ends
         # up serving an origin the move does not belong to (which would wipe its
-        # partner and concatenate origins in `_assign_picking_values`). The
+        # partner and concatenate origins in `_prepare_picking_values`). The
         # subset -- rather than exact -- match matters for flows that accumulate
         # references on the origin document (e.g. merged manufacturing orders):
         # their later moves carry the union of the original references and must
@@ -4592,7 +4626,10 @@ Please change the quantity done or the rounding precision of your unit of measur
                 orderpoints_by_company[orderpoint.company_id] |= orderpoint
             if (
                 orderpoint
-                and move.product_qty > orderpoint.product_min_qty
+                and move.product_id.uom_id.compare(
+                    move.product_qty, orderpoint.product_min_qty
+                )
+                > 0
                 and move.reference_ids
             ):
                 orderpoints_context_by_company[orderpoint.company_id].setdefault(

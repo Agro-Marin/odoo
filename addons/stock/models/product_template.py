@@ -226,7 +226,7 @@ class ProductTemplate(models.Model):
                 # negatives are invalid (mirrors the variant inverse) and
                 # tracked products need lot/serial numbers, which only an
                 # inventory adjustment can provide.
-                if qty < 0:
+                if product_tmpl.uom_id.compare(qty, 0) < 0:
                     raise UserError(
                         _(
                             "The quantity on hand of %(product)s cannot be set to a negative value.",

@@ -1,5 +1,6 @@
 import logging
-from collections import defaultdict, namedtuple
+import typing
+from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
@@ -8,6 +9,21 @@ from odoo.tools.translate import LazyTranslate, _
 
 _logger = logging.getLogger(__name__)
 _lt = LazyTranslate(__name__)
+
+
+class Routing(typing.NamedTuple):
+    """One leg of a warehouse route: take from `from_loc`, put in `dest_loc`,
+    through `picking_type`, by a rule of kind `action` ("pull" / "push" / ...).
+
+    Module-level so the field types are declared once and read by the type
+    checker; `StockWarehouse.Routing` still aliases it, since every call site
+    (and every override in a sibling repo) builds one via `self.Routing(...)`.
+    """
+
+    from_loc: models.Model  # stock.location
+    dest_loc: models.Model  # stock.location
+    picking_type: models.Model  # stock.picking.type
+    action: str
 
 
 ROUTE_NAMES = {
@@ -44,7 +60,7 @@ class StockWarehouse(models.Model):
     _order = "sequence,id"
     _check_company_auto = True
 
-    Routing = namedtuple("Routing", ["from_loc", "dest_loc", "picking_type", "action"])
+    Routing = Routing
 
     # ------------------------------------------------------------
     # FIELDS

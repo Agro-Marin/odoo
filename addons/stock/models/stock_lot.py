@@ -356,7 +356,9 @@ class StockLot(models.Model):
     @api.depends("quant_ids", "quant_ids.quantity")
     def _compute_single_location(self):
         for lot in self:
-            quants = lot.quant_ids.filtered(lambda q: q.quantity > 0)
+            quants = lot.quant_ids.filtered(
+                lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
+            )
             lot.location_id = (
                 quants.location_id if len(quants.location_id) == 1 else False
             )
@@ -390,7 +392,9 @@ class StockLot(models.Model):
         # even when each lot individually sits in exactly one location, and would let
         # one lot's packaging drive another lot's unpack decision.
         for lot in self:
-            quants = lot.quant_ids.filtered(lambda q: q.quantity > 0)
+            quants = lot.quant_ids.filtered(
+                lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
+            )
             if len(quants.location_id) == 1:
                 unpack = len(quants.package_id.quant_ids) > 1
                 quants.move_quants(

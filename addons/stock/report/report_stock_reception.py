@@ -567,12 +567,16 @@ class ReportStockReport_Reception(models.AbstractModel):
                 ):
                     # extra reserved amount goes to no longer linked out
                     reserved_amount_to_remain = new_out_qty_ref - new_out.product_qty
+                    product_uom = new_out.product_id.uom_id
                     for move_line_id in new_out.move_line_ids:
-                        if reserved_amount_to_remain <= 0:
+                        if product_uom.compare(reserved_amount_to_remain, 0) <= 0:
                             break
                         if (
-                            move_line_id.quantity_product_uom
-                            > reserved_amount_to_remain
+                            product_uom.compare(
+                                move_line_id.quantity_product_uom,
+                                reserved_amount_to_remain,
+                            )
+                            > 0
                         ):
                             new_move_line = move_line_id.copy({"quantity": 0})
                             new_move_line.quantity = (

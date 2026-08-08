@@ -280,7 +280,10 @@ class StockWarehouseOrderpoint(models.Model):
     @api.constrains("product_min_qty", "product_max_qty")
     def _check_min_max_qty(self):
         if any(
-            orderpoint.product_min_qty > orderpoint.product_max_qty
+            orderpoint.product_uom_id.compare(
+                orderpoint.product_min_qty, orderpoint.product_max_qty
+            )
+            > 0
             for orderpoint in self
         ):
             raise ValidationError(
@@ -436,7 +439,7 @@ class StockWarehouseOrderpoint(models.Model):
         """
         self.fetch(["qty_on_hand"])
         critical_orderpoints = self.filtered(
-            lambda o: o.qty_on_hand < o.product_min_qty,
+            lambda o: o.product_uom_id.compare(o.qty_on_hand, o.product_min_qty) < 0,
         )
         critical_orderpoints.deadline_date = fields.Date.today()
         orderpoints_to_compute = self - critical_orderpoints
@@ -543,7 +546,12 @@ class StockWarehouseOrderpoint(models.Model):
                 tentative_deadline = horizon_date
                 for move_date, move_qty in sorted(qty_by_date.items()):
                     qty_on_hand_at_date += move_qty
-                    if qty_on_hand_at_date < orderpoint.product_min_qty:
+                    if (
+                        orderpoint.product_uom_id.compare(
+                            qty_on_hand_at_date, orderpoint.product_min_qty
+                        )
+                        < 0
+                    ):
                         tentative_deadline = move_date - relativedelta.relativedelta(
                             days=orderpoint.lead_days,
                         )
@@ -751,7 +759,10 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_product_max_qty(self):
         for orderpoint in self:
             if (
-                orderpoint.product_max_qty < orderpoint.product_min_qty
+                orderpoint.product_uom_id.compare(
+                    orderpoint.product_max_qty, orderpoint.product_min_qty
+                )
+                < 0
                 or not orderpoint.product_max_qty
             ):
                 orderpoint.product_max_qty = orderpoint.product_min_qty
@@ -1003,7 +1014,9 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint.qty_to_order_manual_zero = True
             else:
                 orderpoint.qty_to_order_manual_zero = False
-                if orderpoint.qty_to_order != orderpoint.qty_to_order_computed:
+                if orderpoint.product_uom_id.compare(
+                    orderpoint.qty_to_order, orderpoint.qty_to_order_computed
+                ):
                     orderpoint.qty_to_order_manual = orderpoint.qty_to_order
 
     # ------------------------------------------------------------
@@ -1343,7 +1356,7 @@ class StockWarehouseOrderpoint(models.Model):
             .search([])
         )
         orderpoints_removed = orderpoints._unlink_processed_orderpoints()
-        orderpoints = orderpoints - orderpoints_removed
+        orderpoints -= orderpoints_removed
         if self.env.context.get("force_orderpoint_recompute", False):
             orderpoints._compute_qty_to_order_computed()
             orderpoints._compute_deadline_date()
@@ -1878,7 +1891,7 @@ class StockWarehouseOrderpoint(models.Model):
             .search(domain)
         )
         orderpoints_to_remove = manual_orderpoints.filtered(
-            lambda o: o.qty_to_order <= 0.0,
+            lambda o: o.product_uom_id.compare(o.qty_to_order, 0.0) <= 0,
         )
         orderpoints_to_remove.unlink()
         return orderpoints_to_remove

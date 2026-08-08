@@ -733,7 +733,7 @@ class StockQuant(models.Model):
                 not q.inventory_date and q.location_id.usage in ["internal", "transit"]
             )
         )
-        quants._assign_next_inventory_date()
+        quants._update_next_inventory_date()
 
     def _compute_last_count_date(self):
         """We look at the stock move lines associated with every quant to get the last count date."""
@@ -880,7 +880,15 @@ class StockQuant(models.Model):
             return
         quant_to_inventory = self.env["stock.quant"]
         for quant in self:
-            if quant.quantity == quant.inventory_quantity_auto_apply:
+            # UoM-aware: a bare `==` lets a difference below the product's rounding
+            # count as a real count, and (worse) reads two values that differ only by
+            # float residue as different, fabricating a zero-quantity inventory move.
+            if (
+                quant.product_uom_id.compare(
+                    quant.quantity, quant.inventory_quantity_auto_apply
+                )
+                == 0
+            ):
                 continue
             quant.inventory_quantity = quant.inventory_quantity_auto_apply
             quant_to_inventory |= quant
@@ -1249,7 +1257,7 @@ class StockQuant(models.Model):
     # HELPER METHODS
     # ------------------------------------------------------------
 
-    def _assign_next_inventory_date(self):
+    def _update_next_inventory_date(self):
         """Set ``inventory_date`` on every quant in ``self`` to its location's next
         scheduled count date, resolving each location's date only once. The caller
         decides which quants qualify (``_compute_inventory_date`` filters to
@@ -1591,7 +1599,7 @@ class StockQuant(models.Model):
             moves.date = date
         moves._trigger_assign()
         self.location_id.sudo().write({"last_inventory_date": fields.Date.today()})
-        self._assign_next_inventory_date()
+        self._update_next_inventory_date()
         self.action_clear_inventory_quantity()
 
     @api.model
@@ -1670,7 +1678,9 @@ class StockQuant(models.Model):
                 # drop the whole release and strand a phantom reservation on the
                 # sibling that does hold it. Targeting a reserved row lands the
                 # decrement where the reservation actually is.
-                reserved_rows = quants.filtered(lambda q: q.reserved_quantity > 0)
+                reserved_rows = quants.filtered(
+                    lambda q: q.product_uom_id.compare(q.reserved_quantity, 0) > 0
+                )
                 if reserved_rows:
                     lockable = reserved_rows
             # quants are already ordered by _gather; lock the first candidate.
@@ -2198,7 +2208,10 @@ class StockQuant(models.Model):
             return ""  # Doesn't make sense to generate a GS1 barcode for qty with no other data.
 
         # Quantity part.
-        if self.tracking != "serial" or self.quantity > 1:
+        if (
+            self.tracking != "serial"
+            or self.product_uom_id.compare(self.quantity, 1) > 0
+        ):
             quantity_ai = gs1_quantity_rules_ai_by_uom.get(self.product_uom_id.id)
             if quantity_ai:
                 qty_str = str(int(self.quantity / self.product_uom_id.rounding))

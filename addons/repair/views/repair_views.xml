@@ -156,7 +156,6 @@
                                 <field name="is_locked" column_invisible="True"/>
                                 <field name="is_storable" column_invisible="True"/>
                                 <field name="has_tracking" column_invisible="True"/>
-                                <field name="display_assign_serial" column_invisible="True"/>
                                 <field name="product_id" context="{'default_is_storable': True}" required="1" readonly="(state != 'draft' and not additional) or move_lines_count &gt; 0"/>
                                 <field name="forecast_availability" string="" column_invisible="parent.state == 'done'" widget="forecast_widget"/>
                                 <field name="description_picking" string="Description" optional="hide"/>
