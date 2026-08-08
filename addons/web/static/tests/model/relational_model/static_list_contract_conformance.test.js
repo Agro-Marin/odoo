@@ -44,12 +44,13 @@ describe("the StaticList owner contract and the class agree", () => {
         //
         // Scoped to the `_` half on purpose. The public half is deliberately
         // getters (`cachedRecords`, `pendingCommands`, `hasStagedCommands`), and
-        // `typeof StaticList.prototype[key]` would INVOKE them against the
+        // `typeof /** @type {any} */ (StaticList.prototype)[key]` would INVOKE them against the
         // prototype rather than an instance — reading state off an object that
         // has none, which throws rather than answering.
         const notMethods = STATIC_LIST_OWNER_SURFACE.filter(
             (key) =>
-                key.startsWith("_") && typeof StaticList.prototype[key] !== "function",
+                key.startsWith("_") &&
+                typeof (/** @type {any} */ (StaticList.prototype)[key]) !== "function",
         );
         expect(notMethods).toEqual([], {
             message: "the private half of the owner surface must be operations",

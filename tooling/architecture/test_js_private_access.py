@@ -11,6 +11,9 @@ tree assert only what a measurement gate can silently lose: that it found its
 inputs, and that the two halves it separates stay separated.
 """
 
+import pathlib
+
+import doc_measured
 import js_private_access as jpa  # sys.path set by conftest.py
 
 
@@ -412,4 +415,33 @@ def test_a_contract_without_collaborators_declares_none(tmp_path):
                 "m/thing_contract.js": 'export const THING_SURFACE = ["_op"];\n',
             },
         )
+    )
+
+
+def test_module_docstring_measured_block_is_fresh():
+    """The docstring's cited figures must match what the gate measures now.
+
+    This test exists because they did not. The module opened by asserting 293
+    accesses in 33 files against a tree measuring 251 in 29, and three further
+    numbers in the same docstring were stale with it — including "it is 18
+    sites, not 293" for a write count that had reached 2. A reader checking the
+    gate's rationale got four wrong facts from the most authoritative-looking
+    place in the file, which is worse than the gate having no rationale at all.
+
+    Runs in CI via `pytest tooling/architecture/`, the same lane as every other
+    gate self-test here.
+    """
+    found, undeclared, public = jpa.measure()
+    metrics = jpa.doc_metrics(
+        found,
+        undeclared,
+        public,
+        jpa.declared_contracts(),
+        jpa.internal_collaborators(),
+    )
+    problems = doc_measured.check(pathlib.Path(jpa.__file__), metrics)
+    assert not problems, (
+        "stale MEASURED block:\n  "
+        + "\n  ".join(problems)
+        + ("\n\n  python tooling/architecture/js_private_access.py --update-doc")
     )

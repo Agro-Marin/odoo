@@ -23,7 +23,12 @@ describe.current.tags("headless");
  * Minimal datapoint stand-in with the same ``fieldNames`` shape as
  * ``DataPoint`` (a getter deriving a fresh array from ``activeFields``).
  */
-function makeRecord({ data, activeFields }) {
+function makeRecord(
+    /** @type {{ data: Record<string, any>, activeFields: Record<string, any> }} */ {
+        data,
+        activeFields,
+    },
+) {
     const fields = Object.fromEntries(
         Object.keys(data).map((name) => [name, { type: "char" }]),
     );

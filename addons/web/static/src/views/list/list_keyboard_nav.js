@@ -69,11 +69,29 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
 }
 
 /**
+ * Thirteen members read here, plus whatever `makeEditHandlers` reads off the
+ * same object — this hook forwards its `ctx` straight into it. Spelling the
+ * second half as `ListEditContext` rather than re-listing those members keeps
+ * the two in step: widening the edit handlers' surface widens this one, with no
+ * second edit and no comment to fall out of date.
+ *
  * @param {any} tableRef
- * @param {import("./list_renderer").ListGridContext} ctx the renderer's shared
- *   surface; the edit handlers below read further members off it (getEditedRecord,
- *   onAdd, onEditNextRecord, isCellReadonly, getCanCreate, getDisplayRowCreates,
- *   getControls).
+ * @param {Pick<
+ *     import("./list_renderer").ListGridContext,
+ *     | "getColumns"
+ *     | "getProps"
+ *     | "getEnv"
+ *     | "getGridState"
+ *     | "onToggleGroup"
+ *     | "toggleRecordSelection"
+ *     | "onOpenRecord"
+ *     | "onDeleteRecord"
+ *     | "isInlineEditable"
+ *     | "expandCheckboxes"
+ *     | "getSel"
+ *     | "getVirtualization"
+ *     | "findFocusFutureCell"
+ * > & import("./list_keyboard_edit").ListEditContext} ctx
  * @returns {any}
  */
 export function useListKeyboardNavigation(tableRef, ctx) {

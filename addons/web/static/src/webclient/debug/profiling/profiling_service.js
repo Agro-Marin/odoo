@@ -97,7 +97,7 @@ export class ProfilingService {
             try {
                 const value = await this.lazy_session.getValue(sessionKey);
                 if (value && this.stateGeneration === bootGeneration) {
-                    this.state[stateKey] = value;
+                    /** @type {Record<string, any>} */ (this.state)[stateKey] = value;
                 }
                 return;
             } catch {}
@@ -160,6 +160,7 @@ export class ProfilingService {
      * @param {any} value
      */
     async setParam(key, value) {
+        /** @type {Record<string, any>} */
         const nextParams = { ...this.state.params };
         nextParams[key] = value;
         await this.setProfiling({ params: nextParams });

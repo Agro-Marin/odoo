@@ -180,35 +180,27 @@ function updateRects(ctx, dom) {
     current.scrollParentYRect = null;
     if (ctx.edgeScrolling.enabled) {
         if (scrollParentX) {
-            current.scrollParentXRect = dom.getRect(scrollParentX, {
-                adjust: true,
-            });
-            current.scrollParentXRect.x += iframeOffsetX;
-            current.scrollParentXRect.y += iframeOffsetY;
+            const xRect = dom.getRect(scrollParentX, { adjust: true });
+            current.scrollParentXRect = xRect;
+            xRect.x += iframeOffsetX;
+            xRect.y += iframeOffsetY;
             const right = Math.min(
                 current.containerRect.left + container.scrollWidth,
-                current.scrollParentXRect.right,
+                xRect.right,
             );
-            current.containerRect.x = Math.max(
-                current.containerRect.x,
-                current.scrollParentXRect.x,
-            );
+            current.containerRect.x = Math.max(current.containerRect.x, xRect.x);
             current.containerRect.width = right - current.containerRect.x;
         }
         if (scrollParentY) {
-            current.scrollParentYRect = dom.getRect(scrollParentY, {
-                adjust: true,
-            });
-            current.scrollParentYRect.x += iframeOffsetX;
-            current.scrollParentYRect.y += iframeOffsetY;
+            const yRect = dom.getRect(scrollParentY, { adjust: true });
+            current.scrollParentYRect = yRect;
+            yRect.x += iframeOffsetX;
+            yRect.y += iframeOffsetY;
             const bottom = Math.min(
                 current.containerRect.top + container.scrollHeight,
-                current.scrollParentYRect.bottom,
+                yRect.bottom,
             );
-            current.containerRect.y = Math.max(
-                current.containerRect.y,
-                current.scrollParentYRect.y,
-            );
+            current.containerRect.y = Math.max(current.containerRect.y, yRect.y);
             current.containerRect.height = bottom - current.containerRect.y;
         }
     }

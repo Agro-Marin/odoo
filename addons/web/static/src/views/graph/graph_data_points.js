@@ -21,6 +21,79 @@
  */
 
 /**
+ * One row of a `formattedReadGroup` response. Keyed by measure spec
+ * (`"amount:sum"`), by groupBy spec (`"date:month"`), and by the `__`-prefixed
+ * bookkeeping the server adds, so it is a record by nature rather than a shape.
+ *
+ * @typedef {Record<string, any>} ServerGroup
+ */
+
+/**
+ * `fields_get`-shaped descriptors, keyed by field name. This module reads
+ * `type`, `aggregator`, `currency_field`, `name` and `selection` off them.
+ *
+ * @typedef {Record<string, any>} FieldsMap
+ */
+
+/**
+ * One groupBy level. `fieldName` is the field; `spec` is the key the server
+ * answers under, which differs for a granularity (`date` vs `date:month`) —
+ * reading the wrong one of the two is the mistake this typedef exists to make
+ * visible.
+ *
+ * @typedef {{ fieldName: string, spec: string, [key: string]: any }} GroupByLevel
+ */
+
+/**
+ * The display-name disambiguation accumulator: `[fieldName, name]` to a map of
+ * record id to its 1-based occurrence. Mutated across every group of a load, so
+ * two records sharing a display name read `name`, `name (2)`, … in first-seen
+ * order.
+ *
+ * @typedef {Record<string, Record<string, number>>} Numbering
+ */
+
+/**
+ * One assembled point.
+ *
+ * `currencyId`, `convertedValue` and `convertedCumulatedStart` are optional
+ * because only a monetary measure has them, and the last two are scratch space
+ * `applyCurrencyFallback` deletes on the way out.
+ *
+ * @typedef {{
+ *   count: any,
+ *   domain: any,
+ *   value: any,
+ *   labels: any[],
+ *   isFalsyXGroup: boolean,
+ *   identifier: string,
+ *   xIdentifier: string,
+ *   datasetId: string,
+ *   cumulatedStart: any,
+ *   convertedCumulatedStart?: any,
+ *   currencyId?: any,
+ *   convertedValue?: any,
+ * }} GraphDataPoint
+ */
+
+/**
+ * What `applyCurrencyFallback` actually requires: the five keys it reads or
+ * writes, all optional. Narrower than `GraphDataPoint` on purpose — the pass is
+ * a mutation over monetary scratch space, not something that needs a whole
+ * point, and saying so lets a test hand it the two fields a case is about
+ * instead of a fully-populated literal that obscures which ones matter.
+ *
+ * @typedef {{
+ *   currencyId?: any,
+ *   value?: any,
+ *   cumulatedStart?: any,
+ *   convertedValue?: any,
+ *   convertedCumulatedStart?: any,
+ *   [key: string]: any,
+ * }} CurrencyResolvable
+ */
+
+/**
  * Build the `formattedReadGroup` measure specs for a graph measure.
  *
  * Mirrors `pivot_measurements.getMeasureSpecs`, including the `many2one` override
@@ -29,7 +102,7 @@
  * first spec.
  *
  * @param {string} measure
- * @param {Object} fields
+ * @param {FieldsMap} fields
  * @returns {{measures: string[], fieldAggregate: string, monetaryAggregates: string[] | undefined}}
  */
 export function getMeasureSpec(measure, fields) {
@@ -67,13 +140,13 @@ export function getMeasureSpec(measure, fields) {
  * group that is entirely unset yields `false` rather than an array — both would
  * otherwise be counted as a currency and trip the multi-currency fallback.
  *
- * @param {Object} group
+ * @param {ServerGroup} group
  * @param {string[]} monetaryAggregates
  * @returns {any[]}
  */
 export function getGroupCurrencies(group, monetaryAggregates) {
     return (group[monetaryAggregates[0]] || []).filter(
-        (currencyId) => currencyId != null,
+        (/** @type {any} */ currencyId) => currencyId != null,
     );
 }
 
@@ -83,15 +156,15 @@ export function getGroupCurrencies(group, monetaryAggregates) {
  * Keyed by the groupBy values *excluding* the sequential (date) field, which is
  * what makes the key comparable to the main pass's `rawValues.slice(1)`.
  *
- * @param {Object[]} startGroups
+ * @param {ServerGroup[]} startGroups
  * @param {Object} params
- * @param {Object[]} params.groupBy
+ * @param {GroupByLevel[]} params.groupBy
  * @param {string | null} params.sequentialField
  * @param {string} params.fieldAggregate
  * @param {string[]} [params.monetaryAggregates]
  * @param {any} [params.defaultCurrency]
  * @param {Set<any>} params.graphCurrencies accumulated across both passes
- * @returns {{cumulatedStartValue: Object, cumulatedStartConverted: Object}}
+ * @returns {{cumulatedStartValue: Record<string, any>, cumulatedStartConverted: Record<string, any>}}
  */
 export function foldCumulatedStart(
     startGroups,
@@ -104,7 +177,9 @@ export function foldCumulatedStart(
         graphCurrencies,
     },
 ) {
+    /** @type {Record<string, any>} */
     const cumulatedStartValue = {};
+    /** @type {Record<string, any>} */
     const cumulatedStartConverted = {};
     const keptGroupBy = groupBy.filter((gb) => gb.fieldName !== sequentialField);
     for (const group of startGroups) {
@@ -138,10 +213,10 @@ export function foldCumulatedStart(
  * `name (2)`, … in first-seen order, so it must not be reset per group.
  *
  * @param {any} val
- * @param {Object} gb
- * @param {Object} fields
- * @param {Object} numbering
- * @param {(gb: Object) => string} getDefaultFilterLabel
+ * @param {GroupByLevel} gb
+ * @param {FieldsMap} fields
+ * @param {Numbering} numbering
+ * @param {(gb: GroupByLevel) => string} getDefaultFilterLabel
  * @returns {any}
  */
 export function getValueLabel(val, gb, fields, numbering, getDefaultFilterLabel) {
@@ -170,7 +245,9 @@ export function getValueLabel(val, gb, fields, numbering, getDefaultFilterLabel)
         return num === 1 ? name : `${name} (${num})`;
     }
     if (type === "selection") {
-        const selected = fields[fieldName].selection.find((s) => s[0] === val);
+        const selected = fields[fieldName].selection.find(
+            (/** @type {[any, string]} */ s) => s[0] === val,
+        );
         return selected ? selected[1] : String(val);
     }
     if (["date", "datetime"].includes(type)) {
@@ -185,19 +262,20 @@ export function getValueLabel(val, gb, fields, numbering, getDefaultFilterLabel)
  * `isFalsyXGroup` marks a group whose *first* (x-axis) level is falsy; line and
  * scatter modes drop those, because a gap in the x series is not a point.
  *
- * @param {Object} group
+ * @param {ServerGroup} group
  * @param {Object} params
- * @param {Object[]} params.groupBy
- * @param {Object} params.fields
- * @param {Object} params.numbering
- * @param {(gb: Object) => string} params.getDefaultFilterLabel
- * @returns {{labels: any[], rawValues: Object[], isFalsyXGroup: boolean}}
+ * @param {GroupByLevel[]} params.groupBy
+ * @param {FieldsMap} params.fields
+ * @param {Numbering} params.numbering
+ * @param {(gb: GroupByLevel) => string} params.getDefaultFilterLabel
+ * @returns {{labels: any[], rawValues: Record<string, any>[], isFalsyXGroup: boolean}}
  */
 export function getGroupLabels(
     group,
     { groupBy, fields, numbering, getDefaultFilterLabel },
 ) {
     const labels = [];
+    /** @type {Record<string, any>[]} */
     const rawValues = [];
     let isFalsyXGroup = false;
     for (const [gbIndex, gb] of groupBy.entries()) {
@@ -222,7 +300,7 @@ export function getGroupLabels(
  * a monetary point whose value is later swapped for its converted counterpart
  * must not retroactively change that answer.
  *
- * @param {Object} group
+ * @param {ServerGroup} group
  * @param {string} fieldAggregate
  * @returns {any}
  */
@@ -243,18 +321,18 @@ export function getRawValue(group, fieldAggregate) {
  * (`__count === 0`) do not contribute a currency, so a graph is not forced into
  * multi-currency mode by a group that has nothing in it.
  *
- * @param {Object} group
+ * @param {ServerGroup} group
  * @param {Object} params
  * @param {any[]} params.labels
- * @param {Object[]} params.rawValues
+ * @param {Record<string, any>[]} params.rawValues
  * @param {boolean} params.isFalsyXGroup
  * @param {string} params.fieldAggregate
  * @param {string[]} [params.monetaryAggregates]
  * @param {any} [params.defaultCurrency]
  * @param {Set<any>} params.graphCurrencies
- * @param {Object} params.cumulatedStartValue
- * @param {Object} params.cumulatedStartConverted
- * @returns {Object}
+ * @param {Record<string, any>} params.cumulatedStartValue
+ * @param {Record<string, any>} params.cumulatedStartConverted
+ * @returns {GraphDataPoint}
  */
 export function makeDataPoint(
     group,
@@ -272,6 +350,7 @@ export function makeDataPoint(
 ) {
     const { __domain, __count } = group;
     const groupId = JSON.stringify(rawValues.slice(1));
+    /** @type {GraphDataPoint} */
     const dataPoint = {
         count: __count,
         domain: __domain,
@@ -307,12 +386,12 @@ export function makeDataPoint(
  * fields are scratch space and are deleted either way, so a caller cannot come
  * to depend on them.
  *
- * @param {Object[]} dataPoints
+ * @param {CurrencyResolvable[]} dataPoints
  * @param {Object} params
  * @param {Set<any>} params.graphCurrencies
  * @param {any} [params.defaultCurrency]
  * @param {boolean} params.hasMonetaryAggregates
- * @returns {Object[]} the same array, mutated
+ * @returns {CurrencyResolvable[]} the same array, mutated
  */
 export function applyCurrencyFallback(
     dataPoints,

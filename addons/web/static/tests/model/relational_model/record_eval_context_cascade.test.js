@@ -35,6 +35,7 @@ class Line extends models.Model {
     name = fields.Char();
     qty = fields.Integer();
     parent_id = fields.Many2one({ relation: "parent" });
+    /** @type {any[]} */
     _records = [];
 }
 
@@ -43,6 +44,7 @@ class Parent extends models.Model {
     name = fields.Char();
     ref = fields.Char();
     lines = fields.One2many({ relation: "line", relation_field: "parent_id" });
+    /** @type {any[]} */
     _records = [];
 }
 
@@ -77,7 +79,8 @@ async function mountCounting(listContext) {
     const counts = new Map();
     patchWithCleanup(RelationalRecord.prototype, {
         _setEvalContext() {
-            counts.set(this.id, (counts.get(this.id) || 0) + 1);
+            const self = /** @type {any} */ (this);
+            counts.set(self.id, (counts.get(self.id) || 0) + 1);
             return super._setEvalContext();
         },
     });
@@ -98,7 +101,7 @@ async function mountCounting(listContext) {
             </form>`,
     });
     await animationFrame();
-    return { record: controller.model.root, counts };
+    return { record: /** @type {any} */ (controller).model.root, counts };
 }
 
 test("editing a parent field does not rebuild every line's eval context", async () => {

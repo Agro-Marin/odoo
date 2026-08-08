@@ -43,6 +43,15 @@ export class FileUploadService {
         this.destroyed = false;
     }
 
+    /**
+     * @param {string} route
+     * @param {FileList | File[]} files
+     * @param {{
+     *   buildFormData?: (formData: FormData) => void,
+     *   displayErrorNotification?: boolean,
+     *   [key: string]: any,
+     * }} [params]
+     */
     async upload(route, files, params = {}) {
         const xhr = fileUploadService.createXhr();
         xhr.open("POST", route);

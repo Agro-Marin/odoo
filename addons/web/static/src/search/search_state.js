@@ -28,7 +28,7 @@ export const FAVORITE_PRIVATE_GROUP = 1;
 export const FAVORITE_SHARED_GROUP = 2;
 
 /**
- * @param {Object} section
+ * @param {Record<string, any>} section
  * @returns {boolean}
  */
 export function hasValues(section) {
@@ -51,7 +51,7 @@ export function hasValues(section) {
 
 /**
  * @param {string | undefined} expr
- * @param {Object} evalContext
+ * @param {Record<string, any>} evalContext
  * @returns {boolean}
  */
 export function isInvisible(expr, evalContext) {
@@ -64,8 +64,8 @@ export function isInvisible(expr, evalContext) {
 }
 
 /**
- * @param {Map<any, Object>} map
- * @returns {Array[]}
+ * @param {Map<any, Record<string, any>>} map
+ * @returns {any[][]}
  */
 export function mapToArray(map) {
     const result = [];
@@ -137,7 +137,7 @@ export function arrayToMap(array) {
 /**
  * Query concern: what the user asked for.
  *
- * @param {Object} source
+ * @param {Record<string, any>} source
  * @returns {Partial<SearchModelState>}
  */
 export function queryToState(source) {
@@ -150,7 +150,7 @@ export function queryToState(source) {
 
 /**
  * @param {Partial<SearchModelState>} state
- * @param {Object} target
+ * @param {Record<string, any>} target
  */
 export function queryFromState(state, target) {
     target.query = JSON.parse(JSON.stringify(state.query));
@@ -162,7 +162,7 @@ export function queryFromState(state, target) {
  * Items concern: the search items the query indexes into, and the id counters
  * that keep newly created items from colliding with restored ones.
  *
- * @param {Object} source
+ * @param {Record<string, any>} source
  * @returns {Partial<SearchModelState>}
  */
 export function itemsToState(source) {
@@ -176,7 +176,7 @@ export function itemsToState(source) {
 
 /**
  * @param {Partial<SearchModelState>} state
- * @param {Object} target
+ * @param {Record<string, any>} target
  */
 export function itemsFromState(state, target) {
     target.searchItems = JSON.parse(JSON.stringify(state.searchItems));
@@ -189,7 +189,7 @@ export function itemsFromState(state, target) {
  * Panel concern: the search panel's sections, its display metadata, and the
  * domain its data was last fetched against.
  *
- * @param {Object} source
+ * @param {Record<string, any>} source
  * @returns {Partial<SearchModelState>}
  */
 export function panelToState(source) {
@@ -206,7 +206,7 @@ export function panelToState(source) {
 
 /**
  * @param {Partial<SearchModelState>} state
- * @param {Object} target
+ * @param {Record<string, any>} target
  */
 export function panelFromState(state, target) {
     target.searchPanelInfo = structuredClone(state.searchPanelInfo);
@@ -219,11 +219,13 @@ export function panelFromState(state, target) {
 }
 
 /**
- * @param {Map<number, Object>} sections
- * @returns {[number, Object][]}
+ * @param {Map<number, Record<string, any>>} sections
+ * @returns {[number, Record<string, any>][]}
  */
 function sectionsToState(sections) {
-    const result = /** @type {[number, Object][]} */ (mapToArray(sections));
+    const result = /** @type {[number, Record<string, any>][]} */ (
+        mapToArray(sections)
+    );
     for (const [, section] of result) {
         section.values = mapToArray(section.values);
         if (section.groups) {
@@ -266,7 +268,7 @@ function sectionsFromState(sections) {
  * model property — the arch-derived entries of `searchViewFields` are reloaded
  * from the view description and must not be overwritten by stale copies.
  *
- * @param {Object} source
+ * @param {Record<string, any>} source
  * @returns {Partial<SearchModelState>}
  */
 export function propertiesToState(source) {
@@ -282,7 +284,7 @@ export function propertiesToState(source) {
 
 /**
  * @param {Partial<SearchModelState>} state
- * @param {Object} target
+ * @param {Record<string, any>} target
  */
 export function propertiesFromState(state, target) {
     if (!state.propertySearchViewFields) {
@@ -309,11 +311,13 @@ export function propertiesFromState(state, target) {
 }
 
 /**
- * @param {Object} globalContext
+ * @param {Record<string, any>} globalContext
  * @returns {{ searchDefaults: Object, searchPanelDefaults: Object }}
  */
 export function extractSearchDefaults(globalContext) {
+    /** @type {Record<string, any>} */
     const searchDefaults = {};
+    /** @type {Record<string, any>} */
     const searchPanelDefaults = {};
     for (const key of Object.keys(globalContext)) {
         const defaultValue = globalContext[key];

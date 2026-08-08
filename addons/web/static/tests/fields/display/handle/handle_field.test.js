@@ -29,7 +29,7 @@ class Partner extends models.Model {
         {
             id: 2,
             display_name: "second record",
-            p: [],
+            p: /** @type {any[]} */ ([]),
             sequence: 4,
         },
         {

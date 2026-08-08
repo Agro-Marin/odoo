@@ -247,7 +247,7 @@ test("clicking save manually after changing signature should change the unique o
 
     await fillSignatureField(0, 2);
     await click(".o_field_widget[name='foo'] input");
-    await edit("grrr", { confirm: "Enter" });
+    await edit("grrr", { confirm: "enter" });
     await runAllTimers();
     await animationFrame();
     await clickSave();
@@ -293,7 +293,7 @@ test("save record with signature field modified by onchange", async () => {
     });
     expect(getUnique(queryFirst(".o_field_signature img"))).toBe("1659688620000");
     await click("[name='foo'] input");
-    await edit("grrr", { confirm: "Enter" });
+    await edit("grrr", { confirm: "enter" });
     await runAllTimers();
     await animationFrame();
     expect(queryFirst("div[name=sign] img").dataset.src).toBe(

@@ -22,7 +22,7 @@ const getShareTargetDataFromServiceWorker = () =>
             browser.clearTimeout(timeoutId);
             serviceWorker.removeEventListener("message", onmessage);
         };
-        const onmessage = (event) => {
+        const onmessage = (/** @type {MessageEvent} */ event) => {
             if (event.data.action === "odoo_share_target_ack") {
                 cleanup();
                 resolve(event.data.shared_files);
@@ -103,7 +103,7 @@ export class ShareTargetService {
         try {
             this.sharedFiles = await getShareTargetDataFromServiceWorker();
             if (this.sharedFiles?.length) {
-                await this.menu.selectMenu(app);
+                await /** @type {any} */ (this.menu).selectMenu(app);
             }
         } catch (error) {
             console.warn("Failed to receive shared files", error);

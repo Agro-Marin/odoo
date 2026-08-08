@@ -110,7 +110,10 @@ export class ErrorService {
             reportJsError({
                 kind: uncaughtError.event.type,
                 message: String(
-                    originalError?.message ?? originalError ?? uncaughtError.message ?? "",
+                    originalError?.message ??
+                        originalError ??
+                        uncaughtError.message ??
+                        "",
                 ),
                 filename: uncaughtError.event.filename ?? "",
                 line: uncaughtError.event.lineno ?? 0,

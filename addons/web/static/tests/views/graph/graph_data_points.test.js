@@ -26,7 +26,10 @@ import {
     makeDataPoint,
 } from "@web/views/graph/graph_data_points";
 
-const gb = (fieldName, spec = fieldName) => ({ fieldName, spec });
+const gb = (/** @type {string} */ fieldName, spec = fieldName) => ({
+    fieldName,
+    spec,
+});
 const noFilterLabel = () => "None";
 const aggs = ["currency_id:array_agg_distinct", "amount:sum_currency"];
 
@@ -238,8 +241,9 @@ describe("getValueLabel — many2one disambiguation", () => {
     const fields = { user_id: { type: "many2one" } };
 
     test("two records sharing a name are numbered in first-seen order", () => {
+        /** @type {import("@web/views/graph/graph_data_points").Numbering} */
         const numbering = {};
-        const call = (id, name) =>
+        const call = (/** @type {number} */ id, /** @type {string} */ name) =>
             getValueLabel([id, name], gb("user_id"), fields, numbering, noFilterLabel);
         expect(call(1, "Al")).toBe("Al");
         expect(call(2, "Al")).toBe("Al (2)");
@@ -247,8 +251,9 @@ describe("getValueLabel — many2one disambiguation", () => {
     });
 
     test("the same record keeps its number when seen again", () => {
+        /** @type {import("@web/views/graph/graph_data_points").Numbering} */
         const numbering = {};
-        const call = (id, name) =>
+        const call = (/** @type {number} */ id, /** @type {string} */ name) =>
             getValueLabel([id, name], gb("user_id"), fields, numbering, noFilterLabel);
         expect(call(1, "Al")).toBe("Al");
         expect(call(2, "Al")).toBe("Al (2)");
@@ -256,14 +261,16 @@ describe("getValueLabel — many2one disambiguation", () => {
     });
 
     test("different names are numbered independently", () => {
+        /** @type {import("@web/views/graph/graph_data_points").Numbering} */
         const numbering = {};
-        const call = (id, name) =>
+        const call = (/** @type {number} */ id, /** @type {string} */ name) =>
             getValueLabel([id, name], gb("user_id"), fields, numbering, noFilterLabel);
         expect(call(1, "Al")).toBe("Al");
         expect(call(2, "Bo")).toBe("Bo");
     });
 
     test("the counter is per field, so the same name under another field restarts", () => {
+        /** @type {import("@web/views/graph/graph_data_points").Numbering} */
         const numbering = {};
         const twoFields = {
             user_id: { type: "many2one" },
@@ -294,7 +301,7 @@ describe("getGroupLabels", () => {
     test("collects a label and a raw value per groupBy level", () => {
         const fields = {
             name: { type: "char" },
-            state: { type: "selection", selection: [] },
+            state: { type: "selection", selection: /** @type {any[]} */ ([]) },
         };
         const result = getGroupLabels(
             { name: "Al", state: "zz" },
@@ -369,6 +376,7 @@ describe("getGroupLabels", () => {
 
     test("numbering carries across groups, which is why it is passed in", () => {
         const fields = { user_id: { type: "many2one" } };
+        /** @type {import("@web/views/graph/graph_data_points").Numbering} */
         const numbering = {};
         const params = {
             groupBy: [gb("user_id")],

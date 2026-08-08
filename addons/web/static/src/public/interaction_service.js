@@ -64,14 +64,24 @@ export class InteractionService {
     activate(Interactions, target) {
         this.Interactions = Interactions;
         const startProm = this.env.isReady.then(() => this.startInteractions(target));
-        this._trackProm(startProm);
+        this.trackProm(startProm);
     }
 
     /**
+     * Adopt a promise into the service's in-flight set, so readiness accounts
+     * for it and a rejection is reported once rather than becoming an unhandled
+     * rejection.
+     *
+     * Published, not underscored: `colibri.js` is a peer module, not a helper of
+     * this one, and it has to call this when it mounts a root. Spelling it
+     * `_trackProm` made the only cross-module call in `public/` read as a reach
+     * into private state, which is what a leading underscore is supposed to
+     * mean here. The name was the error, not the call.
+     *
      * @param {Promise<any>} prom
      * @returns {void}
      */
-    _trackProm(prom) {
+    trackProm(prom) {
         this.proms.push(prom);
         prom.then(
             () => this._forgetProm(prom),
@@ -277,7 +287,7 @@ export class InteractionService {
                 throw new AggregateError(errors, "Could not start some interactions");
             }
         });
-        this._trackProm(prom);
+        this.trackProm(prom);
         return prom;
     }
 

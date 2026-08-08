@@ -274,11 +274,12 @@ export function styleScatterChartData(data) {
 /**
  * @param {string} mode
  * @param {number} labelsCount
- * @returns {Object}
+ * @returns {Record<string, any>}
  */
 export function buildAnimationOptions(mode, labelsCount) {
     let delayed;
     const gap = 350;
+    /** @type {Record<string, any>} */
     const animationOptions = {};
     if (mode === "pie") {
         animationOptions.offset = { duration: 200 };

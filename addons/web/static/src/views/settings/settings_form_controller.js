@@ -149,7 +149,7 @@ export class SettingsFormController extends formView.Controller {
     async _confirmSave() {
         let _continue = true;
         await new Promise((resolve) => {
-            this.dialogService.add(SettingsConfirmationDialog, {
+            /** @type {any} */ (this.dialogService).add(SettingsConfirmationDialog, {
                 body: _t("Would you like to save your changes?"),
                 confirm: async () => {
                     _continue = false;

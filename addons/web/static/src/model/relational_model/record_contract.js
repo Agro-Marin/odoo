@@ -21,11 +21,20 @@
  * Keeping the declaration in the test tree meant production code could not refer
  * to the contract it was actually programming against.
  *
- * It is deliberately NOT the set of members satellites reach today. Fifteen of
- * the thirty-five privates read from outside `record.js` are named here; the
- * other twenty are undeclared reaches, and each one is a decision to take —
- * promote it here, or narrow it away. Adding an entry is that decision, made
- * once and reviewably, in one file.
+ * Every private read from outside `record.js` is now named here or in
+ * `RECORD_OWNER_SURFACE` below — each one a decision taken, promote or narrow,
+ * once and reviewably in one file. Adding an entry is still that decision; the
+ * difference is that the backlog it used to describe is empty, so a new
+ * undeclared reach is a regression rather than one more of many.
+ *
+ * Do not restate the counts here. This paragraph used to, and by the time it
+ * was read against the tree it said twenty undeclared reaches remained when the
+ * real number was four — a live figure copied into prose, which is the drift
+ * `.github/workflows/typecheck.yml` warns about in its own header. The numbers
+ * live where they are measured:
+ *
+ *     python tooling/architecture/js_private_access.py --json
+ *     python tooling/architecture/js_private_access.py --count-undeclared
  *
  * Both directions of drift fail loudly in
  * `record_doubles_conformance.test.js`: a REAL `RelationalRecord` must carry

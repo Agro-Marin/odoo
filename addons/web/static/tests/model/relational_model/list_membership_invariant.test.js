@@ -40,7 +40,7 @@ describe("ListMembership.count is derived, not stored", () => {
 
     test("removeMember keeps count in step without touching it", () => {
         const membership = new ListMembership([1, 2, 3]);
-        const record = { resId: 2 };
+        const record = /** @type {any} */ ({ resId: 2 });
         membership.records = [record];
 
         expect(membership.removeMember(2, record)).toBe(true);

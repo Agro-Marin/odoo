@@ -27,11 +27,11 @@ describe.current.tags("desktop");
  */
 function makeRegistry(entries = {}) {
     return {
-        get(key) {
-            if (!(key in entries)) {
+        get(/** @type {string} */ key) {
+            if (!(key in /** @type {Record<string, any>} */ (entries))) {
                 throw new Error(`no client action "${key}"`);
             }
-            return entries[key];
+            return /** @type {Record<string, any>} */ (entries)[key];
         },
     };
 }

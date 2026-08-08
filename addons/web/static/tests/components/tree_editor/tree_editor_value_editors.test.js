@@ -44,7 +44,7 @@ const FIELD_TYPES = [
 function fieldDef(type) {
     const def = { name: "f", string: "F", type };
     if (type === "selection") {
-        def.selection = [
+        /** @type {any} */ (def).selection = [
             ["a", "A"],
             ["b", "B"],
         ];

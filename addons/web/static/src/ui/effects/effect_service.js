@@ -60,8 +60,9 @@ export const effectService = {
      */
     start(env, { overlay }) {
         /**
-         * @param {Object} [params]
-         * @param {string} [params.type="rainbow_man"]
+         * @param {{ type?: string, [key: string]: any }} [params] forwarded
+         *   verbatim to the registered effect, which declares its own options
+         *   (see `rainbowMan` above for the `rainbow_man` set)
          * @returns {() => void} dismisses what this call opened
          */
         const add = (params = {}) => {

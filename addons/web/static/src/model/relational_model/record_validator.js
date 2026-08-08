@@ -136,7 +136,7 @@ export function checkValidity(
         isInvisible: (fieldName) => record._isInvisible(fieldName),
         isRequired: (fieldName) => record._isRequired(fieldName),
         isChildListValid: (_fieldName, list) => {
-            const membership = new Set(list._currentIds);
+            const membership = new Set(list.currentIds);
             return list.cachedRecords.every((r) => {
                 if (!membership.has(listId(r))) {
                     return true;

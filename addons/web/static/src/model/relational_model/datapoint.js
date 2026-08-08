@@ -10,11 +10,24 @@ import { getId } from "./field_context.js";
 /** @import { Field, FieldInfo } from "@web/model/types" */
 /** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
 
+/**
+ * What a subclass is constructed from, which is not one shape.
+ *
+ * `RelationalRecord` receives a values object keyed by field name;
+ * `StaticList` receives the row array it slices its page out of, and calls
+ * `data.slice(...)` on it directly. Declaring only the record's half here made
+ * every list-building test pass an array against a `Record<string, unknown>`
+ * parameter — three of them were reported as errors while the production call
+ * sites, which go through `any`-typed helpers, were not.
+ *
+ * @typedef {Record<string, unknown> | unknown[]} DataPointPayload
+ */
+
 export class DataPoint extends SignalStore {
     /**
      * @param {RelationalModel} model
      * @param {RelationalModelConfig} config
-     * @param {Record<string, unknown>} data
+     * @param {DataPointPayload} data
      * @param {unknown} [options]
      */
     constructor(model, config, data, options) {
@@ -32,7 +45,7 @@ export class DataPoint extends SignalStore {
      * @abstract
      * @template [O={}]
      * @param {RelationalModelConfig} _config
-     * @param {Record<string, unknown>} [_data]
+     * @param {DataPointPayload} [_data]
      * @param {O} [_options]
      */
     setup(_config, _data, _options) {}

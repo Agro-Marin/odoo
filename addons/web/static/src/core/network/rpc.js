@@ -613,7 +613,12 @@ rpc._rpc = function (url, params, settings) {
                     inflightCacheJoin.delete(requestKey);
                 }
             };
-            innerProm.then(onSettle, onSettle);
+            // Assigned only inside `fallback`, which `rpcCache.read` invokes
+            // before returning here. TypeScript's control-flow analysis does
+            // not track an assignment made in a closure, so it still reads the
+            // variable as the `null` it was initialised to and narrows this
+            // branch to `never`. The guard above is the real check.
+            /** @type {Promise<any>} */ (innerProm).then(onSettle, onSettle);
             inflightCacheJoin.set(requestKey, entry);
             return joinInflight(entry, cacheProm, url, onDetach);
         }

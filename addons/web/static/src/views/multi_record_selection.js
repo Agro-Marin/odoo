@@ -66,13 +66,19 @@ export function useRecordSelection(ctx) {
     const { getRecords, onSelectionModifier } = ctx;
 
     const self = {
-        /** The range anchor: the record whose checkbox was last toggled. */
+        /**
+         * The range anchor: the record whose checkbox was last toggled.
+         * @type {any}
+         */
         lastCheckedRecord: undefined,
 
         /** Live shift-key state, tracked at the window level. */
         shiftKeyMode: false,
 
-        /** The record last selected through shift+arrow expansion. */
+        /**
+         * The record last selected through shift+arrow expansion.
+         * @type {any}
+         */
         shiftKeyedRecord: undefined,
 
         /**
@@ -218,6 +224,7 @@ export function useRecordSelection(ctx) {
  * }}
  */
 export function useLongTouchSelection({ getLongTouchThreshold, onLongTouch }) {
+    /** @type {ReturnType<typeof browser.setTimeout> | null} */
     let longTouchTimer = null;
     let touchStartMs = 0;
 

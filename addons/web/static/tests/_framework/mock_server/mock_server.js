@@ -55,6 +55,8 @@ const { DateTime } = luxon;
  *  children?: (MenuId | MenuDefinition)[];
  *  id: MenuId;
  *  name?: string;
+ *  webIcon?: string | false;
+ *  webIconData?: string;
  *  xmlid?: string;
  * }} MenuDefinition
  *

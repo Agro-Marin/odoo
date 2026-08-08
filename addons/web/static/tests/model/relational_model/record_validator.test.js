@@ -883,16 +883,25 @@ function makeChildRecord({ valid, dirty = true }) {
 
 /**
  * Build a mock StaticList shape for ``isChildListValid``: the validator
- * iterates the cached records scoped to ``_currentIds`` membership (off-page
+ * iterates the cached records scoped to ``currentIds`` membership (off-page
  * dirty rows must be validated too), not ``records``.
  *
  * ``cachedRecords`` is a declared member of ``STATIC_LIST_OWNER_SURFACE``, so a
  * double standing in for a list has to carry it. It is a getter over the same
  * ``_cache`` the real class derives it from, rather than a snapshot, so a test
  * that mutates ``_cache`` after construction still sees a consistent list.
+ *
+ * ``currentIds`` is a getter over ``_currentIds`` here for the same reason it is
+ * one on the real class: the array is the working memory,
+ * ``STATIC_LIST_CONTRACT_SURFACE`` does not publish it, and
+ * ``INTERNAL_STATE_REACHED`` records reaching for it as debt rather than as
+ * interface. A double that offered only the underscored name would keep that
+ * debt alive by making the published getter the thing that breaks.
  */
-function makeChildList(children) {
+function makeChildList(/** @type {any[]} */ children) {
+    /** @type {Record<string, any>} */
     const _cache = {};
+    /** @type {any[]} */
     const _currentIds = [];
     for (const child of children) {
         const id = child.resId || child._virtualId;
@@ -904,6 +913,9 @@ function makeChildList(children) {
         count: children.length,
         _cache,
         _currentIds,
+        get currentIds() {
+            return _currentIds;
+        },
         get cachedRecords() {
             return Object.values(_cache);
         },

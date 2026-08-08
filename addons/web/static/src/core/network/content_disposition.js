@@ -145,7 +145,7 @@ function pdecode(str, hex) {
 /**
  * @public
  * @param {string} type
- * @param {object} parameters
+ * @param {Record<string, string>} parameters
  * @constructor
  */
 function ContentDisposition(type, parameters) {

@@ -45,7 +45,9 @@ function makeRealModel() {
 describe("the RelationalModel contract and the class agree", () => {
     test("every operation the contract names is a method on the class", () => {
         const missing = PRIVATE.filter(
-            (key) => typeof RelationalModel.prototype[key] !== "function",
+            (key) =>
+                typeof (/** @type {any} */ (RelationalModel.prototype)[key]) !==
+                "function",
         );
         expect(missing).toEqual([], {
             message:

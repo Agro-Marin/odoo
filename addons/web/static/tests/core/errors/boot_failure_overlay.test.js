@@ -26,6 +26,7 @@ function removeOverlays() {
 
 /** Swallow the beacon; a test must not post to `/web/observability/js_error`. */
 function stubBeacon() {
+    /** @type {any[]} */
     const sent = [];
     patchWithCleanup(globalThis.navigator, {
         sendBeacon(url, blob) {

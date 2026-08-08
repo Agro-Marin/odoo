@@ -29,6 +29,7 @@ const MODELS = {
  * @returns {string[]} the warnings emitted while parsing
  */
 function parseWithWarnings(arch) {
+    /** @type {any[]} */
     const warnings = [];
     patchWithCleanup(console, { warn: (message) => warnings.push(String(message)) });
     patchWithCleanup(odoo, { debug: "1" });
@@ -96,6 +97,7 @@ describe("unknown field options", () => {
     });
 
     test("nothing is reported outside debug mode", () => {
+        /** @type {any[]} */
         const warnings = [];
         patchWithCleanup(console, {
             warn: (message) => warnings.push(String(message)),
@@ -113,6 +115,7 @@ describe("unknown field options", () => {
     });
 
     test("the same widget/option pair is reported once", () => {
+        /** @type {any[]} */
         const warnings = [];
         patchWithCleanup(console, {
             warn: (message) => warnings.push(String(message)),

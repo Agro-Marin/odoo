@@ -604,7 +604,7 @@ test(`switchView pushes the stat but doesn't add to the breadcrumbs`, async () =
  * globalState was pushed exactly as it should be. So assert the envelope, and
  * read the payload back as the object it is.
  *
- * @param {Object} state `router.current`
+ * @param {Record<string, any>} state `router.current`
  */
 function expectGlobalStateOnAction4(state) {
     const { globalState, ...envelope } = state;

@@ -18,7 +18,7 @@ import {
 
 function _t(/** @type {any[]} */ ...args) {
     odoo.translationContext = "web";
-    const translatedTerm = basic_t(...args);
+    const translatedTerm = /** @type {any} */ (basic_t)(...args);
     odoo.translationContext = null;
     return translatedTerm;
 }

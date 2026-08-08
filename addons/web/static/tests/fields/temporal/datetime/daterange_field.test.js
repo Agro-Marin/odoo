@@ -31,7 +31,7 @@ import {
     patchWithCleanup,
 } from "../../../web_test_helpers.js";
 
-function getPickerCell(expr) {
+function getPickerCell(/** @type {string} */ expr) {
     return queryAll(`.o_datetime_picker .o_date_item_cell:text(${expr})`);
 }
 
@@ -1315,7 +1315,7 @@ test("updating time keeps selected dates", async () => {
     await click(getPickerCell("16").at(-1));
     await animationFrame();
     await contains(".o_time_picker:eq(1) .o_time_picker_input").edit("5:05", {
-        confirm: "Enter",
+        confirm: "enter",
     });
     await animationFrame();
 

@@ -293,7 +293,7 @@ test("value is formatted on Enter", async () => {
 
     expect(".o_field_widget input").toHaveValue("0");
 
-    await fieldInput("price").edit("1000", { confirm: "Enter" });
+    await fieldInput("price").edit("1000", { confirm: "enter" });
     expect(".o_field_widget input").toHaveValue("1,000");
 });
 
@@ -309,7 +309,7 @@ test("value is formatted on Enter (even if same value)", async () => {
 
     expect(".o_field_widget input").toHaveValue("8,069");
 
-    await fieldInput("price").edit("8069", { confirm: "Enter" });
+    await fieldInput("price").edit("8069", { confirm: "enter" });
     expect(".o_field_widget input").toHaveValue("8,069");
 });
 

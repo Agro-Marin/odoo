@@ -306,6 +306,30 @@ class ProgramMembershipTests(unittest.TestCase):
         self.assertEqual(v.unchecked, [files[1]])
         self.assertEqual(v.locked, 1)
 
+    def test_dotfiles_are_out_of_scope_entirely(self):
+        # tsconfig's include: ["**/*.js"] does not match a dot-prefixed path, so
+        # a dotfile is never in the program tsc builds. Counting it as in-scope
+        # therefore reports it UNCHECKED forever — and since `.gitignore` line 1
+        # is `.*`, CI (a fresh checkout) never sees the file at all. The gate
+        # failed only in working trees carrying an editor dropping, which is the
+        # one place a lock must not be noisier than the thing it protects.
+        self.touch(f"{WEB_SRC}real.js")
+        self.touch(f"{WEB_SRC}.__e.js")
+        self.touch(f"{WEB_SRC}model/.__e.js")
+        self.touch(f"{WEB_SRC}.hidden_dir/inner.js")
+        self.assertEqual(scope_gate.module_files("web"), [f"{WEB_SRC}real.js"])
+
+    def test_dotfile_exclusion_does_not_reach_normal_paths(self):
+        # The rule is per-segment and anchored at the start of a segment: a dot
+        # inside a name (`file.test.js`, `a.b.js`) must stay in scope, or the
+        # fix would silently unlock most of the tests tree.
+        self.touch(f"{WEB_TESTS}core/domain.test.js")
+        self.touch(f"{WEB_SRC}a.b.js")
+        self.assertEqual(
+            scope_gate.module_files("web"),
+            [f"{WEB_SRC}a.b.js", f"{WEB_TESTS}core/domain.test.js"],
+        )
+
     def test_a_path_with_a_space_stays_in_the_program(self):
         # `--listFiles` lines were rejected outright if they contained a space,
         # as a way of telling a path from prose. A real file named with a space

@@ -40,7 +40,7 @@ describe("webNameSearch", () => {
                 limit: 8,
                 specification: { display_name: {} },
             });
-            expect(kwargs.context.blip).toBe("blop");
+            expect(/** @type {any} */ (kwargs.context).blip).toBe("blop");
             return [];
         });
         const { services } = await makeMockEnv();
@@ -84,7 +84,8 @@ describe("webNameSearch", () => {
 });
 
 describe("splitOverflow", () => {
-    const ids = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1 }));
+    const ids = (/** @type {number} */ n) =>
+        Array.from({ length: n }, (_, i) => ({ id: i + 1 }));
 
     test("a result within the page is passed through, no overflow", () => {
         const records = ids(3);

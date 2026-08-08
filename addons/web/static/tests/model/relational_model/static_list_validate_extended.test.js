@@ -25,20 +25,22 @@ import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
 
 function makeList() {
+    /** @type {any[]} */
     const updates = [];
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        mutex: { exec: (fn) => Promise.resolve().then(fn) },
+        mutex: { exec: (/** @type {any} */ fn) => Promise.resolve().then(fn) },
         multiEdit: false,
         hasOnRecordChangedHook: false,
         urgentSave: {
             isActive: false,
-            awaitUnlessUrgent: (prom) => prom,
-            unlessUrgent: (fn) => fn(),
+            awaitUnlessUrgent: (/** @type {any} */ prom) => prom,
+            unlessUrgent: (/** @type {any} */ fn) => fn(),
         },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds }) =>
-            resIds.map((id) => ({ id, name: `row ${id}` })),
+        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            Object.assign(config, patch),
+        _loadRecords: async (/** @type {any} */ { resIds }) =>
+            resIds.map((/** @type {number} */ id) => ({ id, name: `row ${id}` })),
         _loadNewRecord: async () => ({ name: "" }),
     };
     const config = {
@@ -49,11 +51,11 @@ function makeList() {
         offset: 0,
         limit: 10,
         resIds: [1, 2],
-        orderBy: [],
+        orderBy: /** @type {any[]} */ ([]),
         context: {},
     };
     const list = new StaticList(
-        model,
+        /** @type {any} */ (model),
         /** @type {any} */ (config),
         [
             { id: 1, name: "row 1" },
@@ -75,15 +77,18 @@ describe("validateExtendedRecord", () => {
     test("a member confirmed with no edits KEEPS its widened active fields", async () => {
         const { list, updates } = makeList();
         const record = list.records[0];
-        const widened = { ...list.config.activeFields, note: makeActiveField() };
+        const widened = /** @type {any} */ ({
+            ...list.config.activeFields,
+            note: makeActiveField(),
+        });
         list.config.fields.note = { type: "char", name: "note" };
         list.model._patchConfig(record.config, { activeFields: widened });
         record._activeFieldsToRestore = { ...list.config.activeFields };
 
-        await list.validateExtendedRecord(record);
+        await list.validateExtendedRecord(/** @type {any} */ (record));
 
         expect(Object.keys(record.activeFields).sort()).toEqual(["name", "note"]);
-        expect(record._activeFieldsToRestore).not.toBe(undefined);
+        expect(record._activeFieldsToRestore).not.toBe(/** @type {any} */ (undefined));
         // Nothing changed, so there is nothing to propagate upwards either.
         expect(updates).toEqual([]);
     });
@@ -91,7 +96,10 @@ describe("validateExtendedRecord", () => {
     test("a member WITH pending changes ends the extended session", async () => {
         const { list, updates } = makeList();
         const record = list.records[0];
-        const widened = { ...list.config.activeFields, note: makeActiveField() };
+        const widened = /** @type {any} */ ({
+            ...list.config.activeFields,
+            note: makeActiveField(),
+        });
         list.config.fields.note = { type: "char", name: "note" };
         list.model._patchConfig(record.config, { activeFields: widened });
         await record._update({ name: "edited" });
@@ -99,11 +107,11 @@ describe("validateExtendedRecord", () => {
         record._activeFieldsToRestore = { ...list.config.activeFields };
         updates.length = 0; // the edit itself already notified the parent
 
-        await list.validateExtendedRecord(record);
+        await list.validateExtendedRecord(/** @type {any} */ (record));
 
         expect(Object.keys(record.activeFields)).toEqual(["name"]);
-        expect(record._activeFieldsToRestore).toBe(undefined);
-        expect(record._savePoint).toBe(undefined);
+        expect(record._activeFieldsToRestore).toBe(/** @type {any} */ (undefined));
+        expect(record._savePoint).toBe(/** @type {any} */ (undefined));
         expect(updates).toEqual(["parent"]);
         expect(record._changes.name).toBe("edited");
     });
@@ -114,12 +122,12 @@ describe("validateExtendedRecord", () => {
         record._addSavePoint();
         record._activeFieldsToRestore = { ...list.config.activeFields };
 
-        await list.validateExtendedRecord(record);
+        await list.validateExtendedRecord(/** @type {any} */ (record));
 
         expect(list.currentIds).toInclude(record._virtualId);
         expect(list.count).toBe(3);
-        expect(record._savePoint).toBe(undefined);
-        expect(record._activeFieldsToRestore).toBe(undefined);
+        expect(record._savePoint).toBe(/** @type {any} */ (undefined));
+        expect(record._activeFieldsToRestore).toBe(/** @type {any} */ (undefined));
         expect(updates).toEqual(["parent"]);
     });
 });

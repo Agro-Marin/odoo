@@ -67,11 +67,14 @@ class Parent extends Component {
     `;
 }
 
-/** @returns {any} */
+/** @returns {Promise<any>} */
 async function mountRecord() {
     const parent = await mountWithCleanup(Parent);
-    const rec = findComponent(parent, (c) => c instanceof Record);
-    return rec.model?.root ?? findComponent(parent, (c) => c.model).model.root;
+    const rec = /** @type {any} */ (findComponent(parent, (c) => c instanceof Record));
+    return (
+        rec.model?.root ??
+        /** @type {any} */ (findComponent(parent, (c) => c.model)).model.root
+    );
 }
 
 test("re-setting a many2one to its current pair still runs the onchange", async () => {

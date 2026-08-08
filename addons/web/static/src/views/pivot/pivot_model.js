@@ -8,7 +8,12 @@ import {
     sections,
     symmetricalDifference,
 } from "@web/core/utils/collections/arrays";
-import { InFlight, KeepLast, Mutex, SupersededError } from "@web/core/utils/concurrency";
+import {
+    InFlight,
+    KeepLast,
+    Mutex,
+    SupersededError,
+} from "@web/core/utils/concurrency";
 import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
 import {

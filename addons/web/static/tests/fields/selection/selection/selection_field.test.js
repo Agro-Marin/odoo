@@ -363,7 +363,7 @@ test("SelectionField - auto save record in kanban view", async () => {
     expect.verifySteps(["web_save"]);
 });
 
-test("SelectionField don't open form view on click in kanban view", async function (assert) {
+test("SelectionField don't open form view on click in kanban view", async function () {
     await mountView({
         type: "kanban",
         resModel: "partner",
@@ -438,7 +438,7 @@ test("SelectionField is disabled with a readonly attribute", async () => {
 });
 
 test.tags("mobile");
-test("SelectionField search is disabled in BottomSheet", async function (assert) {
+test("SelectionField search is disabled in BottomSheet", async function () {
     await mountView({
         type: "kanban",
         resModel: "partner",

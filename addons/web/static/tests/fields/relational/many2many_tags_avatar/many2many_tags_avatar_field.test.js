@@ -270,7 +270,7 @@ test("widget many2many_tags_avatar in kanban view", async () => {
                     </t>
                 </templates>
             </kanban>`,
-        selectRecord(recordId) {
+        selectRecord(/** @type {number} */ recordId) {
             expect(recordId).toBe(1, {
                 message: "should call its selectRecord prop with the clicked record",
             });

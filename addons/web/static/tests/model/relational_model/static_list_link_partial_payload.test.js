@@ -33,13 +33,17 @@ const SERVER = {
 };
 
 function makeList() {
+    /** @type {any[]} */
     const requested = [];
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds }) => {
+        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            Object.assign(config, patch),
+        _loadRecords: async (/** @type {any} */ { resIds }) => {
             requested.push([...resIds]);
-            return resIds.map((id) => ({ ...SERVER[id] }));
+            return resIds.map((/** @type {number} */ id) => ({
+                .../** @type {Record<number, any>} */ (SERVER)[id],
+            }));
         },
     };
     const config = {
@@ -52,18 +56,23 @@ function makeList() {
         relationField: false,
         offset: 0,
         limit: 80,
-        resIds: [],
-        orderBy: [],
+        resIds: /** @type {any[]} */ ([]),
+        orderBy: /** @type {any[]} */ ([]),
         context: {},
     };
-    const list = new StaticList(model, /** @type {any} */ (config), [], {
-        parent: {
-            evalContext: {},
-            evalContextWithVirtualIds: {},
-            _isEvalContextReady: true,
+    const list = new StaticList(
+        /** @type {any} */ (model),
+        /** @type {any} */ (config),
+        [],
+        {
+            parent: {
+                evalContext: {},
+                evalContextWithVirtualIds: {},
+                _isEvalContextReady: true,
+            },
+            onUpdate: async () => {},
         },
-        onUpdate: async () => {},
-    });
+    );
     return { list, requested };
 }
 
@@ -74,7 +83,9 @@ describe("a LINK payload is authoritative", () => {
         await list._applyCommands([[x2ManyCommands.LINK, 6, false]]);
 
         expect(requested).toEqual([[6]]);
-        expect(list._cache[6].data.note).toBe("N6");
+        expect(/** @type {Record<string, any>} */ (list._cache)[6].data.note).toBe(
+            "N6",
+        );
     });
 
     test("a COMPLETE payload costs no round trip", async () => {
@@ -85,7 +96,9 @@ describe("a LINK payload is authoritative", () => {
         ]);
 
         expect(requested).toEqual([]);
-        expect(list._cache[5].data.note).toBe("N5");
+        expect(/** @type {Record<string, any>} */ (list._cache)[5].data.note).toBe(
+            "N5",
+        );
     });
 
     test("a PARTIAL payload is trusted, NOT completed", async () => {
@@ -97,8 +110,13 @@ describe("a LINK payload is authoritative", () => {
         await list._applyCommands([[x2ManyCommands.LINK, 5, { name: "five" }]]);
 
         expect(requested).toEqual([]);
-        expect(list._cache[5].data.note).toBe("");
-        expect([...list._cache[5]._loadedFieldNames].sort()).toEqual(["id", "name"]);
+        expect(/** @type {Record<string, any>} */ (list._cache)[5].data.note).toBe("");
+        expect(
+            [
+                .../** @type {Record<string, any>} */ (list._cache)[5]
+                    ._loadedFieldNames,
+            ].sort(),
+        ).toEqual(["id", "name"]);
     });
 
     test("an already fully cached row is not re-read", async () => {
@@ -111,6 +129,8 @@ describe("a LINK payload is authoritative", () => {
         await list._applyCommands([[x2ManyCommands.LINK, 5, false]]);
 
         expect(requested).toEqual([]);
-        expect(list._cache[5].data.note).toBe("N5");
+        expect(/** @type {Record<string, any>} */ (list._cache)[5].data.note).toBe(
+            "N5",
+        );
     });
 });

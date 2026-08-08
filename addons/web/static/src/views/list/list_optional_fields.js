@@ -4,9 +4,16 @@
 /** @module @web/views/list/list_optional_fields */
 
 /**
+ * The context is declared as the exact subset this hook destructures. See the
+ * note on `useListVirtualization` for why `Pick<>` and not the whole
+ * `ListGridContext`.
+ *
  * @param {string} keyOptionalFields
  * @param {string} keyDebugOpenView
- * @param {import("./list_renderer").ListGridContext} ctx
+ * @param {Pick<
+ *     import("./list_renderer").ListGridContext,
+ *     "getAllColumns" | "getOptionalActiveFields" | "onSave"
+ * >} ctx
  * @returns {{
  *   debugOpenView: boolean,
  *   computeOptionalActiveFields: () => Record<string, boolean>,

@@ -169,6 +169,7 @@ test("name and leaveDuration follow the props that carry them", async () => {
             <Transition name="state.name" visible="state.visible" leaveDuration="state.leaveDuration" t-slot-scope="transition">
                 <div class="target" t-att-class="transition.className"/>
             </Transition>`;
+        /** @type {string[]} */
         static props = [];
         state = useState({ name: "first", visible: true, leaveDuration: 1000 });
     }

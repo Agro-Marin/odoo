@@ -586,7 +586,7 @@ export class Colibri {
             }
         };
         forget = this.addCleanup(destroy);
-        core._trackProm(
+        core.trackProm(
             root.mount().catch((error) => {
                 if (!isRootDestroyed) {
                     core.reportError(error);

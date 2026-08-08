@@ -31,7 +31,9 @@ const PUBLIC = ACTION_MANAGER_SURFACE.filter((k) => !k.startsWith("_"));
 describe("the ActionManager contract and the class agree", () => {
     test("every operation the contract names is a method on the class", () => {
         const missing = PRIVATE.filter(
-            (key) => typeof ActionManager.prototype[key] !== "function",
+            (key) =>
+                typeof (/** @type {any} */ (ActionManager.prototype)[key]) !==
+                "function",
         );
         expect(missing).toEqual([], {
             message:

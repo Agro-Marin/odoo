@@ -140,7 +140,7 @@ test("connection lost when opening form view from kanban", async () => {
     await getService("action").doAction(1);
     expect(".o_kanban_view").toHaveCount(1);
 
-    mockFetch((input) => {
+    mockFetch((/** @type {any} */ input) => {
         expect.step(input);
         if (input === "/web/webclient/version_info") {
             return true;

@@ -86,7 +86,7 @@ test("does not submit forms", async () => {
                     <button class="submit-button"/>
                 </form>
             `;
-        onSubmit(ev) {
+        onSubmit(/** @type {SubmitEvent} */ ev) {
             ev.preventDefault();
             expect.step("form submit");
         }

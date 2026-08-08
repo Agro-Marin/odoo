@@ -180,7 +180,7 @@ function mockVerdict(granularity) {
             [`name:${granularity}`],
             ["rate:sum", "__count"],
         );
-        return groups.map((group) => [
+        return groups.map((/** @type {Record<string, any>} */ group) => [
             group[`name:${granularity}`],
             group["rate:sum"],
             group["__count"],

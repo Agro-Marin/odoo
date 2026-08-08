@@ -9,7 +9,7 @@ describe.current.tags("headless");
 
 test("default state", () => {
     expect(odoo.debug).toBe("");
-    const s = { ...serverState };
+    const s = /** @type {any} */ ({ ...serverState });
     expect(s).toInclude("view_info");
     delete s.view_info;
     expect(s).toEqual({

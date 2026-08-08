@@ -32,7 +32,7 @@ test("basic ViewScaleSelector component usage", async () => {
                     },
                 },
                 isWeekendVisible: true,
-                setScale: (scale) => {
+                setScale: (/** @type {string} */ scale) => {
                     this.state.scale = scale;
                     expect.step(scale);
                 },
@@ -123,7 +123,7 @@ test("ViewScaleSelector show weekends button is disabled when scale is day", asy
                         description: "Yearly",
                     },
                 },
-                setScale: (key) => (this.state.scale = key),
+                setScale: (/** @type {string} */ key) => (this.state.scale = key),
                 isWeekendVisible: false,
                 toggleWeekendVisibility: () => {},
                 currentScale: this.state.scale,

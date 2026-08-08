@@ -14,7 +14,7 @@ describe("makeContext", () => {
         const ctx1 = { a: 1 };
         const ctx2 = makeContext([ctx1]);
         expect(ctx1).not.toBe(ctx2);
-        expect(ctx1).toEqual(ctx2);
+        expect(ctx1).toEqual(/** @type {any} */ (ctx2));
     });
 
     test("can accept undefined or empty string", () => {

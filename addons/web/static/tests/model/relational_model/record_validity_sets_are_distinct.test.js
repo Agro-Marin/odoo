@@ -33,7 +33,8 @@ describe.current.tags("headless");
 function makeRecord(name = "") {
     const model = {
         Class: { Record: RelationalRecord },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
+        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            Object.assign(config, patch),
         hooks: { lifecycle: { onWillSetInvalidField: () => {} }, ui: {} },
     };
     const config = {

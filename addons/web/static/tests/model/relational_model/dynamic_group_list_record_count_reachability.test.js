@@ -31,6 +31,7 @@ class Thing extends models.Model {
             ["c", "C"],
         ],
     });
+    /** @type {any[]} */
     _records = [];
 }
 

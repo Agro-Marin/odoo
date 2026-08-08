@@ -80,6 +80,11 @@ GATES = {
     "pool_surface_check": ["--check"],
     "worker_thread_surface_check": ["--check"],
     "mixin_coupling_check": ["--check"],
+    # The JS counterpart. It enumerates its modules in COMPOSITIONS rather than
+    # discovering them, so an emptied tree is a missing-file error rather than a
+    # silent zero — `analyse` raises SystemExit naming the absent paths, which
+    # is the refusal this suite is checking for.
+    "js_mixin_coupling": ["--check"],
     "libs_facade_check": ["--check"],
     "py_cycle_check": ["--check"],
     "package_index_check": ["--check"],
@@ -88,6 +93,12 @@ GATES = {
 
 UNPROBED = {
     "js_imports": "a shared parser imported by the gates, not a gate — no main()",
+    "doc_measured": (
+        "a helper the gates call to keep their own docstrings' figures honest, "
+        "not a gate — no main(); test_doc_measured covers its refusals, "
+        "including that a missing or pair-less MEASURED block raises rather "
+        "than comparing equal to a gate that measured nothing"
+    ),
     "cross_repo_coherence": (
         "takes an explicit --from/--to commit range rather than a tree; its own "
         "empty-range guard is what 1cd6f1667ba added, and "

@@ -336,7 +336,7 @@ test("multi edition of DatetimeField in list view: edit date in input", async ()
     await animationFrame();
     await click(".o_field_datetime input");
     await animationFrame();
-    await edit("10/02/2019 09:00:00", { confirm: "Enter" });
+    await edit("10/02/2019 09:00:00", { confirm: "enter" });
     await animationFrame();
 
     expect(".modal").toHaveCount(1);
@@ -372,7 +372,7 @@ test("multi edition of DatetimeField in list view: clear date in input", async (
     await animationFrame();
     await click(".o_field_datetime input");
     await animationFrame();
-    await edit("", { confirm: "Enter" });
+    await edit("", { confirm: "enter" });
     await animationFrame();
 
     expect(".modal").toHaveCount(1);
@@ -438,7 +438,7 @@ test("datetime field: hit enter should update value", async () => {
     await animationFrame();
     await click(".o_field_datetime input");
     await animationFrame();
-    await edit("01/08/22 14:30", { confirm: "Enter" });
+    await edit("01/08/22 14:30", { confirm: "enter" });
 
     const datetimeValue = `01/08/2022 14:30:00`;
 
@@ -527,7 +527,7 @@ test("edit a datetime field in form view with show_seconds option", async () => 
     await contains(".o_input:eq(0)").click();
     await animationFrame();
     expect(".o_time_picker_input").toHaveValue("11:00");
-    await edit("02/08/2017 11:00:00", { confirm: "Enter" });
+    await edit("02/08/2017 11:00:00", { confirm: "enter" });
     await animationFrame();
 
     expect(".o_input:eq(0)").toHaveValue("02/08/2017 11:00:00", {
@@ -537,7 +537,7 @@ test("edit a datetime field in form view with show_seconds option", async () => 
     await contains(".o_input:eq(1)").click();
     await animationFrame();
     expect(".o_time_picker_input").toHaveValue("11:00:00");
-    await edit("02/08/2017 11:00:30", { confirm: "Enter" });
+    await edit("02/08/2017 11:00:30", { confirm: "enter" });
     await animationFrame();
 
     expect(".o_input:eq(1)").toHaveValue("02/08/2017 11:00:30", {
@@ -824,7 +824,7 @@ test("empty datetime touched then left must not dirty the record", async () => {
 
     await click(".o_field_datetime input");
     await animationFrame();
-    await edit("", { confirm: "Enter" });
+    await edit("", { confirm: "enter" });
     await animationFrame();
     await click(document.body);
     await animationFrame();

@@ -35,8 +35,8 @@ describe("pairCreatedRows", () => {
     test("zips virtual ids against new ids in creation order", () => {
         const pairs = pairedOrThrow(["virtual_1", "virtual_2"], [11, 10]);
 
-        expect(pairs.get("virtual_1")).toBe(10);
-        expect(pairs.get("virtual_2")).toBe(11);
+        expect(/** @type {Map<string, number>} */ (pairs).get("virtual_1")).toBe(10);
+        expect(/** @type {Map<string, number>} */ (pairs).get("virtual_2")).toBe(11);
     });
 
     test("returns null when the counts disagree", () => {
@@ -53,7 +53,9 @@ describe("pairCreatedRows", () => {
     test("an unknown virtual id has no pairing", () => {
         const pairs = pairedOrThrow(["virtual_1"], [10]);
 
-        expect(pairs.get("virtual_9")).toBe(undefined);
+        expect(/** @type {Map<string, number>} */ (pairs).get("virtual_9")).toBe(
+            undefined,
+        );
     });
 
     test("ranking is numeric, not lexicographic", () => {
@@ -71,7 +73,7 @@ describe("pairCreatedRows positional identity", () => {
         });
 
         expect(pairs).not.toBe(null);
-        expect(pairs.get("virtual_1")).toBe(90);
+        expect(/** @type {Map<string, number>} */ (pairs).get("virtual_1")).toBe(90);
     });
 
     test("a multi-row create pairs each row at its own position", () => {
@@ -81,8 +83,8 @@ describe("pairCreatedRows positional identity", () => {
         });
 
         expect(pairs).not.toBe(null);
-        expect(pairs.get("virtual_1")).toBe(90);
-        expect(pairs.get("virtual_2")).toBe(91);
+        expect(/** @type {Map<string, number>} */ (pairs).get("virtual_1")).toBe(90);
+        expect(/** @type {Map<string, number>} */ (pairs).get("virtual_2")).toBe(91);
     });
 
     test("a foreign new id at a different position is refused", () => {
@@ -110,6 +112,6 @@ describe("pairCreatedRows positional identity", () => {
     test("without positions the rank-order zip is unchanged", () => {
         const pairs = pairedOrThrow(["virtual_1"], [999]);
 
-        expect(pairs.get("virtual_1")).toBe(999);
+        expect(/** @type {Map<string, number>} */ (pairs).get("virtual_1")).toBe(999);
     });
 });

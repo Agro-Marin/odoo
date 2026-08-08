@@ -530,7 +530,9 @@ export class RelationalModel extends Model {
         }
         // A visible record is being edited or is selected — refreshing would
         // discard the user's in-flight work.
-        if (root.records.some((r) => r.isInEdition || r.hasPendingChanges || r.selected)) {
+        if (
+            root.records.some((r) => r.isInEdition || r.hasPendingChanges || r.selected)
+        ) {
             return;
         }
         if (root.config.groupBy.length) {

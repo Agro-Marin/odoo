@@ -23,7 +23,7 @@ import { getTabableElements } from "@web/core/utils/dom/ui";
  * @returns {HTMLElement}
  */
 export function getElementToFocus(cell, index) {
-    return /** @type {HTMLElement} */ (getTabableElements(cell).at(index) || cell);
+    return /** @type {HTMLElement} */ (getTabableElements(cell).at(index ?? 0) || cell);
 }
 
 /**

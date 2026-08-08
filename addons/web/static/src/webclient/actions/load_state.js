@@ -43,6 +43,7 @@ function crumbsBelowDispatched(controllers, state, popped) {
  * @returns {Promise<boolean | undefined>}
  */
 export async function loadState(am, state) {
+    /** @type {Record<string, any>} */
     const routeState = state ?? am.router.current;
     // A loadState is a navigation like any other: minting on the shared clock
     // is what lets a newer navigation supersede the reconstruction below, and

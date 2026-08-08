@@ -62,6 +62,7 @@ describe("legacy raw-boolean details", () => {
         const id = Symbol("field-a");
         applyFieldDirtyPayload(owners, { id, isDirty: true });
 
+        /** @type {any[]} */
         const warnings = [];
         const originalWarn = console.warn;
         console.warn = (...args) => warnings.push(args.join(" "));

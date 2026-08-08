@@ -23,13 +23,19 @@ describe("actionContextRecorder", () => {
     test("treats an explicit null the same as absent", () => {
         // web_studio opts out by setting all five slots to null; before the
         // port, `null` and `undefined` reached consumers as different shapes.
-        expect(actionContextRecorder({ __getContext__: null }, "__getContext__").callbacks).toEqual(
-            [],
-        );
+        expect(
+            actionContextRecorder({ __getContext__: null }, "__getContext__").callbacks,
+        ).toEqual([]);
     });
 
     test("tolerates a missing env rather than throwing on the read", () => {
-        expect(actionContextRecorder(undefined, "__getOrderBy__").callbacks).toEqual([]);
+        // The case under test is precisely the undefined the signature
+        // forbids: the recorder must tolerate it rather than throw.
+        const recorder = actionContextRecorder(
+            /** @type {any} */ (undefined),
+            "__getOrderBy__",
+        );
+        expect(recorder.callbacks).toEqual([]);
     });
 });
 
@@ -40,19 +46,25 @@ describe("actionContextCallbacks", () => {
         const two = () => 2;
         recorder.add({}, one);
         recorder.add({}, two);
-        expect(actionContextCallbacks({ __getContext__: recorder }, "__getContext__")).toEqual([
-            one,
-            two,
-        ]);
+        expect(
+            actionContextCallbacks({ __getContext__: recorder }, "__getContext__"),
+        ).toEqual([one, two]);
     });
 
     test("returns [] for both off-shapes, so a caller needs no guard", () => {
         // This is the whole point: `_getIrFilterDescription` maps over the
         // result, and used to throw a TypeError when the slot was nulled.
-        for (const env of [{}, { __getContext__: null }, { __getContext__: undefined }]) {
+        for (const env of [
+            {},
+            { __getContext__: null },
+            { __getContext__: undefined },
+        ]) {
             expect(actionContextCallbacks(env, "__getContext__")).toEqual([]);
             expect(() =>
-                Object.assign({}, ...actionContextCallbacks(env, "__getContext__").map((fn) => fn())),
+                Object.assign(
+                    {},
+                    ...actionContextCallbacks(env, "__getContext__").map((fn) => fn()),
+                ),
             ).not.toThrow();
         }
     });

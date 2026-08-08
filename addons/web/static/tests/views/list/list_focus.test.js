@@ -50,15 +50,19 @@ function makeRow(cellsHTML) {
     return /** @type {HTMLTableRowElement} */ (table.querySelector("tr"));
 }
 
-const dataCell = (inner) => `<td class="o_data_cell">${inner}</td>`;
-const readonlyCell = (inner) =>
+const dataCell = (/** @type {any} */ inner) => `<td class="o_data_cell">${inner}</td>`;
+const readonlyCell = (/** @type {any} */ inner) =>
     `<td class="o_data_cell"><div class="o_readonly_modifier">${inner}</div></td>`;
 
 describe("getElementToFocus", () => {
     test("returns the tabable element at the index", () => {
         const cell = makeCell(`<input class="a"/><input class="b"/>`);
-        expect(getElementToFocus(cell, 0)).toBe(cell.querySelector(".a"));
-        expect(getElementToFocus(cell, -1)).toBe(cell.querySelector(".b"));
+        expect(getElementToFocus(cell, 0)).toBe(
+            /** @type {HTMLElement} */ (cell.querySelector(".a")),
+        );
+        expect(getElementToFocus(cell, -1)).toBe(
+            /** @type {HTMLElement} */ (cell.querySelector(".b")),
+        );
     });
 
     test("falls back to the cell when it holds nothing tabable", () => {

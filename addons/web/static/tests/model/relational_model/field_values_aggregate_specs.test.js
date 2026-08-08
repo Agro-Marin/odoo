@@ -37,7 +37,9 @@ describe("getAggregateSpecifications", () => {
         const scoped = getAggregateSpecifications(fields, names);
         // what the call site used to do: pick(fields, ...names)
         const picked = getAggregateSpecifications(
-            Object.fromEntries(names.map((n) => [n, fields[n]])),
+            Object.fromEntries(
+                names.map((n) => [n, /** @type {Record<string, any>} */ (fields)[n]]),
+            ),
         );
 
         expect(scoped).toEqual(picked);

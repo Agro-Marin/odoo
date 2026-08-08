@@ -1891,7 +1891,7 @@ test("properties: default value", async () => {
     await waitFor(".o_property_field_popover");
 
     await click(".o_field_property_definition_value input");
-    await edit("First Default Value", { confirm: "Enter" });
+    await edit("First Default Value", { confirm: "enter" });
     await animationFrame();
     await closePopover();
 
@@ -2005,7 +2005,7 @@ test("properties: suffix", async () => {
     await waitFor(".o_property_field_popover");
 
     await click(".o_field_property_definition_suffix input");
-    await edit("kg", { confirm: "Enter" });
+    await edit("kg", { confirm: "enter" });
     await animationFrame();
     await closePopover();
 

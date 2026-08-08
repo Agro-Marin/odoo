@@ -12,7 +12,7 @@ instead of describing its own compliance.
 
 ## Running the checks
 
-The twenty-four blocking checkers do **not** share one CLI, and a loop that
+The twenty-five blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on three of them.
 
 **Twenty are contract gates.** Each takes bare for a human-readable report,
@@ -47,7 +47,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             libs_facade_check py_cycle_check js_layer_check js_cycle_check \
             named_export_coherence js_suite_parity js_layer_cohesion \
             js_import_resolution js_self_bridge js_patch_blind_facade \
-            js_public_surface xml_reference_coherence; do
+            js_public_surface xml_reference_coherence js_mixin_coupling; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
 done
 
@@ -74,13 +74,14 @@ finding that belongs to a sibling repo's own architecture workflow. Read the
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **twenty-four** blocking checkers — it first
+`Architecture Boundaries` workflow runs **twenty-five** blocking checkers — it first
 runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
 |------|---------------|
 | `layer_check.py` | the Python layering contracts in [`module.md`](module.md#enforced-dependency-rules) |
 | `mixin_coupling_check.py` | the `self`-call graph the import graph cannot see |
+| `js_mixin_coupling.py` | the same for JS: the `this`-call graph across `SearchModel`'s mixin chain, which produces no import edge and no cross-module member access, so every other JS gate reads it as empty |
 | `env_surface_check.py` | the Layer→runtime `env` seam, and that every reached `Environment` member exists |
 | `pool_surface_check.py` | the Layer→runtime `pool` seam: private reach, member validity, and `components/` at zero |
 | `env_model_surface_check.py` | the framework's string-keyed dependency on addon-owned models (`env["res.users"]`), which `core-does-not-depend-on-addons` cannot see — *which* models (exact set) **and** which subtrees may reach none |
@@ -167,7 +168,7 @@ those names are backticked like every other path in the tree, so a gate that
 reads a backticked path as an assertion cannot tell a citation from an assertion.
 The only thing that can tell them apart is *where on the page they are*.
 
-(`cross_repo_coherence.py` is a twenty-fifth checker and the only one outside CI: it
+(`cross_repo_coherence.py` is a twenty-sixth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub checks
 out this repo alone and the check needs the sibling checkouts to compare against.
 It is opt-in per clone — `pre-commit install --hook-type pre-push`.)

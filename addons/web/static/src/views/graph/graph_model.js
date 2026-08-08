@@ -438,6 +438,7 @@ export class GraphModel extends Model {
               })
             : { cumulatedStartValue: {}, cumulatedStartConverted: {} };
 
+        /** @type {import("./graph_data_points").Numbering} */
         const numbering = {};
         const getDefaultFilterLabel = (gb) => this._getDefaultFilterLabel(gb);
         const dataPoints = [];

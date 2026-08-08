@@ -232,7 +232,7 @@ export function makeRecordDouble({
             }),
         _setEvalContext: () => {},
         _restoreActiveFields: () => {},
-        setInvalidFieldsNotification: (close) => {
+        setInvalidFieldsNotification: (/** @type {() => void} */ close) => {
             editState.closeInvalidFieldsNotification = close;
         },
         closeInvalidFieldsNotification: () => {

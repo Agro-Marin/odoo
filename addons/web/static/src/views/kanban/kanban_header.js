@@ -118,7 +118,9 @@ export class KanbanHeader extends Component {
 
     /** @returns {Object} */
     get configMenuProps() {
-        return this.groupOps.getGroupConfigMenuProps(this.props.group);
+        return /** @type {any} */ (this.groupOps).getGroupConfigMenuProps(
+            this.props.group,
+        );
     }
 
     /** @returns {Object | undefined} */

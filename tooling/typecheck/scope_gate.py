@@ -257,6 +257,27 @@ def module_prefixes(module: str) -> tuple[str, ...]:
     return tuple(f"addons/{module}/static/{sub}/" for sub in SCOPE_SUBDIRS)
 
 
+def is_hidden(rel: str) -> bool:
+    """True for a path any segment of which starts with a dot.
+
+    TypeScript's own globbing excludes these: ``include: ["**/*.js"]`` in
+    tsconfig.json does NOT match ``src/model/.__e.js``. So a dotfile is in this
+    gate's scope while being absent from the program tsc builds, and the gate
+    reports it as ``unchecked`` — correctly, by its own rules, but for a file
+    that can never be checked and that a fresh CI checkout never even sees
+    (``.gitignore`` line 1 is ``.*``).
+
+    That combination made the gate fail on editor droppings in a developer's
+    working tree while passing in CI, which inverts what a default-deny lock is
+    for: it must be *stricter* locally than the thing it protects, never noisier
+    about files the protected thing ignores. Matching tsc's own rule is the fix —
+    not a new ignore list, which would be a second source of truth for what is
+    in scope and would drift from the tsconfig the way every other duplicated
+    scope in this tree has.
+    """
+    return any(seg.startswith(".") for seg in rel.split("/"))
+
+
 def module_files(module: str) -> list[str]:
     """Every file the module's scope covers, as repo-relative paths."""
     found = []
@@ -266,6 +287,8 @@ def module_files(module: str) -> list[str]:
             continue
         for path in base.rglob("*"):
             rel = path.relative_to(ROOT).as_posix()
+            if is_hidden(rel):
+                continue
             if path.is_file() and module_of(rel) == module:
                 found.append(rel)
     return sorted(found)

@@ -12825,7 +12825,7 @@ test(`editable list view: multi edition: edit and validate last row`, async () =
 
     await contains(`.o_data_row:eq(-1) [name=int_field]`).click();
     await contains(`.o_data_row:eq(-1) [name=int_field] input`).fill("7", {
-        confirm: "Enter",
+        confirm: "enter",
     });
     expect(`.modal`).toHaveCount(1);
 

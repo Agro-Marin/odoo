@@ -6,9 +6,35 @@
 import { getElementToFocus } from "./list_focus.js";
 
 /**
+ * Nine members of the renderer surface, declared rather than assumed. Unlike
+ * the three-member hooks this is genuinely broad — inline editing has to know
+ * about columns, controls, creatability and readonly-ness at once — so pinning
+ * it does not decouple anything. What it does is make the breadth a reviewable
+ * number that a later edit cannot widen silently.
+ *
+ * Exported because `useListKeyboardNavigation` forwards its own `ctx` here. Its
+ * declared surface is the union of what it reads itself and this type, so the
+ * forwarding is expressed in the types rather than in a comment that has to be
+ * kept in step by hand.
+ *
+ * @typedef {Pick<
+ *     import("./list_renderer").ListGridContext,
+ *     | "getProps"
+ *     | "getColumns"
+ *     | "getEditedRecord"
+ *     | "getControls"
+ *     | "getCanCreate"
+ *     | "getDisplayRowCreates"
+ *     | "isCellReadonly"
+ *     | "onAdd"
+ *     | "onEditNextRecord"
+ * >} ListEditContext
+ */
+
+/**
  * @param {object} nav
  * @param {any} tableRef
- * @param {import("./list_renderer").ListGridContext} ctx
+ * @param {ListEditContext} ctx
  */
 export function makeEditHandlers(nav, tableRef, ctx) {
     const {

@@ -21,7 +21,7 @@ class Partner extends models.Model {
     p = fields.One2many({ relation: "partner" });
     timmy = fields.Many2many({ relation: "partner.type" });
 
-    _records = [{ id: 1, foo: FR_FLAG_URL, timmy: [] }];
+    _records = [{ id: 1, foo: FR_FLAG_URL, timmy: /** @type {any[]} */ ([]) }];
 }
 
 class PartnerType extends models.Model {

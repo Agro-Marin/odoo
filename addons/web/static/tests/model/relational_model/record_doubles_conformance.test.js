@@ -41,7 +41,8 @@ describe.current.tags("headless");
 function makeRealRecord() {
     const model = {
         Class: { Record: RelationalRecord },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
+        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            Object.assign(config, patch),
     };
     const config = {
         resModel: "line",
@@ -62,7 +63,7 @@ function makeRealRecord() {
 }
 
 /** `in` rather than hasOwnProperty: accessors live on the prototype. */
-const has = (obj, key) => key in obj;
+const has = (/** @type {any} */ obj, /** @type {any} */ key) => key in obj;
 
 describe("the record contract, the class and the double agree", () => {
     test("a real RelationalRecord carries every member the contract names", () => {
@@ -97,9 +98,13 @@ describe("the record contract, the class and the double agree", () => {
         const double = makeRecordDouble({ values: { id: 1, name: "n" } });
 
         // Same shape, same question: which fields did the server actually send?
-        expect(record._loadedFieldNames).toBeInstanceOf(Set);
+        expect(/** @type {Set<string>} */ (record._loadedFieldNames)).toBeInstanceOf(
+            Set,
+        );
         expect(double._loadedFieldNames).toBeInstanceOf(Set);
-        expect(record._loadedFieldNames.has("name")).toBe(true);
+        expect(/** @type {Set<string>} */ (record._loadedFieldNames).has("name")).toBe(
+            true,
+        );
         expect(double._loadedFieldNames.has("name")).toBe(true);
     });
 

@@ -69,7 +69,17 @@ function getScrollContainer(el) {
  */
 
 /**
- * @param {import("./list_renderer").ListGridContext} ctx
+ * The context is declared as the exact subset this hook destructures, not as the
+ * whole `ListGridContext`. `Pick<>` is what makes that a contract rather than a
+ * comment: reaching for an un-picked member is a TS2339 under the module's
+ * `noImplicitAny` lock, and the call site may still pass the full object. The
+ * number of picked members is the hook's coupling to the renderer, and it can
+ * only be made smaller without an accompanying edit here.
+ *
+ * @param {Pick<
+ *     import("./list_renderer").ListGridContext,
+ *     "getGridState" | "canResequence" | "getEditedRecord"
+ * >} ctx
  * @param {ListVirtualizationConfig} config
  * @returns {ListVirtualization}
  */

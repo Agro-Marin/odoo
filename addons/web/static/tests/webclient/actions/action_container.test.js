@@ -36,7 +36,9 @@ class TestAction extends Component {
     static template = xml`<div class="o_test_action" t-att-class="props.className" t-esc="props.marker"/>`;
     static props = ["*"];
     setup() {
-        onMounted(() => counter.mounts++);
+        onMounted(() => {
+            counter.mounts++;
+        });
     }
 }
 

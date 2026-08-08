@@ -198,10 +198,10 @@ export function parseServerValues(
                     fieldName,
                     { orderBys },
                 );
-                if (valueIsCommandList) {
+                if (valueIsCommandList && staticList) {
                     staticList._applyInitialCommands(listValue);
                 }
-            } else if (valueIsCommandList) {
+            } else if (valueIsCommandList && staticList) {
                 staticList.stageCommands(listValue);
             }
             parsedValues[fieldName] = staticList;

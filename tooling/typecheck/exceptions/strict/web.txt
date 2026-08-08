@@ -113,7 +113,6 @@ addons/web/static/src/views/list/list_controller.js
 addons/web/static/src/views/list/list_grid_state.js
 addons/web/static/src/views/list/list_keyboard_edit.js
 addons/web/static/src/views/list/list_keyboard_nav.js
-addons/web/static/src/views/list/list_selection.js
 addons/web/static/src/views/pivot/pivot_arch_parser.js
 addons/web/static/src/views/pivot/pivot_model.js
 addons/web/static/src/views/pivot/pivot_renderer.js
@@ -136,7 +135,6 @@ addons/web/static/src/webclient/navbar/navbar.js
 addons/web/static/src/webclient/session_service.js
 addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js
 addons/web/static/tests/_framework/component_test_helpers.js
-addons/web/static/tests/_framework/dom_test_helpers.js
 addons/web/static/tests/_framework/env_test_helpers.js
 addons/web/static/tests/_framework/kanban_test_helpers.js
 addons/web/static/tests/_framework/mock_server/mock_fields.js
@@ -145,7 +143,6 @@ addons/web/static/tests/_framework/mock_server/mock_server.js
 addons/web/static/tests/_framework/mock_server_state.hoot.js
 addons/web/static/tests/_framework/mock_templates.hoot.js
 addons/web/static/tests/_framework/mock_user.hoot.js
-addons/web/static/tests/_framework/module_set.hoot.js
 addons/web/static/tests/_framework/search_test_helpers.js
 addons/web/static/tests/_framework/touch_helpers.js
 addons/web/static/tests/_framework/view_test_helpers.js
@@ -200,7 +197,6 @@ addons/web/static/tests/core/l10n/date_utils.test.js
 addons/web/static/tests/core/l10n/localization.test.js
 addons/web/static/tests/core/l10n/localization_service.test.js
 addons/web/static/tests/core/l10n/time.test.js
-addons/web/static/tests/core/l10n/translation.test.js
 addons/web/static/tests/core/macro.test.js
 addons/web/static/tests/core/multi_company_recovery_service.test.js
 addons/web/static/tests/core/name_service.test.js
@@ -221,6 +217,7 @@ addons/web/static/tests/core/services_hardening.test.js
 addons/web/static/tests/core/template.test.js
 addons/web/static/tests/core/template_inheritance.test.js
 addons/web/static/tests/core/transition.test.js
+addons/web/static/tests/core/translation.test.js
 addons/web/static/tests/core/tree/in_range_operator.test.js
 addons/web/static/tests/core/tree/tree_processor_service.test.js
 addons/web/static/tests/core/utils/arrays.test.js
@@ -253,13 +250,11 @@ addons/web/static/tests/core/virtual_grid_hook.test.js
 addons/web/static/tests/env.test.js
 addons/web/static/tests/fields/basic/char/char_field.test.js
 addons/web/static/tests/fields/basic/email/email_field.test.js
-addons/web/static/tests/fields/basic/integer/integer_field.test.js
 addons/web/static/tests/fields/basic/monetary/monetary_field.test.js
 addons/web/static/tests/fields/basic/numeric_fields.test.js
 addons/web/static/tests/fields/basic/phone/phone_field.test.js
 addons/web/static/tests/fields/basic/url/url_field.test.js
 addons/web/static/tests/fields/display/gauge/gauge_field.test.js
-addons/web/static/tests/fields/dynamic_placeholder.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
 addons/web/static/tests/fields/input_field_hook.test.js
 addons/web/static/tests/fields/media/binary/binary_field.test.js
@@ -297,7 +292,6 @@ addons/web/static/tests/libs/bootstrap.test.js
 addons/web/static/tests/libs/favorite_star.test.js
 addons/web/static/tests/mock_server/mock_model.test.js
 addons/web/static/tests/mock_server/mock_server.test.js
-addons/web/static/tests/mock_server/mock_server_state.test.js
 addons/web/static/tests/model/command_builder.test.js
 addons/web/static/tests/model/record.test.js
 addons/web/static/tests/model/relational_model/config_candidate_isolation.test.js
@@ -320,7 +314,6 @@ addons/web/static/tests/model/relational_model/relational_model_config.test.js
 addons/web/static/tests/model/relational_model/resequence.test.js
 addons/web/static/tests/model/relational_model/static_list_add_record_order.test.js
 addons/web/static/tests/model/relational_model/static_list_batch_page_capacity.test.js
-addons/web/static/tests/model/relational_model/static_list_command_engine.test.js
 addons/web/static/tests/model/relational_model/static_list_commit_save_heal.test.js
 addons/web/static/tests/model/relational_model/static_list_datapoint.test.js
 addons/web/static/tests/model/relational_model/static_list_eval_context.test.js
@@ -356,7 +349,6 @@ addons/web/static/tests/ui/commands/command_palette.test.js
 addons/web/static/tests/ui/commands/command_service.test.js
 addons/web/static/tests/ui/dialog.test.js
 addons/web/static/tests/ui/dialog_service.test.js
-addons/web/static/tests/ui/effects/effect_service.test.js
 addons/web/static/tests/ui/notifications/notifications.test.js
 addons/web/static/tests/ui/overlay_regressions.test.js
 addons/web/static/tests/ui/overlay_service.test.js
@@ -396,6 +388,8 @@ addons/web/static/tests/views/list/list_virtualization_x2many.test.js
 addons/web/static/tests/views/module_views.test.js
 addons/web/static/tests/views/pivot/pivot_model.test.js
 addons/web/static/tests/views/pivot_view.test.js
+addons/web/static/tests/views/settings/settings_form_view.test.js
+addons/web/static/tests/views/settings/settings_upgrade_boolean_field.test.js
 addons/web/static/tests/views/view.test.js
 addons/web/static/tests/views/view_button.test.js
 addons/web/static/tests/views/view_button_hook.test.js
@@ -421,7 +415,6 @@ addons/web/static/tests/webclient/actions/action_state.test.js
 addons/web/static/tests/webclient/actions/breadcrumb_manager.test.js
 addons/web/static/tests/webclient/actions/client_action.test.js
 addons/web/static/tests/webclient/actions/concurrency.test.js
-addons/web/static/tests/webclient/actions/effect.test.js
 addons/web/static/tests/webclient/actions/embedded_action.test.js
 addons/web/static/tests/webclient/actions/load_state.test.js
 addons/web/static/tests/webclient/actions/misc.test.js
@@ -437,15 +430,12 @@ addons/web/static/tests/webclient/clickbot.test.js
 addons/web/static/tests/webclient/debug/debug_manager.test.js
 addons/web/static/tests/webclient/install_scoped_app/install_scoped_app.test.js
 addons/web/static/tests/webclient/menu_service.test.js
-addons/web/static/tests/webclient/mobile/burger_menu.test.js
 addons/web/static/tests/webclient/mobile/burger_user_menu.test.js
 addons/web/static/tests/webclient/mobile/mobile_switch_company.test.js
 addons/web/static/tests/webclient/navbar.test.js
 addons/web/static/tests/webclient/res_user_group_ids_field.test.js
 addons/web/static/tests/webclient/rpc_mutation_listeners.test.js
 addons/web/static/tests/webclient/session_service.test.js
-addons/web/static/tests/webclient/settings_form_view/settings_form_view.test.js
-addons/web/static/tests/webclient/settings_form_view/settings_upgrade_boolean_field.test.js
 addons/web/static/tests/webclient/share_target_service.test.js
 addons/web/static/tests/webclient/switch_company_menu.test.js
 addons/web/static/tests/webclient/user_menu.test.js

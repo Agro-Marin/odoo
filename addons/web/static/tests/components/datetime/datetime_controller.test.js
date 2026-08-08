@@ -272,9 +272,11 @@ test("dispose() tears down: closes popover, removes listeners, releases registry
 test("constructor tolerates an absent pickerProps (F13)", () => {
     let controller;
     expect(() => {
-        controller = createController({ getInputs: () => [] }).controller;
+        controller = createController({
+            getInputs: () => /** @type {any[]} */ ([]),
+        }).controller;
     }).not.toThrow();
-    expect(controller.pickerProps.type).toBe("datetime");
+    expect(/** @type {any} */ (controller).pickerProps.type).toBe("datetime");
 });
 
 test("getPopoverTarget range mode falls back when the first input is disconnected (F14)", () => {

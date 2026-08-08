@@ -36,8 +36,9 @@ test("processButton applies context/close defaults only when the attribute is pr
     const withCtx = processButton(
         buttonNode(`name="x" type="object" context="{'a': 1}" close="1"`),
     );
-    expect(withCtx.clickParams.context).toBe("{'a': 1}");
-    expect(withCtx.clickParams.close).toBe(true);
+    const clickParams = /** @type {Record<string, any>} */ (withCtx.clickParams);
+    expect(clickParams.context).toBe("{'a': 1}");
+    expect(clickParams.close).toBe(true);
 });
 
 test("processButton parses a valid options attribute", () => {

@@ -16,6 +16,7 @@ const ENDPOINT = "/web/observability/js_error";
  * @returns {{ calls: { url: string, blob: Blob }[] }}
  */
 function spyBeacon() {
+    /** @type {{ url: any, blob: any }[]} */
     const calls = [];
     mockSendBeacon((url, blob) => {
         calls.push({ url, blob });

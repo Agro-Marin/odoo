@@ -11,6 +11,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { App, Component } from "@odoo/owl";
 import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 import {
+    DEFAULT_COMPILER_SEQUENCE,
+    getShadowedCompilerReports,
     makeIsVisibleExpr,
     resetViewCompilerCache,
     useViewCompiler,
@@ -626,6 +628,7 @@ describe("ViewCompiler — shadowed compiler warning", () => {
             [{ selector: "div", fn: () => document.createElement("span") }],
             [{ selector: "div.shadow_probe", fn: () => document.createElement("b") }],
         );
+        /** @type {any[]} */
         const warnings = [];
         patchWithCleanup(console, { warn: (m) => warnings.push(m) });
 
@@ -650,6 +653,7 @@ describe("ViewCompiler — shadowed compiler warning", () => {
             [{ selector: "div", fn: () => document.createElement("span") }],
             [{ selector: "div.no_warn_probe", fn: () => document.createElement("b") }],
         );
+        /** @type {any[]} */
         const warnings = [];
         patchWithCleanup(console, { warn: (m) => warnings.push(m) });
 
@@ -662,12 +666,28 @@ describe("ViewCompiler — shadowed compiler warning", () => {
     test("does not warn for a built-in-vs-built-in overlap (deliberate ordering)", () => {
         serverState.debug = "1";
         const compiler = new ViewCompiler({});
-        // Both entries are built-ins (before the boundary): overlap is intended.
+        // Both overlapping entries are built-ins: the overlap is intended. A
+        // third, non-built-in entry that matches nothing is appended so the
+        // detection loop actually runs — without it the compiler carries no
+        // extension at all and the assertion would hold vacuously.
         compiler.compilers = [
-            { selector: "div", fn: () => document.createElement("span") },
-            { selector: "div.builtin_probe", fn: () => document.createElement("i") },
+            {
+                selector: "div",
+                fn: () => document.createElement("span"),
+                builtIn: true,
+            },
+            {
+                selector: "div.builtin_probe",
+                fn: () => document.createElement("i"),
+                builtIn: true,
+            },
         ];
         compiler.baseCompilerCount = compiler.compilers.length;
+        compiler.compilers.push({
+            selector: "section.never_matches",
+            fn: () => document.createElement("b"),
+        });
+        /** @type {any[]} */
         const warnings = [];
         patchWithCleanup(console, { warn: (m) => warnings.push(m) });
 
@@ -675,5 +695,137 @@ describe("ViewCompiler — shadowed compiler warning", () => {
         node.classList.add("builtin_probe");
         compiler.compileNode(node, {}, false);
         expect(warnings).toHaveLength(0);
+    });
+
+    test("records the shadowing even with debug off", () => {
+        // Detection used to be gated behind odoo.debug along with the warning,
+        // which put the only signal that an extension never runs behind the flag
+        // least likely to be set in production. The console stays quiet; the
+        // record does not.
+        serverState.debug = "";
+        resetViewCompilerCache();
+        const compiler = compilerWith(
+            [
+                {
+                    selector: "div",
+                    fn: () => document.createElement("span"),
+                    builtIn: true,
+                },
+            ],
+            [{ selector: "div.recorded_probe", fn: () => document.createElement("b") }],
+        );
+        /** @type {any[]} */
+        const warnings = [];
+        patchWithCleanup(console, { warn: (m) => warnings.push(m) });
+
+        const node = document.createElement("div");
+        node.classList.add("recorded_probe");
+        compiler.compileNode(node, {}, false);
+
+        expect(warnings).toHaveLength(0);
+        const reports = getShadowedCompilerReports();
+        expect(reports).toHaveLength(1);
+        expect(reports[0].shadowed).toBe("div.recorded_probe");
+        expect(reports[0].winner).toBe("div");
+    });
+
+    test("resetViewCompilerCache clears the recorded shadowings", () => {
+        serverState.debug = "";
+        resetViewCompilerCache();
+        const compiler = compilerWith(
+            [
+                {
+                    selector: "div",
+                    fn: () => document.createElement("span"),
+                    builtIn: true,
+                },
+            ],
+            [{ selector: "div.cleared_probe", fn: () => document.createElement("b") }],
+        );
+        const node = document.createElement("div");
+        node.classList.add("cleared_probe");
+        compiler.compileNode(node, {}, false);
+        expect(getShadowedCompilerReports()).toHaveLength(1);
+
+        resetViewCompilerCache();
+        expect(getShadowedCompilerReports()).toHaveLength(0);
+    });
+});
+
+describe("ViewCompiler — dispatch sequence", () => {
+    class SequencedCompiler extends ViewCompiler {
+        setup() {
+            this.compilers.push({
+                selector: "field",
+                fn: () => document.createElement("intercepted"),
+                sequence: DEFAULT_COMPILER_SEQUENCE - 1,
+            });
+        }
+    }
+
+    class AppendedCompiler extends ViewCompiler {
+        setup() {
+            this.compilers.push({
+                selector: "field",
+                fn: () => document.createElement("appended"),
+            });
+        }
+    }
+
+    class UnshiftedCompiler extends ViewCompiler {
+        setup() {
+            this.compilers.unshift({
+                selector: "field",
+                fn: () => document.createElement("unshifted"),
+            });
+        }
+    }
+
+    test("a lower sequence intercepts a node the built-ins also match", () => {
+        resetViewCompilerCache();
+        const compiler = new SequencedCompiler({});
+        const compiled = /** @type {Element} */ (
+            compiler.compileNode(document.createElement("field"), {}, false)
+        );
+        expect(compiled.tagName.toLowerCase()).toBe("intercepted");
+        // And nothing is reported as shadowed: the extension won.
+        expect(getShadowedCompilerReports()).toHaveLength(0);
+    });
+
+    test("without a sequence, push still loses to the built-ins", () => {
+        // The behaviour that made this gate necessary, kept as the control: the
+        // default is unchanged, so `sequence` is opt-in rather than a silent
+        // reordering of every existing compiler.
+        resetViewCompilerCache();
+        const compiler = new AppendedCompiler({});
+        const compiled = /** @type {Element} */ (
+            compiler.compileNode(document.createElement("field"), {}, false)
+        );
+        expect(compiled.tagName.toLowerCase()).not.toBe("appended");
+        expect(getShadowedCompilerReports()).toHaveLength(1);
+        expect(getShadowedCompilerReports()[0].shadowed).toBe("field");
+    });
+
+    test("without a sequence, unshift still beats the built-ins", () => {
+        // The existing workaround (project_task_kanban_compiler) must keep
+        // working: the sort is stable and every built-in carries the same
+        // default, so an unshifted entry stays at index 0.
+        resetViewCompilerCache();
+        const compiler = new UnshiftedCompiler({});
+        const compiled = /** @type {Element} */ (
+            compiler.compileNode(document.createElement("field"), {}, false)
+        );
+        expect(compiled.tagName.toLowerCase()).toBe("unshifted");
+    });
+
+    test("built-ins keep their documented order relative to each other", () => {
+        // The sort must be a no-op on a stock compiler. `.modal` is declared
+        // after the arch-dialog control and before the dropdown container; if
+        // the sort were unstable that order could change and dispatch with it.
+        const stock = new ViewCompiler({});
+        const selectors = stock.compilers.map((c) => c.selector);
+        expect(selectors.at(-2)).toBe("field");
+        expect(selectors.at(-1)).toBe("widget");
+        expect(stock.compilers.every((c) => c.builtIn)).toBe(true);
     });
 });

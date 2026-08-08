@@ -9,6 +9,11 @@
  * @property {(el: Element, params: Record<string, any>) => Element} fn
  * @property {string} [class]
  * @property {boolean} [doNotCopyAttributes]
+ * @property {number} [sequence] dispatch order, lowest first; defaults to
+ *   `DEFAULT_COMPILER_SEQUENCE`. Below it to intercept a node the built-ins also
+ *   match, above it to run only where they do not.
+ * @property {boolean} [builtIn] set by the constructor on the base compilers;
+ *   shadow reporting is about extensions being suppressed, so it skips these.
  */
 import { App } from "@odoo/owl";
 import {
@@ -85,6 +90,13 @@ const MODAL_TRIGGER_SELECTOR = selfHandledSelector("modal")
     .join(",");
 const MODAL_DISMISS_SELECTOR = '[data-modal-dismiss],[data-bs-dismiss="modal"]';
 const ARCH_DIALOGS_EXPR = "__comp__.archDialogs";
+
+/**
+ * The dispatch priority every built-in carries, and the default for anything
+ * that declares none. Mid-scale on purpose, so an extension has room on both
+ * sides without renumbering the built-ins.
+ */
+export const DEFAULT_COMPILER_SEQUENCE = 50;
 
 /**
  * @param {string} str
@@ -278,6 +290,27 @@ export function makeIsVisibleExpr(invisible, recordExpr = "__comp__.props.record
  */
 const warnedShadowedSelectors = new Set();
 
+/**
+ * Every shadowing seen since the last reset, as
+ * `{shadowed, winner, compiler}` — the extension's selector, the selector that
+ * claimed the node first, and the compiler class it happened in.
+ *
+ * Recorded unconditionally; only the `console.warn` is debug-gated. Detection
+ * used to be gated too, which put the one signal that an extension never runs
+ * behind the flag least likely to be set where it matters. A silently
+ * non-rendering compiler in production is exactly the case worth catching, and a
+ * record nothing prints costs a Set insertion on a path that runs once per arch
+ * (compiled templates are cached by arch hash).
+ *
+ * @type {Set<string>}
+ */
+const shadowedCompilerReports = new Set();
+
+/** Every shadowing recorded so far. Read by tests; see `resetViewCompilerCache`. */
+export function getShadowedCompilerReports() {
+    return [...shadowedCompilerReports].map((entry) => JSON.parse(entry));
+}
+
 export class ViewCompiler {
     constructor(templates) {
         /** @type {number} */
@@ -312,6 +345,10 @@ export class ViewCompiler {
             { selector: "field", fn: this.compileField },
             { selector: "widget", fn: this.compileWidget },
         ];
+        for (const compiler of this.compilers) {
+            compiler.builtIn = true;
+            compiler.sequence ??= DEFAULT_COMPILER_SEQUENCE;
+        }
         this.templates = templates;
 
         this.owlDirectiveRegexesWhitelist = /** @type {any} */ (
@@ -323,6 +360,32 @@ export class ViewCompiler {
         // can be silently shadowed by a built-in. Record the boundary to warn.
         this.baseCompilerCount = this.compilers.length;
         this.setup();
+        this._sortCompilers();
+    }
+
+    /**
+     * Order dispatch by declared `sequence`, lowest first.
+     *
+     * Dispatch is first-match-wins, and before this the order was whatever
+     * `setup()` happened to do to the array. A subclass needing to intercept a
+     * node the built-ins also match had one move — `unshift` — and one needing
+     * to run after them had another — `push` — with the array position standing
+     * in for a priority nobody wrote down. `project_task_kanban_compiler` uses
+     * `unshift` for exactly that reason.
+     *
+     * The sort is **stable** and every built-in carries
+     * `DEFAULT_COMPILER_SEQUENCE`, so an entry that declares no sequence keeps
+     * the position `push`/`unshift` gave it: both existing idioms mean what they
+     * have always meant, and `sequence` is how a new one says so out loud.
+     */
+    _sortCompilers() {
+        // Array.prototype.sort is required to be stable (ES2019), which is what
+        // makes the no-sequence case a no-op rather than a reshuffle.
+        this.compilers.sort(
+            (a, b) =>
+                (a.sequence ?? DEFAULT_COMPILER_SEQUENCE) -
+                (b.sequence ?? DEFAULT_COMPILER_SEQUENCE),
+        );
     }
 
     setup() {}
@@ -395,7 +458,10 @@ export class ViewCompiler {
 
         const winnerIndex = this.compilers.findIndex((cp) => node.matches(cp.selector));
         const compiler = winnerIndex === -1 ? undefined : this.compilers[winnerIndex];
-        if (odoo.debug && winnerIndex !== -1) {
+        // Only worth walking when a subclass actually contributed something; a
+        // stock compiler can shadow nothing but its own built-ins, which is the
+        // documented dispatch order rather than a defect.
+        if (winnerIndex !== -1 && this.compilers.length > this.baseCompilerCount) {
             this._warnShadowedCompilers(node, winnerIndex);
         }
         let compiledNode;
@@ -420,24 +486,40 @@ export class ViewCompiler {
      * the earlier one first, and registry entries are appended after the
      * built-ins, so a selector that also matches a built-in target (field,
      * widget, button, a[type], .modal, dropdown) cannot intercept it. The
-     * registration validates and is then silently never dispatched. In debug,
-     * say so once per shadowed selector so an addon author sees the dead
-     * compiler. Built-in-vs-built-in overlap is deliberate ordering, not a bug,
-     * so only entries past `baseCompilerCount` are reported.
+     * registration validates and is then silently never dispatched.
+     *
+     * Every occurrence is recorded in `shadowedCompilerReports`, whatever the
+     * debug flag; debug additionally warns once per shadowed selector so an
+     * addon author sees the dead compiler. Built-in-vs-built-in overlap is
+     * deliberate ordering, not a bug, so entries carrying `builtIn` are skipped.
+     *
+     * A shadowed compiler is now avoidable rather than merely detectable: give
+     * it a `sequence` below `DEFAULT_COMPILER_SEQUENCE` and it dispatches first.
      *
      * @param {Element} node
      * @param {number} winnerIndex
      */
     _warnShadowedCompilers(node, winnerIndex) {
         for (let i = winnerIndex + 1; i < this.compilers.length; i++) {
-            if (i < this.baseCompilerCount) {
+            const shadowed = this.compilers[i];
+            // Index is no longer the test: `_sortCompilers` reorders by
+            // sequence, so `baseCompilerCount` stopped identifying which entries
+            // are built-in the moment an extension declared a sequence below
+            // them. The flag survives the sort.
+            if (shadowed.builtIn) {
                 continue;
             }
-            const shadowed = this.compilers[i];
-            if (
-                !warnedShadowedSelectors.has(shadowed.selector) &&
-                node.matches(shadowed.selector)
-            ) {
+            if (!node.matches(shadowed.selector)) {
+                continue;
+            }
+            shadowedCompilerReports.add(
+                JSON.stringify({
+                    shadowed: shadowed.selector,
+                    winner: this.compilers[winnerIndex].selector,
+                    compiler: this.constructor.name,
+                }),
+            );
+            if (odoo.debug && !warnedShadowedSelectors.has(shadowed.selector)) {
                 warnedShadowedSelectors.add(shadowed.selector);
                 console.warn(
                     `[view_compiler] The compiler for "${shadowed.selector}" never ` +
@@ -445,7 +527,9 @@ export class ViewCompiler {
                         `claims the same node first. Dispatch is first-match-wins and ` +
                         `registered compilers are appended after the built-ins, so a ` +
                         `selector that also matches a built-in target (field, widget, ` +
-                        `button, a[type], .modal, dropdown) cannot intercept it.`,
+                        `button, a[type], .modal, dropdown) cannot intercept it. ` +
+                        `Give it a lower "sequence" than ${DEFAULT_COMPILER_SEQUENCE} ` +
+                        `to dispatch it first.`,
                 );
             }
         }
@@ -892,4 +976,10 @@ export function useViewCompiler(ViewCompiler, templates, params) {
 
 export function resetViewCompilerCache() {
     templateCache = new Set();
+    // Both shadow-tracking sets are module state with the same lifetime as the
+    // cache: a suite that compiled a deliberately-shadowed compiler would
+    // otherwise leak the record into the next one, and the once-per-selector
+    // warning would stay suppressed for the rest of the run.
+    shadowedCompilerReports.clear();
+    warnedShadowedSelectors.clear();
 }

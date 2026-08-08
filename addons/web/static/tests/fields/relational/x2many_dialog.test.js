@@ -81,7 +81,7 @@ describe("dialog save", () => {
     test("saving a new record in the dialog adds it to the one2many list", async () => {
         onRpc("partner", "web_save", ({ args }) => {
             const turtleCommands = args[1].turtles;
-            const creates = turtleCommands.filter((c) => c[0] === 0);
+            const creates = turtleCommands.filter((/** @type {any} */ c) => c[0] === 0);
             expect(creates).toHaveLength(1);
             expect(creates[0][2].name).toBe("michelangelo");
             expect.step("web_save");

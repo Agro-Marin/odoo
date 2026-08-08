@@ -76,6 +76,7 @@ export class StaticList extends DataPoint {
         this._parent = options.parent;
         this._onUpdate = options.onUpdate;
 
+        /** @type {Record<string, any>} */
         this._cache = markRaw({});
         this._commands = [];
         this._initialCommands = [];
@@ -197,6 +198,35 @@ export class StaticList extends DataPoint {
     /** @returns {boolean} */
     get hasStagedCommands() {
         return this._commands.length > 0;
+    }
+
+    /**
+     * The staged membership change, as records rather than as commands: which
+     * datapoints this list has been told to link, and which to unlink.
+     *
+     * A fourth question of the same kind as the three above, and published for
+     * the same reason. `dynamic_list.js` builds the many2many half of a save's
+     * change report and needs exactly this; it was reading `_commands` and
+     * re-deriving it, which is the whole command encoding (tuple shape, opcode
+     * numbering, id-at-index-1) leaking into a caller that has no other reason
+     * to know it. Asking the list is both narrower and harder to get wrong.
+     *
+     * Records absent from the cache are dropped rather than yielded as
+     * `undefined`: a LINK for an id this list has never materialised has no
+     * datapoint to report, and the previous code put a hole in the array there.
+     *
+     * @returns {{ add: RelationalRecord[], remove: RelationalRecord[] }}
+     */
+    get stagedMembershipDelta() {
+        const byOpcode = (/** @type {number} */ opcode) =>
+            this._commands
+                .filter((command) => command[0] === opcode)
+                .map((command) => this.getCachedRecord(command[1]))
+                .filter(Boolean);
+        return {
+            add: byOpcode(x2ManyCommands.LINK),
+            remove: byOpcode(x2ManyCommands.UNLINK),
+        };
     }
 
     /**

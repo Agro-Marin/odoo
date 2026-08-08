@@ -154,6 +154,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         } else {
             fieldSpec = buildCommitSpec(record);
         }
+        /** @type {Record<string, any>} */
         const kwargs = {
             context: record.context,
             specification: fieldSpec,

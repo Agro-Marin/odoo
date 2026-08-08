@@ -508,15 +508,7 @@ export class DynamicList extends DataPoint {
         const _changes = { ...changes };
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2many") {
-                const list = changes[fieldName];
-                _changes[fieldName] = {
-                    add: list._commands
-                        .filter((command) => command[0] === x2ManyCommands.LINK)
-                        .map((command) => list.getCachedRecord(command[1])),
-                    remove: list._commands
-                        .filter((command) => command[0] === x2ManyCommands.UNLINK)
-                        .map((command) => list.getCachedRecord(command[1])),
-                };
+                _changes[fieldName] = changes[fieldName].stagedMembershipDelta;
             }
         }
         discardInvalidRecords();

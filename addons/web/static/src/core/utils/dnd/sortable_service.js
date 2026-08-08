@@ -37,6 +37,9 @@ export class SortableService {
         this.boundElements = new WeakMap();
     }
 
+    /**
+     * @param {{ ref: { el: Element | null }, [key: string]: any }} hookParams
+     */
     create(hookParams) {
         if (!hookParams?.ref) {
             throw new Error(

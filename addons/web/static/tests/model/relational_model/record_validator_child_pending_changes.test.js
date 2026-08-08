@@ -43,8 +43,13 @@ function makeParent(/** @type {any} */ child) {
         count: 1,
         _currentIds: [child.resId],
         _cache: { [child.resId]: child },
-        // Declared in `STATIC_LIST_OWNER_SURFACE`; the validator reads the list
-        // through it rather than reaching for `_cache` directly.
+        // Both are published getters over working memory, for the same reason
+        // they are on the real class: `_currentIds` / `_cache` are not in
+        // `STATIC_LIST_CONTRACT_SURFACE`, and the validator must read the list
+        // through what it publishes.
+        get currentIds() {
+            return this._currentIds;
+        },
         get cachedRecords() {
             return Object.values(this._cache);
         },

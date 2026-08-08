@@ -221,7 +221,7 @@ test("a dialog above a clearBreadcrumbs skeleton does not cancel the dispatch be
 
     let skeletonPosted = false;
     action.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, (ev) => {
-        if (ev.detail?.Component?.name === "SkeletonView") {
+        if (/** @type {any} */ (ev).detail?.Component?.name === "SkeletonView") {
             skeletonPosted = true;
         }
     });

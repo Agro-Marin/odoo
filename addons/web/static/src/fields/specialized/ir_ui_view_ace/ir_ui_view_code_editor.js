@@ -36,6 +36,10 @@ export class IrUiViewCodeEditor extends CodeEditor {
         );
     }
 
+    /**
+     * @param {string} arch
+     * @param {any[]} invalid_locators
+     */
     async highlightInvalidLocators(arch, invalid_locators) {
         const resModel = this.env.model?.config.resModel;
         const resId = this.env.model?.config.resId;

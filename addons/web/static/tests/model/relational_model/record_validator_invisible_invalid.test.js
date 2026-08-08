@@ -35,6 +35,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { FormController } from "@web/views/form/form_controller";
 
+/** @type {any} */
 let controller;
 function captureController() {
     controller = null;
@@ -97,6 +98,7 @@ test("a widget-invalid field hidden by a modifier stops blocking the save", asyn
 });
 
 test("the value saved is the last one that parsed, not the rejected text", async () => {
+    /** @type {any} */
     let written;
     onRpc("order", "web_save", ({ args }) => {
         written = args[1];

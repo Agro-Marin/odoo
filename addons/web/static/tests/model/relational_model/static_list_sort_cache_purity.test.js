@@ -48,8 +48,11 @@ function makeList({
     limit = 2,
     fieldNames = ["name", "note"],
 } = {}) {
+    /** @type {{ ids: any[], spec: string[] }[]} */
     const requested = [];
+    /** @type {Record<string, any>} */
     const activeFields = {};
+    /** @type {Record<string, any>} */
     const fields = {};
     for (const name of fieldNames) {
         activeFields[name] = makeActiveField();
@@ -57,13 +60,15 @@ function makeList({
     }
     const model = {
         Class: { Record: RelationalRecord, StaticList },
-        _patchConfig: (config, patch) => Object.assign(config, patch),
-        _loadRecords: async ({ resIds: ids, activeFields: af }) => {
+        _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+            Object.assign(config, patch),
+        _loadRecords: async (/** @type {any} */ { resIds: ids, activeFields: af }) => {
             requested.push({ ids: [...ids], spec: Object.keys(af).sort() });
-            return ids.map((id) => {
+            return ids.map((/** @type {number} */ id) => {
+                /** @type {Record<string, any>} */
                 const row = { id };
                 for (const name of Object.keys(af)) {
-                    row[name] = ROWS[id][name];
+                    row[name] = /** @type {Record<number, any>} */ (ROWS)[id][name];
                 }
                 return row;
             });
@@ -77,13 +82,15 @@ function makeList({
         offset: 0,
         limit,
         resIds,
-        orderBy: [],
+        orderBy: /** @type {any[]} */ ([]),
         context: {},
     };
     const list = new StaticList(
-        model,
+        /** @type {any} */ (model),
         /** @type {any} */ (config),
-        resIds.slice(0, limit).map((id) => ({ ...ROWS[id] })),
+        resIds.slice(0, limit).map((/** @type {number} */ id) => ({
+            .../** @type {Record<number, any>} */ (ROWS)[id],
+        })),
         {
             parent: {
                 evalContext: {},
@@ -108,12 +115,18 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
         // are loaded in full alongside the originally-cached 1 and 2. Ids 3 and
         // 4 were read ONLY for their sort key and stay off page: they must be
         // absent from the cache rather than present with half a field set.
-        for (const [id, record] of Object.entries(list._cache)) {
+        for (const [id, record] of Object.entries(
+            /** @type {Record<string, any>} */ (list._cache),
+        )) {
             expect(Object.keys(record.activeFields).sort()).toEqual(["name", "note"], {
                 message: `datapoint ${id} must declare the list's fields`,
             });
         }
-        expect(Object.keys(list._cache).map(Number).sort()).toEqual([1, 2, 5, 6]);
+        expect(
+            Object.keys(/** @type {Record<string, any>} */ (list._cache))
+                .map(Number)
+                .sort(),
+        ).toEqual([1, 2, 5, 6]);
     });
 
     test("a list whose fields the sort already covers still sorts in one request", async () => {
@@ -127,12 +140,12 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
 
     test("a cached row is refreshed in place, not replaced", async () => {
         const { list } = makeList();
-        const before = list._cache[1];
+        const before = /** @type {Record<string, any>} */ (list._cache)[1];
         before._changes.note = "PENDING";
 
         await sort(list, list._currentIds, [{ name: "name", asc: true }]);
 
-        expect(list._cache[1]).toBe(before);
+        expect(/** @type {Record<string, any>} */ (list._cache)[1]).toBe(before);
         expect(before._changes.note).toBe("PENDING");
     });
 

@@ -44,7 +44,7 @@ export function buildConcurrencyBaseline(record, fieldNames) {
         if (
             field.type === "selection" &&
             value === 0 &&
-            field.selection?.some((opt) => opt[0] === 0)
+            field.selection?.some((/** @type {[any, string]} */ opt) => opt[0] === 0)
         ) {
             continue;
         }
@@ -66,7 +66,16 @@ export function buildKnownValuesKwargs(records, fieldNames, kwargs) {
         if (!record.resId) {
             continue;
         }
-        const baseline = buildConcurrencyBaseline(record, fieldNames);
+        // `_editState` is assigned in `setup()`, not the constructor, so TS
+        // types it `RecordEditState | undefined` and the record misses the
+        // contract by that one member. `setup()` is called unconditionally by
+        // `DataPoint`'s constructor, so every record reaching here has one.
+        const baseline = buildConcurrencyBaseline(
+            /** @type {import("./record_contract").RecordContract} */ (
+                /** @type {unknown} */ (record)
+            ),
+            fieldNames,
+        );
         if (Object.keys(baseline).length) {
             knownValues[record.resId] = baseline;
         }
