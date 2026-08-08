@@ -283,6 +283,20 @@ class TestDatabaseRestoreLogging(HttpCase):
         After fix: _logger.exception() is called first, leaving a traceback in the log.
         """
         with (
+            # Without this the request never reaches `restore_db` at all:
+            # `restore()` opens with `_handle_insecure_password`, which for a
+            # loopback caller still on the default master password promotes it
+            # to whatever was posted -- and "admin" is 5 characters, so
+            # `change_admin_password` rejects it and *that* ValueError is what
+            # the handler logs. The test then asserted a traceback it was
+            # getting for the wrong reason, and would have kept passing had
+            # `restore()` stopped logging its own failures entirely. Saying the
+            # master password is already secure skips the promotion, leaving the
+            # patched `check_super` as the only gate.
+            patch(
+                "odoo.tools.config.configmanager.verify_admin_password",
+                return_value=False,
+            ),
             patch("odoo.service.db.check_super"),
             patch(
                 "odoo.service.db.restore_db",
