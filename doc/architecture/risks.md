@@ -128,6 +128,12 @@ absent from `addons/web/static/src/` entirely. Re-harvesting with all four
 checkouts current gives **219 specifiers**. What remains is **recorded**, not
 resolved.
 
+Each of those moves was a separate commit, and one of them left this paragraph
+stating 222 while the file said 219 — the pin and its prose are two copies of
+one number, and only `test_the_public_surface_pin_size_is_measured` reads both.
+Regenerating the pin without editing this line fails that gate; that is the
+gate working.
+
 **Evidence.** `tooling/architecture/public_surface_web.txt`;
 `js_public_surface.py`.
 
@@ -147,6 +153,9 @@ hit on 2026-08-08:
   someone else's workspace. **Confirm every sibling is up to date before
   regenerating**, and treat a pinned specifier that resolves to no file as
   evidence the harvest was wrong rather than as surface to preserve.
+
+Both the 245 and the 222 are of their day; the pin's size today is the one
+above.
 
 ## R7 — Every measured figure is single-process
 
