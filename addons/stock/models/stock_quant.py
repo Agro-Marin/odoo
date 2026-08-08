@@ -128,6 +128,49 @@ def _least_packages_search(qty_by_package, qty):
     return best_leaf.taken_packages
 
 
+class _ReservationLedger:
+    """Reservations decided during one ``_action_assign`` run but not yet written.
+
+    ``_action_assign`` used to persist each move's reservation before it looked at the
+    next move, so "how much is left" was a question the database answered. Batching
+    those writes removes that: between the decision and the flush the database still
+    shows the stock as free, and every later move in the same run would claim it
+    again. This ledger is what carries the information instead -- a take is recorded
+    the moment it is decided, and every availability question in the same run
+    subtracts it.
+
+    It also holds the move line values, and that pairing is the point: a take
+    recorded without its line over-reserves, and a line kept without its take
+    double-reserves. Keeping both on one object makes the two impossible to
+    separate by accident, and lets the whole batch be created in a single call.
+
+    Pure and DB-free, like :func:`_distribute_reservation` and
+    :func:`_least_packages_search`: it holds numbers and opaque values, so the
+    arithmetic that decides who gets the last unit is unit-testable without an ORM.
+    """
+
+    __slots__ = ("_pending", "move_line_vals")
+
+    def __init__(self, move_line_vals=None):
+        # quant id -> quantity claimed in this run and not yet on the quant row
+        self._pending = defaultdict(float)
+        # shared with `_action_assign`, so the bypass path (which never touches a
+        # quant, hence never records a take) appends to the very same list.
+        self.move_line_vals = move_line_vals if move_line_vals is not None else []
+
+    def pending(self, quant):
+        """Quantity of `quant` already claimed in this run but not yet written."""
+        return self._pending.get(quant.id, 0.0)
+
+    def take(self, quant, quantity):
+        """Record a decided-but-unwritten claim on `quant`."""
+        self._pending[quant.id] += quantity
+
+    def total_pending(self):
+        """Everything claimed and not yet written -- for logging and assertions."""
+        return sum(self._pending.values())
+
+
 class _ReservationCandidate(typing.NamedTuple):
     """One candidate row offered to :func:`_distribute_reservation`."""
 
@@ -2118,10 +2161,17 @@ class StockQuant(models.Model):
         caller re-gathers instead.
         """
         quants = quants.sudo()
+        # Reservations decided earlier in this `_action_assign` run are not on the
+        # quant rows yet; without subtracting them every move of the batch would be
+        # told the same stock is free. Absent a ledger (any caller outside that loop)
+        # this is a no-op.
+        ledger = self.env.context.get("reservation_ledger")
         if product_id.tracking == "none":
             available_quantity = sum(quants.mapped("quantity")) - sum(
                 quants.mapped("reserved_quantity")
             )
+            if ledger is not None:
+                available_quantity -= sum(ledger.pending(quant) for quant in quants)
             if allow_negative:
                 return available_quantity
             return (
@@ -2137,7 +2187,9 @@ class StockQuant(models.Model):
             if not quant.lot_id and strict and lot_id:
                 continue
             available_quantities[quant.lot_id or None] += (
-                quant.quantity - quant.reserved_quantity
+                quant.quantity
+                - quant.reserved_quantity
+                - (ledger.pending(quant) if ledger is not None else 0.0)
             )
         if allow_negative:
             return sum(available_quantities.values())
@@ -2587,13 +2639,32 @@ class StockQuant(models.Model):
             return []
 
         precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        # A candidate's slack is `on_hand - reserved`, so folding this run's unwritten
+        # claims into `reserved` is all it takes for `_distribute_reservation` to skip
+        # a quant an earlier move has already emptied -- the cap above and the
+        # per-candidate allocation then agree, which is the invariant that keeps a
+        # batch from over-reserving.
+        ledger = self.env.context.get("reservation_ledger")
         candidates = [
             _ReservationCandidate(
-                quant, quant.quantity, quant.reserved_quantity, quant._reservation_key()
+                quant,
+                quant.quantity,
+                quant.reserved_quantity
+                + (ledger.pending(quant) if ledger is not None else 0.0),
+                quant._reservation_key(),
             )
             for quant in quants
         ]
-        return _distribute_reservation(candidates, quantity, precision_digits)
+        reserved = _distribute_reservation(candidates, quantity, precision_digits)
+        if reserved and _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug(
+                "reserve product=%s location=%s asked=%s -> %s",
+                product_id.id,
+                location_id.id,
+                quantity,
+                [(quant.id, qty) for quant, qty in reserved],
+            )
+        return reserved
 
     @api.model
     def _merge_quants(self):

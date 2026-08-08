@@ -1,4 +1,5 @@
 import itertools
+import logging
 from ast import literal_eval
 from collections import defaultdict
 from datetime import timedelta
@@ -11,6 +12,10 @@ from odoo.fields import Command, Domain
 from odoo.libs.numbers import float_compare, float_is_zero, float_round
 from odoo.tools.misc import OrderedSet, clean_context, groupby
 from odoo.tools.translate import _
+
+from odoo.addons.stock.models.stock_quant import _ReservationLedger
+
+_logger = logging.getLogger(__name__)
 
 PROCUREMENT_PRIORITIES = [("0", "Normal"), ("1", "Urgent")]
 
@@ -1926,6 +1931,12 @@ Please change the quantity done or the rounding precision of your unit of measur
 
         roundings = {move: move.product_id.uom_id.rounding for move in self}
         move_line_vals_list = []
+        # Every line this run decides on -- bypassed or reserved -- is created in one
+        # call at the end. The ledger wraps that same list and additionally remembers
+        # which quant each reserved line spoke for, so a later move in the batch is
+        # told the truth about what is left even though nothing has been written yet.
+        # See `_ReservationLedger`.
+        ledger = _ReservationLedger(move_line_vals_list)
         # Once the quantities are assigned, we want to find a better destination location thanks
         # to the putaway rules. This redirection will be applied on moves of `moves_to_redirect`.
         moves_to_redirect = OrderedSet()
@@ -1961,9 +1972,19 @@ Please change the quantity done or the rounding precision of your unit of measur
         # (`write` -> `_update_orderpoints`). The chained branch reads sibling
         # states through those two accumulators, not the field, precisely because
         # the write is deferred (see `_get_available_move_lines_out`).
+        _logger.debug(
+            "_action_assign: %s move(s), %s reserving against quants",
+            len(moves_to_assign),
+            len(moves_needing_reservation),
+        )
+        # The ledger is scoped to this loop on purpose. The batched create below runs
+        # on `self.env`, without it, so `_reserve_new_move_lines` writes the real
+        # reservations against untouched quant values -- if the ledger were still in
+        # context there, it would subtract the very takes it is about to persist.
         for move in moves_to_assign.with_context(
             quants_cache=quants_cache,
             preserve_state=True,
+            reservation_ledger=ledger,
         ):
             move = move.with_company(move.company_id)
             rounding = roundings[move]
@@ -2013,9 +2034,30 @@ Please change the quantity done or the rounding precision of your unit of measur
         for qty, move_ids in serial_move_ids_by_qty.items():
             StockMove.browse(move_ids).next_serial_count = qty
         # Thread the cache into the batched create so the reservation sync of the
-        # created lines (`_reserve_new_move_lines`) gathers from it too.
-        self.env["stock.move.line"].with_context(quants_cache=quants_cache).create(
-            move_line_vals_list
+        # created lines (`_reserve_new_move_lines`) gathers from it too. This single
+        # call is where the ledger's claims become real reservations: creating the
+        # lines runs `_reserve_new_move_lines`, which groups them by characteristics
+        # and updates each quant once.
+        _logger.debug(
+            "_action_assign: flushing %s move line(s), %s unit(s) pending on quants",
+            len(move_line_vals_list),
+            ledger.total_pending(),
+        )
+        # `preserve_state` travels with the batched create for the same reason it is on
+        # the loop: `_reserve_new_move_lines` would otherwise `_recompute_state()` every
+        # move that just got a line, and each such state write drags a
+        # `stock.warehouse.orderpoint` search behind it -- while the two explicit writes
+        # immediately below already set the state this loop decided, for exactly those
+        # moves. Before the lines were batched this call carried only the bypassed
+        # moves' lines and the redundant recompute was cheap; it is not any more.
+        self.env["stock.move.line"].with_context(
+            quants_cache=quants_cache,
+            preserve_state=True,
+        ).create(move_line_vals_list)
+        _logger.debug(
+            "_action_assign: %s assigned, %s partially available",
+            len(assigned_moves_ids),
+            len(partially_available_moves_ids),
         )
         StockMove.browse(partially_available_moves_ids).write(
             {"state": "partially_available"},
@@ -2550,7 +2592,10 @@ Please change the quantity done or the rounding precision of your unit of measur
                 # `taken_quantity` covers both the lines updated in place and the
                 # new lines created below: count each take exactly once.
                 taken_qty_total += taken_quantity
-            if all_move_line_vals:
+            ledger = self.env.context.get("reservation_ledger")
+            if ledger is not None:
+                ledger.move_line_vals.extend(all_move_line_vals)
+            elif all_move_line_vals:
                 self.env["stock.move.line"].create(all_move_line_vals)
 
             # The takes were double-checked against the quants themselves inside
@@ -4741,7 +4786,16 @@ Please change the quantity done or the rounding precision of your unit of measur
         owner_id=None,
         strict=True,
     ):
-        """Create or update move lines to reserve `need` from quants at `location_id`."""
+        """Reserve `need` from quants at `location_id` by creating or raising move lines.
+
+        Signature and return value are load-bearing: this is an extension point
+        (`product_expiry`, `industry_fsm_stock` -- which calls it repeatedly and sums
+        the results -- and `point_of_sale` all go through it), so what changes under a
+        ledger is *when* the lines are written, never what the caller is told it got.
+        With a ledger in context the values join the batch and the take is already
+        recorded, so a second call sees the reduced availability exactly as it would
+        have seen a persisted one.
+        """
         self.ensure_one()
         move_line_vals, taken_quantity = self._update_reserved_quantity_vals(
             need,
@@ -4751,7 +4805,10 @@ Please change the quantity done or the rounding precision of your unit of measur
             owner_id,
             strict,
         )
-        if move_line_vals:
+        ledger = self.env.context.get("reservation_ledger")
+        if ledger is not None:
+            ledger.move_line_vals.extend(move_line_vals)
+        elif move_line_vals:
             self.env["stock.move.line"].create(move_line_vals)
         return taken_quantity
 
@@ -4842,6 +4899,9 @@ Please change the quantity done or the rounding precision of your unit of measur
                     to_update.product_uom_id,
                 )
             if uom_quantity is not None:
+                # Raising an existing line writes it now, which syncs the quant now
+                # (stock.move.line.write -> _resync_reservation). Nothing to record:
+                # the reservation is already on the row every later move will read.
                 to_update.quantity += uom_quantity
             elif self.product_id.tracking == "serial" and (
                 self.picking_type_id.use_create_lots
@@ -4853,6 +4913,7 @@ Please change the quantity done or the rounding precision of your unit of measur
                 )
                 if vals_list:
                     move_line_vals += vals_list
+                    self._record_pending_reservation(reserved_quant, quantity)
             else:
                 move_line_vals.append(
                     self._prepare_move_line_vals(
@@ -4860,7 +4921,24 @@ Please change the quantity done or the rounding precision of your unit of measur
                         reserved_quant=reserved_quant,
                     ),
                 )
+                self._record_pending_reservation(reserved_quant, quantity)
         return move_line_vals, taken_quantity
+
+    def _record_pending_reservation(self, quant, quantity):
+        """Tell this run's ledger that `quantity` of `quant` is spoken for.
+
+        Called from the two branches of `_update_reserved_quantity_vals` that produce
+        move line *values* rather than writing a line -- i.e. exactly the takes whose
+        quant update has been deferred to the end of `_action_assign`. The branch that
+        raises an existing line does not call this, because that write syncs the quant
+        immediately and recording it too would count the take twice.
+
+        A no-op outside `_action_assign`, where there is no ledger and every take is
+        written before the next question is asked.
+        """
+        ledger = self.env.context.get("reservation_ledger")
+        if ledger is not None:
+            ledger.take(quant, quantity)
 
     def _visible_quantity(self):
         self.ensure_one()
