@@ -355,6 +355,14 @@ class Registry(
     @classmethod
     @locked
     def delete(cls, db_name: str) -> None:
+        """Drop the cached registry for *db_name*.
+
+        This is a **rebuild** hook, not a teardown one: :meth:`new` calls it on
+        every registry build, before publishing the replacement.  Anything that
+        must outlive a rebuild -- the per-database assertion report, the
+        unaccent fold table -- therefore does NOT belong here.  Use
+        :meth:`forget` when the database itself is gone.
+        """
         if db_name in cls.registries:
             del cls.registries[db_name]
         from odoo.tools.cache import prune_counters
@@ -363,8 +371,32 @@ class Registry(
 
     @classmethod
     @locked
+    def forget(cls, db_name: str) -> None:
+        """Drop every process-lifetime trace of *db_name*.
+
+        Called when the database is genuinely gone -- dropped, renamed away, or
+        found absent while serving a request -- as opposed to :meth:`delete`,
+        which runs on every registry rebuild.
+
+        Three maps in this module are keyed by database name and outlive a
+        :class:`Registry` instance by design.  Only ``registries`` (an ``LRU``)
+        was bounded; the other two grew for the life of the process, one entry
+        per database ever served.  ``_UnaccentTables`` is the expensive one: it
+        holds the Python-side accent-folding table, ~1500 entries and ~180 kB
+        per database, built by probing 12 352 codepoints through ``unaccent()``.
+        Both are per-database caches, which ``doc/architecture/data.md`` requires
+        be invalidated per database; neither had anywhere that did it.
+        """
+        cls.delete(db_name)
+        _UnaccentTables.by_db.pop(db_name, None)
+        _ASSERTION_REPORTS.pop(db_name, None)
+
+    @classmethod
+    @locked
     def delete_all(cls):
         cls.registries.clear()
+        _UnaccentTables.by_db.clear()
+        _ASSERTION_REPORTS.clear()
 
     __eq__ = object.__eq__
     __ne__ = object.__ne__

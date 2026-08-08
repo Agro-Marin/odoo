@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import pytest
 
 from odoo.libs import sql
+from odoo.modules.db import FunctionStatus
 from odoo.orm.runtime.registry import Registry
 
 
@@ -32,7 +33,8 @@ def _make_registry(*fields):
     reg = object.__new__(Registry)
     reg.models = {"fake.model": _Model}
     reg.has_trigram = False
-    reg.has_unaccent = False
+    # Tri-state, not a bool -- see _RegistryStubs.has_unaccent.
+    reg.has_unaccent = FunctionStatus.MISSING
     return reg
 
 

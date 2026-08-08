@@ -74,13 +74,17 @@ class Transaction:
         "envs",
         "file_open_tmp_paths",
         "registry",
-        "storage",
         "unit_of_work",
     )
 
     def __init__(self, registry: Registry, storage=None):
         self.registry = registry
-        self.storage = storage
+        # `storage` is consumed here and not retained.  It used to be kept as
+        # `self.storage`, which was the channel six CRUD mixins sniffed to ask
+        # "am I on the test backend?"; ADR-0011 replaced those sniffs with the
+        # `env.backend` port and left the attribute behind.  Nothing has read it
+        # since -- verified across odoo/, enterprise/ and agromarin/ -- so it is
+        # gone; `backend` is the whole of what callers need.
         self.backend = InMemoryBackend(storage) if storage is not None else None
         self.envs: _EnvironmentSet = _EnvironmentSet()
         self.default_env: Environment | None = None
@@ -144,12 +148,16 @@ class Transaction:
             # Restore default_env afterwards so the fallback stays a fallback:
             # the warning then fires on every flush that needs it, which is the
             # only way anyone finds out this is happening.
-            previous_default = self.default_env
+            #
+            # Unconditionally, because this branch is only reachable when
+            # `default_env` is None -- the `if` above tested `is not None`.  The
+            # guard used to read `previous_default = self.default_env` and
+            # restore only `if previous_default is None`, a condition that
+            # cannot be false here.
             try:
                 Environment(env.cr, SUPERUSER_ID, {}).flush_all()
             finally:
-                if previous_default is None:
-                    self.default_env = None
+                self.default_env = None
         if self._n1_tracker is not None:
             self._n1_tracker.report()
             self._n1_tracker.clear()
