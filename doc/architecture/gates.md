@@ -147,14 +147,15 @@ a referenced file *exists*; these prove a described package still *matches its
 directory*.
 
 `package_index_check.py` applies the same rule one level down, to the four
-packages that document themselves per-module — `db/README.md`'s *Module map*,
-`_monkeypatches/README.md`'s *Patch Index*, `http/README.md`'s *Module map*, and
-`upgrade_code/README.md`'s *Module map* (whose rows are dated script stems such
-as `18.1-00-sql-constraint`, not importable identifiers — the row pattern had to
-stop assuming they were, or that inventory would have matched zero rows and
-enforced nothing). Registration is not optional: `PACKAGE_INDEXES` is an inclusion list, so an
-unregistered README would be gated by nothing — `test_every_core_readme_is_classified`
-forces every core README into `PACKAGE_INDEXES` or into `READMES_WITHOUT_AN_INDEX`.
+packages that document themselves per-module — `odoo/db/README.md`'s *Module
+map*, `odoo/_monkeypatches/README.md`'s *Patch Index*, `odoo/http/README.md`'s
+*Module map*, and `odoo/upgrade_code/README.md`'s *Module map* (whose rows are
+dated script stems such as `18.1-00-sql-constraint`, not importable identifiers
+— the row pattern had to stop assuming they were, or that inventory would have
+matched zero rows and enforced nothing). Registration is not optional:
+`PACKAGE_INDEXES` is an inclusion list, so an unregistered README would be
+gated by nothing — `test_every_core_readme_is_classified` forces every core
+README into `PACKAGE_INDEXES` or into `READMES_WITHOUT_AN_INDEX`.
 The check is scoped to the inventory **section**, because the READMEs carry other
 tables that name `.py` files: `_monkeypatches`' *Recently Removed* table names
 eight patches, six of which are modules that no longer exist (`urllib3`, `lxml`,

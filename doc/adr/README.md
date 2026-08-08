@@ -22,9 +22,9 @@ Amendments.
 
 ## Three rules that keep a frozen record from rotting
 
-**An ADR is past tense; `ARCHITECTURE.md` is present tense.** This is the rule
-the other two follow from. An ADR says *on this date, given these forces, we
-chose X over Y* — a claim about a moment, and therefore true forever.
+**An ADR is past tense; `odoo/ARCHITECTURE.md` is present tense.** This is the
+rule the other two follow from. An ADR says *on this date, given these forces,
+we chose X over Y* — a claim about a moment, and therefore true forever.
 `odoo/ARCHITECTURE.md` says *this is how the system is today* — a claim about
 now, which is why it is gated and re-derived. **A sentence in an ADR written in
 the present tense about the tree is a bug**, because the record is immutable and

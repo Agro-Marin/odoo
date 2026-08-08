@@ -97,11 +97,23 @@ DEFAULT_BASELINE_PATH = (
 # website's machine_doc, in an ADR, and in this tooling's own README) sat
 # unseen. Narrowing the gate to THIS REPO is what let it become blocking, and
 # that stays; what widens here is coverage inside the repo, from 24 files to
-# ~72, with the baseline still empty.
+# ~93, with the baseline still empty.
 #
-# `doc/*.md`, not `doc/**`: `doc/cla/` is upstream Odoo's and carries upstream's
-# own rot (`sign-cla.md` cites a corporate CLA that was never added).
-# Baselining another project's broken links teaches nobody anything.
+# `doc/cla/` is upstream Odoo's and carries upstream's own rot (`sign-cla.md`
+# cites a corporate CLA that was never added); baselining another project's
+# broken links teaches nobody anything. So `doc/` is enumerated a directory at
+# a time rather than scanned as `doc/**`.
+#
+# It was enumerated as `doc/*.md` alone until 2026-08-07, which reads like a
+# deliberate one-level narrowing and matched **zero files**: `doc/` holds
+# `adr/`, `architecture/`, `cla/` and a single `.rst`, and no `.md` at its top
+# level at all. The architecture set — the front door, the five views, and the
+# gate/quality/risk/measurement pages — is held together by ~30 relative links,
+# and every one of them was checked by nothing. Widening surfaced 15 broken
+# references on the first run, all of the same shape: a backticked bare
+# filename that resolves from the directory the citing page used to live in.
+# The core package READMEs are in scope for the same reason — the architecture
+# pages cite `odoo/db/README.md` and `odoo/http/README.md`, and both cite back.
 DEFAULT_SCAN_GLOBS = [
     "addons/*/machine_doc_v1/*.md",
     "odoo/**/machine_doc_v1/*.md",
@@ -109,6 +121,10 @@ DEFAULT_SCAN_GLOBS = [
     "CLAUDE.md",
     "addons/*/CLAUDE.md",
     "doc/*.md",
+    "doc/adr/*.md",
+    "doc/architecture/**/*.md",
+    "odoo/*.md",
+    "odoo/**/README.md",
     "tooling/**/*.md",
 ]
 
