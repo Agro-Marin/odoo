@@ -19,28 +19,6 @@ class MailThread(models.AbstractModel):
     # ``access_token``). Subclasses with a different token field override this.
     _mail_post_token_field = "access_token"
 
-    def _get_portal_message_fetch_domain(self):
-        """Domain selecting the messages the portal chatter displays for ``self``.
-
-        Single source of truth for "which messages are visible in the portal
-        chatter of these records": the ``website_message_ids`` message types,
-        restricted to ``self``, share-visible only (non-internal subtype) and
-        non-empty. Used both by the chatter fetch controller and by counters
-        that must agree with it (e.g. ``website_slides.comments_count``) so a
-        badge never diverges from what the chatter actually shows.
-        """
-        MailMessage = self.env["mail.message"]
-        field = self._fields["website_message_ids"]
-        non_empty = Domain("body", "not in", [False, EMPTY_EDIT_MARKER]) | Domain(
-            "attachment_ids", "!=", False
-        )
-        return (
-            Domain(field.get_comodel_domain(self))
-            & Domain("res_id", "in", self.ids)
-            & Domain(MailMessage._get_search_domain_share())
-            & non_empty
-        )
-
     website_message_ids = fields.One2many(
         "mail.message",
         "res_id",
@@ -58,6 +36,54 @@ class MailThread(models.AbstractModel):
         bypass_search_access=True,
         help="Portal communication history for this record.",
     )
+
+    def _get_portal_message_fetch_domain(self, message_domain=None):
+        """Domain selecting the messages the portal chatter displays for ``self``.
+
+        Single source of truth for "which messages are visible in the portal
+        chatter of these records": the ``website_message_ids`` message types,
+        restricted to ``self``, share-visible only (non-internal subtype) and
+        non-empty. Used both by the chatter fetch controller
+        (``portal.controllers.portal_thread``) and by counters that must agree
+        with it (e.g. ``website_slides.comments_count``) so a badge never
+        diverges from what the chatter actually shows.
+
+        That guarantee was only a claim: the controller re-derived the same four
+        clauses inline instead of calling this, leaving two copies of the rule
+        free to drift. It now calls this method and passes its own visibility
+        clause through ``message_domain``, which is the one part the two callers
+        legitimately differ on — ``portal_rating`` *widens* the chatter's
+        non-empty rule (a rating with no body is still a message worth showing)
+        without widening the counters.
+
+        :param message_domain: visibility clause to apply instead of the default
+                               non-empty rule; ``None`` uses
+                               :meth:`_get_portal_message_non_empty_domain`.
+        :rtype: odoo.fields.Domain
+        """
+        MailMessage = self.env["mail.message"]
+        field = self._fields["website_message_ids"]
+        if message_domain is None:
+            message_domain = self._get_portal_message_non_empty_domain()
+        return (
+            Domain(field.get_comodel_domain(self))
+            & Domain("res_id", "in", self.ids)
+            & Domain(MailMessage._get_search_domain_share())
+            & Domain(message_domain)
+        )
+
+    def _get_portal_message_non_empty_domain(self):
+        """Filter out empty-body messages and the empty-edit-marker stub.
+
+        The marker is the literal mail core inserts when an author removes all
+        content from a previously-posted message; the canonical form is
+        :data:`mail.tools.discuss.EMPTY_EDIT_MARKER`.
+
+        :rtype: odoo.fields.Domain
+        """
+        return Domain("body", "not in", [False, EMPTY_EDIT_MARKER]) | Domain(
+            "attachment_ids", "!=", False
+        )
 
     def _notify_get_recipients_groups(self, message, model_description, msg_vals=False):
         """Add a 'portal_customer' notification group with an HMAC-signed access link."""

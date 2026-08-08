@@ -860,6 +860,38 @@ class MailMessage(models.Model):
             )
         )
 
+    def _is_thread_model(self) -> bool:
+        """Whether ``self.model`` names a live model that inherits ``mail.thread``.
+
+        ``model`` is a plain ``Char`` with no foreign key and no constraint, so
+        it can hold two kinds of value no caller should dereference blindly: the
+        name of a model whose module has been uninstalled (messages outlive
+        their model, so ``env[name]`` is a ``KeyError``), and the name of a live
+        model that never inherited ``mail.thread`` (so every ``mail.thread``
+        method a chatter path calls on it is an ``AttributeError``).
+
+        Both surface as HTTP 500 on the ``auth="public"`` chatter routes, which
+        is why this is a predicate and not an ad-hoc ``in self.env`` test.
+
+        :rtype: bool
+        """
+        self.ensure_one()
+        model_name = self.sudo().model
+        if not model_name or model_name not in self.env:
+            return False
+        return isinstance(self.env[model_name], self.pool["mail.thread"])
+
+    def _get_thread_model(self):
+        """The message's thread model, or the ``mail.thread`` mixin as fallback.
+
+        Lets callers reach ``mail.thread``-defined class methods without first
+        proving the message names a usable model. See :meth:`_is_thread_model`.
+
+        :return: an empty recordset of the thread model, or of ``mail.thread``
+        """
+        self.ensure_one()
+        return self.env[self.sudo().model if self._is_thread_model() else "mail.thread"]
+
     @api.model
     def _get_with_access(self, message_id, mode="read", **kwargs):
         message = self.browse(message_id).exists()
@@ -868,12 +900,23 @@ class MailMessage(models.Model):
 
         # sanity check on kwargs. 'model' is a free-form Char with no foreign
         # key and no constraint, so it can name a model that is no longer in the
-        # registry; fall back to the generic mixin rather than raising KeyError
-        # out of an access check.
-        message_model = message.sudo().model
-        allowed_params = self.env[
-            message_model if message_model in self.env else "mail.thread"
-        ]._get_allowed_access_params()
+        # registry, or one that never inherited ``mail.thread``; fall back to
+        # the generic mixin rather than raising out of an access check.
+        #
+        # Registry membership was the wrong question. It covers the uninstalled
+        # model (``KeyError``) but not the *installed non-thread* one: every
+        # method reached from here — ``_get_allowed_access_params`` right below,
+        # ``_mail_get_operation_for_mail_message_operation`` and
+        # ``_get_thread_with_access`` further down — is defined on
+        # ``mail.thread``, so a message naming, say, ``res.currency`` raised
+        # ``AttributeError: 'res.currency' object has no attribute
+        # '_get_allowed_access_params'``. That is an HTTP 500 with the model
+        # name in the body, served to an *anonymous* caller on the
+        # ``auth="public"`` chatter routes (``/mail/message/reaction``,
+        # ``/mail/message/update_content``) — verified end to end. Asking
+        # "is this a thread model" instead denies such a message the same way an
+        # unknown one is denied: a 404.
+        allowed_params = message._get_thread_model()._get_allowed_access_params()
         if invalid := (set((kwargs or {}).keys()) - allowed_params):
             _logger.warning("Invalid parameters to _get_with_access: %s", invalid)
 
@@ -890,9 +933,11 @@ class MailMessage(models.Model):
         elif message.sudo(False).has_access(mode):
             return message
 
-        # An unknown model cannot grant access: fall through to the empty
-        # recordset below (deny) instead of raising.
-        if message.model and message.res_id and message.model in self.env:
+        # A model that is unknown, or that is not a thread, cannot grant access:
+        # fall through to the empty recordset below (deny) instead of raising.
+        # Same reason as the ``_get_thread_model()`` call above — both methods
+        # invoked in this branch live on ``mail.thread``.
+        if message.res_id and message._is_thread_model():
             thread_su = self.env[message.model].browse(message.res_id).sudo()
             access_mode = thread_su._mail_get_operation_for_mail_message_operation(
                 mode

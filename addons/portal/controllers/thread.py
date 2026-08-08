@@ -1,7 +1,7 @@
 from odoo.http import request
 
 from odoo.addons.mail.controllers.thread import ThreadController
-from odoo.addons.portal.utils import get_portal_partner
+from odoo.addons.portal.utils import get_portal_partner, resolve_message_thread
 
 
 class PortalThreadController(ThreadController):
@@ -29,9 +29,16 @@ class PortalThreadController(ThreadController):
         Public callers can edit a message only when the HMAC/token resolves to a
         partner that matches ``message.author_id``. All other callers fall
         through to the parent (mail) controller's access logic.
+
+        ``resolve_message_thread`` rather than ``request.env[message.model]``:
+        the model name is free-form and this runs *before* the parent's access
+        logic, so it is the first thing a stale or non-thread ``model`` reaches.
+        ``mail``'s own ``_get_message_with_access`` already absorbs the stale
+        case upstream of here, which is precisely why such a message arrives
+        intact instead of 404ing earlier.
         """
-        if message.model and message.res_id and message.env.user._is_public():
-            thread = request.env[message.model].browse(message.res_id)
+        if message.env.user._is_public():
+            thread = resolve_message_thread(message)
             partner = get_portal_partner(thread, _hash=hash, pid=pid, token=token)
             if partner and message.author_id == partner:
                 return True

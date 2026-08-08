@@ -5,7 +5,7 @@ from odoo.fields import Domain
 from odoo.http import request
 
 from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
-from odoo.addons.mail.tools.discuss import EMPTY_EDIT_MARKER, Store
+from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.portal.utils import get_portal_partner
 
 
@@ -159,12 +159,16 @@ class PortalChatter(ThreadController):
         # so a non-numeric thread_id would otherwise reach the ORM as
         # Domain("res_id", "=", "abc") and 500 with a ValueError.
         thread_id = _to_record_id(thread_id)
-        domain = (
-            Domain(self._setup_portal_message_fetch_extra_domain(kw))
-            & Domain(field.get_comodel_domain(model))
-            & Domain("res_id", "=", thread_id)
-            & Domain(request.env["mail.message"]._get_search_domain_share())
-            & self._get_non_empty_message_domain()
+        # Delegated to the model rather than re-derived here: the same four
+        # clauses also answer the counters that must agree with this list
+        # (``website_slides.comments_count``), and two copies of that rule are
+        # exactly how a badge and its chatter drift apart. ``message_domain``
+        # carries the one clause the controller owns, so ``portal_rating`` can
+        # still widen the chatter without widening the counters.
+        domain = Domain(
+            self._setup_portal_message_fetch_extra_domain(kw)
+        ) & model.browse(thread_id)._get_portal_message_fetch_domain(
+            message_domain=self._get_non_empty_message_domain()
         )
 
         Message = request.env["mail.message"]
@@ -201,17 +205,14 @@ class PortalChatter(ThreadController):
         }
 
     def _get_non_empty_message_domain(self):
-        """Filter out empty-body messages and the empty-edit-marker stub.
+        """Visibility clause applied to the portal chatter's message list.
 
-        The marker is the literal mail core inserts when an author removes
-        all content from a previously-posted message. The canonical form is
-        defined as :data:`mail.tools.discuss.EMPTY_EDIT_MARKER`.
+        Delegates to the model so the rule has one definition; this stays as the
+        controller-side extension point (``portal_rating`` widens it to keep
+        body-less ratings visible), which is why the model takes it as a
+        parameter rather than the two agreeing by coincidence.
         """
-        return Domain(
-            "body",
-            "not in",
-            [False, EMPTY_EDIT_MARKER],
-        ) | Domain("attachment_ids", "!=", False)
+        return request.env["mail.thread"]._get_portal_message_non_empty_domain()
 
     def _setup_portal_message_fetch_extra_domain(self, data) -> Domain:
         """Hook for downstream modules to add domain leaves to the portal message fetch."""
@@ -224,7 +225,13 @@ class PortalChatter(ThreadController):
         Access is gated by ``auth="user"`` (login required) and ``mail.message``
         ACL — the ``write()`` call below runs in the current user's env, so
         users who cannot write to the message are blocked by the ORM.
+
+        ``bool()`` on the flag: this is ``jsonrpc``, so the caller picks the
+        JSON *type*, and a Boolean field stored whatever truthiness the ORM
+        derived from it. ``{}``/``[]``/``""`` reading as "not internal" and
+        ``"false"`` (a non-empty string) reading as "internal" is not a contract
+        anyone intended; the route takes a flag, so it coerces to one.
         """
         message = request.env["mail.message"].browse(_to_record_id(message_id))
-        message.write({"is_internal": is_internal})
+        message.write({"is_internal": bool(is_internal)})
         return message.is_internal

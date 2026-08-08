@@ -7,6 +7,7 @@ from . import test_ir_ui_menu
 from . import test_ir_websocket
 from . import test_link_preview
 from . import test_mail_activity
+from . import test_message_model_column
 from . import test_mail_blacklist
 from . import test_mail_composer
 from . import test_mail_hardening_v2

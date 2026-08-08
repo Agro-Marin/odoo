@@ -52,26 +52,49 @@ class ResPartner(models.Model):
         :class:`portal.controllers.portal.CustomerPortal` — bypassing this check
         lets a portal user mutate any address.
 
+        Singleton predicate, kept because that is what the mutation routes ask
+        (one partner, one answer) and what overrides extend
+        (``delivery_mondialrelay``). Anything iterating addresses should call
+        :meth:`_filter_editable_by_current_customer` instead — see there.
+
         :return: True if the current user may edit ``self``
         :rtype: bool
         """
         self.ensure_one()
+        return bool(self._filter_editable_by_current_customer(**kwargs))
+
+    def _filter_editable_by_current_customer(self, **kwargs):
+        """Subset of ``self`` the current portal user may edit, in one query.
+
+        Same rule as :meth:`_can_be_edited_by_current_customer`, answered for a
+        whole recordset at once. ``/my/addresses`` renders one card per address
+        and asked the singleton question inside the ``t-foreach``, so the page
+        cost a ``search_count`` (plus its record-rule machinery) per address:
+        measured at 32 queries for 12 addresses, growing linearly with a
+        customer's address book. This answers the same thing in one search.
+
+        ``id in self.ids`` before ``child_of`` for the reason the singleton
+        version gave: Postgres resolves the primary key first and validates the
+        hierarchy and type only on those rows, rather than materialising every
+        descendant of the commercial partner to intersect in Python.
+
+        :return: the editable subset of ``self``
+        :rtype: res.partner
+        """
+        if not self:
+            return self
         current_partner = self._get_current_partner(**kwargs)
-        if self == current_partner:
-            return True
-        # ``id = self.id`` first so Postgres uses the PK index and only
-        # validates ``child_of`` + ``type`` on that single row, instead of
-        # materialising every child to test one membership in Python.
-        return bool(
-            self.env["res.partner"].search_count(
+        editable = self & current_partner
+        candidates = self - current_partner
+        if candidates:
+            editable |= self.env["res.partner"].search(
                 [
-                    ("id", "=", self.id),
+                    ("id", "in", candidates.ids),
                     ("id", "child_of", current_partner.commercial_partner_id.id),
                     ("type", "in", ("invoice", "delivery", "other")),
-                ],
-                limit=1,
+                ]
             )
-        )
+        return editable
 
     @api.model
     def _get_current_partner(self, **kwargs):
@@ -85,6 +108,22 @@ class ResPartner(models.Model):
         if self.env.user._is_public():
             return self.env["res.partner"]
         return self.env.user.partner_id
+
+    def _get_billing_address_domain(self):
+        """Domain selecting child contacts usable as a billing address (or self).
+
+        Counterpart of :meth:`_get_delivery_address_domain`, which already
+        existed; this one was inlined in ``/my/addresses`` instead, so only half
+        of the pair could be overridden by a localisation.
+        """
+        return Domain(
+            [
+                ("id", "child_of", self.ids),
+                "|",
+                ("type", "in", ["invoice", "other"]),
+                ("id", "=", self.id),
+            ]
+        )
 
     def _get_delivery_address_domain(self):
         """Domain selecting child contacts usable as a delivery address (or self)."""

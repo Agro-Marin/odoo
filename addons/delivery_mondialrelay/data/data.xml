@@ -10,7 +10,7 @@
             <field name="sale_ok" eval="False"/>
             <field name="purchase_ok" eval="False"/>
             <field name="list_price">5</field>
-            <field name="invoice_policy">order</field>
+            <field name="invoice_policy">ordered</field>
         </record>
 
         <record id="delivery_carrier_mondialrelay_be_lu" model="delivery.carrier">

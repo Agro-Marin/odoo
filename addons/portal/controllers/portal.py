@@ -16,6 +16,8 @@ from odoo.http import Controller, content_disposition, request, route
 from odoo.tools import clean_context, consteq, single_email_re, str2bool
 from odoo.tools.translate import LazyTranslate
 
+from odoo.addons.web.controllers.utils import _is_local_url
+
 _lt = LazyTranslate(__name__)
 
 # --------------------------------------------------
@@ -132,11 +134,14 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
     }
 
 
-def get_records_pager(ids, current):
+def get_records_pager(ids, current, with_token=True):
     """Build prev/next URL pair for navigating a portal-displayed record set.
 
     :param list[int] ids: ordered record ids (the navigation sequence)
     :param current: single recordset positioned within ``ids``
+    :param bool with_token: emit an ``access_token`` on the neighbour links.
+        Only meaningful for a caller that is itself browsing by token; see
+        :func:`_pager_url` for why this is not always on.
     :return: dict with ``prev_record`` / ``next_record`` URLs, each ``False``
              when that side has no navigable neighbour (none at all, or one
              whose URL field is empty). Empty dict if ``current`` is not in
@@ -157,12 +162,12 @@ def get_records_pager(ids, current):
     next_record = idx < len(ids) - 1 and current.browse(ids[idx + 1])
 
     return {
-        "prev_record": _pager_url(prev_record, attr_name),
-        "next_record": _pager_url(next_record, attr_name),
+        "prev_record": _pager_url(prev_record, attr_name, with_token),
+        "next_record": _pager_url(next_record, attr_name, with_token),
     }
 
 
-def _pager_url(record, attr_name):
+def _pager_url(record, attr_name, with_token=True):
     """Build a portal pager URL for a single neighbour.
 
     Returns ``False`` both for a missing neighbour and for a neighbour whose
@@ -175,12 +180,21 @@ def _pager_url(record, attr_name):
     gratuitous disclosure of the model name and record id in the page source.
     A neighbour with no reachable URL is not navigable, which is exactly what
     the template's disabled state already expresses.
+
+    ``with_token`` exists because ``_portal_ensure_token`` *persists* a token
+    when the record has none. Rendering a document page therefore minted and
+    stored a permanent bearer capability on up to two **other** records — the
+    session-history neighbours, which the customer may never open — as a side
+    effect of a GET. For a signed-in customer that token buys nothing: the
+    portal route resolves the neighbour through ``_document_check_access``,
+    which grants on ACL alone. The token is only load-bearing for a visitor who
+    is *themselves* browsing by token, so only that caller asks for it.
     """
     if not record:
         return False
     if not record[attr_name]:
         return False
-    if attr_name == "access_url":
+    if attr_name == "access_url" and with_token:
         return f"{record[attr_name]}?access_token={record._portal_ensure_token()}"
     return record[attr_name]
 
@@ -223,6 +237,54 @@ def _parse_bool_param(raw_value):
     :rtype: bool
     """
     return str2bool(raw_value or "false", default=False)
+
+
+def _parse_callback_url(raw_callback, default):
+    """Coerce a client-supplied post-action redirect target into a safe URL.
+
+    ``callback`` reaches the address flow from the form itself -- it is a hidden
+    input in ``portal.address_form_fields``, and ``/my/account?redirect=<url>``
+    seeds it straight off the query string. It is then used two ways, both of
+    which hand the value to the browser:
+
+    * ``discard_url`` in ``portal.address_footer``, rendered as
+      ``<a t-att-href="discard_url or '/my/'">Discard</a>``;
+    * the ``redirectUrl`` of ``/my/address/submit``'s JSON answer, which
+      ``address.js`` feeds to ``redirect()``.
+
+    Neither constrained the value, so ``/my/account?redirect=https://evil.tld``
+    rendered an off-site "Discard" link *on the customer's own domain* -- a
+    plain open redirect (CWE-601), the pretext half of a credential-phishing
+    flow: the link a victim inspects is genuinely their shop's. Protocol-relative
+    ``//evil.tld`` worked the same way. ``javascript:`` was already neutralised,
+    but by QWeb's attribute sanitiser rather than by anything here, and the JSON
+    path is not covered by it at all.
+
+    :func:`_is_local_url` is the same predicate ``web`` already applies to its
+    own ``redirect=`` parameters (``/web/login``, ``/web/session/logout``), so
+    portal now answers this question the one way the codebase answers it --
+    including the ``/\\`` and ignored-character bypasses it already handles.
+
+    :param raw_callback: raw request value
+    :param str default: URL to fall back on when the value is not a local path
+    :return: a URL that is safe to emit as a link target or redirect
+    :rtype: str
+    """
+    return raw_callback if _is_local_url(raw_callback) else default
+
+
+def _as_password_field(raw_value):
+    """Coerce a raw request value into the string a password field expects.
+
+    Form values are only strings when the part is sent as text; a multipart
+    request may present any field as a file, which werkzeug surfaces as a
+    ``FileStorage``. A non-string is not a password, so it degrades to the empty
+    string — the same thing an omitted field yields, and already rejected.
+
+    :param raw_value: raw request value
+    :rtype: str
+    """
+    return raw_value.strip() if isinstance(raw_value, str) else ""
 
 
 def _parse_counter_names(raw_counters):
@@ -304,6 +366,16 @@ class CustomerPortal(Controller):
     # string, so dropping them from client input costs nothing and closes the
     # whole class. Subclasses that add their own trusted kwarg extend the set
     # through ``_get_reserved_address_form_keys``.
+    #
+    # ``verify_address_values`` is in the set for a stronger reason than the
+    # rest: it is not merely an argument that collides, it is a *trust* switch.
+    # Server-side callers (``website_event_sale``, ``website_appointment_sale``)
+    # pass ``verify_address_values=False`` to skip validation they have already
+    # done themselves, and it travelled in the same ``**form_data`` bag as the
+    # customer's own field values -- so ``POST /my/address/submit`` with a bare
+    # ``verify_address_values=`` (empty string, i.e. falsy) turned every check in
+    # ``_validate_address_values`` off. See ``_create_or_update_address`` for the
+    # second, independent guard.
     _RESERVED_ADDRESS_FORM_KEYS = frozenset(
         {
             "address_values",
@@ -313,6 +385,7 @@ class CustomerPortal(Controller):
             "is_commercial_address",
             "missing_fields",
             "partner_sudo",
+            "verify_address_values",
         }
     )
 
@@ -466,13 +539,31 @@ class CustomerPortal(Controller):
     def my_addresses(self, **query_params):
         """Display the user's addresses."""
         partner_sudo = request.env.user.partner_id  # env.user is always sudoed
+        # Same treatment as the two sibling address routes: this one also splats
+        # its query string into methods that reach
+        # ``res.partner._get_current_partner``. It was harmless only because
+        # ``_prepare_address_data`` ignores its kwargs; the editable-address
+        # lookup below is a second consumer, so sanitise at the boundary rather
+        # than relying on every consumer to be indifferent.
+        query_params = self._sanitize_client_address_params(query_params)
         address_data = self._prepare_address_data(partner_sudo, **query_params)
         has_invoice_type_address = any(
             address.type == "invoice" for address in address_data["billing_addresses"]
         )
+        # Resolved once for every address on the page rather than per card:
+        # ``portal.address_list`` used to call the singleton predicate inside its
+        # ``t-foreach``, which costs a ``search_count`` (and its record-rule
+        # machinery) per address. See
+        # ``res.partner._filter_editable_by_current_customer``.
+        all_addresses = (
+            address_data["billing_addresses"] | address_data["delivery_addresses"]
+        )
         values = {
             "partner_sudo": partner_sudo,
             **address_data,
+            "editable_addresses": all_addresses._filter_editable_by_current_customer(
+                **query_params
+            ),
             "page_name": "my_addresses",
             # One unique address
             "use_delivery_as_billing": not has_invoice_type_address,
@@ -501,14 +592,14 @@ class CustomerPortal(Controller):
         """
         partner_sudo = partner_sudo.with_context(show_address=1)
         commercial_partner_sudo = partner_sudo.commercial_partner_id
+        # Through the model, like its delivery counterpart just below. The
+        # billing domain was the only one of the pair spelled out inline here,
+        # so a localisation could override which contacts count as delivery
+        # addresses but had no way to say the same thing about billing ones --
+        # an asymmetry in the extension surface with no reason behind it.
         billing_partners_sudo = (
             partner_sudo.search(
-                [
-                    ("id", "child_of", commercial_partner_sudo.ids),
-                    "|",
-                    ("type", "in", ["invoice", "other"]),
-                    ("id", "=", commercial_partner_sudo.id),
-                ],
+                commercial_partner_sudo._get_billing_address_domain(),
                 order="id desc",
             )
             | partner_sudo
@@ -544,7 +635,7 @@ class CustomerPortal(Controller):
         mandatory_billing_fields = self._get_mandatory_billing_address_fields(
             partner_sudo.country_id
         )
-        return all(partner_sudo.read(mandatory_billing_fields)[0].values())
+        return self._has_all_address_fields(partner_sudo, mandatory_billing_fields)
 
     def _get_mandatory_billing_address_fields(self, country_sudo):
         """Return the set of mandatory billing field names.
@@ -565,7 +656,25 @@ class CustomerPortal(Controller):
         mandatory_delivery_fields = self._get_mandatory_delivery_address_fields(
             partner_sudo.country_id
         )
-        return all(partner_sudo.read(mandatory_delivery_fields)[0].values())
+        return self._has_all_address_fields(partner_sudo, mandatory_delivery_fields)
+
+    def _has_all_address_fields(self, partner_sudo, field_names):
+        """Whether every named field is set on ``partner_sudo``.
+
+        Reads the fields off the record rather than through ``read()``. The
+        latter answers with a dict that *always* carries ``id`` — a value that
+        is true by construction — so the ``all(...)`` it fed was testing one key
+        that can never fail, next to the ones that can. It also cost a separate
+        round trip per call (this is asked twice per ``/my/addresses`` render)
+        where the ORM cache already holds the values.
+
+        :param res.partner partner_sudo: partner to inspect (may be empty)
+        :param field_names: field names that must all be filled
+        :rtype: bool
+        """
+        if not partner_sudo:
+            return False
+        return all(partner_sudo[field_name] for field_name in field_names)
 
     def _get_mandatory_delivery_address_fields(self, country_sudo):
         """Return the set of mandatory delivery field names.
@@ -686,6 +795,14 @@ class CustomerPortal(Controller):
         :return: The address page values.
         :rtype: dict
         """
+        # ``callback`` is echoed into the page twice -- as the ``Discard`` link's
+        # href (``discard_url``) and as a hidden input that comes back on submit.
+        # ``/my/account?redirect=<url>`` seeds it straight from the query string,
+        # so it is client input on every render. Empty (not the route default)
+        # when it is not a local path, which keeps the ``callback or ...``
+        # fallbacks below and in the template working unchanged.
+        callback = _parse_callback_url(callback, "")
+
         current_partner = request.env["res.partner"]._get_current_partner(**kwargs)
         commercial_partner = (
             current_partner.commercial_partner_id
@@ -811,11 +928,35 @@ class CustomerPortal(Controller):
         :param str required_fields: The additional required address values, as a comma-separated
                                     list of `res.partner` fields.
         :param bool verify_address_values: Whether we want to check the given address values.
+            Server-side flag only: see the coercion below.
         :return: Partner record and A JSON-encoded feedback, with either the success URL or
                  an error message.
         :rtype: res.partner, dict
         """
+        # ``is not False``: this parameter selects the *trust level* of the call,
+        # not a value the customer gets to state. Only server-side callers set
+        # it -- ``website_event_sale`` and ``website_appointment_sale`` pass the
+        # literal ``False`` because they validate the address themselves first --
+        # yet it arrives through the same ``**form_data`` splat as the form's own
+        # fields. A truthiness test therefore accepted the *empty string* a
+        # request can trivially supply, and ``POST /my/address/submit`` with
+        # ``verify_address_values=`` skipped the whole of
+        # ``_validate_address_values``: e-mail syntax, VAT, required fields, the
+        # country/name/e-mail mutation locks, and the commercial-field
+        # propagation rules that also *pop* ``vat``/``company_name`` off a
+        # sub-address. Verified against a live portal session: a logged-in
+        # customer renamed their own partner and set an unparseable e-mail.
+        #
+        # ``_RESERVED_ADDRESS_FORM_KEYS`` already strips the name at the two
+        # portal routes and at website_sale's. This second guard is what covers
+        # the callers that splat raw request data in without sanitising it
+        # (``point_of_sale``'s self-order invoice route does), and it is the one
+        # that cannot be forgotten by a future call site.
+        verify_address_values = verify_address_values is not False
         use_delivery_as_billing = _parse_bool_param(use_delivery_as_billing)
+        # Answered to the browser as ``redirectUrl``; never let the request pick
+        # an off-site target. See :func:`_parse_callback_url`.
+        callback = _parse_callback_url(callback, "/my/addresses")
 
         # Parse form data into address values, and extract incompatible data as extra form data.
         address_values, extra_form_data = self._parse_form_data(form_data)
@@ -924,8 +1065,15 @@ class CustomerPortal(Controller):
 
         if "zipcode" in form_data and not form_data.get("zip"):
             zipcode = form_data.pop("zipcode", "")
-            address_values["zip"] = (
-                zipcode.strip() if isinstance(zipcode, str) else zipcode
+            if isinstance(zipcode, str):
+                zipcode = zipcode.strip()
+            # Through the field, like every value the loop above stores. This
+            # alias was the one path that wrote a raw request value straight
+            # into ``address_values``, so ``zip`` arrived in a different shape
+            # from its siblings and skipped whatever ``convert_to_cache`` does
+            # for a Char (notably normalising ``False``/``None`` to "").
+            address_values["zip"] = partner_fields["zip"].convert_to_cache(
+                zipcode, ResPartner
             )
             # zipcode was collected into extra_form_data by the loop above
             # (it is not a partner field); drop the now-consumed entry so
@@ -1325,13 +1473,17 @@ class CustomerPortal(Controller):
         values = self._prepare_security_rendering_values()
 
         if request.httprequest.method == "POST":
-            # ``.get``: a hand-crafted POST may omit any of the three fields;
-            # the empty-field validation in _update_password handles them.
+            # ``_as_password_field``: a hand-crafted POST may omit any of the
+            # three fields, and may send one as a *file* part rather than text
+            # -- werkzeug then hands over a ``FileStorage``, whose ``.strip()``
+            # is an ``AttributeError`` (HTTP 500 on the security page). Anything
+            # that is not text is not a password, so it reads as absent, which
+            # the empty-field validation in ``_update_password`` already answers.
             values.update(
                 self._update_password(
-                    post.get("old", "").strip(),
-                    post.get("new1", "").strip(),
-                    post.get("new2", "").strip(),
+                    _as_password_field(post.get("old")),
+                    _as_password_field(post.get("new1")),
+                    _as_password_field(post.get("new2")),
                 )
             )
 
@@ -1595,7 +1747,12 @@ class CustomerPortal(Controller):
             values["hash"] = kwargs["hash"]
 
         history = request.session.get(session_history, [])
-        values.update(get_records_pager(history, document))
+        # Only a token-authenticated visitor needs tokens on the prev/next
+        # links; for everyone else minting them is a persisted write performed
+        # during a GET, on records other than the one being viewed.
+        values.update(
+            get_records_pager(history, document, with_token=bool(access_token))
+        )
 
         return values
 
@@ -1621,11 +1778,23 @@ class CustomerPortal(Controller):
         headers = self._get_http_headers(model, report_type, report, download)
         return request.make_response(report, headers=list(headers.items()))
 
+    # Content type per report type. ``_show_report`` accepts three, but the
+    # header only distinguished pdf from "everything else", so a ``text`` report
+    # -- the one ``ir.actions.report`` renders through ``_render_qweb_text`` --
+    # was served as ``text/html``. A browser then parses plain text as markup:
+    # ``<`` in the content starts a tag, and the document the customer sees is
+    # not the one the report produced.
+    _REPORT_CONTENT_TYPES = {
+        "pdf": "application/pdf",
+        "html": "text/html",
+        "text": "text/plain",
+    }
+
     def _get_http_headers(self, model, report_type, report, download):
         # ``report`` is bytes for PDFs, str for HTML/text — encode the latter
         # so Content-Length matches the wire byte count, not the char count.
         headers = {
-            "Content-Type": "application/pdf" if report_type == "pdf" else "text/html",
+            "Content-Type": self._REPORT_CONTENT_TYPES.get(report_type, "text/html"),
             "Content-Length": (
                 len(report)
                 if isinstance(report, bytes)

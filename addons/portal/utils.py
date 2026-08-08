@@ -2,6 +2,31 @@ from odoo.models import BaseModel
 from odoo.tools import consteq
 
 
+def resolve_message_thread(message: BaseModel) -> BaseModel:
+    """Resolve the thread a ``mail.message`` points at, or an empty recordset.
+
+    Single answer to "what record does this message belong to" for the portal
+    controllers that need the thread only to check a credential against it.
+
+    The "is this a usable thread model" question is owned by
+    :meth:`mail.message._is_thread_model` -- ``model`` is mail's column, and
+    mail's own access path has to ask exactly the same thing one step earlier.
+    Portal defers to it rather than keeping a second copy of the rule.
+
+    Returns an empty ``mail.thread`` recordset -- not ``None`` -- when the
+    message names no usable thread. That keeps the result usable with the ORM
+    idioms the callers already use: it is falsy, and :func:`get_portal_partner`
+    short-circuits on it through :func:`resolve_thread_for_credentials` without
+    ever touching a token field.
+
+    :param message: single ``mail.message`` record
+    :return: the thread record, or an empty ``mail.thread`` recordset
+    """
+    if not message.res_id or not message._is_thread_model():
+        return message.env["mail.thread"]
+    return message._get_thread_model().browse(message.res_id)
+
+
 def resolve_thread_for_credentials(thread: BaseModel) -> BaseModel:
     """Narrow a client-addressed thread to the rows that actually exist.
 

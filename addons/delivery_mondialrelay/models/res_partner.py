@@ -43,5 +43,13 @@ class ResPartner(models.Model):
             return "delivery_mondialrelay/static/src/img/truck_mr.png"
         return super()._avatar_get_placeholder_path()
 
-    def _can_be_edited_by_current_customer(self, **kwargs):
-        return super()._can_be_edited_by_current_customer(**kwargs) and not self.is_mondialrelay
+    def _filter_editable_by_current_customer(self, **kwargs):
+        # A Mondial Relay pickup point is a carrier-owned address mirrored onto
+        # the customer's tree; editing it would desynchronise it from the relay
+        # network. Overriding the *batch* primitive rather than the singleton
+        # predicate keeps the rule in force on both -- portal's
+        # `_can_be_edited_by_current_customer` is now defined in terms of this
+        # method -- without the per-address query the singleton form imposed on
+        # every `/my/addresses` render.
+        editable = super()._filter_editable_by_current_customer(**kwargs)
+        return editable.filtered(lambda partner: not partner.is_mondialrelay)

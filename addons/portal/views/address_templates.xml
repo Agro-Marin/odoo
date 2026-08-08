@@ -74,9 +74,15 @@
                         <!-- Edition of main address should go through dedicated page -->
                         <t t-set="address_update_url" t-valuef="/my/account?redirect=/my/addresses" />
                     </t>
+                    <!-- Membership test, not a per-address call: `/my/addresses`
+                         resolves the whole set in one query and passes it in as
+                         `editable_addresses` (see
+                         `res.partner._filter_editable_by_current_customer`).
+                         Asking per card cost a `search_count` plus its
+                         record-rule machinery for every address rendered. -->
                     <t
                         t-set="can_be_edited"
-                        t-value="address._can_be_edited_by_current_customer()"
+                        t-value="address in editable_addresses"
                     />
                     <t t-set="selected" t-value="address == selected_address" />
                     <t t-set="show_removal"

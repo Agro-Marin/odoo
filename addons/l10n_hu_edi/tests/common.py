@@ -221,7 +221,7 @@ class L10nHuEdiTestCommon(AccountTestInvoicingCommon):
 
     def create_advance_invoice(self):
         """ Create a sale order and an advance invoice. """
-        self.product_a.invoice_policy = 'order'
+        self.product_a.invoice_policy = 'ordered'
         pricelist_huf = self.env['product.pricelist'].create({
             'name': 'HUF pricelist',
             'currency_id': self.company_data['company'].currency_id.id,

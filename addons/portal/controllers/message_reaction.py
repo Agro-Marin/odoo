@@ -1,7 +1,7 @@
 from odoo.http import request
 
 from odoo.addons.mail.controllers.message_reaction import MessageReactionController
-from odoo.addons.portal.utils import get_portal_partner
+from odoo.addons.portal.utils import get_portal_partner, resolve_message_thread
 
 
 class PortalMessageReactionController(MessageReactionController):
@@ -14,10 +14,15 @@ class PortalMessageReactionController(MessageReactionController):
         because the caller is anonymous — try the portal HMAC/token. If we
         recognise the portal partner, clear the guest so the reaction is
         attributed to the partner rather than an anonymous guest record.
+
+        ``resolve_message_thread`` rather than ``request.env[message.model]``:
+        the model name is free-form (a stale name after an uninstall, or a model
+        that never inherited ``mail.thread``) and this route is ``auth="public"``.
+        See :meth:`mail.message._is_thread_model`.
         """
         partner, guest = super()._get_reaction_author(message, **kwargs)
-        if not partner and message.model and message.res_id:
-            thread = request.env[message.model].browse(message.res_id)
+        if not partner:
+            thread = resolve_message_thread(message)
             if partner := get_portal_partner(
                 thread,
                 kwargs.get("hash"),

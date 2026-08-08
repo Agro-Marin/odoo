@@ -231,11 +231,10 @@ class MailMessage(models.Model):
                         # that owned their model, so an uninstall leaves rows
                         # pointing at a name no longer in the registry. Indexing
                         # env with it would raise KeyError and take down the
-                        # whole chatter fetch over one stale message.
-                        "has_mail_thread": message.model in self.env
-                        and isinstance(
-                            self.env[message.model], self.pool["mail.thread"]
-                        ),
+                        # whole chatter fetch over one stale message. Shared with
+                        # the two chatter controllers that resolve the same
+                        # column -- one rule, one place.
+                        "has_mail_thread": message._is_thread_model(),
                         # Read off the record, not ``values``: these two are
                         # always available, whereas ``values`` only carries what
                         # ``properties_names`` asked for.
