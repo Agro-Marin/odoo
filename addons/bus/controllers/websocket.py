@@ -7,7 +7,7 @@ from odoo.http import (
 )
 from odoo.libs.json import dumps as json_dumps
 
-from ..models.bus import channel_with_db
+from ..models.bus import channel_with_db, dispatch
 from ..websocket import WebsocketConnectionHandler
 
 
@@ -25,13 +25,25 @@ class WebsocketController(Controller):
 
     @route("/websocket/health", type="http", auth="none", save_session=False)
     def health(self):
-        data = json_dumps(
-            {
-                "status": "pass",
-            }
-        )
+        """Report whether this node can actually deliver bus notifications.
+
+        This used to answer ``{"status": "pass"}`` unconditionally, which only
+        ever proved that the WSGI stack was up -- a node whose ``ImDispatch``
+        thread had died kept advertising itself as healthy and kept being sent
+        websocket traffic it could never dispatch.
+
+        ``dispatch.is_healthy`` deliberately reports a *never started*
+        dispatcher as healthy: the thread starts lazily on the first
+        subscriber, so probing ``is_alive()`` directly would fail every
+        freshly booted server until someone connected. A shutting-down server
+        reports "fail" so it drains out of the pool before it stops answering.
+        """
+        healthy = dispatch.is_healthy
+        data = json_dumps({"status": "pass" if healthy else "fail"})
         headers = [("Content-Type", "application/json"), ("Cache-Control", "no-store")]
-        return request.make_response(data, headers)
+        # 503 so a load balancer / orchestrator acts on it without having to
+        # parse the body (draft-inadarei-api-health-check conventions).
+        return request.make_response(data, headers, status=200 if healthy else 503)
 
     @route("/websocket/peek_notifications", type="jsonrpc", auth="public", cors="*")
     def peek_notifications(self, channels, last, is_first_poll=False):

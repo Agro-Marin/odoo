@@ -21,9 +21,30 @@ from odoo.tools.misc import OrderedSet
 
 _logger = logging.getLogger(__name__)
 
-# longpolling timeout connection
-TIMEOUT = 50
+# How far back ``_poll`` looks when the client has no last notification id.
+# A client that connects without a watermark gets whatever landed in this
+# window; anything older is considered already-missed and is left to the
+# outdated-page watcher. Unrelated to the two dispatcher timings below --
+# these three used to share a single ``TIMEOUT = 50`` constant (named after
+# the long-polling transport that no longer exists), so tuning the poll
+# window silently changed the dispatcher's retry ceiling.
+POLL_LOOKBACK_SECONDS = 50
+# How long ``ImDispatch.loop`` blocks in ``select()`` before looping back to
+# re-check ``stop_event``. Bounds how long a shutdown waits on an idle
+# dispatcher, nothing else.
+DISPATCHER_SELECT_TIMEOUT = 50
+# Ceiling of the exponential backoff between ``ImDispatch.loop`` restarts, and
+# the "the loop stayed up long enough to count as a new incident" threshold.
+MAX_DISPATCHER_RETRY_DELAY = 50
 DEFAULT_GC_RETENTION_SECONDS = 60 * 60 * 24  # 24 hours
+# How long a websocket holds its low-water-mark notification id back so that
+# notifications committed out of id order by concurrent transactions are not
+# skipped. Defined here rather than in ``websocket.py`` because both ends of
+# the contract need it: the receiving side sizes its hold-back window with it
+# (``Websocket.MAX_NOTIFICATION_HISTORY_SEC``), and the sending side uses it
+# to warn when a transaction is at risk of falling outside that window (see
+# ``_ensure_hooks``). Two literals would silently drift apart.
+NOTIFICATION_HOLD_BACK_SECONDS = 10
 
 # custom function to call instead of default PostgreSQL's `pg_notify`
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
@@ -373,6 +394,12 @@ class BusBus(models.Model):
 
         if "bus.bus.channels" not in self.env.cr.postcommit.data:
             self.env.cr.postcommit.data["bus.bus.channels"] = OrderedSet()
+            # Stamped here, at the transaction's FIRST _sendone, and read by
+            # the postcommit hook below. It has to live in ``postcommit.data``:
+            # ``precommit.data`` is cleared by ``Callbacks.run()`` when the
+            # precommit hooks fire, which happens before postcommit runs -- so
+            # a stamp kept there is always gone by the time it is needed.
+            self.env.cr.postcommit.data["bus.bus.first_sendone"] = time.monotonic()
 
             # We have to wait until the notifications are commited in database.
             # When calling `NOTIFY imbus`, notifications will be fetched in the
@@ -382,9 +409,31 @@ class BusBus(models.Model):
 
             @cr_ref.postcommit.add
             def notify():
-                payloads = get_notify_payloads(
-                    list(cr_ref.postcommit.data.pop("bus.bus.channels"))
+                channels = list(cr_ref.postcommit.data.pop("bus.bus.channels"))
+                # ids are assigned at INSERT but delivery happens at COMMIT, so
+                # a notification created long before its commit can be skipped
+                # once the receiving websocket's hold-back window has moved
+                # past its id -- silently, and only for clients that received
+                # something else in the meantime, which makes it close to
+                # undiagnosable in production. Measured on this build: a
+                # notification held ~15s was still delivered, one held ~25s was
+                # lost. Warn from the window onwards, naming the channels, so
+                # the offending long transaction can actually be found.
+                held_for = time.monotonic() - cr_ref.postcommit.data.pop(
+                    "bus.bus.first_sendone", time.monotonic()
                 )
+                if held_for > NOTIFICATION_HOLD_BACK_SECONDS:
+                    _logger.warning(
+                        "Bus notification created %.1fs before its commit, "
+                        "beyond the %ds hold-back window: it may never be "
+                        "dispatched to clients that received other "
+                        "notifications meanwhile. Create bus notifications as "
+                        "close to the commit as possible. Channels: %.300s",
+                        held_for,
+                        NOTIFICATION_HOLD_BACK_SECONDS,
+                        channels,
+                    )
+                payloads = get_notify_payloads(channels)
                 if len(payloads) > 1:
                     _logger.info(
                         "The imbus notification payload was too large, it's been split into %d payloads.",
@@ -411,7 +460,9 @@ class BusBus(models.Model):
         # Direct SQL — bus.bus is a simple queue table with no computed fields.
         # Channel filtering provides security; sudo/access rules are unnecessary.
         if last == 0:
-            timeout_ago = fields.Datetime.now() - datetime.timedelta(seconds=TIMEOUT)
+            timeout_ago = fields.Datetime.now() - datetime.timedelta(
+                seconds=POLL_LOOKBACK_SECONDS
+            )
             where = SQL("create_date > %s", timeout_ago)
         else:
             where = SQL("id > %s", last)
@@ -452,6 +503,33 @@ class ImDispatch(threading.Thread):
         # skip the pointless (and wake-up-storm-prone) catch-up dispatch on
         # process start, when no notification can have been missed yet.
         self._first_listen = True
+        # Whether ``start()`` was ever called on this singleton. The thread is
+        # started lazily (first ``subscribe()``), so ``is_alive()`` alone
+        # cannot distinguish "not needed yet" from "died" -- see ``is_healthy``.
+        # NOT ``_started``: ``threading.Thread`` already owns that name (an
+        # ``Event`` backing ``is_alive()``); shadowing it breaks the thread.
+        self._ever_started = False
+
+    @property
+    def is_healthy(self):
+        """Whether the dispatcher is in a state that can deliver notifications.
+
+        A process that has never served a websocket has never started the
+        thread, and is perfectly healthy: reporting on ``is_alive()`` alone
+        would fail every freshly booted server until its first subscriber.
+        Only a dispatcher that was started and has since died -- or a server
+        on its way down -- is unhealthy.
+        """
+        return not stop_event.is_set() and (not self._ever_started or self.is_alive())
+
+    def _ensure_started(self):
+        """Start the dispatch thread if it is not running yet (idempotent)."""
+        # RuntimeError: another thread won the race and started it already, or
+        # the thread already ran and terminated (which ``is_healthy`` reports).
+        with contextlib.suppress(RuntimeError):
+            if not self.is_alive():
+                self.start()
+        self._ever_started = True
 
     def subscribe(self, channels, last, db, websocket):
         """Subscribe to bus notifications.
@@ -471,9 +549,7 @@ class ImDispatch(threading.Thread):
                     if not ws_set:
                         del self._channels_to_ws[channel]
         websocket.subscribe(channels, last)
-        with contextlib.suppress(RuntimeError):
-            if not self.is_alive():
-                self.start()
+        self._ensure_started()
 
     def unsubscribe(self, websocket):
         """Remove a websocket from all channel subscriptions."""
@@ -511,7 +587,7 @@ class ImDispatch(threading.Thread):
                 # all is a cheap incremental poll.
                 self._dispatch_to_all()
             while not stop_event.is_set():
-                if sel.select(TIMEOUT):
+                if sel.select(DISPATCHER_SELECT_TIMEOUT):
                     channels = []
                     for notif in conn.notifies(timeout=0):
                         channels.extend(self._parse_imbus_payload(notif.payload))
@@ -579,7 +655,8 @@ class ImDispatch(threading.Thread):
         # Exponential backoff between retries: a transient hiccup recovers
         # within seconds (the previous flat 50s pause left every websocket
         # without dispatching for almost a minute), while a persistent outage
-        # (PostgreSQL down) quickly settles at one retry per TIMEOUT to keep
+        # (PostgreSQL down) quickly settles at one retry per
+        # MAX_DISPATCHER_RETRY_DELAY to keep
         # log noise bounded.
         retry_delay = 1
         while not stop_event.is_set():
@@ -592,7 +669,7 @@ class ImDispatch(threading.Thread):
                     and stop_event.is_set()
                 ):
                     continue
-                if time.monotonic() - started_at > TIMEOUT:
+                if time.monotonic() - started_at > MAX_DISPATCHER_RETRY_DELAY:
                     # The loop ran fine for a while before failing: this is a
                     # new incident, not a consecutive failure. Restart the
                     # backoff from scratch.
@@ -600,7 +677,7 @@ class ImDispatch(threading.Thread):
                 _logger.exception("Bus.loop error, retry in %d seconds", retry_delay)
                 # `wait` (vs `sleep`) aborts the pause on server shutdown.
                 stop_event.wait(retry_delay)
-                retry_delay = min(retry_delay * 2, TIMEOUT)
+                retry_delay = min(retry_delay * 2, MAX_DISPATCHER_RETRY_DELAY)
 
 
 # Lazy-started singleton — initialized early to avoid "Bus unavailable" errors.

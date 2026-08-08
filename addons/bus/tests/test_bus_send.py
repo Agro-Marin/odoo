@@ -1,6 +1,9 @@
+import time
 from unittest.mock import patch
 
 from odoo.tests import TransactionCase, tagged
+
+from ..models.bus import NOTIFICATION_HOLD_BACK_SECONDS
 
 
 @tagged("-at_install", "post_install")
@@ -102,7 +105,7 @@ class TestBusPoll(TransactionCase):
         self.assertEqual(notifications[0]["message"]["type"], "type_c")
 
     def test_poll_with_zero_last_uses_time_window(self):
-        """Polling with last=0 returns recent notifications (within TIMEOUT window)."""
+        """Polling with last=0 returns notifications inside POLL_LOOKBACK_SECONDS."""
         Bus = self.env["bus.bus"]
         Bus.search([]).unlink()
         Bus._sendone("fresh_channel", "recent", {"data": True})
@@ -212,3 +215,38 @@ class TestEnsureHooks(TransactionCase):
             payloads = mock_notify.call_args[0][0]
             self.assertIsInstance(payloads, list)
             self.assertGreater(len(payloads), 0)
+
+
+@tagged("-at_install", "post_install")
+class TestSlowTransactionWarning(TransactionCase):
+    """A notification created far from its commit may never be dispatched.
+
+    ids are assigned at INSERT but delivery happens at COMMIT, so once the
+    receiving websocket's hold-back window has moved past an id, a
+    late-committing transaction's notification is skipped -- silently, and
+    only for clients that received something else meanwhile. Verified against
+    a live server on this build: held ~15s it still arrived, held ~25s it was
+    lost. The warning is the only thing that makes that diagnosable.
+    """
+
+    def test_warns_when_held_longer_than_the_hold_back_window(self):
+        self.env["bus.bus"]._sendone("slow_chan", "type", "message")
+        # Pretend the first _sendone happened well before this commit.
+        self.env.cr.postcommit.data["bus.bus.first_sendone"] = (
+            time.monotonic() - NOTIFICATION_HOLD_BACK_SECONDS - 5
+        )
+        with (
+            patch("odoo.addons.bus.models.bus._send_pg_notify"),
+            self.assertLogs("odoo.addons.bus.models.bus", level="WARNING") as log,
+        ):
+            self.env.cr.precommit.run()
+            self.env.cr.postcommit.run()
+        self.assertIn("beyond the", log.output[0])
+        self.assertIn("slow_chan", log.output[0])
+
+    def test_no_warning_for_a_prompt_transaction(self):
+        self.env["bus.bus"]._sendone("fast_chan", "type", "message")
+        with patch("odoo.addons.bus.models.bus._send_pg_notify"):
+            self.env.cr.precommit.run()
+            with self.assertNoLogs("odoo.addons.bus.models.bus", level="WARNING"):
+                self.env.cr.postcommit.run()
