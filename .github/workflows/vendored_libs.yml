@@ -64,7 +64,7 @@ jobs:
 
       - name: Self-test the gate
         run: |
-          pip install --quiet "pytest==9.0.2"
+          pip install --quiet "pytest==9.1.1"
           python -m pytest tooling/vendored/ -q
 
       - name: Check manifest against shipped bytes

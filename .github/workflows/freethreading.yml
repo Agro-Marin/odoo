@@ -65,7 +65,7 @@ jobs:
             print('free-threaded build confirmed:', sys.version)"
 
       - name: Install pytest
-        run: pip install --quiet "pytest==9.0.2"
+        run: pip install --quiet "pytest==9.1.1"
 
       - name: Run orm/components under PYTHON_GIL=0
         # Pure-stdlib suites — no Rust, no framework, no DB. The 16-thread

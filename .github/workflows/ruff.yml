@@ -21,12 +21,16 @@ name: Python Lint (ruff)
 # location. Bumping ruff DOWN, or forgetting one of the three pin sites in this repo
 # (here, requirements-dev.txt, .pre-commit-config.yaml), breaks the gate outright rather
 # than shifting the count. Two more pins live outside this repo: the enterprise and
-# agromarin .pre-commit-config.yaml files, which inherit this ruff.toml via `extend`.
+# agromarin .pre-commit-config.yaml files. They pin the same ruff so the three repos
+# format identically — NOT because they read this file.
 #
-# That `extend` inheritance is load-bearing and has failed silently before: a missing
-# extend target aborts ruff instead of skipping the include, so a wrapper reading only
-# the exit code cannot distinguish "config broken" from "no findings". See the comment
-# at the top of ../enterprise/ruff.toml.
+# No repo extends this ruff.toml any more. enterprise and agromarin each carry a
+# standalone copy, because `extend` fails CLOSED: a missing extend target aborts ruff
+# instead of skipping the include, so a wrapper reading only the exit code cannot
+# distinguish "config broken" from "no findings". Both repos had already been broken
+# that way by a path that resolved nowhere. The rule families are therefore duplicated
+# on purpose; the headers of ../enterprise/ruff.toml and ../agromarin/ruff.toml carry
+# the rationale and the `diff` recipe for resyncing them after a change here.
 
 on:
   # Mainline re-verification: re-run the ratchet on every push to a protected

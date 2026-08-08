@@ -97,7 +97,7 @@ jobs:
         # (relative-import resolution, TYPE_CHECKING skipping, contract matching)
         # before trusting its verdict. Stdlib-only suite, fast.
         run: |
-          pip install --quiet "pytest==9.0.2"
+          pip install --quiet "pytest==9.1.1"
           python -m pytest tooling/architecture/ -q
 
       - name: Run layer check

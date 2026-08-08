@@ -1,19 +1,14 @@
 # Development and testing tools — NOT required for production.
-# Install with: pip install -r requirements-dev.txt
 -r requirements.txt
 
 # Linting & formatting
 astroid==4.0.4
 Pygments==2.19.2
 ruff==0.16.2
-black==26.1.0
 
 # Type checking
 mypy==1.19.1
 
 # Testing
-pytest==9.0.2
-# Gates base/tests/test_ir_mail_server_smtpd.py behind @unittest.skipUnless: without
-# it the whole SMTP transport-security matrix (encryption, client certs, MITM)
-# skips silently while the run still reports success.
+pytest==9.1.1
 aiosmtpd==1.4.6
