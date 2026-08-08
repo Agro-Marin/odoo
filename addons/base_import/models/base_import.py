@@ -1120,7 +1120,7 @@ class Base_ImportImport(models.TransientModel):
             if field_distance < best_distance:
                 min_dist_per_field[field_name] = (field_distance, header)
 
-        headers_to_keep = headers_to_keep + [value[1] for value in min_dist_per_field.values()]
+        headers_to_keep += [value[1] for value in min_dist_per_field.values()]
         for header in mapping_suggestions.keys() - headers_to_keep:
             del mapping_suggestions[header]
 
@@ -1247,12 +1247,25 @@ class Base_ImportImport(models.TransientModel):
             # Due to lazy generators, UnicodeDecodeError (for
             # instance) may only be raised when serializing the
             # preview to a list in the return.
-            _logger.debug("Error during parsing preview", exc_info=True)
+            #
+            # Expected failures carry a message written for the user and are
+            # reported verbatim. Anything else is a defect in this code: it used
+            # to be reported the same way, so the user saw raw Python text
+            # ("list index out of range" was a real one, from a header-only
+            # file) while the only trace was a debug-level log line that no
+            # deployment has enabled -- the bug was invisible to monitoring and
+            # unactionable to the user. Log those loudly and say something
+            # honest instead.
+            if isinstance(error, ImportValidationError | UserError | ValueError | csv.Error):
+                message = str(error)
+            else:
+                _logger.exception("Unexpected error while parsing the import preview")
+                message = _("The file could not be read. Please check the format options, or contact your administrator if the problem persists.")
             preview = None
             if self.file_type == 'text/csv' and self.file:
                 preview = self.file[:ERROR_PREVIEW_BYTES].decode('iso-8859-1')
             return {
-                'error': str(error),
+                'error': message,
                 # iso-8859-1 ensures decoding will always succeed,
                 # even if it yields non-printable characters. This is
                 # in case of UnicodeDecodeError (or csv.Error
