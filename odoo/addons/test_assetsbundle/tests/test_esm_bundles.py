@@ -1465,3 +1465,133 @@ class TestBridgeShimSources(TransactionCase):
         )
         self.assertNotIn("@odoo/owl", discovered)
         self.assertEqual(ext_seen, {"@odoo/owl"})
+
+
+class TestLexerWorkerDegradation(BaseCase):
+    """How the es-module-lexer worker gives up, and how quietly.
+
+    `lex_module` returning None is not an error: callers fall back to the
+    regex extractor, which is not comment-proof. So every path that disables
+    the worker trades correctness for availability silently, and the only
+    thing standing between "node is missing" and "an `export` inside a comment
+    is treated as a real export" is that this degradation is deliberate and
+    bounded. These pin the state machine that bounds it.
+
+    A private instance is used throughout: the module-level `_worker` is
+    process-global, and flipping its `_disabled` flag would leave every later
+    suite on the regex path.
+    """
+
+    def _worker(self):
+        from odoo.tools.assets.esm_lexer import _LexerWorker
+
+        return _LexerWorker()
+
+    def test_a_worker_that_cannot_spawn_disables_itself_once(self):
+        from odoo.tools.assets import esm_lexer
+
+        worker = self._worker()
+        with patch.object(esm_lexer._LexerWorker, "_spawn", return_value=None):
+            with self.assertLogs("odoo.assets.lexer", level="INFO") as logged:
+                self.assertIsNone(worker.request("export const a = 1;"))
+            self.assertIsNone(worker.request("export const a = 1;"))
+        self.assertIn("worker_unavailable", "\n".join(logged.output))
+        self.assertEqual(len(logged.output), 1, "the notice must not repeat per call")
+        self.assertTrue(worker._disabled)
+
+    def test_a_desynchronised_reply_is_retried_then_gives_up(self):
+        from odoo.tools.assets import esm_lexer
+
+        worker = self._worker()
+        alive = SimpleNamespace(poll=lambda: None)
+        with (
+            patch.object(esm_lexer._LexerWorker, "_spawn", return_value=alive),
+            patch.object(esm_lexer._LexerWorker, "_write_all"),
+            patch.object(esm_lexer._LexerWorker, "_kill"),
+            patch.object(
+                esm_lexer._LexerWorker,
+                "_read_line",
+                return_value=json.dumps({"id": -1, "ok": True}),
+            ),
+            self.assertLogs("odoo.assets.lexer", level="DEBUG") as logged,
+        ):
+            self.assertIsNone(worker.request("export const a = 1;"))
+
+        attempts = [ln for ln in logged.output if "worker_request_failed" in ln]
+        self.assertEqual(len(attempts), 2, "one retry, then disabled")
+        self.assertTrue(worker._disabled)
+        self.assertIn("disabled=True", attempts[-1])
+
+    def test_a_transient_failure_does_not_disable_the_worker(self):
+        from odoo.tools.assets import esm_lexer
+
+        worker = self._worker()
+        alive = SimpleNamespace(poll=lambda: None)
+        replies = [
+            json.dumps({"id": -1, "ok": True}),
+            json.dumps(
+                {"id": 2, "ok": True, "imports": [], "names": [], "starFrom": []}
+            ),
+        ]
+        with (
+            patch.object(esm_lexer._LexerWorker, "_spawn", return_value=alive),
+            patch.object(esm_lexer._LexerWorker, "_write_all"),
+            patch.object(esm_lexer._LexerWorker, "_kill"),
+            patch.object(esm_lexer._LexerWorker, "_read_line", side_effect=replies),
+            self.assertLogs("odoo.assets.lexer", level="DEBUG"),
+        ):
+            response = worker.request("export const a = 1;")
+
+        self.assertIsNotNone(response, "the retry must be allowed to succeed")
+        self.assertFalse(worker._disabled)
+        self.assertEqual(worker._consec_failures, 0, "the counter must reset")
+
+    def test_source_the_worker_cannot_lex_is_not_a_worker_failure(self):
+        from odoo.tools.assets import esm_lexer
+
+        worker = self._worker()
+        alive = SimpleNamespace(poll=lambda: None)
+        with (
+            patch.object(esm_lexer._LexerWorker, "_spawn", return_value=alive),
+            patch.object(esm_lexer._LexerWorker, "_write_all"),
+            patch.object(
+                esm_lexer._LexerWorker,
+                "_read_line",
+                return_value=json.dumps({"id": 1, "ok": False, "error": "bad syntax"}),
+            ),
+            self.assertLogs("odoo.assets.lexer", level="DEBUG") as logged,
+        ):
+            self.assertIsNone(worker.request("this is not javascript {"))
+
+        self.assertIn("source_unlexable", "\n".join(logged.output))
+        self.assertFalse(
+            worker._disabled, "one unparseable file must not blind the whole run"
+        )
+
+    @unittest.skipUnless(shutil.which("node"), "node binary not available")
+    def test_the_real_worker_lexes_a_module(self):
+        """The other side of the contract: when it works, it really works.
+
+        `imports` and `starFrom` are DISJOINT -- a re-export is reported only
+        under starFrom, never as an import. Every caller that wants "what does
+        this file depend on" therefore has to union the two, and one that reads
+        `imports` alone silently misses every `export * from`.
+        """
+        response = self._worker().request(
+            "import { a } from '@x/y';\nexport const b = 1;\nexport * from '@x/z';\n"
+        )
+        if response is None:
+            self.skipTest("es-module-lexer worker unavailable (npm install?)")
+        self.assertEqual([imp["n"] for imp in response["imports"]], ["@x/y"])
+        self.assertEqual(response["starFrom"], ["@x/z"])
+        self.assertIn("b", response["names"])
+
+    @unittest.skipUnless(shutil.which("node"), "node binary not available")
+    def test_the_union_of_both_lists_is_what_discovery_uses(self):
+        """Guards the disjointness above against a caller that forgets it."""
+        from odoo.tools.assets.esm_graph import _scan_import_specifiers
+
+        specs = _scan_import_specifiers(
+            "import { a } from '@x/y';\nexport * from '@x/z';\n"
+        )
+        self.assertEqual(specs, {"@x/y", "@x/z"})

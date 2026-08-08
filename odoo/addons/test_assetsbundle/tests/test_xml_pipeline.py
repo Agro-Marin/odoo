@@ -234,3 +234,95 @@ class TestEsmTemplateBundleForms(BaseCase):
     def test_empty_templates_yield_empty_string(self):
         bundle = SimpleNamespace(name="my.bundle", env=None, templates=[])
         self.assertEqual(XmlTemplatePipeline(bundle).generate_esm_template_bundle(), "")
+
+
+class TestTemplateInheritance(TransactionCase):
+    """`t-inherit` / `t-inherit-mode`, and what the client is told when a
+    parent is missing.
+
+    Two shapes come out of one bundle: primary templates, registered by name,
+    and extensions, registered against the name they patch. An extension whose
+    parent never arrives is the interesting case -- the bundle still loads, so
+    the only trace is what the generator emits for the client to complain
+    about, and until now nothing asserted it emitted anything at all.
+    """
+
+    def _bundle(self, *templates):
+        return AssetsBundle(
+            "test_assetsbundle.inherit",
+            [asset_file(f"/m/static/src/t{i}.xml", t) for i, t in enumerate(templates)],
+            env=self.env,
+            css=False,
+        )
+
+    def test_an_extension_registers_against_its_parent(self):
+        bundle = self._bundle(
+            '<templates><t t-name="a.Parent"><div/></t></templates>',
+            '<templates><t t-name="a.Child" t-inherit="a.Parent"'
+            ' t-inherit-mode="extension"><xpath expr="//div" position="inside">'
+            "<span/></xpath></t></templates>",
+        )
+        rendered = bundle._xml.generate_xml_bundle()
+
+        self.assertIn('registerTemplate("a.Parent"', rendered)
+        self.assertIn('registerTemplateExtension("a.Parent"', rendered)
+        self.assertNotIn('registerTemplate("a.Child"', rendered)
+
+    def test_a_primary_inherit_registers_under_its_own_name(self):
+        bundle = self._bundle(
+            '<templates><t t-name="a.Parent"><div/></t></templates>',
+            '<templates><t t-name="a.Child" t-inherit="a.Parent"'
+            ' t-inherit-mode="primary"><xpath expr="//div" position="inside">'
+            "<span/></xpath></t></templates>",
+        )
+        rendered = bundle._xml.generate_xml_bundle()
+
+        self.assertIn('registerTemplate("a.Child"', rendered)
+        self.assertNotIn("registerTemplateExtension", rendered)
+
+    def test_a_primary_parent_from_outside_the_bundle_is_checked_at_runtime(self):
+        """The parent may legitimately live in another bundle, so this is a
+        client-side check rather than a build error."""
+        bundle = self._bundle(
+            '<templates><t t-name="a.Child" t-inherit="b.Elsewhere"'
+            ' t-inherit-mode="primary"><xpath expr="//div" position="inside">'
+            "<span/></xpath></t></templates>",
+        )
+        rendered = bundle._xml.generate_xml_bundle()
+
+        self.assertIn("checkPrimaryTemplateParents(", rendered)
+        self.assertIn("b.Elsewhere", rendered)
+
+    def test_an_extension_with_no_parent_anywhere_reports_itself(self):
+        bundle = self._bundle(
+            '<templates><t t-name="a.Child" t-inherit="b.Missing"'
+            ' t-inherit-mode="extension"><xpath expr="//div" position="inside">'
+            "<span/></xpath></t></templates>",
+        )
+        rendered = bundle._xml.generate_xml_bundle()
+
+        self.assertIn("console.error(", rendered)
+        self.assertIn("Missing (extension) parent templates", rendered)
+        self.assertIn("b.Missing", rendered)
+
+    def test_a_resolved_parent_raises_no_complaint(self):
+        bundle = self._bundle(
+            '<templates><t t-name="a.Parent"><div/></t></templates>',
+            '<templates><t t-name="a.Child" t-inherit="a.Parent"'
+            ' t-inherit-mode="extension"><xpath expr="//div" position="inside">'
+            "<span/></xpath></t></templates>",
+        )
+        rendered = bundle._xml.generate_xml_bundle()
+
+        self.assertNotIn("console.error(", rendered)
+        self.assertNotIn("checkPrimaryTemplateParents(", rendered)
+
+    def test_a_bundle_whose_templates_render_to_nothing_yields_no_module(self):
+        bundle = AssetsBundle(
+            "test_assetsbundle.inherit_empty",
+            [asset_file("/m/static/src/t.xml", "<templates/>")],
+            env=self.env,
+            css=False,
+        )
+        self.assertTrue(bundle.templates, "precondition: there IS an xml asset")
+        self.assertEqual(bundle._xml.generate_esm_template_bundle(), "")

@@ -1453,3 +1453,71 @@ class TestUrlExtensionCaseFolding(TransactionCase):
 
     def test_query_string_and_case_combined(self):
         self.assertEqual(AssetsBundle._url_extension("/a/b.SCSS?v=2#x"), "scss")
+
+
+class TestSourceDialectTokenizers(BaseCase):
+    """``StylesheetAsset._fetch_content`` URL rewriting, per source dialect.
+
+    The rewrite runs over the asset's *source*, so what counts as an opaque
+    span depends on the dialect: ``//`` starts a comment in SCSS but is
+    ordinary text in plain CSS (``url(//cdn/x)``). Each asset class therefore
+    carries its own ``_SOURCE_TOKEN_RE``; these tests pin that split, and the
+    regression it exists for — an apostrophe in a ``//`` comment used to open a
+    phantom string span that swallowed every later ``url()``, so the bundle's
+    relative font URLs silently stopped being rewritten and 404'd.
+
+    Moved here from ``addons/web/tests/test_assets.py``, where it was tagged
+    ``web_unit``/``web_assets`` while importing nothing from web: it exercises
+    ``odoo.addons.base.models.assetsbundle`` only. Changing the rewriter meant
+    running two modules' suites to learn whether you had broken it, and the
+    dialect split it pins was the one part of the scanner this module did not
+    cover -- everything else here drives ``StylesheetAsset._SOURCE_TOKEN_RE``
+    or ``_SCSS_STATEMENT_SPANS``, never the choice between them.
+    """
+
+    def _rewritten(self, source, token_re):
+        """Return the ``url()`` bodies the rewriter treats as code."""
+        bodies = []
+
+        def _collect(match):
+            bodies.append(match.group("body"))
+            return match.group(0)
+
+        _rewrite_css_outside_strings(StylesheetAsset.rx_url, _collect, source, token_re)
+        return bodies
+
+    def test_scss_line_comment_apostrophe_keeps_later_urls(self):
+        source = "// Lato's matrix\n@font-face { src: url('./lato/a.woff'); }"
+        self.assertEqual(
+            self._rewritten(source, ScssStylesheetAsset._SOURCE_TOKEN_RE),
+            ["./lato/a.woff"],
+        )
+
+    def test_scss_line_comment_body_is_opaque(self):
+        source = "// see url('./x.woff')\n.a { background: url('./y.png'); }"
+        self.assertEqual(
+            self._rewritten(source, ScssStylesheetAsset._SOURCE_TOKEN_RE),
+            ["./y.png"],
+        )
+
+    def test_scss_protocol_relative_url_is_not_a_comment(self):
+        source = ".a { src: url(//cdn/a.woff) format('woff'),"
+        source += " url('./b.woff') format('woff'); }"
+        self.assertEqual(
+            self._rewritten(source, ScssStylesheetAsset._SOURCE_TOKEN_RE),
+            ["./b.woff"],
+        )
+
+    def test_plain_css_keeps_double_slash_as_text(self):
+        source = ".a { background: url('https://x/y.png'); src: url('./z.woff'); }"
+        self.assertEqual(
+            self._rewritten(source, StylesheetAsset._SOURCE_TOKEN_RE),
+            ["./z.woff"],
+        )
+
+    def test_scss_asset_selects_the_scss_tokenizer(self):
+        self.assertIsNot(
+            ScssStylesheetAsset._SOURCE_TOKEN_RE,
+            StylesheetAsset._SOURCE_TOKEN_RE,
+            "SCSS sources must not be scanned with the plain-CSS tokenizer",
+        )

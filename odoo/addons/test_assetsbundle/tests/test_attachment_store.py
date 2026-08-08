@@ -661,3 +661,73 @@ class TestBundleChangedBroadcastDedup(TransactionCase):
         self.env.cr.precommit.data.pop(AssetAttachmentStore._BROADCAST_KEY, None)
         self._bundle().js()
         self.assertEqual(len(self.sent), 2)
+
+
+class TestSimilarAttachmentReuse(TransactionCase):
+    """Reusing an identical artifact built for a different set of params.
+
+    Two websites that theme identically produce byte-identical CSS under two
+    different URLs. Rather than recompile, the store looks for an attachment
+    matching the params-insensitive pattern and copies its bytes under the
+    params-sensitive URL.
+
+    In base the two patterns are the same string, so the branch is unreachable
+    and skipped outright -- TestAuditFallbackDeadInBase pins that. It becomes
+    live as soon as an override makes `_get_asset_bundle_url` params-aware, so
+    the seam is what gets driven here: without it the copy path only ever ran
+    on databases carrying website, and nothing in this repo covered it.
+    """
+
+    BUNDLE = "test_assetsbundle.similar"
+
+    def _store(self, params):
+        return AssetsBundle(
+            self.BUNDLE,
+            [asset_file("/m/static/src/a.css", "a{color:red}")],
+            env=self.env,
+            js=False,
+            assets_params=params,
+        )._store
+
+    def _make_params_significant(self):
+        """Make the URL depend on assets_params, as website's override does."""
+        IrAsset = type(self.env["ir.asset"])
+        original = IrAsset._get_asset_bundle_url
+
+        def _params_aware(
+            self, bundle_name, unique, assets_params, ignore_params=False
+        ):
+            url = original(self, bundle_name, unique, assets_params, ignore_params)
+            if ignore_params:
+                return url.replace("/web/assets/", "/web/assets/%/", 1)
+            site = (assets_params or {}).get("site", "0")
+            return url.replace("/web/assets/", f"/web/assets/{site}/", 1)
+
+        self.patch(IrAsset, "_get_asset_bundle_url", _params_aware)
+
+    def test_the_two_patterns_differ_once_params_are_significant(self):
+        self._make_params_significant()
+        store = self._store({"site": "1"})
+        unique = store._version("css")
+        self.assertNotEqual(
+            store.get_asset_url_pattern(unique=unique, extension="min.css"),
+            store.get_asset_url_pattern(
+                unique=unique, extension="min.css", ignore_params=True
+            ),
+            "precondition: the fallback query must now be a different query",
+        )
+
+    def test_an_identical_artifact_is_copied_rather_than_rebuilt(self):
+        self._make_params_significant()
+        first = self._store({"site": "1"}).save_attachment("min.css", "a{color:red}")
+
+        with self.assertLogs(
+            "odoo.addons.base.models.assetsbundle", level="INFO"
+        ) as logged:
+            found = self._store({"site": "2"}).get_attachments("min.css")
+
+        self.assertTrue(found, "the sibling artifact should have been reused")
+        self.assertNotEqual(found.id, first.id, "a copy, not the original row")
+        self.assertEqual(found.raw, first.raw)
+        self.assertNotEqual(found.url, first.url, "served under this site's url")
+        self.assertIn("Found a similar attachment", "\n".join(logged.output))
