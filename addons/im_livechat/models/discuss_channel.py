@@ -1,13 +1,15 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _, tools
-from odoo.addons.mail.tools.discuss import Store
-from odoo.tools import email_normalize, email_split, html2plaintext, plaintext2html
-from odoo.libs.filesystem import get_extension
-
 import json
+
 from markupsafe import Markup
-from pytz import timezone
+
+from odoo import _, api, fields, models, tools
+from odoo.libs.datetime import timezone
+from odoo.libs.filesystem import get_extension
+from odoo.tools import email_normalize, email_split, html2plaintext, plaintext2html
+
+from odoo.addons.mail.tools.discuss import Store
 
 
 def is_livechat_channel(channel):

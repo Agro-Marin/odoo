@@ -15,14 +15,13 @@
    timezone name raised ``TypeError: tzinfo argument must be ...``.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
-
+from odoo.libs.datetime import timezone
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-UTC = pytz.UTC
+UTC = UTC
 
 
 @tagged("post_install", "-at_install")
@@ -118,10 +117,10 @@ class TestIntervalBatchStringTz(TransactionCase):
                 "date_to": datetime(2025, 1, 8, 23, 59),
             }
         )
-        cls.start = UTC.localize(datetime(2025, 1, 6, 0, 0))
-        cls.end = UTC.localize(datetime(2025, 1, 11, 0, 0))
+        cls.start = datetime(2025, 1, 6, 0, 0).replace(tzinfo=UTC)
+        cls.end = datetime(2025, 1, 11, 0, 0).replace(tzinfo=UTC)
         cls.tz_str = "Europe/Brussels"
-        cls.tz_obj = pytz.timezone("Europe/Brussels")
+        cls.tz_obj = timezone("Europe/Brussels")
 
     def test_attendance_intervals_string_tz(self):
         by_str = self.calendar._attendance_intervals_batch(

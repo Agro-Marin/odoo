@@ -2,17 +2,17 @@
 
 import re
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from random import choice
 from string import digits
 
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
-from pytz import UTC, timezone, utc
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
@@ -1262,8 +1262,8 @@ class HrEmployee(models.Model):
                 )
                 start_dt = fields.Datetime.now()
                 stop_dt = start_dt + timedelta(hours=1)
-                from_datetime = utc.localize(start_dt).astimezone(timezone(tz or "UTC"))
-                to_datetime = utc.localize(stop_dt).astimezone(timezone(tz or "UTC"))
+                from_datetime = start_dt.replace(tzinfo=UTC).astimezone(timezone(tz or "UTC"))
+                to_datetime = stop_dt.replace(tzinfo=UTC).astimezone(timezone(tz or "UTC"))
                 # Getting work interval of the first is working. Functions called on resource_calendar_id
                 # are waiting for singleton
                 work_interval = res_employee_ids[
@@ -2186,7 +2186,7 @@ We can redirect you to the public employee list."""
 
         employee_timezones = {}
         for tz in employees_by_tz:
-            date_at = timezone(tz).localize(dt).date()
+            date_at = dt.replace(tzinfo=timezone(tz)).date()
             calendars = self._get_calendars(date_at)
             employee_timezones |= {
                 emp_id: cal.sudo().tz or employees_by_id[emp_id].tz
@@ -2212,7 +2212,7 @@ We can redirect you to the public employee list."""
 
     @staticmethod
     def _combine_tz(day, moment, tz):
-        """Build an aware datetime at ``day``/``moment`` in the pytz zone ``tz``
+        """Build an aware datetime at ``day``/``moment`` in the IANA zone ``tz``
         (naive if ``tz`` is falsy).
 
         Uses ``tz.localize(...)`` — NEVER ``datetime(..., tzinfo=tz)`` /
@@ -2222,7 +2222,7 @@ We can redirect you to the public employee list."""
         correct DST/standard offset, shifting period boundaries.
         """
         naive = datetime.combine(day, moment)
-        return tz.localize(naive) if tz else naive
+        return naive.replace(tzinfo=tz) if tz else naive
 
     def _get_version_periods(self, start, stop, field=None, check_contract=False):
         if field and field not in self:
@@ -2255,12 +2255,12 @@ We can redirect you to the public employee list."""
             )
             date_start = self._combine_tz(
                 version.date_start, time.min, calendar_tz
-            ).astimezone(utc)
+            ).astimezone(UTC)
             end_date = version.date_end
             if end_date:
                 date_end = self._combine_tz(
                     end_date + relativedelta(days=1), time.min, calendar_tz
-                ).astimezone(utc)
+                ).astimezone(UTC)
             else:
                 date_end = stop
             version_periods_by_employee[version.employee_id].append(
@@ -2367,7 +2367,7 @@ We can redirect you to the public employee list."""
                 )
                 # Open-ended version: bound by the period end (``stop``) rather
                 # than building a ``date.max`` datetime, which overflows in
-                # ``_combine_tz`` (pytz localize) for UTC-negative timezones.
+                # ``_combine_tz`` (tzinfo attachment) for UTC-negative timezones.
                 version_end = (
                     self._combine_tz(version.date_end, time.max, employee_tz)
                     if version.date_end
@@ -2413,7 +2413,7 @@ We can redirect you to the public employee list."""
             )
             # Open-ended version: bound by the period end (``date_to``) rather
             # than building a ``date.max`` datetime, which overflows in
-            # ``_combine_tz`` (pytz localize) for UTC-negative timezones.
+            # ``_combine_tz`` (tzinfo attachment) for UTC-negative timezones.
             version_end = (
                 self._combine_tz(version.date_end, time.max, employee_tz)
                 if version.date_end
@@ -2459,7 +2459,7 @@ We can redirect you to the public employee list."""
             version_start = self._combine_tz(version.date_start, time.min, employee_tz)
             # Open-ended version: bound by the period end (``date_to``) rather
             # than building a ``date.max`` datetime, which overflows in
-            # ``_combine_tz`` (pytz localize) for UTC-negative timezones.
+            # ``_combine_tz`` (tzinfo attachment) for UTC-negative timezones.
             version_end = (
                 self._combine_tz(version.date_end, time.max, employee_tz)
                 if version.date_end

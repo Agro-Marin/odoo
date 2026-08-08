@@ -1,11 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, time
+from datetime import UTC, datetime, time
 
-import pytz
 from dateutil.relativedelta import relativedelta
 
 from odoo import tests
+from odoo.libs.datetime import timezone
 
 from odoo.addons.mail.tests.common import MailCommon
 
@@ -54,8 +54,8 @@ class TestMailActivityMixin(MailCommon):
             test_record = self.env['res.partner'].browse(self.test_record.id)
             self.assertEqual(test_record.activity_ids, self.env['mail.activity'])
 
-            now_utc = datetime.now(pytz.UTC)
-            now_user = now_utc.astimezone(pytz.timezone(self.env.user.tz or 'UTC'))
+            now_utc = datetime.now(UTC)
+            now_user = now_utc.astimezone(timezone(self.env.user.tz or 'UTC'))
             today_user = now_user.date()
 
             date1 = today_user + relativedelta(days=1)

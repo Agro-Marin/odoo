@@ -1,13 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import reduce
-
-from pytz import UTC, timezone
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 
 

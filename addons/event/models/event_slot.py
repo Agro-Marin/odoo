@@ -1,9 +1,8 @@
-from datetime import datetime
-
-import pytz
+from datetime import UTC, datetime
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tools import (
     format_date,
     format_datetime,
@@ -71,11 +70,11 @@ class EventSlot(models.Model):
     @api.depends("date", "date_tz", "start_hour", "end_hour")
     def _compute_datetimes(self):
         for slot in self:
-            event_tz = pytz.timezone(slot.date_tz)
+            event_tz = timezone(slot.date_tz)
             start = datetime.combine(slot.date, float_to_time(slot.start_hour))
             end = datetime.combine(slot.date, float_to_time(slot.end_hour))
-            slot.start_datetime = event_tz.localize(start).astimezone(pytz.UTC).replace(tzinfo=None)
-            slot.end_datetime = event_tz.localize(end).astimezone(pytz.UTC).replace(tzinfo=None)
+            slot.start_datetime = start.replace(tzinfo=event_tz).astimezone(UTC).replace(tzinfo=None)
+            slot.end_datetime = end.replace(tzinfo=event_tz).astimezone(UTC).replace(tzinfo=None)
 
     @api.depends("seats_available")
     @api.depends_context('name_with_seats_availability')

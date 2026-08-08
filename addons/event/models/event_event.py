@@ -3,16 +3,16 @@
 import logging
 import textwrap
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
-import pytz
 from dateutil.relativedelta import relativedelta
 from markupsafe import escape
 
 from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import ValidationError
 from odoo.fields import Datetime, Domain
+from odoo.libs.datetime import timezone
 from odoo.tools import format_date, frozendict
 from odoo.tools.mail import html_to_inner_content, is_html_empty
 from odoo.tools.misc import formatLang
@@ -308,7 +308,7 @@ class EventEvent(models.Model):
         for event in self:
             event = event._set_tz_context()
             current_datetime = fields.Datetime.context_timestamp(event, fields.Datetime.now())
-            date_end_tz = event.date_end.astimezone(pytz.timezone(event.date_tz or 'UTC')) if event.date_end else False
+            date_end_tz = event.date_end.astimezone(timezone(event.date_tz or 'UTC')) if event.date_end else False
             event.event_registrations_open = event.kanban_state != 'cancel' and \
                 event.event_registrations_started and \
                 (date_end_tz >= current_datetime if date_end_tz else True) and \
@@ -770,7 +770,7 @@ class EventEvent(models.Model):
 
     def action_open_slot_calendar(self):
         self.ensure_one()
-        now = datetime.now().astimezone(pytz.timezone(self.env.user.tz or 'UTC'))
+        now = datetime.now().astimezone(timezone(self.env.user.tz or 'UTC'))
         next_hour = now + timedelta(hours=1)
         return {
             'type': 'ir.actions.act_window',
@@ -788,8 +788,8 @@ class EventEvent(models.Model):
                 'default_start_hour': next_hour.hour,
                 'default_end_hour': (next_hour + timedelta(hours=1)).hour,
                 # To disable calendar days outside of event date range.
-                'event_calendar_range_start_date': self.date_begin.astimezone(pytz.timezone(self.date_tz)).date(),
-                'event_calendar_range_end_date': self.date_end.astimezone(pytz.timezone(self.date_tz)).date(),
+                'event_calendar_range_start_date': self.date_begin.astimezone(timezone(self.date_tz)).date(),
+                'event_calendar_range_end_date': self.date_end.astimezone(timezone(self.date_tz)).date(),
                 # Calendar view initial date.
                 'initial_date': min(max(datetime.now(), self.date_begin), self.date_end),
             },
@@ -808,8 +808,8 @@ class EventEvent(models.Model):
     def _get_date_range_str(self, start_datetime=False, lang_code=False):
         self.ensure_one()
         datetime = start_datetime or self.date_begin
-        today_tz = pytz.utc.localize(fields.Datetime.now()).astimezone(pytz.timezone(self.date_tz))
-        event_date_tz = pytz.utc.localize(datetime).astimezone(pytz.timezone(self.date_tz))
+        today_tz = fields.Datetime.now().replace(tzinfo=UTC).astimezone(timezone(self.date_tz))
+        event_date_tz = datetime.replace(tzinfo=UTC).astimezone(timezone(self.date_tz))
         diff = (event_date_tz.date() - today_tz.date())
         if diff.days <= 0:
             return _('today')
@@ -857,9 +857,9 @@ class EventEvent(models.Model):
             start = slot.start_datetime or event.date_begin
             end = slot.end_datetime or event.date_end
 
-            cal_event.add('created').value = fields.Datetime.now().replace(tzinfo=pytz.timezone('UTC'))
-            cal_event.add('dtstart').value = start.astimezone(pytz.timezone(event.date_tz))
-            cal_event.add('dtend').value = end.astimezone(pytz.timezone(event.date_tz))
+            cal_event.add('created').value = fields.Datetime.now().replace(tzinfo=timezone('UTC'))
+            cal_event.add('dtstart').value = start.astimezone(timezone(event.date_tz))
+            cal_event.add('dtend').value = end.astimezone(timezone(event.date_tz))
             cal_event.add('summary').value = event.name
             cal_event.add('description').value = event._get_external_description()
             if event.address_id:

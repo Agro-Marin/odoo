@@ -4,13 +4,12 @@ Each test names the failure it locks down; every one of them fails on the
 code as it stood before the accompanying fix.
 """
 
-from datetime import datetime
-
-from pytz import timezone, utc
+from datetime import UTC, datetime
 
 from odoo import fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.libs.datetime import timezone
 from odoo.tests.common import TransactionCase
 
 
@@ -174,8 +173,8 @@ class TestResourceSecondPass(TransactionCase):
         # hands down for a five-working-day absence.
         data = self.calendar._get_attendance_intervals_days_data(
             self.calendar._attendance_intervals_batch(
-                utc.localize(datetime(2026, 3, 2, 8, 0)),
-                utc.localize(datetime(2026, 3, 6, 17, 0)),
+                datetime(2026, 3, 2, 8, 0).replace(tzinfo=UTC),
+                datetime(2026, 3, 6, 17, 0).replace(tzinfo=UTC),
                 resource,
             )[resource.id]
         )
@@ -189,8 +188,8 @@ class TestResourceSecondPass(TransactionCase):
     def test_fully_flexible_availability_is_unchanged(self):
         """The day-by-day split must not shrink what the resource is free for."""
         resource = self._resource(name="Still free", calendar_id=False)
-        start = utc.localize(datetime(2026, 3, 2, 0, 0))
-        end = utc.localize(datetime(2026, 3, 7, 0, 0))
+        start = datetime(2026, 3, 2, 0, 0).replace(tzinfo=UTC)
+        end = datetime(2026, 3, 7, 0, 0).replace(tzinfo=UTC)
         intervals = self.calendar._attendance_intervals_batch(start, end, resource)[
             resource.id
         ]
@@ -208,8 +207,8 @@ class TestResourceSecondPass(TransactionCase):
         resource = self._resource(name="Part day", calendar_id=False)
         data = self.calendar._get_attendance_intervals_days_data(
             self.calendar._attendance_intervals_batch(
-                utc.localize(datetime(2026, 3, 2, 9, 0)),
-                utc.localize(datetime(2026, 3, 2, 13, 0)),
+                datetime(2026, 3, 2, 9, 0).replace(tzinfo=UTC),
+                datetime(2026, 3, 2, 13, 0).replace(tzinfo=UTC),
                 resource,
             )[resource.id]
         )
@@ -221,8 +220,8 @@ class TestResourceSecondPass(TransactionCase):
         resource = self._resource(name="Long day", calendar_id=False)
         data = self.calendar._get_attendance_intervals_days_data(
             self.calendar._attendance_intervals_batch(
-                utc.localize(datetime(2026, 3, 2, 8, 0)),
-                utc.localize(datetime(2026, 3, 3, 0, 0)),
+                datetime(2026, 3, 2, 8, 0).replace(tzinfo=UTC),
+                datetime(2026, 3, 3, 0, 0).replace(tzinfo=UTC),
                 resource,
             )[resource.id]
         )
@@ -233,8 +232,8 @@ class TestResourceSecondPass(TransactionCase):
         resource = self._resource(name="DST", calendar_id=False, tz="Europe/Brussels")
         brussels = timezone("Europe/Brussels")
         # 2026-03-29 is the European spring-forward (23-hour day).
-        start = brussels.localize(datetime(2026, 3, 28, 0, 0))
-        end = brussels.localize(datetime(2026, 3, 31, 0, 0))
+        start = datetime(2026, 3, 28, 0, 0).replace(tzinfo=brussels)
+        end = datetime(2026, 3, 31, 0, 0).replace(tzinfo=brussels)
         data = self.calendar._get_attendance_intervals_days_data(
             self.calendar._attendance_intervals_batch(start, end, resource)[resource.id]
         )
@@ -390,8 +389,8 @@ class TestResourceSecondPass(TransactionCase):
     def _sees_leave(self, resource):
         return bool(
             self.calendar._leave_intervals_batch(
-                utc.localize(datetime(2026, 3, 1)),
-                utc.localize(datetime(2026, 3, 8)),
+                datetime(2026, 3, 1).replace(tzinfo=UTC),
+                datetime(2026, 3, 8).replace(tzinfo=UTC),
                 resource,
             )[resource.id]
         )
@@ -418,8 +417,8 @@ class TestResourceSecondPass(TransactionCase):
         self.assertTrue(
             bool(
                 shared_calendar._leave_intervals_batch(
-                    utc.localize(datetime(2026, 3, 1)),
-                    utc.localize(datetime(2026, 3, 8)),
+                    datetime(2026, 3, 1).replace(tzinfo=UTC),
+                    datetime(2026, 3, 8).replace(tzinfo=UTC),
                     resource,
                 )[resource.id]
             )

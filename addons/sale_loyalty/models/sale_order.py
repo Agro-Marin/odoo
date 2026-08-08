@@ -5,11 +5,10 @@ import random
 from collections import defaultdict
 from functools import partial
 
-from pytz import timezone
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.datetime import timezone
 from odoo.tools import float_round, lazy, str2bool
 
 

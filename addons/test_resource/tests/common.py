@@ -1,9 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from datetime import datetime
-
-from pytz import timezone, utc
+from datetime import UTC, datetime
 
 from odoo import fields
+from odoo.libs.datetime import timezone
 from odoo.tests.common import TransactionCase
 
 
@@ -12,14 +11,14 @@ class TestResourceCommon(TransactionCase):
     def datetime_tz(cls, year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None):
         """ Return a `datetime` object with a given timezone (if given). """
         dt = datetime(year, month, day, hour, minute, second, microsecond)
-        return timezone(tzinfo).localize(dt) if tzinfo else dt
+        return dt.replace(tzinfo=timezone(tzinfo)) if tzinfo else dt
 
     @classmethod
     def datetime_str(cls, year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None):
         """ Return a fields.Datetime value with the given timezone. """
         dt = datetime(year, month, day, hour, minute, second, microsecond)
         if tzinfo:
-            dt = timezone(tzinfo).localize(dt).astimezone(utc)
+            dt = dt.replace(tzinfo=timezone(tzinfo)).astimezone(UTC)
         return fields.Datetime.to_string(dt)
 
     @classmethod

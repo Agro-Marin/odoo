@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from pytz import timezone
+from odoo.libs.datetime import timezone
 
 from odoo.addons.hr.tests.common import TestHrCommon
 

@@ -1,11 +1,10 @@
 import logging
 import re
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any, Self
 
 from lxml import html
-from pytz import UTC
 
 from odoo import SUPERUSER_ID, _, api, fields, models, tools
 from odoo.api import ValuesType

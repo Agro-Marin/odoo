@@ -1,10 +1,10 @@
 import logging
-import pytz
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.datetime import timezone
 
-from ..tools import _mer_api_send, MojEracunServiceError
+from ..tools import MojEracunServiceError, _mer_api_send
 
 _logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ class AccountMoveSend(models.AbstractModel):
                 move.l10n_hr_edi_addendum_id = self.env['l10n_hr_edi.addendum'].create({
                     'move_id': move.id,
                     'fiscalization_number': move._get_l10n_hr_fiscalization_number(move.name),
-                    'invoice_sending_time': fields.Datetime.now(pytz.timezone('Europe/Zagreb')),
+                    'invoice_sending_time': fields.Datetime.now(timezone('Europe/Zagreb')),
                 })
         return super()._generate_and_send_invoices(moves, from_cron=from_cron, allow_raising=allow_raising, allow_fallback_pdf=allow_fallback_pdf, **custom_settings)
 

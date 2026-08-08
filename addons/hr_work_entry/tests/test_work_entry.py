@@ -1,10 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
-import pytz
 from dateutil.relativedelta import relativedelta
 
+from odoo.libs.datetime import timezone
 from odoo.tests.common import tagged
 
 from odoo.addons.hr_work_entry.tests.common import TestWorkEntryBase
@@ -16,7 +16,7 @@ class TestWorkEntry(TestWorkEntryBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.tz = pytz.timezone(cls.richard_emp.tz)
+        cls.tz = timezone(cls.richard_emp.tz)
         cls.start = datetime(2015, 11, 1, 1, 0, 0)
         cls.end = datetime(2015, 11, 30, 23, 59, 59)
         cls.resource_calendar_id = cls.env['resource.calendar'].create({'name': 'My Calendar'})
@@ -39,7 +39,7 @@ class TestWorkEntry(TestWorkEntryBase):
 
     def test_work_entry(self):
         self.richard_emp.generate_work_entries(self.start, self.end)
-        attendance_nb = len(self.resource_calendar_id._attendance_intervals_batch(self.start.replace(tzinfo=pytz.utc), self.end.replace(tzinfo=pytz.utc))[False])
+        attendance_nb = len(self.resource_calendar_id._attendance_intervals_batch(self.start.replace(tzinfo=UTC), self.end.replace(tzinfo=UTC))[False])
         work_entry_nb = self.env['hr.work.entry'].search_count([
             ('employee_id', '=', self.richard_emp.id),
             ('date', '>=', self.start),
@@ -100,8 +100,8 @@ class TestWorkEntry(TestWorkEntryBase):
             'wage': 1000,
         })
         self.env['resource.calendar.leaves'].create({
-            'date_from': pytz.timezone('Asia/Hong_Kong').localize(datetime(2023, 8, 2, 0, 0, 0)).astimezone(pytz.utc).replace(tzinfo=None),
-            'date_to': pytz.timezone('Asia/Hong_Kong').localize(datetime(2023, 8, 2, 23, 59, 59)).astimezone(pytz.utc).replace(tzinfo=None),
+            'date_from': datetime(2023, 8, 2, 0, 0, 0).replace(tzinfo=timezone('Asia/Hong_Kong')).astimezone(UTC).replace(tzinfo=None),
+            'date_to': datetime(2023, 8, 2, 23, 59, 59).replace(tzinfo=timezone('Asia/Hong_Kong')).astimezone(UTC).replace(tzinfo=None),
             'calendar_id': hk_resource_calendar_id.id,
             'work_entry_type_id': self.work_entry_type_leave.id,
         })

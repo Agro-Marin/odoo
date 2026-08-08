@@ -1,6 +1,6 @@
 """Tests for resource.reservation model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -645,8 +645,6 @@ class TestResourceReservation(TransactionCase):
 
     def test_reservation_intervals_batch(self):
         """Query occupied intervals for a resource."""
-        from pytz import utc
-
         self.Reservation.create(
             {
                 "name": "Interval test",
@@ -655,8 +653,8 @@ class TestResourceReservation(TransactionCase):
                 "date_end": datetime(2025, 1, 6, 12, 0),
             }
         )
-        start_dt = datetime(2025, 1, 6, 0, 0, tzinfo=utc)
-        end_dt = datetime(2025, 1, 7, 0, 0, tzinfo=utc)
+        start_dt = datetime(2025, 1, 6, 0, 0, tzinfo=UTC)
+        end_dt = datetime(2025, 1, 7, 0, 0, tzinfo=UTC)
         result = self.Reservation._reservation_intervals_batch(
             start_dt, end_dt, self.resource_a
         )
@@ -666,10 +664,8 @@ class TestResourceReservation(TransactionCase):
 
     def test_reservation_intervals_batch_empty(self):
         """No reservations → empty intervals for all requested resources."""
-        from pytz import utc
-
-        start_dt = datetime(2025, 1, 6, 0, 0, tzinfo=utc)
-        end_dt = datetime(2025, 1, 7, 0, 0, tzinfo=utc)
+        start_dt = datetime(2025, 1, 6, 0, 0, tzinfo=UTC)
+        end_dt = datetime(2025, 1, 7, 0, 0, tzinfo=UTC)
         result = self.Reservation._reservation_intervals_batch(
             start_dt, end_dt, self.resource_a | self.resource_b
         )

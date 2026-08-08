@@ -3,12 +3,11 @@
 import hashlib
 from datetime import datetime, timedelta
 
-import pytz
-
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.datetime import all_timezones
 from odoo.tools import SQL, _
 from odoo.tools.misc import _format_time_ago
 
@@ -546,7 +545,7 @@ class WebsiteVisitor(models.Model):
 
     def _get_visitor_timezone(self):
         tz = request.cookies.get("tz") if request else None
-        if tz in pytz.all_timezones:
+        if tz in all_timezones():
             return tz
         elif not self.env.user._is_public():
             return self.env.user.tz

@@ -1,8 +1,7 @@
 from collections import defaultdict
-from datetime import datetime, time
+from datetime import UTC, datetime, time
 
 from dateutil.relativedelta import relativedelta
-from pytz import UTC
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
@@ -608,8 +607,8 @@ class PurchaseOrderLine(models.Model):
         to order user's time zone, convert to UTC time.
         """
         return (
-            self.order_id.get_timezone()
-            .localize(datetime.combine(date, time(12)))
+            datetime.combine(date, time(12))
+            .replace(tzinfo=self.order_id.get_timezone())
             .astimezone(UTC)
             .replace(tzinfo=None)
         )

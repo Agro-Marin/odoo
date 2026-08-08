@@ -1,23 +1,31 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-import pytz
 from collections import OrderedDict, defaultdict
+from datetime import UTC, datetime, timedelta
 from itertools import batched
-from datetime import datetime, timedelta
+
 from markupsafe import Markup
 
 from odoo import api, fields, models, modules, tools
+from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.fields import Domain
+from odoo.libs.datetime import timezone
+from odoo.tools import (
+    SQL,
+    date_utils,
+    email_normalize_all,
+    groupby,
+    is_html_empty,
+    parse_contact_from_email,
+)
+from odoo.tools.misc import get_lang
+from odoo.tools.translate import _
+
+from . import crm_stage
 from odoo.addons.iap.tools import iap_tools
 from odoo.addons.mail.tools import mail_validation
 from odoo.addons.phone_validation.tools import phone_validation
-from odoo.exceptions import UserError, AccessError, ValidationError
-from odoo.fields import Domain
-from odoo.tools.translate import _
-from odoo.tools import date_utils, email_normalize_all, is_html_empty, groupby, parse_contact_from_email, SQL
-from odoo.tools.misc import get_lang
-
-from . import crm_stage
 
 _logger = logging.getLogger(__name__)
 
@@ -1192,8 +1200,8 @@ class CrmLead(models.Model):
         team_condition = f'team_id = {self.team_id.id}' if self.team_id else 'team_id IS NULL'
         source_case = f'source_id = {self.source_id.id} AND {team_condition}' if self.source_id else 'false'
         country_case = f'country_id = {self.country_id.id} AND {team_condition}' if self.country_id else 'false'
-        tz_midnight = fields.Datetime.now().astimezone(pytz.timezone(self.env.user.tz or self.user_id.tz or 'UTC')).replace(hour=0, minute=0, second=0)
-        tz_midnight_in_utc = tz_midnight.astimezone(pytz.UTC).replace(tzinfo=None)
+        tz_midnight = fields.Datetime.now().astimezone(timezone(self.env.user.tz or self.user_id.tz or 'UTC')).replace(hour=0, minute=0, second=0)
+        tz_midnight_in_utc = tz_midnight.astimezone(UTC).replace(tzinfo=None)
         query = f"""
         SELECT
             MAX(CASE WHEN team_id = %(team_id)s AND COALESCE(date_closed, create_date) >= %(tz_midnight)s - INTERVAL '31 days' AND id <> %(lead_id)s THEN expected_revenue ELSE 0 END) AS max_team_31,
@@ -1311,12 +1319,12 @@ class CrmLead(models.Model):
         if not meeting_results:
             return "week", False
 
-        user_pytz = self.env.tz
+        user_tz = self.env.tz
 
         # meeting_dts will contain one tuple of datetimes per meeting : (Start, Stop)
         # meetings_dts and now_dt are as per user time zone.
         meeting_dts = []
-        now_dt = datetime.now().astimezone(user_pytz).replace(tzinfo=None)
+        now_dt = datetime.now().astimezone(user_tz).replace(tzinfo=None)
 
         # When creating an allday meeting, whatever the TZ, it will be stored the same e.g. 00.00.00->23.59.59 in utc or
         # 08.00.00->18.00.00. Therefore we must not put it back in the user tz but take it raw.
@@ -1324,8 +1332,8 @@ class CrmLead(models.Model):
             if meeting.get('allday'):
                 meeting_dts.append((meeting.get('start'), meeting.get('stop')))
             else:
-                meeting_dts.append((meeting.get('start').astimezone(user_pytz).replace(tzinfo=None),
-                                   meeting.get('stop').astimezone(user_pytz).replace(tzinfo=None)))
+                meeting_dts.append((meeting.get('start').astimezone(user_tz).replace(tzinfo=None),
+                                   meeting.get('stop').astimezone(user_tz).replace(tzinfo=None)))
 
         # If there are meetings that are still ongoing or to come, only take those.
         unfinished_meeting_dts = [meeting_dt for meeting_dt in meeting_dts if meeting_dt[1] >= now_dt]

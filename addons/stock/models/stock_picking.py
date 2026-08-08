@@ -2,9 +2,7 @@ import json
 import math
 from ast import literal_eval
 from collections import defaultdict
-from datetime import date, timedelta
-
-import pytz
+from datetime import UTC, date, timedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
@@ -2030,9 +2028,9 @@ class StockPicking(models.Model):
         # value in the server's OS timezone, so attach UTC explicitly instead.
         # Aware values are converted by instant, matching the tz-aware boundaries.
         if value.tzinfo is None:
-            value = value.replace(tzinfo=pytz.UTC)
+            value = value.replace(tzinfo=UTC)
         else:
-            value = value.astimezone(pytz.UTC)
+            value = value.astimezone(UTC)
         bound = self._date_category_boundaries()
         if value < bound["yesterday"]:
             return "before"
@@ -2127,7 +2125,7 @@ class StockPicking(models.Model):
         """
         # Stored datetimes are naive UTC, so express the boundaries the same way.
         bound = {
-            key: value.astimezone(pytz.UTC).replace(tzinfo=None)
+            key: value.astimezone(UTC).replace(tzinfo=None)
             for key, value in self._date_category_boundaries().items()
         }
         date_category_to_search_domain = {

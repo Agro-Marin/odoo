@@ -2,19 +2,21 @@
 
 import logging
 from contextlib import contextmanager
+from datetime import UTC, timedelta
 from functools import wraps
-import pytz
+
 from dateutil.parser import parse
-from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.db import BaseCursor
 from odoo.fields import Domain
 from odoo.modules.registry import Registry
-from odoo.db import BaseCursor
 
-from odoo.addons.microsoft_calendar.utils.microsoft_event import MicrosoftEvent
-from odoo.addons.microsoft_calendar.utils.microsoft_calendar import MicrosoftCalendarService
 from odoo.addons.microsoft_account.models.microsoft_service import TIMEOUT
+from odoo.addons.microsoft_calendar.utils.microsoft_calendar import (
+    MicrosoftCalendarService,
+)
+from odoo.addons.microsoft_calendar.utils.microsoft_event import MicrosoftEvent
 
 _logger = logging.getLogger(__name__)
 
@@ -324,7 +326,7 @@ class MicrosoftCalendarSync(models.AbstractModel):
                 odoo_event = self.browse(mevent.odoo_id(self.env)).exists()
 
             if odoo_event:
-                odoo_event_updated_time = pytz.utc.localize(odoo_event.write_date)
+                odoo_event_updated_time = odoo_event.write_date.replace(tzinfo=UTC)
                 ms_event_updated_time = parse(mevent.lastModifiedDateTime)
 
                 # If the update comes from an old event/recurrence, check if time diff between updates is reasonable.

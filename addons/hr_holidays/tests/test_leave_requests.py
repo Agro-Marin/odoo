@@ -5,10 +5,10 @@ from datetime import date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
-from pytz import timezone
 
 from odoo import Command, fields
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tests import Form, tagged, users
 from odoo.tools import date_utils, mute_logger
 

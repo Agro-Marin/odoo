@@ -1,10 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import date, datetime
-
-from pytz import timezone, utc
+from datetime import UTC, date, datetime
 
 from odoo.fields import Date
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.tools.date_utils import sum_intervals
 
@@ -233,14 +232,14 @@ class TestResource(TestHrCommon):
 
     def test_calendars_validity_within_period_default(self):
         calendars = self.employee_niv.resource_id._get_calendars_validity_within_period(
-            utc.localize(datetime(2021, 7, 1, 8, 0, 0)),
-            utc.localize(datetime(2021, 7, 30, 17, 0, 0)),
+            datetime(2021, 7, 1, 8, 0, 0).replace(tzinfo=UTC),
+            datetime(2021, 7, 30, 17, 0, 0).replace(tzinfo=UTC),
         )
         interval = Intervals(
             [
                 (
-                    utc.localize(datetime(2021, 7, 1, 8, 0, 0)),
-                    utc.localize(datetime(2021, 7, 30, 17, 0, 0)),
+                    datetime(2021, 7, 1, 8, 0, 0).replace(tzinfo=UTC),
+                    datetime(2021, 7, 30, 17, 0, 0).replace(tzinfo=UTC),
                     self.env["resource.calendar.attendance"],
                 )
             ]
@@ -270,14 +269,14 @@ class TestResource(TestHrCommon):
 
     def test_calendars_validity_within_period_creation(self):
         calendars = self.employee_niv.resource_id._get_calendars_validity_within_period(
-            utc.localize(datetime(2020, 12, 1, 8, 0, 0)),
-            utc.localize(datetime(2021, 1, 31, 17, 0, 0)),
+            datetime(2020, 12, 1, 8, 0, 0).replace(tzinfo=UTC),
+            datetime(2021, 1, 31, 17, 0, 0).replace(tzinfo=UTC),
         )
         interval = Intervals(
             [
                 (
-                    utc.localize(datetime(2020, 12, 1, 8, 0, 0)),
-                    utc.localize(datetime(2021, 1, 31, 17, 0, 0)),
+                    datetime(2020, 12, 1, 8, 0, 0).replace(tzinfo=UTC),
+                    datetime(2021, 1, 31, 17, 0, 0).replace(tzinfo=UTC),
                     self.env["resource.calendar.attendance"],
                 )
             ]
@@ -351,15 +350,15 @@ class TestResource(TestHrCommon):
         self.employee.create_version(self.contract_cdi_values)
         tz = timezone(self.employee.tz)
         calendars = self.employee.resource_id._get_calendars_validity_within_period(
-            tz.localize(datetime(2021, 10, 1, 0, 0, 0)),
-            tz.localize(datetime(2021, 12, 1, 0, 0, 0)),
+            datetime(2021, 10, 1, 0, 0, 0).replace(tzinfo=tz),
+            datetime(2021, 12, 1, 0, 0, 0).replace(tzinfo=tz),
         )
         interval_35h = Intervals(
             [
                 (
-                    tz.localize(datetime(2021, 10, 1, 0, 0, 0)),
-                    tz.localize(
-                        datetime.combine(date(2021, 10, 31), datetime.max.time())
+                    datetime(2021, 10, 1, 0, 0, 0).replace(tzinfo=tz),
+                    datetime.combine(date(2021, 10, 31), datetime.max.time()).replace(
+                        tzinfo=tz
                     ),
                     self.env["resource.calendar.attendance"],
                 )
@@ -368,8 +367,8 @@ class TestResource(TestHrCommon):
         interval_40h = Intervals(
             [
                 (
-                    tz.localize(datetime(2021, 11, 1, 0, 0, 0)),
-                    tz.localize(datetime(2021, 12, 1, 0, 0, 0)),
+                    datetime(2021, 11, 1, 0, 0, 0).replace(tzinfo=tz),
+                    datetime(2021, 12, 1, 0, 0, 0).replace(tzinfo=tz),
                     self.env["resource.calendar.attendance"],
                 )
             ]
@@ -424,8 +423,8 @@ class TestResource(TestHrCommon):
             self.contract_cdi_values["employee_id"] = emp.id
             self.employee.create_version(self.contract_cdi_values)
 
-        start = utc.localize(datetime(2021, 9, 1, 0, 0, 0))
-        end = utc.localize(datetime(2021, 11, 30, 23, 59, 59))
+        start = datetime(2021, 9, 1, 0, 0, 0).replace(tzinfo=UTC)
+        end = datetime(2021, 11, 30, 23, 59, 59).replace(tzinfo=UTC)
         with self.assertQueryCount(165):
             work_intervals, _ = (
                 employees_test | self.employee
@@ -435,8 +434,12 @@ class TestResource(TestHrCommon):
 
     def test_get_valid_work_intervals(self):
         self.employee.create_version(self.contract_cdi_values)
-        start = timezone(self.employee.tz).localize(datetime(2021, 10, 24, 2, 0, 0))
-        end = timezone(self.employee.tz).localize(datetime(2021, 11, 6, 23, 59, 59))
+        start = datetime(2021, 10, 24, 2, 0, 0).replace(
+            tzinfo=timezone(self.employee.tz)
+        )
+        end = datetime(2021, 11, 6, 23, 59, 59).replace(
+            tzinfo=timezone(self.employee.tz)
+        )
         work_intervals, _ = self.employee.resource_id._get_valid_work_intervals(
             start, end
         )
@@ -452,8 +455,8 @@ class TestResource(TestHrCommon):
         handle multiple contracts with different calendars.
         """
 
-        date_from = utc.localize(datetime(2021, 10, 1, 0, 0, 0))
-        date_to = utc.localize(datetime(2021, 11, 30, 0, 0, 0))
+        date_from = datetime(2021, 10, 1, 0, 0, 0).replace(tzinfo=UTC)
+        date_to = datetime(2021, 11, 30, 0, 0, 0).replace(tzinfo=UTC)
 
         attendances = self.employee._get_calendar_attendances(date_from, date_to)
         self.assertEqual(

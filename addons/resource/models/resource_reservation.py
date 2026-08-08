@@ -1,8 +1,7 @@
 import logging
 import operator as operator_module
 from collections import defaultdict
-
-from pytz import utc
+from datetime import UTC
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
@@ -854,8 +853,8 @@ class ResourceReservation(models.Model):
 
         base_domain = [
             ("resource_id", "in", resources.ids),
-            ("date_start", "<", end_dt.astimezone(utc).replace(tzinfo=None)),
-            ("date_end", ">", start_dt.astimezone(utc).replace(tzinfo=None)),
+            ("date_start", "<", end_dt.astimezone(UTC).replace(tzinfo=None)),
+            ("date_end", ">", start_dt.astimezone(UTC).replace(tzinfo=None)),
             ("active", "=", True),
         ]
         if domain:

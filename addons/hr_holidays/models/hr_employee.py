@@ -3,11 +3,11 @@
 from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
 
-import pytz
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.datetime import timezone
 from odoo.libs.numbers import float_round
 
 from odoo.addons.resource.models.utils import HOURS_PER_DAY
@@ -310,7 +310,7 @@ class HrEmployee(models.Model):
     @api.model
     def get_public_holidays_data(self, date_start, date_end):
         self = self._get_contextual_employee()
-        employee_tz = pytz.timezone(self._get_tz() if self else self.env.user.tz or 'utc')
+        employee_tz = timezone(self._get_tz() if self else self.env.user.tz or 'utc')
         public_holidays = self._get_public_holidays(date_start, date_end).sorted('date_from')
         return [{
             'id': -bh.id,
@@ -556,7 +556,7 @@ class HrEmployee(models.Model):
                             )
                             duration = leave[leave_duration_field]
                             if leave.date_from != interval_start or leave.date_to != interval_end:
-                                duration_info = employee._get_calendar_attendances(interval_start.replace(tzinfo=pytz.UTC), interval_end.replace(tzinfo=pytz.UTC))
+                                duration_info = employee._get_calendar_attendances(interval_start.replace(tzinfo=UTC), interval_end.replace(tzinfo=UTC))
                                 duration = duration_info['hours' if leave_unit == 'hours' else 'days']
                             max_allowed_duration = min(
                                 duration,

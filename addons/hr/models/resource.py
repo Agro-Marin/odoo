@@ -3,9 +3,8 @@
 from collections import defaultdict
 from datetime import datetime
 
-from pytz import timezone
-
 from odoo import api, fields, models
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 
 
@@ -102,19 +101,15 @@ class ResourceResource(models.Model):
                 Intervals(
                     [
                         (
-                            tz.localize(
-                                datetime.combine(
-                                    contract.contract_date_start, datetime.min.time()
-                                )
-                            )
+                            datetime.combine(
+                                contract.contract_date_start, datetime.min.time()
+                            ).replace(tzinfo=tz)
                             if contract.contract_date_start
                             > start.astimezone(tz).date()
                             else start,
-                            tz.localize(
-                                datetime.combine(
-                                    contract.contract_date_end, datetime.max.time()
-                                )
-                            )
+                            datetime.combine(
+                                contract.contract_date_end, datetime.max.time()
+                            ).replace(tzinfo=tz)
                             if contract.contract_date_end
                             and contract.contract_date_end < end.astimezone(tz).date()
                             else end,

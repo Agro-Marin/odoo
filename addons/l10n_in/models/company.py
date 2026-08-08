@@ -1,5 +1,4 @@
-import pytz
-from stdnum.in_ import pan, gstin
+from stdnum.in_ import gstin, pan
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import RedirectWarning

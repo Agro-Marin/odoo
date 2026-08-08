@@ -1,10 +1,9 @@
 import logging
 from datetime import UTC, datetime
 
-import pytz
-
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.datetime import all_timezones
 from odoo.tools import SQL, partition
 
 _logger = logging.getLogger(__name__)
@@ -304,7 +303,7 @@ class MailActivityMixin(models.AbstractModel):
         )
 
         tz = "UTC"
-        if self.env.context.get("tz") in pytz.all_timezones_set:
+        if self.env.context.get("tz") in all_timezones():
             tz = self.env.context["tz"]
 
         sql_join = SQL(

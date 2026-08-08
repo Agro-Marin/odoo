@@ -1,12 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, time
-
-import pytz
+from datetime import UTC, datetime, time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 
 
 class ResourceCalendarLeaves(models.Model):
@@ -145,8 +144,8 @@ class ResourceCalendarLeaves(models.Model):
         naive_datetime_from = utc_naive_datetime.astimezone(tz_from).replace(
             tzinfo=None
         )
-        aware_datetime_to = tz_to.localize(naive_datetime_from)
-        return aware_datetime_to.astimezone(pytz.utc).replace(tzinfo=None)
+        aware_datetime_to = naive_datetime_from.replace(tzinfo=tz_to)
+        return aware_datetime_to.astimezone(UTC).replace(tzinfo=None)
 
     def _ensure_datetime(self, datetime_representation, date_format=None):
         """
@@ -172,8 +171,8 @@ class ResourceCalendarLeaves(models.Model):
                 or not isinstance(vals.get("date_to"), (datetime, str))
             ):
                 continue
-            user_tz = pytz.timezone(self.env.user.tz) if self.env.user.tz else pytz.utc
-            calendar_tz = pytz.timezone(
+            user_tz = timezone(self.env.user.tz) if self.env.user.tz else UTC
+            calendar_tz = timezone(
                 self.env["resource.calendar"].browse(vals["calendar_id"]).tz
             )
             if user_tz != calendar_tz:
@@ -270,27 +269,23 @@ class ResourceResource(models.Model):
         leave_start = leave[0]
         leave_record = leave[2]
         holiday_id = leave_record.holiday_id
-        tz = pytz.timezone(self.tz or self.env.user.tz)
+        tz = timezone(self.tz or self.env.user.tz)
 
         if holiday_id.request_unit_half:
             # Half day leaves are limited to half a day within a single day
             leave_day = leave_start.date()
-            half_start_datetime = tz.localize(
-                datetime.combine(
-                    leave_day,
-                    datetime.min.time()
-                    if holiday_id.request_date_from_period == "am"
-                    else time(12),
-                )
-            )
-            half_end_datetime = tz.localize(
-                datetime.combine(
-                    leave_day,
-                    time(12)
-                    if holiday_id.request_date_from_period == "am"
-                    else datetime.max.time(),
-                )
-            )
+            half_start_datetime = datetime.combine(
+                leave_day,
+                datetime.min.time()
+                if holiday_id.request_date_from_period == "am"
+                else time(12),
+            ).replace(tzinfo=tz)
+            half_end_datetime = datetime.combine(
+                leave_day,
+                time(12)
+                if holiday_id.request_date_from_period == "am"
+                else datetime.max.time(),
+            ).replace(tzinfo=tz)
             ranges_to_remove.append(
                 (
                     half_start_datetime,
@@ -311,12 +306,12 @@ class ResourceResource(models.Model):
             # Custom leaves are limited to a specific number of hours within a single day
             leave_day = leave_start.date()
             range_start_datetime = (
-                pytz.utc.localize(leave_record.date_from)
+                leave_record.date_from.replace(tzinfo=UTC)
                 .replace(tzinfo=None)
                 .astimezone(tz)
             )
             range_end_datetime = (
-                pytz.utc.localize(leave_record.date_to)
+                leave_record.date_to.replace(tzinfo=UTC)
                 .replace(tzinfo=None)
                 .astimezone(tz)
             )

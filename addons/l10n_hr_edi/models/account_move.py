@@ -1,11 +1,10 @@
 import logging
 import re
 
-import pytz
-
 from odoo import api, fields, models
 from odoo.db.schema import column_exists, create_column
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tools import SQL
 
 from ..tools import (
@@ -365,7 +364,7 @@ class AccountMove(models.Model):
                     response = _mer_api_mark_paid(
                         move.company_id,
                         move.l10n_hr_mer_document_eid,
-                        fields.Datetime.now(pytz.timezone("Europe/Zagreb")).strftime(
+                        fields.Datetime.now(timezone("Europe/Zagreb")).strftime(
                             "%Y-%m-%dT%H:%M:%S"
                         ),
                         amount_to_report,

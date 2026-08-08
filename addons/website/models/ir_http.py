@@ -3,7 +3,7 @@ import contextlib
 import functools
 import logging
 
-import pytz
+from zoneinfo import ZoneInfoNotFoundError
 import werkzeug
 from lxml import etree
 
@@ -17,6 +17,7 @@ from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.http_routing.models import ir_http
 from odoo.addons.portal.controllers.portal import _build_url_w_params
+from odoo.libs.datetime import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -310,9 +311,9 @@ class IrHttp(models.AbstractModel):
         super()._frontend_pre_dispatch()
 
         if not request.env.context.get("tz"):
-            with contextlib.suppress(pytz.UnknownTimeZoneError):
+            with contextlib.suppress(ZoneInfoNotFoundError):
                 request.update_context(
-                    tz=pytz.timezone(request.geoip.location.time_zone).zone
+                    tz=timezone(request.geoip.location.time_zone).key
                 )
 
         website = request.env["website"].get_current_website()

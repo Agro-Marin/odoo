@@ -1,12 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import logging
 import os
-
-import pytz
+from datetime import UTC
 
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 from odoo.tools import email_normalize, format_date, formataddr
 
 _logger = logging.getLogger(__name__)
@@ -446,8 +446,8 @@ class EventRegistration(models.Model):
 
         is_date_closed_today = False
         if self.date_closed:
-            event_tz = pytz.timezone(self.event_id.date_tz)
-            now = fields.Datetime.now(pytz.UTC).astimezone(event_tz)
+            event_tz = timezone(self.event_id.date_tz)
+            now = fields.Datetime.now(UTC).astimezone(event_tz)
             closed_date = self.date_closed.astimezone(event_tz)
             is_date_closed_today = now.date() == closed_date.date()
 

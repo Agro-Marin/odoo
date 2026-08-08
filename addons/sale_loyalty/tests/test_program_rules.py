@@ -3,10 +3,10 @@
 from datetime import date, timedelta
 
 from freezegun import freeze_time
-from pytz import timezone
 
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Datetime
+from odoo.libs.datetime import timezone
 
 from odoo.addons.payment.tests.common import PaymentCommon
 from odoo.addons.sale_loyalty.tests.common import TestSaleCouponCommon
@@ -422,7 +422,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
                 "Promo should not be applied if only valid in the customer's time zone",
             )
 
-        with freeze_time(timezone(self.env.company.partner_id.tz).localize(midnight)):
+        with freeze_time(midnight.replace(tzinfo=timezone(self.env.company.partner_id.tz))):
             # Try apply reward at London midnight (expired)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertFalse(
@@ -431,7 +431,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             )
 
         self.partner.tz = 'Europe/Brussels'
-        with freeze_time(timezone(self.partner.tz).localize(midnight)):
+        with freeze_time(midnight.replace(tzinfo=timezone(self.partner.tz))):
             # Apply reward at Brussels midnight (still valid in company's time zone)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertTrue(

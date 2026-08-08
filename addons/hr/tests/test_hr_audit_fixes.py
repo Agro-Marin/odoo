@@ -7,10 +7,10 @@ Each test pins down a bug found during the audit so it cannot silently return.
 from datetime import date, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
-from pytz import timezone
 
 from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tests import tagged
 from odoo.tests.common import freeze_time
 
@@ -348,7 +348,7 @@ class TestHrAuditRound2(TestHrCommon):
         self.assertEqual(display, "**3456")
 
     def test_combine_tz_uses_correct_offset(self):
-        """``_combine_tz`` localizes via pytz (correct DST/standard offset), not
+        """``_combine_tz`` attaches the zone directly (correct DST/standard offset), not
         the historical LMT offset produced by ``.replace(tzinfo=...)``."""
         mx = timezone("America/Mexico_City")
         dt = self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, mx)
@@ -427,7 +427,7 @@ class TestHrAuditRound2(TestHrCommon):
 
         Regression: the round-2 audit rewrote the open-ended sentinel to
         ``_combine_tz(version.date_end or date.max, time.max, tz)``.
-        ``_combine_tz`` localizes with pytz, whose ``normalize`` does
+        ``_combine_tz`` attaches the zone directly, where zoneinfo does
         ``dt - offset``; for a negative offset (America/Mexico_City, UTC-6)
         that pushes ``date.max`` (9999-12-31) past ``datetime.max`` and raises
         ``OverflowError``, crashing the Attendance Gantt progress bar
@@ -444,8 +444,8 @@ class TestHrAuditRound2(TestHrCommon):
         )
 
         utc = timezone("UTC")
-        start = utc.localize(datetime(2026, 7, 1))
-        stop = utc.localize(datetime(2026, 7, 31, 23, 59, 59))
+        start = datetime(2026, 7, 1).replace(tzinfo=utc)
+        stop = datetime(2026, 7, 31, 23, 59, 59).replace(tzinfo=utc)
 
         # Guard: the open-ended version must actually overlap the window,
         # otherwise the early return skips the overflow path and the test

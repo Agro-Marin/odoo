@@ -1,24 +1,25 @@
 
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import pytz
 import re
 import smtplib
-from email import message_from_string
-
 from datetime import datetime, timedelta
+from email import message_from_string
+from socket import gaierror, timeout
+from unittest.mock import PropertyMock, call, patch
+
 from freezegun import freeze_time
 from markupsafe import Markup
 from OpenSSL.SSL import Error as SSLError
-from socket import gaierror, timeout
-from unittest.mock import call, patch, PropertyMock
 
-from odoo import api, Command, fields, SUPERUSER_ID
-from odoo.addons.base.models.ir_mail_server import MailDeliveryException
-from odoo.addons.mail.tests.common import MailCommon
+from odoo import SUPERUSER_ID, Command, api, fields
 from odoo.exceptions import AccessError, LockError
+from odoo.libs.datetime import timezone
 from odoo.tests import common, tagged, users
 from odoo.tools import formataddr, mute_logger
+
+from odoo.addons.base.models.ir_mail_server import MailDeliveryException
+from odoo.addons.mail.tests.common import MailCommon
 
 
 @tagged('mail_mail')
@@ -334,7 +335,7 @@ class TestMailMail(MailCommon):
             # falsy values
             False, '', 'This is not a date format',
             # datetimes (UTC/GMT +10 hours for Australia/Brisbane)
-            now, pytz.timezone('Australia/Brisbane').localize(now),
+            now, now.replace(tzinfo=timezone('Australia/Brisbane')),
             # string
             fields.Datetime.to_string(now - timedelta(days=1)),
             fields.Datetime.to_string(now + timedelta(days=1)),
@@ -346,7 +347,7 @@ class TestMailMail(MailCommon):
         ]
         expected_datetimes = [
             False, False, False,
-            now, now - pytz.timezone('Australia/Brisbane').utcoffset(now),
+            now, now - timezone('Australia/Brisbane').utcoffset(now),
             now - timedelta(days=1), now + timedelta(days=1), now + timedelta(days=1),
             now + timedelta(hours=-1),
             now + timedelta(hours=1),

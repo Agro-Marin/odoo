@@ -5,11 +5,10 @@ docstrings state the *observed wrong behaviour*, so a future change that
 reintroduces it fails with an explanation rather than a bare assertion.
 """
 
-from datetime import date, datetime, timedelta
-
-from pytz import timezone, utc
+from datetime import UTC, date, datetime, timedelta
 
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tests.common import TransactionCase, new_test_user
 
 
@@ -39,7 +38,7 @@ class TestFlexibleAttendanceSynthesis(TransactionCase):
 
     def _hours(self, start, end):
         return self.calendar.get_work_hours_count(
-            utc.localize(start), utc.localize(end), compute_leaves=False
+            start.replace(tzinfo=UTC), end.replace(tzinfo=UTC), compute_leaves=False
         )
 
     def test_seven_day_window_yields_the_weekly_budget(self):
@@ -93,8 +92,8 @@ class TestFlexibleAttendanceSynthesis(TransactionCase):
                 "tz": "Europe/Brussels",
             }
         )
-        start = brussels.localize(datetime(2025, 3, 24))
-        end = brussels.localize(datetime(2025, 4, 7))
+        start = datetime(2025, 3, 24).replace(tzinfo=brussels)
+        end = datetime(2025, 4, 7).replace(tzinfo=brussels)
         intervals = calendar._flexible_attendance_intervals(start, end, brussels)
         days = [interval[0].date() for interval in intervals]
         self.assertEqual(
@@ -173,8 +172,8 @@ class TestFlexibleWeekKeyIsDeterministic(TransactionCase):
 
     def test_valid_work_intervals_budget_ignores_week_start(self):
         start, end = (
-            utc.localize(datetime(2025, 3, 3)),
-            utc.localize(datetime(2025, 3, 10)),
+            datetime(2025, 3, 3).replace(tzinfo=UTC),
+            datetime(2025, 3, 10).replace(tzinfo=UTC),
         )
         results = []
         for week_start in ("7", "1"):
@@ -218,8 +217,8 @@ class TestUnavailableIntervalsFlexible(TransactionCase):
         cls.resource = cls.env["resource.resource"].create(
             {"name": "Flexible worker", "calendar_id": cls.calendar.id, "tz": "UTC"}
         )
-        cls.start = utc.localize(datetime(2025, 3, 3))
-        cls.end = utc.localize(datetime(2025, 3, 8))
+        cls.start = datetime(2025, 3, 3).replace(tzinfo=UTC)
+        cls.end = datetime(2025, 3, 8).replace(tzinfo=UTC)
 
     def test_batch_contains_resource_without_leaves(self):
         result = self.calendar._unavailable_intervals_batch(
@@ -281,7 +280,7 @@ class TestPlanDaysHonoursResource(TransactionCase):
         )
 
     def test_resource_leave_pushes_the_plan_out(self):
-        start = utc.localize(datetime(2025, 4, 7, 8))
+        start = datetime(2025, 4, 7, 8).replace(tzinfo=UTC)
         without = self.calendar.plan_days(3, start, compute_leaves=True)
         with_resource = self.calendar.plan_days(
             3, start, compute_leaves=True, resource=self.resource

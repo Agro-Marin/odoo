@@ -2,12 +2,11 @@
 
 import logging
 import time
-
-from datetime import date
-from odoo.tests.common import TransactionCase, tagged
+from datetime import UTC, date
 
 from odoo import fields
-import pytz
+from odoo.libs.datetime import timezone
+from odoo.tests.common import TransactionCase, tagged
 
 _logger = logging.getLogger(__name__)
 
@@ -485,12 +484,12 @@ class TestFrenchLeaves(TransactionCase):
         # 00h00 to 23h59 , but in the server it is saved as utc, so we consider the current user tz
         # and subtract that from the holiday. With this, wherever you may be running the tests, the
         # result should be consistent
-        tz = pytz.timezone(self.env.user.tz)
+        tz = timezone(self.env.user.tz)
         self.env['resource.calendar.leaves'].with_company(self.company).create({
             'name': 'Public Holiday',
             'calendar_id': False,
-            'date_from': tz.localize(fields.Datetime.from_string("2024-12-26 00:00:00")).astimezone(pytz.UTC).replace(tzinfo=None),
-            'date_to': tz.localize(fields.Datetime.from_string("2024-12-26 23:59:59")).astimezone(pytz.UTC).replace(tzinfo=None),
+            'date_from': fields.Datetime.from_string("2024-12-26 00:00:00").replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None),
+            'date_to': fields.Datetime.from_string("2024-12-26 23:59:59").replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None),
             'resource_id': False,
         })
 

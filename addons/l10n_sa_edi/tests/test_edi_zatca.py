@@ -1,15 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import base64
-
 from datetime import datetime
+
 from freezegun import freeze_time
 from lxml import etree
-from pytz import timezone
-from odoo import Command
 
-from odoo.exceptions import ValidationError, UserError
+from odoo import Command
+from odoo.exceptions import UserError, ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tests import tagged
 from odoo.tools import misc
+
 from odoo.addons.l10n_sa_edi.tests.common import TestSaEdiCommon
 
 

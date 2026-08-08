@@ -11,16 +11,15 @@ Focus areas:
 - _compute_origin_display with missing records
 """
 
-from datetime import date, datetime, timedelta
-
-import pytz
+from datetime import UTC, date, datetime, timedelta
 
 from odoo import Command
 from odoo.exceptions import ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-UTC = pytz.UTC
+UTC = UTC
 
 
 @tagged("post_install", "-at_install")
@@ -249,12 +248,12 @@ class TestReservationUTCConversion(TransactionCase):
             }
         )
         # Query with Tokyo timezone (UTC+9)
-        tokyo = pytz.timezone("Asia/Tokyo")
-        start = tokyo.localize(
-            datetime(2025, 1, 6, 0, 0)
+        tokyo = timezone("Asia/Tokyo")
+        start = datetime(2025, 1, 6, 0, 0).replace(
+            tzinfo=tokyo
         )  # Mon 00:00 Tokyo = Sun 15:00 UTC
-        end = tokyo.localize(
-            datetime(2025, 1, 7, 0, 0)
+        end = datetime(2025, 1, 7, 0, 0).replace(
+            tzinfo=tokyo
         )  # Tue 00:00 Tokyo = Mon 15:00 UTC
         result = self.Reservation._reservation_intervals_batch(
             start, end, self.resource
@@ -376,18 +375,18 @@ class TestDSTTransition(TransactionCase):
 
     def test_work_hours_across_spring_forward(self):
         """Work hours across DST spring-forward should count real hours, not wall clock."""
-        brussels = pytz.timezone("Europe/Brussels")
+        brussels = timezone("Europe/Brussels")
         # Friday 2025-03-28 to Monday 2025-03-31 (DST change on Sunday)
-        start = brussels.localize(datetime(2025, 3, 28, 6, 0))
-        end = brussels.localize(datetime(2025, 3, 31, 20, 0))
+        start = datetime(2025, 3, 28, 6, 0).replace(tzinfo=brussels)
+        end = datetime(2025, 3, 31, 20, 0).replace(tzinfo=brussels)
         hours = self.calendar.get_work_hours_count(start, end)
         # Friday 8h + Monday 8h = 16h (weekend skipped, DST doesn't affect work hours)
         self.assertEqual(hours, 16.0)
 
     def test_plan_hours_across_spring_forward(self):
         """plan_hours across DST should return a valid result spanning DST change."""
-        brussels = pytz.timezone("Europe/Brussels")
-        start = brussels.localize(datetime(2025, 3, 28, 8, 0))  # Friday 8:00
+        brussels = timezone("Europe/Brussels")
+        start = datetime(2025, 3, 28, 8, 0).replace(tzinfo=brussels)  # Friday 8:00
         result = self.calendar.plan_hours(16.0, start, compute_leaves=False)
         # 8h Friday + 8h Monday = should land on Monday
         self.assertTrue(result, "plan_hours should find a result within range")
@@ -395,7 +394,7 @@ class TestDSTTransition(TransactionCase):
         if result.tzinfo:
             result_local = result.astimezone(brussels)
         else:
-            result_local = brussels.localize(result)
+            result_local = result.replace(tzinfo=brussels)
         self.assertEqual(result_local.weekday(), 0, "Should land on Monday")
 
 

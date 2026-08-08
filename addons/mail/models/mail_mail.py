@@ -7,10 +7,9 @@ import logging
 import re
 import smtplib
 from collections import defaultdict
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 import psycopg
-import pytz
 from dateutil.parser import parse
 
 from odoo import SUPERUSER_ID, _, api, fields, models, modules, tools
@@ -443,10 +442,10 @@ class MailMail(models.Model):
         if parsed_datetime:
             parsed_datetime = parsed_datetime.replace(microsecond=0)
             if not parsed_datetime.tzinfo:
-                parsed_datetime = pytz.utc.localize(parsed_datetime)
+                parsed_datetime = parsed_datetime.replace(tzinfo=UTC)
             else:
                 try:
-                    parsed_datetime = parsed_datetime.astimezone(pytz.utc)
+                    parsed_datetime = parsed_datetime.astimezone(UTC)
                 except ValueError, OverflowError, OSError:
                     # Do not silently keep a non-UTC value: callers strip tzinfo
                     # right after and store it as if it were UTC, sending the mail

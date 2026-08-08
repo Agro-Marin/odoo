@@ -1,6 +1,4 @@
-from datetime import timedelta
-
-from pytz import utc
+from datetime import UTC, timedelta
 
 from odoo import models
 from odoo.tools.date_utils import localized, sum_intervals
@@ -120,8 +118,8 @@ class ResourceSchedulingTools(models.AbstractModel):
             return date_start, date_end
 
         items = list(intervals)
-        snapped_start = items[0][0].astimezone(utc).replace(tzinfo=None)
-        snapped_end = items[-1][1].astimezone(utc).replace(tzinfo=None)
+        snapped_start = items[0][0].astimezone(UTC).replace(tzinfo=None)
+        snapped_end = items[-1][1].astimezone(UTC).replace(tzinfo=None)
         return snapped_start, snapped_end
 
     def _scheduling_plan_hours(
@@ -162,7 +160,7 @@ class ResourceSchedulingTools(models.AbstractModel):
             plan_kwargs["domain"] = leave_domain
         result = cal.plan_hours(hours, start_utc, **plan_kwargs)
         if result:
-            return result.astimezone(utc).replace(tzinfo=None)
+            return result.astimezone(UTC).replace(tzinfo=None)
         return False
 
     def _scheduling_resolve_calendar(self, resource=None):

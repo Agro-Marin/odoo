@@ -1,12 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta
-
-from pytz import UTC, timezone
+from datetime import UTC, datetime, timedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 
 
 class HrLeaveGenerateMultiWizard(models.TransientModel):
@@ -74,8 +73,8 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
         employees = self._get_employees_from_allocation_mode()
 
         tz = timezone(self.company_id.resource_calendar_id.tz or self.env.user.tz or 'UTC')
-        date_from_tz = tz.localize(datetime.combine(self.date_from, datetime.min.time())).astimezone(UTC).replace(tzinfo=None)
-        date_to_tz = tz.localize(datetime.combine(self.date_to, datetime.max.time())).astimezone(UTC).replace(tzinfo=None)
+        date_from_tz = datetime.combine(self.date_from, datetime.min.time()).replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
+        date_to_tz = datetime.combine(self.date_to, datetime.max.time()).replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
 
         conflicting_leaves = self.env['hr.leave'].with_context(
             tracking_disable=True,

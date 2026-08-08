@@ -1,6 +1,6 @@
-import pytz
 
 from odoo import api, fields, models
+from odoo.libs.datetime import timezone
 
 from ..tools import _mer_api_reject_with_id, _mer_api_update_document_process_status
 
@@ -35,7 +35,7 @@ class L10nHrMojEracunRejectInvoice(models.TransientModel):
             response = _mer_api_reject_with_id(
                 self.move_id.company_id,
                 self.move_id.l10n_hr_mer_document_eid,
-                fields.Datetime.now(pytz.timezone('Europe/Zagreb')).strftime("%Y-%m-%dT%H:%M:%S"),
+                fields.Datetime.now(timezone('Europe/Zagreb')).strftime("%Y-%m-%dT%H:%M:%S"),
                 self.rejection_type,
                 self.rejection_description,
             )

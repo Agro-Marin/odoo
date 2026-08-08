@@ -1,11 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 
 from freezegun import freeze_time
-from pytz import timezone, utc
 
 from odoo import fields
+from odoo.libs.datetime import timezone
 from odoo.tests import Form
 
 from odoo.addons.mrp.tests.common import TestMrpCommon
@@ -55,7 +55,7 @@ class TestOee(TestMrpCommon):
 
         def time_to_string_utc_datetime(time):
             return fields.Datetime.to_string(
-                tz.localize(datetime.combine(day, time)).astimezone(utc)
+                datetime.combine(day, time).replace(tzinfo=tz).astimezone(UTC)
             )
 
         start_time = time_to_string_utc_datetime(time(10, 43, 22))

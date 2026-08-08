@@ -25,6 +25,7 @@ from .date_utils import (
 from .tz import (
     timezone,
     localize as tz_localize,
+    localize_standard,
     all_timezones,
     country_timezones,
     TIMEZONE_ALIASES,
@@ -44,6 +45,7 @@ __all__ = [
     "get_quarter",
     "get_quarter_number",
     "get_timedelta",
+    "localize_standard",
     "localized",
     "parse_iso_date",
     "start_of",

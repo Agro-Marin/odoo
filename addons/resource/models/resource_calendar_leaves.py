@@ -1,12 +1,12 @@
-from datetime import datetime, time
+from datetime import UTC, datetime, time
 from typing import Any
 
 from dateutil.relativedelta import relativedelta
-from pytz import timezone, utc
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Datetime
+from odoo.libs.datetime import timezone
 from odoo.models import ValuesType
 
 
@@ -81,11 +81,11 @@ class ResourceCalendarLeaves(models.Model):
             if "calendar_id" in res:
                 calendar = self.env["resource.calendar"].browse(res["calendar_id"])
             tz = timezone(calendar.tz or "UTC")
-            date_from = tz.localize(datetime.combine(today, time.min))
-            date_to = tz.localize(datetime.combine(today, time.max))
+            date_from = datetime.combine(today, time.min).replace(tzinfo=tz)
+            date_to = datetime.combine(today, time.max).replace(tzinfo=tz)
             res.update(
-                date_from=date_from.astimezone(utc).replace(tzinfo=None),
-                date_to=date_to.astimezone(utc).replace(tzinfo=None),
+                date_from=date_from.astimezone(UTC).replace(tzinfo=None),
+                date_to=date_to.astimezone(UTC).replace(tzinfo=None),
             )
         return res
 
@@ -133,13 +133,13 @@ class ResourceCalendarLeaves(models.Model):
                 or leave.company_id.resource_calendar_id.tz
                 or "UTC"
             )
-            local_date_from = utc.localize(leave.date_from).astimezone(
+            local_date_from = leave.date_from.replace(tzinfo=UTC).astimezone(
                 timezone(tz_name)
             )
             local_date_to = local_date_from + relativedelta(
                 hour=23, minute=59, second=59
             )
-            leave.date_to = local_date_to.astimezone(utc).replace(tzinfo=None)
+            leave.date_to = local_date_to.astimezone(UTC).replace(tzinfo=None)
 
     def _copy_leave_vals(self) -> ValuesType:
         self.ensure_one()

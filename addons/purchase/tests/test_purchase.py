@@ -2,10 +2,10 @@ from datetime import timedelta
 
 from freezegun import freeze_time
 from psycopg.errors import IntegrityError
-from pytz import timezone
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
+from odoo.libs.datetime import timezone
 from odoo.tests import Form, tagged
 from odoo.tools import mute_logger
 

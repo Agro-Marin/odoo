@@ -1,12 +1,13 @@
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from functools import partial
 from itertools import chain
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import DAILY, rrule
-from pytz import BaseTzInfo, timezone, utc
+from zoneinfo import ZoneInfo
+
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
@@ -19,6 +20,7 @@ from odoo.tools.date_utils import float_to_time, localized, to_timezone
 
 from .utils import HOURS_PER_DAY
 from odoo.addons.base.models.res_partner import _tz_get
+from odoo.libs.datetime import timezone
 
 if TYPE_CHECKING:
     from .resource_calendar_attendance import ResourceCalendarAttendance
@@ -616,9 +618,9 @@ class ResourceCalendar(models.Model):
             # Localize each midnight separately rather than adding a timedelta to
             # an aware datetime: on a DST boundary the day is 23 or 25 hours long
             # and the shortcut would silently keep the old offset.
-            midnight = tz.localize(datetime.combine(day, time.min))
-            next_midnight = tz.localize(
-                datetime.combine(day + timedelta(days=1), time.min)
+            midnight = datetime.combine(day, time.min).replace(tzinfo=tz)
+            next_midnight = datetime.combine(day + timedelta(days=1), time.min).replace(
+                tzinfo=tz
             )
             day_start = max(start_datetime, midnight)
             day_end = min(end_datetime, next_midnight)
@@ -645,7 +647,7 @@ class ResourceCalendar(models.Model):
         the queried window clipped to the day — so short days at the edges of
         the range keep their full allotted duration.
         """
-        midpoint = tz.localize(datetime.combine(day, time(12, 0)))
+        midpoint = datetime.combine(day, time(12, 0)).replace(tzinfo=tz)
         start_time = midpoint - timedelta(hours=hours / 2)
         end_time = midpoint + timedelta(hours=hours / 2)
         if start_time < lower:
@@ -717,8 +719,8 @@ class ResourceCalendar(models.Model):
             while day <= chunk_end:
                 if remaining_hours <= 0:
                     break
-                day_start = tz.localize(datetime.combine(day, time.min))
-                day_end = tz.localize(datetime.combine(day, time.max))
+                day_start = datetime.combine(day, time.min).replace(tzinfo=tz)
+                day_end = datetime.combine(day, time.max).replace(tzinfo=tz)
                 day_period_start = max(start_datetime, day_start)
                 day_period_end = min(end_datetime, day_end)
                 allocate_hours = min(
@@ -751,7 +753,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resources: ResourceResource | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | str | None = None,
+        tz: ZoneInfo | str | None = None,
         lunch: bool = False,
     ) -> dict[int | bool, Intervals]:
         if not (start_dt.tzinfo and end_dt.tzinfo):
@@ -815,16 +817,16 @@ class ResourceCalendar(models.Model):
                 attendances_per_day[weekday] |= attendance
                 attendances_per_day[weekday + 7] |= attendance
 
-        start = start_dt.astimezone(utc)
-        end = end_dt.astimezone(utc)
+        start = start_dt.astimezone(UTC)
+        end = end_dt.astimezone(UTC)
         bounds_per_tz = {
             tz: (start_dt.astimezone(tz), end_dt.astimezone(tz))
             for tz in resources_per_tz
         }
         # Use the outer bounds from the requested timezones
         for low, high in bounds_per_tz.values():
-            start = min(start, low.replace(tzinfo=utc))
-            end = max(end, high.replace(tzinfo=utc))
+            start = min(start, low.replace(tzinfo=UTC))
+            end = max(end, high.replace(tzinfo=UTC))
         # Generate once with utc as timezone
         days = rrule(DAILY, start.date(), until=end.date(), byweekday=weekdays)
         ResourceCalendarAttendance = self.env["resource.calendar.attendance"]
@@ -844,8 +846,8 @@ class ResourceCalendar(models.Model):
         result_per_tz = {
             tz: [
                 (
-                    max(bounds_per_tz[tz][0], tz.localize(val[0])),
-                    min(bounds_per_tz[tz][1], tz.localize(val[1])),
+                    max(bounds_per_tz[tz][0], val[0].replace(tzinfo=tz)),
+                    min(bounds_per_tz[tz][1], val[1].replace(tzinfo=tz)),
                     val[2],
                 )
                 for val in base_result
@@ -901,7 +903,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resource: ResourceResource | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | str | None = None,
+        tz: ZoneInfo | str | None = None,
     ) -> Intervals:
         if resource is None:
             resource = self.env["resource.resource"]
@@ -919,7 +921,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resources: ResourceResource | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | str | None = None,
+        tz: ZoneInfo | str | None = None,
     ) -> dict[int | bool, Intervals]:
         """Return the leave intervals in the given datetime range.
         The returned intervals are expressed in specified tz or in the calendar's timezone.
@@ -957,8 +959,8 @@ class ResourceCalendar(models.Model):
             *domain,
             calendar_leaf,
             ("resource_id", "in", [False] + [r.id for r in resources_list]),
-            ("date_from", "<=", end_dt.astimezone(utc).replace(tzinfo=None)),
-            ("date_to", ">=", start_dt.astimezone(utc).replace(tzinfo=None)),
+            ("date_from", "<=", end_dt.astimezone(UTC).replace(tzinfo=None)),
+            ("date_to", ">=", start_dt.astimezone(UTC).replace(tzinfo=None)),
         ]
 
         # Resolve each queried resource's timezone and localized window once —
@@ -1023,7 +1025,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resources: ResourceResource | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | str | None = None,
+        tz: ZoneInfo | str | None = None,
         compute_leaves: bool = True,
     ) -> dict[int | bool, Intervals]:
         """Return the effective work intervals between the given datetimes."""
@@ -1062,7 +1064,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resource: ResourceResource | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | str | None = None,
+        tz: ZoneInfo | str | None = None,
     ) -> list[tuple[datetime, datetime]]:
         if resource is None:
             resource = self.env["resource.resource"]
@@ -1080,7 +1082,7 @@ class ResourceCalendar(models.Model):
         end_dt: datetime,
         resources: ResourceResource | None = None,
         domain: list | None = None,
-        tz: BaseTzInfo | str | None = None,
+        tz: ZoneInfo | str | None = None,
     ) -> dict[int | bool, list[tuple[datetime, datetime]]]:
         """Return the unavailable intervals between the given datetimes."""
         if not resources:
@@ -1106,7 +1108,7 @@ class ResourceCalendar(models.Model):
                 # the *company* calendar's unavailability — greying out cells
                 # for a flexible resource that is in fact available.
                 result[resource.id] = [
-                    (i[0].astimezone(utc), i[1].astimezone(utc))
+                    (i[0].astimezone(UTC), i[1].astimezone(UTC))
                     for i in leaves.get(resource.id, [])
                 ]
                 continue
@@ -1118,7 +1120,7 @@ class ResourceCalendar(models.Model):
                 [start_dt] + list(chain.from_iterable(work_intervals)) + [end_dt]
             )
             # put it back to UTC
-            work_intervals = [dt.astimezone(utc) for dt in work_intervals]
+            work_intervals = [dt.astimezone(UTC) for dt in work_intervals]
             # pick groups of two
             work_intervals = list(
                 zip(work_intervals[0::2], work_intervals[1::2], strict=True)
@@ -1297,9 +1299,9 @@ class ResourceCalendar(models.Model):
             return {}
         self.ensure_one()
         if not start_dt.tzinfo:
-            start_dt = start_dt.replace(tzinfo=utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
         if not end_dt.tzinfo:
-            end_dt = end_dt.replace(tzinfo=utc)
+            end_dt = end_dt.replace(tzinfo=UTC)
 
         domain = []
         if company_id:
@@ -1486,9 +1488,9 @@ class ResourceCalendar(models.Model):
         self.ensure_one()
         # Set timezone in UTC if no timezone is explicitly given
         if not start_dt.tzinfo:
-            start_dt = start_dt.replace(tzinfo=utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
         if not end_dt.tzinfo:
-            end_dt = end_dt.replace(tzinfo=utc)
+            end_dt = end_dt.replace(tzinfo=UTC)
 
         if compute_leaves:
             intervals = self._work_intervals_batch(start_dt, end_dt, domain=domain)[

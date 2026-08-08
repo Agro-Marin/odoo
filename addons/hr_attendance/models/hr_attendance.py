@@ -2,19 +2,18 @@
 
 from calendar import monthrange
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from itertools import chain
 from random import randint
 
-import pytz
 from dateutil.relativedelta import MO, SU, relativedelta
 from dateutil.rrule import DAILY, rrule
-from pytz import timezone, utc
 
 from odoo import _, api, exceptions, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.tools import convert, format_datetime, format_duration, format_time
 from odoo.tools.date_utils import sum_intervals
@@ -89,7 +88,7 @@ class HrAttendance(models.Model):
                 attendance.date = datetime.today()
                 continue
             tz = timezone(attendance.employee_id._get_tz())
-            attendance.date = utc.localize(attendance.check_in).astimezone(tz).date()
+            attendance.date = attendance.check_in.replace(tzinfo=UTC).astimezone(tz).date()
 
     @api.depends("worked_hours", "overtime_hours")
     def _compute_expected_hours(self):
@@ -252,11 +251,11 @@ class HrAttendance(models.Model):
         # and the date it was for that employee
         if not dt.tzinfo:
             calendar_tz = employee._get_calendar_tz_batch(dt)[employee.id]
-            date_employee_tz = pytz.utc.localize(dt).astimezone(pytz.timezone(calendar_tz))
+            date_employee_tz = dt.replace(tzinfo=UTC).astimezone(timezone(calendar_tz))
         else:
             date_employee_tz = dt
         start_day_employee_tz = date_employee_tz.replace(hour=0, minute=0, second=0)
-        return (start_day_employee_tz.astimezone(pytz.utc).replace(tzinfo=None), start_day_employee_tz.date())
+        return (start_day_employee_tz.astimezone(UTC).replace(tzinfo=None), start_day_employee_tz.date())
 
     def _get_week_date_range(self):
         assert self
@@ -287,10 +286,10 @@ class HrAttendance(models.Model):
             return
 
         start_check_in = min(all_attendances.mapped('check_in')).date() - relativedelta(days=1)  # for timezone
-        min_check_in = utc.localize(datetime.combine(start_check_in, datetime.min.time()))
+        min_check_in = datetime.combine(start_check_in, datetime.min.time()).replace(tzinfo=UTC)
 
         start_check_out = max(all_attendances.mapped('check_out')).date() + relativedelta(days=1)
-        max_check_out = utc.localize(datetime.combine(start_check_out, datetime.max.time()))  # for timezone
+        max_check_out = datetime.combine(start_check_out, datetime.max.time()).replace(tzinfo=UTC)  # for timezone
 
         version_periods_by_employee = all_attendances.employee_id.sudo()._get_version_periods(min_check_in, max_check_out)
         attendances_by_employee = all_attendances.grouped('employee_id')
@@ -298,8 +297,8 @@ class HrAttendance(models.Model):
         for employee, emp_attendance in attendances_by_employee.items():
             for attendance in emp_attendance:
                 attendance_intervals = Intervals([(
-                    utc.localize(attendance.check_in),
-                    utc.localize(attendance.check_out),
+                    attendance.check_in.replace(tzinfo=UTC),
+                    attendance.check_out.replace(tzinfo=UTC),
                     self.env['hr.version'])])
                 inter = Intervals(version_periods_by_employee[employee]) & attendance_intervals
                 if not inter:
@@ -555,7 +554,7 @@ class HrAttendance(models.Model):
     def _cron_auto_check_out(self):
         def check_in_tz(attendance):
             """Returns check-in time in calendar's timezone."""
-            return attendance.check_in.astimezone(pytz.timezone(attendance.employee_id._get_tz()))
+            return attendance.check_in.astimezone(timezone(attendance.employee_id._get_tz()))
 
         to_verify = self.env['hr.attendance'].search(
             [('check_out', '=', False),
@@ -585,7 +584,7 @@ class HrAttendance(models.Model):
 
             for att in to_verify_company:
 
-                employee_timezone = pytz.timezone(att.employee_id._get_tz())
+                employee_timezone = timezone(att.employee_id._get_tz())
                 check_in_datetime = check_in_tz(att)
                 now_datetime = fields.Datetime.now().astimezone(employee_timezone)
                 current_attendance_duration = (now_datetime - check_in_datetime).total_seconds() / 3600
@@ -630,7 +629,7 @@ class HrAttendance(models.Model):
         ])
 
         for emp in absent_employees:
-            local_day_start = pytz.utc.localize(yesterday).astimezone(pytz.timezone(emp._get_tz()))
+            local_day_start = yesterday.replace(tzinfo=UTC).astimezone(timezone(emp._get_tz()))
             technical_attendances_vals.append({
                 'check_in': local_day_start.strftime('%Y-%m-%d %H:%M:%S'),
                 'check_out': (local_day_start + relativedelta(seconds=1)).strftime('%Y-%m-%d %H:%M:%S'),
@@ -651,8 +650,8 @@ class HrAttendance(models.Model):
     def _get_localized_times(self):
         self.ensure_one()
         tz = timezone(self.employee_id.sudo()._get_version(self.check_in.date()).tz)
-        localized_start = utc.localize(self.check_in).astimezone(tz).replace(tzinfo=None)
-        localized_end = utc.localize(self.check_out).astimezone(tz).replace(tzinfo=None)
+        localized_start = self.check_in.replace(tzinfo=UTC).astimezone(tz).replace(tzinfo=None)
+        localized_end = self.check_out.replace(tzinfo=UTC).astimezone(tz).replace(tzinfo=None)
         return localized_start, localized_end
 
     def _get_dates(self):

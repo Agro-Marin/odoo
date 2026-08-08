@@ -3,12 +3,14 @@
 import base64
 import datetime
 import json
-import pytz
 import urllib.parse
+from datetime import UTC
+
 import requests
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from odoo.libs.datetime import timezone
 
 PRODUCTION_URL = "https://einvoice.ecpay.com.tw/"
 STAGING_URL = "https://einvoice-stage.ecpay.com.tw/"
@@ -17,8 +19,8 @@ TIMEOUT = 20
 
 def transfer_time(time_before):
     ecpay_time = datetime.datetime.strptime(time_before, "%Y-%m-%d %H:%M:%S")
-    ecpay_time = pytz.timezone('Asia/Taipei').localize(ecpay_time)
-    return ecpay_time.astimezone(pytz.UTC).strftime("%Y-%m-%d %H:%M:%S")
+    ecpay_time = ecpay_time.replace(tzinfo=timezone('Asia/Taipei'))
+    return ecpay_time.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def encrypt(data, cipher):

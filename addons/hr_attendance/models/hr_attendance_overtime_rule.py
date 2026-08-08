@@ -1,21 +1,21 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import DAILY, rrule
-from pytz import timezone, utc
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals, _boundaries, invert_intervals
 from odoo.libs.numbers import float_compare
 from odoo.tools.date_utils import float_to_time, sum_intervals
 
 
 def _naive_utc(dt):
-    return dt.astimezone(utc).replace(tzinfo=None)
+    return dt.astimezone(UTC).replace(tzinfo=None)
 
 
 def _midnight(date):
@@ -169,15 +169,15 @@ class HrAttendanceOvertimeRule(models.Model):
     def _get_local_time_start(self, date, tz):
         self.ensure_one()
         ret = _midnight(date) + relativedelta(hours=self.timing_start)
-        return _naive_utc(tz.localize(ret))
+        return _naive_utc(ret.replace(tzinfo=tz))
 
     def _get_local_time_stop(self, date, tz):
         self.ensure_one()
         if self.timing_stop == 24:
             ret = datetime.combine(date, datetime.max.time())
-            return _naive_utc(tz.localize(ret))
+            return _naive_utc(ret.replace(tzinfo=tz))
         ret = _midnight(date) + relativedelta(hours=self.timing_stop)
-        return _naive_utc(tz.localize(ret))
+        return _naive_utc(ret.replace(tzinfo=tz))
 
     def _get1_timing_overtime_intervals(self, attendances, version_map):
         self.ensure_one()
@@ -226,8 +226,8 @@ class HrAttendanceOvertimeRule(models.Model):
                         (_naive_utc(start), _naive_utc(end), records)
                         for (start, end, records)
                         in work_schedule._attendance_intervals_batch(
-                            utc.localize(start_dt),
-                            utc.localize(end_dt),
+                            start_dt.replace(tzinfo=UTC),
+                            end_dt.replace(tzinfo=UTC),
                             resource,
                             tz=tz,
                             lunch=lunch,
@@ -237,8 +237,8 @@ class HrAttendanceOvertimeRule(models.Model):
             elif self.timing_type == 'leave':
                 # TODO: completely untested
                 leave_intervals = last_version.resource_calendar_id._leave_intervals_batch(
-                    utc.localize(start_dt),
-                    utc.localize(end_dt),
+                    start_dt.replace(tzinfo=UTC),
+                    end_dt.replace(tzinfo=UTC),
                     resource,
                     tz=tz,
                 )[resource.id]
@@ -276,8 +276,8 @@ class HrAttendanceOvertimeRule(models.Model):
         date_start = datetime.combine(date_start, datetime.min.time())
         date_end = datetime.combine(date_end, datetime.max.time())
         expected_work_time = version.employee_id._employee_attendance_intervals(
-            utc.localize(date_start),
-            utc.localize(date_end)
+            date_start.replace(tzinfo=UTC),
+            date_end.replace(tzinfo=UTC)
         )
         delta = sum((i[1] - i[0]).total_seconds() for i in expected_work_time)
         return delta / 3600.0
@@ -430,8 +430,8 @@ class HrAttendanceOvertimeRule(models.Model):
                 )
         if 'schedule' in timing_type_set:
             for calendar in timing_rule_by_timing_type['schedule'].resource_calendar_id:
-                start_datetime = utc.localize(datetime.combine(min_check_in, datetime.min.time())) - relativedelta(days=1)  # to avoid timezone shift
-                stop_datetime = utc.localize(datetime.combine(max_check_out, datetime.max.time())) + relativedelta(days=1)  # to avoid timezone shift
+                start_datetime = datetime.combine(min_check_in, datetime.min.time()).replace(tzinfo=UTC) - relativedelta(days=1)  # to avoid timezone shift
+                stop_datetime = datetime.combine(max_check_out, datetime.max.time()).replace(tzinfo=UTC) + relativedelta(days=1)  # to avoid timezone shift
                 interval = calendar._attendance_intervals_batch(start_datetime, stop_datetime, lunch=True)[False]
                 interval |= calendar._attendance_intervals_batch(start_datetime, stop_datetime)[False]
                 naive_interval = Intervals([(

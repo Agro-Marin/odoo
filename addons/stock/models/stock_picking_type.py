@@ -1,8 +1,6 @@
 import json
 from ast import literal_eval
-from datetime import timedelta
-
-import pytz
+from datetime import UTC, timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -522,7 +520,7 @@ class StockPickingType(models.Model):
         late_cutoff = (
             self.env["stock.picking"]
             ._date_category_boundaries()["today"]
-            .astimezone(pytz.UTC)
+            .astimezone(UTC)
             .replace(tzinfo=None)
         )
         # The plain state-based counters all derive from one query grouped by
@@ -932,7 +930,7 @@ class StockPickingType(models.Model):
         # Stored datetimes are naive UTC; express the tz-aware boundaries the
         # same way (mirrors `date_category_to_domain`).
         bounds = {
-            key: value.astimezone(pytz.UTC).replace(tzinfo=None)
+            key: value.astimezone(UTC).replace(tzinfo=None)
             for key, value in self.env[
                 "stock.picking"
             ]._date_category_boundaries().items()

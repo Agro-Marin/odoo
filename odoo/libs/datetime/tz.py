@@ -3,6 +3,7 @@ __all__ = [
     "all_timezones",
     "country_timezones",
     "localize",
+    "localize_standard",
     "timezone",
     "utc",
 ]
@@ -154,6 +155,37 @@ def localize(dt: datetime, tz: ZoneInfo | dt_timezone) -> datetime:
     if dt.tzinfo is not None:
         raise ValueError(f"Cannot localize a datetime that already has tzinfo: {dt}")
     return dt.replace(tzinfo=tz)
+
+
+def localize_standard(dt: datetime, tz: ZoneInfo | dt_timezone) -> datetime:
+    """Attach ``tz`` to naive ``dt``, resolving DST edges towards standard time.
+
+    This is what pytz's ``localize(dt, is_dst=False)`` meant, and no single
+    ``fold`` value reproduces it, which is why it needs a function:
+
+    * A local time that happens **twice** (clocks go back) has standard time as
+      its *second* instance -- ``fold=1``.
+    * A local time that happens **not at all** (clocks go forward) was resolved
+      by pytz with the offset in effect *before* the gap, which is ``fold=0``.
+
+    Outside those two hours a year both folds agree and the ordinary answer is
+    returned, so callers pay one extra ``utcoffset()`` and nothing else.
+
+    Use it only where the caller genuinely cares which side of a DST boundary an
+    ambiguous wall-clock time lands on; ``dt.replace(tzinfo=tz)`` is the plain
+    spelling everywhere else.
+    """
+    if dt.tzinfo is not None:
+        raise ValueError(f"Cannot localize a datetime that already has tzinfo: {dt}")
+    first = dt.replace(tzinfo=tz)
+    second = dt.replace(tzinfo=tz, fold=1)
+    if first.utcoffset() == second.utcoffset():
+        return first
+    # The two offsets differ, so dt is either repeated or skipped. Only a
+    # skipped one fails to survive a round trip through UTC.
+    if first.astimezone(UTC).astimezone(tz).replace(tzinfo=None) == dt:
+        return second
+    return first
 
 
 def all_timezones() -> frozenset[str]:

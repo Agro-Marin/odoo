@@ -1,8 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, _
-
-import pytz
+from odoo import _, fields, models
+from odoo.libs.datetime import timezone
 
 
 class HrLeave(models.Model):
@@ -34,7 +33,7 @@ class HrLeave(models.Model):
                 continue
 
             calendar = leave.employee_id.resource_calendar_id
-            calendar_timezone = pytz.timezone((calendar or leave.employee_id).tz)
+            calendar_timezone = timezone((calendar or leave.employee_id).tz)
 
             if calendar.flexible_hours and (leave.request_unit_hours or leave.request_unit_half or leave.date_from.date() == leave.date_to.date()):
                 leave_date = leave.date_from.astimezone(calendar_timezone).date()

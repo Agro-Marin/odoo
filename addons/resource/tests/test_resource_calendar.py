@@ -1,7 +1,6 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
-
+from odoo.libs.datetime import timezone
 from odoo.tests.common import TransactionCase
 
 
@@ -32,7 +31,7 @@ class TestResourceCalendar(TransactionCase):
                 "hour_to": 17,  # 21:00 UTC
             }
         )
-        UTC = pytz.timezone("UTC")
+        UTC = timezone("UTC")
         start_dt = datetime(2025, 6, 4, 18, 0, 0).astimezone(UTC)
         end_dt = datetime(2025, 6, 4, 21, 0, 0).astimezone(UTC)
         result_per_resource_id = calendar._attendance_intervals_batch(
@@ -79,8 +78,8 @@ class TestResourceCalendar(TransactionCase):
         # Expected: 7-7-7-7-2 (30 hours total)
         expected_hours = [7, 7, 7, 7, 2]
 
-        start_dt = datetime(2025, 6, 2, 0, 0, 0).astimezone(pytz.UTC)
-        end_dt = datetime(2025, 6, 7, 23, 59, 59).astimezone(pytz.UTC)
+        start_dt = datetime(2025, 6, 2, 0, 0, 0).astimezone(UTC)
+        end_dt = datetime(2025, 6, 7, 23, 59, 59).astimezone(UTC)
         result_per_resource_id = flexible_calendar._attendance_intervals_batch(
             start_dt, end_dt
         )
@@ -100,8 +99,8 @@ class TestResourceCalendar(TransactionCase):
         )
 
         # Case 2: check attendances are all contained between start_dt and end_dt
-        start_dt = datetime(2025, 6, 2, 11, 0, 0).astimezone(pytz.UTC)
-        end_dt = datetime(2025, 6, 7, 13, 0, 0).astimezone(pytz.UTC)
+        start_dt = datetime(2025, 6, 2, 11, 0, 0).astimezone(UTC)
+        end_dt = datetime(2025, 6, 7, 13, 0, 0).astimezone(UTC)
         result_per_resource_id = flexible_calendar._attendance_intervals_batch(
             start_dt, end_dt
         )
@@ -136,8 +135,8 @@ class TestResourceCalendar(TransactionCase):
             }
         )
         calendar.company_id = False
-        date_from = datetime(2019, 5, 27, 0, 0, 0).astimezone(pytz.UTC)
-        date_to = datetime(2019, 5, 31, 23, 59, 59).astimezone(pytz.UTC)
+        date_from = datetime(2019, 5, 27, 0, 0, 0).astimezone(UTC)
+        date_to = datetime(2019, 5, 31, 23, 59, 59).astimezone(UTC)
         days = calendar._get_unusual_days(date_from, date_to, self.env.company)
         expected_res = {
             "2019-05-27": False,

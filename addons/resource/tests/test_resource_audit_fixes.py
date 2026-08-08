@@ -5,11 +5,10 @@ being fixed; the docstrings record the observed wrong value so a regression is
 recognisable rather than merely red.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from lxml import etree
 from psycopg.errors import CheckViolation
-from pytz import utc
 
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
@@ -32,8 +31,8 @@ class TestPlanDaysEndOfDay(TransactionCase):
         cls.calendar = cls.env["resource.calendar"].create(
             {"name": "Audit 40h", "tz": "UTC"}
         )
-        cls.monday = utc.localize(datetime(2025, 1, 6))
-        cls.friday_night = utc.localize(datetime(2025, 1, 10, 23, 59))
+        cls.monday = datetime(2025, 1, 6).replace(tzinfo=UTC)
+        cls.friday_night = datetime(2025, 1, 10, 23, 59).replace(tzinfo=UTC)
 
     def test_plan_days_returns_end_of_day(self):
         for days, expected in (
@@ -44,7 +43,7 @@ class TestPlanDaysEndOfDay(TransactionCase):
             with self.subTest(days=days):
                 self.assertEqual(
                     self.calendar.plan_days(days, self.monday),
-                    utc.localize(expected),
+                    expected.replace(tzinfo=UTC),
                 )
 
     def test_plan_days_agrees_with_plan_hours(self):
@@ -64,7 +63,7 @@ class TestPlanDaysEndOfDay(TransactionCase):
             with self.subTest(days=days):
                 self.assertEqual(
                     self.calendar.plan_days(days, self.friday_night),
-                    utc.localize(expected),
+                    expected.replace(tzinfo=UTC),
                 )
 
     def test_plan_days_edge_cases_preserved(self):
@@ -324,8 +323,8 @@ class TestCalendarlessIntervalApi(TransactionCase):
     """
 
     def test_leave_intervals_on_empty_calendar_is_empty(self):
-        start = utc.localize(datetime(2025, 1, 6))
-        end = utc.localize(datetime(2025, 1, 7))
+        start = datetime(2025, 1, 6).replace(tzinfo=UTC)
+        end = datetime(2025, 1, 7).replace(tzinfo=UTC)
         self.assertEqual(
             len(self.env["resource.calendar"].browse()._leave_intervals(start, end)),
             0,
@@ -341,14 +340,14 @@ class TestCalendarlessIntervalApi(TransactionCase):
                 "date_to": datetime(2025, 1, 6, 17),
             }
         )
-        start = utc.localize(datetime(2025, 1, 6))
-        end = utc.localize(datetime(2025, 1, 7))
+        start = datetime(2025, 1, 6).replace(tzinfo=UTC)
+        end = datetime(2025, 1, 7).replace(tzinfo=UTC)
         got = self.env["resource.calendar"].browse()._leave_intervals_batch(start, end)
         self.assertFalse(list(got[False]))
 
     def test_attendance_intervals_on_empty_calendar_explains_itself(self):
-        start = utc.localize(datetime(2025, 1, 6))
-        end = utc.localize(datetime(2025, 1, 7))
+        start = datetime(2025, 1, 6).replace(tzinfo=UTC)
+        end = datetime(2025, 1, 7).replace(tzinfo=UTC)
         with self.assertRaises(ValueError) as caught:
             self.env["resource.calendar"].browse()._attendance_intervals_batch(
                 start, end

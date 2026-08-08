@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, timedelta
 
-import pytz
+from odoo.libs.datetime import timezone
 
 strftime_to_spreadsheet_time_format_table = {
     "%H": "hh",
@@ -63,7 +63,7 @@ SECONDS_PER_DAY = 24 * 60 * 60
 
 
 def datetime_to_spreadsheet_date_number(dt, tz_name):
-    context_tz = pytz.timezone(tz_name)
+    context_tz = timezone(tz_name)
     localized_datetime = dt.astimezone(context_tz)
     offset = localized_datetime.utcoffset() / timedelta(seconds=1)
     timestamp = dt.timestamp() + offset

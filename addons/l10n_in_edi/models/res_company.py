@@ -1,9 +1,11 @@
-import pytz
 
-from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from datetime import UTC
+
+from stdnum.in_ import gstin, pan
+
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
-from stdnum.in_ import pan, gstin
+from odoo.libs.datetime import timezone
 
 
 class ResCompany(models.Model):
@@ -70,9 +72,9 @@ class ResCompany(models.Model):
             }
         # validity data-time in Indian standard time(UTC+05:30) convert IST to UTC
         if data := response.get('data'):
-            tz = pytz.timezone("Asia/Kolkata")
-            local_time = tz.localize(fields.Datetime.to_datetime(data["TokenExpiry"]))
-            utc_time = local_time.astimezone(pytz.utc)
+            tz = timezone("Asia/Kolkata")
+            local_time = fields.Datetime.to_datetime(data["TokenExpiry"]).replace(tzinfo=tz)
+            utc_time = local_time.astimezone(UTC)
             self_sudo.write({
                 'l10n_in_edi_token_validity': fields.Datetime.to_string(utc_time),
                 'l10n_in_edi_token': data['AuthToken'],

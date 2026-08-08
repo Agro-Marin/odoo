@@ -1,17 +1,18 @@
-from datetime import date, datetime, timedelta, timezone
-from dateutil.relativedelta import relativedelta
-from freezegun import freeze_time
+import random
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
-import pytz
-import random
+from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
 
 from odoo import fields, tests
+from odoo.libs.datetime import timezone
+from odoo.tests import tagged, users
+from odoo.tools import mute_logger
+
 from odoo.addons.mail.models.mail_activity import MailActivity
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.test_mail.tests.test_mail_activity import TestActivityCommon
-from odoo.tests import tagged, users
-from odoo.tools import mute_logger
 
 
 @tagged('mail_activity', 'mail_activity_mixin')
@@ -43,8 +44,8 @@ class TestActivityMixin(TestActivityCommon):
             self.assertEqual(len(self.test_record.message_ids), 1)
             self.assertEqual(self.test_record.env.user, self.user_employee)
 
-            now_utc = datetime.now(pytz.UTC)
-            now_user = now_utc.astimezone(pytz.timezone(self.env.user.tz or 'UTC'))
+            now_utc = datetime.now(UTC)
+            now_user = now_utc.astimezone(timezone(self.env.user.tz or 'UTC'))
             today_user = now_user.date()
 
             # Test various scheduling of activities
@@ -631,7 +632,7 @@ class TestORM(TestActivityCommon):
         with freeze_time("2025-05-21 10:00:00"):
             self.env["mail.activity"].create([
                 {
-                    "date_deadline": datetime.now(timezone.utc) + timedelta(days=delta_days),
+                    "date_deadline": datetime.now(UTC) + timedelta(days=delta_days),
                     "res_id": lead.id,
                     "res_model_id": self.env["ir.model"]._get_id("mail.test.lead"),
                     "summary": f"Test activity for CRM lead {lead.id}",

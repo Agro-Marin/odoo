@@ -12,13 +12,14 @@ notes into the legally required pattern that embeds two journal-level fields:
 Legal reference: https://porezna-uprava.gov.hr/Regulations#169%7C228, https://porezna-uprava.gov.hr/Propisi#3149|3150
 """
 
-import pytz
 
-from odoo import models, api
-from odoo.exceptions import ValidationError
-import re
 import logging
+import re
 from datetime import datetime
+
+from odoo import api, models
+from odoo.exceptions import ValidationError
+from odoo.libs.datetime import timezone
 
 _logger = logging.getLogger(__name__)
 HR_FORMAT_STR = '{code}-{year:0{year_length}d}-{seq:0{seq_length}d}/{premises_label}/{device_label}'
@@ -54,7 +55,7 @@ class SequenceMixin(models.AbstractModel):
             _logger.error("Issuing device label is not set on the journal.")
             raise ValidationError(self.env._("Issuing device label is not set on the journal."))
 
-        current_year = datetime.now(pytz.timezone('Europe/Zagreb')).year
+        current_year = datetime.now(timezone('Europe/Zagreb')).year
         format_values = {
             'code': self.journal_id.code,
             'year': current_year,

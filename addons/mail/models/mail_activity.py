@@ -3,11 +3,11 @@ from ast import literal_eval
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 
-import pytz
 from dateutil.relativedelta import MO, relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.datetime import timezone
 from odoo.tools import is_html_empty
 from odoo.tools.misc import clean_context, get_lang, groupby
 
@@ -232,7 +232,7 @@ class MailActivity(models.Model):
         if not tz:
             return date.today()
         today_utc = datetime.now(UTC)
-        today_tz = today_utc.astimezone(pytz.timezone(tz))
+        today_tz = today_utc.astimezone(timezone(tz))
         return date(year=today_tz.year, month=today_tz.month, day=today_tz.day)
 
     @api.model

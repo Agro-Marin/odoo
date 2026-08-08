@@ -1,8 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import pytz
+
+from datetime import UTC
 
 from odoo import _, fields, models, tools
+from odoo.libs.datetime import timezone
 from odoo.tools import is_html_empty
 
 from odoo.addons.mail.tools.discuss import Store
@@ -29,7 +31,7 @@ class MailActivity(models.Model):
                 # otherwise: we have to check if day did change, based on TZ
                 elif not event.allday:
                     # old start in user timezone
-                    old_deadline_dt = pytz.utc.localize(event.start).astimezone(pytz.timezone(user_tz))
+                    old_deadline_dt = event.start.replace(tzinfo=UTC).astimezone(timezone(user_tz))
                     date_diff = date_deadline - old_deadline_dt.date()
                     event.start = event.start + date_diff
 

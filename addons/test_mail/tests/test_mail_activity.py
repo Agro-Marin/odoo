@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from unittest.mock import DEFAULT, patch
+
 from dateutil.relativedelta import relativedelta
 from psycopg import IntegrityError
-from unittest.mock import patch
-from unittest.mock import DEFAULT
 
-import pytz
-
-from odoo import fields, exceptions, tests
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.mail.tests.common_activity import ActivityScheduleCase
-from odoo.addons.test_mail.models.test_mail_models import MailTestActivity
+from odoo import exceptions, fields, tests
+from odoo.libs.datetime import timezone
 from odoo.tests import Form, HttpCase, users
 from odoo.tests.common import freeze_time
 from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.mail.tests.common_activity import ActivityScheduleCase
+from odoo.addons.test_mail.models.test_mail_models import MailTestActivity
 
 
 class TestActivityCommon(ActivityScheduleCase):
@@ -790,8 +790,8 @@ class TestActivityViewHelpers(TestActivityCommon):
             test_record, test_record_2 = self.env['mail.test.activity'].browse(
                 (self.test_record + self.test_record_2).ids
             )
-            now_utc = datetime.now(pytz.UTC)
-            now_user = now_utc.astimezone(pytz.timezone(self.env.user.tz or 'UTC'))
+            now_utc = datetime.now(UTC)
+            now_user = now_utc.astimezone(timezone(self.env.user.tz or 'UTC'))
             today_user = now_user.date()
 
             for days, user_id in ((-1, self.user_employee_2), (0, self.user_employee), (1, self.user_admin)):

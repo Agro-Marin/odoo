@@ -4,7 +4,6 @@ from collections import defaultdict
 from datetime import datetime
 from uuid import uuid4
 
-import pytz
 
 from odoo import SUPERUSER_ID, Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -13,6 +12,7 @@ from odoo.service.common import exp_version
 from odoo.tools import SQL, convert
 
 from odoo.addons.point_of_sale.models.pos_printer import format_epson_certified_domain
+from odoo.libs.datetime import timezone
 
 DEFAULT_LIMIT_LOAD_PRODUCT = 5000
 DEFAULT_LIMIT_LOAD_PARTNER = 100
@@ -645,9 +645,7 @@ class PosConfig(models.Model):
     def get_statistics_for_session(self, session):
         self.ensure_one()
         currency = self.currency_id
-        timezone = pytz.timezone(
-            self.env.context.get("tz") or self.env.user.tz or "UTC"
-        )
+        tz = timezone(self.env.context.get("tz") or self.env.user.tz or "UTC")
         statistics = {
             "cash": {
                 "raw_opening_cash": session.cash_register_balance_start,
@@ -655,7 +653,7 @@ class PosConfig(models.Model):
             },
             "date": {
                 "is_started": bool(session.start_at),
-                "start_date": session.start_at.astimezone(timezone).strftime("%b %d")
+                "start_date": session.start_at.astimezone(tz).strftime("%b %d")
                 if session.start_at
                 else False,
             },
@@ -715,9 +713,9 @@ class PosConfig(models.Model):
                 limit=1,
             )
             if session:
-                timezone = self.env.tz
+                tz = self.env.tz
                 pos_config.last_session_closing_date = (
-                    session[0]["stop_at"].astimezone(timezone).date()
+                    session[0]["stop_at"].astimezone(tz).date()
                 )
                 pos_config.last_session_closing_cash = session[0][
                     "cash_register_balance_end_real"

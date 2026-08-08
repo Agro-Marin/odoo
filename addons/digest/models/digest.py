@@ -4,13 +4,13 @@ import logging
 from datetime import UTC, date, datetime
 from urllib.parse import urlencode
 
-import pytz
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 from odoo.libs.numbers import float_round
 from odoo.libs.web import urljoin as url_join
 
@@ -381,7 +381,7 @@ class DigestDigest(models.Model):
         start_datetime = datetime.now(UTC)
         tz_name = company.resource_calendar_id.tz
         if tz_name:
-            start_datetime = start_datetime.astimezone(pytz.timezone(tz_name))
+            start_datetime = start_datetime.astimezone(timezone(tz_name))
         return [
             (_('Last 24 hours'), (
                 (start_datetime + relativedelta(days=-1), start_datetime),

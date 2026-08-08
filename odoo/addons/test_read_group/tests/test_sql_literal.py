@@ -6,10 +6,10 @@ class TestSqlLiteral(common.TransactionCase):
     def test_returns_quoted_value(self):
         self.assertEqual(SQL.literal("UTC").code, "'UTC'")
 
-    def test_pytz_with_slash(self):
+    def test_timezone_with_slash(self):
         self.assertEqual(SQL.literal("America/New_York").code, "'America/New_York'")
 
-    def test_pytz_with_plus(self):
+    def test_timezone_with_plus(self):
         self.assertEqual(SQL.literal("Etc/GMT+0").code, "'Etc/GMT+0'")
         self.assertEqual(SQL.literal("Etc/GMT-12").code, "'Etc/GMT-12'")
 

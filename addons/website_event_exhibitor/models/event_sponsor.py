@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta
-from pytz import timezone, utc
+from datetime import UTC, datetime, timedelta
 
 from odoo import api, fields, models
+from odoo.libs.datetime import timezone
 from odoo.tools import is_html_empty
 from odoo.tools.date_utils import float_to_time
 from odoo.tools.translate import html_translate
@@ -135,12 +135,12 @@ class EventSponsor(models.Model):
                 # localize now, begin and end datetimes in event tz
                 dt_begin = sponsor.event_id.date_begin.astimezone(event_tz)
                 dt_end = sponsor.event_id.date_end.astimezone(event_tz)
-                now_utc = utc.localize(fields.Datetime.now().replace(microsecond=0))
+                now_utc = fields.Datetime.now().replace(microsecond=0).replace(tzinfo=UTC)
                 now_tz = now_utc.astimezone(event_tz)
 
                 # compute opening hours
-                opening_from_tz = event_tz.localize(datetime.combine(now_tz.date(), float_to_time(sponsor.hour_from)))
-                opening_to_tz = event_tz.localize(datetime.combine(now_tz.date(), float_to_time(sponsor.hour_to)))
+                opening_from_tz = datetime.combine(now_tz.date(), float_to_time(sponsor.hour_from)).replace(tzinfo=event_tz)
+                opening_to_tz = datetime.combine(now_tz.date(), float_to_time(sponsor.hour_to)).replace(tzinfo=event_tz)
                 if sponsor.hour_to == 0:
                     # when closing 'at midnight', we consider it's at midnight the next day
                     opening_to_tz = opening_to_tz + timedelta(days=1)

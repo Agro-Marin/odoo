@@ -8,14 +8,12 @@ The fix guards the sync to active records and reorders the archive mirror before
 the sync so reactivation reconciles instead of duplicating.
 """
 
-from datetime import datetime
-
-import pytz
+from datetime import UTC, datetime
 
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-UTC = pytz.UTC
+UTC = UTC
 
 
 @tagged("post_install", "-at_install")

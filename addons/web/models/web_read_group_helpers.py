@@ -6,14 +6,15 @@ formatting / expansion logic in separate files.
 
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
+from datetime import UTC
 from typing import Any
 
 import babel
 import babel.dates
-import pytz
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.datetime import all_timezones, timezone
 from odoo.models import (
     READ_GROUP_DISPLAY_FORMAT,
     READ_GROUP_NUMBER_GRANULARITY,
@@ -347,12 +348,12 @@ class Base(models.AbstractModel):
                     range_end = value + interval
                     if field.type == "datetime":
                         tzinfo = None
-                        if self.env.context.get("tz") in pytz.all_timezones_set:
-                            tzinfo = pytz.timezone(self.env.context["tz"])
-                            range_start = tzinfo.localize(range_start).astimezone(
-                                pytz.utc
+                        if self.env.context.get("tz") in all_timezones():
+                            tzinfo = timezone(self.env.context["tz"])
+                            range_start = range_start.replace(tzinfo=tzinfo).astimezone(
+                                UTC
                             )
-                            range_end = tzinfo.localize(range_end).astimezone(pytz.utc)
+                            range_end = range_end.replace(tzinfo=tzinfo).astimezone(UTC)
 
                         label = babel.dates.format_datetime(
                             range_start,

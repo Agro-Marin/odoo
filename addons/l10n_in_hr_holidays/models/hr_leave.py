@@ -2,10 +2,9 @@
 
 from datetime import datetime, time, timedelta
 
-import pytz
-
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_compare
 from odoo.tools.date_utils import sum_intervals
@@ -153,7 +152,7 @@ class HrLeave(models.Model):
                 for offset in range((leave.request_date_to - leave.request_date_from).days + 1)
             }
 
-        tz = pytz.timezone(self.env.context.get("tz") or self.env.user.tz or "UTC")
+        tz = timezone(self.env.context.get("tz") or self.env.user.tz or "UTC")
         public_holidays_dates_by_company = {
             company_id: {
                 (datetime.date(holiday.date_from.astimezone(tz)) + timedelta(days=offset)): holiday

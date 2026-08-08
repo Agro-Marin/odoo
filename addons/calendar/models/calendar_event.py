@@ -4,11 +4,10 @@ import itertools
 import logging
 import math
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from itertools import repeat
 from urllib.parse import urlsplit, urlunsplit
 
-import pytz
 from markupsafe import Markup
 
 from odoo import api, fields, models
@@ -30,6 +29,7 @@ from odoo.addons.calendar.models.calendar_recurrence import (
     weekday_to_field,
 )
 from odoo.addons.calendar.models.utils import interval_from_events
+from odoo.libs.datetime import timezone
 
 _logger = logging.getLogger(__name__)
 
@@ -1668,8 +1668,8 @@ class CalendarEvent(models.Model):
         deadline = start
         user_tz = self.env.context.get("tz")
         if user_tz and not allday:
-            deadline = pytz.utc.localize(deadline)
-            deadline = deadline.astimezone(pytz.timezone(user_tz))
+            deadline = deadline.replace(tzinfo=UTC)
+            deadline = deadline.astimezone(timezone(user_tz))
         return deadline.date()
 
     # ------------------------------------------------------------
@@ -2058,10 +2058,10 @@ class CalendarEvent(models.Model):
         if not self.start:
             return fields.Date.today()
         if self.recurrency and self.event_tz:
-            tz = pytz.timezone(self.event_tz)
+            tz = timezone(self.event_tz)
             # Ensure that all day events date are not calculated around midnight. TZ shift would potentially return bad date
             start = self.start if not self.allday else self.start.replace(hour=12)
-            return pytz.utc.localize(start).astimezone(tz).date()
+            return start.replace(tzinfo=UTC).astimezone(tz).date()
         return self.start.date()
 
     def _range(self):
@@ -2085,7 +2085,7 @@ class CalendarEvent(models.Model):
             if idate:
                 if allday:
                     return idate
-                return idate.replace(tzinfo=pytz.timezone("UTC"))
+                return idate.replace(tzinfo=timezone("UTC"))
             return False
 
         if not vobject:
@@ -2217,13 +2217,13 @@ class CalendarEvent(models.Model):
         1) if user add duration for 2 hours, return : August-23-2013 at (04-30 To 06-30) (Europe/Brussels)
         2) if event all day ,return : AllDay, July-31-2013
         """
-        timezone = self.env.context.get("tz") or self.env.user.partner_id.tz or "UTC"
+        tz_name = self.env.context.get("tz") or self.env.user.partner_id.tz or "UTC"
 
         # get date/time format according to context
         format_date, format_time = self._get_date_formats()
 
         # convert date and time into user timezone
-        self_tz = self.with_context(tz=timezone)
+        self_tz = self.with_context(tz=tz_name)
         date = fields.Datetime.context_timestamp(
             self_tz, fields.Datetime.from_string(start)
         )
@@ -2245,7 +2245,7 @@ class CalendarEvent(models.Model):
                 day=date_str,
                 start=time_str,
                 end=duration_time,
-                timezone=timezone,
+                timezone=tz_name,
             )
         else:
             dd_date = date_deadline.strftime(format_date)
@@ -2256,7 +2256,7 @@ class CalendarEvent(models.Model):
                 time_start=time_str,
                 date_end=dd_date,
                 time_end=dd_time,
-                timezone=timezone,
+                timezone=tz_name,
             )
         return display_time
 

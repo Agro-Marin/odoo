@@ -2,11 +2,11 @@
 
 from datetime import date, datetime
 
-import pytz
 from dateutil.relativedelta import relativedelta
 
 from odoo.exceptions import ValidationError
 from odoo.fields import Date
+from odoo.libs.datetime import timezone
 from odoo.tests.common import tagged
 
 from odoo.addons.hr_work_entry_holidays.tests.common import TestWorkEntryHolidaysBase
@@ -18,7 +18,7 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.tz = pytz.timezone(cls.richard_emp.tz)
+        cls.tz = timezone(cls.richard_emp.tz)
         cls.start = datetime(2015, 11, 1, 1, 0, 0)
         cls.end = datetime(2015, 11, 30, 23, 59, 59)
         cls.resource_calendar_id = cls.env['resource.calendar'].create({'name': 'Zboub'})

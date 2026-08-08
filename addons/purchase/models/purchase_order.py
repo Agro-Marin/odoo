@@ -2,11 +2,11 @@ from urllib.parse import urlencode
 
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup, escape
-from pytz import timezone
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.datetime import timezone
 from odoo.libs.numbers import float_repr
 from odoo.tools import (
     SQL,

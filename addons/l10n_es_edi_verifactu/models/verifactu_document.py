@@ -1,20 +1,20 @@
-from datetime import datetime, timedelta
-from psycopg import OperationalError
-from pytz import timezone
-from urllib.parse import quote_plus, urlencode
-
 import hashlib
+import json
 import logging
 import math
-import requests.exceptions
-import json
+from datetime import datetime, timedelta
+from urllib.parse import quote_plus, urlencode
 
-from odoo import _, api, fields, models
-from odoo.addons.certificate.tools import CertificateAdapter
-from odoo.exceptions import UserError
-from odoo.tools import float_repr, float_round, frozendict, zeep
+import requests.exceptions
+from psycopg import OperationalError
 
 import odoo.release
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+from odoo.libs.datetime import timezone
+from odoo.tools import float_repr, float_round, frozendict, zeep
+
+from odoo.addons.certificate.tools import CertificateAdapter
 
 _logger = logging.getLogger(__name__)
 

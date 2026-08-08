@@ -1,9 +1,8 @@
 import logging
-from datetime import date, datetime, time, timedelta
-
-import pytz
+from datetime import UTC, date, datetime, time, timedelta
 
 from odoo import _, api, fields, models
+from odoo.libs.datetime import timezone
 from odoo.tools.safe_eval import safe_eval
 
 _logger = logging.getLogger(__name__)
@@ -149,16 +148,12 @@ class GamificationStreakType(models.Model):
         """Return the naive-UTC ``[start, end]`` strings bounding ``check_date``
         as that day is experienced in ``tz_name``.
         """
-        tz = pytz.timezone(tz_name)
-        start_local = tz.localize(datetime.combine(check_date, time.min))
-        end_local = tz.localize(datetime.combine(check_date, time.max))
+        tz = timezone(tz_name)
+        start_local = datetime.combine(check_date, time.min).replace(tzinfo=tz)
+        end_local = datetime.combine(check_date, time.max).replace(tzinfo=tz)
         return (
-            fields.Datetime.to_string(
-                start_local.astimezone(pytz.utc).replace(tzinfo=None)
-            ),
-            fields.Datetime.to_string(
-                end_local.astimezone(pytz.utc).replace(tzinfo=None)
-            ),
+            fields.Datetime.to_string(start_local.astimezone(UTC).replace(tzinfo=None)),
+            fields.Datetime.to_string(end_local.astimezone(UTC).replace(tzinfo=None)),
         )
 
     def _check_user_activity_window(

@@ -4,9 +4,9 @@ from random import randint
 from typing import Any, Self
 
 from dateutil.relativedelta import MO, relativedelta
-from pytz import timezone
 
 from odoo import api, fields, models
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.models import ValuesType
 from odoo.tools.date_utils import (
@@ -368,8 +368,12 @@ class ResourceResource(models.Model):
             day = start_date
             ranges = []
             while day <= end_date:
-                start_datetime = tz.localize(datetime.combine(day, datetime.min.time()))
-                end_datetime = tz.localize(datetime.combine(day, datetime.max.time()))
+                start_datetime = datetime.combine(day, datetime.min.time()).replace(
+                    tzinfo=tz
+                )
+                end_datetime = datetime.combine(day, datetime.max.time()).replace(
+                    tzinfo=tz
+                )
                 ranges.append(
                     (
                         start_datetime,
@@ -453,12 +457,12 @@ class ResourceResource(models.Model):
                 year_and_week = self._flexible_week_key(leave_start_day)
                 resource_hours_per_week[self.id][year_and_week] -= hours
 
-            range_start_datetime = tz.localize(
-                datetime.combine(leave_start_day, datetime.min.time())
-            )
-            range_end_datetime = tz.localize(
-                datetime.combine(leave_start_day, datetime.max.time())
-            )
+            range_start_datetime = datetime.combine(
+                leave_start_day, datetime.min.time()
+            ).replace(tzinfo=tz)
+            range_end_datetime = datetime.combine(
+                leave_start_day, datetime.max.time()
+            ).replace(tzinfo=tz)
             ranges_to_remove.append(
                 (
                     range_start_datetime,

@@ -1,8 +1,6 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Self
-
-from pytz import utc
 
 from odoo import api, fields, models
 from odoo.models import ValuesType
@@ -338,9 +336,9 @@ class ResourceMixin(models.AbstractModel):
 
         # naive datetimes are made explicit in UTC
         if not from_datetime.tzinfo:
-            from_datetime = from_datetime.replace(tzinfo=utc)
+            from_datetime = from_datetime.replace(tzinfo=UTC)
         if not to_datetime.tzinfo:
-            to_datetime = to_datetime.replace(tzinfo=utc)
+            to_datetime = to_datetime.replace(tzinfo=UTC)
         compute_leaves = self.env.context.get("compute_leaves", True)
 
         for calendar, records in records_by_calendar.items():  # noqa: PLR1704
@@ -391,9 +389,9 @@ class ResourceMixin(models.AbstractModel):
 
         # naive datetimes are made explicit in UTC
         if not from_datetime.tzinfo:
-            from_datetime = from_datetime.replace(tzinfo=utc)
+            from_datetime = from_datetime.replace(tzinfo=UTC)
         if not to_datetime.tzinfo:
-            to_datetime = to_datetime.replace(tzinfo=utc)
+            to_datetime = to_datetime.replace(tzinfo=UTC)
 
         attendances = calendar._attendance_intervals_batch(
             from_datetime, to_datetime, resource

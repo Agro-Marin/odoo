@@ -1,10 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta
-
-from pytz import timezone, utc
+from datetime import UTC, datetime, timedelta
 
 from odoo import api, models
+from odoo.libs.datetime import timezone
 
 
 class ResourceCalendarLeaves(models.Model):
@@ -14,7 +13,7 @@ class ResourceCalendarLeaves(models.Model):
     def _compute_calendar_id(self):
         def date2datetime(date, tz):
             dt = datetime.fromordinal(date.toordinal())
-            return tz.localize(dt).astimezone(utc).replace(tzinfo=None)
+            return dt.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
 
         leaves_by_contract = self.grouped(
             lambda leave: leave.resource_id.employee_id.version_id

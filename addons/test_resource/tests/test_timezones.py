@@ -1,7 +1,6 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from freezegun import freeze_time
-from pytz import utc
 
 from odoo.addons.test_resource.tests.common import TestResourceCommon
 
@@ -214,9 +213,9 @@ class TestTimezones(TestResourceCommon):
         })
         intervals = resource._get_unavailable_intervals(datetime(2022, 9, 21), datetime(2022, 9, 22))
         self.assertEqual(next(iter(intervals.values())), [
-            (datetime(2022, 9, 21, 0, 0, tzinfo=utc), datetime(2022, 9, 21, 6, 0, tzinfo=utc)),
-            (datetime(2022, 9, 21, 10, 0, tzinfo=utc), datetime(2022, 9, 21, 11, 0, tzinfo=utc)),
-            (datetime(2022, 9, 21, 15, 0, tzinfo=utc), datetime(2022, 9, 22, 0, 0, tzinfo=utc)),
+            (datetime(2022, 9, 21, 0, 0, tzinfo=UTC), datetime(2022, 9, 21, 6, 0, tzinfo=UTC)),
+            (datetime(2022, 9, 21, 10, 0, tzinfo=UTC), datetime(2022, 9, 21, 11, 0, tzinfo=UTC)),
+            (datetime(2022, 9, 21, 15, 0, tzinfo=UTC), datetime(2022, 9, 22, 0, 0, tzinfo=UTC)),
         ])
 
     def test_flexible_resource_leave_interval(self):
@@ -244,8 +243,8 @@ class TestTimezones(TestResourceCommon):
             'date_to': '2025-03-07 17:00:00',
         })
 
-        start_dt = datetime(2025, 3, 7, 8, 0, 0, tzinfo=utc)
-        end_dt = datetime(2025, 3, 7, 16, 00, 00, 00, tzinfo=utc)
+        start_dt = datetime(2025, 3, 7, 8, 0, 0, tzinfo=UTC)
+        end_dt = datetime(2025, 3, 7, 16, 00, 00, 00, tzinfo=UTC)
 
         intervals = flexible_calendar._leave_intervals_batch(start_dt, end_dt, [flex_resource])
         intervals_list = list(intervals[flex_resource.id])

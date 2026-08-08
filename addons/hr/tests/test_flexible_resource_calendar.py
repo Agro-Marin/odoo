@@ -1,11 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import date, datetime
 
-import pytz
-
+from odoo.libs.datetime import timezone
 from odoo.tests.common import TransactionCase
 
-UTC = pytz.timezone("UTC")
+UTC = timezone("UTC")
 
 
 class TestFlexibleResourceCalendar(TransactionCase):

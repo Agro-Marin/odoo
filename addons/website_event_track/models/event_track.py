@@ -1,18 +1,17 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import timedelta
 import logging
-
-from markupsafe import Markup
+from datetime import UTC, timedelta
 from random import randint
 from textwrap import shorten
-
-from pytz import timezone, utc
 from urllib.parse import urlencode
+
+from markupsafe import Markup
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 from odoo.tools.mail import email_normalize, html_to_inner_content, is_html_empty
 from odoo.tools.translate import _, html_translate
 
@@ -392,14 +391,14 @@ class EventTrack(models.Model):
     def _compute_track_time_data(self):
         """ Compute start and remaining time for track itself. Do everything in
         UTC as we compute only time deltas here. """
-        now_utc = utc.localize(fields.Datetime.now().replace(microsecond=0))
+        now_utc = fields.Datetime.now().replace(microsecond=0).replace(tzinfo=UTC)
         for track in self:
             if not (track.date or track.date_end):
                 track.is_track_live = track.is_track_soon = track.is_track_today = track.is_track_upcoming = track.is_track_done = False
                 track.track_start_relative = track.track_start_remaining = 0
                 continue
-            date_begin_utc = utc.localize(track.date, is_dst=False)
-            date_end_utc = utc.localize(track.date_end, is_dst=False)
+            date_begin_utc = track.date.replace(tzinfo=UTC)
+            date_end_utc = track.date_end.replace(tzinfo=UTC)
             track.is_track_live = date_begin_utc <= now_utc < date_end_utc
             track.is_track_soon = (date_begin_utc - now_utc).total_seconds() < 30*60 if date_begin_utc > now_utc else False
             track.is_track_today = date_begin_utc.date() == now_utc.date()
@@ -416,14 +415,14 @@ class EventTrack(models.Model):
     def _compute_cta_time_data(self):
         """ Compute start and remaining time for track itself. Do everything in
         UTC as we compute only time deltas here. """
-        now_utc = utc.localize(fields.Datetime.now().replace(microsecond=0))
+        now_utc = fields.Datetime.now().replace(microsecond=0).replace(tzinfo=UTC)
         for track in self:
             if not track.website_cta:
                 track.is_website_cta_live = track.website_cta_start_remaining = False
                 continue
 
-            date_begin_utc = utc.localize(track.date, is_dst=False) + timedelta(minutes=track.website_cta_delay or 0)
-            date_end_utc = utc.localize(track.date_end, is_dst=False)
+            date_begin_utc = track.date.replace(tzinfo=UTC) + timedelta(minutes=track.website_cta_delay or 0)
+            date_end_utc = track.date_end.replace(tzinfo=UTC)
             track.is_website_cta_live = date_begin_utc <= now_utc <= date_end_utc
             if date_begin_utc >= now_utc:
                 td = date_begin_utc - now_utc

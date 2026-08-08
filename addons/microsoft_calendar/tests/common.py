@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-import pytz
 from freezegun import freeze_time
 from markupsafe import Markup
 
@@ -119,11 +118,11 @@ class TestCommon(HttpCase):
                 'contentType': "text",
             },
             "start": {
-                'dateTime': pytz.utc.localize(self.simple_event_values["start"]).isoformat(),
+                'dateTime': self.simple_event_values["start"].replace(tzinfo=UTC).isoformat(),
                 'timeZone': 'Europe/London'
             },
             "end": {
-                'dateTime': pytz.utc.localize(self.simple_event_values["stop"]).isoformat(),
+                'dateTime': self.simple_event_values["stop"].replace(tzinfo=UTC).isoformat(),
                 'timeZone': 'Europe/London'
             },
             "isAllDay": False,

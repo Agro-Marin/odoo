@@ -1,14 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from urllib.parse import urlsplit
+
 from markupsafe import Markup
 from werkzeug.exceptions import NotFound
-from urllib.parse import urlsplit
-from pytz import timezone
 
-from odoo import http, _
+from odoo import _, http
 from odoo.http import content_disposition, request
+from odoo.libs.datetime import timezone
 from odoo.libs.text import nl2br
-from odoo.addons.mail.tools.discuss import add_guest_to_context, Store
+
+from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
 class LivechatController(http.Controller):

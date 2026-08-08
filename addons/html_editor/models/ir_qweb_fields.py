@@ -12,12 +12,11 @@ import io
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import babel
-import pytz
 import requests
 from lxml import etree, html
 from markupsafe import Markup, escape_silent
@@ -25,6 +24,7 @@ from PIL import Image as I
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tools import posix_to_ldml
 from odoo.tools.json import scriptsafe as json_safe
 from odoo.tools.misc import babel_locale_parse, file_open, get_lang
@@ -385,10 +385,10 @@ class IrQwebFieldDatetime(models.AbstractModel):
         tz_name = element.attrib.get('data-oe-original-tz') or self.env.context.get('tz') or self.env.user.tz
         if tz_name:
             try:
-                user_tz = pytz.timezone(tz_name)
-                utc = pytz.utc
+                user_tz = timezone(tz_name)
+                utc = UTC
 
-                dt = user_tz.localize(dt).astimezone(utc)
+                dt = dt.replace(tzinfo=user_tz).astimezone(utc)
             except Exception:
                 _logger.warning(
                     "Failed to convert the value for a field of the model"

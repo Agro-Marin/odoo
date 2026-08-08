@@ -4,9 +4,7 @@ in ``resource`` itself: that module's tests run before this one is in the
 registry.
 """
 
-from datetime import datetime
-
-from pytz import utc
+from datetime import UTC, datetime
 
 from odoo.tests.common import TransactionCase
 
@@ -68,13 +66,13 @@ class TestResourceSecondPassConsumers(TransactionCase):
         record.resource_id.calendar_id = False
         self.env.flush_all()
         one_day = record._get_leave_days_data_batch(
-            utc.localize(datetime(2026, 3, 2, 0, 0)),
-            utc.localize(datetime(2026, 3, 2, 23, 59, 59)),
+            datetime(2026, 3, 2, 0, 0).replace(tzinfo=UTC),
+            datetime(2026, 3, 2, 23, 59, 59).replace(tzinfo=UTC),
         )
         self.assertEqual(one_day[record.id]["days"], 1)
         five_days = record._get_leave_days_data_batch(
-            utc.localize(datetime(2026, 3, 2, 0, 0)),
-            utc.localize(datetime(2026, 3, 6, 23, 59, 59)),
+            datetime(2026, 3, 2, 0, 0).replace(tzinfo=UTC),
+            datetime(2026, 3, 6, 23, 59, 59).replace(tzinfo=UTC),
         )
         self.assertEqual(five_days[record.id]["days"], 5)
 
@@ -87,8 +85,8 @@ class TestResourceSecondPassConsumers(TransactionCase):
             {"name": "second", "resource_id": shared.id, "company_id": self.company.id}
         )
         window = (
-            utc.localize(datetime(2026, 3, 2)),
-            utc.localize(datetime(2026, 3, 7)),
+            datetime(2026, 3, 2).replace(tzinfo=UTC),
+            datetime(2026, 3, 7).replace(tzinfo=UTC),
         )
         work = (first | second)._get_work_days_data_batch(*window)
         leave = (first | second)._get_leave_days_data_batch(*window)

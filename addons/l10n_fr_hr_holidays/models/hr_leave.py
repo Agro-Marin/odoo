@@ -1,11 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from datetime import UTC
+
 from dateutil.relativedelta import relativedelta
 
-from odoo import fields, models, api, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-
-import pytz
+from odoo.libs.datetime import timezone
 
 
 class HrLeave(models.Model):
@@ -136,9 +137,9 @@ class HrLeave(models.Model):
                     ('company_id', '=', company.id)
                 ])
                 for holiday in public_holidays_filtered:
-                    tz = pytz.timezone(holiday.write_uid.tz)
-                    current = holiday.date_from.replace(tzinfo=pytz.utc).astimezone(tz).date()
-                    holiday_date_to = holiday.date_to.replace(tzinfo=pytz.utc).astimezone(tz).date()
+                    tz = timezone(holiday.write_uid.tz)
+                    current = holiday.date_from.replace(tzinfo=UTC).astimezone(tz).date()
+                    holiday_date_to = holiday.date_to.replace(tzinfo=UTC).astimezone(tz).date()
                     while current <= holiday_date_to:
                         holidays_days_list.append(current)
                         current += relativedelta(days=1)

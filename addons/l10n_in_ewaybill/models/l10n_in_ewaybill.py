@@ -3,14 +3,13 @@
 import base64
 import json
 import logging
-import pytz
 import re
-
 from datetime import datetime
 from itertools import starmap
 
 from odoo import _, api, fields, models
 from odoo.exceptions import LockError, UserError
+
 from odoo.addons.l10n_in_ewaybill.tools.ewaybill_api import EWayBillApi, EWayBillError
 
 _logger = logging.getLogger(__name__)

@@ -3,12 +3,11 @@
 import base64
 import hashlib
 import json
+from datetime import UTC
 
-import pytz
+from asn1crypto import algos, cms, core, tsp, x509
 
-from asn1crypto import cms, core, x509, algos, tsp
-
-from odoo import models, fields, _
+from odoo import _, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -133,7 +132,7 @@ class L10n_Eg_EdiThumbDrive(models.Model):
             cms.CMSAttribute({
                 'type': cms.CMSAttributeType('signing_time'),
                 'values': (
-                cms.Time({'utc_time': core.UTCTime(signing_time.replace(tzinfo=pytz.UTC))}),)
+                cms.Time({'utc_time': core.UTCTime(signing_time.replace(tzinfo=UTC))}),)
             }),
         ])
 

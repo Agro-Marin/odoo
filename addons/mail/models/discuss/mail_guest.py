@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime, timedelta
 
-import pytz
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.datetime import all_timezones
 from odoo.tools import consteq, get_lang
 from odoo.tools.misc import limited_field_access_token
 
@@ -110,7 +109,7 @@ class MailGuest(models.Model):
 
     def _get_timezone_from_request(self, request):
         timezone = request.cookies.get("tz")
-        return timezone if timezone in pytz.all_timezones else False
+        return timezone if timezone in all_timezones() else False
 
     def _update_name(self, name):
         self.ensure_one()

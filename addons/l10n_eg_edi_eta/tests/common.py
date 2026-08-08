@@ -1,8 +1,9 @@
 from datetime import datetime
-from pytz import timezone
 
 from odoo.fields import Command
+from odoo.libs.datetime import timezone
 from odoo.tests import tagged
+
 from odoo.addons.account_edi.tests.common import AccountEdiTestCommon
 
 

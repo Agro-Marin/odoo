@@ -1,17 +1,17 @@
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from datetime import datetime, time
+from datetime import UTC, datetime, time
 from itertools import batched
 
 from dateutil import relativedelta
 from psycopg import OperationalError
-from pytz import UTC, timezone
 
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.db import BaseCursor
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.datetime import timezone
 from odoo.modules.registry import Registry
 from odoo.tools import float_compare, format_date, frozendict
 
@@ -1614,8 +1614,8 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _get_orderpoint_procurement_date(self):
         return (
-            timezone(self.company_id.partner_id.tz or "UTC")
-            .localize(datetime.combine(self.lead_horizon_date, time(12)))
+            datetime.combine(self.lead_horizon_date, time(12))
+            .replace(tzinfo=timezone(self.company_id.partner_id.tz or "UTC"))
             .astimezone(UTC)
             .replace(tzinfo=None)
         )

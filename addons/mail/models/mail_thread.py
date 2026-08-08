@@ -11,6 +11,7 @@ import logging
 import time
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
+from datetime import UTC
 from email import message_from_string
 from email.message import EmailMessage
 from itertools import batched
@@ -19,7 +20,6 @@ from xmlrpc import client as xmlrpclib
 
 import dateutil
 import lxml
-import pytz
 from lxml import etree, html
 from markupsafe import Markup, escape
 from psycopg import IntegrityError
@@ -2623,9 +2623,9 @@ class MailThread(models.AbstractModel):
                     # naive datetime, so we arbitrarily decide to make it
                     # UTC, there's no better choice. Should not happen,
                     # as RFC2822 requires timezone offset in Date headers.
-                    stored_date = parsed_date.replace(tzinfo=pytz.utc)
+                    stored_date = parsed_date.replace(tzinfo=UTC)
                 else:
-                    stored_date = parsed_date.astimezone(tz=pytz.utc)
+                    stored_date = parsed_date.astimezone(tz=UTC)
             except Exception:
                 _logger.info(
                     "Failed to parse Date header %r in incoming mail "
