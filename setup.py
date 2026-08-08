@@ -60,7 +60,6 @@ setup(
         "lxml_html_clean",
         "MarkupSafe",
         "num2words",
-        "ofxparse",
         "openpyxl",
         "pdfminer.six",
         "phonenumbers",

@@ -11,6 +11,11 @@ When a user logs in with a Passkey, MFA will not be required.
 """,
     'category': 'Hidden/Tools',
     'depends': ['web'],
+    # The vendored webauthn helpers import cbor2 unguarded at module level.
+    # Declaring it turns a bare ImportError into a named MissingDependencyError
+    # on the UI install path; the pin stays in requirements.txt because
+    # auto_install makes this module effectively always present.
+    'external_dependencies': {'python': ['cbor2']},
     'auto_install': True,
     'data': [
         'views/auth_passkey_key_views.xml',

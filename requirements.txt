@@ -38,7 +38,6 @@ lxml-html-clean  # (removed from lxml, unpinned for future security patches)
 MarkupSafe==3.0.3
 num2words==0.5.14
 odfpy==1.4.1  # base_import: .ods reader (models/odf_ods_reader.py)
-ofxparse==0.21  # enterprise/account_bank_statement_import_ofx (sdist-only, last release 2021)
 openpyxl==3.1.5
 orjson==3.11.7
 pdfminer.six==20260107  # optional: attachment_indexation degrades without it (find_spec-guarded)
@@ -80,9 +79,4 @@ XlsxWriter==3.2.9
 zeep==4.3.2  # _monkeypatches, base_vat, and l10n/HR modules in enterprise + agromarin
 beautifulsoup4==4.14.3  # odoo/_monkeypatches/bs4.py, html_editor
 defusedxml==0.7.1  # attachment_indexation, website
-geojson==3.2.0  # agromarin/geoengine (enterprise/web_map only uses the string 'geojson', not the library)
 google-auth==2.49.2  # cloud_storage_google, enterprise/social_push_notifications
-dbfread==2.0.7  # enterprise/account_winbooks_import
-paramiko==4.0.0  # enterprise/l10n_be_hr_payroll
-PyJWT==2.12.1  # enterprise/l10n_in_reports, l10n_be_hr_payroll_dimona
-xmlsec==1.3.17  # enterprise/l10n_nl_reports
