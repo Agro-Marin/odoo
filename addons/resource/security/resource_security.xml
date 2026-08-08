@@ -55,6 +55,30 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
+    <!--
+        NOT DONE ON PURPOSE: a multi-company rule on `resource.calendar` and
+        `resource.calendar.attendance`.
+
+        These are the only company-owned models in this module without one
+        (`resource.resource`, the time off and the reservations all have one),
+        so any internal user can read every company's working hours and
+        enumerate their attendance lines. That is a real read leak, and the
+        obvious `[('company_id', 'in', company_ids + [False])]` was tried and
+        reverted: working schedules are read as *reference data* well outside
+        the reader's own company. `hr_holidays` computes a leave's duration
+        through `resource.mixin._list_work_time_per_day` as the acting user, so
+        the rule made an employee unable to read their own working calendar and
+        `hr_holidays` `test_get_mandatory_days` failed with an AccessError on
+        `resource.calendar`.
+
+        Closing this therefore needs a decision, not a rule: either the
+        schedule-computation entry points in this module read the calendar
+        definition with `sudo()` (authorisation belonging to the consumer
+        record, not to the timetable it is measured against), or every
+        cross-company reader is audited one by one. Both are larger than a
+        security-file change and neither should be smuggled in as one.
+    -->
+
     <record model="ir.rule" id="resource_reservation_rule_multi_company">
         <field name="name">resource.reservation: multi-company rule</field>
         <field name="model_id" ref="model_resource_reservation" />

@@ -369,11 +369,17 @@ class ResourceCalendar(models.Model):
     def _compute_two_weeks_explanation(self):
         today = fields.Date.today()
         week_type = self.env["resource.calendar.attendance"].get_week_type(today)
-        week_type_str = self.env._("even") if week_type else self.env._("odd")
+        # Name the week the way the calendar itself does.  This used to read
+        # "odd"/"even", a second vocabulary for the very same thing: the form
+        # below labels its sections "First week" / "Second week", and nothing
+        # told the reader that "odd" meant the first one.
+        week_type_str = (
+            self.env._("the second") if week_type else self.env._("the first")
+        )
         first_day = date_utils.start_of(today, "week")
         last_day = date_utils.end_of(today, "week")
         explanation = self.env._(
-            "The current week (from %(first_day)s to %(last_day)s) corresponds to %(number)s week.",
+            "The current week (from %(first_day)s to %(last_day)s) is %(number)s week.",
             first_day=first_day,
             last_day=last_day,
             number=week_type_str,
@@ -638,6 +644,15 @@ class ResourceCalendar(models.Model):
     ) -> dict[int | bool, Intervals]:
         if not (start_dt.tzinfo and end_dt.tzinfo):
             raise ValueError("start_dt and end_dt must be timezone-aware")
+        if not self:
+            # ``Expected singleton: resource.calendar()`` gave no hint that the
+            # caller had simply lost its calendar.  A resource with no calendar
+            # is fully flexible and its availability is modelled by the caller
+            # (see ``_get_valid_work_intervals``), never by this method.
+            raise ValueError(
+                "_attendance_intervals_batch requires a calendar; a resource"
+                " without one is fully flexible and has no attendance lines"
+            )
         self.ensure_one()
         # The signature accepts a tz name as well as a tzinfo; normalise once so
         # the ``.astimezone(tz)`` / dict-keying below never sees a bare string
@@ -807,9 +822,18 @@ class ResourceCalendar(models.Model):
 
         resources_list = list(resources) if resources else []
 
+        # The calendar-level key is always published, empty calendar included:
+        # ``_leave_intervals`` reads ``result[False]`` unconditionally and used
+        # to fail there with a bare ``KeyError: False``.
+        resources_list.append(self.env["resource.resource"])
         if self:
-            resources_list.append(self.env["resource.resource"])
             domain = domain + [("calendar_id", "in", [False] + self.ids)]
+        else:
+            # No calendar means no calendar-bound leaves.  Without this clause
+            # the domain carried no calendar filter at all, so an empty
+            # recordset swept *every* leave in the database and attributed them
+            # to the queried resources.
+            domain = domain + [("calendar_id", "=", False)]
 
         # for the computation, express all datetimes in UTC
         # Public leave don't have a resource_id
@@ -1446,29 +1470,40 @@ class ResourceCalendar(models.Model):
             get_intervals = self._attendance_intervals_batch
             resource_id = False
 
+        # A working day is only complete once an interval belonging to the NEXT
+        # day shows up: returning on the first interval of the n-th day handed
+        # back the end of that day's first attendance block, i.e. lunchtime on
+        # any calendar with a midday break (the Odoo default).  ``plan_hours``
+        # already agreed with the end of the day; these two now match.
         if days > 0:
             found = set()
+            boundary = None
             delta = _PLAN_WINDOW
             for n in range(_PLAN_MAX_ITERATIONS):
                 dt = day_dt + delta * n
                 for start, stop, _meta in get_intervals(dt, dt + delta)[resource_id]:
-                    found.add(start.date())
-                    if len(found) == days:
-                        return revert(stop)
+                    if start.date() not in found:
+                        if len(found) == days:
+                            return revert(boundary)
+                        found.add(start.date())
+                    boundary = stop
             return False
 
         if days < 0:
             days = abs(days)
             found = set()
+            boundary = None
             delta = _PLAN_WINDOW
             for n in range(_PLAN_MAX_ITERATIONS):
                 dt = day_dt - delta * n
                 for start, _stop, _meta in reversed(
                     get_intervals(dt - delta, dt)[resource_id]
                 ):
-                    found.add(start.date())
-                    if len(found) == days:
-                        return revert(start)
+                    if start.date() not in found:
+                        if len(found) == days:
+                            return revert(boundary)
+                        found.add(start.date())
+                    boundary = start
             return False
 
         return revert(day_dt)
@@ -1488,6 +1523,16 @@ class ResourceCalendar(models.Model):
     ) -> tuple[float, float]:
         """
         An instance method on a calendar to get the start and end float hours for a given date.
+
+        .. important::
+           When ``target_date`` falls on a day the calendar does not work, this
+           does **not** return ``(0, 0)``: it falls back to the earliest
+           ``hour_from`` and the latest ``hour_to`` found anywhere in the
+           schedule.  That is deliberate — ``hr_holidays`` relies on it to give
+           a leave request spanning a weekend a sensible span — but it means the
+           result cannot be used to decide *whether* a day is worked.  Ask
+           :meth:`_works_on_date` for that.
+
         :param target_date: The date to find working hours.
         :param day_period: Optional string ('morning', 'afternoon') to filter for half-days.
         :return: A tuple of floats (hour_from, hour_to).
