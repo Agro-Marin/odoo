@@ -170,7 +170,7 @@ export class Rtc extends Record {
      * @type {Map<number, number>}
      */
     _sessionInfoStamps = new Map();
-    /** @type {number} id of the keep-alive interval started in `start()` */
+    /** @type {number|undefined} keep-alive interval, live only during a call */
     _pingIntervalId;
 
     /** @type {import("@mail/discuss/call/common/call_transport").Network|undefined} */
@@ -446,11 +446,26 @@ export class Rtc extends Record {
                 this.sfuClient?.disconnect();
             }
         });
-        /**
-         * Periodically calls the sessions that have no peerConnection yet, to
-         * recover connections that never started. Distinct from
-         * `PeerToPeer._recover`, which restores established connections.
-         */
+    }
+
+    /**
+     * Start the call keep-alive: periodically call the sessions that have no
+     * peerConnection yet, to recover connections that never started. Distinct
+     * from `PeerToPeer._recover`, which restores established connections.
+     *
+     * Owned by the call, not by the service. This used to be started inline in
+     * `start()` while `_stopPing()` was called from `clear()`, which paired a
+     * once-per-page start with a once-per-call stop: the first time a user left
+     * a call the keep-alive was cleared for the life of the page, and no later
+     * call ever recovered a stalled connection again. `joinCall` already called
+     * `_startPing()` — the method simply did not exist, so joining a call threw
+     * a TypeError that also skipped the rest of `joinCall` (the `beforeunload`
+     * cleanup and `focusAvailableVideo`).
+     *
+     * Idempotent: a re-join must not leave the previous interval running.
+     */
+    _startPing() {
+        this._stopPing();
         this._pingIntervalId = browser.setInterval(async () => {
             if (!this.localSession || !this.state.channel) {
                 return;
