@@ -581,3 +581,73 @@ class TestViewNodeNames(TransactionCase):
                     1,
                     f"{view.xml_id}: more than one <header> in a form",
                 )
+
+
+@tagged("post_install", "-at_install")
+class TestSwitchBasedOnDuration(TransactionCase):
+    """Turning duration-based off corrupted a two-weeks calendar.
+
+    ``switch_based_on_duration`` materialised the default attendances and only
+    then called ``_get_two_weeks_attendance()``, which reads them back and
+    returns ``Command.create`` for the duplicates.  Assigning commands to an
+    x2many appends, and nothing cleared the originals, so the calendar kept
+    both: 45 working times instead of 30, the 15 extras belonging to neither
+    week and inflating ``hours_per_week``.
+    """
+
+    def _counts(self, calendar):
+        lines = calendar.attendance_ids.filtered(lambda a: not a.display_type)
+        return {
+            "lines": len(lines),
+            "sections": len(calendar.attendance_ids) - len(lines),
+            "week_less": len(lines.filtered(lambda a: not a.week_type)),
+        }
+
+    def test_duration_round_trip_on_a_two_weeks_calendar(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Round trip", "tz": "UTC"}
+        )
+        calendar.switch_calendar_type()
+        self.env.flush_all()
+        before = self._counts(calendar)
+        self.assertEqual(before["week_less"], 0)
+        hours_before = calendar.hours_per_week
+
+        calendar.switch_based_on_duration()  # on
+        self.env.flush_all()
+        calendar.switch_based_on_duration()  # off
+        self.env.flush_all()
+
+        after = self._counts(calendar)
+        self.assertEqual(after["week_less"], 0, "lines belonging to neither week")
+        self.assertEqual(after["lines"], before["lines"])
+        self.assertEqual(after["sections"], before["sections"])
+        self.assertEqual(calendar.hours_per_week, hours_before)
+
+    def test_duration_round_trip_on_a_single_week_calendar(self):
+        """The plain path must keep behaving exactly as before."""
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Single week", "tz": "UTC"}
+        )
+        self.env.flush_all()
+        before = self._counts(calendar)
+        hours_before = calendar.hours_per_week
+
+        calendar.switch_based_on_duration()
+        self.env.flush_all()
+        calendar.switch_based_on_duration()
+        self.env.flush_all()
+
+        self.assertEqual(self._counts(calendar), before)
+        self.assertEqual(calendar.hours_per_week, hours_before)
+
+    def test_switch_calendar_type_round_trip_unaffected(self):
+        calendar = self.env["resource.calendar"].create({"name": "Type", "tz": "UTC"})
+        self.env.flush_all()
+        before = self._counts(calendar)
+        calendar.switch_calendar_type()
+        self.env.flush_all()
+        self.assertEqual(self._counts(calendar)["lines"], before["lines"] * 2)
+        calendar.switch_calendar_type()
+        self.env.flush_all()
+        self.assertEqual(self._counts(calendar), before)
