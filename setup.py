@@ -55,7 +55,6 @@ setup(
         "docutils",
         "geoip2",
         "idna",
-        "Jinja2",
         "lxml",  # windows binary http://www.lfd.uci.edu/~gohlke/pythonlibs/
         "lxml_html_clean",
         "MarkupSafe",
@@ -73,7 +72,6 @@ setup(
         "pypdf",
         "python-dateutil",
         "python-magic ; sys_platform != 'win32'",
-        "pytz",
         "reportlab",  # windows binary pypi.python.org/pypi/reportlab
         "rjsmin",
         "requests",
@@ -90,6 +88,13 @@ setup(
         # AGPL-3.0-or-commercial, and base/ir_actions_report already guards the
         # import — so it is offered rather than imposed.
         "pdf-raster": ["PyMuPDF"],
+        # `odoo-bin scaffold` renders its module templates through Jinja2, and
+        # nothing else does. cli/__init__ imports a command module only when
+        # that command is dispatched, and cli/scaffold.py builds its environment
+        # lazily, so a server never reaches the import. It sat in
+        # install_requires until 2026-08-08, which put a developer command's
+        # dependency on every production install.
+        "scaffold": ["Jinja2"],
         # Everything requirements-addons.txt pins: the dependencies of the
         # bundled addons, which the server itself never imports. `ldap` and
         # `pdf-raster` stay separate because they were already published under

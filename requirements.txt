@@ -61,7 +61,6 @@ cryptography==46.0.4
 docutils==0.23  # base renders module descriptions through it (ir_module)
 geoip2==5.3.0  # odoo/http/geoip.py
 idna==3.18
-Jinja2==3.1.6
 lxml==6.1.1
 lxml-html-clean  # (removed from lxml, unpinned for future security patches)
 MarkupSafe==3.0.3
@@ -85,7 +84,12 @@ pyopenssl==25.3.0  # base/ir_mail_server.py imports it unguarded
 pypdf==6.15.0  # odoo/tools/pdf/_pypdf.py
 python-dateutil==2.9.0.post0
 python-magic==0.4.27 ; sys_platform != 'win32'  # odoo/libs/filesystem/mimetypes.py
-pytz  # no version pinning to avoid OS perturbations
+# pytz is deliberately absent. Nothing in this fork imports it any more: the
+# core runs on zoneinfo through odoo/libs/datetime/tz.py, the bundled addons
+# were migrated off it, and tools/safe_eval.py only keeps the NAME `pytz` bound
+# for stored user code by wrapping that same zoneinfo module. It still gets
+# installed wherever `vobject` is (requirements-addons.txt), which is a
+# transitive dependency and not ours to pin.
 reportlab==4.4.10  # odoo/libs/barcode.py, odoo/tools/pdf/
 requests==2.34.2
 rjsmin==1.2.5  # base assets pipeline (ir_qweb_assets, assetsbundle)

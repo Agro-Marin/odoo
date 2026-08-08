@@ -61,7 +61,6 @@ Depends:
  python3-reportlab,
  python3-requests,
  python3-rlpycairo,
- python3-tz,
  python3-urllib3,
  weasyprint,
  python3-werkzeug,
