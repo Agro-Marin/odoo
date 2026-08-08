@@ -134,6 +134,27 @@ class TestCleanErrors(ImportAuditCommon):
         self.assertEqual(self._csv(b'a,b\n1,2\n')._read_csv({'separator': ','}),
                          [['a', 'b'], ['1', '2']])
 
+    def test_unexpected_errors_are_logged_and_not_shown_verbatim(self):
+        """Every exception used to be handed to the user as `str(error)` and
+        logged only at debug level, so a defect in this code read as gibberish
+        in the UI ("list index out of range") and left no trace in the log.
+        """
+        wizard = self._csv(b'value\nx\n')
+        self.patch(type(wizard), '_read_file',
+                   lambda self, options: (_ for _ in ()).throw(AttributeError("boom")))
+        with self.assertLogs(
+            'odoo.addons.base_import.models.base_import', level='ERROR') as logs:
+            result = wizard.parse_preview(dict(CSV_OPTS))
+        self.assertNotIn('boom', result['error'])
+        self.assertIn('could not be read', result['error'])
+        self.assertTrue(any('Unexpected error' in line for line in logs.output))
+
+    def test_expected_errors_still_reach_the_user_verbatim(self):
+        """The actionable messages must not be swallowed by the above."""
+        wizard = self._csv(b'')
+        result = wizard.parse_preview(dict(CSV_OPTS))
+        self.assertIn('no content', result['error'])
+
     def test_ragged_rows_do_not_break_the_preview(self):
         """A data row narrower than the header used to raise IndexError while
         building the per-column examples."""
