@@ -62,6 +62,21 @@ original code and no import-direction violation.
 ## Enforcement
 
 `tooling/architecture/layer_check.py`, contract
-`orm-layer1-below-models-and-runtime` (currently **clean at zero**). The checker
-skips `TYPE_CHECKING` blocks, so the typing-only references (used for
-annotations in both files) remain legal while runtime crossings fail CI.
+`orm-layer1-below-models-and-runtime`. The checker skips `TYPE_CHECKING` blocks,
+so the typing-only references (used for annotations in both files) remain legal
+while runtime crossings fail CI. For the contract's live status, run the checker
+— this record does not restate it.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — the live contract status is no longer restated here
+
+The Enforcement section said the contract was "currently **clean at zero**". A
+status is a fact about the tree at a moment, and this record is immutable, so
+the sentence could only become false — the same failure the register's
+"never restate a number that lives somewhere else" rule was written for, applied
+to a status rather than a count. Corrected in place: it is a citation, not the
+decision.

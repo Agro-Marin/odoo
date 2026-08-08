@@ -49,7 +49,8 @@ loop was not actually closed. Three concrete, measured gaps:
    source to `("odoo.addons", "addons")` so **both** trees are scanned, and add
    `odoo/addons/**` and `addons/**` to `architecture.yml`'s `paths:`. Pay down the
    7 `resource` violations by routing them through `odoo.models` (which exports
-   `ValuesType`). The checker now walks 6,069 files; still seconds.
+   `ValuesType`). That took the checker to 6,069 files on 2026-06-25; still
+   seconds.
 
 3. **Make the floors true.** Re-baseline to the measured clean-HEAD counts so the
    ratchet enforces from a real number going forward:
@@ -86,5 +87,21 @@ loop was not actually closed. Three concrete, measured gaps:
 `tooling/architecture/layer_check.py` (`facade-boundary` source widened) +
 `tooling/ratchet/baselines/{ruff,mypy}.json` (true floors). The layer checker's
 own suite (`tooling/architecture/test_layer_check.py`) and the standing
-`test_framework_core_has_no_new_violations` guard keep it honest; `layer_check.py
---check` reports 0 new violations across all 6,069 scanned files.
+`test_framework_core_has_no_new_violations` guard keep it honest. On the day this
+landed, `layer_check.py --check` reported 0 new violations across all 6,069
+scanned files; for the live verdict and file count, run the checker.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — the scanned-file count is dated, not current
+
+Two sentences gave 6,069 scanned files in the present tense. The measurement was
+right on 2026-06-25 and is part of the record; presenting it as today's number is
+what this ADR itself calls "a baseline nothing enforces is a comment", one level
+up. Corrected in place — both now name the date and point at the checker for the
+live figure. The mypy/ruff counts elsewhere in this record are deliberately left
+alone: they are explicitly measurements of a named commit, which is what makes
+the argument, and they read as history already.

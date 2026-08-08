@@ -40,6 +40,7 @@ whole ``tooling/architecture/`` directory.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 import unittest
@@ -60,6 +61,65 @@ ADR_FILES: list[Path] = sorted(ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md"))
 #: Sections the template calls load-bearing (``Enforcement`` is "if any", so it
 #: is not required — 0012/0013 legitimately omit it).
 REQUIRED_SECTIONS = ("Context", "Decision", "Consequences")
+
+#: First ADR number required to carry ``## Alternatives considered``. The rule
+#: was added on 2026-08-07, when the first thirteen records already existed; see
+#: ``test_alternatives_are_required_from_the_cutoff_on`` for why it is not
+#: retroactive.
+ALTERNATIVES_REQUIRED_FROM = 14
+
+#: Section whose contents are exempt from the live-status rule below. An
+#: amendment is dated by construction and its whole job is to quote the stale
+#: sentence it is correcting, so scanning it would fire on every correction
+#: this rule asks for.
+_AMENDMENTS_HEADING = "## Amendments"
+
+#: Phrases that assert a *live* status or count — the shape an immutable record
+#: cannot carry, because it can only become false and nothing re-derives it.
+#: Each is allowed when the sentence also carries a date marker (see
+#: :data:`_DATED`), which turns the claim into a measurement of a moment.
+_LIVE_STATUS_RES = (
+    re.compile(r"currently\s+\*{0,2}(?:clean|zero)", re.IGNORECASE),
+    re.compile(
+        r"\bcurrently\s+\*{0,2}(?:has|have|is|are|reports?|walks?|stands?|sits?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bclean at zero\b", re.IGNORECASE),
+    re.compile(r"\bnow\s+(?:walks|reports|scans|stands at|sits at)\b", re.IGNORECASE),
+)
+
+#: What turns a status sentence into a dated measurement, which is welcome.
+_DATED = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"|\bas of \d{4}"
+    r"|\bat (?:this|the) decision\b"
+    r"|\bat the time\b"
+    r"|\bon that date\b"
+    r"|\bon the day this landed\b"
+    r"|\bwhen this landed\b"
+    r"|\bat this ADR\b",
+    re.IGNORECASE,
+)
+
+#: The countable gates whose floors live in ``tooling/ratchet/baselines/``.
+_RATCHET_BASELINES = ROOT / "tooling" / "ratchet" / "baselines"
+
+
+def _body_above_amendments(text: str) -> str:
+    """The decision text — everything before ``## Amendments``."""
+    head, _, _ = text.partition(_AMENDMENTS_HEADING)
+    return head
+
+
+def _sentences(text: str) -> list[str]:
+    """Split on sentence-ish boundaries, keeping it cheap and stdlib-only.
+
+    Markdown tables have no full stops, so a table row is one "sentence" — which
+    is what we want: a floor tabulated under a bare ``| Floor |`` header is
+    judged together with the header text that qualifies it.
+    """
+    flat = " ".join(text.split())
+    return [s for s in re.split(r"(?<=[.;:])\s+|(?=\|)", flat) if s.strip()]
 
 #: Top-level directories that make a backticked token an unambiguous repo path.
 _ROOTED = ("odoo/", "tooling/", "addons/", "doc/", "crates/", ".github/")
@@ -321,6 +381,31 @@ class TestWellFormedness(unittest.TestCase):
                 missing, f"{p.name} is missing required section(s): {sorted(missing)}"
             )
 
+    def test_alternatives_are_required_from_the_cutoff_on(self):
+        """Not retroactive, and deliberately so.
+
+        ``Alternatives considered`` is the section that makes an old record
+        worth opening: the Decision says what was built, which the tree also
+        says, while only this says what was already tried and rejected. It is
+        required from :data:`ALTERNATIVES_REQUIRED_FROM` on rather than for the
+        whole corpus, because back-filling a rejected alternative into a record
+        written months earlier would be inventing history — the one thing a
+        decision register must not contain.
+        """
+        for p in ADR_FILES:
+            if int(p.name[:4]) < ALTERNATIVES_REQUIRED_FROM:
+                continue
+            sections = set(_SECTION_RE.findall(p.read_text(encoding="utf-8")))
+            self.assertIn(
+                "Alternatives considered",
+                sections,
+                f"{p.name} is at or past ADR-"
+                f"{ALTERNATIVES_REQUIRED_FROM:04d}, so it must carry an "
+                f"'## Alternatives considered' section (see README.md's "
+                f"template). If nothing else was genuinely on the table, say "
+                f"that and why the space was that narrow.",
+            )
+
 
 class TestCrossReferences(unittest.TestCase):
     def _existing_numbers(self) -> set[str]:
@@ -462,6 +547,111 @@ class TestExistenceProbes(unittest.TestCase):
             "`tooling/ratchet/baselines/{ruff,mypy}.json`"
         )
         self.assertEqual(existence_findings(quiet), [])
+
+
+def live_status_findings(text: str) -> list[str]:
+    """Sentences in *text* asserting a live status without dating it."""
+    found = []
+    for sentence in _sentences(_body_above_amendments(text)):
+        if _DATED.search(sentence):
+            continue
+        if any(rx.search(sentence) for rx in _LIVE_STATUS_RES):
+            found.append(sentence.strip())
+    return found
+
+
+class TestNoLiveStatusClaims(unittest.TestCase):
+    """An ADR is past tense; ``ARCHITECTURE.md`` is present tense.
+
+    The register already had the rule that produces this one — *never restate a
+    number that lives somewhere else* — and the corpus broke it anyway, in the
+    two records that argue for it hardest. ADR-0006 tabulated four ratchet
+    floors under a bare ``Floor`` heading and every one of them has since moved;
+    six Enforcement sections said their contract was "currently **clean at
+    zero**", a fact about a moment written into a document defined as immutable.
+
+    The generalisation is the tense. A present-tense claim about the tree, in a
+    record that may never be edited, can only decay — and no gate re-derives it,
+    because the gates read the code and the ``ARCHITECTURE.md`` page, not this
+    directory. Dating the claim fixes it at no cost to the argument: "measured N
+    on 2026-06-25" is true forever and is exactly what a reader of a decision
+    record wants to know.
+    """
+
+    def test_no_adr_asserts_a_live_status(self):
+        for p in ADR_FILES:
+            found = live_status_findings(p.read_text(encoding="utf-8"))
+            self.assertEqual(
+                found,
+                [],
+                f"{p.name} asserts a live status or count in an immutable "
+                f"record. Date it ('at this decision', 'measured … on "
+                f"YYYY-MM-DD') or cite the source of truth "
+                f"(tooling/ratchet/baselines/, layer_check.py's CONTRACTS, or "
+                f"'run the checker') instead: {found}",
+            )
+
+    def test_no_adr_restates_a_current_ratchet_floor(self):
+        """Cite the file, not the value — checked against today's values.
+
+        This cannot catch a *stale* floor (the number no longer matches
+        anything, so there is nothing to compare it to); the tense rule above is
+        what covers those. It catches the way they are born: someone copies the
+        floor that is true today into a record that freezes it.
+        """
+        floors = {}
+        for path in sorted(_RATCHET_BASELINES.glob("*.json")):
+            floors[path.stem] = json.loads(path.read_text(encoding="utf-8"))["count"]
+        self.assertTrue(floors, "no ratchet baselines found — gate would be vacuous")
+
+        for p in ADR_FILES:
+            body = _body_above_amendments(p.read_text(encoding="utf-8"))
+            for line in body.splitlines():
+                for gate, count in floors.items():
+                    if gate in line.lower() and re.search(rf"\b{count}\b", line):
+                        self.fail(
+                            f"{p.name} restates {gate}'s CURRENT ratchet floor "
+                            f"({count}) beside the gate name: {line.strip()!r}. "
+                            f"Cite tooling/ratchet/baselines/{gate}.json instead "
+                            f"— a floor written into an immutable record is one "
+                            f"the ratchet will move out from under."
+                        )
+
+
+class TestLiveStatusProbes(unittest.TestCase):
+    """The gate must catch what it claims to, and stay quiet otherwise."""
+
+    def test_probe_undated_clean_at_zero_is_caught(self):
+        found = live_status_findings("Contract `x` (currently **clean at zero**).")
+        self.assertEqual(len(found), 1, found)
+
+    def test_probe_undated_now_walks_is_caught(self):
+        self.assertEqual(len(live_status_findings("The checker now walks 6,069 files.")), 1)
+
+    def test_probe_a_dated_measurement_is_allowed(self):
+        quiet = "Measured 2074 on 2026-06-25, against a floor of 1972."
+        self.assertEqual(live_status_findings(quiet), [])
+
+    def test_probe_at_this_decision_is_allowed(self):
+        quiet = "At this decision the core has **zero** tolerated exceptions."
+        self.assertEqual(live_status_findings(quiet), [])
+
+    def test_probe_amendments_are_exempt(self):
+        """An amendment quotes the stale sentence it corrects — by design."""
+        text = (
+            "## Enforcement\n\nContract `x`.\n\n"
+            "## Amendments\n\n### 2026-08-07 — fixed\n\n"
+            'It said "currently **clean at zero**", which could only decay.\n'
+        )
+        self.assertEqual(live_status_findings(text), [])
+
+    def test_probe_ordinary_prose_does_not_fire(self):
+        quiet = (
+            "The ORM is organised as four layers. `libs/` is dependency-free, "
+            "and the gate is drift-zero — no `odoo.*` import may be added. "
+            "Run the checker for the contract's live status."
+        )
+        self.assertEqual(live_status_findings(quiet), [])
 
 
 if __name__ == "__main__":

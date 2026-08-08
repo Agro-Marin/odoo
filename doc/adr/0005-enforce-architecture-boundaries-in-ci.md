@@ -29,7 +29,9 @@ Add a dependency-free (stdlib-only) checker,
 - evaluates the boundary contracts — the full Layer 0→3 ORM ordering
   (`orm-layer0-is-foundational`, `orm-layer1-below-models-and-runtime`,
   `orm-models-below-runtime`) plus the purity contracts (`libs`, `db`,
-  `orm/components`) — six in total;
+  `orm/components`) — six at the time of this decision. The live set is
+  `layer_check.py`'s `CONTRACTS`, which has grown since; this record does not
+  restate its size;
 - treats a pinned, annotated `KNOWN_VIOLATIONS` allowlist as tolerated debt and
   fails on **any new** crossing (drift-zero by design).
 
@@ -48,9 +50,9 @@ own tests run first, then the check.
 - The six boundaries become guaranteed invariants rather than aspirations; the
   full Layer 0→3 layering and the pure-Python / ORM-agnostic claims are verified
   on every PR.
-- The framework core currently has **zero** tolerated exceptions; should an
-  unavoidable one arise, it is pinned (annotated) in `KNOWN_VIOLATIONS`, visible
-  and unable to multiply.
+- At the time of this decision the framework core has **zero** tolerated
+  exceptions; should an unavoidable one arise, it is pinned (annotated) in
+  `KNOWN_VIOLATIONS`, visible and unable to multiply.
 - The checker is fork-local code to maintain (and is itself tested); new
   boundaries require a new contract entry (and ideally a new ADR).
 
@@ -58,3 +60,18 @@ own tests run first, then the check.
 
 The checker enforces itself. Run locally with
 `python tooling/architecture/layer_check.py --check`.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — two counts re-dated to the decision that made them
+
+The Decision said the checker evaluates "six" contracts and the Consequences
+that the core "currently has zero tolerated exceptions". Both were true on
+2026-06-23 and neither is a claim this immutable record can keep: the contract
+set has grown well past six, and the pinned-violation count is a property of
+`layer_check.py`, not of this page. Corrected in place — they are citations of a
+measurement, not the decision, and they now say *when* they were measured and
+where the live value lives.

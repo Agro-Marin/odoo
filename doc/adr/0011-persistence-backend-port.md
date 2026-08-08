@@ -75,6 +75,44 @@ sniffing with the `env.backend` abstraction.
 `backend.py` lives in Layer 3 (`orm/runtime/`); it imports only `odoo.tools`
 (the `Query` builder) at runtime and types against Layer 0–2 under
 `TYPE_CHECKING`, so the existing layering contracts in
-`tooling/architecture/layer_check.py` cover it (all eight clean at zero). The
-model mixins reach the backend via the already-injected `env`, adding no
+`tooling/architecture/layer_check.py` cover it — no new contract was needed. For
+their live status, run the checker; this record does not restate it. The model
+mixins reach the backend via the already-injected `env`, adding no
 `orm/models → orm/runtime` import.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — the live contract status is no longer restated here
+
+The Enforcement section said the layering contracts covering `backend.py` were
+"all eight clean at zero". Both halves were claims about a moment written into
+an immutable record: the contract set has grown past eight, and a status is the
+checker's to report. Corrected in place — it is a citation, not the decision.
+
+### 2026-08-07 — the port has outgrown this record's stated scope
+
+The Decision scopes the port to "the model mixins
+(`create`/`write`/`read`/`search`/`unlink`)". The dispatch surface has since
+grown to fifteen `env.backend` sites across nine files, **four of them in
+Layer 1** (`odoo/orm/fields/`), which this record does not contemplate. A Layer-1
+reach into a Layer-3 object travels through `env` and creates no import, so
+`orm-layer1-below-models-and-runtime` is blind to it by construction.
+
+Recorded rather than corrected in place: the decision is right about what was
+decided, and the widening is a real change to the port's blast radius that a
+future reader should meet as a fact, not as a silent edit to a 2026 record. The
+surface is pinned exact-mode in
+`odoo/orm/tests/test_backend_dispatch_surface.py`, whose `DISPATCH_SITES` is the
+authority on its size and on which sites are behaviourally lossy — this record
+does not restate either.
+
+The most recent addition, `fields/textual.py::_languages_in_sync_with`, is
+**lossy**: the SQL branch reads the stored jsonb translations and returns the
+languages whose term merely echoes the written one, so an edit propagates to
+them; the in-memory branch has no jsonb column to compare and returns `{}`, so on
+that backend no translation ever follows a write. That is the shape of divergence
+the pin exists to make visible — a DB-free test of translation propagation would
+pass without exercising the behaviour at all.

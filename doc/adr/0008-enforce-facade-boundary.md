@@ -47,8 +47,10 @@ Make the façade boundary a real, mechanically-enforced contract.
    themselves (`odoo.api` / `odoo.fields` / `odoo.models`) are not under
    `odoo.orm`, so importing them is allowed by construction.
 
-This brings the framework core to **eight** drift-zero boundary contracts, all
-clean at zero.
+This brings the framework core to **eight** drift-zero boundary contracts as of
+2026-06-25, all clean at zero on that date. The live set and its status are
+`layer_check.py`'s `CONTRACTS` and the checker's own report; this record does not
+restate either.
 
 ## Consequences
 
@@ -61,8 +63,8 @@ clean at zero.
 - New genuinely-public ORM symbols must be added to a façade (and its `__all__`)
   to be usable from addons — a small, deliberate step that keeps the surface
   curated rather than accidental.
-- The checker now walks `odoo/addons/**` (314 files vs. ~150 before); still
-  sub-second.
+- The checker walks `odoo/addons/**` as well, which at this decision took it from
+  ~150 files to 314; still sub-second. (ADR-0009 widened the scope again.)
 
 ## Enforcement
 
@@ -74,3 +76,17 @@ CI via `--check` (ADR-0005), drift-zero. Covered by
 `test_addon_type_checking_import_of_orm_is_exempt`,
 `test_facade_boundary_scans_the_addon_tree`) and by the standing
 `test_framework_core_has_no_new_violations` regression guard.
+
+## Amendments
+
+Append-only. An amendment corrects what this record says *about the repo*; it
+never edits the decision above.
+
+### 2026-08-07 — the contract count and the scanned-file count are now dated
+
+"This brings the framework core to **eight** drift-zero boundary contracts, all
+clean at zero" and "the checker **now** walks 314 files" both read as claims
+about today. Neither is: the contract set has grown well past eight, and
+ADR-0009 widened the façade scope to both addon trees a fortnight later, which
+this record could not know. Corrected in place — both now name the moment they
+describe and point at where the live value lives.
