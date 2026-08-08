@@ -16,7 +16,7 @@ from typing import Any
 import werkzeug.serving
 from werkzeug.urls import uri_to_iri
 
-from odoo.libs.worker_thread import current_worker_thread
+from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
 from odoo.tools import config
 
 from ._env import env_float, env_int
@@ -254,8 +254,9 @@ class ThreadedWSGIServerReloadable(
             target=self.process_request_thread, args=(request, client_address)
         )
         t.daemon = self.daemon_threads
-        t.type = "http"
-        t.start_time = time.monotonic()
+        worker = as_worker_thread(t)
+        worker.type = "http"
+        worker.start_time = time.monotonic()
         try:
             t.start()
         except RuntimeError as exc:

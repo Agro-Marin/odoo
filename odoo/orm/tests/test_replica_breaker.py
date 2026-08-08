@@ -1,11 +1,10 @@
-import threading
-
 import psycopg
 import pytest
 
 import odoo.db
 from odoo.db.breaker import CircuitBreaker
 from odoo.db.lag import ReplicaLagGate
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.orm.runtime.registry import _REPLICA_RETRY_TIME, Registry
 
 
@@ -100,7 +99,7 @@ def test_pool_errors_are_treated_as_replica_failures():
 
 def test_the_cursor_mode_marker_records_the_demotion():
     reg = _make_registry(replica_fails=True)
-    thread = threading.current_thread()
+    thread = current_worker_thread()
     thread.cursor_mode = "unset"
     try:
         reg.cursor(readonly=True)

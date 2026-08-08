@@ -563,7 +563,7 @@ class ExecutionContext:
         return self
 
     def __exit__(self, *_args: object) -> None:
-        threading.current_thread().exec_context = self.previous_context
+        current_worker_thread().exec_context = self.previous_context
 
 
 class Profiler:

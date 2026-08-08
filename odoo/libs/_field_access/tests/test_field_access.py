@@ -63,16 +63,40 @@ class _FakeNewId:
         return "<NewId>"
 
 
-class _FieldAccessTestMixin:
-    batch_cache_fill: Callable | None = None
-    batch_cache_get: Callable | None = None
-    batch_cache_filter: Callable | None = None
-    batch_cache_values: Callable | None = None
-    scalar_cache_get: Callable | None = None
-    sort_ids_by_values: Callable | None = None
-    sort_ids_by_cache: Callable | None = None
-    batch_group_ids: Callable | None = None
-    to_prefetch_ids: Callable | None = None
+if TYPE_CHECKING:
+    # The mixin is never instantiated alone -- both concrete suites below spell
+    # `(_FieldAccessTestMixin, unittest.TestCase)` -- but a type checker cannot
+    # know that from the mixin's own bases, so every `self.assertEqual` in the
+    # 100-odd tests below read as an error on an undeclared attribute. Declaring
+    # the base only under TYPE_CHECKING keeps the runtime class a plain object,
+    # so neither unittest discovery nor pytest collects the mixin itself and
+    # runs its tests without an implementation bound.
+    _MixinBase = unittest.TestCase
+else:
+    _MixinBase = object
+
+
+class _FieldAccessTestMixin(_MixinBase):
+    """The shared body of the fallback/accelerated differential suite.
+
+    The nine names below are **annotated, not assigned**. They used to default
+    to ``None``, which was false the moment any test ran -- both subclasses bind
+    all nine in ``setUpClass`` -- and the declared ``Callable | None`` made every
+    call site an error ("None" not callable). A bare annotation states the real
+    contract, that a concrete suite must supply each one, and a subclass that
+    forgets one now fails with a plain ``AttributeError`` naming it instead of a
+    ``TypeError`` about ``None``.
+    """
+
+    batch_cache_fill: Callable
+    batch_cache_get: Callable
+    batch_cache_filter: Callable
+    batch_cache_values: Callable
+    scalar_cache_get: Callable
+    sort_ids_by_values: Callable
+    sort_ids_by_cache: Callable
+    batch_group_ids: Callable
+    to_prefetch_ids: Callable
 
     def test_prefetch_basic(self) -> None:
         self.assertEqual(self.to_prefetch_ids(1, (1, 2, 3), {}, 10), (1, 2, 3))
@@ -328,13 +352,13 @@ class _FieldAccessTestMixin:
         self.assertIs(result, SENTINEL)
 
     def test_scalar_miss_no_field(self) -> None:
-        env_dict = {"_field_cache_memo": {}}
+        env_dict: dict = {"_field_cache_memo": {}}
         result = self.scalar_cache_get(env_dict, "f", 42, PENDING, SENTINEL)
         self.assertIs(result, SENTINEL)
 
     def test_scalar_miss_no_id(self) -> None:
         field = object()
-        env_dict = {"_field_cache_memo": {field: {}}}
+        env_dict: dict = {"_field_cache_memo": {field: {}}}
         result = self.scalar_cache_get(env_dict, field, 42, PENDING, SENTINEL)
         self.assertIs(result, SENTINEL)
 

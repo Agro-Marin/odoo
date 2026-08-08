@@ -16,6 +16,7 @@ import werkzeug.serving
 
 from odoo import db
 from odoo.db import PoolError
+from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.tools import OrderedSet, config
 from odoo.tools.cache import log_ormcache_stats
@@ -184,7 +185,7 @@ class ThreadedServer(CommonServer):
 
                     cron_logger.debug("polling for jobs (notified: %s)", notified)
                     for db_name in db_names:
-                        thread = threading.current_thread()
+                        thread = current_worker_thread()
                         thread.start_time = time.monotonic()
                         try:
                             process_jobs(db_name)
@@ -242,7 +243,7 @@ class ThreadedServer(CommonServer):
                 name=f"odoo.service.cron.cron{i}",
                 daemon=True,
             )
-            t.type = "cron"
+            as_worker_thread(t).type = "cron"
             t.start()
 
     def job_spawn(self) -> None:
@@ -253,7 +254,7 @@ class ThreadedServer(CommonServer):
                 name=f"odoo.service.job.job{i}",
                 daemon=True,
             )
-            t.type = "job"
+            as_worker_thread(t).type = "job"
             t.start()
 
     def http_spawn(self) -> None:

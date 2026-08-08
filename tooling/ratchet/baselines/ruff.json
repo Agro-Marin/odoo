@@ -1,4 +1,4 @@
 {
-  "count": 761,
-  "note": "761. Re-measured after rebasing this branch onto origin/19.0-marin. The replayed 527 was measured against the pre-rebase tree and never applied to this one. Measured as CI does: ruff check odoo/ --no-cache --statistics, summed, ruff 0.16.2, scope odoo/ only. Every finding is a D rule (undocumented-*): 224 D102, 185 D105, 175 D103, 64 D100, 60 D101, 35 D107, 18 D104. The count is identical to origin/19.0-marin's floor, i.e. the replayed commits moved no D-scored surface in odoo/."
+  "count": 759,
+  "note": "761 -> 759. Two D violations in odoo/libs/worker_thread.py -- D100 on the module and D103 on current_worker_thread -- both pre-existing, both fixed while completing the WorkerThread Protocol. D and ANN are enforced only in odoo/libs/ and odoo/orm/components/ (the negated glob in ruff.toml's per-file-ignores), which is why a file this small carried two. Nothing else in this change moved the count: the _field_access test-mixin work and the worker-thread conversions are type declarations, and the one F401 they created (threading left unused in orm/tests/test_replica_breaker.py after switching to current_worker_thread) was removed in the same commit rather than absorbed. Command: ruff check odoo/ --no-cache --statistics | awk '{s+=$1} END {print s+0}'"
 }

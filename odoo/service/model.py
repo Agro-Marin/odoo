@@ -15,6 +15,7 @@ from odoo.exceptions import (
     AccessError,
     UserError,
 )
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.models import BaseModel
 from odoo.modules.registry import Registry
 from odoo.tools import lazy
@@ -145,7 +146,7 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
         )
         raise AccessDenied
 
-    thread = threading.current_thread()
+    thread = current_worker_thread()
     thread.dbname = db
     thread.uid = uid
     try:
@@ -188,7 +189,7 @@ def execute_cr(
     recs = env.get(obj)
     if recs is None:
         raise UserError(f"Object {obj} doesn't exist")
-    thread = threading.current_thread()
+    thread = current_worker_thread()
     thread.rpc_model_method = f"{obj}.{method}"
     result = retrying(partial(call_kw, recs, method, args, kw), env)
     result = _force_lazy_values(result)

@@ -95,7 +95,21 @@ class TestCollector(unittest.TestCase):
 
 class TestProtocolTracking(unittest.TestCase):
     def test_attrs_come_from_the_live_protocol(self):
-        # The eight bookkeeping fields the Protocol declares today.
+        # The eleven bookkeeping fields the Protocol declares today.
+        #
+        # It was eight until `type`, `start_time` and `exec_context` were added.
+        # All three were already being written -- `type` and `start_time` by
+        # service/_threaded and service/wsgi, `exec_context` by tools/profiler --
+        # while the Protocol did not name them, so mypy reported each write as
+        # [attr-defined] and this gate did not watch them at all. Since the
+        # attribute set is read off the Protocol, declaring them widened the
+        # gate: it now also catches a raw inline read of any of the three, and
+        # the one that existed (tools/profiler.py's exec_context) was converted
+        # in the same change, which is why the raw surface is still empty.
+        #
+        # This assertion is deliberately a full set rather than a count: adding
+        # a field must be a decision that shows up in a diff, because it widens
+        # what the gate polices.
         self.assertEqual(
             wtsc.PROTOCOL_ATTRS,
             frozenset(
@@ -108,6 +122,9 @@ class TestProtocolTracking(unittest.TestCase):
                     "perf_t0",
                     "cursor_mode",
                     "rpc_model_method",
+                    "type",
+                    "start_time",
+                    "exec_context",
                 }
             ),
         )
