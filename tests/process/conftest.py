@@ -167,7 +167,7 @@ class ServerHandle:
         psutil.wait_procs(procs, timeout=10)
 
 
-@pytest.fixture()
+@pytest.fixture
 def server(tmp_path):
     """Factory: boot ``odoo-bin`` with ``args`` and wait until it SERVES.
 

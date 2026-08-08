@@ -49,7 +49,7 @@ def _psql(dbname: str, sql: str) -> str:
     return proc.stdout.strip()
 
 
-@pytest.fixture()
+@pytest.fixture
 def db_with_victim(base_db):
     """``base_db`` with :data:`VICTIM` installed, restored to that state after.
 

@@ -60,7 +60,7 @@ class TestOrderNotifiedFirst:
     construction for any iterable — these tests pin that contract.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def order(self):
         from odoo.service._cron import order_notified_first
 

@@ -110,6 +110,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_private_access")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 

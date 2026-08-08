@@ -83,6 +83,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_patch_blind_facade")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 ACORN = ROOT / "node_modules" / "acorn" / "dist" / "acorn.mjs"

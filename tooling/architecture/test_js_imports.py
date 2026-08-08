@@ -15,10 +15,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _repo_root import find_odoo_root
-
 import js_imports  # sys.path set by conftest.py
 import js_imports as ji
+from _repo_root import find_odoo_root
 from js_imports import collect_imports
 
 

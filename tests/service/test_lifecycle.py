@@ -210,7 +210,7 @@ class TestNarrowingTestSpec:
     class -- all did exactly that.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def spec(self, mod):
         return mod._narrowing_test_spec
 
@@ -275,7 +275,7 @@ class TestPreloadRegistriesReturnCode:
     decides the exit code is the subject.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def preload(self, mod):
         def _run(dbnames, *, report=None, config_overrides=None, spec="", new=None):
             registry = MagicMock()

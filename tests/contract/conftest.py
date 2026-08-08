@@ -80,7 +80,7 @@ def scratch_db():
         )
 
 
-@pytest.fixture()
+@pytest.fixture
 def run_psql(scratch_db):
     """Run ``psql -f <file>`` against the scratch DB the way ``restore_db`` does.
 

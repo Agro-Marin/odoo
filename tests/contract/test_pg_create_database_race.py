@@ -41,7 +41,7 @@ def _drop(name: str) -> None:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def race_name():
     """A database name unique to this test, dropped however the test ends."""
     name = f"odoo_race_{uuid.uuid4().hex[:12]}"

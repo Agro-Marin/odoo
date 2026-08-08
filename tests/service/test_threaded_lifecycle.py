@@ -35,7 +35,7 @@ import pytest
 from odoo.service import _threaded, lifecycle
 
 
-@pytest.fixture()
+@pytest.fixture
 def server():
     """A ``ThreadedServer`` carrying exactly the fields ``__init__`` sets.
 
@@ -115,7 +115,7 @@ class TestSignalHandlerOnAPlatformWithoutSighup:
     has no ``SIGHUP``, which is the condition the guard exists for.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def windows_signal(self):
         """A stand-in ``signal`` module shaped like Windows: no SIGHUP, no SIGXCPU."""
         return SimpleNamespace(SIGINT=signal.SIGINT, SIGTERM=signal.SIGTERM)
@@ -152,7 +152,7 @@ class TestStartInstallsTheHandlers:
     passed the entire suite.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def wired(self, server):
         seen = {}
         cfg = {"http_enable": False, "test_enable": False}
@@ -213,7 +213,7 @@ class TestGracefulStop:
     """Each assertion below corresponds to a step that vanished silently when
     the body of ``stop()`` was replaced with ``return``."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def stopped(self, server):
         def _run(**attrs):
             server.__dict__.update(attrs)

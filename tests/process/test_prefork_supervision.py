@@ -43,7 +43,7 @@ def _http_workers(srv):
 @requires_pg
 @requires_posix
 class TestPreforkReplacesAKilledWorker:
-    @pytest.fixture()
+    @pytest.fixture
     def prefork(self, server):
         srv = server("--workers", str(WORKERS))
         assert srv.wait_until(lambda: len(_http_workers(srv)) == WORKERS, timeout=60), (
