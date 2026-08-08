@@ -1,3 +1,8 @@
+// The loud comment below is fixture PAYLOAD, not prose -- do not strip it.
+// `/*! <bare hex> */` is the shape Dart Sass preserves verbatim, and the shape
+// `rx_css_split` matched before it was namespaced to `odoo-split:`. Removing it
+// leaves the fixture asserting nothing.
+/*! a1b2c3d */
 .split-marker-regression {
     color: red;
 }

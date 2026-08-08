@@ -1976,11 +1976,21 @@ class TestAssetsManifest(AddonManifestPatched):
         self.assertRegex(content, r"\.flex-1-30px\{flex:1 30px\}")
 
     def test_20bis_css_loud_comment_not_mistaken_for_split_marker(self):
+        fixture = "test_assetsbundle/static/src/scss/test_split_marker.scss"
+        # The loud comment is what this test is about, so a fixture that lost it
+        # passes the interesting assertion vacuously. It has been lost once
+        # already -- a repo-wide comment strip took it for prose -- and the bare
+        # assertIn below then failed without saying which side was wrong.
+        self.assertIn(
+            "/*! a1b2c3d */",
+            pathlib.Path(file_path(fixture)).read_text(encoding="utf-8"),
+            f"{fixture} lost its loud comment; it is the payload, not a comment",
+        )
         self.env["ir.asset"].create(
             {
                 "name": "1",
                 "bundle": "test_assetsbundle.irasset_split",
-                "path": "test_assetsbundle/static/src/scss/test_split_marker.scss",
+                "path": fixture,
             }
         )
         bundle = self.env["ir.qweb"]._get_asset_bundle(
