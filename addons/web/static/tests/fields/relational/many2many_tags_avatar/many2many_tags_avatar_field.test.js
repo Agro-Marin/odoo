@@ -39,6 +39,20 @@ onRpc("has_group", () => true);
 
 defineModels([Partner, Turtle]);
 
+/**
+ * Type `value` into the tags autocomplete and take the auto-selected option.
+ *
+ * @param {string} value
+ */
+async function addTag(value) {
+    await contains("[name='partner_ids'] .o_input_dropdown input").edit(value, {
+        confirm: false,
+    });
+    await runAllTimers();
+    await press("Enter");
+    await animationFrame();
+}
+
 test("widget many2many_tags_avatar", async () => {
     await mountView({
         type: "form",
@@ -54,13 +68,19 @@ test("widget many2many_tags_avatar", async () => {
     expect(queryAllTexts("[name='partner_ids'] .o_tag")).toEqual([]);
     expect("[name='partner_ids'] .o_input_dropdown input").toHaveValue("");
 
-    await contains("[name='partner_ids'] .o_input_dropdown input").fill("first record");
-    await runAllTimers();
+    // Type, let the debounced search resolve, *then* confirm -- the order
+    // `@web/fields/relational/many2x_autocomplete` uses throughout. `fill`
+    // confirms by default, which sent Enter while the search was still in
+    // flight: `autoSelect` had no option to take yet, so the tag was not
+    // created, and the option resolved by the following `runAllTimers` was
+    // instead committed by the *next* interaction. Each assertion then read the
+    // previous step's result and the pair looked like an off-by-one in the
+    // widget.
+    await addTag("first record");
     expect(queryAllTexts("[name='partner_ids'] .o_tag")).toEqual(["first record"]);
     expect("[name='partner_ids'] .o_input_dropdown input").toHaveValue("");
 
-    await contains("[name='partner_ids'] .o_input_dropdown input").fill("abc");
-    await runAllTimers();
+    await addTag("abc");
     expect(queryAllTexts("[name='partner_ids'] .o_tag")).toEqual([
         "first record",
         "abc",
