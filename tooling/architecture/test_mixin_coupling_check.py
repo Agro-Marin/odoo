@@ -356,5 +356,86 @@ class TestCyclicEdges(unittest.TestCase):
         )
 
 
+class TestFieldComposition(unittest.TestCase):
+    """The gate was hard-coded to ``BaseModel``; ``Field`` is built the same way.
+
+    ``Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`` over a
+    ``_FieldStubs`` typing declaration is the same construction, and was measured
+    by nothing while being 1401 lines against 628 in its three mixins -- the
+    inverse of the ratio ``models/`` reached.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.comp = mcc.FIELD_COMPOSITION
+        cls.units = mcc.collect_units(cls.comp)
+        cls.m = mcc.measure(comp=cls.comp)
+
+    def test_it_collects_the_mixin_composition_and_nothing_else(self):
+        self.assertEqual(
+            {"base.py", "_field_convert", "_field_description", "_field_sql"},
+            set(self.units),
+        )
+
+    def test_concrete_field_types_are_not_units(self):
+        """``textual``/``numeric``/``relational`` are subclasses, not mixins.
+
+        They override base methods freely -- ``BaseString`` overrides six of
+        ``Field``'s twelve cache methods -- but that is the *override* surface,
+        a different question from mixin composition. Including them would
+        conflate the two graphs.
+        """
+        for name in ("textual", "numeric", "binary", "relational/many2many"):
+            self.assertNotIn(name, self.units)
+
+    def test_the_stub_module_is_excluded(self):
+        self.assertNotIn("_field_stubs", self.units)
+
+    def test_the_known_cycle_is_the_one_recorded(self):
+        """Pinned as a finding, not as an accident.
+
+        The first run of this gate found it. Both endpoints are named so that
+        fixing it is a visible diff here rather than a silent baseline edit.
+        """
+        self.assertEqual([["_field_convert", "base.py"]], self.m["sccs"])
+        self.assertEqual(mcc.FIELD_BASELINE["cyclic_edges"], self.m["cyclic_edges"])
+
+    def test_the_cycle_is_root_versus_declared_metadata(self):
+        """Which is why the fix is the one ``models/`` already made.
+
+        ``base.py`` reaches conversion from the descriptor protocol; conversion
+        reaches back for *declared attributes*. That is the shape ``BaseModel``
+        had before its metadata went onto a leaf.
+        """
+        edges, _ = mcc.build_edges(self.units)
+        self.assertLessEqual(
+            {"convert_to_cache", "convert_to_record", "convert_to_write"},
+            edges["base.py"]["_field_convert"],
+        )
+        back = edges["_field_convert"]["base.py"]
+        self.assertLessEqual({"column_type", "company_dependent", "translate"}, back)
+
+    def test_it_has_its_own_floors(self):
+        """Two graphs, two baselines -- neither may mask the other."""
+        self.assertIsNot(mcc.FIELD_BASELINE, mcc.BASELINE)
+        self.assertEqual(
+            {"max_scc", "cyclic_edges", "scc_without_base"}, set(mcc.FIELD_BASELINE)
+        )
+
+    def test_the_recordset_view_is_off_for_fields(self):
+        """``RECORDSET_PRODUCERS`` are BaseModel methods; a Field holds no
+        recordset of itself, so the wide view would just duplicate the narrow
+        one and double the ratchet noise."""
+        self.assertFalse(self.comp.recordset_aware)
+        self.assertTrue(mcc.MODEL_COMPOSITION.recordset_aware)
+
+    def test_the_model_composition_is_unchanged_by_the_generalisation(self):
+        """The refactor must not move the graph it was already measuring."""
+        model = mcc.measure()
+        self.assertEqual(mcc.BASELINE["max_scc"], model["max_scc"])
+        self.assertEqual(mcc.BASELINE["cyclic_edges"], model["cyclic_edges"])
+        self.assertEqual(31, len(model["units"]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

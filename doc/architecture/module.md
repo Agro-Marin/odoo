@@ -347,7 +347,31 @@ units — 31, since `read_group/` contributes five (`_empty`, `fill`, `format`,
 python tooling/architecture/mixin_coupling_check.py            # report
 python tooling/architecture/mixin_coupling_check.py --check    # CI
 python tooling/architecture/mixin_coupling_check.py --explain search read
+python tooling/architecture/mixin_coupling_check.py --composition Field \
+    --explain _field_convert base.py
 ```
+
+**`BaseModel` is not the only composition, and the gate now measures both.**
+`Field` is `Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`
+over a `_FieldStubs` typing declaration — the same construction, equally
+invisible to `layer_check`, and measured by nothing until 2026-08-08 while being
+1401 lines against 628 in its three mixins, the inverse of the ratio `models/`
+reached. Each composition carries its own floors and a drift in either fails.
+
+The first run found what the absence of a gate had allowed: a 2-cycle,
+`_field_convert` ⇄ `base.py`. `base.py` reaches conversion from the descriptor
+protocol (`convert_to_cache` / `convert_to_record` / `convert_to_write`) and
+conversion reaches back for *declared attributes* (`column_type`,
+`company_dependent`, `translate`, …). That is the shape `BaseModel` had before
+2026-08a, and the same fix applies — the metadata belongs on a leaf, as
+`_metadata` / `_properties` / `_magic_fields` are for models. `Field` has ~40
+declared attributes, so the floor records the tangle rather than pretending it
+away, and stops it growing meanwhile.
+
+For `Field` the units are the mixin composition only. Concrete field types are
+*subclasses*, and they override base methods freely — `BaseString` overrides six
+of `Field`'s twelve cache methods — but that is the override surface, a
+different graph.
 
 The mixin call graph is the largest such surface but not the only one. What
 follows carries coupling no import edge records either — and the first of it
