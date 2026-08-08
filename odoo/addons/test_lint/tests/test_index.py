@@ -1,6 +1,81 @@
+import logging
+import re
+
+from odoo import models
 from odoo.tests import common
 
+_logger = logging.getLogger(__name__)
+
 BTREE_INDEX_PY_DEFS = (True, "1", "btree", "btree_not_null")
+
+# `INDEX (a, b DESC) WHERE ...`, once the UNIQUE/INDEX/USING prefix is off.
+_LEADING_COLUMN_RE = re.compile(
+    r"""
+    \(\s*
+    (?P<column>\w+)               # the leading column, a plain identifier
+    (?:\s+(?:ASC|DESC))?          # its direction, which does not change what
+                                  # the index can serve
+    (?P<rest>[,)])                # a comma (composite) or the closing paren
+    """,
+    re.VERBOSE | re.IGNORECASE,
+)
+
+
+def leading_index_columns(model) -> set[str]:
+    """Columns a declared btree index already answers on its own.
+
+    PostgreSQL serves ``WHERE a = ?`` from an index on ``(a, b, ...)``: what
+    decides is the *leading* column, not the arity. So a field that already
+    leads a composite index does not need a second single-column one -- adding
+    it would cost every write and buy no read.
+
+    This is not hypothetical. `stock.quant.product_id` leads both
+    `_product_location_idx` and `_quant_merge_idx`, and its standalone index
+    was deliberately dropped in this fork (with an `init()` that removes the
+    orphan). Reading only ``field.index``, this gate demanded it back.
+    """
+    columns: set[str] = set()
+    for table_object in getattr(model, "_table_objects", {}).values():
+        if not isinstance(table_object, models.Index):
+            continue
+        try:
+            definition = table_object.get_definition(model.pool)
+        except Exception:
+            # A callable definition may need registry state we do not have.
+            # Unknown means "not proven indexed", which only ever over-reports.
+            _logger.debug(
+                "could not render the definition of %s on %s",
+                table_object.name,
+                getattr(model, "_name", model),
+                exc_info=True,
+            )
+            continue
+        clause = re.sub(
+            r"^\s*(UNIQUE\s+)?INDEX\s*", "", definition, flags=re.IGNORECASE
+        )
+        if re.match(r"^\s*USING\s+(?!btree\b)", clause, flags=re.IGNORECASE):
+            continue  # a gin/gist index does not answer an equality lookup
+        clause = re.sub(r"^\s*USING\s+btree\s*", "", clause, flags=re.IGNORECASE)
+        match = _LEADING_COLUMN_RE.match(clause)
+        if not match:
+            continue  # an expression index; its leading term is not a column
+        column = match.group("column")
+        condition = clause[match.end() :]
+        if "where" in condition.lower():
+            # A partial index only answers the rows it covers. `IS NOT NULL` is
+            # exactly the set an inverse lookup wants -- it is what
+            # `index="btree_not_null"` generates -- and nothing else is safe to
+            # assume.
+            if not re.search(
+                rf"WHERE\s+{re.escape(column)}\s+IS\s+NOT\s+NULL\s*$",
+                condition,
+                flags=re.IGNORECASE,
+            ):
+                continue
+        columns.add(column)
+    return columns
+
+
 BTREE_INDEX_IGNORE_MODELS = {
     "res.company",
     "stock.warehouse",
@@ -13,11 +88,16 @@ BTREE_INDEX_IGNORE_MODELS = {
     "ir.module.module.dependency",
     "ir.module.module.exclusion",
 }
+# Hand-maintained exceptions. Three entries left this set once the rule below
+# learned to read composite indexes -- `discuss.channel.member.channel_id`
+# leads `(channel_id, partner_id, seen_message_id)`, and `mail.presence`'s two
+# are `UniqueIndex("(x) WHERE x IS NOT NULL")`. They were never exceptions;
+# they were indexes the gate could not see. Prefer teaching the rule over
+# adding a line here.
 BTREE_INDEX_IGNORE_FIELDS = {
     "mail.message.res_id",
     "ir.attachment.res_id",
     "spreadsheet.revision.res_id",
-    "discuss.channel.member.channel_id",
     "discuss.channel.rtc.session.channel_member_id",
     "documents.document.attachment_id",
     "account.fiscal.position.account.position_id",
@@ -25,8 +105,6 @@ BTREE_INDEX_IGNORE_FIELDS = {
     "knowledge.article.member.article_id",
     "slide.channel.forum_id",
     "hr.appraisal.skill.appraisal_id",
-    "mail.presence.user_id",
-    "mail.presence.guest_id",
     "res.users.settings.user_id",
     "project.collaborator.project_id",
 }
@@ -53,6 +131,8 @@ class TestIndex(common.TransactionCase):
             if str(m2o_field) in BTREE_INDEX_IGNORE_FIELDS:
                 return True
             if m2o_field.index in BTREE_INDEX_PY_DEFS:
+                return True
+            if m2o_field.name in leading_index_columns(comodel):
                 return True
             ir_model_id = self.env["ir.model"]._get_id(comodel._name)
             modules = (
