@@ -115,6 +115,19 @@ removed patch names were "quoted rather than backticked on purpose".** They neve
 were, and no convention asks authors to punctuate around a checker. Section
 scoping is the fix.
 
+**The risk register was in `DOC_PATHS` and asserted by nothing.** Membership
+of the concatenated document is what makes a page *readable* by the gate, not
+what makes it *checked* — and the two look identical from outside. `risks.md`
+shipped with five figures (the two runtime-channel comparisons, the checker
+count in digits, the public-surface pin size); every one was correct, and
+mutating R2's to `Layer 2's 99` and `777 Registry sites` left the whole suite
+green. The word form of the checker count was pinned in `gates.md` while the
+three bare `24`s here were not, so adding a gate would have failed one page and
+quietly falsified the other. Each figure now derives from a live run of the
+checker that produces it, and one assertion guards the *conclusion* rather than
+the digits, because both sides of a comparison can be re-measured correctly
+while the sentence around them is left claiming the opposite.
+
 See also: `doc/adr/` (architecture decisions, 0001–0013 — 0012/0013 cover
 attachment storage and content placement, which sit above this page's scope) and
 the `orm/__init__.py` module docstring.
