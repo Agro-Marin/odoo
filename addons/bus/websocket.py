@@ -995,7 +995,13 @@ class Websocket:
             if registry_reloaded:
                 _logger.warning("Bus operation aborted; registry has been reloaded")
             else:
-                _logger.exception("Unhandled exception in websocket handler")
+                # `exc_info=exc`, not `.exception()`: this method is handed the
+                # exception, so there is no reason to read it back out of the
+                # ambient `sys.exc_info()`. That coupling is silently wrong the
+                # moment anything calls `_handle_transport_error` outside an
+                # `except` block -- it would log "NoneType: None" instead of the
+                # error -- and it is what `ruff`'s LOG004 flags here.
+                _logger.error("Unhandled exception in websocket handler", exc_info=exc)
         if self.state is ConnectionState.OPEN:
             try:
                 self._disconnect(code, reason)
