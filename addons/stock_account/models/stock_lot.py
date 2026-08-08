@@ -110,11 +110,6 @@ class StockLot(models.Model):
                 )
                 lot.avg_cost = unit_cost_by_lot_id.get(lot.id, 0)
 
-    # TODO: remove avg cost column in master and merge the two compute methods
-    def _compute_avg_cost(self):
-        # DEPRECATED: This method is no longer used.
-        self.avg_cost = 0.0
-
     @api.model_create_multi
     def create(self, vals_list):
         lots = super().create(vals_list)
@@ -158,7 +153,7 @@ class StockLot(models.Model):
                 avco_lots_by_product[lot.product_id] |= lot
             else:
                 lot.standard_price = lot.product_id._run_fifo_batch(lot=lot)[0].get(
-                    lot.product_id.id, lot.standard_price
+                    lot.id, lot.standard_price
                 )
 
         for product, lots in avco_lots_by_product.items():
@@ -188,7 +183,9 @@ class StockLot(models.Model):
                     "product_id": product.id,
                     "lot_id": lot.id,
                     "value": lot.standard_price,
-                    "company_id": product.company_id.id or self.env.company.id,
+                    # Company-dependent price -> stamp the company it was written
+                    # under, not the product's. See ProductProduct._change_standard_price.
+                    "company_id": self.env.company.id,
                     "date": fields.Datetime.now(),
                     "description": _(
                         "%(lot)s price update from %(old_price)s to %(new_price)s by %(user)s",
@@ -200,4 +197,7 @@ class StockLot(models.Model):
                 }
             )
 
-        self.env["product.value"].sudo().create(product_values)
+        # Records a price the caller just wrote; must not re-trigger the recompute.
+        self.env["product.value"].sudo().with_context(
+            disable_auto_revaluation=True
+        ).create(product_values)

@@ -98,11 +98,30 @@ class ProductValue(models.Model):
     def create(self, vals_list):
         product_ids = set()
         move_ids = set()
+        lot_ids = set()
 
+        # A manual revaluation is an input to the valuation engine
+        # (`_run_average_batch` seeds from it), so the cost it implies has to reach
+        # `standard_price`, which is what actually prices out-moves, COGS and
+        # margins. `_change_standard_price` is the one caller that writes a row for
+        # a price it has *already* set, and flags itself so its own record is not
+        # recomputed back over -- a product-level row must not re-derive the
+        # product's cost from lots that have not been updated yet.
+        records_a_price_already_set = self.env.context.get("disable_auto_revaluation")
         for vals in vals_list:
             if vals.get("move_id"):
                 move_ids.add(vals["move_id"])
             elif vals.get("lot_id") and vals.get("product_id"):
+                # Revaluing one lot moves the product's average, so the product is
+                # recomputed either way; only the lot itself is skipped when the
+                # row simply records that lot's own new price.
+                product_ids.add(vals["product_id"])
+                if not records_a_price_already_set:
+                    lot_ids.add(vals["lot_id"])
+            elif vals.get("product_id") and not records_a_price_already_set:
+                # Product-level rows used to miss this entirely -- the branch above
+                # required a `lot_id` -- so a plain revaluation moved `total_value`
+                # and `avg_cost` while `standard_price` stayed stale.
                 product_ids.add(vals["product_id"])
 
         res = super().create(vals_list)
@@ -110,4 +129,9 @@ class ProductValue(models.Model):
             self.env["stock.move"].browse(move_ids)._set_value()
         if product_ids:
             self.env["product.product"].browse(product_ids)._update_standard_price()
+        if lot_ids:
+            # `product._update_standard_price()` sets the *product's* cost; on a
+            # lot-valuated product it never touches the lot, so a lot-level
+            # revaluation has to be pushed to the lot it names as well.
+            self.env["stock.lot"].browse(lot_ids).sudo()._update_standard_price()
         return res

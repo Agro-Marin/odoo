@@ -19,7 +19,13 @@ class StockValuationReport(models.AbstractModel):
     @api.model
     def _get_report_values(self, docids, data=None):
         docs = []
-        doc = self._get_report_data()
+        # Scope to a single company, as `get_report_values` does: the figures below
+        # come from `product.total_value`, which sums every company in
+        # `env.companies`, so a PDF rendered with several enabled would report
+        # other companies' stock as this one's.
+        doc = self.with_context(
+            allowed_company_ids=self.env.company.ids
+        )._get_report_data()
         docs.append(self._include_pdf_specifics(doc, data))
         return {
             "doc_ids": docids,

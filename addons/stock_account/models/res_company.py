@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 
 from dateutil.relativedelta import relativedelta
@@ -10,6 +11,8 @@ from odoo.addons.stock_account.models.constants import (
     COST_METHOD_SELECTION,
     VALUATION_SELECTION,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 class ResCompany(models.Model):
@@ -56,6 +59,31 @@ class ResCompany(models.Model):
 
     def action_close_stock_valuation(self, at_date=None, auto_post=False):
         self.ensure_one()
+        account_move = self._close_stock_valuation(at_date=at_date, auto_post=auto_post)
+        if not account_move:
+            # No account moves to create, so nothing to display.
+            raise UserError(_("Everything is correctly closed"))
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Journal Items"),
+            "res_model": "account.move",
+            "res_id": account_move.id,
+            "views": [(False, "form")],
+        }
+
+    def _close_stock_valuation(self, at_date=None, auto_post=False):
+        """Create -- and optionally post -- this company's closing entry.
+
+        :return: the `account.move`, or an empty recordset when there was nothing
+            to close.
+
+        Split out of `action_close_stock_valuation` so a caller that is not a
+        button can tell "nothing to do" from "it failed". The cron used to go
+        through the action, so the first company with a quiet period raised its
+        `UserError` out of the loop: every later company was skipped and the
+        transaction rolled back, discarding the closings already computed.
+        """
+        self.ensure_one()
         if at_date and isinstance(at_date, str):
             at_date = fields.Date.from_string(at_date)
         last_closing_date = self._get_last_closing_date()
@@ -74,8 +102,7 @@ class ResCompany(models.Model):
         )._action_close_stock_valuation(at_date=at_date)
 
         if not aml_vals_list:
-            # No account moves to create, so nothing to display.
-            raise UserError(_("Everything is correctly closed"))
+            return self.env["account.move"]
         if not self.account_stock_journal_id:
             raise UserError(
                 self.env._(
@@ -103,14 +130,7 @@ class ResCompany(models.Model):
         self._save_closing_id(account_move.id)
         if auto_post:
             account_move._post()
-
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Journal Items"),
-            "res_model": "account.move",
-            "res_id": account_move.id,
-            "views": [(False, "form")],
-        }
+        return account_move
 
     def stock_value(self, accounts_by_product=None, at_date=None):
         self.ensure_one()
@@ -176,8 +196,11 @@ class ResCompany(models.Model):
 
     @api.model
     def _cron_post_stock_valuation(self):
+        today = fields.Date.today()
         periods = ["daily"]
-        if fields.Date.today() == fields.Date.today() + relativedelta(day=31):
+        # `relativedelta(day=31)` clamps to the month's last day, so this reads
+        # "today is the last day of the month".
+        if today == today + relativedelta(day=31):
             periods.append("monthly")
         domain = Domain(
             [
@@ -187,7 +210,18 @@ class ResCompany(models.Model):
         )
         companies = self.env["res.company"].search(domain)
         for company in companies:
-            company.action_close_stock_valuation(auto_post=True)
+            # Isolate each company: a quiet period is normal and no longer raises,
+            # but a misconfigured journal or valuation account still does, and one
+            # company's configuration must not cost every other company its close.
+            try:
+                with self.env.cr.savepoint():
+                    company._close_stock_valuation(auto_post=True)
+            except UserError:
+                _logger.warning(
+                    "Stock valuation closing skipped for company %s",
+                    company.display_name,
+                    exc_info=True,
+                )
 
     def _get_valuation_product_domain(self):
         return [("is_storable", "=", True)]
@@ -243,7 +277,11 @@ class ResCompany(models.Model):
             moves_base_domain &= Domain([("date", ">", last_closing_date)])
         if at_date:
             moves_base_domain &= Domain([("date", "<=", at_date)])
-        moves_in_domain = (
+        # Named from the accounted location's point of view, which is the opposite
+        # of the move's: a move *out* of company stock is what puts value *into*
+        # the location's account, and vice versa. The old names said `in` for the
+        # `is_out` filter and read as a bug on every visit.
+        into_location_domain = (
             Domain(
                 [
                     ("is_out", "=", True),
@@ -253,12 +291,12 @@ class ResCompany(models.Model):
             )
             & moves_base_domain
         )
-        moves_in_by_location = self.env["stock.move"]._read_group(
-            moves_in_domain,
+        value_into_location = self.env["stock.move"]._read_group(
+            into_location_domain,
             ["location_dest_id", "product_category_id"],
             ["value:sum"],
         )
-        moves_out_domain = (
+        out_of_location_domain = (
             Domain(
                 [
                     ("is_in", "=", True),
@@ -268,20 +306,20 @@ class ResCompany(models.Model):
             )
             & moves_base_domain
         )
-        moves_out_by_location = self.env["stock.move"]._read_group(
-            moves_out_domain,
+        value_out_of_location = self.env["stock.move"]._read_group(
+            out_of_location_domain,
             ["location_id", "product_category_id"],
             ["value:sum"],
         )
         account_balance = defaultdict(float)
-        for location, category, value in moves_in_by_location:
+        for location, category, value in value_into_location:
             stock_valuation_acc = (
                 category.property_stock_valuation_account_id
                 or self.account_stock_valuation_id
             )
             account_balance[location.valuation_account_id, stock_valuation_acc] += value
 
-        for location, category, value in moves_out_by_location:
+        for location, category, value in value_out_of_location:
             stock_valuation_acc = (
                 category.property_stock_valuation_account_id
                 or self.account_stock_valuation_id
@@ -389,10 +427,11 @@ class ResCompany(models.Model):
             )
             if at_date:
                 current_balance_domain &= Domain([("date", "<=", at_date)])
-            existing_balance = sum(
-                self.env["account.move.line"]
-                .search(current_balance_domain)
-                .mapped("balance")
+            # Aggregate in SQL rather than loading every posted line on the
+            # variation account for the period, as `stock_accounting_value` above
+            # already does.
+            [(existing_balance,)] = self.env["account.move.line"]._read_group(
+                current_balance_domain, aggregates=["balance:sum"]
             )
             balance_over_period += existing_balance
 

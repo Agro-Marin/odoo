@@ -16,11 +16,19 @@ class StockMoveLine(models.Model):
             for move_line in self:
                 move_id = vals.get("move_id", move_line.move_id.id)
                 analytic_move_to_recompute.add(move_id)
+        # `picked` belongs here: `_get_in_move_lines` / `_get_out_move_lines` skip
+        # unpicked lines, so it decides whether -- and in which direction -- the move
+        # is valued, exactly like the owner and the locations below. Without it,
+        # unticking `picked` on a done move (a stored, writable field whose inverse
+        # pushes down to the lines, and an editable column on a done picking) left
+        # `is_in`/`is_out`/`value` describing move lines that no longer exist: stock
+        # stayed on hand valued at 0, or a re-averaged cost doubled.
         valuation_fields = [
             "quantity",
             "location_id",
             "location_dest_id",
             "owner_id",
+            "picked",
             "quant_id",
             "lot_id",
         ]

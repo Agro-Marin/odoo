@@ -92,14 +92,21 @@ class StockQuant(models.Model):
                 )
 
             products = (company_quants - lot_quants).product_id.with_company(company)
+            # Ask for THIS company's value, not `total_value`: that field
+            # deliberately sums every company in `env.companies` (and converts into
+            # `env.company`'s currency), so dividing it by one company's quantity
+            # gave every company's quant the whole group's value -- two companies
+            # holding 100 and 500 both reported 600, and the list view's total
+            # showed 1200.
+            scoped = products._scoped_for_company(company)
             qty_by_product_id = {
-                product.id: product.qty_available
-                for product in products._with_valuation_context()
+                product.id: product.qty_available for product in scoped
             }
+            value_by_product_id = scoped._run_valuation_batches()[1]
             for product in products:
                 totals_by_key[company, product.id, False] = (
                     qty_by_product_id[product.id],
-                    product.total_value,
+                    value_by_product_id.get(product.id, 0),
                 )
 
         for quant in valued_quants:

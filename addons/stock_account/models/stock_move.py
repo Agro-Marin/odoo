@@ -96,6 +96,27 @@ class StockMove(models.Model):
             products = self.env["product.product"].search(
                 [("is_storable", "=", True), ("qty_available", ">", 0)]
             )
+        # A product with no valued incoming move has an empty FIFO stack, so
+        # walking it can only return nothing. Dropping those costs one grouped
+        # query and saves a paged stack search per product skipped.
+        #
+        # What remains is still O(products): `_get_remaining_moves` walks each
+        # product's stack individually (~5 queries each, measured over 40
+        # products), which is inherent to deriving `remaining_qty` in Python.
+        # Making this filter cheap on a real catalogue needs the field itself
+        # redesigned -- stored, or resolved in SQL -- not a narrower prefilter.
+        if products:
+            products = products.browse(
+                product.id
+                for [product] in self.env["stock.move"]._read_group(
+                    [
+                        ("product_id", "in", products.ids),
+                        ("is_in", "=", True),
+                        ("company_id", "in", self.env.companies.ids),
+                    ],
+                    groupby=["product_id"],
+                )
+            )
         move_ids = []
         for company in self.env.companies:
             for qty_by_move in (
@@ -135,7 +156,10 @@ class StockMove(models.Model):
                 continue
             move.is_dropship = move._is_dropshipped() or move._is_dropshipped_returned()
 
-    @api.depends("state", "move_line_ids")
+    # Depend on the flags actually read, not on their inputs: `is_in`/`is_out` are
+    # stored and are deliberately re-derived outside the dependency graph by
+    # `_recompute_valuation_flags`, which `state`/`move_line_ids` cannot see.
+    @api.depends("is_in", "is_out")
     def _compute_is_valued(self):
         for move in self:
             move.is_valued = move.is_in or move.is_out
@@ -152,6 +176,12 @@ class StockMove(models.Model):
         """
         for field_name in ("is_in", "is_out", "is_dropship"):
             self.env.add_to_compute(self._fields[field_name], self)
+        # `is_valued` is a plain compute over the three above. Its dependency is
+        # registered, but it does not survive their *deferred* recompute -- a value
+        # cached before this call stays cached -- so drop it by hand. Without this a
+        # move could report `is_valued` True while `is_in`/`is_out` had both gone
+        # False, and `_should_create_account_move` reads `is_valued`.
+        self.invalidate_recordset(["is_valued"])
 
     @api.depends("value")
     def _compute_value_manual(self):
@@ -259,22 +289,53 @@ class StockMove(models.Model):
         (moves_in | moves_out).sudo()._create_analytic_move()
         return moves
 
+    def _get_stock_journal(self):
+        """The journal this move's valuation entry belongs in.
+
+        Resolved through `get_product_accounts()`, so a category-level
+        `property_stock_journal` is honoured. It used to be read straight off the
+        company here, which meant the category setting worked for manufacturing
+        entries (`mrp_account`, the only other reader of the key) and was silently
+        dropped for every ordinary stock move.
+        """
+        self.ensure_one()
+        return (
+            self.product_id.product_tmpl_id.with_company(
+                self.company_id
+            ).get_product_accounts()["stock_journal"]
+            or self.company_id.account_stock_journal_id
+        )
+
     def _create_account_move(self):
         """Create the valuation entries for the moves of `self`.
 
-        One entry is created per (company, accounting partner): the journal is
-        company-dependent and the partner sits on the entry header, so a batch
-        spanning several companies or customers -- an ordinary multi-picking
-        validation -- cannot be expressed as a single entry.
+        One entry is created per (company, accounting partner, journal): the
+        partner sits on the entry header and the journal may differ per product
+        category, so a batch spanning several companies, customers or categories --
+        an ordinary multi-picking validation -- cannot be expressed as a single
+        entry.
         """
         moves_by_entry = defaultdict(lambda: self.env["stock.move"])
         for move in self:
             if move._should_create_account_move():
-                key = (move.company_id, move._get_partner_id_for_valuation_lines())
+                key = (
+                    move.company_id,
+                    move._get_partner_id_for_valuation_lines(),
+                    move._get_stock_journal(),
+                )
                 moves_by_entry[key] |= move
 
         account_moves = self.env["account.move"].sudo()
-        for (company, partner_id), moves in moves_by_entry.items():
+        for (company, partner_id, journal), moves in moves_by_entry.items():
+            if not journal:
+                raise UserError(
+                    self.env._(
+                        "No inventory valuation journal is set for company"
+                        " %(company)s. Set one in the inventory settings, or on the"
+                        " product category.",
+                        company=company.display_name,
+                    )
+                )
             aml_vals_list = []
             for move in moves:
                 aml_vals_list += move._get_account_move_line_vals()
@@ -293,7 +354,7 @@ class StockMove(models.Model):
                     {
                         "ref": joined_refs,
                         "partner_id": partner_id,
-                        "journal_id": company.account_stock_journal_id.id,
+                        "journal_id": journal.id,
                         "line_ids": [
                             Command.create(aml_vals) for aml_vals in aml_vals_list
                         ],
@@ -325,12 +386,33 @@ class StockMove(models.Model):
                 )
 
     def _get_account_move_line_vals(self):
-        if self.location_id.valuation_account_id:
+        source_acc = self.location_id.valuation_account_id
+        dest_acc = self.location_dest_id.valuation_account_id
+        if source_acc and dest_acc:
+            # Both sides carry their own account, so the value moves straight from
+            # one to the other and the product's stock valuation account is not
+            # involved. Previously only the source branch ran and the destination
+            # account was dropped from the entry without a word.
+            debit_acc, credit_acc = dest_acc, source_acc
+        elif source_acc:
             debit_acc = self.product_id._get_product_accounts()["stock_valuation"]
-            credit_acc = self.location_id.valuation_account_id
+            credit_acc = source_acc
         else:
-            debit_acc = self.location_dest_id.valuation_account_id
+            debit_acc = dest_acc
             credit_acc = self.product_id._get_product_accounts()["stock_valuation"]
+        if not debit_acc or not credit_acc:
+            # `_should_create_account_move` only checks that a *location* has an
+            # account, so the product's could still be missing. Left unchecked this
+            # reached the database as `account_id = NULL` and came back as a check
+            # constraint violation that poisoned the transaction.
+            raise UserError(
+                self.env._(
+                    "No stock valuation account is configured for product"
+                    " %(product)s. Set one on its product category, or in the"
+                    " company's inventory settings.",
+                    product=self.product_id.display_name,
+                )
+            )
         value = self._get_aml_value()
         return [
             {
@@ -461,6 +543,17 @@ class StockMove(models.Model):
                     continue
                 # Outgoing moves
                 if not move._is_out():
+                    if not (move.is_in or move.is_dropship) and move.value:
+                        # The move is no longer valued in either direction: its
+                        # lines were unpicked, re-owned or re-routed. Leaving the
+                        # old value behind kept it in the periodic close and in the
+                        # AVCO replay, describing move lines that no longer
+                        # qualify -- stock on hand valued at 0, or an average cost
+                        # inflated by value carrying no quantity.
+                        move.value = 0
+                        products_to_recompute.add(move.product_id.id)
+                        if move.product_id.lot_valuated:
+                            lots_to_recompute.update(move.move_line_ids.lot_id.ids)
                     continue
                 if correction_quantity:
                     previous_qty = move.quantity - correction_quantity
@@ -673,15 +766,27 @@ class StockMove(models.Model):
 
     def _get_value_from_std_price(self, quantity, std_price=False, at_date=None):
         if at_date and self.product_id.cost_method == "standard":
-            std_price = (
-                std_price
-                or self.product_id.standard_price
-                or self.product_id._get_standard_price_at_date(at_date)
+            # `_get_standard_price_at_date` already falls back to `standard_price`
+            # when it finds no history, so consulting `standard_price` first only
+            # made the historical lookup unreachable -- pricing the past at today's
+            # cost, which is the later information an at-date replay exists to
+            # exclude.
+            std_price = std_price or self.product_id._get_standard_price_at_date(
+                at_date
             )
         # If multiple lots keep standard_price from product
         elif self.product_id.lot_valuated and len(self.lot_ids) == 1:
             std_price = self.lot_ids.standard_price
-        elif not std_price and at_date and self.product_id.cost_method == "fifo":
+        elif (
+            not std_price
+            and at_date
+            and self.product_id.cost_method in ("fifo", "average")
+        ):
+            # The stored value is the record of what this move was worth when it
+            # was done, so it is the cost that applied at `at_date`. `average` was
+            # missing here, so an AVCO in-move with no bill, quotation or return
+            # fell through to today's `standard_price` and a later price change
+            # silently restated the historical valuation.
             valued_qty = self._get_valued_qty()
             if valued_qty:
                 std_price = self.value / valued_qty

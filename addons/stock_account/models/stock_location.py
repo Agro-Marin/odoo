@@ -39,9 +39,15 @@ class StockLocation(models.Model):
         positive_operator = (operator == "=" and value) or (
             operator == "!=" and not value
         )
+        # Mirror `_should_be_valued()` exactly. It is company-agnostic, so scoping
+        # the search to `env.companies` made the field answer one thing when read
+        # and another when searched -- a location of another company computed True
+        # yet no search would return it. Callers needing a company scope add their
+        # own filter (`_with_valuation_context` already does), and the guard in
+        # `ProductTemplate.write` genuinely wants every company's stock.
         domain = Domain(
             [
-                ("company_id", "in", self.env.companies.ids),
+                ("company_id", "!=", False),
                 ("usage", "in", ["internal", "transit"]),
             ]
         )

@@ -1,11 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
 from datetime import date, datetime, time
+from itertools import batched
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import SQL, split_every
+from odoo.tools import SQL
 
 from odoo.addons.stock_account.models.avco import AvcoAccumulator
 from odoo.addons.stock_account.models.constants import (
@@ -34,15 +35,6 @@ class ProductTemplate(models.Model):
         store=True,
         readonly=False,
         help="If checked, the valuation will be specific by Lot/Serial number.",
-    )
-    # TODO remove in master
-    property_price_difference_account_id = fields.Many2one(
-        "account.account",
-        "Price Difference Account",
-        company_dependent=True,
-        ondelete="restrict",
-        check_company=True,
-        help="""With perpetual valuation, this account will hold the price difference between the standard price and the bill price.""",
     )
 
     def _search_valuation(self, operator, value):
@@ -288,16 +280,10 @@ class ProductProduct(models.Model):
         std_price_by_company_id = {}
         total_value_by_company_id = {}
         for company in self.env.companies:
-            products = self.with_company(company).with_context(
-                allowed_company_ids=company.ids
-            )
-            products = products._with_valuation_context()
-            if at_date:
-                products = products.with_context(at_date=at_date, to_date=at_date)
             (
                 std_price_by_company_id[company.id],
                 total_value_by_company_id[company.id],
-            ) = self._run_valuation_batches(products, at_date)
+            ) = self._get_valuation_by_company(company, at_date)
 
         for product in self:
             product.total_value = sum(
@@ -311,23 +297,58 @@ class ProductProduct(models.Model):
                 product.id, product.standard_price
             )
 
-    def _run_valuation_batches(self, products, at_date):
-        """Value ``products`` (already in their valuation context/scope) and return
+    def _scoped_for_company(self, company, at_date=None):
+        """``self`` narrowed to ``company``'s valuation scope: its valued locations,
+        its owners, its company-dependent prices."""
+        products = self.with_company(company).with_context(
+            allowed_company_ids=company.ids
+        )
+        products = products._with_valuation_context()
+        if at_date:
+            products = products.with_context(at_date=at_date, to_date=at_date)
+        return products
+
+    def _get_valuation_by_company(self, company, at_date=None):
+        """``(unit_cost_by_product_id, value_by_product_id)`` for ``company`` alone,
+        expressed in ``company``'s own currency.
+
+        ``total_value`` deliberately aggregates every company in ``env.companies``,
+        so it is the wrong numerator for anything that divides by a *single*
+        company's quantity -- a quant's share of its product, a one-company
+        closing. Those callers ask for a company explicitly, through here.
+        """
+        return self._scoped_for_company(company, at_date)._run_valuation_batches(
+            at_date
+        )
+
+    def _run_valuation_batches(self, at_date=None):
+        """Value the products in ``self`` -- which must already carry a valuation
+        context/scope, see ``_scoped_for_company`` -- and return
         ``(std_price_by_product_id, total_value_by_product_id)``, the total value having
         the warehouse ratio already applied."""
         # PERF: Pre-compute:the sum of 'total_value' of lots per product in go
         std_price_by_product_id = {}
         total_value_by_product_id = {}
-        lot_valuated_products_ids = {p.id for p in products if p.lot_valuated}
+        lot_valuated_products_ids = {p.id for p in self if p.lot_valuated}
         if lot_valuated_products_ids:
-            domain = Domain([("product_id", "in", lot_valuated_products_ids)])
+            # Scope the lots to the company being valued: this runs under
+            # `compute_sudo=True`, so the `stock.lot` record rule is bypassed and
+            # the `product_qty != 0` clause below -- which is dropped whenever
+            # `at_date` or `warehouse_id` is set -- is the only other thing that
+            # would have kept another company's lots out of the sum.
+            domain = Domain(
+                [
+                    ("product_id", "in", lot_valuated_products_ids),
+                    ("company_id", "in", [*self.env.company.ids, False]),
+                ]
+            )
             if not at_date and not self.env.context.get("warehouse_id"):
                 domain &= Domain([("product_qty", "!=", 0)])
-            lots_by_product = products.env["stock.lot"]._read_group(
+            lots_by_product = self.env["stock.lot"]._read_group(
                 domain, groupby=["product_id"], aggregates=["id:recordset"]
             )
             # Collect all lots and trigger batch computation of total_value
-            products.env["stock.lot"].browse(
+            self.env["stock.lot"].browse(
                 lot.id for _, lots in lots_by_product for lot in lots
             ).mapped("total_value")
             for product, lots in lots_by_product:
@@ -342,7 +363,7 @@ class ProductProduct(models.Model):
 
         product_ids_grouped_by_cost_method = defaultdict(set)
         ratio_by_product_id = {}
-        for product in products:
+        for product in self:
             if product.lot_valuated:
                 continue
             product_whole_company_context = product.with_context(warehouse_id=False)
@@ -382,7 +403,7 @@ class ProductProduct(models.Model):
 
         for cost_method, product_ids in product_ids_grouped_by_cost_method.items():
             valued_products = (
-                products.env["product.product"]
+                self.env["product.product"]
                 .browse(product_ids)
                 .with_context(warehouse_id=False)
             )
@@ -460,7 +481,12 @@ class ProductProduct(models.Model):
                 {
                     "product_id": product.id,
                     "value": product.standard_price,
-                    "company_id": product.company_id.id or self.env.company.id,
+                    # `standard_price` is company-dependent, so the value that just
+                    # changed belongs to `env.company`. Stamping `product.company_id`
+                    # instead filed a parent company's price change under a child,
+                    # where `_get_last_product_value` -- which filters on
+                    # `company_id = env.company.id` -- could never find it again.
+                    "company_id": self.env.company.id,
                     "date": date,
                     "description": _(
                         "Price update from %(old_price)s to %(new_price)s by %(user)s",
@@ -470,7 +496,11 @@ class ProductProduct(models.Model):
                     ),
                 }
             )
-        self.env["product.value"].sudo().create(product_values)
+        # These rows record a price the caller has just written, so they must not
+        # trigger the revaluation recompute in `product.value.create`.
+        self.env["product.value"].sudo().with_context(
+            disable_auto_revaluation=True
+        ).create(product_values)
         if product_ids_lot_valuated:
             for product, lots in self.env["stock.lot"]._read_group(
                 [("product_id", "in", product_ids_lot_valuated)],
@@ -765,19 +795,6 @@ class ProductProduct(models.Model):
         if oldest_manual_value and seeded_all:
             moves_domain &= Domain([("date", ">=", oldest_manual_value)])
 
-        # Phase 1 below skips per product, so it may only skip what every key of that
-        # product would skip -- otherwise a lot whose replay starts earlier would lose
-        # its opening moves.
-        if lots:
-            earliest_date_by_product_id = {}
-            for product, product_lots in lots.grouped("product_id").items():
-                dates = [date_by_key.get(lot.id) for lot in product_lots]
-                earliest_date_by_product_id[product.id] = (
-                    min(dates) if all(dates) else None
-                )
-        else:
-            earliest_date_by_product_id = dict(date_by_key)
-
         self.env[
             "product.value"
         ].invalidate_model()  # Avoid keeping too many records in cache
@@ -808,36 +825,26 @@ class ProductProduct(models.Model):
             "quantity_product_uom",
         ]
 
-        product, valuation_from_date = False, False
         batch_size = 50000
-
-        move_ids_by_product = defaultdict(list)
-        # Limit the memory usage since it's possible to have millions of stock.move
-        for moves_batch in split_every(batch_size, moves.ids):
-            moves_batch = self.env["stock.move"].browse(moves_batch)
-            moves_batch.fetch(["product_id", "date"])
-
-            for move in moves_batch:
-                if move.product_id != product:
-                    product = move.product_id
-                    valuation_from_date = earliest_date_by_product_id.get(product.id)
-                if valuation_from_date and move.date <= valuation_from_date:
-                    continue
-                move_ids_by_product[product].append(move.id)
-
-            self.env["stock.move"].invalidate_model()
 
         # Walk every product's moves in one pass rather than one pass per product.
         # `moves` is ordered by (product_id, date, id), so a product's moves stay
-        # contiguous and the recurrence is unchanged -- but the fetches below now
+        # contiguous and the recurrence is unchanged -- but the fetches below
         # batch across products instead of issuing a full round of queries (moves,
         # move lines, and each of their fields) per product, which is what made
         # valuing a catalogue cost a constant number of queries per product.
-        ordered_move_ids = [
-            move_id for move_ids in move_ids_by_product.values() for move_id in move_ids
-        ]
+        #
+        # There used to be a pre-pass here that fetched `product_id` and `date` for
+        # every move just to drop the ones at or before the product's earliest
+        # replay date. The loop below re-applies that test per key
+        # (`date_by_key`), and the per-product floor was either the same value
+        # (no lots) or the minimum across a product's lots -- never later than any
+        # per-lot floor -- so the pre-pass could not drop a move this loop keeps.
+        # With no manual revaluation at all it dropped nothing whatsoever and was
+        # a second full scan of every move.
         avco_by_key = {}
-        for moves_batch in split_every(batch_size, ordered_move_ids):
+        # Limit the memory usage since it's possible to have millions of stock.move
+        for moves_batch in batched(moves.ids, batch_size, strict=False):
             moves_batch = self.env["stock.move"].browse(moves_batch)
             moves_batch.fetch(move_fields)
             moves_batch.move_line_ids.fetch(move_line_fields)
@@ -907,18 +914,33 @@ class ProductProduct(models.Model):
         return std_price_by_key, value_by_key
 
     def _run_fifo_batch(self, at_date=None, lot=None, location=None):
-        std_price_by_product_id = {}
-        value_by_product_id = {}
-        for product in self:
-            quantity = product.qty_available
-            if lot:
-                quantity = lot.product_qty
-            value = product._run_fifo(quantity, lot, at_date, location)
-            std_price = value / quantity if not product.uom_id.is_zero(quantity) else 0
-            std_price_by_product_id[product.id] = std_price
-            value_by_product_id[product.id] = value
+        """Value the FIFO stack of the products in `self`.
 
-        return std_price_by_product_id, value_by_product_id
+        :param lot: when set, value that `stock.lot` instead of the product. The
+            returned mappings are then keyed by `stock.lot` id, as in
+            `_run_average_batch` -- keying a lot's figures by its product's id
+            invites the caller to read another key's value.
+        :return: ``(unit_cost_by_key, value_by_key)``.
+        """
+        std_price_by_key = {}
+        value_by_key = {}
+        for product in self:
+            key = lot.id if lot else product.id
+            quantity = lot.product_qty if lot else product.qty_available
+            value = product._run_fifo(quantity, lot, at_date, location)
+            if product.uom_id.is_zero(quantity):
+                # Nothing to divide by. Keep the existing cost basis rather than
+                # publishing a 0: `_run_standard_batch` falls back to
+                # `standard_price` and the AVCO accumulator leaves `unit_cost`
+                # untouched, so a 0 here made an emptied FIFO lot the only one of
+                # the three to forget what it cost.
+                std_price = lot.standard_price if lot else product.standard_price
+            else:
+                std_price = value / quantity
+            std_price_by_key[key] = std_price
+            value_by_key[key] = value
+
+        return std_price_by_key, value_by_key
 
     def _run_fifo(self, quantity, lot=None, at_date=None, location=None):
         """Returns the value for the next outgoing product base on the qty give as argument."""
@@ -1128,21 +1150,6 @@ class ProductProduct(models.Model):
                         ).sudo().standard_price = new_standard_price_by_product[
                             product.id
                         ]
-
-    # -------------------------------------------------------------------------
-    # Old to remove
-    # -------------------------------------------------------------------------
-    def _run_avco(self, at_date=None, lot=None, method="realtime"):
-        self.ensure_one()
-        price_unit, value = self._run_average_batch(
-            at_date=at_date, lots=lot, force_recompute=True
-        )
-        # Keyed by lot when valuing one, by product otherwise.
-        key = lot.id if lot else self.id
-        return price_unit.get(key, 0), value.get(key, 0)
-
-    def _get_value_from_lots(self):
-        return 0
 
 
 class ProductCategory(models.Model):

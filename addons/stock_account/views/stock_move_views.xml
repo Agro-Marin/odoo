@@ -54,10 +54,15 @@
         <field name="view_id" ref="stock_move_view_list_valuation"/>
     </record>
 
+    <!-- Bound to the group that can actually save the result: `product.value` is
+         create-restricted to stock managers, while accounting users hold write on
+         stock.move, so an ungated binding offered them a dialog that always failed
+         with an AccessError. -->
     <record model="ir.actions.server" id="stock_move_action_adjust_valuation">
         <field name="name">Adjust Valuation</field>
         <field name="model_id" ref="model_stock_move"/>
         <field name="binding_model_id" ref="model_stock_move"/>
+        <field name="group_ids" eval="[Command.link(ref('stock.group_stock_manager'))]"/>
         <field name="state">code</field>
         <field name="code">
 action = records.action_adjust_valuation()
