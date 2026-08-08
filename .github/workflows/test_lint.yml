@@ -22,6 +22,17 @@ name: Fork Lint Gates (test_lint)
 # gate does not need to pay to protect the first — see TEST_COUNT_FLOOR below,
 # which is what catches a scope that silently narrows.
 #
+# THIS IS THE SCOPE THE FLOORS ARE DEFINED AT — both halves of it: the addons
+# path below (`odoo/addons,addons`, no sibling checkout) and the install
+# (`test_lint` alone). Harvest and verify every floor here. Floors taken from a
+# development workspace that also carries `enterprise/` measure a different
+# tree and cannot pass in this lane; that is not hypothetical, it is how this
+# suite arrived red on the day the lane was added — 20 of the 47 entries in
+# `SINGLE_BUNDLE_GAP_FLOOR` named modules only that workspace could see, and
+# two anchors (`test_docstring`, `test_menu_parents`) were calibrated the same
+# way. Gates that read the installed registry rather than the tree are
+# one-sided ratchets for the same reason and say so at their floor.
+#
 # Why template0 + C collation: Odoo creates its database with
 # `ENCODING 'unicode' LC_COLLATE 'C'` only when db_template is template0
 # (odoo/service/db.py). PostgreSQL 18's default template1 locale would
@@ -48,9 +59,9 @@ env:
   INSTALL: test_lint
   TEST_TAGS: /test_lint
   # Floor for the count gate below: a run reporting fewer than this skipped
-  # rather than failed. 182 tests today; the margin absorbs a deliberate
+  # rather than failed. 200 tests today; the margin absorbs a deliberate
   # removal without hiding a mass-skip. Raise it when the suite grows.
-  TEST_COUNT_FLOOR: 170
+  TEST_COUNT_FLOOR: 188
 
 jobs:
   fork-lint:

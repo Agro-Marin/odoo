@@ -111,7 +111,12 @@ class TestMenuParents(lint_case.LintCase):
     def test_the_scan_finds_the_menus_it_is_judging_against(self):
         # The gate above passes trivially if `defined` is somehow empty, since
         # every reference would then be to an unknown module. Anchor it.
-        self.assertGreater(len(self.defined), 1000, "almost no menus were found")
+        # 966 with only this repository on the addons path, 1 983 with the
+        # enterprise checkout beside it. The anchor was 1 000, harvested in a
+        # workspace that carried both, so the gate could not pass in CI -- which
+        # runs `--addons-path=odoo/addons,addons` by design. It has to hold at
+        # the narrowest path the suite runs at.
+        self.assertGreater(len(self.defined), 900, "almost no menus were found")
         self.assertIn(
             "account.menu_finance_configuration",
             self.defined,

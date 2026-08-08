@@ -38,15 +38,30 @@ class Violation:
 
 
 def _is_query_call(node: ast.Call) -> str | None:
+    # Only `search` is gated on the receiver, and that asymmetry is deliberate.
+    # The gate exists for one reason: `re.search`, `PATTERN.search` and
+    # `<compiled>.search` share the name, and a regex in a loop is not an N+1.
+    # No such collision exists for `search_count`, `search_fetch` or
+    # `_read_group`, and `_looks_like_orm_receiver` cannot recognise a plain
+    # recordset variable -- `record`, `session`, `move.move_line_ids` all fail
+    # it. Extending the gate to the other three therefore buys nothing and
+    # costs 10 true findings, which is measured, not assumed.
     match node.func:
-        case ast.Attribute(attr=attr) if attr in _QUERY_METHODS:
-            if attr != "search" or _looks_like_orm_receiver(node.func.value):
+        case ast.Attribute(attr=attr, value=receiver) if attr in _QUERY_METHODS:
+            if attr != "search" or _looks_like_orm_receiver(receiver):
                 return attr
     return None
 
 
 def _looks_like_orm_receiver(node: ast.expr) -> bool:
     match node:
+        # `<anything>.env[...]` is a recordset whatever the chain is rooted at.
+        # Requiring a `self` root missed `for rec in recs: rec.env['x'].search(...)`
+        # -- the single most idiomatic shape this rule exists to catch -- in 14
+        # places, while `search_count` caught the same shape only because it
+        # skipped the receiver test entirely.
+        case ast.Subscript(value=ast.Attribute(attr="env")):
+            return True
         case ast.Name(id="self"):
             return True
         case ast.Attribute():
@@ -81,12 +96,16 @@ def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
     # see it, because `ast.AsyncFor` is a separate node type. (`while` is
     # excluded on purpose: it is an iterate-until-done shape, not a
     # record-by-record one.)
+    #
+    # The `else:` clause is not scanned. It runs once, after the loop, exactly
+    # like the statement following it -- a query there is not per-record and
+    # never was. Neither is `iter`, for the same reason.
     nested: set[int] = set()
     violations: list[Violation] = []
     for node in nodes if nodes is not None else ast.walk(tree):
         if not isinstance(node, (ast.For, ast.AsyncFor)) or id(node) in nested:
             continue
-        for stmt in (*node.body, *node.orelse):
+        for stmt in node.body:
             _collect(stmt, nested, violations)
     return iter(violations)
 

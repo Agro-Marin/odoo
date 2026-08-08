@@ -203,11 +203,21 @@ Related:
   exact-match ratchet, so an undone fix fails as loudly as a new offence. CI runs
   it in `.github/workflows/test_lint.yml` (whole module, every PR, no `paths:`
   filter) and `.github/workflows/asset_lint.yml` (the registry-dependent
-  classes). To run it yourself:
+  classes).
+
+  **The floors are defined at the CI scope**, which is
+  `--addons-path=odoo/addons,addons` with only `test_lint` installed. Harvest
+  and verify them there, not against a workspace that also carries
+  `enterprise/` — the two measure different trees, and floors taken from the
+  larger one cannot pass in CI:
 
   ```bash
-  odoo-bin -d <db> -i test_lint --test-enable --stop-after-init
+  odoo-bin --addons-path=odoo/addons,addons -d <db> -i test_lint \
+      --test-enable --test-tags /test_lint --stop-after-init --no-http
   ```
+
+  The handful of gates that read the *installed registry* rather than the tree
+  (`test_docstring`) are one-sided ratchets for that reason, and say so.
 
 - `.github/workflows/` — **check it before assuming a gate does not exist.** The
   suites, ratchets, architecture, doc-link, free-threading, Rust and vendored-lib

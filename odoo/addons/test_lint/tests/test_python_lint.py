@@ -25,9 +25,21 @@ FLOORS = {
     # so it wants an inline suppression carrying that evidence.
     "raise-unlink-override": 1,
     "orm-import": 0,
+    # The rule reads `tokenize` comments now, so a directive spelled inside a
+    # string literal is no longer one. That is also what retired `_NOQA_SELF`,
+    # the five-file blanket that hid exactly those three fixtures. 79 was never
+    # right: the tree held 80 the day the floor was written, which is why this
+    # gate had not been green since.
+    "noqa-rationale": 80,
     "onchange-domain": 0,
-    "noqa-rationale": 79,
-    "n-plus-one-query": 417,
+    # 417 -> 430. Two corrections, both measured:
+    #   * a later commit fixed one N+1 in `base_import` without lowering the
+    #     floor, which is the "debt went down" case working as designed (-1);
+    #   * `<anything>.env[...]` is a recordset, so the 14 sites shaped
+    #     `for rec in recs: rec.env['model'].search(...)` are reported again.
+    #     The receiver test demanded a `self` root and silently dropped the most
+    #     idiomatic N+1 there is.
+    "n-plus-one-query": 430,
 }
 
 
@@ -124,6 +136,40 @@ class TestPythonLint(LintCase):
             "these rules exist but have no committed floor, so nothing holds "
             "them at zero",
         )
+
+    def test_the_scan_leaves_no_child_process_behind(self):
+        # `multiprocessing` keeps a resource_tracker and a forkserver resident
+        # for the life of the interpreter. `BaseCase`'s class cleanup treats a
+        # surviving child as a leak, terminates it and waits ten seconds --
+        # and neither helper dies on SIGTERM, so every later test class paid
+        # the full ten. The scan saved 11 seconds and cost the suite 160.
+        import psutil
+
+        _py_scan.findings()
+        _py_scan._run_parallel([], 2)
+        self.assertEqual(
+            [f"{child.pid} {child.name()}" for child in psutil.Process().children()],
+            [],
+            "a worker pool must reap its own helpers, or every test class "
+            "after this one waits ten seconds for them",
+        )
+
+    def test_the_parallel_scan_agrees_with_the_serial_one(self):
+        # `findings()` fans the corpus out over worker processes. That is only
+        # ever an optimisation, so the answer has to be identical to the
+        # in-process scan -- and it has to stay identical when a checker is
+        # added, which is what comparing the whole finding set buys over
+        # comparing counts.
+        sample = [
+            (source.path, source.in_module)
+            for source in _py_scan.corpus()
+            if source.path.endswith(".py")
+        ][:400]
+        self.assertTrue(sample, "no files to compare the two scans on")
+
+        serial = sorted(_py_scan.scan_many(sample))
+        parallel = sorted(_py_scan._run_parallel(sample, 4))
+        self.assertEqual(parallel, serial)
 
     def test_the_corpus_is_not_empty(self):
         corpus = _py_scan.corpus()

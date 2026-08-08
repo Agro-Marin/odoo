@@ -143,6 +143,12 @@ def extract_docstring_params(doctree):
     return list(params), types, rtype
 
 
+# This gate reads the *installed* registry, so its count is a function of the
+# install and not of the tree: 1 on `base` + `test_lint` (the scope CI runs),
+# 32 with the enterprise suite loaded. The floor is therefore the ceiling of
+# the canonical scope and the ratchet is one-sided -- a bigger install
+# reporting more is not a regression, and a smaller one reporting less is not
+# a fix. Make it exact again the day this gate reads files instead.
 DOCSTRING_FLOOR = 32
 
 
@@ -215,16 +221,30 @@ class TestDocstring(LintCase):
                             )
                         )
                 self._test_docstring_params(method, doctree, where)
-            except AssertionError as exc:
+            # A malformed docstring is the finding, not a crash. `extract_docstring_params`
+            # raises ValueError for exactly the shapes this gate exists to report
+            # -- `:returns set:` for `:rtype: set`, an empty `:param:`, an unknown
+            # info-field -- and only AssertionError was caught, so one of them
+            # ended the whole run with an error instead of contributing one
+            # offender. Four methods in `account_reports` did precisely that, and
+            # only once enough modules were installed for the registry to hold
+            # them: the gate passed thinly and errored fat. IndexError joins it
+            # for `sign_params[-1]` on a signature with no parameters.
+            except (AssertionError, ValueError, IndexError) as exc:
                 offenders.append(f"{where}: {str(exc).splitlines()[0][:160]}")
 
         logger.info("checked %s documented method definitions", checked)
-        self.assertGreater(checked, 500, "the scan reached almost no docstrings")
+        # Scales with the installed module set -- 151 on `base` + `test_lint`,
+        # 3 347 with the enterprise suite installed. The anchor guards against a
+        # registry that loaded nothing, so it has to hold at the *smallest*
+        # scope this suite runs at, which is the one CI uses.
+        self.assertGreater(checked, 100, "the scan reached almost no docstrings")
         self.assert_ratchet(
             offenders,
             DOCSTRING_FLOOR,
             "docstring(s) disagreeing with the signature they document",
             "Correct the docstring (or the annotation), then lower the floor.",
+            exact=False,
         )
 
     def _test_docstring_params(self, method, doctree, where=""):
@@ -274,3 +294,38 @@ class TestDocstring(LintCase):
         if isinstance(sign_type, type):
             sign_type = sign_type.__name__
         return str(sign_type).removeprefix("typing.")
+
+    def test_a_malformed_docstring_is_a_finding_not_a_crash(self):
+        # `extract_docstring_params` raises ValueError for exactly the shapes
+        # this gate reports. Four methods in `account_reports` write
+        # `:returns set:` where they mean `:rtype: set`, and each one used to
+        # end the whole run with an error -- so the gate scored zero offenders
+        # on a thin install and did not run at all on a fat one.
+        for docstring, expected in (
+            (":returns set: the ids\n", 'invalid ":returns set:"'),
+            (":param:\n", "empty :param:"),
+            (":nosuchfield: x\n", "unknown rst"),
+        ):
+            with self.subTest(docstring=docstring):
+                doctree = docutils.core.publish_doctree(
+                    docstring, settings=self.doctree_settings_silent
+                )
+                with self.assertRaises(ValueError) as caught:
+                    extract_docstring_params(doctree)
+                self.assertIn(expected, str(caught.exception))
+
+    def test_the_gate_records_such_a_docstring_as_one_offender(self):
+        class _Fake:
+            def method(self):
+                """:returns set: the ids"""
+
+        offenders = []
+        try:
+            doctree = docutils.core.publish_doctree(
+                inspect.cleandoc(_Fake.method.__doc__),
+                settings=self.doctree_settings_silent,
+            )
+            self._test_docstring_params(_Fake.method, doctree, "fake:method")
+        except (AssertionError, ValueError, IndexError) as exc:
+            offenders.append(f"fake:method: {str(exc).splitlines()[0][:160]}")
+        self.assertEqual(len(offenders), 1, "it has to be counted, not raised")

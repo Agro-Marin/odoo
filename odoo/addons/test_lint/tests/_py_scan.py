@@ -1,7 +1,9 @@
 import ast
 import functools
 import logging
+import os
 from collections.abc import Callable, Iterator
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,7 +17,7 @@ from . import (
     _checker_unlink,
     lint_case,
 )
-from ._suppression import is_suppressed
+from ._suppression import Suppressions, comment_lines
 
 _logger = logging.getLogger(__name__)
 
@@ -46,6 +48,7 @@ class Unit:
     nodes: list[ast.AST]
     in_module: bool
     is_test: bool = False
+    comments: dict[int, str] | None = None
 
 
 def is_test_path(path: str) -> bool:
@@ -53,6 +56,12 @@ def is_test_path(path: str) -> bool:
 
 
 def walk_with_parents(tree: ast.AST) -> list[ast.AST]:
+    """Pre-order node list, each node carrying `_parent`.
+
+    Only `_checker_sql` reads `_parent` -- it is how a name is resolved to its
+    enclosing scope -- but the list itself is what every checker iterates, so
+    one walk serves all of them.
+    """
     nodes: list[ast.AST] = []
     stack: list[ast.AST] = [tree]
     while stack:
@@ -80,18 +89,9 @@ RULES = frozenset(
     }
 )
 
-_NOQA_SELF = (
-    "/test_lint/tests/_checker_noqa_rationale.py",
-    "/test_lint/tests/_suppression.py",
-    "/test_lint/tests/_py_scan.py",
-    "/test_lint/tests/test_checkers.py",
-    "/test_lint/tests/test_python_lint.py",
-)
-
 
 def _sql(unit: Unit) -> Iterator[object]:
-    checker = _checker_sql.SqlInjectionChecker(unit.path, is_test=unit.is_test)
-    yield from checker.check_nodes(unit.nodes)
+    return _checker_sql.SqlInjectionChecker(unit.path).check_nodes(unit.nodes)
 
 
 _CHECKERS: list[
@@ -113,10 +113,14 @@ _CHECKERS: list[
         lambda u: _checker_batch.check(u.tree, u.nodes),
         lambda u: not u.is_test,
     ),
+    # No self-exclusion list. The rule reads `tokenize` comments, so the
+    # directive spellings inside this module's own test fixtures are string
+    # literals rather than comments and never were findings -- the five-file
+    # blanket that used to sit here was covering for a text scan.
     (
         "noqa-rationale",
-        lambda u: _checker_noqa_rationale.find_violations(u.source),
-        lambda u: not u.path.endswith(_NOQA_SELF),
+        lambda u: _checker_noqa_rationale.find_violations(u.comments),
+        lambda u: True,
     ),
     (
         "orm-import",
@@ -158,59 +162,149 @@ def _source_line(text: str, lineno: int, limit: int = 110) -> str:
     return line if len(line) <= limit else line[: limit - 1] + "…"
 
 
+def scan_one(path: str, in_module: bool) -> list[tuple[str, str, int, str]]:
+    """Every finding in one file, as plain tuples.
+
+    Deliberately free of Odoo, logging and shared state: this is the unit a
+    worker process runs, and anything it touches beyond the standard library
+    would have to survive being imported in a fresh interpreter.
+    """
+    try:
+        raw = Path(path).read_bytes()
+        text = raw.decode("utf-8", errors="replace")
+        tree = ast.parse(raw, path)
+    except OSError, SyntaxError, ValueError:
+        return []
+
+    unit = Unit(
+        path,
+        text,
+        tree,
+        walk_with_parents(tree),
+        in_module,
+        is_test_path(path),
+        comment_lines(text),
+    )
+    suppressions = Suppressions.from_comments(unit.comments)
+
+    out: list[tuple[str, str, int, str]] = []
+    for rule, runner, in_scope in _CHECKERS:
+        if not in_scope(unit):
+            continue
+        try:
+            violations = list(runner(unit))
+        except RecursionError:
+            continue
+        for violation in violations:
+            name = rule or violation.rule
+            lineno = violation.lineno
+            if suppressions.suppresses(lineno, name):
+                continue
+            message = (
+                getattr(violation, "message", "")
+                or getattr(violation, "raw", "")
+                or _source_line(text, lineno)
+            )
+            out.append((name, path, lineno, message.strip()))
+    return out
+
+
+def scan_many(entries: list[tuple[str, bool]]) -> list[tuple[str, str, int, str]]:
+    return [f for path, in_module in entries for f in scan_one(path, in_module)]
+
+
+def _job_count(work: int) -> int:
+    """How many worker processes to use, or 1 for an in-process scan.
+
+    `TEST_LINT_JOBS` overrides; 1 disables. The scan is ~9 200 independent
+    files of pure `ast` work, which is the whole reason this is worth
+    parallelising at all -- it was 80% of the module's runtime.
+    """
+    override = os.environ.get("TEST_LINT_JOBS")
+    if override:
+        try:
+            return max(1, int(override))
+        except ValueError:
+            _logger.warning(
+                "TEST_LINT_JOBS=%r is not a number, scanning serially", override
+            )
+            return 1
+    if work < 500:
+        return 1
+    return max(1, min(16, (os.process_cpu_count() or 1) - 2))
+
+
+def _stop_multiprocessing_helpers() -> None:
+    """Reap the resident helper processes a worker pool leaves behind.
+
+    `multiprocessing` keeps a `resource_tracker` and a `forkserver` alive for
+    the rest of the interpreter's life, whatever start method is used. Odoo's
+    own `BaseCase` class cleanup treats any surviving child as a leak: it
+    terminates it and then waits up to ten seconds for it to die. Neither
+    helper dies on SIGTERM, so every test class that ran afterwards paid the
+    full ten seconds -- a scan that saves eleven seconds cost the suite two
+    extra minutes, which no measurement outside the real harness would show.
+
+    Both expose `_stop()`, which does reap them and leaves the pool machinery
+    reusable. They are private, so a failure here is logged and ignored: the
+    worst case is the leak warning this exists to avoid, never a failed gate.
+    """
+    import multiprocessing.forkserver
+    import multiprocessing.resource_tracker
+
+    for holder in (
+        getattr(multiprocessing.forkserver, "_forkserver", None),
+        getattr(multiprocessing.resource_tracker, "_resource_tracker", None),
+    ):
+        stop = getattr(holder, "_stop", None)
+        if stop is None:
+            continue
+        try:
+            stop()
+        except Exception:
+            _logger.debug("could not stop a multiprocessing helper", exc_info=True)
+
+
+def _run_parallel(entries: list[tuple[str, bool]], jobs: int):
+    chunks = [entries[index :: jobs * 4] for index in range(jobs * 4)]
+    try:
+        with ProcessPoolExecutor(max_workers=jobs) as pool:
+            return [row for part in pool.map(scan_many, chunks) for row in part]
+    finally:
+        _stop_multiprocessing_helpers()
+
+
 @functools.cache
 def findings() -> dict[str, list[Finding]]:
-    by_rule: dict[str, list[Finding]] = {}
-    parse_errors = 0
+    entries = [(source.path, source.in_module) for source in corpus()]
 
-    for entry in corpus():
+    jobs = _job_count(len(entries))
+    rows = None
+    if jobs > 1:
         try:
-            raw = Path(entry.path).read_bytes()
-            text = raw.decode("utf-8", errors="replace")
-            tree = ast.parse(raw, entry.path)
-        except OSError, SyntaxError, ValueError:
-            parse_errors += 1
-            continue
-        unit = Unit(
-            entry.path,
-            text,
-            tree,
-            walk_with_parents(tree),
-            entry.in_module,
-            is_test_path(entry.path),
-        )
+            rows = _run_parallel(entries, jobs)
+        except Exception:
+            # A worker pool is an optimisation, never a correctness
+            # requirement: any reason it cannot start (a sandbox with no
+            # fork, an exhausted process table) falls back to the in-process
+            # scan rather than failing a lint gate for an unrelated reason.
+            _logger.warning(
+                "parallel scan unavailable, falling back to a serial one",
+                exc_info=True,
+            )
+            rows = None
+    if rows is None:
+        jobs = 1
+        rows = scan_many(entries)
 
-        for rule, runner, in_scope in _CHECKERS:
-            if not in_scope(unit):
-                continue
-            try:
-                violations = list(runner(unit))
-            except RecursionError:
-                _logger.warning(
-                    "%s: %s checker hit the recursion limit, file not analysed",
-                    entry.path,
-                    rule or "gettext",
-                )
-                continue
-            for violation in violations:
-                name = rule or violation.rule
-                lineno = violation.lineno
-                if is_suppressed(text, lineno, name):
-                    continue
-                message = (
-                    getattr(violation, "message", "")
-                    or getattr(violation, "raw", "")
-                    or _source_line(text, lineno)
-                )
-                by_rule.setdefault(name, []).append(
-                    Finding(entry.path, lineno, name, message.strip())
-                )
+    by_rule: dict[str, list[Finding]] = {}
+    for rule, path, lineno, message in rows:
+        by_rule.setdefault(rule, []).append(Finding(path, lineno, rule, message))
 
-    if parse_errors:
-        _logger.info("%s file(s) could not be parsed and were skipped", parse_errors)
     _logger.info(
-        "scanned %s Python files, %s finding(s) across %s rule(s)",
-        len(corpus()),
+        "scanned %s Python files in %s process(es), %s finding(s) across %s rule(s)",
+        len(entries),
+        jobs,
         sum(map(len, by_rule.values())),
         len(by_rule),
     )
