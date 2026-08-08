@@ -139,20 +139,42 @@ class UomUom(models.Model):
             value, precision_digits=digits, rounding_method=rounding_method
         )
 
+    def _check_at_most_one(self) -> None:
+        """Reject a multi-record set, accept an empty one.
+
+        `compare` and `is_zero` round at the 'Product Unit' decimal precision and
+        never read `self`, so their answer cannot depend on *which* unit is held --
+        yet `ensure_one()` made them raise on an **empty** one. Callers legitimately
+        compare quantities on records whose unit is not resolved yet: a brand-new
+        `stock.warehouse.orderpoint` built from a list view's defaults has no product,
+        hence no `product_uom_id`, while every quantity on it is still 0.0. Demanding
+        a unit there turned a well-defined comparison into a crash, which is why the
+        raw `<` these methods replace kept surviving in the codebase.
+
+        More than one unit stays a caller error -- that really is ambiguous.
+        """
+        if len(self) > 1:
+            self.ensure_one()
+
     def compare(self, value1: float, value2: float) -> Literal[-1, 0, 1]:
         """Compare two measures after rounding them with the 'Product Unit' precision
+
+        Callable on an empty recordset; see :meth:`_check_at_most_one`.
 
         :param value1: origin value to compare
         :param value2: value to compare to
         :return: -1, 0 or 1, if ``value1`` is lower than, equal to, or greater than ``value2``.
         """
-        self.ensure_one()
+        self._check_at_most_one()
         digits = self.env["decimal.precision"].precision_get("Product Unit")
         return float_compare(value1, value2, precision_digits=digits)
 
     def is_zero(self, value: float) -> bool:
-        """Check if the value is zero after rounding with the 'Product Unit' precision"""
-        self.ensure_one()
+        """Check if the value is zero after rounding with the 'Product Unit' precision
+
+        Callable on an empty recordset; see :meth:`_check_at_most_one`.
+        """
+        self._check_at_most_one()
         digits = self.env["decimal.precision"].precision_get("Product Unit")
         return float_is_zero(value, precision_digits=digits)
 
@@ -243,7 +265,7 @@ class UomUom(models.Model):
 
     def _compute_quantity_lenient(self, qty: float, to_unit: Self, **kwargs) -> float:
         """Shared body of the degrade wrappers; call those, not this."""
-        kwargs.pop('raise_if_failure', None)
+        kwargs.pop("raise_if_failure", None)
         return self._compute_quantity(qty, to_unit, raise_if_failure=False, **kwargs)
 
     def _compute_quantity_report(self, qty: float, to_unit: Self, **kwargs) -> float:
@@ -266,8 +288,8 @@ class UomUom(models.Model):
         posted on a silently unconverted quantity. See
         `order.line.fields.mixin._assert_transferred_uom_convertible`.
         """
-        if self.env.context.get('uom_reconcile_strict'):
-            kwargs.pop('raise_if_failure', None)
+        if self.env.context.get("uom_reconcile_strict"):
+            kwargs.pop("raise_if_failure", None)
             return self._compute_quantity(qty, to_unit, raise_if_failure=True, **kwargs)
         return self._compute_quantity_lenient(qty, to_unit, **kwargs)
 
@@ -341,9 +363,15 @@ class UomUom(models.Model):
     # - _compute_price_estimate: a forecast/planning estimate that guides but
     #   does not size a record.
     # The vendor unit on `product.supplierinfo` is deliberately allowed to be
-    # cross-category (it is filtered at use time by
-    # `product.product._get_filtered_sellers`), so the seller-price call-sites
-    # are the ones that legitimately need to degrade rather than raise.
+    # cross-category, so the seller-price call-sites are the ones that
+    # legitimately need to degrade rather than raise.
+    # Do not read that as "something else already filtered those sellers out".
+    # `product.product._get_filtered_sellers` does drop cross-category sellers,
+    # but only when it is given both a `uom_id` and a non-zero `quantity`; with
+    # the default `quantity=0.0` the check never runs. Every use site that feeds
+    # a seller unit into a *strict* conversion has to filter for itself -- see
+    # `account.move.line._compute_product_uom_id`, which did not, and blocked
+    # the vendor bill with a UserError.
     # The opt-out is forced: a caller-passed `raise_if_failure` is discarded.
 
     def _compute_price_lenient(self, price: float, to_unit: Self, **kwargs) -> float:

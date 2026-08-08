@@ -105,11 +105,13 @@ class TestUom(UomCommon):
         ):
             with self.subTest(wrapper=wrapper.__name__):
                 self.assertEqual(
-                    wrapper(1000, self.uom_hour), 1000,
+                    wrapper(1000, self.uom_hour),
+                    1000,
                     "Incompatible conversion must return the initial quantity",
                 )
                 self.assertEqual(
-                    wrapper(1000, self.uom_hour, raise_if_failure=True), 1000,
+                    wrapper(1000, self.uom_hour, raise_if_failure=True),
+                    1000,
                     "The forced opt-out must not be overridable by the caller",
                 )
 
@@ -118,16 +120,18 @@ class TestUom(UomCommon):
         _compute_quantity. Uses the same controlled setup as test_20_rounding
         (Product Unit precision 0 + a Score unit worth 20 units) so the
         assertions do not depend on the reference UoMs' stored rounding."""
-        self.env['decimal.precision'].search([('name', '=', 'Product Unit')]).digits = 0
-        score = self.env['uom.uom'].create({
-            'name': 'Score',
-            'relative_factor': 20,
-            'relative_uom_id': self.uom_unit.id,
-        })
+        self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
+        score = self.env["uom.uom"].create(
+            {
+                "name": "Score",
+                "relative_factor": 20,
+                "relative_uom_id": self.uom_unit.id,
+            }
+        )
         for wrapper_name in (
-            '_compute_quantity_report',
-            '_compute_quantity_estimate',
-            '_compute_quantity_reconcile',
+            "_compute_quantity_report",
+            "_compute_quantity_estimate",
+            "_compute_quantity_reconcile",
         ):
             with self.subTest(wrapper=wrapper_name):
                 wrapper = getattr(self.uom_unit, wrapper_name)
@@ -143,18 +147,21 @@ class TestUom(UomCommon):
                 )
                 # rounding_method forwarded: DOWN rounds 0.1 score to 0, matching base
                 self.assertEqual(
-                    wrapper(2, score, rounding_method='DOWN'),
-                    self.uom_unit._compute_quantity(2, score, rounding_method='DOWN'),
+                    wrapper(2, score, rounding_method="DOWN"),
+                    self.uom_unit._compute_quantity(2, score, rounding_method="DOWN"),
                 )
 
     def test_compute_quantity_wrappers_match_base_for_compatible(self):
         """For compatible UoMs the wrappers are byte-identical to the base
         _compute_quantity — they only differ when conversion is impossible."""
-        cases = [(self.uom_gram, 1020000, self.uom_ton), (self.uom_dozen, 1, self.uom_unit)]
+        cases = [
+            (self.uom_gram, 1020000, self.uom_ton),
+            (self.uom_dozen, 1, self.uom_unit),
+        ]
         for wrapper_name in (
-            '_compute_quantity_report',
-            '_compute_quantity_estimate',
-            '_compute_quantity_reconcile',
+            "_compute_quantity_report",
+            "_compute_quantity_estimate",
+            "_compute_quantity_reconcile",
         ):
             for src, qty, dst in cases:
                 with self.subTest(wrapper=wrapper_name, src=src.name, dst=dst.name):
@@ -171,7 +178,8 @@ class TestUom(UomCommon):
         self.assertFalse(self.uom_gram._has_common_reference(self.uom_hour))
         # Default (browse): degrades to the unconverted quantity.
         self.assertEqual(
-            self.uom_gram._compute_quantity_reconcile(1000, self.uom_hour), 1000,
+            self.uom_gram._compute_quantity_reconcile(1000, self.uom_hour),
+            1000,
         )
         # Posting boundary: escalates to strict and raises.
         with self.assertRaises(UserError):
@@ -275,3 +283,31 @@ class TestUom(UomCommon):
         self.assertEqual(kiloton.factor, 1e9)
         self.uom_kgm.relative_factor = 500
         self.assertEqual(kiloton.factor, 5e8, "Factor must follow chain updates")
+
+    def test_compare_and_is_zero_accept_an_unset_unit(self):
+        """Both round at the 'Product Unit' precision and never read the unit, so an
+        empty recordset is a legitimate receiver -- callers compare quantities on
+        records whose unit is not resolved yet (a new orderpoint built from a list
+        view's defaults has no product, hence no unit, and all-zero quantities).
+        """
+        no_uom = self.env["uom.uom"]
+        self.assertEqual(no_uom.compare(0.0, 0.0), 0)
+        self.assertEqual(no_uom.compare(2.0, 1.0), 1)
+        self.assertEqual(no_uom.compare(1.0, 2.0), -1)
+        self.assertTrue(no_uom.is_zero(0.0))
+        self.assertFalse(no_uom.is_zero(1.0))
+        # ...and the answer is identical to the one a real unit gives, since the
+        # unit is not part of the computation.
+        for value1, value2 in ((0.0, 0.0), (2.0, 1.0), (1.0, 2.0), (1.0, 1.0)):
+            self.assertEqual(
+                no_uom.compare(value1, value2),
+                self.uom_unit.compare(value1, value2),
+            )
+
+    def test_compare_still_rejects_several_units(self):
+        """An ambiguous receiver stays a caller error."""
+        several = self.uom_unit | self.uom_dozen
+        with self.assertRaises(ValueError):
+            several.compare(1.0, 2.0)
+        with self.assertRaises(ValueError):
+            several.is_zero(0.0)
