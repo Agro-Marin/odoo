@@ -37,7 +37,7 @@ merging or cherry-picking between the two is possible:
 
 ## What this checkout needs
 
-Nothing here requires a parent directory. Everything under `tooling/` resolves
+Everything under `tooling/` resolves
 paths from the `odoo-bin` marker at the repo root rather than by climbing above it
 (`tooling/_repo_root.py`), and CI checks this repo out alone.
 
@@ -45,13 +45,10 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
   at import by `odoo/init.py`.
 - **PostgreSQL** — every CI lane runs 18.
 - **`pip install -r requirements.txt`** for the runtime; `requirements-dev.txt`
-  for the gates. Its pins are hard, not reproducibility hints: `ruff==0.16.2`,
-  `mypy==1.19.1`, `pytest==9.1.1`.
+  for the gates.
 - **psycopg 3** (`psycopg[c,binary]>=3.3.2`) is the only driver `odoo/db/` uses.
   Never add a `psycopg2` import.
-- **`crates/odoo_rust` must be built into the environment.** It is a hard
-  dependency with **no pure-Python fallback**, With a Rust toolchain
-  on `PATH`:
+- **`crates/odoo_rust` must be built into the environment.** with a Rust toolchain on `PATH`:
 
   ```bash
   cd crates/odoo_rust && maturin develop

@@ -1,23 +1,9 @@
 # Runtime dependencies for the Odoo server and a default addon install.
 #
-# Versions are chosen from PyPI and validated on Python 3.14 (the floor is
-# MIN_PY_VERSION in odoo/release.py). They are NOT tracked against the
-# python3-* packages of Ubuntu 24.04 (Noble) or Debian 13 (Trixie), which is
-# what this header used to claim: Noble froze in April 2024 and Trixie in
-# mid-2025, while the pins below already require cryptography, Pillow, lxml,
-# psycopg and pdfminer.six releases that postdate both. The rule described
-# almost none of the lines it governed, so it is retired here rather than left
-# standing as a brake on upgrades. `setup/requirements-check.py` still renders
-# the distro comparison on demand for anyone packaging against one.
-#
 # What belongs where:
 #   requirements.txt       the server and a default addon install
 #   requirements-test.txt  needed to RUN the suites, not to run the server
 #   requirements-dev.txt   linters, type checkers, native-extension build tools
-#
-# A library used by exactly one addon is declared in that addon's
-# __manifest__.py `external_dependencies` and pinned in its own repo's
-# requirements.txt (doc/coding_guidelines.rst §1.2) — not here.
 #
 # Six pins are deliberately held below their latest release. Each needs work
 # these lines cannot carry on their own, so bump them one at a time, not in a
@@ -62,10 +48,6 @@
 # 1.5.1 IS the latest release. Do not swap it for cryptography.
 asn1crypto==1.5.1
 Babel==2.18.0
-# No python3-blake3 exists in any current distro, so this one always comes from
-# PyPI. Prebuilt manylinux wheels (incl. cp314) — no Rust toolchain needed to
-# install. The import is guarded (odoo/tools/hashing.py falls back to
-# sha1/sha256), so an image that skips it degrades instead of failing to boot.
 blake3==1.0.9  # content/cache digests (odoo/tools/hashing.py)
 cbor2==5.8.0  # web/auth_passkey (auto_install, so effectively always present)
 chardet==5.2.0
@@ -86,11 +68,6 @@ pdfminer.six==20260107  # optional: attachment_indexation degrades without it (f
 phonenumbers==9.0.36
 Pillow==12.3.0
 polib==1.2.0
-# Upper bound is load-bearing: the vendored SCSS gencode
-# (odoo/libs/_vendor/embedded_sass_pb2.py) calls ValidateProtobufRuntimeVersion
-# with a 6.31.1 stamp, and that validator rejects a runtime whose MAJOR is below
-# the gencode's. An unbounded `>=` lets pip install protobuf 8 and break asset
-# compilation at boot. Regenerate the gencode before raising the ceiling.
 protobuf>=6.31.0,<8
 psutil==7.2.2
 psycopg[c,binary]>=3.3.4
@@ -98,15 +75,6 @@ psycopg-pool>=3.3.1
 PyMuPDF==1.28.2  # AGPL-3.0-or-commercial; base/ir_actions_report guards the import and degrades
 pyopenssl==25.3.0
 pypdf==6.15.0
-# win32api (service/_threaded.py), win32service/win32serviceutil
-# (libs/filesystem/osutil.py), win32com.shell (libs/filesystem/appdirs.py, whose
-# helper is already named _get_win_folder_with_pywin32) and win32print/pywintypes
-# (iot_drivers printer handlers). This line used to read `pypiwin32`, unpinned —
-# a 1674-byte metadata-only shim last published in 2018 that ships no modules and
-# exists solely to declare `Requires-Dist: pywin32 (>=223)`. It resolved, so
-# nothing looked broken, but it left pywin32 as the one dependency in this file
-# with no pin at all, floored at a 2018 build and free to drift on every Windows
-# install. Naming pywin32 directly closes that and drops the dead indirection.
 pywin32==312 ; sys_platform == 'win32'
 pyserial==3.5  # iot_handlers/ only; iot_drivers is installable=False so no manifest can declare it
 python-dateutil==2.9.0.post0
