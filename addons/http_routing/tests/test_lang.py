@@ -1,10 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from unittest.mock import Mock
 from urllib.parse import urlparse
+
+from werkzeug.exceptions import HTTPException
 
 from odoo.tests import HttpCase, TransactionCase, tagged
 
-from .common import setup_frontend_langs
+from .common import MockRequest, setup_frontend_langs
 
 
 @tagged("-at_install", "post_install")
@@ -68,6 +71,234 @@ class TestNearestLang(TransactionCase):
         self.env["res.lang"]._activate_lang("sr@latin")
         self.assertEqual(self.IrHttp.get_nearest_lang("sr_RS"), "sr@latin")
         self.assertEqual(self.IrHttp.get_nearest_lang("sr"), "sr@latin")
+
+
+@tagged("-at_install", "post_install")
+class TestRedirectLang(TransactionCase):
+    """``_redirect_lang`` is the single exit every 3xx of the ladder takes.
+
+    Unit-level, because what it has to get right is mechanical -- the status,
+    the Location, the query string it carries and the ``frontend_lang`` cookie
+    it pins -- and pinning that through ``HttpCase`` costs a server round trip
+    per case. ``TestLangLadder`` below still drives the whole ladder end to end;
+    this covers the exit itself, including combinations no route reachable with
+    only ``http_routing`` installed can produce.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        fr = cls.env["res.lang"]._activate_lang("fr_FR")
+        fr.url_code = "fr"
+        setup_frontend_langs(
+            cls.env, cls.env.ref("base.lang_en") + fr, cls.env.ref("base.lang_en")
+        )
+        cls.IrHttp = cls.env["ir.http"]
+
+    def _redirect(self, target, code=303, path="/x", lang="fr_FR"):
+        with MockRequest(
+            self.env, path=path, context={"lang": lang}, mock_router=False
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                self.IrHttp._redirect_lang(target, code=code)
+        return caught.exception.response
+
+    def test_status_and_location(self):
+        response = self._redirect("/fr/shop")
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(urlparse(response.headers["Location"]).path, "/fr/shop")
+
+    def test_permanent_moves_keep_their_code(self):
+        self.assertEqual(self._redirect("/fr", code=301).status_code, 301)
+
+    def test_cookie_pins_the_destination_language(self):
+        # The cookie must record ``request.lang`` -- the same value
+        # ``_frontend_pre_dispatch`` writes on the request finally dispatched --
+        # or the followed request disagrees with the redirect and bounces back.
+        response = self._redirect("/fr/shop", lang="fr_FR")
+        self.assertIn("frontend_lang=fr_FR", response.headers["Set-Cookie"])
+
+    def test_repeated_query_params_survive(self):
+        # website_sale's ?attrib=1&attrib=2 filters must not collapse to the
+        # first value on the way through the redirect.
+        response = self._redirect("/fr/shop", path="/shop?attrib=1&attrib=2&b=3")
+        self.assertEqual(
+            urlparse(response.headers["Location"]).query, "attrib=1&attrib=2&b=3"
+        )
+
+    def test_query_is_appended_before_the_fragment(self):
+        # RFC 3986 order: a query spliced after the fragment is part of the
+        # fragment and never reaches the server.
+        response = self._redirect("/fr/shop#top", path="/shop?a=b")
+        location = urlparse(response.headers["Location"])
+        self.assertEqual(location.query, "a=b")
+        self.assertEqual(location.fragment, "top")
+
+    def test_existing_query_on_the_target_is_kept(self):
+        response = self._redirect("/fr/shop?keep=1", path="/shop?a=b")
+        self.assertEqual(urlparse(response.headers["Location"]).query, "keep=1&a=b")
+
+
+@tagged("-at_install", "post_install")
+class TestRerouteLadder(TransactionCase):
+    """``_reroute_for_lang`` -- cases /2../9 of :meth:`ir.http._match` -- as a
+    table.
+
+    ``TestLangLadder`` drives the same ladder end to end and is the proof that
+    it is wired into dispatch; it also costs a server round trip per case and
+    can only reach the combinations some *route* makes reachable. This asserts
+    the decision itself, so every branch (including the ones that need a bot
+    User-Agent, or a POST, or a language the site does not serve) is one cheap
+    call, and the ladder reads as what it is: a table of (URL shape, requested
+    language, may-redirect) -> (serve | redirect | rewrite).
+    """
+
+    BOT = "Mozilla/5.0 (compatible; Googlebot/2.1)"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        fr = cls.env["res.lang"]._activate_lang("fr_FR")
+        fr.url_code = "fr"
+        cls.en = cls.env.ref("base.lang_en")
+        setup_frontend_langs(cls.env, cls.en + fr, cls.en)
+        cls.IrHttp = cls.env["ir.http"]
+
+    def _run(self, path, path_no_lang, url_lang_str, lang, allow_redirect=True, ua=""):
+        """Apply the ladder; return ``("serve", path)``, ``("rewrite", path)``
+        or ``("redirect", code, location)``.
+        """
+        default = self.env["ir.http"]._get_default_lang()
+        with MockRequest(
+            self.env,
+            path=path,
+            context={"lang": lang},
+            user_agent=ua,
+            mock_router=False,
+        ) as request:
+            request.reroute = Mock()
+            try:
+                result = self.IrHttp._reroute_for_lang(
+                    path, path_no_lang, url_lang_str, default, allow_redirect
+                )
+            except HTTPException as caught:
+                response = caught.response
+                return ("redirect", response.status_code, response.headers["Location"])
+            if request.reroute.called:
+                return ("rewrite", result)
+            return ("serve", result)
+
+    # -- served as-is --------------------------------------------------------
+
+    def test_case_2_no_lang_and_default_requested(self):
+        self.assertEqual(self._run("/shop", "/shop", None, "en_US"), ("serve", "/shop"))
+
+    def test_case_3_bot_gets_the_default_lang_not_a_redirect(self):
+        # A crawler must not be bounced to /fr just because it would have been
+        # served French: it indexes the URL it asked for.
+        self.assertEqual(
+            self._run("/shop", "/shop", None, "fr_FR", ua=self.BOT), ("serve", "/shop")
+        )
+
+    def test_case_4_unsafe_method_is_never_redirected(self):
+        # RFC 9110 lets a client replay a 3xx on an unsafe method as GET, which
+        # drops the body; ``allow_redirect`` is how the caller says so.
+        self.assertEqual(
+            self._run("/shop", "/shop", None, "fr_FR", allow_redirect=False),
+            ("serve", "/shop"),
+        )
+
+    # -- redirects -----------------------------------------------------------
+
+    def test_case_5_missing_lang_is_inserted(self):
+        kind, code, location = self._run("/shop", "/shop", None, "fr_FR")
+        self.assertEqual((kind, code), ("redirect", 303))
+        self.assertEqual(urlparse(location).path, "/fr/shop")
+
+    def test_case_5_on_the_homepage_does_not_emit_a_trailing_slash(self):
+        # "/" would give "/<lang>/", which case /8 then 301s away: one wasted
+        # round trip on the most requested URL of the site.
+        _kind, _code, location = self._run("/", "/", None, "fr_FR")
+        self.assertEqual(urlparse(location).path, "/fr")
+
+    def test_case_6_default_lang_prefix_is_stripped(self):
+        kind, code, location = self._run("/en/shop", "/shop", "en", "en_US")
+        self.assertEqual((kind, code), ("redirect", 303))
+        self.assertEqual(urlparse(location).path, "/shop")
+
+    def test_case_7_alias_redirects_permanently_to_the_url_code(self):
+        # /fr_FR/... is a recognized spelling but not the canonical one.
+        kind, code, location = self._run("/fr_FR/shop", "/shop", "fr_FR", "fr_FR")
+        self.assertEqual((kind, code), ("redirect", 301))
+        self.assertEqual(urlparse(location).path, "/fr/shop")
+
+    def test_case_7_bare_alias_does_not_emit_a_trailing_slash(self):
+        _kind, _code, location = self._run("/fr_FR", "/", "fr_FR", "fr_FR")
+        self.assertEqual(urlparse(location).path, "/fr")
+
+    def test_case_8_homepage_trailing_slash(self):
+        kind, code, location = self._run("/fr/", "/", "fr", "fr_FR")
+        self.assertEqual((kind, code), ("redirect", 301))
+        self.assertEqual(urlparse(location).path, "/fr")
+
+    # -- rewritten (served in the URL's language) ----------------------------
+
+    def test_case_9_valid_lang_is_stripped_and_served(self):
+        self.assertEqual(
+            self._run("/fr/shop", "/shop", "fr", "fr_FR"), ("rewrite", "/shop")
+        )
+
+    def test_case_9_catches_the_aliases_when_redirecting_is_forbidden(self):
+        # This is what makes ``POST /fr_FR/x`` and ``POST /en/x`` reach dispatch
+        # instead of 404ing on a prefix nothing would strip: cases /6 and /7
+        # both need ``allow_redirect``.
+        for path_prefix, url_lang, lang in (
+            ("/fr_FR", "fr_FR", "fr_FR"),
+            ("/en", "en", "en_US"),
+        ):
+            with self.subTest(prefix=path_prefix):
+                self.assertEqual(
+                    self._run(
+                        path_prefix + "/shop",
+                        "/shop",
+                        url_lang,
+                        lang,
+                        allow_redirect=False,
+                    ),
+                    ("rewrite", "/shop"),
+                )
+
+    def test_every_case_is_decided(self):
+        # The ladder ends on a "couldn't route this" warning that is meant to be
+        # unreachable. Sweep the input space it is defined over and assert none
+        # of it lands there -- if a future branch reordering opens a hole, this
+        # says so instead of a visitor getting the URL served raw.
+        logger = "odoo.addons.http_routing.models.ir_http"
+        for path, path_no_lang, url_lang in (
+            ("/shop", "/shop", None),
+            ("/fr/shop", "/shop", "fr"),
+            ("/en/shop", "/shop", "en"),
+            ("/fr_FR/shop", "/shop", "fr_FR"),
+            ("/fr/", "/", "fr"),
+            ("/en/", "/", "en"),
+            ("/fr", "/", "fr"),
+            ("/", "/", None),
+        ):
+            for lang in ("en_US", "fr_FR"):
+                for allow in (True, False):
+                    for ua in ("", self.BOT):
+                        with self.subTest(
+                            path=path, lang=lang, allow=allow, bot=bool(ua)
+                        ):
+                            with self.assertNoLogs(logger, level="WARNING"):
+                                self._run(
+                                    path,
+                                    path_no_lang,
+                                    url_lang,
+                                    lang,
+                                    allow_redirect=allow,
+                                    ua=ua,
+                                )
 
 
 @tagged("-at_install", "post_install")

@@ -7,6 +7,7 @@ from odoo import exceptions
 from odoo.exceptions import MissingError
 from odoo.http import request
 from odoo.tests import HttpCase, TransactionCase, tagged
+from odoo.tools.translate import xml_translate
 
 
 @tagged("-at_install", "post_install")
@@ -187,6 +188,26 @@ class TestErrorStatusEndToEnd(HttpCase):
         response = self.url_open(self.EP, allow_redirects=False)
         self.assertEqual(response.status_code, 429)
 
+    def test_every_shipped_status_page_renders(self):
+        # The 4xx pages share one body template (``http_routing.error_page``)
+        # and differ only by a ``t-set`` heading/hint. That indirection is only
+        # safe if it is actually rendered: the unit tests above stub QWeb, so
+        # nothing else would notice a t-call/t-set that stopped resolving. Assert
+        # the status *and* that the page carries its own heading.
+        cases = [
+            (werkzeug.exceptions.BadRequest(), 400, "Bad Request"),
+            (werkzeug.exceptions.Forbidden(), 403, "Forbidden"),
+            (werkzeug.exceptions.UnsupportedMediaType(), 415, "Unsupported Media Type"),
+            (exceptions.ValidationError("nope"), 422, "Oops! Something went wrong."),
+            (werkzeug.exceptions.TooManyRequests(), 429, "Oops! Something went wrong."),
+        ]
+        for exception, code, heading in cases:
+            with self.subTest(code=code):
+                self._raise(exception)
+                response = self.url_open(self.EP, allow_redirects=False)
+                self.assertEqual(response.status_code, code)
+                self.assertIn(heading, response.text)
+
     def test_odoo_exception_keeps_its_http_status(self):
         self._raise(exceptions.ValidationError("nope"))
         response = self.url_open(self.EP, allow_redirects=False)
@@ -229,6 +250,53 @@ class TestErrorStatusEndToEnd(HttpCase):
         response = self.url_open(self.EP, allow_redirects=False)
         self.assertEqual(response.status_code, 301)
         self.assertURLEqual(response.headers.get("Location"), "/somewhere-else")
+
+
+@tagged("-at_install", "post_install")
+class TestErrorPageTranslatability(TransactionCase):
+    """The visible text of every status page must stay translatable.
+
+    The 4xx pages share one body template and carry only their heading and
+    hint, as ``<t t-set="error_title">400: Bad Request</t>``. Text inside a
+    ``t-set`` body is a perfectly ordinary QWeb term -- but it is *reachable*
+    only through the arch's translation extraction, and nothing else in the
+    suite renders these pages in a second language. Losing it would not fail a
+    test, it would quietly serve English error pages to every non-English
+    visitor, which is exactly the kind of regression a refactor of these
+    templates invites.
+    """
+
+    #: xmlid -> the strings a visitor actually reads on that page
+    PAGES = {
+        "400": ["400: Bad Request"],
+        "403": ["403: Forbidden"],
+        "415": ["415: Unsupported Media Type"],
+        "422": ["Oops! Something went wrong."],
+        "4xx": ["Oops! Something went wrong."],
+    }
+
+    def _terms(self, xmlid):
+        """Return the translatable terms the ORM extracts from a view's arch."""
+        view = self.env.ref("http_routing.%s" % xmlid)
+        terms = []
+        xml_translate(terms.append, view.with_context(lang=None).arch_db)
+        return [xml_translate.get_text_content(term) for term in terms]
+
+    def test_headings_are_extracted_as_translatable_terms(self):
+        for xmlid, expected in self.PAGES.items():
+            with self.subTest(page=xmlid):
+                terms = self._terms(xmlid)
+                for text in expected:
+                    self.assertIn(text, terms)
+
+    def test_the_shared_body_carries_no_stale_copy(self):
+        # The point of the shared template is that the heading lives in exactly
+        # one place. If a copy reappears in the body, the two drift and only one
+        # of them gets translated.
+        terms = self._terms("error_page")
+        for texts in self.PAGES.values():
+            for text in texts:
+                self.assertNotIn(text, terms)
 
 
 @tagged("-at_install", "post_install")

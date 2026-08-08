@@ -59,12 +59,17 @@
         </div>
     </template>
 
-    <template id="4xx">
+    <!-- The shared body of every plain status page below. Each status template
+         stays its own xmlid (`_get_error_template` resolves "http_routing.<code>",
+         and an override may t-inherit any of them) but carries only what differs:
+         the heading and the one-line hint. They were five hand-maintained copies
+         of this markup, already drifting in indentation. -->
+    <template id="error_page">
         <t t-call="web.frontend_layout">
             <div id="wrap">
                 <div class="container">
-                    <h1 class="mt-5">Oops! Something went wrong.</h1>
-                    <p>Take a look at the error message below.</p>
+                    <h1 class="mt-5"><t t-out="error_title"/></h1>
+                    <p><t t-out="error_hint"/></p>
                 </div>
                 <t t-if="editable or debug">
                     <t t-call="http_routing.http_error_debug"/>
@@ -74,45 +79,28 @@
                         <t t-call="http_routing.error_message"/>
                     </div>
                 </t>
-        </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="4xx">
+        <t t-call="http_routing.error_page">
+            <t t-set="error_title">Oops! Something went wrong.</t>
+            <t t-set="error_hint">Take a look at the error message below.</t>
         </t>
     </template>
 
     <template id="400">
-        <t t-call="web.frontend_layout">
-            <div id="wrap">
-                <div class="container">
-                    <h1 class="mt-5">400: Bad Request</h1>
-                    <p>The server couldn't understand the request. Take a look at the error message below.</p>
-                </div>
-                <t t-if="editable or debug">
-                    <t t-call="http_routing.http_error_debug"/>
-                </t>
-                <t t-else="">
-                    <div class="container">
-                        <t t-call="http_routing.error_message"/>
-                    </div>
-                </t>
-        </div>
+        <t t-call="http_routing.error_page">
+            <t t-set="error_title">400: Bad Request</t>
+            <t t-set="error_hint">The server couldn't understand the request. Take a look at the error message below.</t>
         </t>
     </template>
 
     <template id="403">
-        <t t-call="web.frontend_layout">
-            <div id="wrap">
-                <div class="container">
-                    <h1 class="mt-5">403: Forbidden</h1>
-                    <p>The page you were looking for could not be authorized.</p>
-                </div>
-                    <t t-if="editable or debug">
-                        <t t-call="http_routing.http_error_debug"/>
-                    </t>
-                    <t t-else="">
-                        <div class="container">
-                            <t t-call="http_routing.error_message"/>
-                        </div>
-                    </t>
-            </div>
+        <t t-call="http_routing.error_page">
+            <t t-set="error_title">403: Forbidden</t>
+            <t t-set="error_hint">The page you were looking for could not be authorized.</t>
         </t>
     </template>
 
@@ -153,40 +141,16 @@
     </template>
 
     <template id="415">
-        <t t-call="web.frontend_layout">
-            <div id="wrap">
-                <div class="container">
-                    <h1 class="mt-5">415: Unsupported Media Type</h1>
-                    <p>It looks like the URL you are accessing doesn't support the format of the request. Take a look at the error message below.</p>
-                </div>
-                <t t-if="editable or debug">
-                    <t t-call="http_routing.http_error_debug"/>
-                </t>
-                <t t-else="">
-                    <div class="container">
-                        <t t-call="http_routing.error_message"/>
-                    </div>
-                </t>
-        </div>
+        <t t-call="http_routing.error_page">
+            <t t-set="error_title">415: Unsupported Media Type</t>
+            <t t-set="error_hint">It looks like the URL you are accessing doesn't support the format of the request. Take a look at the error message below.</t>
         </t>
     </template>
 
     <template id="422">
-        <t t-call="web.frontend_layout">
-            <div id="wrap">
-                <div class="container">
-                    <h1 class="mt-5">Oops! Something went wrong.</h1>
-                    <p>Take a look at the error message below.</p>
-                </div>
-                <t t-if="editable or debug">
-                    <t t-call="http_routing.http_error_debug"/>
-                </t>
-                <t t-else="">
-                    <div class="container">
-                        <t t-call="http_routing.error_message"/>
-                    </div>
-                </t>
-        </div>
+        <t t-call="http_routing.error_page">
+            <t t-set="error_title">Oops! Something went wrong.</t>
+            <t t-set="error_hint">Take a look at the error message below.</t>
         </t>
     </template>
 

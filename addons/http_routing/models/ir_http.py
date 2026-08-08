@@ -36,6 +36,12 @@ _SLUG_END = r"(?=$|\/|#|\?)"  # lookahead: end of the path segment
 _UNSLUG_RE = re.compile(rf"(?:({_SLUG_NAME})-)?({_SLUG_ID}){_SLUG_END}")
 _UNSLUG_ROUTE_PATTERN = rf"(?:(?:{_SLUG_NAME})-)?(?:{_SLUG_ID}){_SLUG_END}"
 
+#: The route serving the frontend's web translations. Named once: the
+#: controller registers it and :meth:`IrHttp.get_frontend_session_info` hands it
+#: to the browser, and the two silently disagreeing means the frontend loads no
+#: translations at all -- with no error anywhere to say so.
+FRONTEND_TRANSLATIONS_ROUTE = "/website/translations"
+
 # The methods this module may answer with a 3xx. RFC 9110 lets a client turn a
 # 301/302 on an unsafe method into a GET (and a 303 mandates it), so redirecting
 # anything else drops the body and the intended method. OPTIONS is dropped from
@@ -58,6 +64,21 @@ class ModelConverter(ir_http.ModelConverter):
 
     def to_python(self, value) -> models.BaseModel:
         record = super().to_python(value)
+        if not record.id:
+            # Id ``0`` is the one id our slug grammar accepts that can never name
+            # a record, and it used to slip through every guard: ``check_access``
+            # filters ``self._ids`` on truthiness (``_check_access``), so a
+            # "/<model>/0" URL got neither the MissingError nor the AccessError
+            # the ORM raises for any other absent id -- and then died in
+            # :meth:`IrHttp._pre_dispatch`, where ``_slug`` refuses to *produce*
+            # a 0-id slug: an unauthenticated 500 on every frontend
+            # ``<model(...)>`` route in the product ("/shop/0", "/blog/0", ...),
+            # trivially reachable by any crawler or scanner.
+            #
+            # ``ValidationError`` is werkzeug's "this rule does not match": the
+            # URL falls through to the remaining rules and, failing those, to a
+            # clean 404 -- the same answer "/shop/999999" already gave.
+            raise werkzeug.routing.ValidationError
         if record.id < 0 and not record.exists():
             # limited support for negative IDs due to our slug pattern, assume abs() if not found
             record = record.browse(abs(record.id))
@@ -74,7 +95,13 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _slug(cls, value: models.BaseModel | tuple[int, str]) -> str:
         try:
-            identifier, name = value.id, value.display_name
+            # ``ensure_one`` first: ``BaseModel.id`` answers ``_ids[0]`` for a
+            # multi-record set, so slugging one silently produced a URL for
+            # whichever record happened to come first -- a link to the wrong
+            # page, with nothing to notice. The ``website`` override reads
+            # ``seo_name`` and does raise ("Expected singleton"), so the same
+            # mistake was loud or silent depending on the installed addons.
+            identifier, name = value.ensure_one().id, value.display_name
         except AttributeError:
             # assume name_search result tuple
             identifier, name = value
@@ -104,23 +131,27 @@ class IrHttp(models.AbstractModel):
         """From "/blog/my-super-blog-1" to "/blog/1".
 
         Only the last *path* segment is reduced; a query string and/or a
-        fragment ride along untouched ("/blog/my-blog-1?p=2" -> "/blog/1?p=2").
+        fragment ride along untouched ("/blog/my-blog-1?p=2" -> "/blog/1?p=2"),
+        as does a trailing slash ("/blog/my-blog-1/" -> "/blog/1/").
         """
         # Cut the query/fragment off first: ``_unslug`` accepts "?" and "#" as
         # segment terminators, so the last ``split("/")`` chunk unslugs fine --
         # but replacing it wholesale would take "?page=2" down with the slug.
-        cut = min(
-            (i for i in (value.find("?"), value.find("#")) if i != -1),
-            default=len(value),
-        )
-        path, suffix = value[:cut], value[cut:]
+        path, suffix = cls._url_split_suffix(value)
+        # A trailing slash makes the last chunk empty, which unslugs to nothing:
+        # "/blog/my-blog-1/" came back verbatim, so the two spellings of one
+        # page compared unequal in ``website.menu``'s active-menu test, which is
+        # exactly the difference ``_unslug_url`` exists to erase.
+        slash = "/" if path.endswith("/") and path != "/" else ""
+        if slash:
+            path = path[:-1]
         # str.split() always yields at least one element, so parts[-1] is safe.
         parts = path.split("/")
         slug_id = cls._unslug(parts[-1])[1]
         if slug_id is None:
             return value
         parts[-1] = str(slug_id)
-        return "/".join(parts) + suffix
+        return "/".join(parts) + slash + suffix
 
     @classmethod
     def _get_converters(cls) -> dict[str, type]:
@@ -132,6 +163,33 @@ class IrHttp(models.AbstractModel):
             super()._get_converters(),
             model=ModelConverter,
         )
+
+    # ------------------------------------------------------------
+    # URL grammar
+    # ------------------------------------------------------------
+
+    @classmethod
+    def _url_split_suffix(cls, url: str) -> tuple[str, str]:
+        """Split ``url`` into its path and its ``[?query][#fragment]`` suffix.
+
+        RFC 3986 orders the components as path[?query][#fragment]: the fragment
+        starts at the FIRST "#", and a "?" appearing after it belongs to the
+        fragment, not to the query. Every helper below that reasons about a
+        *path* -- matching a route, splitting a language prefix -- has to cut
+        both off first, and has to cut them off in that order.
+
+        This is the single place that knows it. Partitioning on "?" alone (what
+        :meth:`_url_lang` and :meth:`_is_multilang_url` each used to do) leaves
+        "#frag" glued to the path, so "/fr#top" reads as the single segment
+        "fr#top", which is not a language: the prefix stays on and gets a second
+        one stacked in front of it ("/fr/fr#top", a dead link on every anchor
+        link to a localized homepage).
+
+        :return: ``(path, suffix)``; ``path + suffix == url``.
+        """
+        head, hash_, fragment = url.partition("#")
+        path, qmark, query = head.partition("?")
+        return path, qmark + query + hash_ + fragment
 
     # ------------------------------------------------------------
     # Language tools
@@ -165,7 +223,9 @@ class IrHttp(models.AbstractModel):
         return [info.url_code for info in self.env["res.lang"]._get_frontend().values()]
 
     @classmethod
-    def _lang_url_split(cls, path: str) -> tuple[str | None, str]:
+    def _lang_url_split(
+        cls, path: str, url_codes: list[str] | None = None
+    ) -> tuple[str | None, str]:
         """Split a root-relative ``path`` into its leading language ``url_code``
         and the rest: the inverse of :meth:`_lang_url_prefix`.
 
@@ -174,21 +234,30 @@ class IrHttp(models.AbstractModel):
         language's ``url_code`` is recognized, never its full ``code``: the
         ladder redirects "/fr_FR/..." to "/fr/..." (case /7) rather than
         treating it as a prefix here.
+
+        ``path`` must be a *path*: cut the query and the fragment off first with
+        :meth:`_url_split_suffix`, or "/fr#top" reads as the segment "fr#top".
+
+        :param url_codes: the codes to recognize, defaulting to
+                          :meth:`_frontend_url_codes` on the ambient request.
+                          Passing them is what lets a request-free caller
+                          (:meth:`_is_multilang_url`, a sitemap builder, a cron)
+                          ask the question at all, and it keeps one answer for
+                          one URL where a caller has already resolved the list.
         """
+        if url_codes is None:
+            url_codes = request.env["ir.http"]._frontend_url_codes()
         segments = path.split("/")
-        if (
-            len(segments) > 1
-            and segments[1] in request.env["ir.http"]._frontend_url_codes()
-        ):
+        if len(segments) > 1 and segments[1] in url_codes:
             return segments[1], "/" + "/".join(segments[2:])
         return None, path
 
     @classmethod
-    def _lang_url_unprefix(cls, path: str) -> str:
+    def _lang_url_unprefix(cls, path: str, url_codes: list[str] | None = None) -> str:
         """Strip a leading frontend-language prefix off a root-relative
         ``path``. See :meth:`_lang_url_split`.
         """
-        return cls._lang_url_split(path)[1]
+        return cls._lang_url_split(path, url_codes)[1]
 
     @classmethod
     def _url_localized(
@@ -211,11 +280,20 @@ class IrHttp(models.AbstractModel):
         :param force_default_lang: prefix the URL even when the target language
                                    is the default one.
         """
-        # Guard non-local URLs, mirroring :meth:`_url_lang`: an absolute,
-        # protocol-relative ("//cdn/x.png") or non-http ("mailto:", "#anchor")
-        # URL would otherwise be percent-quoted *as a path* and lang-prefixed
-        # ("https://odoo.com/shop" -> "/frhttps%3A//odoo.com/shop"). A falsy
-        # ``url`` still means "derive the path from the request", further down.
+        # Guard non-local URLs: an absolute, protocol-relative ("//cdn/x.png")
+        # or non-http ("mailto:", "#anchor") URL would otherwise be
+        # percent-quoted *as a path* and lang-prefixed ("https://odoo.com/shop"
+        # -> "/frhttps%3A//odoo.com/shop"). A falsy ``url`` still means "derive
+        # the path from the request", further down.
+        #
+        # This looks like :meth:`_url_lang`'s scheme/netloc guard and is NOT the
+        # same question, so do not "de-duplicate" the two. That one asks "is
+        # this *relative*", so that ``urljoin`` can root it against the current
+        # page: with a language forced it deliberately accepts a bare fragment
+        # or query and answers "/fr/current/page#anchor" -- which is what a
+        # language switcher wants. This one asks "is this already a root-relative
+        # path I can match against the routing table", and a bare "#anchor" is
+        # not one.
         if url and (not url.startswith("/") or url.startswith("//")):
             return url
 
@@ -233,16 +311,12 @@ class IrHttp(models.AbstractModel):
             qs = keep_query()
             url = request.httprequest.path + ("?%s" % qs if qs else "")
 
-        # RFC 3986 orders the components as path[?query][#fragment]: the fragment
-        # starts at the FIRST "#", and a "?" appearing after it belongs to the
-        # fragment, not to the query. Split the fragment off first (as
-        # ``website``'s ``_url_for`` does), then the query -- partitioning on "?"
-        # alone left "#frag" glued to the path, which then never matched a rule
-        # and came back percent-quoted ("/shop#top" -> "/fr/shop%23top", a dead
-        # link). '/shop/furn-0269-chaise-de-bureau-noire-17?' must likewise lose
-        # its trailing '?' before matching, otherwise -> 404.
-        head, hash_, fragment = url.partition("#")
-        url, sep, qs = head.partition("?")
+        # Only the path routes: strip the query and the fragment before matching
+        # ("/shop#top" would otherwise match no rule and come back
+        # percent-quoted as "/fr/shop%23top", a dead link), and reattach them
+        # verbatim at the end. '/shop/furn-0269-chaise-de-bureau-noire-17?' must
+        # likewise lose its trailing '?' before matching, otherwise -> 404.
+        url, suffix = cls._url_split_suffix(url)
 
         # Drop a lang prefix the caller already applied. This helper *sets* the
         # language of a URL, so localizing "/fr/shop" to fr must yield
@@ -299,7 +373,7 @@ class IrHttp(models.AbstractModel):
             # canonical URLs carry neither a query string nor a fragment
             return tools.urls.urljoin(canonical_domain, path)
 
-        return path + sep + qs + hash_ + fragment
+        return path + suffix
 
     @classmethod
     def _url_lang(cls, path_or_uri: str, lang_code: str | None = None) -> str:
@@ -312,7 +386,11 @@ class IrHttp(models.AbstractModel):
                           ``'[lang]'`` (used for url_return).
         """
         Lang = request.env["res.lang"]
-        location = path_or_uri.strip()
+        # ``or ""``: a falsy URL is a caller's slip, not a reason to take the
+        # surrounding render down with an AttributeError. ``website``'s
+        # ``_url_for`` already coerces before delegating here, so without this
+        # the same call crashed or not depending on which addons were installed.
+        location = (path_or_uri or "").strip()
         force_lang = lang_code is not None
         try:
             url = urllib.parse.urlparse(location)
@@ -347,12 +425,28 @@ class IrHttp(models.AbstractModel):
             if (len(lang_url_codes) > 1 or force_lang) and request.env[
                 "ir.http"
             ]._is_multilang_url(location, lang_url_codes):
-                loc, sep, qs = location.partition("?")
+                # ``_url_split_suffix`` cuts the fragment as well as the query:
+                # partitioning on "?" alone left "#top" glued to the path, so
+                # "/fr#top" was not recognized as already carrying a language
+                # and came back as "/fr/fr#top".
+                loc, suffix = cls._url_split_suffix(location)
+                # Normalize the trailing slash once, for every branch below.
+                # Only the "insert a prefix" branch used to drop it, so the
+                # three spellings of one link were rebuilt three different ways:
+                # "/shop/" -> "/fr/shop" (no redirect) but "/en/shop/" ->
+                # "/shop/" and forcing fr on it -> "/fr/shop/", each of which
+                # costs the visitor a 308 to the slashless form. The endpoint
+                # serves the same page either way, so emit the form that does
+                # not bounce.
+                if loc.endswith("/") and loc != "/":
+                    loc = loc[:-1]
                 # ``_lang_url_split`` / ``_lang_url_prefix`` are the two
                 # primitives that know how a language sits in a path; splicing
                 # ``loc.split("/")`` by hand here was a third implementation of
-                # the same grammar, free to drift from the ladder's.
-                url_code, rest = cls._lang_url_split(loc)
+                # the same grammar, free to drift from the ladder's. Pass the
+                # codes we already resolved rather than making it look them up
+                # again -- this runs once per generated link.
+                url_code, rest = cls._lang_url_split(loc, lang_url_codes)
                 if url_code is not None:
                     # Replace the language only if we explicitly provide a language to url_for
                     if force_lang:
@@ -362,14 +456,9 @@ class IrHttp(models.AbstractModel):
                         loc = rest
                 # Insert the context language or the provided language
                 elif lang_url_code != default_url_code or force_lang:
-                    # Inserting the prefix also drops one trailing slash
-                    # ("/shop/" -> "/fr/shop"); kept deliberately, since the
-                    # endpoint would 308 to the slashless form anyway.
-                    if rest.endswith("/") and rest != "/":
-                        rest = rest[:-1]
                     loc = cls._lang_url_prefix(rest, lang_url_code)
 
-                location = loc + sep + qs
+                location = loc + suffix
         return location
 
     @classmethod
@@ -401,15 +490,19 @@ class IrHttp(models.AbstractModel):
         """
         if not lang_url_codes:
             lang_url_codes = self.env["ir.http"]._frontend_url_codes()
-        spath = local_url.split("/")
-        # if a language is already in the path, remove it (guard the index: a
-        # slashless ``local_url`` has no segment [1])
-        if len(spath) > 1 and spath[1] in lang_url_codes:
-            spath.pop(1)
-            local_url = "/".join(spath)
-
-        # Strip the fragment, then the query: only the path routes.
-        path = local_url.partition("#")[0].partition("?")[0]
+        # Strip the query and the fragment FIRST, then the language prefix.
+        # Doing it the other way round -- which is what splicing
+        # ``local_url.split("/")`` by hand here did -- made "/en#top" read as
+        # the single segment "en#top", so the language was not recognized and
+        # the routing probe ran against "/en" instead of "/", asking the routing
+        # table about the wrong path. On a stack where "/" is a frontend route
+        # both happen to answer True, so this is a latent inconsistency rather
+        # than an observed wrong answer (measured: no output change across a
+        # 3120-case differential run with ``website`` installed) -- but the
+        # reasoning was wrong, and ``_lang_url_split`` is the one primitive that
+        # knows this grammar. It used to have a fourth, divergent copy here.
+        path, _suffix = self._url_split_suffix(local_url)
+        path = self._lang_url_unprefix(path, lang_url_codes)
 
         # Consider /static/ and /web/ files as non-multilang
         if "/static/" in path or path.startswith("/web/"):
@@ -467,12 +560,16 @@ class IrHttp(models.AbstractModel):
     def get_frontend_session_info(self) -> dict:
         session_info = super().get_frontend_session_info()
 
-        if request.is_frontend:
-            lang = request.lang.code
-            session_info["bundle_params"]["lang"] = lang
+        # ``getattr``, not ``request.is_frontend``: a request that never went
+        # through :meth:`_match` carries neither attribute (``ir.qweb`` warns
+        # about exactly that case, e.g. an ``auth='none'`` controller building
+        # its own registry), and this must not turn that into an AttributeError
+        # that masks the real problem.
+        if getattr(request, "is_frontend", False):
+            session_info["bundle_params"]["lang"] = request.lang.code
         session_info.update(
             {
-                "translationURL": "/website/translations",
+                "translationURL": FRONTEND_TRANSLATIONS_ROUTE,
             }
         )
         return session_info
@@ -487,7 +584,10 @@ class IrHttp(models.AbstractModel):
         ambient HTTP request.
         """
         Modules = self.env["ir.module.module"].sudo()
-        extra_modules_name = self._get_translation_frontend_modules_name()
+        # Copy: the ``+=`` below mutates in place, and an override is free to
+        # answer with a module-level constant rather than a fresh list -- which
+        # this would then grow, permanently, once per call.
+        extra_modules_name = list(self._get_translation_frontend_modules_name())
         extra_modules_domain = Domain(self._get_translation_frontend_modules_domain())
         if not extra_modules_domain.is_true():
             new = Modules.search(
@@ -868,19 +968,39 @@ class IrHttp(models.AbstractModel):
             # '/foo/egg-1', or '/fr/foo/1' -> '/fr/foo/oeuf-1'. The pretty URL
             # is nice for humans; the real reason is SEO.
             if request.httprequest.method in _REDIRECTABLE_METHODS:
-                _, path = rule.build(args)
-                if path is None:
-                    # ``Rule.build`` answers None when a converter's ``to_url``
-                    # rejects the value (werkzeug swallows its ValidationError).
-                    # The SEO redirect is a nicety: skip it and serve the page
-                    # rather than 500 on ``unquote_plus(None)``.
+                try:
+                    built, error = rule.build(args), None
+                except (ValueError, TypeError, werkzeug.routing.ValidationError) as exc:
+                    # ``rule.build`` runs every converter's ``to_url``, i.e.
+                    # arbitrary code: ``_slug`` raises ValueError on an id it
+                    # refuses to slug, ``<any(...)>`` raises ValueError on a
+                    # value outside its list. Neither is a ``ValidationError``,
+                    # so werkzeug does *not* swallow them into the None return
+                    # this used to (try to) check for -- and a cosmetic redirect
+                    # took the whole page down with a 500 instead.
+                    #
+                    # Deliberately NOT caught: MissingError and AccessError.
+                    # ``_slug`` reads ``display_name``, so those mean the record
+                    # named by the URL is gone or unreadable, and the 404 they
+                    # produce is the right answer -- indeed the *only* one for a
+                    # model without record rules, since ``check_access`` passes
+                    # a nonexistent id straight through (``_check_access`` only
+                    # runs ``ir.rule`` against it). Swallowing them served a 200
+                    # for a record that does not exist.
+                    built, error = None, exc
+                if not built:
+                    # ``Rule.build`` also answers a bare None -- not
+                    # ``(_, None)``, which is why unpacking it straight into
+                    # ``_, path`` raised TypeError before it could be checked.
                     _logger.warning(
-                        "Cannot rebuild a canonical URL for rule %r, "
+                        "Cannot rebuild a canonical URL for rule %r (%s), "
                         "serving %r without the slug redirect",
                         rule.rule,
+                        error or "a converter rejected the value",
                         request.httprequest.path,
                     )
                     return
+                _, path = built
                 # ``rule.build`` percent-quotes its output; ``httprequest.path``
                 # is what werkzeug has *already* decoded. Decode the generated
                 # side once so the two are compared like with like.

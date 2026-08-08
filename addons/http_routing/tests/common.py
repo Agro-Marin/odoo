@@ -1,9 +1,12 @@
 import contextlib
 from functools import partial
 from unittest.mock import MagicMock, Mock, patch
+from urllib.parse import parse_qsl, urlparse
 
+from werkzeug.datastructures import MultiDict
 from werkzeug.exceptions import NotFound
 from werkzeug.test import EnvironBuilder
+from werkzeug.user_agent import UserAgent
 
 import odoo.http
 from odoo.fields import Command
@@ -40,6 +43,8 @@ def MockRequest(
     env,
     *,
     path="/mockrequest",
+    method="GET",
+    user_agent="",
     routing=True,
     multilang=True,
     context=frozendict(),
@@ -68,11 +73,23 @@ def MockRequest(
         httprequest=Mock(
             host="localhost",
             path=path,
+            # A real request always has a method, and production code branches
+            # on it (``_REDIRECTABLE_METHODS``). Left to ``Mock``'s attribute
+            # autovivification it is a truthy object that equals nothing, so
+            # every such branch silently took its "unsafe method" side.
+            method=method,
+            # ``ir.http.is_a_bot()`` reads ``user_agent.string`` and substring-
+            # matches it, which on a bare ``Mock`` raises TypeError ("argument
+            # of type 'Mock' is not iterable") -- so the ladder's bot branch
+            # (case /3) could not be reached from a unit test at all.
+            user_agent=UserAgent(user_agent),
             app=odoo.http.root,
             environ=dict(
                 EnvironBuilder(
                     path=path,
+                    method=method,
                     base_url=base_url,
+                    headers={"User-Agent": user_agent} if user_agent else None,
                     environ_base=environ_base,
                 ).get_environ(),
                 REMOTE_ADDR=remote_addr,
@@ -81,12 +98,16 @@ def MockRequest(
             referrer="",
             remote_addr=remote_addr,
             url_root=url_root,
-            args=[],
+            # A real ``httprequest.args`` is a MultiDict, and the code under
+            # test uses it as one: ``keep_query()`` calls ``.getlist()`` on it
+            # and the lang ladder forwards it whole to ``redirect_query``. An
+            # empty list only happened to survive because those paths were never
+            # reached with a query string.
+            args=MultiDict(parse_qsl(urlparse(path).query)),
         ),
         type="http",
         future_response=odoo.http.FutureResponse(),
         params={},
-        redirect=env["ir.http"]._redirect,
         session=DotDict(
             odoo.http.get_default_session(),
             context={"lang": ""},
@@ -109,6 +130,15 @@ def MockRequest(
     # above stays stubbed because it needs the serving stack.
     request.make_response = partial(odoo.http.Request.make_response, request)
     request.make_json_response = partial(odoo.http.Request.make_json_response, request)
+    # ``redirect`` / ``redirect_query`` are what the whole lang ladder redirects
+    # *through* (``_redirect_lang``), and they are the pieces that force the
+    # Location local, keep repeated query parameters, and append the query
+    # before the fragment. ``redirect`` used to be stubbed with the *model*
+    # method ``ir.http._redirect``, which takes no ``local=`` and so cannot be
+    # called the way production calls it; anything else was left to ``Mock``, so
+    # an assertion about a redirect tested the mock. Both are self-contained.
+    request.redirect = partial(odoo.http.Request.redirect, request)
+    request.redirect_query = partial(odoo.http.Request.redirect_query, request)
     if url_root is not None:
         request.httprequest.url = url_join(url_root, path)
     # ``website_routing`` must ALWAYS be a real value, never left to ``Mock``'s

@@ -5,6 +5,7 @@ import logging
 from odoo import http
 from odoo.http import request
 
+from odoo.addons.http_routing.models.ir_http import FRONTEND_TRANSLATIONS_ROUTE
 from odoo.addons.web.controllers.home import Home
 from odoo.addons.web.controllers.session import Session
 from odoo.addons.web.controllers.webclient import WebClient
@@ -14,7 +15,7 @@ _logger = logging.getLogger(__name__)
 
 class Routing(Home):
     @http.route(
-        "/website/translations",
+        FRONTEND_TRANSLATIONS_ROUTE,
         type="http",
         auth="public",
         website=True,
