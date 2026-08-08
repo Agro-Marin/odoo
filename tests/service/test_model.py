@@ -83,7 +83,7 @@ class _FakeIntegrityError(psycopg.errors.IntegrityError):
         return self._diag_mock
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_env():
     """Minimal Environment stub for ``retrying()``."""
     e = MagicMock()
@@ -129,7 +129,7 @@ _FakeModel.api_private_method._api_private = True
 class TestGetPublicMethod:
     """get_public_method() enforces RPC access control rules."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def fake_model(self, mod):
         """Return a _FakeModel instance with BaseModel patched in the module."""
         instance = _FakeModel()
@@ -214,7 +214,7 @@ class TestGetPublicMethodCache:
     """The per-class memo (``_PUBLIC_METHOD_CACHE``) must speed resolution up
     WITHOUT changing behaviour or opening an unbounded-growth vector."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def cache(self, mod):
         """Isolate the process-global memo around each test."""
         mod._PUBLIC_METHOD_CACHE.pop(_FakeModel, None)
@@ -702,7 +702,7 @@ class TestRetrying:
                 mod.retrying(func, mock_env)
 
     @pytest.mark.parametrize(
-        "wrapper_closed,conn_dead",
+        ("wrapper_closed", "conn_dead"),
         [
             pytest.param(True, False, id="wrapper-explicitly-closed"),
             pytest.param(False, True, id="underlying-connection-dead"),
@@ -1263,7 +1263,7 @@ class TestRetryingRequestSideEffects:
         assert mock_rewind.call_count == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE - 1
 
 
-@pytest.fixture()
+@pytest.fixture
 def owns_rpc_model_method(monkeypatch):
     """Declare that this test OWNS ``current_thread().rpc_model_method``.
 
@@ -1625,7 +1625,7 @@ class TestDispatchValidation:
                 )
 
     @pytest.mark.parametrize(
-        "exc_factory, match",
+        ("exc_factory", "match"),
         [
             (lambda: psycopg.OperationalError("PG is down"), "PG is down"),
             (

@@ -87,7 +87,7 @@ class _FlippingListDb(_MockConfig):
         return super().__getitem__(key)
 
 
-@pytest.fixture()
+@pytest.fixture
 def bypass_db_mgmt(db_mod):
     """Patch ``odoo.tools.config`` so the management-enabled decorator passes."""
     import odoo.tools
@@ -96,7 +96,7 @@ def bypass_db_mgmt(db_mod):
         yield
 
 
-@pytest.fixture()
+@pytest.fixture
 def zip_dump():
     """A minimal, valid zip file containing ``dump.sql`` and no filestore."""
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
@@ -1199,7 +1199,7 @@ class TestRestoreDbZipSlip:
     unchanged.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def malicious_zip(self):
         """Factory: a zip whose second member has an attacker-chosen name."""
         made = []
@@ -1635,7 +1635,7 @@ class TestDropDatabaseRetry:
     with no retry. The fix re-runs terminate + drop up to 3 times.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def drop_env(self, db_mod, tmp_path):
         """Shared setup: patches list_dbs, Registry, db_connect, filestore.
 
@@ -1842,7 +1842,7 @@ class TestRpcDbExposedGate:
     the gate itself, so the two layers can no longer only be tested together.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def gate(self):
         from odoo.service._db_helpers import rpc_db_exposed
 
@@ -2235,7 +2235,7 @@ class TestExpDuplicateRollback:
     inconsistency that's only noticed when a user opens an attachment.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def duplicate_env(self, db_mod, tmp_path):
         """Patches around exp_duplicate_database so we can inject failures.
 
@@ -2345,7 +2345,7 @@ class TestExpRenameRollback:
     also fails, both errors are surfaced for manual intervention.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def rename_env(self, db_mod, tmp_path):
         """Setup with a real source filestore and patched DB layer.
 
@@ -2918,7 +2918,7 @@ class TestListDbIncompatiblePoolSideEffects:
     reconnect latency — which is exactly what these tests pin away.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def probe(self, db_mod):
         """Drive ``list_db_incompatible`` with mocked pool + version lookups.
 
@@ -3144,7 +3144,7 @@ class TestZipDumpDoesNotStageFilestore:
     isolates the copytree as the cause.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def live_filestore(self, tmp_path):
         fs = tmp_path / "filestore" / "db"
         (fs / "aa").mkdir(parents=True)

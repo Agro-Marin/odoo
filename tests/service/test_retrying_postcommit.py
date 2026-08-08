@@ -5,7 +5,7 @@ import pytest
 from odoo.service.transaction import retrying
 
 
-@pytest.fixture()
+@pytest.fixture
 def committed_env():
     """An env whose SQL COMMIT succeeds but whose post-commit hooks raise.
 
@@ -32,7 +32,7 @@ def committed_env():
     return env
 
 
-@pytest.fixture()
+@pytest.fixture
 def failed_commit_env(committed_env):
     """An env whose SQL COMMIT itself fails -- nothing durable happened."""
     committed_env.cr.commit = MagicMock(

@@ -102,7 +102,7 @@ def stamp_rpc_model_method(monkeypatch, value=""):
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def multi():
     """Minimal PreforkServer stub sufficient for Worker / WorkerCron construction.
 
@@ -125,7 +125,7 @@ def multi():
                 os.close(fd)
 
 
-@pytest.fixture()
+@pytest.fixture
 def worker_cron(srv, multi):
     """WorkerCron with ``pid`` and ``dbcursor`` pre-set, ready for unit testing.
 
@@ -143,7 +143,7 @@ def worker_cron(srv, multi):
     return wc
 
 
-@pytest.fixture()
+@pytest.fixture
 def prefork_server(srv):
     """PreforkServer instance that bypasses ``__init__`` (which reads config/sockets).
 
@@ -671,7 +671,7 @@ class TestWorkerCronStartGracefulShutdown:
 class TestWorkerCronProcessWorkScheduling:
     """``process_work()``: database queue building and processing order."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def mock_ir_cron(self):
         """Stub the deferred ``IrCron`` import inside ``process_work()``."""
         mock_module = MagicMock()
@@ -918,7 +918,7 @@ def worker_check_limits_env(memory_bytes=0, config_override=None):
         yield SimpleNamespace(resource=mock_resource, memory_info=mock_memory_info)
 
 
-@pytest.fixture()
+@pytest.fixture
 def bare_worker(srv):
     """Worker (base class) with minimal state, bypassing start().
 
@@ -1723,7 +1723,7 @@ class TestPreforkWorkerKill:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def log_handler(srv, monkeypatch):
     """Minimal CommonRequestHandler for log_request / log_error tests."""
     h = object.__new__(srv.CommonRequestHandler)
@@ -1758,7 +1758,7 @@ class TestCommonRequestHandlerLogError:
 class TestCommonRequestHandlerSendHeader:
     """``send_header()``: dedup Date/Server, never crash on a malformed value."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def handler(self, srv):
         h = object.__new__(srv.CommonRequestHandler)
         h._sent_date_header = None
@@ -1987,7 +1987,7 @@ class TestCommonRequestHandlerLogRequestControlChars:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def request_handler(srv):
     """Minimal RequestHandler for WebSocket header tests."""
     h = object.__new__(srv.RequestHandler)
@@ -2054,7 +2054,7 @@ class TestRequestHandlerBeforeHeadersParsed:
     and a proper 400 body after it.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def unparsed_handler(self, srv):
         """A handler in the exact state ``send_error`` sees on a bad request line.
 
@@ -2115,7 +2115,7 @@ class TestRequestHandlerSocketTimeout:
     accepted socket — so both paths now resolve it from the same helper.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def wsgi_mod(self):
         """``server.py`` re-exports names via ``from .wsgi import ...``, so it
         binds no ``wsgi`` attribute; reach the module itself."""
@@ -2213,7 +2213,7 @@ class TestRequestHandlerSocketTimeout:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def threaded_server(srv):
     """Minimal ThreadedWSGIServerReloadable bypassing socket/bind init."""
     import weakref
@@ -2335,7 +2335,7 @@ class TestThreadedWSGIServerSemaphore:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def tserver(srv):
     """Minimal ThreadedServer bypassing socket/config init for process_limit() tests."""
     s = object.__new__(srv.ThreadedServer)
@@ -2521,7 +2521,7 @@ class TestThreadedServerProcessLimit:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def inherited_listener(request):
     """A real, bound, listening socket of the requested family.
 
@@ -2953,7 +2953,7 @@ class TestMemoryLogStrings:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def event_server(srv):
     """EventServer that bypasses ``__init__`` (which reads config + psutil).
 
@@ -3133,7 +3133,7 @@ class _FakeConnection:
         pass
 
 
-@pytest.fixture()
+@pytest.fixture
 def bounded_server(srv):
     """ThreadedWSGIServerReloadable with a 1-slot bound, no socket machinery.
 
@@ -3223,7 +3223,7 @@ class _StopHarness(BaseException):
     """Escape hatch to unwind ``_listen_thread``'s ``while True`` from a test."""
 
 
-@pytest.fixture()
+@pytest.fixture
 def listen_server(srv, monkeypatch):
     """ThreadedServer stub sufficient to drive ``_listen_thread`` inline.
 
@@ -3417,7 +3417,7 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
     3105277, and both old and new workers had ppid 3104723.)
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def phoenix_server(self, prefork_server):
         prefork_server.socket = None
         # A worker the (stubbed) drain fails to reap, as after a forced break.
@@ -3493,7 +3493,7 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
     "this (old) master is exiting".
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def hooked(self, srv, monkeypatch):
         """Register a sentinel hook, isolated from the process-wide list."""
         from odoo.service import _base_server

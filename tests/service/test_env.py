@@ -20,7 +20,7 @@ from odoo.service import _env
 VAR = "ODOO_TEST_ENV_KNOB"
 
 
-@pytest.fixture()
+@pytest.fixture
 def _clean_env():
     """Ensure ``VAR`` is absent, restoring the environment afterwards."""
     with patch.dict(os.environ, clear=False):
@@ -34,7 +34,8 @@ def _clean_env():
 
 
 class TestEnvFloat:
-    def test_unset_returns_default(self, _clean_env):
+    @pytest.mark.usefixtures("_clean_env")
+    def test_unset_returns_default(self):
         assert _env.env_float(VAR, 3600.0) == 3600.0
 
     def test_parses_valid_value(self):
@@ -134,7 +135,8 @@ class TestEnvFloat:
 
 
 class TestEnvInt:
-    def test_unset_returns_default(self, _clean_env):
+    @pytest.mark.usefixtures("_clean_env")
+    def test_unset_returns_default(self):
         assert _env.env_int(VAR, 8) == 8
 
     def test_parses_valid_value(self):
@@ -200,16 +202,19 @@ class TestEnvStr:
             ("tok", "tok"),
         ],
     )
-    def test_blank_is_treated_as_unset(self, raw, expected, _clean_env):
+    @pytest.mark.usefixtures("_clean_env")
+    def test_blank_is_treated_as_unset(self, raw, expected):
         if raw is not None:
             os.environ[VAR] = raw
         assert _env.env_str(VAR) == expected
 
-    def test_default_is_returned_when_unset(self, _clean_env):
+    @pytest.mark.usefixtures("_clean_env")
+    def test_default_is_returned_when_unset(self):
         assert _env.env_str(VAR, "fallback") == "fallback"
 
     @pytest.mark.parametrize("raw", ["", "   "])
-    def test_blank_does_not_shadow_the_default(self, raw, _clean_env):
+    @pytest.mark.usefixtures("_clean_env")
+    def test_blank_does_not_shadow_the_default(self, raw):
         """Blank means unset, so the DEFAULT must win — not the empty string."""
         os.environ[VAR] = raw
         assert _env.env_str(VAR, "fallback") == "fallback"

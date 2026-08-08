@@ -24,7 +24,7 @@ def mod():
     return m
 
 
-@pytest.fixture()
+@pytest.fixture
 def pooled_db():
     """Return ``odoo.db``, skipping if it cannot report pool health yet.
 

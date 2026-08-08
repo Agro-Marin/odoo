@@ -26,6 +26,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="test_record_contract_agreement")
 WEB_SRC = ROOT / "addons/web/static/src"
 
@@ -99,7 +100,7 @@ def _typedef_members(src: str, name: str) -> set[str]:
     return set(re.findall(r"^\s*\*\s+([A-Za-z_$][\w$]*):", body.group(1), re.MULTILINE))
 
 
-@pytest.mark.parametrize("filename,array,typedef,floor", CONTRACTS)
+@pytest.mark.parametrize(("filename", "array", "typedef", "floor"), CONTRACTS)
 def test_both_declarations_are_found(filename, array, typedef, floor):
     """Guard the regexes: an empty match would make every assertion vacuous."""
     src = _source(filename)
@@ -107,7 +108,7 @@ def test_both_declarations_are_found(filename, array, typedef, floor):
     assert len(_typedef_members(src, typedef)) >= floor
 
 
-@pytest.mark.parametrize("filename,array,typedef,floor", CONTRACTS)
+@pytest.mark.parametrize(("filename", "array", "typedef", "floor"), CONTRACTS)
 def test_the_array_and_the_typedef_name_the_same_members(
     filename, array, typedef, floor
 ):

@@ -44,7 +44,7 @@ def srv():
 class TestFSWatcherBase:
     """``FSWatcherBase.handle_file(path)``: validates Python syntax, triggers reload."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def watcher(self, srv):
         return srv.FSWatcherBase()
 
@@ -160,7 +160,7 @@ class TestFSWatcherAssetInvalidation:
     an edit under ``--dev=assets``.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def invalidate(self, srv):
         def _run(*, registries=(), configured=(), failing=()):
             import odoo.db
@@ -253,7 +253,7 @@ class TestFSWatcherInotifyRewatch:
     reporting an error, so a green test run proves nothing about the edit.
     """
 
-    @pytest.fixture()
+    @pytest.fixture
     def watcher(self, tmp_path):
         from odoo.service import _watcher as w
 
