@@ -1257,22 +1257,20 @@ class TestIrCronShouldContinue(BaseCase):
         )
 
     def test_run_deadline_follows_the_worker_time_limit(self):
-        with patch.dict(config.options, {"limit_time_real_cron": 100}):
+        with config.patch(limit_time_real_cron=100):
             self.assertEqual(IrCron._run_deadline(0.0), 100 * RUN_BUDGET_RATIO)
-        with patch.dict(
-            config.options, {"limit_time_real_cron": -1, "limit_time_real": 50}
-        ):
+        with config.patch(limit_time_real_cron=-1, limit_time_real=50):
             self.assertEqual(IrCron._run_deadline(0.0), 50 * RUN_BUDGET_RATIO)
-        with patch.dict(config.options, {"limit_time_real_cron": 0}):
+        with config.patch(limit_time_real_cron=0):
             self.assertIsNone(IrCron._run_deadline(0.0))
 
     def test_pass_deadline_follows_the_same_limit(self):
         with (
-            patch.dict(config.options, {"limit_time_real_cron": 100}),
+            config.patch(limit_time_real_cron=100),
             patch.object(time, "monotonic", return_value=1000.0),
         ):
             self.assertEqual(IrCron._pass_deadline(), 1000.0 + 100 * RUN_BUDGET_RATIO)
-        with patch.dict(config.options, {"limit_time_real_cron": 0}):
+        with config.patch(limit_time_real_cron=0):
             self.assertIsNone(IrCron._pass_deadline())
 
 

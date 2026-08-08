@@ -92,5 +92,87 @@ class TestOverridePersistence(unittest.TestCase):
         self.assertEqual(self.config._override_options["config"], "/tmp/some-odoorc")
 
 
+class TestScopedPatch(unittest.TestCase):
+    """`config.patch()` — the safe replacement for patch.dict(config.options).
+
+    `options` is a ChainMap, and `mock.patch.dict` restores a mapping with
+    `clear()` + `update(copy)`. On a ChainMap that clears only `maps[0]` while
+    the copy still iterates every layer, so the exit path writes the entire
+    flattened configuration into `_override_options` — the highest-precedence
+    map — and every layer beneath it is shadowed for the rest of the process.
+
+    Nothing fails where that happens, which is why it survived: it surfaces
+    arbitrarily later, as some unrelated test finding that setting a lower
+    layer no longer has any effect.
+    """
+
+    def setUp(self):
+        patcher = patch.dict("os.environ", {}, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.config = configmanager()
+
+    def test_the_value_is_visible_inside_the_block(self):
+        with self.config.patch(db_maxconn=4242):
+            self.assertEqual(self.config["db_maxconn"], 4242)
+
+    def test_the_override_map_is_left_exactly_as_it_was(self):
+        before = dict(self.config._override_options)
+        with self.config.patch(db_maxconn=4242):
+            pass
+        self.assertEqual(self.config._override_options, before)
+
+    def test_a_pre_existing_override_is_restored_not_dropped(self):
+        self.config["db_maxconn"] = 111
+        with self.config.patch(db_maxconn=222):
+            self.assertEqual(self.config["db_maxconn"], 222)
+        self.assertEqual(self.config["db_maxconn"], 111)
+
+    def test_lower_layers_stay_reachable_afterwards(self):
+        """The actual regression, stated as a property.
+
+        After the block, a write to a LOWER layer must still be visible. Under
+        patch.dict it was not: the key had been copied up into the override map
+        and shadowed whatever the lower layer said from then on.
+        """
+        with self.config.patch(db_maxconn=4242):
+            pass
+        self.config._runtime_options["db_maxconn"] = 777
+        self.addCleanup(self.config._runtime_options.pop, "db_maxconn", None)
+        self.assertEqual(self.config["db_maxconn"], 777)
+
+    def test_patch_dict_on_the_chainmap_is_why_this_exists(self):
+        """Pins the failure mode itself, so the reason cannot be forgotten."""
+        before = dict(self.config._override_options)
+        with patch.dict(self.config.options, {"db_maxconn": 4242}):
+            pass
+        self.assertNotEqual(
+            self.config._override_options,
+            before,
+            "patch.dict on config.options no longer corrupts the override map; "
+            "config.patch and this test can go",
+        )
+        self.config._override_options.clear()
+        self.config._override_options.update(before)
+
+    def test_it_works_as_a_decorator(self):
+        seen = []
+
+        @self.config.patch(db_maxconn=99)
+        def probe():
+            seen.append(self.config["db_maxconn"])
+
+        probe()
+        probe()
+        self.assertEqual(seen, [99, 99], "a @contextmanager must be re-entrant")
+
+    def test_the_value_is_restored_even_if_the_block_raises(self):
+        before = dict(self.config._override_options)
+        with self.assertRaises(ValueError):
+            with self.config.patch(db_maxconn=4242):
+                raise ValueError("boom")
+        self.assertEqual(self.config._override_options, before)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -77,7 +77,7 @@ class _FakeSMTP:
 
 @tagged("mail_server")
 class EmailConfigCase(TransactionCase):
-    @patch.dict(config.options, {"email_from": "settings@example.com"})
+    @config.patch(email_from="settings@example.com")
     def test_default_email_from(self):
         message = self.env["ir.mail_server"]._build_email__(
             False,
@@ -89,7 +89,7 @@ class EmailConfigCase(TransactionCase):
 
     def test_build_email_missing_from_raises_coded_error(self):
         IrMailServer = self.env["ir.mail_server"]
-        with patch.dict(config.options, {"email_from": False}):
+        with config.patch(email_from=False):
             with self.assertRaises(OutgoingEmailError) as capture:
                 IrMailServer._build_email__(
                     False, "recipient@example.com", "Subject", "Body"
@@ -953,7 +953,7 @@ class TestResolveTransport(TransactionCase):
                 "from_filter": "cli.test",
             }
         )
-        with patch.dict(config.options, {"smtp_server": "cli.host", "smtp_port": 25}):
+        with config.patch(smtp_server="cli.host", smtp_port=25):
             t = IrMailServer._resolve_smtp_transport(server)
         self.assertEqual(
             t.server, "cli.host", "record host must be ignored for cli auth"
@@ -964,9 +964,7 @@ class TestResolveTransport(TransactionCase):
     def test_resolve_explicit_params_win_over_config(self):
         IrMailServer = self.env["ir.mail_server"]
         empty = IrMailServer.browse()
-        with patch.dict(
-            config.options, {"smtp_server": "conf.host", "smtp_user": "conf"}
-        ):
+        with config.patch(smtp_server="conf.host", smtp_user="conf"):
             t = IrMailServer._resolve_smtp_transport(
                 empty, host="explicit.host", port=1234, user="explicit"
             )

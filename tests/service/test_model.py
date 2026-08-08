@@ -1566,7 +1566,7 @@ class TestDispatchValidation:
             raise AssertionError("Registry must not be built for an unexposed db")
 
         with (
-            patch.dict(config.options, {"db_name": ["served_db"]}),
+            config.patch(db_name=["served_db"]),
             patch.object(mod, "Registry", side_effect=_must_not_run),
         ):
             with pytest.raises(AccessDenied):
@@ -1595,7 +1595,7 @@ class TestDispatchValidation:
 
         for options in ({"db_name": []}, {"db_name": ["served_db"]}):
             with (
-                patch.dict(config.options, options),
+                config.patch(**options),
                 patch.object(mod, "Registry", side_effect=RuntimeError("reached")),
             ):
                 with pytest.raises(RuntimeError, match="reached"):

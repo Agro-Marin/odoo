@@ -1864,20 +1864,20 @@ class TestRpcDbExposedGate:
     def test_the_configured_template_is_never_exposed(self, db_mod, gate):
         from odoo.tools import config
 
-        with patch.dict(config.options, {"db_template": "tpl_custom", "db_name": []}):
+        with config.patch(db_template="tpl_custom", db_name=[]):
             assert gate("tpl_custom") is False
 
     def test_database_option_acts_as_the_allowlist(self, gate):
         from odoo.tools import config
 
-        with patch.dict(config.options, {"db_name": ["served"]}):
+        with config.patch(db_name=["served"]):
             assert gate("served") is True
             assert gate("other") is False
 
     def test_every_ordinary_name_is_exposed_when_no_allowlist_is_set(self, gate):
         from odoo.tools import config
 
-        with patch.dict(config.options, {"db_name": []}):
+        with config.patch(db_name=[]):
             assert gate("anything") is True
 
 

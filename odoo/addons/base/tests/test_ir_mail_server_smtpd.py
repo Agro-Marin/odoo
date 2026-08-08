@@ -79,11 +79,14 @@ class _EhloRecordingHandler(aiosmtpd.handlers.Debugging if aiosmtpd else object)
 
 @unittest.skipUnless(aiosmtpd, "aiosmtpd couldn't be imported")
 @unittest.skipUnless(_openssl, "openssl not found in path")
-@patch.dict(config.options, {"smtp_server": "", "smtp_timeout": SMTP_TIMEOUT})
 class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # Class-scoped, via enterClassContext: config.patch is a
+        # @contextmanager, so unlike patch.dict it decorates functions, not
+        # classes -- applied to a class it would replace it with a wrapper.
+        cls.enterClassContext(config.patch(smtp_server="", smtp_timeout=SMTP_TIMEOUT))
 
         class Session(aiosmtpd.smtp.Session):
             @property
@@ -229,7 +232,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_configured_name_reaches_the_server(self):
-        with patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}):
+        with config.patch(smtp_helo_name="mail.example.com"):
             self.assertEqual(self._announced_name(), "mail.example.com")
 
     @mute_logger("mail.log")
@@ -238,14 +241,14 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         expected = (
             fqdn if "." in fqdn else f"[{socket.gethostbyname(socket.gethostname())}]"
         )
-        with patch.dict(config.options, {"smtp_helo_name": ""}):
+        with config.patch(smtp_helo_name=""):
             self.assertEqual(self._announced_name(), expected)
 
     @mute_logger("mail.log")
     def test_the_option_actually_changes_the_wire(self):
-        with patch.dict(config.options, {"smtp_helo_name": ""}):
+        with config.patch(smtp_helo_name=""):
             default_name = self._announced_name()
-        with patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}):
+        with config.patch(smtp_helo_name="mail.example.com"):
             configured_name = self._announced_name()
         self.assertNotEqual(default_name, configured_name)
 
@@ -322,7 +325,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                             )
                             with (
                                 self.assertRaises(UserError) as error_capture,
-                                patch.dict(config.options, {"smtp_timeout": timeout}),
+                                config.patch(smtp_timeout=timeout),
                             ):
                                 mail_server.test_smtp_connection()
                             self.assertRegex(
@@ -391,7 +394,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                             )
                             with (
                                 self.assertRaises(UserError) as capture,
-                                patch.dict(config.options, {"smtp_timeout": timeout}),
+                                config.patch(smtp_timeout=timeout),
                             ):
                                 mail_server.test_smtp_connection()
                             self.assertRegex(capture.exception.args[0], error_pattern)
@@ -479,7 +482,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                     timeout = 0.1 if "timed out" in error_pattern else SMTP_TIMEOUT
                     with (
                         self.assertRaises(UserError) as capture,
-                        patch.dict(config.options, {"smtp_timeout": timeout}),
+                        config.patch(smtp_timeout=timeout),
                     ):
                         mail_server.test_smtp_connection()
                     self.assertRegex(capture.exception.args[0], error_pattern)

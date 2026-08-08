@@ -640,11 +640,9 @@ class TestCommand(BaseCase):
         from odoo.http import db_filter
 
         dbs = ["alpha", "beta", "prod", "test_db"]
-        with mock.patch.dict(
-            config.options, {"dbfilter": ".*", "db_name": ["test_db"]}
-        ):
+        with config.patch(dbfilter=".*", db_name=["test_db"]):
             self.assertEqual(db_filter(dbs, host="localhost"), ["test_db"])
-        with mock.patch.dict(config.options, {"dbfilter": "^al", "db_name": []}):
+        with config.patch(dbfilter="^al", db_name=[]):
             self.assertEqual(db_filter(dbs, host="localhost"), ["alpha"])
         with mock.patch.dict(
             config.options, {"dbfilter": "", "db_name": ["beta", "alpha"]}
@@ -665,7 +663,7 @@ class TestCommand(BaseCase):
             {"dbfilter": "", "db_name": ["postgres", "mydb"]},
             {"dbfilter": ".*", "db_name": ["template1", "mydb"]},
         ):
-            with mock.patch.dict(config.options, options):
+            with config.patch(**options):
                 self.assertEqual(
                     db_filter(dbs, host="localhost"),
                     ["mydb"],

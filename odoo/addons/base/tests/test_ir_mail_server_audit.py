@@ -637,11 +637,11 @@ class TestSmtpTimeout(TransactionCase):
         cls.IrMailServer = cls.env["ir.mail_server"]
 
     def test_timeout_comes_from_the_configuration(self):
-        with patch.dict(config.options, {"smtp_timeout": 12}):
+        with config.patch(smtp_timeout=12):
             self.assertEqual(self.IrMailServer._get_smtp_timeout(), 12)
 
     def test_zero_disables_the_timeout(self):
-        with patch.dict(config.options, {"smtp_timeout": 0}):
+        with config.patch(smtp_timeout=0):
             self.assertIsNone(
                 self.IrMailServer._get_smtp_timeout(),
                 "0 means block indefinitely, not 'time out immediately'",
@@ -651,7 +651,7 @@ class TestSmtpTimeout(TransactionCase):
         server = self.IrMailServer.create(
             {"name": "timeout", "smtp_host": "smtp_host", "smtp_encryption": "none"}
         )
-        with patch.dict(config.options, {"smtp_timeout": 7}):
+        with config.patch(smtp_timeout=7):
             self.assertEqual(
                 self.IrMailServer._resolve_smtp_transport(server).timeout, 7
             )
@@ -1434,11 +1434,11 @@ class TestSmtpHeloName(TransactionCase):
         cls.IrMailServer = cls.env["ir.mail_server"]
 
     def test_unset_option_defers_to_smtplib(self):
-        with patch.dict(config.options, {"smtp_helo_name": ""}):
+        with config.patch(smtp_helo_name=""):
             self.assertIsNone(self.IrMailServer._get_smtp_local_hostname())
 
     def test_configured_name_is_returned(self):
-        with patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}):
+        with config.patch(smtp_helo_name="mail.example.com"):
             self.assertEqual(
                 self.IrMailServer._get_smtp_local_hostname(), "mail.example.com"
             )
@@ -1462,7 +1462,7 @@ class TestSmtpHeloName(TransactionCase):
             self.IrMailServer.create({"name": "helo", "smtp_host": "smtp.example.com"})
         )
         with (
-            patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}),
+            config.patch(smtp_helo_name="mail.example.com"),
             patch.object(smtplib, "SMTP", FakeSMTP),
         ):
             self.IrMailServer._open_smtp_connection(transport, "from@example.com")
@@ -1605,7 +1605,7 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
                 pass
 
         with (
-            patch.dict(config.options, {"smtp_server": "cli.example.com"}),
+            config.patch(smtp_server="cli.example.com"),
             patch.object(smtplib, "SMTP", _FakeConn),
             patch.object(
                 type(self.IrMailServer),

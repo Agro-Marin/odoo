@@ -148,7 +148,7 @@ class TestIrMailServer(MailCommon):
             self.default_from_address,
         )
 
-    @patch.dict(config.options, {"email_from": "settings@example.com"})
+    @config.patch(email_from="settings@example.com")
     def test_default_email_from(self, *args):
         """Check that default_from parameter of alias domain respected."""
         for (default_from, domain_name), expected_from in zip(

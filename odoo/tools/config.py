@@ -1,5 +1,6 @@
 import collections
 import configparser
+import contextlib
 import errno
 import functools
 import logging
@@ -8,6 +9,7 @@ import os
 import sys
 import tempfile
 import warnings
+from collections.abc import Iterator
 from os.path import expandvars, normcase
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -1884,6 +1886,44 @@ class configmanager:
 
     def pop(self, key: str, *args: Any) -> Any:
         return self._override_options.pop(key, *args)
+
+    @contextlib.contextmanager
+    def patch(self, **values: Any) -> Iterator[None]:
+        """Override options for the duration of the block, then restore them.
+
+        Use this instead of ``mock.patch.dict(config.options, …)``, which is a
+        trap: ``options`` is a ChainMap over the layers, and ``patch.dict``
+        restores a mapping by ``clear()`` followed by ``update(copy)``. On a
+        ChainMap ``clear()`` empties only ``maps[0]``, and iterating the copy
+        yields every key of *every* layer — so on exit the entire flattened
+        configuration is written into ``_override_options``, permanently
+        shadowing the CLI, environment and file layers beneath it.
+
+        Nothing fails where that happens. It fails later, in whatever code
+        next sets a lower layer and finds itself silently ignored, arbitrarily
+        far away — which is how it went unnoticed until a test module was
+        reordered and a suite that patched ``_runtime_options`` stopped seeing
+        its own values.
+
+        Writes to the same layer ``config[key] = value`` writes to, so
+        precedence during the block is unchanged; only the restore differs.
+
+        Usable as a decorator, like any ``@contextmanager``::
+
+            with config.patch(smtp_timeout=5):
+                ...
+        """
+        sentinel = object()
+        previous = {key: self._override_options.get(key, sentinel) for key in values}
+        self._override_options.update(values)
+        try:
+            yield
+        finally:
+            for key, value in previous.items():
+                if value is sentinel:
+                    self._override_options.pop(key, None)
+                else:
+                    self._override_options[key] = value
 
     @functools.cached_property
     def root_path(self):

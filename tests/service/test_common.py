@@ -354,7 +354,7 @@ class TestExpAuthenticateNeverServableNames:
             raise AssertionError("Registry must not be built for an unlisted db")
 
         with (
-            patch.dict(config.options, {"db_name": ["served_db"]}),
+            config.patch(db_name=["served_db"]),
             patch.object(common_mod, "Registry", side_effect=_must_not_run),
         ):
             assert common_mod.exp_authenticate("other_db", "a", "b", None) is False
@@ -366,7 +366,7 @@ class TestExpAuthenticateNeverServableNames:
 
         for options in ({"db_name": []}, {"db_name": ["served_db"]}):
             with (
-                patch.dict(config.options, options),
+                config.patch(**options),
                 patch.object(
                     common_mod, "Registry", side_effect=RuntimeError("reached")
                 ),
@@ -384,7 +384,7 @@ class TestExpAuthenticateNeverServableNames:
         from odoo.tools import config
 
         with (
-            patch.dict(config.options, {"dbfilter": "^nomatch$", "db_name": []}),
+            config.patch(dbfilter="^nomatch$", db_name=[]),
             patch.object(common_mod, "Registry", side_effect=RuntimeError("reached")),
         ):
             with pytest.raises(RuntimeError, match="reached"):
@@ -398,7 +398,7 @@ class TestExpAuthenticateNeverServableNames:
             raise AssertionError("Registry(db_template) must not be built")
 
         with (
-            patch.dict(config.options, {"db_template": "tpl_custom"}),
+            config.patch(db_template="tpl_custom"),
             patch.object(common_mod, "Registry", side_effect=_must_not_run),
         ):
             assert common_mod.exp_authenticate("tpl_custom", "a", "b", None) is False
