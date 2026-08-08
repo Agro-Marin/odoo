@@ -1,13 +1,6 @@
-# The officially supported versions of the following packages are their
-# python3-* equivalent distributed in Ubuntu 24.04 (Noble) and Debian 13 (Trixie)
 asn1crypto==1.5.1
 Babel==2.18.0
-# Exception to the distro rule above: there is no python3-blake3 in Noble or
-# Trixie, so this one must come from PyPI even on a distro-packaged install.
-# Prebuilt manylinux wheels (incl. cp314) — no Rust toolchain needed to install.
-# The import is guarded (odoo/tools/hashing.py falls back to sha1/sha256), so an
-# image that skips it degrades instead of failing to boot.
-blake3==1.0.9  # content/cache digests (odoo/tools/hashing.py)
+blake3==1.0.9
 cbor2==5.8.0
 chardet==5.2.0
 cryptography==46.0.4
@@ -21,6 +14,7 @@ lxml==6.0.2
 lxml-html-clean  # (Noble - removed from lxml, unpinned for future security patches)
 MarkupSafe==3.0.3
 num2words==0.5.14
+odfpy==1.4.1  # base_import: .ods reader (models/odf_ods_reader.py)
 ofxparse==0.21
 openpyxl==3.1.5
 orjson==3.11.7
@@ -53,6 +47,7 @@ urllib3==2.6.3
 vobject==0.9.9
 weasyprint==69.0
 Werkzeug==3.1.5
+xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader
 XlsxWriter==3.2.9
 zeep==4.3.2  # Fixes notation visitor bug (issue #1185)
 maturin>=1.0  # Build tool for odoo_rust extension

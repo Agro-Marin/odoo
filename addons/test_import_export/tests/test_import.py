@@ -372,7 +372,14 @@ class TestColumnMapping(TransactionCase):
             [('res_model', '=', 'import.preview')],
             ['column_name', 'field_name']
         )
-        self.assertItemsEqual([f['column_name'] for f in fields], ['Name', 'Some Value', 'value'])
+        # Column names are stored normalised (stripped + lower-cased) through
+        # the same helper the *lookup* uses. They previously went in verbatim
+        # while `_get_mapping_suggestion` looked them up lower-cased, so a
+        # header with the surrounding whitespace that spreadsheet exports
+        # routinely carry never matched the mapping the user had just taught
+        # the system. The web client happened to trim and lower-case before
+        # sending, which is what kept the round trip working at all.
+        self.assertItemsEqual([f['column_name'] for f in fields], ['name', 'some value', 'value'])
         self.assertItemsEqual([f['field_name'] for f in fields], ['somevalue', 'name', 'othervalue'])
 
     def test_fuzzy_match_distance(self):

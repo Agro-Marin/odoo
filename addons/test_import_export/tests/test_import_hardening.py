@@ -47,9 +47,14 @@ class ImportHardeningCase(TransactionCase):
         raise an unhandled `AttributeError` instead of a clean
         `ImportValidationError`. """
         imp = self._make_import(file=b'a,b,c', file_name='x.csv', file_type='text/csv')
+        # Patches `_detect_encoding`, the module's own helper, rather than
+        # `chardet.detect`: detection was moved to chardet's streaming
+        # `UniversalDetector` (a 249x win on non-ASCII files, see its
+        # docstring), so patching the one-shot call no longer intercepts
+        # anything and this test passed vacuously.
         with patch(
-            'odoo.addons.base_import.models.base_import.chardet.detect',
-            return_value={'encoding': None, 'confidence': 0.0},
+            'odoo.addons.base_import.models.base_import._detect_encoding',
+            return_value=None,
         ), self.assertRaises(ImportValidationError):
             imp._read_csv({'quoting': '"'})
 
@@ -83,7 +88,11 @@ class ImportHardeningCase(TransactionCase):
         imp = self._make_import(res_model='res.partner')
         data = [[datetime.date(2024, 1, 1)]]
         with self.assertRaises(ImportValidationError):
-            imp._parse_import_data_recursive('res.partner', '', data, ['image_1920'], {})
+            # `_parse_import_data` replaced `_parse_import_data_recursive`: the
+            # parse plan now walks the mapped paths rather than every field of
+            # every model involved (which is also what removed the
+            # KeyError('relation') crash on paths like `name/foo`).
+            imp._parse_import_data(data, ['image_1920'], {})
 
 
 @unittest.skipUnless(can_import("odf"), "odfpy not installed")

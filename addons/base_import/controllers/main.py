@@ -7,7 +7,16 @@ from odoo.http import request
 
 class ImportController(http.Controller):
 
-    @http.route('/base_import/set_file', methods=['POST'], type='http', auth='user')
+    # The uploaded body is read whole into memory, stored in a non-attachment
+    # column on a transient record that lives for 12h, and re-materialised as a
+    # full row list on every batch. Undeclared, this route inherited the global
+    # `DEFAULT_MAX_CONTENT_LENGTH` of 128 MiB -- a ceiling nobody chose for an
+    # import wizard. 64 MiB is still far above any spreadsheet a human maps by
+    # hand in this UI.
+    MAX_UPLOAD_SIZE = 64 * 1024 * 1024
+
+    @http.route('/base_import/set_file', methods=['POST'], type='http', auth='user',
+                max_content_length=MAX_UPLOAD_SIZE)
     # pylint: disable=redefined-builtin
     def set_file(self, id=None, ufile=None):
         # `id` and the upload both come straight from the request body, so

@@ -6,3 +6,4 @@ from . import test_import_audit
 from . import test_import_hardening
 from . import test_load
 from . import test_properties
+from . import test_import_audit_challenge
