@@ -62,7 +62,9 @@ DOC_PATHS = (
     _ARCH_DOCS / "views" / "runtime.md",
     _ARCH_DOCS / "views" / "data.md",
     _ARCH_DOCS / "views" / "deployment.md",
+    _ARCH_DOCS / "views" / "scenarios.md",
     _ARCH_DOCS / "gates.md",
+    _ARCH_DOCS / "risks.md",
     _ARCH_DOCS / "qualities.md",
     _ARCH_DOCS / "MEASUREMENTS.md",
 )
