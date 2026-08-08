@@ -12,7 +12,6 @@ import logging
 import operator
 import re
 import unicodedata
-from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -1435,6 +1434,27 @@ class Base_ImportImport(models.TransientModel):
         if not limit or limit >= len(data):
             return len(data)
 
+        continuation = self._continuation_rows(import_fields, data)
+        window = limit
+        while window < len(data) and continuation[window]:
+            window += 1
+        return window
+
+    def _continuation_rows(self, import_fields, data):
+        """ Which rows continue the record started above them rather than
+        starting one of their own.
+
+        ``_extract_records`` groups a record with the rows immediately after it
+        that carry *only* one2many values -- the extra lines of an order, say.
+        So a file's row count is not its record count, and anything that pairs
+        rows with the ids ``load`` returns has to know the difference.
+
+        :param list import_fields: field paths, positionally matching ``data``
+        :param list data: rows
+        :returns: one bool per row; ``data[0]`` is never a continuation, having
+            nothing above it to continue
+        :rtype: list[bool]
+        """
         model = self.env[self.res_model]
         o2m_indexes, other_indexes = [], []
         for index, path in enumerate(import_fields):
@@ -1442,19 +1462,16 @@ class Base_ImportImport(models.TransientModel):
             (o2m_indexes if field is not None and field.type == 'one2many' else other_indexes).append(index)
 
         if not o2m_indexes:
-            return limit
+            return [False] * len(data)
 
-        window = limit
-        while window < len(data):
-            row = data[window]
-            only_o2m = (
-                any(row[i] for i in o2m_indexes if i < len(row))
+        return [
+            bool(
+                index
+                and any(row[i] for i in o2m_indexes if i < len(row))
                 and not any(row[i] for i in other_indexes if i < len(row))
             )
-            if not only_o2m:
-                break
-            window += 1
-        return window
+            for index, row in enumerate(data)
+        ]
 
     @api.model
     def _remove_currency_symbol(self, value, currency_symbols=None):
@@ -1911,7 +1928,16 @@ class Base_ImportImport(models.TransientModel):
                 skipped = options.get('skip', 0)
                 # pad front as data doesn't contain anything for skipped lines
                 r = import_result['name'] = [''] * skipped
-                r.extend(self._stringify_date_like_objects(x[index_of_name], options) for x in merged_data)
+                # One name per *record*, matching `ids`: a one2many continuation
+                # row belongs to the record above it and has no name of its own,
+                # so counting it here shifted every later name by one relative to
+                # the ids the client pairs them with.
+                continuation = self._continuation_rows(import_fields, merged_data)
+                r.extend(
+                    self._stringify_date_like_objects(row[index_of_name], options)
+                    for index, row in enumerate(merged_data)
+                    if not continuation[index]
+                )
             else:
                 import_result['name'] = []
 
@@ -1985,27 +2011,69 @@ class Base_ImportImport(models.TransientModel):
                 self.res_model,
             )
 
-    def _extract_binary_filenames(self, import_fields, data, model=False, prefix='', binary_filenames=False):
-        model = model or self.res_model
-        binary_filenames = binary_filenames or defaultdict(list)
-        for name, field in self.env[model]._fields.items():
-            name = prefix + name
-            if any(name + '/' in import_field and name == import_field.split('/')[prefix.count('/')] for import_field in import_fields):
-                # Recursive call with the relational as new model and add the field name to the prefix
-                binary_filenames = self._extract_binary_filenames(import_fields, data, field.comodel_name, name + '/', binary_filenames)
-            elif field.type == 'binary' and field.attachment and name in import_fields:
-                index = import_fields.index(name)
-                for line in data:
-                    filename = None
-                    value = line[index]
-                    if isinstance(value, str):
-                        if re.match(config.get("import_url_regex"), value):
-                            pass
-                        elif '.' in value:
-                            # Detect if it's a filename
-                            filename = value
-                            line[index] = ''
-                        # else base64 nothing to do
+    def _extract_binary_filenames(self, import_fields, data):
+        """ Pull local-filename values out of the binary columns, one entry per
+        *record*, so the client can pair them with the ids ``load`` returns.
+
+        A cell naming a local file cannot be imported as data -- the browser
+        holds the bytes, not the server -- so it is blanked here and reported
+        back for the client's follow-up attachment pass.
+
+        Per record, not per row. The list used to carry one entry per data row,
+        while the client zips it against ``ids``: with one2many continuation
+        rows a file's row index and its record index diverge, so the pairing
+        silently slid. Measured on a 3-row/2-record file, the second record was
+        handed the *continuation* row's image and the third row's image was
+        never uploaded at all -- an image attached to the wrong record, which
+        is worse than none.
+
+        :param list import_fields: field paths, positionally matching ``data``
+        :param list data: rows of this batch, mutated in place
+        :returns: ``{field_path: [filename | None, ...]}``, aligned to records
+        :rtype: dict
+        """
+        binary_indexes = {}
+        for index, path in enumerate(import_fields):
+            field = self._resolve_import_path(path)
+            if field is not None and field.type == 'binary' and field.attachment:
+                binary_indexes[path] = index
+        if not binary_indexes:
+            return {}
+
+        # Blank the filename cells FIRST, then decide which rows are
+        # continuations. The two are not independent: `load` sees this data
+        # after the blanking, and a row whose only non-o2m value was a local
+        # filename becomes a continuation precisely because that cell is now
+        # empty. Deciding on the unblanked rows disagreed with `load` and put
+        # the counts back out of step.
+        per_row = []
+        for line in data:
+            row_names = {}
+            for name, index in binary_indexes.items():
+                value = line[index] if index < len(line) else None
+                if (
+                    isinstance(value, str)
+                    and '.' in value
+                    and not re.match(config.get("import_url_regex"), value)
+                ):
+                    # Detect if it's a filename
+                    row_names[name] = value
+                    line[index] = ''
+                # else base64 or a URL: nothing to do
+            per_row.append(row_names)
+
+        continuation = self._continuation_rows(import_fields, data)
+        binary_filenames = {name: [] for name in binary_indexes}
+        for row_index, row_names in enumerate(per_row):
+            for name in binary_indexes:
+                filename = row_names.get(name)
+                if continuation[row_index]:
+                    # This row feeds the record started above it, so its file
+                    # belongs to that record -- keep it rather than drop it, but
+                    # never overwrite a file that record already named.
+                    if filename and binary_filenames[name] and not binary_filenames[name][-1]:
+                        binary_filenames[name][-1] = filename
+                else:
                     binary_filenames[name].append(filename)
         return binary_filenames
 

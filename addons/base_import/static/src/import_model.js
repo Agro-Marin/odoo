@@ -500,6 +500,22 @@ export class BaseImportModel {
                 return;
             }
             const fields = Object.keys(binaryFilenames);
+            // The server sends one filename per *record*, to pair with `ids`.
+            // If that ever fails to hold, stop rather than zip by index anyway:
+            // a mismatch means some file would be attached to a record it does
+            // not belong to, and a wrong image on a customer record is worse
+            // than a missing one.
+            const misaligned = fields.filter(
+                (f) => binaryFilenames[f].length !== ids.length,
+            );
+            if (misaligned.length) {
+                const message = _t(
+                    "Could not match files to imported records for: %(fields)s. No files were attached.",
+                    { fields: misaligned.join(", ") },
+                );
+                this.notificationService.add(message, { type: "danger" });
+                return;
+            }
             const binaryFileManager = new BinaryFileManager(
                 this.resModel,
                 fields,

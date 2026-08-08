@@ -27,24 +27,23 @@ export class BinaryFileManager {
     }
 
     async addFile(id, field, file) {
-        let data = await this._readFile(file);
-        if (typeof data === "string" && data.startsWith("data:")) {
-            // Remove data:image/*;base64,
-            data = data.split(",")[1];
-        }
         // Check against the real byte size (`file.size`), not the base64-encoded
         // string length used below for batch-size accounting: base64 inflates
         // size by ~1.33x, so comparing `data.length` to the byte-denominated
         // `session.max_file_upload_size` used to reject valid files between
         // ~75% and 100% of the real limit (t24068 F5).
+        //
+        // Checked before `_readFile`, which pulls the whole file into memory as
+        // a data URL: reading first meant an oversized file was materialised
+        // (and inflated ~1.33x) only to be thrown away.
         if (!checkFileSize(file.size, this.notificationService)) {
             return;
         }
-        const dataSize = data.length;
 
-        // Resolve the column before mutating anything: an unknown field name
-        // yields -1, and `row[-1] = data` silently sets a stray property on the
-        // array instead of a cell, dropping the file without a word.
+        // Resolve the column before reading or mutating anything: an unknown
+        // field name yields -1, and `row[-1] = data` silently set a stray
+        // property on the array instead of a cell, dropping the file
+        // without a word.
         const indexOfField = this.fields.indexOf(field, 1);
         if (indexOfField === -1) {
             this.notificationService.add(
@@ -56,10 +55,22 @@ export class BinaryFileManager {
             return;
         }
 
+        let data = await this._readFile(file);
+        if (typeof data === "string" && data.startsWith("data:")) {
+            // Remove data:image/*;base64,
+            data = data.split(",")[1];
+        }
+        const dataSize = data.length;
+
         if (this.getCurrentSize() + dataSize >= this.maxBatchSize) {
             await this.mutex.exec(async () => await this._send());
         }
         if (!(id in this.dataToSend)) {
+            // Sparse on purpose. A binary column this record has no file for
+            // stays a hole and serialises as `null`, which `load` accepts in a
+            // binary column — as it accepts `""` (pinned in
+            // test_import_audit_challenge, because it reads like a bug and is
+            // not one).
             this.dataToSend[id] = Array(this.fields.length);
             this.dataToSend[id][0] = id;
         }
@@ -74,12 +85,22 @@ export class BinaryFileManager {
     }
 
     async _send() {
-        await new Promise((resolve) => {
-            setTimeout(resolve, this.delayAfterEachBatch);
-        });
         const data = Object.values(this.dataToSend);
         this.dataToSend = {};
         this.currentSize = 0;
+        if (!data.length) {
+            // Nothing pending. Reached when the very first file is by itself
+            // larger than the batch size: the size check runs before the file
+            // is added, so it fires on an empty buffer and used to spend a full
+            // `delayAfterEachBatch` plus an empty `load` round trip.
+            //
+            // The rows below are deliberately left as sparse arrays. A binary
+            // column a record has no file for stays a hole, which serialises as
+            // `null` — and `load` accepts `null` (and `""`) in a binary column
+            // without complaint, verified in test_import_audit_challenge. There
+            // is nothing here to work around.
+            return;
+        }
         const context = {
             ...this.context,
             import_file: true,
@@ -94,6 +115,12 @@ export class BinaryFileManager {
                 fields: this.fields,
                 data,
                 context,
+            });
+            // After the batch, not before it: the delay exists to keep a long
+            // upload from hammering the server, and paying it up front only
+            // added latency to the common single-batch import.
+            await new Promise((resolve) => {
+                setTimeout(resolve, this.delayAfterEachBatch);
             });
         } catch (error) {
             console.error(error);

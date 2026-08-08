@@ -8,6 +8,7 @@ rather than becoming folklore.
 Claim IDs match the audit report (C*/A*/P*/D*).
 """
 
+import base64
 import contextlib
 import io
 import time
@@ -375,3 +376,106 @@ class ODSReaderChallenge(TransactionCase):
         raw = path.read_bytes()
         content = zipfile.ZipFile(io.BytesIO(raw)).read('content.xml').decode()
         self.assertNotIn('number-rows-repeated', content)
+
+
+class BinaryFilenameAlignment(TransactionCase):
+    """ B1. `execute_import` reports local-file cells back to the client, which
+    pairs them with the ids `load` returned by index. That pairing only holds
+    if both lists count the same things -- and one counted rows while the other
+    counted records.
+    """
+
+    _OPTS = {'has_headers': True, 'quoting': '"', 'separator': ','}
+
+    def _imp(self, data):
+        return self.env['base_import.import'].create({
+            'res_model': 'res.partner', 'file': data,
+            'file_name': 't.csv', 'file_type': 'text/csv',
+        })
+
+    def test_b1_filenames_are_per_record_not_per_row(self):
+        """ A one2many continuation row belongs to the record above it, so it
+        must not consume an entry. It used to: the second record was handed the
+        continuation row's image and the third row's image was never uploaded.
+        """
+        imp = self._imp(
+            b'name,child_ids/name,image_1920\n'
+            b'Parent,Kid1,parent.png\n'
+            b',Kid2,continuation.png\n'
+            b'Other,Kid3,other.png\n'
+        )
+        result = imp.execute_import(
+            ['name', 'child_ids/name', 'image_1920'],
+            ['name', 'child_ids/name', 'image_1920'],
+            dict(self._OPTS), dryrun=True)
+
+        ids = result.get('ids') or []
+        filenames = (result.get('binary_filenames') or {}).get('image_1920') or []
+        self.assertEqual(len(ids), 2, "3 rows, 2 records")
+        self.assertEqual(
+            filenames, ['parent.png', 'other.png'],
+            "each record must get its own file, not the next row's")
+        self.assertEqual(len(filenames), len(ids))
+
+    def test_b1_names_are_per_record_too(self):
+        """ `name` is zipped against `ids` by the same client code. """
+        imp = self._imp(
+            b'name,child_ids/name\n'
+            b'Parent,Kid1\n'
+            b',Kid2\n'
+            b'Other,Kid3\n'
+        )
+        result = imp.execute_import(
+            ['name', 'child_ids/name'], ['name', 'child_ids/name'],
+            dict(self._OPTS), dryrun=True)
+        self.assertEqual(result['name'], ['Parent', 'Other'])
+        self.assertEqual(len(result['name']), len(result['ids']))
+
+    def test_b1_plain_file_still_aligns(self):
+        """ Control: with no one2many column, rows and records coincide and
+        nothing about the ordinary case changes. """
+        imp = self._imp(b'name,image_1920\nA,a.png\nB,b.png\nC,c.png\n')
+        result = imp.execute_import(
+            ['name', 'image_1920'], ['name', 'image_1920'], dict(self._OPTS), dryrun=True)
+        self.assertEqual(
+            result['binary_filenames']['image_1920'], ['a.png', 'b.png', 'c.png'])
+        self.assertEqual(len(result['ids']), 3)
+
+    def test_b1_continuation_file_fills_an_empty_parent(self):
+        """ A file named on a continuation row still belongs to the record that
+        row feeds, so it is used when that record named none of its own. """
+        imp = self._imp(
+            b'name,child_ids/name,image_1920\n'
+            b'Parent,Kid1,\n'
+            b',Kid2,late.png\n'
+        )
+        result = imp.execute_import(
+            ['name', 'child_ids/name', 'image_1920'],
+            ['name', 'child_ids/name', 'image_1920'],
+            dict(self._OPTS), dryrun=True)
+        self.assertEqual(result['binary_filenames']['image_1920'], ['late.png'])
+
+    def test_b2_load_accepts_null_and_empty_in_a_binary_column(self):
+        """ BinaryFileManager builds each row as `Array(n)` and fills only the
+        columns that record has a file for, so the rest serialise as `null`.
+
+        That reads like a latent bug and is not one — pinned here so nobody
+        "fixes" it. The audit briefly believed it was, on the strength of a
+        probe that used an invalid PNG: the rejection came from the image
+        bytes, not the placeholder. With a real image both `None` and `""` are
+        accepted for the untouched column.
+        """
+        from PIL import Image
+        buffer = io.BytesIO()
+        Image.new('RGB', (4, 4), (255, 0, 0)).save(buffer, 'PNG')
+        image = base64.b64encode(buffer.getvalue()).decode()
+
+        for placeholder in (None, ''):
+            partner = self.env['res.partner'].create({'name': 'binary holes'})
+            result = self.env['res.partner'].with_context(import_file=True).load(
+                ['.id', 'image_1920', 'image_128'],
+                [[str(partner.id), image, placeholder]])
+            self.assertTrue(
+                result['ids'],
+                "placeholder %r rejected: %r" % (placeholder, result['messages']))
+            self.assertFalse(result['messages'])
