@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from . import test_canonical_slug_redirect
 from . import test_controller_args
 from . import test_custom_snippet
 from . import test_error

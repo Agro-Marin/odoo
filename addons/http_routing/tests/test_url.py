@@ -72,6 +72,20 @@ class TestUrlLang(TestUrlCommon):
         with MockRequest(self.env, context={"lang": "fr_FR"}, mock_router=False):
             self.assertEqual(self.IrHttp._url_for("/en" + self.EP), self.EP)
 
+    def test_never_returns_an_empty_url(self):
+        # An empty href resolves against the *current* page, so emitting one
+        # silently turns a link home into a self-link. Stripping a bare "/en"
+        # produced exactly that: splicing the segment list by hand left
+        # ``["" ]`` -> "". Only reachable where "/" is a frontend route (i.e.
+        # with ``website`` installed), so assert the invariant rather than the
+        # single input, and keep it meaningful on both stacks.
+        with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
+            for url in ("/en", "/fr", "/", "/en/", "/fr/", self.EP):
+                with self.subTest(url=url):
+                    self.assertTrue(self.IrHttp._url_for(url).startswith("/"))
+                    self.assertTrue(self.IrHttp._url_for(url, "en_US").startswith("/"))
+                    self.assertTrue(self.IrHttp._url_for(url, "fr_FR").startswith("/"))
+
     def test_lang_placeholder_passthrough(self):
         # '[lang]' (used by url_return) is not a known url_code: it must be
         # inserted verbatim.
@@ -166,6 +180,59 @@ class TestLangUrlPrefix(TestUrlCommon):
         )
 
 
+class TestLangUrlUnprefix(TestUrlCommon):
+    """``_lang_url_split`` / ``_lang_url_unprefix`` are the inverse of
+    ``_lang_url_prefix``, and the only place that decides whether a path's first
+    segment is a language."""
+
+    def test_split_reports_the_code_and_the_rest(self):
+        with MockRequest(self.env, mock_router=False):
+            self.assertEqual(self.IrHttp._lang_url_split("/fr/shop"), ("fr", "/shop"))
+            self.assertEqual(self.IrHttp._lang_url_split("/fr"), ("fr", "/"))
+            self.assertEqual(self.IrHttp._lang_url_split("/shop"), (None, "/shop"))
+
+    def test_only_url_codes_count_not_full_codes(self):
+        # "/fr_FR/..." is case /7's business (a 301 to "/fr/..."), not a prefix
+        # to strip here -- otherwise the two disagree about what is a language.
+        with MockRequest(self.env, mock_router=False):
+            self.assertEqual(
+                self.IrHttp._lang_url_split("/fr_FR/shop"), (None, "/fr_FR/shop")
+            )
+
+    def test_frontend_url_codes_is_the_single_source(self):
+        with MockRequest(self.env, mock_router=False):
+            codes = self.env["ir.http"]._frontend_url_codes()
+        self.assertIn("fr", codes)
+        self.assertIn("en", codes)
+        self.assertEqual(
+            sorted(codes),
+            sorted(lg.url_code for lg in self.env["res.lang"]._get_frontend().values()),
+        )
+
+    def test_strips_a_known_url_code(self):
+        with MockRequest(self.env, mock_router=False):
+            self.assertEqual(self.IrHttp._lang_url_unprefix("/fr/shop"), "/shop")
+            self.assertEqual(self.IrHttp._lang_url_unprefix("/en/shop"), "/shop")
+
+    def test_bare_prefix_becomes_root(self):
+        # "/fr" and "/fr/" both mean the homepage in fr: round-tripping through
+        # _lang_url_prefix must give "/fr" back, not "/fr/fr".
+        with MockRequest(self.env, mock_router=False):
+            for path in ("/fr", "/fr/"):
+                self.assertEqual(self.IrHttp._lang_url_unprefix(path), "/")
+
+    def test_unprefixed_path_untouched(self):
+        with MockRequest(self.env, mock_router=False):
+            for path in ("/shop", "/", "", "/frites/x", "/fr_FR/shop"):
+                self.assertEqual(self.IrHttp._lang_url_unprefix(path), path)
+
+    def test_round_trips_with_prefix(self):
+        with MockRequest(self.env, mock_router=False):
+            for path in ("/shop", "/"):
+                prefixed = self.IrHttp._lang_url_prefix(path, "fr")
+                self.assertEqual(self.IrHttp._lang_url_unprefix(prefixed), path)
+
+
 class TestIsMultilangUrl(TestUrlCommon):
     """Unit coverage for ``ir.http._is_multilang_url`` against real routes."""
 
@@ -244,6 +311,60 @@ class TestUrlLocalized(TestUrlCommon):
             self.assertEqual(
                 self.IrHttp._url_localized(self.EP + "?a=b", lang_code="fr_FR"),
                 "/fr" + self.EP + "?a=b",
+            )
+
+    def test_fragment_is_preserved_not_quoted(self):
+        # RFC 3986: the fragment starts at the first "#". Splitting only on "?"
+        # left "#top" glued to the path, which then matched no rule and came
+        # back percent-quoted -- "/fr/website/translations%23top", a dead link.
+        with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
+            self.assertEqual(
+                self.IrHttp._url_localized(self.EP + "#top", lang_code="fr_FR"),
+                "/fr" + self.EP + "#top",
+            )
+            self.assertEqual(
+                self.IrHttp._url_localized(self.EP + "?a=b#top", lang_code="fr_FR"),
+                "/fr" + self.EP + "?a=b#top",
+            )
+            # a "?" *after* the "#" belongs to the fragment, not to the query
+            self.assertEqual(
+                self.IrHttp._url_localized(self.EP + "#top?a=b", lang_code="fr_FR"),
+                "/fr" + self.EP + "#top?a=b",
+            )
+
+    def test_canonical_domain_drops_query_and_fragment(self):
+        with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
+            self.assertEqual(
+                self.IrHttp._url_localized(
+                    self.EP + "?a=b#top",
+                    lang_code="fr_FR",
+                    canonical_domain="https://example.com",
+                ),
+                "https://example.com/fr" + self.EP,
+            )
+
+    def test_existing_lang_prefix_is_replaced_not_stacked(self):
+        # This helper *sets* a URL's language, so it must behave like _url_for
+        # and swap an existing prefix rather than stack onto it. Matching a
+        # prefixed path finds no rule, so the plain match-then-prefix sequence
+        # produced "/fr/fr/...", an URL that 404s.
+        with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
+            self.assertEqual(
+                self.IrHttp._url_localized("/fr" + self.EP, lang_code="fr_FR"),
+                "/fr" + self.EP,
+            )
+            self.assertEqual(
+                self.IrHttp._url_localized("/en" + self.EP, lang_code="fr_FR"),
+                "/fr" + self.EP,
+            )
+            self.assertEqual(
+                self.IrHttp._url_localized("/fr" + self.EP, lang_code="en_US"),
+                self.EP,
+            )
+            # ... including on the degradation path, where nothing matches
+            self.assertEqual(
+                self.IrHttp._url_localized("/fr/no/such/page-4", lang_code="fr_FR"),
+                "/fr/no/such/page-4",
             )
 
     def test_unknown_lang_falls_back_to_request_lang(self):
@@ -537,3 +658,24 @@ class TestUrlRewrite(TestUrlCommon):
         self.assertFalse(func_a)
         self.assertEqual(path_b, "/loop/a")
         self.assertFalse(func_b)
+
+
+class TestIsMultilangUrlWithoutRequest(TestUrlCommon):
+    """``_is_multilang_url`` answers from ``self.env``.
+
+    It delegates its routing probe to ``url_rewrite``, which is already
+    request-free; keeping the wrapper bound to ``request`` made the whole
+    question unaskable from a sitemap builder, a cron or a plain model method.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(self.registry.clear_cache, "routing")
+
+    def test_works_without_a_request(self):
+        self.assertTrue(self.IrHttp._is_multilang_url(self.EP))
+        self.assertFalse(self.IrHttp._is_multilang_url("/web/login"))
+        self.assertFalse(self.IrHttp._is_multilang_url("/foo/static/x.js"))
+
+    def test_lang_prefix_still_ignored_without_a_request(self):
+        self.assertTrue(self.IrHttp._is_multilang_url("/fr" + self.EP))

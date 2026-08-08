@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-import odoo
 from odoo.tests import HttpCase, tagged
 from odoo.tools import mute_logger
 
@@ -89,12 +88,21 @@ class TestRedirect(HttpCase):
         rec_published = self.env['test.model'].create({'name': 'name', 'website_published': True})
         rec_unpublished = self.env['test.model'].create({'name': 'name', 'website_published': False})
 
-        WebsiteHttp = odoo.addons.website.models.ir_http.IrHttp
+        def _get_error_html(env, code, values):
+            return code, f"CUSTOM {code}"
 
-        def _get_error_html(env, code, value):
-            return str(code).split('_')[-1], f"CUSTOM {code}"
-
-        with patch.object(WebsiteHttp, '_get_error_html', _get_error_html):
+        # Patch the *registry* class, not `website.models.ir_http.IrHttp`: each
+        # module declares a standalone AbstractModel and the inheritance chain
+        # is assembled by the registry, so the module class only carries the
+        # methods that module itself defines. `_get_error_html` lives in
+        # http_routing, and patching it here also keeps the stub in place
+        # whatever module ends up owning it.
+        #
+        # The stub returns `code` verbatim: it is an HTTP status now, where it
+        # used to double as a template token ("page_404"), hence the former
+        # `str(code).split('_')[-1]`. Template selection moved to
+        # `ir.http._get_error_template`.
+        with patch.object(self.registry['ir.http'], '_get_error_html', _get_error_html):
             # Patch will avoid to display real 404 page and regenerate assets each time and unlink old one.
             # And it allow to be sur that exception id handled by handle_exception and return a "managed error" page.
 

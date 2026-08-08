@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import werkzeug.exceptions
 from lxml import html
 
 from odoo.fields import Command
@@ -973,3 +974,82 @@ class TestNewPage(common.TransactionCase):
         self.assertNotEqual(
             pages.key, "website.snippets", "Page's key cannot be website.snippets."
         )
+
+
+@tagged("-at_install", "post_install")
+class TestErrorPageFallback(HttpCase):
+    """``ir.http._handle_error`` gives ``_serve_fallback`` a chance based on the
+    HTTP *status*, and ``_get_error_template`` decides which page renders it.
+
+    Those were one value before: this module answered "page_404"/"protected_403"
+    from ``_get_exception_code_values``, which is also what ``_handle_error``
+    tests against ``(404, 403)``. Choosing a different error page therefore
+    switched the fallback off as a side effect -- invisible, and only for the
+    users who triggered the override.
+    """
+
+    EP = "/website/translations"
+
+    def test_designer_gets_the_same_fallback_as_a_visitor(self):
+        # A path that both routes and carries a website.page, with the endpoint
+        # raising NotFound: the only shape where _handle_error (rather than the
+        # serving layer's earlier attempt) is what reaches _serve_fallback.
+        # A designer used to get the "create this page" 404 here while an
+        # anonymous visitor got the page.
+        page = self.env["website.page"].create(
+            {
+                "name": "Fallback probe",
+                "url": self.EP,
+                "is_published": True,
+                "type": "qweb",
+                "key": "website.test_error_page_fallback",
+                "arch": '<t t-name="website.test_error_page_fallback">'
+                '<t t-call="website.layout">FALLBACKBODY</t></t>',
+            }
+        )
+        self.addCleanup(page.unlink)
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+
+        def _dispatch(endpoint):
+            raise werkzeug.exceptions.NotFound
+
+        self.patch(self.registry["ir.http"], "_dispatch", _dispatch)
+
+        anonymous = self.url_open(self.EP, allow_redirects=False)
+        self.assertEqual(anonymous.status_code, 200)
+        self.assertIn("FALLBACKBODY", anonymous.text)
+
+        self.authenticate("admin", "admin")
+        self.assertTrue(
+            self.env.ref("base.user_admin").has_group("website.group_website_designer"),
+            "the premise: admin is a website designer",
+        )
+        designer = self.url_open(self.EP, allow_redirects=False)
+        self.assertEqual(designer.status_code, 200)
+        self.assertIn("FALLBACKBODY", designer.text)
+
+    def test_password_protected_page_still_gates(self):
+        # The same split makes _serve_fallback run for a protected 403 where it
+        # did not before. It must re-raise Forbidden rather than serve the page:
+        # a second render of a protected page must not become a way past it.
+        page = self.env["website.page"].create(
+            {
+                "name": "Secret",
+                "url": "/test-protected-page",
+                "is_published": True,
+                "type": "qweb",
+                "key": "website.test_protected_page",
+                "arch": '<t t-name="website.test_protected_page">'
+                '<t t-call="website.layout">TOPSECRETBODY</t></t>',
+            }
+        )
+        self.addCleanup(page.unlink)
+        page.view_id.write({"visibility": "password", "visibility_password": "hunter2"})
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+
+        response = self.url_open("/test-protected-page", allow_redirects=False)
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("TOPSECRETBODY", response.text)
+        self.assertIn("visibility_password", response.text)

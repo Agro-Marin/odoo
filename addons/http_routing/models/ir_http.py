@@ -152,6 +152,44 @@ class IrHttp(models.AbstractModel):
             path = "/" + path
         return f"/{url_code}{path if path != '/' else ''}"
 
+    @api.model
+    def _frontend_url_codes(self) -> list[str]:
+        """Return the ``url_code`` of every frontend language.
+
+        The single definition of "what may appear as a language prefix in a
+        path". :meth:`_lang_url_split`, :meth:`_url_lang` and
+        :meth:`_is_multilang_url` all answer from here, so a stack that narrows
+        the frontend languages (``website`` scopes them per website) narrows all
+        three at once, and they cannot drift apart.
+        """
+        return [info.url_code for info in self.env["res.lang"]._get_frontend().values()]
+
+    @classmethod
+    def _lang_url_split(cls, path: str) -> tuple[str | None, str]:
+        """Split a root-relative ``path`` into its leading language ``url_code``
+        and the rest: the inverse of :meth:`_lang_url_prefix`.
+
+        "/fr/shop" -> ``("fr", "/shop")``, a bare "/fr" (or "/fr/") ->
+        ``("fr", "/")``, and an unprefixed path -> ``(None, path)``. Only a
+        language's ``url_code`` is recognized, never its full ``code``: the
+        ladder redirects "/fr_FR/..." to "/fr/..." (case /7) rather than
+        treating it as a prefix here.
+        """
+        segments = path.split("/")
+        if (
+            len(segments) > 1
+            and segments[1] in request.env["ir.http"]._frontend_url_codes()
+        ):
+            return segments[1], "/" + "/".join(segments[2:])
+        return None, path
+
+    @classmethod
+    def _lang_url_unprefix(cls, path: str) -> str:
+        """Strip a leading frontend-language prefix off a root-relative
+        ``path``. See :meth:`_lang_url_split`.
+        """
+        return cls._lang_url_split(path)[1]
+
     @classmethod
     def _url_localized(
         cls,
@@ -195,21 +233,40 @@ class IrHttp(models.AbstractModel):
             qs = keep_query()
             url = request.httprequest.path + ("?%s" % qs if qs else "")
 
-        # '/shop/furn-0269-chaise-de-bureau-noire-17?' to
-        # '/shop/furn-0269-chaise-de-bureau-noire-17', otherwise -> 404
-        url, sep, qs = url.partition("?")
+        # RFC 3986 orders the components as path[?query][#fragment]: the fragment
+        # starts at the FIRST "#", and a "?" appearing after it belongs to the
+        # fragment, not to the query. Split the fragment off first (as
+        # ``website``'s ``_url_for`` does), then the query -- partitioning on "?"
+        # alone left "#frag" glued to the path, which then never matched a rule
+        # and came back percent-quoted ("/shop#top" -> "/fr/shop%23top", a dead
+        # link). '/shop/furn-0269-chaise-de-bureau-noire-17?' must likewise lose
+        # its trailing '?' before matching, otherwise -> 404.
+        head, hash_, fragment = url.partition("#")
+        url, sep, qs = head.partition("?")
 
+        # Drop a lang prefix the caller already applied. This helper *sets* the
+        # language of a URL, so localizing "/fr/shop" to fr must yield
+        # "/fr/shop", not "/fr/fr/shop" -- which is what the match-then-prefix
+        # sequence below produces on its own, since "/fr/shop" matches no rule.
+        # :meth:`_url_lang` has always replaced the prefix rather than stacking
+        # onto it; this aligns the two.
+        url = cls._lang_url_unprefix(url)
+
+        # One router for both halves: the map matched against MUST be the map
+        # built from, or a path could be resolved on one routing table and
+        # rebuilt on another. Matching went through ``ir.http.routing_map()``
+        # while building went through ``http.root.get_db_router()``; the two
+        # agree today only because the latter delegates to the former whenever
+        # a database is known.
+        router = http.root.get_db_router(request.db, env=request.env)
         try:
             # Match the routing map directly, never ``ir.http._match``: that is
             # the dispatch entry point and it mutates the live request (it
             # stamps ``is_frontend``/``lang``, and case /9 reroutes the request
             # being served). A URL-generation helper must observe the routing
             # table, never steer it.
-            rule, args = (
-                request.env["ir.http"]
-                .routing_map()
-                .bind_to_environ(request.httprequest.environ)
-                .match(path_info=url, return_rule=True)
+            rule, args = router.bind_to_environ(request.httprequest.environ).match(
+                path_info=url, return_rule=True
             )
             for key, val in list(args.items()):
                 if isinstance(val, models.BaseModel):
@@ -219,8 +276,7 @@ class IrHttp(models.AbstractModel):
                         args[key] = val = val.with_context(lang=lang.code)
                     if prefetch_langs:
                         args[key] = val = val.with_context(prefetch_langs=True)
-            router = http.root.get_db_router(request.db, env=request.env).bind("")
-            path = router.build(rule.endpoint, args)
+            path = router.bind("").build(rule.endpoint, args)
         except (
             HTTPException,
             AccessError,
@@ -240,10 +296,10 @@ class IrHttp(models.AbstractModel):
             path = cls._lang_url_prefix(path, lang.url_code)
 
         if canonical_domain:
-            # canonical URLs should not have qs
+            # canonical URLs carry neither a query string nor a fragment
             return tools.urls.urljoin(canonical_domain, path)
 
-        return path + sep + qs
+        return path + sep + qs + hash_ + fragment
 
     @classmethod
     def _url_lang(cls, path_or_uri: str, lang_code: str | None = None) -> str:
@@ -266,7 +322,7 @@ class IrHttp(models.AbstractModel):
         # relative URL with either a path or a force_lang
         if url and not url.netloc and not url.scheme and (url.path or force_lang):
             location = urllib.parse.urljoin(request.httprequest.path, location)
-            lang_url_codes = [info.url_code for info in Lang._get_frontend().values()]
+            lang_url_codes = request.env["ir.http"]._frontend_url_codes()
             # The context lang is not guaranteed (``with_context(lang=None)``),
             # and a non-string would be spliced straight into the path below.
             # Fall back to the request's lang, then the frontend default.
@@ -282,29 +338,38 @@ class IrHttp(models.AbstractModel):
             # later. It must still be a string to be joined into a path.
             if lang_url_code not in lang_url_codes:
                 lang_url_code = lang_code if isinstance(lang_code, str) else None
+            # Resolved once: with ``website`` installed ``_get_default_lang``
+            # reads the current website, so calling it per branch cost the hot
+            # URL-building path an extra lookup per generated link.
+            default_url_code = request.env["ir.http"]._get_default_lang().url_code
             if lang_url_code is None:
-                lang_url_code = request.env["ir.http"]._get_default_lang().url_code
-            if (len(lang_url_codes) > 1 or force_lang) and cls._is_multilang_url(
-                location, lang_url_codes
-            ):
+                lang_url_code = default_url_code
+            if (len(lang_url_codes) > 1 or force_lang) and request.env[
+                "ir.http"
+            ]._is_multilang_url(location, lang_url_codes):
                 loc, sep, qs = location.partition("?")
-                ps = loc.split("/")
-                default_lg = request.env["ir.http"]._get_default_lang()
-                if ps[1] in lang_url_codes:
+                # ``_lang_url_split`` / ``_lang_url_prefix`` are the two
+                # primitives that know how a language sits in a path; splicing
+                # ``loc.split("/")`` by hand here was a third implementation of
+                # the same grammar, free to drift from the ladder's.
+                url_code, rest = cls._lang_url_split(loc)
+                if url_code is not None:
                     # Replace the language only if we explicitly provide a language to url_for
                     if force_lang:
-                        ps[1] = lang_url_code
+                        loc = cls._lang_url_prefix(rest, lang_url_code)
                     # Remove the default language unless it's explicitly provided
-                    elif ps[1] == default_lg.url_code:
-                        ps.pop(1)
+                    elif url_code == default_url_code:
+                        loc = rest
                 # Insert the context language or the provided language
-                elif lang_url_code != default_lg.url_code or force_lang:
-                    ps.insert(1, lang_url_code)
-                    # Remove the last empty string to avoid trailing / after joining
-                    if not ps[-1]:
-                        ps.pop(-1)
+                elif lang_url_code != default_url_code or force_lang:
+                    # Inserting the prefix also drops one trailing slash
+                    # ("/shop/" -> "/fr/shop"); kept deliberately, since the
+                    # endpoint would 308 to the slashless form anyway.
+                    if rest.endswith("/") and rest != "/":
+                        rest = rest[:-1]
+                    loc = cls._lang_url_prefix(rest, lang_url_code)
 
-                location = "/".join(ps) + sep + qs
+                location = loc + sep + qs
         return location
 
     @classmethod
@@ -319,9 +384,9 @@ class IrHttp(models.AbstractModel):
         """
         return cls._url_lang(url_from, lang_code=lang_code)
 
-    @classmethod
+    @api.model
     def _is_multilang_url(
-        cls, local_url: str, lang_url_codes: list[str] | None = None
+        self, local_url: str, lang_url_codes: list[str] | None = None
     ) -> bool:
         """Whether the content served at ``local_url`` is translated.
 
@@ -329,11 +394,13 @@ class IrHttp(models.AbstractModel):
         resolves to an endpoint that is not ``website=True``, or whose
         ``multilang`` (defaulting to ``type == 'http'``) is false. A path
         matching no endpoint at all is translatable.
+
+        Answers from ``self.env`` -- like :meth:`url_rewrite`, which it delegates
+        the routing probe to -- so a sitemap builder, a cron or a test can ask
+        the question without an ambient HTTP request.
         """
         if not lang_url_codes:
-            lang_url_codes = [
-                lg.url_code for lg in request.env["res.lang"]._get_frontend().values()
-            ]
+            lang_url_codes = self.env["ir.http"]._frontend_url_codes()
         spath = local_url.split("/")
         # if a language is already in the path, remove it (guard the index: a
         # slashless ``local_url`` has no segment [1])
@@ -350,7 +417,7 @@ class IrHttp(models.AbstractModel):
 
         # Try to match an endpoint in werkzeug's routing table
         try:
-            _, func = request.env["ir.http"].url_rewrite(path)
+            _, func = self.env["ir.http"].url_rewrite(path)
 
             # /page/xxx has no endpoint/func but is multilang
             return not func or (
@@ -390,7 +457,7 @@ class IrHttp(models.AbstractModel):
         language instead.
         """
         Lang = self.env["res.lang"]
-        lang_code = self.env["ir.http"]._get_default_lang_code()
+        lang_code = self._get_default_lang_code()
         lang = Lang._get_data(code=lang_code) if lang_code else None
         if not lang:  # LangData.__bool__ is bool(self.id): a dummy is falsy
             lang = next(iter(Lang._get_active_by("code").values()))
@@ -412,7 +479,14 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def get_translation_frontend_modules(self) -> list[str]:
-        Modules = request.env["ir.module.module"].sudo()
+        """Return the modules whose web translations the frontend may load.
+
+        Read ``self.env``, not ``request.env``: this is the allow-list the
+        public ``/website/translations`` route serves, and asserting on it --
+        or precomputing it from a cron or a test -- must not require an
+        ambient HTTP request.
+        """
+        Modules = self.env["ir.module.module"].sudo()
         extra_modules_name = self._get_translation_frontend_modules_name()
         extra_modules_domain = Domain(self._get_translation_frontend_modules_domain())
         if not extra_modules_domain.is_true():
@@ -609,18 +683,19 @@ class IrHttp(models.AbstractModel):
                  falsy when the URL carried no recognizable lang.
         """
         with cls._borrowed_public_env() as real_env:
-            nearest_url_lang = request.env["ir.http"].get_nearest_lang(
-                request.env["res.lang"]._get_data(url_code=url_lang_str).code
-                or url_lang_str
+            # Bind the two models once: ``_auth_method_public`` has just
+            # swapped ``request.env``, so every ``request.env[...]`` below
+            # rebuilt the same two registry entries -- five lookups for one
+            # decision, on every frontend request.
+            IrHttp = request.env["ir.http"]
+            Lang = request.env["res.lang"]
+            nearest_url_lang = IrHttp.get_nearest_lang(
+                Lang._get_data(url_code=url_lang_str).code or url_lang_str
             )
-            cookie_lang = request.env["ir.http"].get_nearest_lang(
-                request.cookies.get("frontend_lang")
-            )
-            context_lang = request.env["ir.http"].get_nearest_lang(
-                real_env.context.get("lang")
-            )
-            default_lang = request.env["ir.http"]._get_default_lang()
-            request.lang = request.env["res.lang"]._get_data(
+            cookie_lang = IrHttp.get_nearest_lang(request.cookies.get("frontend_lang"))
+            context_lang = IrHttp.get_nearest_lang(real_env.context.get("lang"))
+            default_lang = IrHttp._get_default_lang()
+            request.lang = Lang._get_data(
                 code=(
                     nearest_url_lang or cookie_lang or context_lang or default_lang.code
                 )
@@ -806,8 +881,26 @@ class IrHttp(models.AbstractModel):
                         request.httprequest.path,
                     )
                     return
-                generated_path = urllib.parse.unquote_plus(path)
-                current_path = urllib.parse.unquote_plus(request.httprequest.path)
+                # ``rule.build`` percent-quotes its output; ``httprequest.path``
+                # is what werkzeug has *already* decoded. Decode the generated
+                # side once so the two are compared like with like.
+                #
+                # Decoding the current path a second time turned a literal
+                # "%20" (or "%2B", "%3D", ...) inside a converter value back
+                # into a space, so the comparison could never match and the
+                # "canonical" redirect pointed straight at the URL being served
+                # -- an infinite 301 loop, on any frontend multilang route whose
+                # segment carries a percent-escape-looking string: a coupon
+                # code, a blog tag, a model-page record slug. 301s are cached by
+                # browsers, so the URL stayed broken for that visitor well past
+                # the fix.
+                #
+                # ``unquote``, not ``unquote_plus``: "+" is a literal plus in a
+                # path (RFC 3986), and werkzeug's converters keep it unquoted
+                # for exactly that reason. Plus-as-space is a query-string
+                # convention and has no business here.
+                generated_path = urllib.parse.unquote(path)
+                current_path = request.httprequest.path
                 if generated_path != current_path:
                     if request.lang != request.env["ir.http"]._get_default_lang():
                         path = cls._lang_url_prefix(path, request.lang.url_code)
@@ -830,7 +923,15 @@ class IrHttp(models.AbstractModel):
     def _get_exception_code_values(
         cls, exception: Exception
     ) -> tuple[int, dict[str, typing.Any]]:
-        """Return the error code followed by the values matching the exception."""
+        """Return the HTTP status of ``exception``, and the values the error
+        template renders with.
+
+        The first element is a *status*, always, and overrides must keep it one:
+        :meth:`_handle_error` decides from it whether :meth:`_serve_fallback`
+        gets a chance, and ``Response(status=...)`` is built from it. To render a
+        different page for the same status, override :meth:`_get_error_template`
+        -- it receives these ``values``, ``exception`` included.
+        """
         code = 500  # default code
         values = {
             "exception": exception,
@@ -841,7 +942,13 @@ class IrHttp(models.AbstractModel):
             code = exception.http_status
             values["error_message"] = exception.args[0]
         elif isinstance(exception, werkzeug.exceptions.HTTPException):
-            code = exception.code
+            # ``HTTPException`` itself carries ``code = None``, and
+            # ``Response(status=None)`` answers *200 OK* with an error page in
+            # the body. A code-less one does not reach this method today
+            # (``Request._serve_db`` hands it to ``_serve_aborted`` instead), so
+            # this is defence, not a live fix -- but ``values`` below are derived
+            # from ``code``, and a page titled "None: " helps nobody either.
+            code = exception.code or 500
             values["error_message"] = exception.description
 
         if hasattr(exception, "qweb"):
@@ -865,21 +972,48 @@ class IrHttp(models.AbstractModel):
         return values
 
     @classmethod
+    def _get_error_template(cls, code: int, values: dict[str, typing.Any]) -> str:
+        """Return the xmlid of the template rendering the error page.
+
+        The extension point for "same status, different page". It exists so that
+        nobody has to smuggle a template through the *status*:
+        :meth:`_get_exception_code_values` used to be the only hook, so
+        ``website`` answered "page_404" there -- which then made
+        :meth:`_handle_error`'s ``code in (404, 403)`` false and silently denied
+        a website designer the :meth:`_serve_fallback` attempt a visitor got.
+
+        ``values`` carries the ``exception`` itself, so an override can key off
+        it exactly as it used to.
+        """
+        return "http_routing.%s" % code
+
+    @classmethod
     def _get_error_html(
         cls, env, code: int, values: dict[str, typing.Any]
     ) -> tuple[int, typing.Any]:
+        """Render the frontend error page for ``code``.
+
+        :return: ``(code, html)`` -- ``code`` comes back unchanged; only the
+                 template varies with it.
+        """
+        View = env["ir.ui.view"]
         try:
-            return code, env["ir.ui.view"]._render_template(
-                "http_routing.%s" % code, values
+            return code, View._render_template(
+                cls._get_error_template(code, values), values
             )
         except MissingError:
-            # A bare werkzeug HTTPException carries ``code = None``; guard so
-            # this re-raises cleanly instead of raising TypeError.
-            if isinstance(code, int) and 400 <= code < 500:
-                return code, env["ir.ui.view"]._render_template(
-                    "http_routing.4xx", values
-                )
-            raise
+            # No dedicated template for this status. Degrade to a generic one
+            # while *keeping the status*: re-raising sent the caller into
+            # :meth:`_handle_error`'s last-resort branch, which answers "418 I'm
+            # a teapot". A 502/503 reported as a 418 misleads clients, caches,
+            # uptime monitors and crawlers alike -- and that branch exists for
+            # "rendering itself blew up", not for "no template named 503".
+            if not isinstance(code, int):
+                raise
+            return code, View._render_template(
+                "http_routing.4xx" if 400 <= code < 500 else "http_routing.http_error",
+                values,
+            )
 
     @classmethod
     def _handle_error(cls, exception):

@@ -481,20 +481,54 @@ class IrHttp(models.AbstractModel):
         return None
 
     @classmethod
-    def _get_exception_code_values(cls, exception):
-        code, values = super()._get_exception_code_values(exception)
-        if isinstance(
-            exception, werkzeug.exceptions.NotFound
-        ) and request.env.user.has_group("website.group_website_designer"):
-            code = "page_404"
-            values["path"] = request.httprequest.path[1:]
-        if (
+    def _is_designer_404(cls, exception):
+        """Whether ``exception`` is a 404 that a website designer should see as
+        the "create this page" screen rather than as the public 404.
+
+        ``request`` is checked first: the mapping is otherwise request-free, and
+        reaching for ``request.env`` unguarded made the whole of
+        ``_get_exception_code_values`` unusable from a cron, a test or any plain
+        model call.
+        """
+        return (
+            isinstance(exception, werkzeug.exceptions.NotFound)
+            and request
+            and request.env.user.has_group("website.group_website_designer")
+        )
+
+    @classmethod
+    def _is_password_protected_403(cls, exception):
+        return (
             isinstance(exception, werkzeug.exceptions.Forbidden)
             and exception.description == "website_visibility_password_required"
-        ):
-            code = "protected_403"
+        )
+
+    @classmethod
+    def _get_exception_code_values(cls, exception):
+        code, values = super()._get_exception_code_values(exception)
+        # Only ``values`` are enriched here; the code stays the HTTP status.
+        # Swapping it for a template token ("page_404") also switched off
+        # ``_handle_error``'s ``code in (404, 403)`` guard, so a logged-in
+        # designer silently lost the ``_serve_fallback`` attempt -- the
+        # website.page / website.rewrite / attachment retry -- that an anonymous
+        # visitor got. Template selection now lives in _get_error_template.
+        # ``request`` guarded on both: ``values["path"]`` only matters to the
+        # template, which cannot render without a request anyway, while the
+        # status mapping itself must stay answerable from a cron or a test.
+        if cls._is_designer_404(exception):
+            values["path"] = request.httprequest.path[1:]
+        if request and cls._is_password_protected_403(exception):
             values["path"] = request.httprequest.path
         return (code, values)
+
+    @classmethod
+    def _get_error_template(cls, code, values):
+        exception = values.get("exception")
+        if cls._is_designer_404(exception):
+            return "website.page_404"
+        if cls._is_password_protected_403(exception):
+            return "website.protected_403"
+        return super()._get_error_template(code, values)
 
     @classmethod
     def _get_values_500_error(cls, env, values, exception):
@@ -527,14 +561,6 @@ class IrHttp(models.AbstractModel):
             "website.group_website_designer"
         )
         return values
-
-    @classmethod
-    def _get_error_html(cls, env, code, values):
-        if code in ("page_404", "protected_403"):
-            return code.split("_")[1], env["ir.ui.view"]._render_template(
-                "website.%s" % code, values
-            )
-        return super()._get_error_html(env, code, values)
 
     @api.model
     def get_frontend_session_info(self):
