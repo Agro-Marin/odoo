@@ -52,7 +52,7 @@ async function mountContainer() {
 }
 
 /** Fire an `ACTION_MANAGER:UPDATE` and let the container render. */
-async function update(info) {
+async function update(/** @type {any} */ info) {
     getMockEnv().bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, info);
     await animationFrame();
 }

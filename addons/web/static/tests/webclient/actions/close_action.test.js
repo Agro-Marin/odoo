@@ -125,7 +125,7 @@ test("close action with provided infos", async () => {
 
     await mountWithCleanup(WebClient);
     const options = {
-        onClose: function (infos) {
+        onClose: function (/** @type {any} */ infos) {
             expect(infos).toBe("just for testing", {
                 message: "should have the correct close infos",
             });

@@ -53,7 +53,7 @@ test("loadDisplayNames maps every id when resIds contain duplicates", async () =
 test("loadDisplayNames is done in silent mode", async () => {
     await makeMockEnv();
 
-    const onRPCRequest = ({ detail }) => {
+    const onRPCRequest = ({ /** @type {any} */ detail }) => {
         const silent = detail.settings.silent ? "(silent)" : "";
         expect.step(`RPC:REQUEST${silent}`);
     };

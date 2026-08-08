@@ -29,22 +29,49 @@ import { StaticList } from "@web/model/relational_model/static_list";
 const { SET, CLEAR, CREATE, UPDATE } = x2ManyCommands;
 
 /**
+ * A datapoint stand-in. The engine only ever reads these four members off a
+ * row, so the fakes below carry exactly them -- naming the shape once keeps
+ * every builder agreeing on it instead of each re-inferring its own literal.
+ *
+ * @typedef {{
+ *   _virtualId: string | null,
+ *   resId: number | false,
+ *   data: Record<string, any>,
+ *   _applyChanges?: () => void,
+ * }} FakeRow
+ */
+
+/**
+ * @typedef {{
+ *   commands?: any[],
+ *   currentIds?: any[],
+ *   records?: FakeRow[],
+ *   limit?: number,
+ *   offset?: number,
+ * }} EngineListParams
+ */
+
+/**
  * A list fake that faithfully supports the command engine: it carries the real
  * `_applyCommands`, an echo cache seeded from `records`, a limit-bumping
  * `_bumpLimit`, and page-refill helpers stubbed to no-ops so the window
  * assertions stay about the insertion, not about server reloads.
  */
-function makeEngineList({
-    commands = [],
-    currentIds = [],
-    records = [],
-    limit = 40,
-    offset = 0,
-} = {}) {
+function makeEngineList(
+    /** @type {EngineListParams} */ {
+        commands = [],
+        currentIds = [],
+        records = [],
+        limit = 40,
+        offset = 0,
+    } = {},
+) {
+    /** @type {number[]} */
     const bumps = [];
+    /** @type {Record<string, FakeRow>} */
     const cache = {};
     for (const rec of records) {
-        cache[rec._virtualId ?? rec.resId] = rec;
+        cache[String(rec._virtualId ?? rec.resId)] = rec;
     }
     return {
         _commands: commands,
@@ -53,17 +80,22 @@ function makeEngineList({
         limit,
         offset,
         _cache: cache,
+        /** @type {Set<any>} */
         _loadingStubIds: new Set(),
         _unknownRecordCommands: {},
         _needsReordering: false,
         _bumps: bumps,
-        _bumpLimit(n) {
+        _bumpLimit(/** @type {number} */ n) {
             bumps.push(n);
             this.limit += n;
         },
         _clampOffset() {},
-        _getResIdsToLoad: () => [],
-        _createRecordDatapoint(values, opts = {}) {
+        _getResIdsToLoad: () => /** @type {any[]} */ ([]),
+        _createRecordDatapoint(
+            /** @type {Record<string, any>} */ values,
+            /** @type {{ virtualId?: string }} */ opts = {},
+        ) {
+            /** @type {FakeRow} */
             const rec = {
                 _virtualId: opts.virtualId ?? null,
                 resId: false,
@@ -77,37 +109,61 @@ function makeEngineList({
         },
         model: {
             _patchConfig() {},
-            _loadRecords: async () => [],
+            _loadRecords: async () => /** @type {any[]} */ ([]),
         },
         _applyCommands: StaticList.prototype._applyCommands,
     };
 }
 
-/** Build a virtual (unsaved) datapoint and cache it so the engine echoes it. */
+/**
+ * Build a virtual (unsaved) datapoint and cache it so the engine echoes it.
+ *
+ * @param {any} list
+ * @param {string} virtualId
+ * @param {Record<string, any>} [data]
+ * @returns {FakeRow}
+ */
 function addVirtual(list, virtualId, data = {}) {
+    /** @type {FakeRow} */
     const rec = { _virtualId: virtualId, resId: false, data, _applyChanges() {} };
     list._cache[virtualId] = rec;
     return rec;
 }
 
-/** Build a saved-row datapoint (has a resId, no virtualId). */
+/**
+ * Build a saved-row datapoint (has a resId, no virtualId).
+ *
+ * @param {number} resId
+ * @returns {FakeRow}
+ */
 function savedRow(resId) {
     return { _virtualId: null, resId, data: {}, _applyChanges() {} };
 }
 
-/** Build an unsaved-row datapoint already parked in the window. */
+/**
+ * Build an unsaved-row datapoint already parked in the window.
+ *
+ * @param {string} virtualId
+ * @returns {FakeRow}
+ */
 function virtualRow(virtualId) {
     return { _virtualId: virtualId, resId: false, data: {}, _applyChanges() {} };
 }
 
 function makeSortableList() {
-    const rec1 = { resId: 1, data: { name: "b" } };
-    const rec2 = { resId: 2, data: { name: "c" } };
+    /** @type {FakeRow} */
+    const rec1 = { _virtualId: null, resId: 1, data: { name: "b" } };
+    /** @type {FakeRow} */
+    const rec2 = { _virtualId: null, resId: 2, data: { name: "c" } };
+    /** @type {FakeRow} */
     const recV = { resId: false, _virtualId: "v", data: { name: "a" } };
     return {
         records: [rec1, rec2],
+        /** @type {Record<string, FakeRow>} */
         _cache: { 1: rec1, 2: rec2, v: recV },
+        /** @type {any[]} */
         _currentIds: [1, 2],
+        /** @type {any[]} */
         _commands: [],
         limit: 40,
         offset: 0,
@@ -116,13 +172,13 @@ function makeSortableList() {
         fields: { name: { type: "char" } },
         model: { _patchConfig() {} },
         config: {},
-        _getResIdsToLoad: () => [],
+        _getResIdsToLoad: () => /** @type {any[]} */ ([]),
         _load: StaticList.prototype._load,
         // The sort helper clears the pending-reorder flag through this method
         // (published in the StaticList reorder-flag encapsulation); the hand-
         // built list must provide it just like `_load` above.
         markReordered() {
-            this._needsReordering = false;
+            /** @type {any} */ (this)._needsReordering = false;
         },
     };
 }
@@ -132,7 +188,9 @@ describe("StaticList._addRecord(top) command ordering", () => {
         const list = makeEngineList({ commands: [[SET, false, [1, 2]]] });
         const rec = addVirtual(list, "virt-1");
 
-        await StaticList.prototype._addRecord.call(list, rec, { position: "top" });
+        await StaticList.prototype._addRecord.call(list, /** @type {any} */ (rec), {
+            position: "top",
+        });
 
         expect(list._commands).toEqual([
             [SET, false, [1, 2]],
@@ -145,7 +203,9 @@ describe("StaticList._addRecord(top) command ordering", () => {
         const list = makeEngineList({ commands: [[UPDATE, 5, {}]] });
         const rec = addVirtual(list, "virt-2");
 
-        await StaticList.prototype._addRecord.call(list, rec, { position: "top" });
+        await StaticList.prototype._addRecord.call(list, /** @type {any} */ (rec), {
+            position: "top",
+        });
 
         expect(list._commands).toEqual([
             [CREATE, "virt-2"],
@@ -157,7 +217,7 @@ describe("StaticList._addRecord(top) command ordering", () => {
         const list = makeSortableList();
         const recV = list._cache.v;
 
-        await StaticList.prototype._addRecord.call(list, recV);
+        await StaticList.prototype._addRecord.call(list, /** @type {any} */ (recV));
 
         expect(list._currentIds).toEqual(["v", 1, 2]);
         expect(list.records.map((r) => r.data.name)).toEqual(["a", "b", "c"]);
@@ -173,7 +233,9 @@ describe("StaticList._addRecord(top) command ordering", () => {
         });
         const rec = addVirtual(list, "virt-3");
 
-        await StaticList.prototype._addRecord.call(list, rec, { position: "top" });
+        await StaticList.prototype._addRecord.call(list, /** @type {any} */ (rec), {
+            position: "top",
+        });
 
         expect(list._commands[2]).toEqual([CREATE, "virt-3"]);
     });
@@ -188,7 +250,9 @@ describe("StaticList._addRecord insertion-rule characterization", () => {
         });
         const recB = addVirtual(list, "vb");
 
-        await StaticList.prototype._addRecord.call(list, recB, { position: "bottom" });
+        await StaticList.prototype._addRecord.call(list, /** @type {any} */ (recB), {
+            position: "bottom",
+        });
 
         expect(list._currentIds).toEqual([1, 2, "vb"]);
         expect(list.records.map((r) => r._virtualId ?? r.resId)).toEqual([1, 2, "vb"]);
@@ -205,7 +269,9 @@ describe("StaticList._addRecord insertion-rule characterization", () => {
         });
         const recC = addVirtual(list, "c");
 
-        await StaticList.prototype._addRecord.call(list, recC, { position: "bottom" });
+        await StaticList.prototype._addRecord.call(list, /** @type {any} */ (recC), {
+            position: "bottom",
+        });
 
         expect(list.records.map((r) => r._virtualId)).toEqual(["a", "b", "c"]);
         expect(list._currentIds).toEqual(["a", "b", "c"]);
@@ -220,7 +286,9 @@ describe("StaticList._addRecord insertion-rule characterization", () => {
         });
         const recC = addVirtual(list, "c");
 
-        await StaticList.prototype._addRecord.call(list, recC, { position: "top" });
+        await StaticList.prototype._addRecord.call(list, /** @type {any} */ (recC), {
+            position: "top",
+        });
 
         // unshift then pop past the limit: the window stays at 2, ids keep all 3.
         expect(list.records.map((r) => r._virtualId)).toEqual(["c", "a"]);
@@ -232,15 +300,17 @@ describe("StaticList._addRecord insertion-rule characterization", () => {
         const list = {
             records: [{ _virtualId: "a" }],
             _currentIds: ["a"],
+            /** @type {any[]} */
             _commands: [],
             limit: 40,
             offset: 0,
+            /** @type {any[]} */
             orderBy: [],
         };
 
         await StaticList.prototype._addRecord.call(
             list,
-            { _virtualId: "b" },
+            /** @type {any} */ ({ _virtualId: "b" }),
             { sort: false },
         );
 

@@ -21,6 +21,7 @@ const KEY = "test.storage_json";
  * @param {{ store?: Record<string, string>, throwOn?: string[] }} [options]
  */
 function mockStorage({ store = {}, throwOn = [] } = {}) {
+    /** @type {any[]} */
     const calls = [];
     const guard = (/** @type {string} */ name) => {
         calls.push(name);

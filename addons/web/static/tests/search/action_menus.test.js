@@ -35,7 +35,11 @@ class Foo extends models.Model {
 class IrActionsReport extends models.Model {
     _name = "ir.actions.report";
 
-    get_valid_action_reports(self, model, recordIds) {
+    get_valid_action_reports(
+        /** @type {any} */ self,
+        /** @type {any} */ model,
+        /** @type {any} */ recordIds,
+    ) {
         const validActionIds = [1];
         if (recordIds.includes(1)) {
             validActionIds.push(2);

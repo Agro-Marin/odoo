@@ -7,7 +7,7 @@ import { appendToExpr, FormCompiler } from "@web/views/form/form_compiler";
 
 describe.current.tags("headless");
 
-function compileTemplate(arch, params = {}) {
+function compileTemplate(/** @type {any} */ arch, params = {}) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(arch, "text/xml");
     const compiler = new FormCompiler({ form: xml.documentElement });
@@ -17,7 +17,7 @@ function compileTemplate(arch, params = {}) {
 /** Compile a bare ``div[name='button_box']`` arch directly (the button box is
  *  stripped from the sheet/nosheet form output, so exercise its compiler in
  *  isolation). */
-function compileButtonBox(arch, params = {}) {
+function compileButtonBox(/** @type {any} */ arch, params = {}) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(arch, "text/xml");
     const compiler = new FormCompiler({ form: xml.documentElement });

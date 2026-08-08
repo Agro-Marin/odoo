@@ -27,7 +27,7 @@ class Partner extends models.Model {
 
 defineModels([Partner]);
 
-async function mountRecordSelector(props) {
+async function mountRecordSelector(/** @type {any} */ props) {
     class Parent extends Component {
         static components = { RecordSelector };
         static template = xml`<RecordSelector t-props="recordProps" />`;
@@ -40,11 +40,11 @@ async function mountRecordSelector(props) {
             return {
                 ...props,
                 resId: this.state.resId,
-                update: (resId) => this._update(resId),
+                update: (/** @type {any} */ resId) => this._update(resId),
             };
         }
 
-        _update(resId) {
+        _update(/** @type {any} */ resId) {
             this.state.resId = resId;
         }
     }

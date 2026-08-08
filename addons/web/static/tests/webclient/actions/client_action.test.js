@@ -333,7 +333,7 @@ test("ClientAction with extractProps", async () => {
     class ClientAction extends Component {
         static template = xml`<div class="my_client_action" t-esc="props.myProp"/>`;
         static props = ["*"];
-        static extractProps(action) {
+        static extractProps(/** @type {any} */ action) {
             return { myProp: action.params.my_prop };
         }
     }

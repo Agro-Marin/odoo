@@ -44,7 +44,7 @@ defineModels([Parent, Line, ResCompany, ResPartner, ResUsers]);
 
 const LINE_COUNT = 150;
 
-function seedLines(count) {
+function seedLines(/** @type {any} */ count) {
     Line._records = Array.from({ length: count }, (_, i) => ({
         id: i + 1,
         name: `line ${i + 1}`,

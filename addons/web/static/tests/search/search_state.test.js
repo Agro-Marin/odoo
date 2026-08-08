@@ -18,7 +18,15 @@ import {
 
 describe.current.tags("headless");
 
-/** Build a minimal exportable source with a grouped filter section. */
+/**
+ * Build a minimal exportable source with a grouped filter section.
+ *
+ * Typed as a record because tests add keys to it (`searchDomain`) that the
+ * literal does not carry -- which is the point: the serialisers must round-trip
+ * whatever the live model happens to hold.
+ *
+ * @returns {Record<string, any>}
+ */
 function makeSource() {
     const value = { id: 10, checked: false, display_name: "Tag A" };
     const group = { id: "g1", name: "Group", values: new Map([[10, value]]) };
@@ -41,6 +49,10 @@ function makeSource() {
     };
 }
 
+/**
+ * @param {Record<string, any>} source
+ * @returns {Record<string, any>}
+ */
 function exportSource(source) {
     return {
         ...queryToState(source),
@@ -50,6 +62,11 @@ function exportSource(source) {
     };
 }
 
+/**
+ * @param {Record<string, any>} state
+ * @param {Record<string, any>} [target]
+ * @returns {Record<string, any>}
+ */
 function importState(state, target = {}) {
     queryFromState(state, target);
     itemsFromState(state, target);
@@ -64,7 +81,7 @@ describe("state export/import", () => {
         const exported = exportSource(source);
 
         source.query.push({ searchItemId: 99 });
-        source.sections.get(1).values.get(10).checked = true;
+        /** @type {any} */ (source.sections.get(1)).values.get(10).checked = true;
 
         expect(exported.query).toEqual([{ searchItemId: 3 }]);
         const [, section] = exported.sections[0];
@@ -124,10 +141,11 @@ describe("panel concern", () => {
         const source = makeSource();
         source.searchDomain = [["foo", "=", "a"]];
 
-        const exported = panelToState(source);
+        const exported = /** @type {Record<string, any>} */ (panelToState(source));
         expect(exported.searchDomain).toEqual([["foo", "=", "a"]]);
         expect(exported.searchDomain).not.toBe(source.searchDomain);
 
+        /** @type {Record<string, any>} */
         const target = {};
         panelFromState(JSON.parse(JSON.stringify(exported)), target);
         expect(target.searchDomain).toEqual([["foo", "=", "a"]]);
@@ -135,7 +153,7 @@ describe("panel concern", () => {
 
     test("a source without a searchDomain exports none, and a legacy state restores none", () => {
         const source = makeSource();
-        const exported = panelToState(source);
+        const exported = /** @type {Record<string, any>} */ (panelToState(source));
         expect("searchDomain" in exported).toBe(false);
 
         const target = {};
@@ -162,7 +180,9 @@ describe("properties concern", () => {
     }
 
     test("only property-derived searchViewFields entries are exported", () => {
-        const { propertySearchViewFields } = propertiesToState(makePropertySource());
+        const { propertySearchViewFields } = /** @type {Record<string, any>} */ (
+            propertiesToState(makePropertySource())
+        );
         expect(Object.keys(propertySearchViewFields)).toEqual(["properties.my_char"]);
         expect(propertySearchViewFields["properties.my_char"].string).toBe("My Char");
     });
@@ -176,6 +196,7 @@ describe("properties concern", () => {
             type: "properties",
             string: "Properties",
         };
+        /** @type {Record<string, any>} */
         const target = { searchViewFields: { properties: liveParent } };
 
         propertiesFromState(state, target);

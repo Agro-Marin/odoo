@@ -219,7 +219,6 @@ addons/web/static/src/webclient/switch_company_menu/company_selector.js
 addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js
 addons/web/static/src/webclient/user_menu/user_menu_items.js
 addons/web/static/tests/_framework/component_test_helpers.js
-addons/web/static/tests/_framework/dom_test_helpers.js
 addons/web/static/tests/_framework/env_test_helpers.js
 addons/web/static/tests/_framework/mock_indexed_db.hoot.js
 addons/web/static/tests/_framework/mock_server/mock_fields.js
@@ -255,7 +254,6 @@ addons/web/static/tests/components/model_field_selector.test.js
 addons/web/static/tests/components/model_selector.test.js
 addons/web/static/tests/components/pager.test.js
 addons/web/static/tests/components/record_selectors/multi_record_selector.test.js
-addons/web/static/tests/components/record_selectors/record_selector.test.js
 addons/web/static/tests/components/scroller.test.js
 addons/web/static/tests/components/select_menu.test.js
 addons/web/static/tests/components/time_picker.test.js
@@ -314,7 +312,6 @@ addons/web/static/tests/core/utils/arrays.test.js
 addons/web/static/tests/core/utils/asset_log.test.js
 addons/web/static/tests/core/utils/assets.test.js
 addons/web/static/tests/core/utils/autoresize.test.js
-addons/web/static/tests/core/utils/binary.test.js
 addons/web/static/tests/core/utils/dom/dvu.test.js
 addons/web/static/tests/core/utils/draggable.test.js
 addons/web/static/tests/core/utils/functions.test.js
@@ -338,7 +335,6 @@ addons/web/static/tests/fields/basic/numeric_fields.test.js
 addons/web/static/tests/fields/display/gauge/gauge_field.test.js
 addons/web/static/tests/fields/display/statusbar/statusbar_field.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
-addons/web/static/tests/fields/hooks/record_observer.test.js
 addons/web/static/tests/fields/input_field_hook.test.js
 addons/web/static/tests/fields/media/binary/binary_field.test.js
 addons/web/static/tests/fields/media/image/image_field.test.js
@@ -367,7 +363,6 @@ addons/web/static/tests/fields/translation_dialog.test.js
 addons/web/static/tests/helpers/dom_test_helpers.test.js
 addons/web/static/tests/helpers/utils.js
 addons/web/static/tests/libs/bootstrap.test.js
-addons/web/static/tests/libs/popper_compat.test.js
 addons/web/static/tests/mock_server/mock_model.test.js
 addons/web/static/tests/mock_server/mock_server.test.js
 addons/web/static/tests/model/command_builder.test.js
@@ -402,7 +397,6 @@ addons/web/static/tests/model/relational_model/relational_model_config.test.js
 addons/web/static/tests/model/relational_model/relational_model_property_groupby.test.js
 addons/web/static/tests/model/relational_model/relational_model_swr_guard.test.js
 addons/web/static/tests/model/relational_model/resequence.test.js
-addons/web/static/tests/model/relational_model/static_list_add_record_order.test.js
 addons/web/static/tests/model/relational_model/static_list_batch_page_capacity.test.js
 addons/web/static/tests/model/relational_model/static_list_command_engine.test.js
 addons/web/static/tests/model/relational_model/static_list_commit_save_heal.test.js
@@ -427,7 +421,6 @@ addons/web/static/tests/model/sample_server.test.js
 addons/web/static/tests/model/sample_server_aggregate_parity.test.js
 addons/web/static/tests/modules/module_loader.test.js
 addons/web/static/tests/public/interaction.test.js
-addons/web/static/tests/search/action_menus.test.js
 addons/web/static/tests/search/control_panel.test.js
 addons/web/static/tests/search/custom_favorite_item.test.js
 addons/web/static/tests/search/embedded_actions_bar.test.js
@@ -446,7 +439,6 @@ addons/web/static/tests/search/search_panel_mixin.test.js
 addons/web/static/tests/search/search_properties_mixin.test.js
 addons/web/static/tests/search/search_query_mixin.test.js
 addons/web/static/tests/search/search_split_domain.test.js
-addons/web/static/tests/search/search_state.test.js
 addons/web/static/tests/search/search_utils.test.js
 addons/web/static/tests/search/with_search.test.js
 addons/web/static/tests/t_custom_click.test.js
@@ -514,7 +506,6 @@ addons/web/static/tests/webclient/actions/act_window_executor.test.js
 addons/web/static/tests/webclient/actions/action_button_executor.test.js
 addons/web/static/tests/webclient/actions/action_cache_invalidation.test.js
 addons/web/static/tests/webclient/actions/action_clear_changes.test.js
-addons/web/static/tests/webclient/actions/action_container.test.js
 addons/web/static/tests/webclient/actions/action_dispatch.test.js
 addons/web/static/tests/webclient/actions/action_dispatch_branches.test.js
 addons/web/static/tests/webclient/actions/action_info_builders.test.js
@@ -550,7 +541,6 @@ addons/web/static/tests/webclient/mobile/burger_user_menu.test.js
 addons/web/static/tests/webclient/mobile/mobile_switch_company.test.js
 addons/web/static/tests/webclient/navbar.test.js
 addons/web/static/tests/webclient/rpc_mutation_listeners.test.js
-addons/web/static/tests/webclient/session_service.test.js
 addons/web/static/tests/webclient/share_target_service.test.js
 addons/web/static/tests/webclient/switch_company_menu.test.js
 addons/web/static/tests/webclient/user_menu.test.js

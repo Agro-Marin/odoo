@@ -233,14 +233,17 @@ export function contains(target, options) {
          */
         drag: async (options) => {
             /** @type {any} */
-            const cancelWithDelay = async (options) => {
+            const cancelWithDelay = async (/** @type {any} */ options) => {
                 await cancel(options);
                 await advanceFrame();
                 cancelCurrentDragSequence = null;
             };
 
             /** @type {any} */
-            const dropWithDelay = async (to, options) => {
+            const dropWithDelay = async (
+                /** @type {any} */ to,
+                /** @type {any} */ options,
+            ) => {
                 if (to) {
                     await moveToWithDelay(to, options);
                 }

@@ -41,7 +41,8 @@ export class SelectionLikeField extends Component {
                 return this.props.record.data[this.props.name] !== false
                     ? /** @type {any} */ (
                           this.props.record.fields[this.props.name].selection.find(
-                              (o) => o[0] === this.props.record.data[this.props.name],
+                              (/** @type {any} */ o) =>
+                                  o[0] === this.props.record.data[this.props.name],
                           )?.[1] ?? ""
                       )
                     : "";
@@ -55,7 +56,7 @@ export class SelectionLikeField extends Component {
         return this.type === "many2one" && rawValue ? rawValue.id : rawValue;
     }
 
-    stringify(value) {
+    stringify(/** @type {any} */ value) {
         return JSON.stringify(value);
     }
 }

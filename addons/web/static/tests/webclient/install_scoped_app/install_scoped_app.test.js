@@ -13,7 +13,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { InstallScopedApp } from "@web/webclient/install_scoped_app/install_scoped_app";
 
-const mountManifestLink = (href) => {
+const mountManifestLink = (/** @type {any} */ href) => {
     const fixture = getFixture();
     const manifestLink = document.createElement("link");
     manifestLink.rel = "manifest";

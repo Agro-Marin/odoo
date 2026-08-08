@@ -36,7 +36,7 @@ export class PropertiesGroupByItem extends Component {
             return [];
         }
         return this.env.searchModel.getSearchItems(
-            (searchItem) =>
+            (/** @type {any} */ searchItem) =>
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                 searchItem.isProperty &&
                 searchItem.propertyFieldName === this.props.item.fieldName,

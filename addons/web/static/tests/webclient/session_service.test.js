@@ -30,7 +30,7 @@ test("Only call once session info data when services calls lazy session", async 
         dependencies: ["lazy_session"],
         start(env, { lazy_session }) {
             expect.step("service_a_before");
-            lazy_session.getValue("a", (value) => {
+            lazy_session.getValue("a", (/** @type {any} */ value) => {
                 expect(value).toBe("a");
                 expect.step("session_a_after_lazy");
             });
@@ -41,7 +41,7 @@ test("Only call once session info data when services calls lazy session", async 
         dependencies: ["lazy_session"],
         start(env, { lazy_session }) {
             expect.step("service_b_before");
-            lazy_session.getValue("b", (value) => {
+            lazy_session.getValue("b", (/** @type {any} */ value) => {
                 expect(value).toBe("b");
                 expect.step("session_b_after_lazy");
             });
@@ -138,7 +138,7 @@ test("Call lazy session info after webclient init with action and service", asyn
         dependencies: ["lazy_session"],
         start(env, { lazy_session }) {
             expect.step("service_before");
-            lazy_session.getValue("a", (value) => {
+            lazy_session.getValue("a", (/** @type {any} */ value) => {
                 expect(value).toBe("a");
                 expect.step("session_after_lazy");
             });

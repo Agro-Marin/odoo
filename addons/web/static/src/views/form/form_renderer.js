@@ -193,7 +193,10 @@ export class FormRenderer extends Component {
         );
     }
 
-    async onWillChangeNotebookPage(_notebookId, _page) {
+    async onWillChangeNotebookPage(
+        /** @type {any} */ _notebookId,
+        /** @type {any} */ _page,
+    ) {
         await this.props.record.isDirty();
         return true;
     }

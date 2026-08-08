@@ -7,7 +7,11 @@ import { applyInheritance } from "@web/core/template_inheritance";
 const parser = new DOMParser();
 const serializer = new XMLSerializer();
 
-function _applyInheritance(arch, inherits, url = "test/from_op") {
+function _applyInheritance(
+    /** @type {any} */ arch,
+    /** @type {any} */ inherits,
+    url = "test/from_op",
+) {
     const archXmlDoc = parser.parseFromString(arch, "text/xml");
     const inheritsDoc = parser.parseFromString(inherits, "text/xml");
     archXmlDoc.documentElement.setAttribute("t-translation-context", "from_target");
@@ -275,7 +279,7 @@ test("single operation: after", async () => {
     }
 });
 
-test("single operation: attributes", async (assert) => {
+test("single operation: attributes", async (/** @type {any} */ assert) => {
     const toTest = [
         {
             arch: `<t t-name="web.A"> <div attr1="12" attr2="a b" attr3="to remove" /> </t>`,

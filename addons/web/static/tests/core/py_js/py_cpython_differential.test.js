@@ -24,7 +24,7 @@ describe.current.tags("headless");
  * To regenerate: evaluate each expression under CPython and canonicalize with
  * the mirror of `canon` below (integral floats -> int, exponents unpadded).
  */
-function canon(v) {
+function canon(/** @type {any} */ v) {
     if (v === true) {
         return "True";
     }

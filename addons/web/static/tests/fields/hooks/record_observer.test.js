@@ -117,6 +117,7 @@ test("destroying the component during an in-flight batched call is safe", async 
 
 test("a rejection after the initial call is reported, not silently dropped", async () => {
     const record = makeRecord({ foo: "abc" });
+    /** @type {any[]} */
     const errors = [];
     const originalError = console.error;
     console.error = (...args) => errors.push(args);

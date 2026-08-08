@@ -55,7 +55,7 @@ export class ModelSelector extends Component {
                 : this._fetchAvailableModels(),
         );
 
-        this.models = records.map((record) => ({
+        this.models = records.map((/** @type {any} */ record) => ({
             cssClass: `o_model_selector_${record.model.replaceAll(".", "_")}`,
             data: {
                 technical: record.model,

@@ -312,7 +312,6 @@ addons/web/static/tests/model/relational_model/record_validator.test.js
 addons/web/static/tests/model/relational_model/record_value_transforms.test.js
 addons/web/static/tests/model/relational_model/relational_model_config.test.js
 addons/web/static/tests/model/relational_model/resequence.test.js
-addons/web/static/tests/model/relational_model/static_list_add_record_order.test.js
 addons/web/static/tests/model/relational_model/static_list_batch_page_capacity.test.js
 addons/web/static/tests/model/relational_model/static_list_commit_save_heal.test.js
 addons/web/static/tests/model/relational_model/static_list_datapoint.test.js
@@ -340,7 +339,6 @@ addons/web/static/tests/search/search_bar_menu/favorite_menu.test.js
 addons/web/static/tests/search/search_model.test.js
 addons/web/static/tests/search/search_panel_desktop.test.js
 addons/web/static/tests/search/search_panel_mixin.test.js
-addons/web/static/tests/search/search_state.test.js
 addons/web/static/tests/search/with_search.test.js
 addons/web/static/tests/tours/user_switch_tour.js
 addons/web/static/tests/ui/bottom_sheet.test.js

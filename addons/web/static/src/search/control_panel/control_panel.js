@@ -325,7 +325,7 @@ export class ControlPanel extends Component {
     /**
      * @param {import("@web/views/view").ViewType} viewType
      */
-    switchView(viewType, newWindow) {
+    switchView(viewType, /** @type {any} */ newWindow) {
         return this.actionService.switchView(viewType, {}, { newWindow });
     }
 
@@ -333,7 +333,7 @@ export class ControlPanel extends Component {
         const currentViewType = this.env.config.viewType;
         const viewSwitcherEntries = this.env.config.viewSwitcherEntries;
         const currentIndex = viewSwitcherEntries.findIndex(
-            (entry) => entry.type === currentViewType,
+            (/** @type {any} */ entry) => entry.type === currentViewType,
         );
         const nextIndex = (currentIndex + 1) % viewSwitcherEntries.length;
         return this.switchView(viewSwitcherEntries[nextIndex].type);

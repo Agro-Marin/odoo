@@ -66,6 +66,7 @@ describe("placement reporting", () => {
 describe("Bootstrap's modifiers", () => {
     test("preSetPlacement runs with the resolved placement on state", async () => {
         const { reference, popper } = build({ refStyle: "top:200px;left:200px" });
+        /** @type {any[]} */
         const seen = [];
         const instance = createPopper(reference, popper, {
             placement: "bottom",
@@ -74,7 +75,7 @@ describe("Bootstrap's modifiers", () => {
                     name: "preSetPlacement",
                     enabled: true,
                     phase: "beforeMain",
-                    fn: (data) => seen.push(data.state.placement),
+                    fn: (/** @type {any} */ data) => seen.push(data.state.placement),
                 },
             ],
         });

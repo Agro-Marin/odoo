@@ -26,7 +26,7 @@ test("humanSize respects the locale decimal separator", () => {
 });
 
 test("resize image", async () => {
-    function buildblobImage(w, h) {
+    function buildblobImage(/** @type {any} */ w, /** @type {any} */ h) {
         return new Promise((resolve) => {
             const canvas = document.createElement("canvas");
             canvas.width = w;
@@ -38,7 +38,7 @@ test("resize image", async () => {
         });
     }
 
-    function blobTob64(blob) {
+    function blobTob64(/** @type {any} */ blob) {
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.readAsDataURL(blob);
