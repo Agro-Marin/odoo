@@ -13781,11 +13781,17 @@ test("kanban records are middle clickable by default", async () => {
     });
 
     await contains(".o_kanban_record").click({ ctrlKey: true });
+    // No `get current_action` from the initial load: the `doAction` above is
+    // minted on the shared navigation clock while the WebClient's own
+    // `loadState` is still reconstructing, so `loadState` is superseded at its
+    // checkpoint and never reaches `getActionParams` — the read whose result it
+    // would have thrown away. Newer intent winning is the point of that clock;
+    // what this test is about is the storage traffic the middle click causes,
+    // which is unchanged below.
     expect.verifySteps([
         "get menu_id-null",
         "get current_lang-null",
         "get current_state-null",
-        "get current_action-null",
         'set current_state-{"actionStack":[{"displayName":"","action":1,"view_type":"kanban"}],"action":1}',
         'set current_action-{"id":1,"res_model":"partner","type":"ir.actions.act_window","views":[[false,"kanban"],[false,"form"]]}',
         "set current_lang-en",

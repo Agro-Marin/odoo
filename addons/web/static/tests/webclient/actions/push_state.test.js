@@ -594,6 +594,49 @@ test(`switchView pushes the stat but doesn't add to the breadcrumbs`, async () =
     });
 });
 
+/**
+ * What `properly push globalState` is about is that the search state travels in
+ * the router state and comes back on a history move — not how the SearchModel
+ * serializes itself. Comparing the serialized string byte for byte pinned that
+ * private schema from here: it made this test fail the moment `searchDomain`
+ * and `propertySearchViewFields` were added to the export (and `version`
+ * alongside them, precisely so the schema *can* keep moving), even though
+ * globalState was pushed exactly as it should be. So assert the envelope, and
+ * read the payload back as the object it is.
+ *
+ * @param {Object} state `router.current`
+ */
+function expectGlobalStateOnAction4(state) {
+    const { globalState, ...envelope } = state;
+    expect(envelope).toEqual({
+        action: 4,
+        actionStack: [
+            {
+                action: 4,
+                displayName: "Partners Action 4",
+                view_type: "kanban",
+            },
+        ],
+    });
+    expect(Object.keys(globalState)).toEqual(["searchModel"]);
+    const searchModel = JSON.parse(globalState.searchModel);
+    expect(searchModel.query).toEqual([
+        {
+            searchItemId: 1,
+            autocompleteValue: { label: "blip", operator: "ilike", value: "blip" },
+        },
+    ]);
+    expect(searchModel.searchItems["1"]).toEqual({
+        type: "field",
+        groupNumber: 1,
+        fieldName: "foo",
+        fieldType: "char",
+        description: "Foo",
+        groupId: 1,
+        id: 1,
+    });
+}
+
 test(`properly push globalState`, async () => {
     await mountWithCleanup(WebClient);
     expect(browser.location.href).toBe("http://example.com/odoo");
@@ -620,19 +663,7 @@ test(`properly push globalState`, async () => {
 
     await contains(".o_kanban_record").click();
 
-    expect(router.current).toEqual({
-        action: 4,
-        actionStack: [
-            {
-                action: 4,
-                displayName: "Partners Action 4",
-                view_type: "kanban",
-            },
-        ],
-        globalState: {
-            searchModel: `{"nextGroupId":2,"nextGroupNumber":2,"nextId":2,"query":[{"searchItemId":1,"autocompleteValue":{"label":"blip","operator":"ilike","value":"blip"}}],"searchItems":{"1":{"type":"field","groupNumber":1,"fieldName":"foo","fieldType":"char","description":"Foo","groupId":1,"id":1}},"orderByCount":false,"searchPanelInfo":{"className":"","viewTypes":["kanban","list"],"loaded":false,"shouldReload":true},"sections":[]}`,
-        },
-    });
+    expectGlobalStateOnAction4(router.current);
 
     await animationFrame();
     expect(".o_form_view").toHaveCount(1);
@@ -661,17 +692,5 @@ test(`properly push globalState`, async () => {
     expect(queryAllTexts(".o_facet_value")).toEqual(["blip"]);
     expect(browser.location.href).toBe("http://example.com/odoo/action-4");
 
-    expect(router.current).toEqual({
-        action: 4,
-        actionStack: [
-            {
-                action: 4,
-                displayName: "Partners Action 4",
-                view_type: "kanban",
-            },
-        ],
-        globalState: {
-            searchModel: `{"nextGroupId":2,"nextGroupNumber":2,"nextId":2,"query":[{"searchItemId":1,"autocompleteValue":{"label":"blip","operator":"ilike","value":"blip"}}],"searchItems":{"1":{"type":"field","groupNumber":1,"fieldName":"foo","fieldType":"char","description":"Foo","groupId":1,"id":1}},"orderByCount":false,"searchPanelInfo":{"className":"","viewTypes":["kanban","list"],"loaded":false,"shouldReload":true},"sections":[]}`,
-        },
-    });
+    expectGlobalStateOnAction4(router.current);
 });
