@@ -12,79 +12,19 @@ from datetime import datetime
 
 import pytz
 
-from odoo import api, fields, models
-from odoo.models import add_to_registry
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
 UTC = pytz.UTC
 
 
-def _define_probe_model(cls):
-    class SchedulingArchiveProbe(models.Model):
-        _module = "resource"
-        _name = cls.MODEL
-        _description = "Scheduling Archive Probe"
-        _inherit = ["resource.scheduling.mixin"]
-
-        name = fields.Char()
-        active = fields.Boolean(default=True)
-        company_id = fields.Many2one(
-            "res.company", default=lambda self: self.env.company
-        )
-        date_start = fields.Datetime()
-        date_end = fields.Datetime()
-        resource_id = fields.Many2one("resource.resource")
-        resource_calendar_id = fields.Many2one(
-            "resource.calendar",
-            compute="_compute_resource_calendar_id",
-            store=True,
-            readonly=False,
-        )
-
-        @api.depends("resource_id", "resource_id.calendar_id")
-        def _compute_resource_calendar_id(self):
-            for rec in self:
-                rec.resource_calendar_id = (
-                    rec.resource_id.calendar_id
-                    or rec.company_id.resource_calendar_id
-                    or rec.env.company.resource_calendar_id
-                )
-
-        def _get_reservation_date_fields(self):
-            return ("date_start", "date_end")
-
-        def _get_reservation_vals_list(self):
-            self.ensure_one()
-            if not self.date_start or not self.date_end:
-                return []
-            return [
-                {
-                    "name": self.name or "R",
-                    "date_start": self.date_start,
-                    "date_end": self.date_end,
-                    "resource_id": self.resource_id.id or False,
-                    "allocated_percentage": 100.0,
-                    "enforcement_mode": "soft",
-                }
-            ]
-
-        def _get_sync_trigger_fields(self):
-            return super()._get_sync_trigger_fields() | {"resource_id"}
-
-    add_to_registry(cls.registry, SchedulingArchiveProbe)
-    cls.registry._setup_models__(cls.env.cr, [])
-    cls.registry.init_models(cls.env.cr, [cls.MODEL], {"module": "resource"})
-
-
 @tagged("post_install", "-at_install")
 class TestSchedulingMixinArchive(TransactionCase):
-    MODEL = "resource.scheduling.archive.probe"
+    MODEL = "resource.scheduling.test"
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        _define_probe_model(cls)
         cls.calendar = cls.env["resource.calendar"].create(
             {"name": "Archive cal", "tz": "UTC"}
         )

@@ -6,5 +6,7 @@ from . import (
     test_performance,
     test_resource,
     test_resource_errors,
+    test_scheduling_archive,
+    test_scheduling_mixin,
     test_timezones,
 )
