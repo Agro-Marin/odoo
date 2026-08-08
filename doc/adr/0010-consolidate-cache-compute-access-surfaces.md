@@ -243,3 +243,43 @@ door at `doc/architecture/ARCHITECTURE.md`.
 
 Corrected in place: the three pointers naming the page that carries the curated-boundary
 statement. It is a citation, not the decision.
+
+### 2026-08-08 — this record's own prose still says "legacy", and the tree copied it
+
+Step 4's reassessment (above) concluded that `env.cache` is **not** redundant
+legacy and kept it as the sanctioned recordset-level cache API. Three earlier
+lines of this record disagree, and they are still there, because an ADR is
+append-only: the handle table in *Context* (`legacy, still patched`), the bullet
+below it (`a genuinely *separate*, legacy, recordset-level wrapper`), and
+*Consequences* (`env.cache` (recordset-level, legacy, shrinking)). All three were
+written before the reassessment. They are correct as a record of what was
+believed then and wrong as a description of the repo now — which is exactly what
+this Amendments section exists to fix, so this is that fix rather than an edit.
+
+**The tree copied the wrong half.** `doc/architecture/module.md` read "and
+`env.cache` is the legacy recordset-level wrapper (ADR-0010)" until 2026-08-08 —
+sourced from *Context*, citing this ADR, and contradicted by this ADR's own
+Implementation status. An audit of the core package reported it as an unresolved
+question (is it the supported addon API, or legacy with no deprecation path and
+15 live call sites?); the answer was already here, one section further down.
+
+**And the correction this record credits itself with was deleted.** The
+Implementation status says `env.cache`'s "docstring was corrected to stop
+pointing callers at `env._core`". `cache_compat.Cache` had no docstring at all
+by 2026-08-08: `eff67f80316` stripped it, the same commit and the same reason as
+step 1's deliverable in the amendment above — nothing read it. That is twice in
+one ADR, which stops being a coincidence and becomes the finding: **every
+deliverable of this record that was a docstring has been deleted, and only the
+ones with tests survived.**
+
+Closed as follows, without reopening the decision:
+
+- `doc/architecture/module.md` states the relationship instead of the label, and says where the
+  label came from.
+- `cache_compat.Cache` carries the docstring again.
+- `orm/tests/test_cache_compat_is_not_legacy.py` reads all three: that the class
+  documents itself, that `doc/architecture/module.md` does not carry the label back, that nothing
+  marks the class deprecated, and — the property the decision actually rests on —
+  that `Cache` methods still take recordsets while `OrmCore`'s take a field and a
+  raw id. If those levels ever converge the retire-vs-keep question genuinely
+  reopens, and that needs a superseding ADR rather than a quiet migration.

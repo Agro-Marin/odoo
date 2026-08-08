@@ -166,8 +166,21 @@ Layer 0  primitives parsing validation constants _typing         ─┘
   reaches the per-transaction `FieldCache`/`ComputeEngine` through the curated
   id-level facade **`env._core`** (`OrmCore`, defined in `components/core.py`);
   the raw objects stay private to `Transaction` (`_cache_store`/
-  `_compute_engine`), and `env.cache` is the legacy recordset-level wrapper
-  (ADR-0010).
+  `_compute_engine`). **`env.cache` is the recordset-level cache API** — not a
+  legacy wrapper over `_core`, which is what this page called it until
+  2026-08-08. The two are different abstraction levels and both are sanctioned:
+  `OrmCore.get_value(field, record_id)` takes a raw id, while
+  `Cache.get_values(records, field)` takes a *recordset* and resolves the field
+  cache through its `env`, so the caller never has to know that a
+  context-dependent field is stored `{cache_key: {id: value}}` rather than
+  `{id: value}`, or that a term-translated one is reached through a
+  `LangProxyDict`. That is exactly why ADR-0010 **dropped** its own step 4
+  (retire `env.cache`) on reassessment: the migration target was wrong, and a
+  mechanical rewrite onto `_core` would have mishandled those layouts and
+  coupled addon code to private field helpers. The label here was inherited from
+  the ADR's *Context* section, written before that reassessment; its
+  *Implementation status* says the opposite, and the code agrees with the
+  Implementation status.
   > **What "pure" does and does not mean.** The contract is about *this
   > package's* imports, and it holds. It does **not** mean a component can be
   > imported in isolation: `import odoo.orm.components.model_graph` executes the

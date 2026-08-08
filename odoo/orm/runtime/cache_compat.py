@@ -22,6 +22,35 @@ class CacheInvalidError(AssertionError):
 
 
 class Cache:
+    """``env.cache`` — the **recordset-level** cache API, and a supported one.
+
+    Not a legacy wrapper over ``env._core``, and not deprecated. ADR-0010 set
+    out to retire it (step 4) and **dropped that step on reassessment**: the two
+    are different abstraction levels, and the migration target was wrong.
+
+    ``OrmCore.get_value(field, record_id)`` is *id*-level and takes a raw id.
+    Everything here takes a **recordset** and resolves the field cache through
+    its ``env`` (``field._get_cache(model.env)``), so a caller never has to know
+    that a context-dependent field is stored ``{cache_key: {id: value}}`` rather
+    than ``{id: value}``, or that a term-translated one is reached through a
+    ``LangProxyDict``. A mechanical rewrite of the call sites onto ``_core``
+    would have got both layouts wrong and coupled addon code to private field
+    helpers -- and some of those call sites live in ``enterprise`` /
+    ``agromarin``, outside this repo.
+
+    Shrinking it is a business-logic effort (eliminating addon cache-poking as
+    an anti-pattern), not a handle swap. Until that happens this is the API
+    addons are meant to use.
+
+    This class carried that statement in a docstring already: ADR-0010's
+    reassessment records correcting it "to stop pointing callers at
+    ``env._core``". The correction was deleted by ``eff67f80316``, the
+    comment/docstring strip of ``odoo/`` -- the same commit that took step 1's
+    deliverable off ``components/core.py``, and for the same reason: nothing
+    read either one. ``orm/tests/test_cache_compat_is_not_legacy.py`` now does,
+    so the third copy of this cannot quietly become the second.
+    """
+
     __slots__ = ("transaction",)
 
     def __init__(self, transaction: Transaction):
