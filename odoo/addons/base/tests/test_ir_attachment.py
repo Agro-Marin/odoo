@@ -13,7 +13,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.libs.hashing import ALGO_TAG
-from odoo.tests.common import skip_if_dev_mode
+from odoo.tests.common import TransactionCase, skip_if_dev_mode, tagged
 from odoo.tools import OrderedSet, human_size, mute_logger
 from odoo.tools.image import image_to_base64
 
@@ -3408,3 +3408,78 @@ class TestAccessibleIdScanFootprint(TransactionCaseWithUserDemo):
                         ).ids
                     )
                 self.assertEqual(paged, whole)
+
+
+@tagged("post_install", "-at_install")
+class TestFromRequestFileValsMerge(TransactionCase):
+    """``_from_request_file``'s two storage branches must accept the same vals.
+
+    ``_should_stream_upload`` picks between streaming the payload and buffering
+    it, and that choice depends on the *mimetype of the file the user uploaded*.
+    The buffered branch merged ``**vals`` last, so a caller-supplied column that
+    the method also derives silently won; the streaming branch passed those same
+    columns as keyword arguments, so the identical call raised ``TypeError: got
+    multiple values for keyword argument 'name'``.
+
+    That made the failure depend on what a user happened to upload -- a PNG took
+    the working path, a text file took the raising one -- which is how it reached
+    production as a 500 on every non-image attachment upload in Discuss.
+    """
+
+    class _FakeFile:
+        def __init__(self, content, filename):
+            self._buf = io.BytesIO(content)
+            self.filename = filename
+            self.content_type = "application/octet-stream"
+
+        def read(self, size=-1):
+            return self._buf.read(size)
+
+        def seek(self, offset, whence=0):
+            return self._buf.seek(offset, whence)
+
+    def setUp(self):
+        super().setUp()
+        self.Attachments = self.env["ir.attachment"]
+        # A PNG buffers, anything else streams: one file per branch, so the
+        # assertions below genuinely cover both.
+        self.png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+            b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+        )
+        self.assertFalse(self.Attachments._should_stream_upload("image/png"))
+        self.assertTrue(self.Attachments._should_stream_upload("text/plain"))
+
+    def test_caller_supplied_name_is_accepted_on_both_branches(self):
+        for filename, content in (("photo.png", self.png), ("note.txt", b"hello")):
+            with self.subTest(filename=filename):
+                attachment = self.Attachments._from_request_file(
+                    self._FakeFile(content, filename), name="chosen name"
+                )
+                self.assertEqual(
+                    attachment.name,
+                    "chosen name",
+                    "an explicit name must win on both branches, not raise on one",
+                )
+
+    def test_linkage_vals_are_accepted_on_both_branches(self):
+        partner = self.env["res.partner"].create({"name": "attachment target"})
+        for filename, content in (("photo.png", self.png), ("note.txt", b"hello")):
+            with self.subTest(filename=filename):
+                attachment = self.Attachments._from_request_file(
+                    self._FakeFile(content, filename),
+                    res_model="res.partner",
+                    res_id=partner.id,
+                )
+                self.assertEqual(attachment.res_model, "res.partner")
+                self.assertEqual(attachment.res_id, partner.id)
+                self.assertEqual(attachment.name, filename)
+
+    def test_the_file_is_still_what_gets_stored(self):
+        """Deriving the name from vals must not change where the bytes come from."""
+        for filename, content in (("photo.png", self.png), ("note.txt", b"hello")):
+            with self.subTest(filename=filename):
+                attachment = self.Attachments._from_request_file(
+                    self._FakeFile(content, filename), name="renamed"
+                )
+                self.assertEqual(attachment.raw, content)

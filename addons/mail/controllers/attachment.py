@@ -63,9 +63,14 @@ class AttachmentController(ThreadController):
         )
         if not thread:
             raise NotFound
+        # Linkage fields only. ``_from_request_file`` owns ``name``, ``mimetype``
+        # and the bytes -- that is the whole point of handing it the request file
+        # -- and every other caller (web/binary, documents, voip) passes exactly
+        # this much. Passing ``name`` collided with the one it derives, and
+        # ``raw`` was worse than redundant: reading the upload here defeated the
+        # streaming this call exists for AND left the file at EOF, so the
+        # mimetype sniff saw no bytes and the stream stored none.
         vals = {
-            "name": ufile.filename,
-            "raw": ufile.read(),
             # reuse the id already coerced and access-checked by
             # _get_thread_with_access_for_post, not the raw client input
             "res_id": thread.id,
