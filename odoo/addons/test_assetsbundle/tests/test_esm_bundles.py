@@ -6,6 +6,7 @@ to undefined surfaces as an unrelated service going missing, far from the
 cause. It is therefore the layer that most needs its invariants written down.
 """
 
+import re
 import shutil
 import subprocess
 import tempfile
@@ -1432,7 +1433,7 @@ class TestBridgeShimSources(TransactionCase):
             r"const (_e\d+) = _m\?\.registry;",
             "the shim must bind each name to a local before re-exporting it",
         )
-        self.assertRegex(shim, r"_e\d+ as registry[,}]")
+        self.assertRegex(shim, r"_e\d+ as registry\b")
 
     def test_no_specifiers_means_no_work(self):
         self.assertEqual(self._manager().build_shim_sources(set()), {})
@@ -1595,3 +1596,269 @@ class TestLexerWorkerDegradation(BaseCase):
             "import { a } from '@x/y';\nexport * from '@x/z';\n"
         )
         self.assertEqual(specs, {"@x/y", "@x/z"})
+
+
+class TestParentSelfBridge(TransactionCase):
+    """A bundle bridging its OWN modules, for the sake of everyone else's.
+
+    A secondary bundle stubs the parent's specifiers so that
+    `patchWithCleanup(browser, …)` from a tour reaches the same instance the
+    running app holds. That only works if the parent has published a shim per
+    specifier it owns, which is what this builds -- one shim per native module,
+    keyed on the module's own path.
+
+    It differs from the native-to-legacy bridge in what it reads: exports come
+    from the bundle's own sources rather than from disk, so `export * from` a
+    sibling has to be resolved through the in-memory source map.
+    """
+
+    def _manager(self, *modules):
+        bundle = AssetsBundle("web.assets_web", [], env=self.env)
+        manager = bundle._bridges
+        manager.native_modules = list(modules)
+        return manager
+
+    def test_every_owned_specifier_gets_a_shim(self):
+        manager = self._manager(
+            _Mod("@a/one", "export const ONE = 1;\n"),
+            _Mod("@a/two", "export const TWO = 2;\n"),
+        )
+        with self.assertLogs("odoo.assets.bridge", level="DEBUG"):
+            bridges = manager._build_parent_self_bridge()
+
+        self.assertEqual(sorted(bridges), ["@a/one", "@a/two"])
+        self.assertTrue(
+            all(
+                url.startswith(("data:", "/web/assets/esm/bridges/"))
+                for url in bridges.values()
+            )
+        )
+
+    def test_a_star_reexport_is_resolved_from_the_bundle_not_from_disk(self):
+        """The sibling exists only in this bundle, so disk cannot answer."""
+        manager = self._manager(
+            _Mod("@a/base", "export const A = 1;\nexport const B = 2;\n"),
+            _Mod("@a/face", "export * from './base';\nexport const C = 3;\n"),
+        )
+        captured = {}
+        with (
+            patch.object(
+                type(manager),
+                "_persist_bridge_shims",
+                lambda _self, shims: captured.update(shims) or {},
+            ),
+            self.assertLogs("odoo.assets.bridge", level="DEBUG"),
+        ):
+            manager._build_parent_self_bridge()
+
+        shim = captured["@a/face"]
+        for name in ("A", "B", "C"):
+            self.assertRegex(shim, rf"_e\d+ as {name}\b", f"{name} missing")
+
+    def test_a_relative_specifier_is_not_bridged(self):
+        """Only bare `@…` specifiers are addressable through the loader."""
+        manager = self._manager(
+            _Mod("@a/one", "export const ONE = 1;\n"),
+            _Mod("../legacy/thing", "export const X = 1;\n"),
+        )
+        with self.assertLogs("odoo.assets.bridge", level="DEBUG"):
+            bridges = manager._build_parent_self_bridge()
+
+        self.assertEqual(list(bridges), ["@a/one"])
+
+    def test_no_native_modules_means_no_bridges(self):
+        manager = self._manager()
+        self.assertEqual(manager._build_parent_self_bridge(), {})
+
+
+class TestBridgeDiscoveryWithoutTheLexer(BaseCase):
+    """Discovery must survive the es-module-lexer being unavailable.
+
+    `lex_module` returns None whenever node is missing or the worker has
+    disabled itself, and discovery then falls back to `_IMPORT_ANY_RE`. That
+    fallback decides which specifiers get a bridge, so a shape it fails to
+    recognise is a module that resolves to nothing at runtime -- and until now
+    only the lexer path was exercised, because this checkout has node.
+    """
+
+    def _discover(self, source, native=(), ext=()):
+        from odoo.tools.assets import esm_bridges
+
+        manager = BridgeShimManager.__new__(BridgeShimManager)
+        manager.bundle_name = "test.nolexer"
+        manager.native_modules = [_Mod("@a/one", source)]
+        with patch.object(esm_bridges, "lex_module", return_value=None):
+            return manager._discover_bridge_specifiers(set(native), set(ext))
+
+    def test_the_regex_fallback_reads_the_same_kinds(self):
+        discovered, _ext = self._discover(
+            'import def from "@web/core/a";\n'
+            'import * as ns from "@web/core/b";\n'
+            'import { named } from "@web/core/c";\n'
+            'import "@web/core/d";\n'
+        )
+        self.assertEqual(discovered["@web/core/a"], {"__default__"})
+        self.assertEqual(discovered["@web/core/b"], {"__star__"})
+        self.assertEqual(discovered["@web/core/c"], set())
+        self.assertEqual(discovered["@web/core/d"], set())
+
+    def test_the_fallback_still_honours_the_ignore_sets(self):
+        discovered, ext_seen = self._discover(
+            'import { a } from "@web/core/a";\nimport { o } from "@odoo/owl";\n',
+            native={"@web/core/a"},
+            ext={"@odoo/owl"},
+        )
+        self.assertEqual(discovered, {})
+        self.assertEqual(ext_seen, {"@odoo/owl"})
+
+    def test_the_two_paths_agree_on_the_same_source(self):
+        """The fallback is only safe while it says what the lexer says."""
+        source = (
+            'import def from "@web/core/a";\n'
+            'import * as ns from "@web/core/b";\n'
+            'import { named } from "@web/core/c";\n'
+        )
+        manager = BridgeShimManager.__new__(BridgeShimManager)
+        manager.bundle_name = "test.agree"
+        manager.native_modules = [_Mod("@a/one", source)]
+
+        lexed, _ = manager._discover_bridge_specifiers(set(), set())
+        regexed, _ = self._discover(source)
+        if not lexed:
+            self.skipTest("es-module-lexer worker unavailable")
+        self.assertEqual(lexed, regexed)
+
+
+class TestMinifyJsFailureModes(BaseCase):
+    """`minify_js` returns None rather than raising, on every failure.
+
+    Its callers treat None as "ship the source unminified", which keeps a page
+    alive when esbuild is missing or unhappy. That makes every failure path a
+    silent one, so each needs to be reachable and to say something in the log:
+    a bundle that quietly stops being minified is a performance regression
+    nobody gets an exception for.
+    """
+
+    SOURCE = "const a = `A${`B  ${1}  C`}D`;\n"
+
+    def test_no_binary_returns_none_and_says_so(self):
+        from odoo.tools.assets import esbuild
+
+        with (
+            patch.object(esbuild, "_find_esbuild", return_value=None),
+            self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged,
+        ):
+            self.assertIsNone(esbuild.minify_js(self.SOURCE, label="probe.js"))
+        self.assertIn("minify_no_binary", "\n".join(logged.output))
+
+    def test_a_timeout_returns_none_and_says_so(self):
+        import subprocess
+
+        from odoo.tools.assets import esbuild
+
+        with (
+            patch.object(esbuild, "_find_esbuild", return_value="/bin/true"),
+            patch.object(
+                esbuild.subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired("esbuild", 60),
+            ),
+            self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged,
+        ):
+            self.assertIsNone(esbuild.minify_js(self.SOURCE, label="probe.js"))
+        self.assertIn("minify_timeout", "\n".join(logged.output))
+
+    def test_a_nonzero_exit_returns_none_and_surfaces_stderr(self):
+        from odoo.tools.assets import esbuild
+
+        with (
+            patch.object(esbuild, "_find_esbuild", return_value="/bin/false"),
+            self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged,
+        ):
+            self.assertIsNone(esbuild.minify_js("this is not js {", label="bad.js"))
+        joined = "\n".join(logged.output)
+        self.assertIn("minify_failed", joined)
+        self.assertIn("esbuild minify stderr for bad.js", joined)
+
+    @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
+    def test_the_success_path_really_minifies(self):
+        from odoo.tools.assets import esbuild
+
+        out = esbuild.minify_js("const a  =  1;\nconst b  =  2;\n", label="ok.js")
+        self.assertIsNotNone(out)
+        self.assertNotIn("  ", out)
+        self.assertIn("const", out)
+
+
+class TestRunEsbuildFailureReporting(BaseCase):
+    """What a failed compile leaves behind for whoever has to diagnose it.
+
+    esbuild reads its entry point from stdin, so when it rejects one there is
+    no file to look at -- the input that failed exists only in the process
+    that died. `_run_esbuild` therefore dumps the entry text to a temp file
+    and names it in the log. That dump is the only artefact of the failure,
+    and nothing exercised the code that writes it.
+    """
+
+    def _compiler(self, name="test.failrep"):
+        return EsbuildCompiler(name, [], [])
+
+    def test_a_nonzero_exit_dumps_the_entry_and_names_the_file(self):
+        compiler = self._compiler()
+        self.addCleanup(compiler._purge_stale_fail_dumps, compiler.name)
+
+        with self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged:
+            with self.assertRaises(RuntimeError) as caught:
+                compiler._run_esbuild(
+                    ["sh", "-c", "echo 'boom' >&2; exit 3"],
+                    30,
+                    "// the entry that failed\n",
+                    0.0,
+                )
+
+        self.assertIn("exit 3", str(caught.exception))
+        self.assertIn("boom", str(caught.exception))
+        joined = "\n".join(logged.output)
+        self.assertIn("event=failed", joined)
+
+        dump = re.search(r"entry=(\S+\.js)", joined)
+        self.assertIsNotNone(dump, f"the entry dump was not named: {joined}")
+        self.assertEqual(
+            Path(dump.group(1)).read_text(encoding="utf-8"),
+            "// the entry that failed\n",
+        )
+
+    def test_each_failure_purges_the_previous_dump_for_that_bundle(self):
+        """Otherwise a bundle failing on every render fills /tmp."""
+        compiler = self._compiler("test.purge")
+        self.addCleanup(compiler._purge_stale_fail_dumps, compiler.name)
+
+        def fail_once(text):
+            with self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged:
+                with self.assertRaises(RuntimeError):
+                    compiler._run_esbuild(["sh", "-c", "exit 1"], 30, text, 0.0)
+            return re.search(r"entry=(\S+\.js)", "\n".join(logged.output)).group(1)
+
+        first = fail_once("// first\n")
+        second = fail_once("// second\n")
+
+        self.assertNotEqual(first, second)
+        self.assertFalse(Path(first).exists(), "the previous dump must be purged")
+        self.assertTrue(Path(second).exists())
+
+    def test_a_timeout_is_reported_as_a_timeout(self):
+        compiler = self._compiler()
+        with self.assertLogs("odoo.assets.esbuild", level="ERROR") as logged:
+            with self.assertRaises(RuntimeError) as caught:
+                compiler._run_esbuild(["sleep", "5"], 1, "// slow\n", 0.0)
+        self.assertIn("timed out after 1s", str(caught.exception))
+        self.assertIn("event=timeout", "\n".join(logged.output))
+
+    def test_a_clean_exit_says_nothing_and_writes_nothing(self):
+        compiler = self._compiler("test.quiet")
+        compiler._purge_stale_fail_dumps(compiler.name)
+        with self.assertNoLogs("odoo.assets.esbuild", level="WARNING"):
+            compiler._run_esbuild(["true"], 30, "// fine\n", 0.0)
+        self.assertEqual(
+            list(Path(tempfile.gettempdir()).glob("esbuild_fail_test.quiet_*.js")), []
+        )
