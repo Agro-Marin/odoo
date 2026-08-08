@@ -117,22 +117,27 @@ them as current design.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches so
-the surface can only shrink. On 2026-08-08 the pin was regenerated after 32
-deep imports in `agromarin` were rewritten to enter at their face; that removed
-the deep entries and shrank the pin from 235 to 222 specifiers. A later harvest
-the same day was taken against sibling checkouts that had fallen behind and
-recorded three specifiers no checkout imports — `@web/services/user`, which no
-longer exists anywhere (`services/user.js` → `core/user.js` was a completed
-move `agromarin` had already followed), and two `@web/legacy/js/…` modules
-absent from `addons/web/static/src/` entirely. Re-harvesting with all four
-checkouts current gives **219 specifiers**. What remains is **recorded**, not
-resolved.
+the surface can only shrink. On 2026-08-08 it was regenerated after 32 deep
+imports in `agromarin` were rewritten to enter at their face, which removed the
+deep entries and took it from 235 to 222; re-pinning against the real sibling
+checkouts then took it to 219, and following `web`'s own module renames took it
+to **222 specifiers**. What remains is **recorded**, not resolved.
 
 Each of those moves was a separate commit, and one of them left this paragraph
 stating 222 while the file said 219 — the pin and its prose are two copies of
 one number, and only `test_the_public_surface_pin_size_is_measured` reads both.
 Regenerating the pin without editing this line fails that gate; that is the
 gate working.
+
+**The 219 → 222 move is not new exposure.** `web` renamed modules
+(`@web/core/user` → `@web/services/user`, and `browser`/`datetime`/`popover`
+moved), `agromarin` followed, and the pin now records the new names against the
+scopes that reach them; two `@web/legacy/...` specifiers in `design-themes` were
+recorded for the first time. A count that rises because the *names* moved is not
+the same as one that rises because a consumer reached deeper — but this file
+cannot tell the two apart, which is why the shape gate
+(`js_face_boundary.py`) was added alongside: it refuses a specifier that steps
+over a face regardless of how the count moves.
 
 **Evidence.** `tooling/architecture/public_surface_web.txt`;
 `js_public_surface.py`.

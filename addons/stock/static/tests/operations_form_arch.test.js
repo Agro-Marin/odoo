@@ -21,7 +21,7 @@ import {
     mountView,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { FormCompiler } from "@web/views/form/form_compiler";
+import { FormCompiler } from "@web/views/form";
 
 class ProbeWidget extends Component {
     static template = xml`<button class="probe-button">Probe</button>`;

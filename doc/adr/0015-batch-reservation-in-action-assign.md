@@ -94,6 +94,44 @@ raises an *existing* move line rather than producing values for a new one; that 
 syncs the quant immediately, so recording it too would count it twice. The recording
 therefore sits in the two branches that append values, not at the top of the loop.
 
+## Alternatives considered
+
+Added after the fact to satisfy the rule this record is the first to fall under
+(`ALTERNATIVES_REQUIRED_FROM = 14`), and assembled **only** from what the
+sections above already argue — nothing here is reconstructed. That is the same
+constraint `test_alternatives_are_required_from_the_cutoff_on` states for older
+records: back-filling a rejected alternative is inventing history.
+
+- **Keep persisting per move** (the status quo). Correct, and the reason the loop
+  was written that way: a written line is what makes the stock unavailable to the
+  next move. Rejected on the measurement in *Context* — four statements repeated
+  once per move, 200 of 238 queries at N=50, linear in the number of moves.
+- **Defer the writes and change nothing else** — the naive batching. Rejected
+  because every move would measure availability against untouched quants and each
+  would believe it has the stock. This is the only alternative that was
+  *measured*: stubbing `_ReservationLedger.pending()` to `0.0` reproduces it
+  exactly, and 5 of 10 tests fail as over-reservation
+  (`'assigned' != 'partially_available'`, `8.0 != 4.0`, a serial move taking two
+  units where one was left). The ledger is precisely the difference between the
+  two.
+- **Change `_update_reserved_quantity`'s signature** to pass the pending state
+  explicitly rather than through the context. Rejected: it is an extension point
+  overridden by `product_expiry` and by `enterprise/industry_fsm_stock` — which
+  calls it repeatedly and sums the results — and called by `point_of_sale`. Its
+  contract, "reserve up to this much and tell me what you got", is unchanged by
+  the ledger, so no override needed an edit; changing the signature would have
+  made this a cross-repo change for no gain.
+- **Give the ledger a wider scope than one `_action_assign` run.** Rejected on a
+  correctness argument, not a taste one: the batched create runs on `self.env`,
+  outside the loop's context, so a visible ledger would make
+  `_reserve_new_move_lines` subtract the very claims it is about to persist.
+  `test_the_ledger_is_scoped_to_one_run` pins the narrow scope.
+- **Batch the remaining two per-move statements as well** — one locking statement
+  over the whole set instead of N, and serving the non-strict `_gather` from the
+  `quants_cache`. Not rejected, deferred: both are on the concurrency path, their
+  failure mode is *silent under-reservation*, and both want concurrency tests this
+  change did not need. *What this does not do* carries the detail.
+
 ## Consequences
 
 - `action_confirm` on 50 moves: **238 → 189 queries**; on 10 moves: 81 → 73. The 50

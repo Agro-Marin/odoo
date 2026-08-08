@@ -23,7 +23,7 @@
 @web/components/color_picker/color_picker  odoo
 @web/components/color_picker/custom_color_picker/custom_color_picker  odoo
 @web/components/copy_button/copy_button  odoo enterprise
-@web/components/datetime  odoo enterprise
+@web/components/datetime  odoo enterprise agromarin
 @web/components/domain_selector/domain_selector  odoo enterprise agromarin
 @web/components/domain_selector_dialog/domain_selector_dialog  odoo enterprise agromarin
 @web/components/dropdown  odoo enterprise
@@ -47,7 +47,7 @@
 @web/components/user_switch/user_switch  odoo
 @web/core/action_hook  odoo enterprise
 @web/core/assets  odoo enterprise agromarin
-@web/core/browser/browser  odoo enterprise agromarin
+@web/core/browser/browser  odoo enterprise
 @web/core/browser/cookie  odoo enterprise
 @web/core/browser/feature_detection  odoo enterprise
 @web/core/browser/hotkeys  odoo enterprise
@@ -81,7 +81,7 @@
 @web/core/transition  odoo enterprise
 @web/core/translation  odoo enterprise agromarin design-themes
 @web/core/tree  odoo enterprise agromarin
-@web/core/user  odoo enterprise agromarin
+@web/core/user  odoo enterprise
 @web/core/utils/collections/arrays  odoo enterprise
 @web/core/utils/collections/cache  odoo enterprise
 @web/core/utils/collections/objects  odoo enterprise agromarin
@@ -167,6 +167,8 @@
 @web/fields/temporal/remaining_days/remaining_days_field  odoo enterprise
 @web/fields/translation_button  odoo
 @web/fields/translation_dialog  enterprise
+@web/legacy/js/core/dom  design-themes
+@web/legacy/js/public/public_widget  design-themes
 @web/libs/bootstrap  odoo enterprise
 @web/model/model  odoo enterprise agromarin
 @web/model/record  odoo enterprise
@@ -192,6 +194,7 @@
 @web/search/utils/dates  odoo
 @web/search/utils/misc  enterprise
 @web/search/with_search/with_search  enterprise
+@web/services/user  agromarin
 @web/session  odoo enterprise agromarin
 @web/ui/carousel/carousel_hook  enterprise
 @web/ui/collapse/collapse  odoo
@@ -201,7 +204,7 @@
 @web/ui/notification  odoo
 @web/ui/offcanvas/offcanvas  odoo enterprise
 @web/ui/overlay/overlay_container  odoo
-@web/ui/popover  odoo enterprise
+@web/ui/popover  odoo enterprise agromarin
 @web/ui/tooltip  odoo enterprise
 @web/ui/ui_service  odoo enterprise
 @web/ui/viewport  odoo enterprise
