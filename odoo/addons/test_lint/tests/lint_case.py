@@ -69,7 +69,24 @@ def core_xml_files() -> list[str]:
     return [path for path in iter_module_files("*.xml") if is_core_path(path)]
 
 
-def core_data_files() -> list[Path]:
+@functools.cache
+def core_module_names() -> frozenset[str]:
+    """The addon names that live in *this* repository.
+
+    Gates whose numbers must not depend on what else is on the addons path ask
+    this rather than looking at every manifest. A workspace with `enterprise`
+    beside this checkout otherwise measures a different tree from the one CI
+    measures, and any floor harvested in one is wrong in the other.
+    """
+    return frozenset(
+        manifest.name
+        for manifest in Manifest.all_addon_manifests()
+        if is_core_path(str(manifest.path))
+    )
+
+
+@functools.cache
+def _core_data_files() -> tuple[Path, ...]:
     """The XML data files a fixer owns: the one selection every gate asks.
 
     Both XML gates and both XML fixers have to agree on this set, or a gate
@@ -80,9 +97,14 @@ def core_data_files() -> list[Path]:
     """
     from . import _pretty_xml
 
-    return [
+    return tuple(
         path for path in map(Path, core_xml_files()) if _pretty_xml.is_formattable(path)
-    ]
+    )
+
+
+def core_data_files() -> list[Path]:
+    # A fresh list per caller -- the cached tuple is the shared, immutable one.
+    return list(_core_data_files())
 
 
 def core_module_roots() -> list[str]:
@@ -94,7 +116,18 @@ class LintCase(BaseCase):
     _module_roots = staticmethod(_module_roots)
     iter_module_files = staticmethod(iter_module_files)
 
-    def assert_ratchet(self, findings, floor: int, what: str, fix: str) -> None:
+    def assert_ratchet(
+        self, findings, floor: int, what: str, fix: str, *, exact: bool = True
+    ) -> None:
+        """Fail if the count moved, in either direction.
+
+        `exact=False` drops the downward half, and is only correct for a gate
+        whose count is a function of the *installed* module set rather than of
+        the tree: it measures the registry or an assembled bundle, so a smaller
+        install legitimately reports less and "fewer findings" cannot be read
+        as "debt paid down". A file-scanning gate is never in that position and
+        must stay exact.
+        """
         found = list(findings)
         if len(found) > floor:
             self.fail(
@@ -102,7 +135,7 @@ class LintCase(BaseCase):
                 + "\n".join(f"  {item}" for item in sorted(map(str, found))[:200])
                 + (f"\n  ... and {len(found) - 200} more" if len(found) > 200 else "")
             )
-        if len(found) < floor:
+        if exact and len(found) < floor:
             self.fail(
                 f"{len(found)} {what} but the committed floor is {floor}. The "
                 f"debt went down -- lower the floor to {len(found)} in this same "

@@ -1,23 +1,16 @@
+"""A suppression has to say why.
+
+Parses with `_suppression`, so the rule that demands a reason and the rule that
+honours the waiver can never disagree about what the comment says -- they used
+to be two regexes, and `# NOQA: E8501 <why>` satisfied one and not the other.
+"""
+
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-_NOQA_RE = re.compile(
-    r"""
-    \#                          # the comment marker
-    \s*
-    noqa
-    (?:                         # optional code list — `F401`, or `sql-injection`
-        :\s*
-        (?P<codes>
-            [A-Za-z][\w-]*
-            (?:\s*,\s*[A-Za-z][\w-]*)*
-        )
-    )?
-    (?P<rest>.*)$               # everything after the codes (may be empty)
-    """,
-    re.VERBOSE | re.IGNORECASE,
-)
+from ._suppression import _NOQA_RE
+
 _RATIONALE_LEAD_RE = re.compile(r"^[\s\-—–:#>·•|]+")
 
 _MIN_RATIONALE_CHARS = 4
@@ -41,13 +34,12 @@ def _has_rationale(rest: str) -> bool:
     return any(ch.isalpha() for ch in cleaned)
 
 
-def find_violations(source: str) -> Iterator[Violation]:
-    for lineno, line in enumerate(source.splitlines(), start=1):
-        if "noqa" not in line.lower():
-            continue
-        match = _NOQA_RE.search(line)
-        if not match:
+def find_violations(comments: dict[int, str]) -> Iterator[Violation]:
+    """``comments`` is `_suppression.comment_lines` output for one file."""
+    for lineno, comment in sorted(comments.items()):
+        match = _NOQA_RE.search(comment)
+        if match is None:
             continue
         if _has_rationale(match.group("rest")):
             continue
-        yield Violation(lineno=lineno, raw=line)
+        yield Violation(lineno=lineno, raw=comment)

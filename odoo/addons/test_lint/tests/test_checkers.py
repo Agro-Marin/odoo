@@ -13,6 +13,8 @@ from . import (
     _checker_orm_import,
     _checker_sql,
     _checker_unlink,
+    _pretty_xml,
+    _py_scan,
     _suppression,
     lint_case,
 )
@@ -68,18 +70,56 @@ class TestSuppression(BaseCase):
     def test_case_does_not_decide_whether_a_suppression_works(self):
         line = "x  # NOQA: E8501  the table name comes from _table"
         self.assertTrue(_suppression.is_suppressed(line, 1, "sql-injection"))
-        self.assertFalse(list(_checker_noqa_rationale.find_violations(line)))
+        self.assertFalse(_violations(line))
         self.assertTrue(
             _suppression.is_suppressed(
                 "x  # PYLINT: disable=sql-injection", 1, "sql-injection"
             )
         )
 
+    def test_a_directive_only_counts_where_python_sees_a_comment(self):
+        # The scan reads `tokenize` comments, not raw lines. A `#` inside a
+        # string literal silenced real rules: this exact shape, in this file,
+        # is why a five-file `_NOQA_SELF` blanket existed.
+        for source in (
+            'cr.execute("select # noqa from t")',
+            "URL = 'http://example.test/#noqa'",
+            'SNIPPET = """\n# noqa: E8501\n"""',
+        ):
+            with self.subTest(source=source):
+                self.assertFalse(
+                    _suppression.is_suppressed(source, 1, "sql-injection"),
+                    "a directive inside a string literal is not a directive",
+                )
+
+    def test_noqa_has_to_be_the_whole_word(self):
+        for line in ("x  # noqawhatever", "x  # noqa-ish", "x  # NOQA_TODO"):
+            with self.subTest(line=line):
+                self.assertFalse(
+                    _suppression.is_suppressed(line, 1, "sql-injection"),
+                    "a word merely starting with noqa is not a bare suppression",
+                )
+        self.assertTrue(_suppression.is_suppressed("x  # noqa", 1, "sql-injection"))
+
+    def test_a_directive_after_another_comment_still_counts(self):
+        self.assertTrue(
+            _suppression.is_suppressed(
+                "x  # type: ignore  # noqa: E8501", 1, "sql-injection"
+            )
+        )
+
+
+def _violations(source):
+    """The rationale rule reads the comment map `_suppression` produces."""
+    return list(
+        _checker_noqa_rationale.find_violations(_suppression.comment_lines(source))
+    )
+
 
 @no_retry
 class TestNoqaRationale(BaseCase):
     def _violations(self, line):
-        return list(_checker_noqa_rationale.find_violations(line))
+        return _violations(line)
 
     def test_a_rule_name_is_not_its_own_rationale(self):
         self.assertTrue(self._violations("x  # noqa: E8501"))
@@ -158,6 +198,37 @@ class TestCorePathScoping(BaseCase):
 
 
 @no_retry
+class TestScanScope(BaseCase):
+    def test_a_data_file_is_xml(self):
+        # `is_formattable` decided by directory alone, so it answered True for
+        # a `.py` in `views/`. Every caller happens to hand it an `.xml` path
+        # today; the next one need not.
+        from pathlib import Path
+
+        self.assertTrue(_pretty_xml.is_formattable(Path("/a/account/views/x.xml")))
+        for path in ("/a/account/views/x.py", "/a/account/README.md"):
+            with self.subTest(path=path):
+                self.assertFalse(_pretty_xml.is_formattable(Path(path)))
+
+    def test_the_shared_data_file_selection_is_reused_not_rebuilt(self):
+        self.assertIs(lint_case._core_data_files(), lint_case._core_data_files())
+        self.assertIsNot(
+            lint_case.core_data_files(),
+            lint_case.core_data_files(),
+            "callers get their own list; the cache holds an immutable tuple",
+        )
+
+    def test_this_repositorys_modules_are_a_subset_of_the_addons_path(self):
+        names = lint_case.core_module_names()
+        self.assertIn("base", names)
+        self.assertIn("web", names)
+        self.assertTrue(
+            names <= {m.name for m in Manifest.all_addon_manifests()},
+            "core modules must be modules the addons path actually carries",
+        )
+
+
+@no_retry
 class TestOrmImportLint(BaseCase):
     def _check(self, snippet, filepath="models/thing.py"):
         return list(_checker_orm_import.check(ast.parse(dedent(snippet).strip())))
@@ -189,6 +260,30 @@ class TestOnchangeLint(BaseCase):
         """)
         )
 
+    def test_a_field_named_domain_is_not_a_dynamic_domain(self):
+        # The rule fired on any string constant equal to "domain" anywhere in
+        # the method, so searching on a field of that name read as an onchange
+        # returning a domain. Only a mapping key can be the one it returns.
+        self.assertFalse(
+            self._check("""
+        @api.onchange('a')
+        def _onchange_a(self):
+            self.env['x'].search([('domain', '=', self.domain)])
+        """),
+            "a domain leaf naming a field is not a returned {'domain': ...}",
+        )
+
+    def test_a_returned_mapping_is_still_flagged(self):
+        self.assertTrue(
+            self._check("""
+        @api.onchange('a')
+        def _onchange_a(self):
+            result = {'domain': {'x': []}}
+            return result
+        """),
+            "the mapping does not have to be returned inline",
+        )
+
     def test_domain_outside_onchange_ignored(self):
         self.assertFalse(
             self._check("""
@@ -214,12 +309,25 @@ class TestOnchangeLint(BaseCase):
 
 @no_retry
 class TestSqlLint(BaseCase):
-    def _check(self, snippet, filepath="dummy.py", is_test=False):
+    def _check(self, snippet, filepath="dummy.py"):
+        # Through the same node list production uses. There is no second entry
+        # point that walks the tree itself: one existed, it did not annotate
+        # `_parent`, and every scope lookup silently failed -- so a query built
+        # from a local constant was reported as an injection.
         source = dedent(snippet).strip()
         tree = ast.parse(source)
-        _checker_sql.annotate_parents(tree)
-        checker = _checker_sql.SqlInjectionChecker(filepath, is_test=is_test)
-        return list(checker.check(tree))
+        nodes = _py_scan.walk_with_parents(tree)
+        return list(_checker_sql.SqlInjectionChecker(filepath).check_nodes(nodes))
+
+    def test_a_local_constant_is_resolved_through_its_scope(self):
+        self.assertFalse(
+            self._check("""
+        def f(self):
+            tbl = "things"
+            self.env.cr.execute("SELECT * FROM %s" % tbl)
+        """),
+            "the name resolves to a literal; reporting it needs `_parent` set",
+        )
 
     def test_printf(self):
         violations = self._check("""
@@ -593,12 +701,22 @@ class TestSqlLint(BaseCase):
                 )
 
     def test_test_code_is_exempt(self):
+        # Owned by the scan's scope table, not by a constructor flag. The
+        # checker carried an `is_test` of its own that `_CHECKERS` had already
+        # made unreachable -- two gates deciding one thing.
         snippet = """
         def do_the_thing(cr, name):
             cr.execute('select %s from thing' % name)
         """
         self.assertTrue(self._check(snippet))
-        self.assertFalse(self._check(snippet, is_test=True))
+        scope = next(s for rule, _, s in _py_scan._CHECKERS if rule == "sql-injection")
+        empty = ast.parse("")
+        self.assertFalse(
+            scope(_py_scan.Unit("a/tests/test_x.py", "", empty, [], True, True))
+        )
+        self.assertTrue(
+            scope(_py_scan.Unit("a/models/x.py", "", empty, [], True, False))
+        )
 
 
 @no_retry
@@ -907,15 +1025,74 @@ class TestBatchLint(BaseCase):
         """)
         self.assertFalse(violations, "while loops should not be flagged")
 
-    def test_for_else_clause(self):
-        violations = self._check("""
+    def test_for_else_clause_is_not_per_record(self):
+        # A `for/else` `else:` runs once, after the loop, exactly like the
+        # statement following it. Scanning it was a category error: this test
+        # used to assert the opposite.
+        self.assertFalse(
+            self._check("""
         def process(self, records):
             for record in records:
                 pass
             else:
                 self.env['res.partner'].search([])
-        """)
-        self.assertTrue(violations, "search in for/else should be flagged")
+        """),
+            "the else clause runs once, so a query in it is not an N+1",
+        )
+
+    def test_a_loop_inside_an_else_clause_is_still_a_loop(self):
+        self.assertTrue(
+            self._check("""
+        def process(self, records, others):
+            for record in records:
+                pass
+            else:
+                for other in others:
+                    self.env['res.partner'].search([('id', '=', other.id)])
+        """),
+            "skipping the else clause must not skip a loop nested in it",
+        )
+
+    def test_env_on_the_loop_variable_is_an_orm_receiver(self):
+        # `for rec in recs: rec.env['x'].search(...)` is the most ordinary N+1
+        # there is, and the receiver test dropped it in 14 places: it demanded
+        # the chain be rooted at `self`, and this one is rooted at the loop
+        # variable. `search_count` caught the same shape only by skipping the
+        # receiver test altogether, which is how the asymmetry stayed hidden.
+        for expression in (
+            "record.env['res.partner'].search([])",
+            "order.env['lunch.topping'].search_count([])",
+            "wizard.env['crm.team'].search([('id', '=', wizard.id)])",
+            "request.env['sms.tracker'].search([])",
+        ):
+            with self.subTest(expression=expression):
+                self.assertTrue(
+                    self._check(
+                        f"def process(self, records):\n"
+                        f"    for record in records:\n"
+                        f"        {expression}\n"
+                    ),
+                    "an `.env[...]` subscript is a recordset whatever it hangs off",
+                )
+
+    def test_only_search_is_gated_on_its_receiver(self):
+        # The gate exists to keep `re.search` out, and only `search` collides
+        # with a stdlib name. `_looks_like_orm_receiver` cannot tell a plain
+        # recordset variable from any other name, so applying it to the other
+        # three methods drops 10 real findings -- `record.search_count(...)`,
+        # `move.move_line_ids._read_group(...)` and the like.
+        loop = "def process(self, items):\n    for item in items:\n        {}\n"
+        self.assertFalse(
+            self._check(loop.format("some_regex.search(item)")),
+            "a bare name is not an ORM receiver, so `search` is not a query",
+        )
+        for method in ("search_count", "search_fetch", "_read_group"):
+            with self.subTest(method=method):
+                self.assertTrue(
+                    self._check(loop.format(f"record.{method}([('x', '=', item)])")),
+                    f"{method} has no stdlib namesake; a bare recordset name "
+                    f"must still count",
+                )
 
     def test_if_inside_loop(self):
         violations = self._check("""

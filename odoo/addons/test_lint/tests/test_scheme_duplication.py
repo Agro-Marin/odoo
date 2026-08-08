@@ -4,7 +4,6 @@ import re
 from collections import Counter
 
 from odoo import SUPERUSER_ID, api
-from odoo.modules import Manifest
 from odoo.modules.registry import Registry
 from odoo.tests import tagged
 from odoo.tests.common import get_db_name
@@ -30,51 +29,36 @@ _KEYWORDS = {
     "#fff": "#ffffff",
 }
 
+# Per-module debt between this fork and a single stylesheet, for the modules
+# of *this* repository only. Twenty entries here used to name modules that
+# live in the `enterprise` checkout: measurable in a workspace that carries
+# it, invisible to CI (`--addons-path=odoo/addons,addons`), and so a table
+# whose correctness depended on the layout of the machine it ran on.
 SINGLE_BUNDLE_GAP_FLOOR = {
     "account": 5,
-    "account_accountant": 3,
-    "account_asset": 3,
     "account_edi_ubl_cii": 1,
-    "account_reports": 23,
-    "accountant_knowledge": 1,
-    "ai": 1,
-    "appointment": 2,
-    "approval": 26,
     "base_automation": 1,
     "base_import": 1,
     "calendar": 2,
     "documents": 14,
-    "documents_spreadsheet": 5,
     "event": 1,
-    "geoengine": 48,
     "google_address_autocomplete": 1,
     "hr_gamification": 1,
     "hr_recruitment": 1,
     "hr_skills_slides": 1,
     "html_editor": 28,
     "im_livechat": 4,
-    "knowledge": 4,
     "mail": 58,
-    "mail_enterprise": 1,
     "mrp": 2,
-    "mrp_workorder": 12,
     "onboarding": 1,
-    "planning": 2,
     "product": 1,
     "project": 7,
     "sale": 11,
-    "sign": 4,
     "spreadsheet": 1,
     "spreadsheet_dashboard": 2,
     "stock": 1,
-    "stock_barcode": 9,
     "survey": 1,
     "web": 136,
-    "web_cohort": 4,
-    "web_enterprise": 3,
-    "web_gantt": 15,
-    "web_grid": 2,
-    "web_map": 2,
     "web_tour": 2,
     "website": 19,
     "website_sale": 1,
@@ -328,7 +312,18 @@ class TestSchemeDuplication(lint_case.LintCase):
             len(gap),
             answered,
         )
-        by_module = Counter(source.strip("/").split("/")[0] for source, _, _ in gap)
+        # Scoped to this repository, like every other gate here. A declaration
+        # served from a sibling checkout is not this branch's debt, and counting
+        # it made the whole floor table depend on whether `enterprise` happened
+        # to be on the addons path -- 20 of the 47 floors named modules CI
+        # cannot see, so `test_every_floor_names_a_module_that_exists` could
+        # never pass there.
+        core = lint_case.core_module_names()
+        by_module = Counter(
+            module
+            for source, _, _ in gap
+            if (module := source.strip("/").split("/")[0]) in core
+        )
         _logger.info("worst modules: %s", by_module.most_common(8))
         by_file = Counter(source for source, _, _ in gap)
         _logger.info("worst files: %s", by_file.most_common(6))
@@ -355,6 +350,18 @@ class TestSchemeDuplication(lint_case.LintCase):
             len(unreachable),
             ", ".join(unreachable),
         )
+        # Shrinkage stays informational here, unlike `assert_ratchet`, and the
+        # reason is not laziness: a module contributes declarations only when it
+        # is installed, so `by_module` is a function of the install and a count
+        # below its floor usually means "not installed", not "fixed". What can
+        # be asserted is that the measurement happened at all -- `web` is in
+        # every install this suite runs under.
+        self.assertIn(
+            "web",
+            by_module,
+            "no `web` declarations were measured, so every floor below passed "
+            "for the wrong reason -- the bundles did not carry what they should",
+        )
         self.assertFalse(
             offenders,
             f"{len(offenders)} module(s) put more between this fork and a single "
@@ -365,10 +372,12 @@ class TestSchemeDuplication(lint_case.LintCase):
         )
 
     def test_every_floor_names_a_module_that_exists(self):
-        known = {manifest.name for manifest in Manifest.all_addon_manifests()}
+        # Against this repository's modules, not every manifest on the addons
+        # path: a floor for a sibling checkout's module is unmeasurable here and
+        # silently makes the table depend on the workspace layout.
         self.assertFalse(
-            sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - known),
-            "these floors name a module that is not on the addons path",
+            sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - lint_case.core_module_names()),
+            "these floors name a module that is not in this repository",
         )
 
     def test_the_measurement_survives_a_brace_in_a_string(self):

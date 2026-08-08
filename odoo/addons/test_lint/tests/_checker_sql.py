@@ -68,7 +68,6 @@ class SqlInjectionChecker:
         default_factory=dict, init=False
     )
     _assert_cache: dict[int, set[str]] = field(default_factory=dict, init=False)
-    is_test: bool = False
 
     _module_const_cache: dict[int, dict[str, ast.expr]] = field(
         default_factory=dict, init=False
@@ -76,9 +75,13 @@ class SqlInjectionChecker:
     _resolving_names: set[tuple[int, str]] = field(default_factory=set, init=False)
     _resolving_nodes: set[int] = field(default_factory=set, init=False)
 
-    def check(self, tree: ast.Module) -> Iterator[Violation]:
-        yield from self.check_nodes(_walk_pre_order(tree))
-
+    # `check_nodes` is the only entry point, and it takes the node list
+    # `_py_scan.walk_with_parents` produces. There used to be a `check(tree)`
+    # convenience beside it that walked the tree itself without annotating
+    # `_parent`; every scope lookup then failed, no name could be proved
+    # constant, and a query built from a local constant was reported as an
+    # injection. Correctness depended on the caller separately remembering to
+    # call a module-level `annotate_parents`, which is not an API.
     def check_nodes(self, nodes: list[ast.AST]) -> Iterator[Violation]:
         for node in nodes:
             match node:
@@ -92,9 +95,6 @@ class SqlInjectionChecker:
             yield Violation(node.lineno, node.col_offset)
 
     def _visit_functiondef(self, node: ast.FunctionDef) -> Iterator[Violation]:
-        if self.is_test:
-            return
-
         self._function_defs[node.name].append(node)
 
         for position, const_args, call in self._callsites[node.name]:
@@ -106,9 +106,6 @@ class SqlInjectionChecker:
                 )
 
     def _check_sql_injection_risky(self, node: ast.Call) -> bool:
-        if self.is_test:
-            return False
-
         if not node.args:
             return False
 
@@ -602,19 +599,3 @@ class SqlInjectionChecker:
             case ast.Name(id=name):
                 return name == "SQL"
         return False
-
-
-def _walk_pre_order(tree: ast.AST) -> list[ast.AST]:
-    nodes: list[ast.AST] = []
-    stack: list[ast.AST] = [tree]
-    while stack:
-        node = stack.pop()
-        nodes.append(node)
-        stack.extend(reversed(list(ast.iter_child_nodes(node))))
-    return nodes
-
-
-def annotate_parents(tree: ast.AST) -> None:
-    for node in ast.walk(tree):
-        for child in ast.iter_child_nodes(node):
-            child._parent = node

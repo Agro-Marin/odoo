@@ -20,7 +20,13 @@ EXCLUDED_DIRS: frozenset[str] = frozenset({"_vendor", "static", "node_modules"})
 
 
 def is_formattable(path: Path) -> bool:
-    return not EXCLUDED_DIRS.intersection(path.parts)
+    """Is this a data file the XML gates and the XML fixers both own?
+
+    The suffix is part of the answer. This only ever checked the directory, so
+    it said `True` for `views/x.py` -- harmless while every caller happened to
+    hand it an `.xml` path, and a trap the moment one does not.
+    """
+    return path.suffix == ".xml" and not EXCLUDED_DIRS.intersection(path.parts)
 
 
 def iter_target_files(roots, excluded=frozenset()):
