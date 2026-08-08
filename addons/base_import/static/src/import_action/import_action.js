@@ -92,27 +92,88 @@ export class ImportAction extends Component {
         onWillStart(this.onWillStart);
     }
 
+    /**
+     * The window action this import was opened on top of, if any.
+     *
+     * Read off `controllerStack` — and, on a deep link, the URL `actionStack`
+     * — both of which the action service declares as its public surface. This
+     * used to read `actionService.currentAction` and
+     * `actionService.currentController` — neither of which exists: the web
+     * architecture redesign made them the private `_getCurrentAction()` /
+     * `_getCurrentController()` and did not carry this consumer across. The
+     * damage was quiet, because `await undefined` is `undefined` rather than a
+     * crash: opening the import screen from a URL bounced straight back out
+     * via `historyBack()`, and opening it from a list view lost the origin
+     * action, so "Imported records" fell back to a default `list,form` instead
+     * of the views the user was actually looking at.
+     *
+     * @returns {object | null}
+     */
+    async _getOriginAction() {
+        const stack = this.actionService.controllerStack ?? [];
+        // This client action is itself on the stack by the time we run, so walk
+        // down to the nearest window action rather than taking the top. Read
+        // `_originalAction`, not the controller's live `action`: the latter is
+        // the processed runtime copy, whose `views`/`view_mode` no longer match
+        // what the user's own action declared — and those two fields are the
+        // whole reason we want it (see `openRecords`).
+        for (let i = stack.length - 1; i >= 0; i--) {
+            const controller = stack[i];
+            if (controller?.action?.type !== "ir.actions.act_window") {
+                continue;
+            }
+            const original = JSON.parse(controller.action._originalAction || "null");
+            return original ?? controller.action;
+        }
+
+        // Deep link, e.g. /odoo/action-2/import: the web client mounts this
+        // client action while restoring URL state, so nothing is on the
+        // controller stack yet and the action beneath us exists only as an id
+        // in `actionStack`. Resolve it — otherwise the import screen has no
+        // model to import into and bounces straight back out.
+        const urlStack = this.props.action.params?.actionStack ?? [];
+        const selfIndex = urlStack.findIndex(
+            (entry) => entry?.action === ImportAction.path
+        );
+        const preceding = selfIndex === -1 ? urlStack : urlStack.slice(0, selfIndex);
+        for (let i = preceding.length - 1; i >= 0; i--) {
+            const actionId = preceding[i]?.action;
+            if (actionId === undefined || actionId === null) {
+                continue;
+            }
+            try {
+                const action = await this.actionService._loadAction(actionId);
+                if (action?.type === "ir.actions.act_window") {
+                    return action;
+                }
+            } catch {
+                // A stale or deleted action in the URL is not this screen's
+                // problem to report; keep looking further down the stack.
+            }
+        }
+        return null;
+    }
+
     async onWillStart() {
-        const action = await this.actionService.currentAction;
         // this.props.action.params.model is there for retro-compatibility issues
         const activeModel =
             this.props.action.params?.model || this.props.action.params?.active_model;
+        const originAction = await this._getOriginAction();
         if (activeModel) {
             this.resModel = activeModel;
-            if (action?.type === "ir.actions.act_window" && action?.res_model === this.resModel) {
-                this.action = action;
+            if (originAction?.res_model === this.resModel) {
+                this.action = originAction;
             } else {
                 this.props.updateActionState({ active_model: this.resModel });
             }
+        } else if (originAction) {
+            this.action = originAction;
+            this.resModel = originAction.res_model;
         } else {
-            if (!action) {
-                return this.env.config.historyBack();
-            }
-            if (action.type !== "ir.actions.act_window") {
-                return this.actionService.restore(this.actionService.currentController.jsId);
-            }
-            this.action = action;
-            this.resModel = this.action.res_model;
+            // Nothing tells us what to import into — a bare /odoo/import URL,
+            // or an import opened over a non-window action. Leave rather than
+            // mount an action that cannot work.
+            return this.env.config.historyBack();
         }
         this.model.setResModel(this.resModel);
         return this.model.init();
