@@ -1,20 +1,14 @@
-# Measurements — how the architecture rules were arrived at
+# Findings — how the architecture rules were arrived at
 
 > The evidence base behind [`ARCHITECTURE.md`](ARCHITECTURE.md),
-> [`module.md`](module.md) and [`gates.md`](gates.md).
+> [`module.md`](module.md) and [`gates.md`](gates.md). For what the design
+> currently *costs*, measured, see [`qualities.md`](qualities.md) — that is the
+> page of numbers; this is the page of findings.
 
 Several rules in those documents look arbitrary without the finding that
 motivated them, and every entry below is a worked example of one failure mode:
 *a sentence that stayed true in spirit while the code moved underneath it.* This
 is a lab notebook, not a blueprint — which is exactly why it is a separate file.
-
-## Appendix — how these rules were established
-
-The blueprint above states the architecture as it is. This appendix records the
-measurements that produced it, because several of the rules look arbitrary
-without the finding that motivated them, and because each one is a worked example
-of the failure mode this page is gated against: *a sentence that stayed true in
-spirit while the code moved underneath it.*
 
 **The bracketed tiers in `db/` and `http/` were documentation only** until they
 were measured. Nothing verified the direction *between* the groups. Measured,

@@ -4,7 +4,7 @@
 > This view answers *where does code live and what may it import*. For *what runs
 > when*, see [`runtime.md`](runtime.md); for the checkers that hold these rules
 > shut, [`gates.md`](gates.md); for how they were arrived at,
-> [`MEASUREMENTS.md`](MEASUREMENTS.md).
+> [`findings.md`](findings.md).
 
 This is the view the CI gates are built around, and the most mechanically
 verified thing in the repository: the map below is checked against the tree, and

@@ -12,7 +12,7 @@ per-addon `addons/*/machine_doc_v1/ARCHITECTURE.md` maps.
 | placing new code | *Where to add code* below |
 | debugging a runtime path | [`runtime.md`](runtime.md) |
 | changing a boundary | [`gates.md`](gates.md), then `doc/adr/` |
-| wondering why a rule exists | `doc/adr/`, then [`MEASUREMENTS.md`](MEASUREMENTS.md) |
+| wondering why a rule exists | `doc/adr/`, then [`findings.md`](findings.md) |
 | judging a change's cost | [`qualities.md`](qualities.md) |
 
 ## Context
@@ -173,7 +173,7 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`scenarios.md`](scenarios.md) |
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
-| **Measurements** | how these rules were arrived at, and what each cost to learn | [`MEASUREMENTS.md`](MEASUREMENTS.md) |
+| **Findings** | how these rules were arrived at, and what each cost to learn | [`findings.md`](findings.md) |
 | **Decisions** | why the architecture is this way, dated and immutable | `doc/adr/` |
 
 Two subsystems document themselves in more depth than any view does:
@@ -193,7 +193,7 @@ unflattened HTTP call graph.
 >
 > **If you add a number to this page, add the assertion with it.** Prose that no
 > test reads is prose that has already drifted —
-> `MEASUREMENTS.md` records what that cost when it was learned.
+> `findings.md` records what that cost when it was learned.
 >
 > That rule has a failure mode worth naming, because this page is the correction
 > for it: it selects for claims that are *checkable*, not claims that are
