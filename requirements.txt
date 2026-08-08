@@ -46,6 +46,20 @@
 #                       (PKCS#7 via private OpenSSL APIs) and enterprise
 #                       l10n_nl_reports. Removing it is a project, not a bump.
 #   reportlab (5.x)     major; PDF output needs visual comparison
+# Looks stale (last release 2022) and looks like it duplicates `cryptography`.
+# It does neither — it is a declarative ASN.1 schema library, which cryptography
+# deliberately is not, and all three consumers need exactly that:
+#   tools/pdf/signature.py builds CMS SignedData around a digest computed over a
+#     discontiguous PDF ByteRange (the two spans either side of the /Contents
+#     placeholder) and sets a CMSAlgorithmProtection attribute. cryptography's
+#     PKCS7SignatureBuilder only offers set_data(content) — it hashes the content
+#     itself, so a precomputed byte-range digest cannot be expressed — and
+#     PKCS7Options has no custom signed attributes.
+#   l10n_eg_edi_eta uses asn1crypto.tsp (ESSCertIDv2, signing_certificate_v2);
+#     cryptography ships no RFC 3161/5035 support at all.
+#   auth_passkey's vendored webauthn declares Android Key attestation schemas by
+#     subclassing asn1crypto.core.Sequence/SetOf/Enumerated.
+# 1.5.1 IS the latest release. Do not swap it for cryptography.
 asn1crypto==1.5.1
 Babel==2.18.0
 # No python3-blake3 exists in any current distro, so this one always comes from
