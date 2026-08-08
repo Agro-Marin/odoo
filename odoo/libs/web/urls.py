@@ -1,7 +1,7 @@
 import re
 import urllib.parse
 
-__all__ = ["urljoin"]
+__all__ = ["contains_dot_segments", "urljoin"]
 
 
 _MAX_UNQUOTE_PASSES = 4
@@ -15,7 +15,13 @@ def _segment_core(segment: str) -> str:
     return segment
 
 
-def _contains_dot_segments(path: str) -> bool:
+def contains_dot_segments(path: str) -> bool:
+    """Whether `path` contains a `.` or `..` segment, after percent-decoding.
+
+    Public API of the ``odoo.libs.web`` area: addon code validating a
+    user-supplied URL needs this predicate on its own, not only the rejection
+    `urljoin` performs internally.
+    """
     current = path
     for _ in range(_MAX_UNQUOTE_PASSES):
         if any(
@@ -60,7 +66,7 @@ def urljoin(base: str, extra: str) -> str:
 
     path = re.sub(r"/+", "/", path)
 
-    if _contains_dot_segments(path):
+    if contains_dot_segments(path):
         msg = "Dot segments are not allowed"
         raise ValueError(msg)
 
