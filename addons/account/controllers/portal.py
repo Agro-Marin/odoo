@@ -55,7 +55,7 @@ class PortalAccount(CustomerPortal):
             else 0
         )
 
-    def _invoice_get_page_view_values(self, invoice, access_token, **kwargs):
+    def _invoice_get_page_view_values(self, invoice, access_token, /, **kwargs):
         custom_amount = None
         if kwargs.get("amount"):
             try:

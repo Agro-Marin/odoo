@@ -43,6 +43,7 @@ from . import test_account_move_send
 from . import test_account_all_l10n
 from . import test_portal_attachment
 from . import test_portal_invoice
+from . import test_portal_page_view_params
 from . import test_tax_report
 from . import test_transfer_wizard
 from . import test_account_incoming_supplier_invoice

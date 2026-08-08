@@ -15,7 +15,7 @@ from odoo.addons.project.controllers.portal import ProjectCustomerPortal
 
 class PortalProjectAccount(PortalAccount, ProjectCustomerPortal):
 
-    def _invoice_get_page_view_values(self, invoice, access_token, **kwargs):
+    def _invoice_get_page_view_values(self, invoice, access_token, /, **kwargs):
         values = super()._invoice_get_page_view_values(invoice, access_token, **kwargs)
         domain = request.env['account.analytic.line']._timesheet_get_portal_domain()
         domain = Domain.AND([
@@ -85,7 +85,7 @@ class SaleTimesheetCustomerPortal(TimesheetCustomerPortal):
             'timesheet_invoice_id': {'label': _('Invoice')},
         }
 
-    def _task_get_page_view_values(self, task, access_token, **kwargs):
+    def _task_get_page_view_values(self, task, access_token, /, **kwargs):
         values = super()._task_get_page_view_values(task, access_token, **kwargs)
         values['so_accessible'] = False
         try:

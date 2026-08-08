@@ -23,7 +23,7 @@ class PortalChatter(ThreadController):
         auth="public",
     )
     def portal_avatar(
-        self, res_id=None, height=50, width=50, access_token=None, _hash=None, pid=None
+        self, res_id, width, height, access_token=None, _hash=None, pid=None
     ):
         """Serve the chatter author avatar for portal-rendered threads.
 
@@ -31,6 +31,13 @@ class PortalChatter(ThreadController):
         failure — invalid credentials, missing message, or no credentials at
         all — falls through to ``ir.binary``'s placeholder image rather than
         a 403 or 500, so the response does not leak whether ``res_id`` exists.
+
+        ``res_id`` / ``width`` / ``height`` are required and already ``int``:
+        the route's ``<int:...>`` converters guarantee both, so a request that
+        omits or misspells them never reaches this method (it 404s in routing).
+        The previous ``=None`` / ``=50`` defaults could therefore never apply,
+        and reading them as fallbacks invited the false impression that this
+        method has to re-validate what the router already settled.
         """
         # Coerce ``pid`` once at entry: a non-numeric value resolves the same
         # as a missing pid (placeholder fallback below), so the response does
@@ -61,8 +68,8 @@ class PortalChatter(ThreadController):
         stream = request.env["ir.binary"]._get_image_stream_from(
             message_su,
             field_name="author_avatar",
-            width=int(width),
-            height=int(height),
+            width=width,
+            height=height,
         )
         return stream.get_response()
 

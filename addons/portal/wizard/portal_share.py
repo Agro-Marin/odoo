@@ -1,4 +1,5 @@
 from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 
 class PortalShare(models.TransientModel):
@@ -27,13 +28,25 @@ class PortalShare(models.TransientModel):
         so the wizard's ``share_link`` would always come back empty for them.
         """
         portal_mixin_cls = self.pool["portal.mixin"]
-        return [
-            (model.model, model.name)
-            for model in self.env["ir.model"].sudo().search([])
-            if model.model in self.env
-            and isinstance(self.env[model.model], portal_mixin_cls)
-            and not self.env[model.model]._abstract
+        # Walk the registry, not ir.model: the predicate is purely a registry
+        # question ("does this model inherit portal.mixin, and is it concrete"),
+        # and reading every ir.model row to answer it meant a full-table search
+        # plus a registry lookup per row on each call. ir.model is still needed
+        # for the human-readable label, so fetch just the rows that survive.
+        # ``self.pool`` is a Mapping[str, type[BaseModel]] -- its values are
+        # model *classes*, so this is issubclass, not isinstance.
+        portal_model_names = [
+            name
+            for name, model_cls in self.pool.items()
+            if issubclass(model_cls, portal_mixin_cls) and not model_cls._abstract
         ]
+        names = dict(
+            self.env["ir.model"]
+            .sudo()
+            .search_fetch([("model", "in", portal_model_names)], ["model", "name"])
+            .mapped(lambda m: (m.model, m.name))
+        )
+        return [(name, names.get(name, name)) for name in portal_model_names]
 
     res_model = fields.Char("Related Document Model", required=True)
     res_id = fields.Integer("Related Document ID", required=True)
@@ -47,11 +60,28 @@ class PortalShare(models.TransientModel):
 
     @api.depends("res_model", "res_id")
     def _compute_resource_ref(self):
+        """Expose the target as a ``Reference``, or nothing when it is not shareable.
+
+        Goes through :meth:`_get_portal_record` like its two sibling computes,
+        rather than testing ``res_model in self.env``. "Is a model" is the wrong
+        question here: this field's selection is ``_selection_target_model``,
+        i.e. *concrete portal.mixin models only*, and ``Reference.convert_to_cache``
+        rejects anything outside it with ``ValueError``. ``res_model`` is a plain
+        ``Char`` seeded straight from the ``active_model`` context (see
+        :meth:`default_get`) and writable by anyone holding the wizard's ACL, so
+        a perfectly valid model that simply is not portal-shareable —
+        ``res.partner``, say — turned any read of this field into an exception.
+
+        The wizard's own form view does not list ``resource_ref``, so *opening*
+        the dialog was never affected: it renders an empty ``share_link`` and
+        looks fine. The raise surfaced on **Send**, where ``_send_public_link``
+        and ``_post_share_email`` dereference ``resource_ref`` — a raw
+        ``ValueError`` (HTTP 500) instead of a message the user can act on.
+        Verified over the real ``web_read`` the client issues on open.
+        """
         for wizard in self:
-            if wizard.res_model and wizard.res_id and wizard.res_model in self.env:
-                wizard.resource_ref = f"{wizard.res_model},{wizard.res_id}"
-            else:
-                wizard.resource_ref = None
+            record = wizard._get_portal_record()
+            wizard.resource_ref = f"{record._name},{record.id}" if record else False
 
     def _get_portal_record(self):
         """Return the active record when it is a shareable ``portal.mixin`` one.
@@ -91,24 +121,43 @@ class PortalShare(models.TransientModel):
             record = rec._get_portal_record()
             rec.access_warning = record.access_warning if record else False
 
+    def _get_shared_record(self):
+        """Return the record to share, refusing a target that cannot carry a link.
+
+        Sharing needs ``access_url`` / ``access_token``, which only
+        ``portal.mixin`` provides. ``_get_portal_record`` already answers
+        "is this shareable"; this wraps it for the *acting* paths, which must
+        stop with a message the user can act on instead of building a mail
+        around a record that has no portal URL.
+
+        :rtype: portal.mixin
+        :raise UserError: when ``res_model`` / ``res_id`` name nothing shareable
+        """
+        self.ensure_one()
+        record = self._get_portal_record()
+        if not record:
+            raise UserError(_("This document cannot be shared: it has no portal page."))
+        return record
+
     def _post_share_email(self, partner, share_link):
         """Post the portal share template to ``partner`` in their preferred language.
 
         Single source of truth for the share-mail payload — ``_send_public_link``
         and ``_send_signup_link`` differ only in how they compute ``share_link``.
         """
-        self.resource_ref.with_context(lang=partner.lang).message_post_with_source(
+        record = self._get_shared_record()
+        record.with_context(lang=partner.lang).message_post_with_source(
             "portal.portal_share_template",
             render_values={
                 "partner": partner,
                 "note": self.note,
-                "record": self.resource_ref,
+                "record": record,
                 "share_link": share_link,
                 "model_description": self.env["ir.model"]
-                ._get(self.resource_ref._name)
+                ._get(record._name)
                 .display_name.lower(),
             },
-            subject=_("Invitation to access %s", self.resource_ref.display_name),
+            subject=_("Invitation to access %s", record.display_name),
             subtype_xmlid="mail.mt_note",
             email_layout_xmlid="mail.mail_notification_light",
             partner_ids=partner.ids,
@@ -123,10 +172,10 @@ class PortalShare(models.TransientModel):
         """
         if partners is None:
             partners = self.partner_ids
+        record = self._get_shared_record()
         for partner in partners:
-            share_link = (
-                self.resource_ref.get_base_url()
-                + self.resource_ref._get_share_url(redirect=True, pid=partner.id)
+            share_link = record.get_base_url() + record._get_share_url(
+                redirect=True, pid=partner.id
             )
             self._post_share_email(partner, share_link)
 
@@ -184,6 +233,9 @@ class PortalShare(models.TransientModel):
     def action_send_mail(self):
         """Dispatch each recipient to either the public link or the signup link."""
         self.ensure_one()
+        # Resolve up front: refuse an unshareable target before any recipient
+        # has been mailed, rather than part-way through the loop below.
+        self._get_shared_record()
         public_link_partners = self._get_public_link_partners()
         # Partner already has a user (or signup is closed): common share link.
         self._send_public_link(public_link_partners)

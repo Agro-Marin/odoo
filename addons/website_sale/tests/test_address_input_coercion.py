@@ -11,6 +11,7 @@ same machinery as the portal one (``CustomerPortal._create_or_update_address``
 and friends), so it gets the same coercion guards.
 """
 
+from odoo.http import root
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import JsonRpcException
 from odoo.tools import mute_logger
@@ -98,3 +99,82 @@ class TestShopListingInputCoercion(HttpCase, WebsiteSaleCommon):
                     self.make_jsonrpc_request(route, params=params)
                 except JsonRpcException as exc:
                     self.assertNotIn('ValueError', str(exc))
+
+
+@tagged('post_install', '-at_install')
+class TestShopAddressReservedParams(HttpCase, WebsiteSaleCommon):
+    """A form field must not be able to supply an internal keyword argument.
+
+    The shop address routes pass `order_sudo=` explicitly while also splatting
+    the client's leftover query string / form data in as `**kwargs`. A client key
+    matching one of those names is not extra data: it duplicates an argument the
+    caller already supplies, or substitutes a raw string for a recordset.
+
+    Observed before the guard, on `auth='public'` routes:
+      * `order_sudo=x`   -> AttributeError: 'str' object has no attribute
+                            '_is_anonymous_cart'
+      * `partner_sudo=x` -> TypeError: ... got multiple values for argument
+
+    A real session cart is required: `_check_cart` redirects an empty cart
+    before the vulnerable splat is ever reached, so a cartless request would
+    pass this test no matter what the code does.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # `/shop/checkout` additionally runs `_check_addresses`, so the cart's
+        # partner needs a complete billing/delivery address or the request is
+        # redirected before the code under test runs.
+        self.cart.partner_id.write({
+            'street': '1 Test Street',
+            'city': 'Testville',
+            'zip': '1000',
+            'country_id': self.country_be.id,
+            'email': 'reserved.params@example.com',
+            'phone': '+32 2 000 00 00',
+        })
+        self.cart.write({
+            'partner_invoice_id': self.cart.partner_id.id,
+            'partner_shipping_id': self.cart.partner_id.id,
+        })
+        session = self.authenticate(None, None)
+        session['sale_order_id'] = self.cart.id
+        root.session_store.save(session)
+
+    def _reserved_keys(self):
+        return sorted(WebsiteSale()._get_reserved_address_form_keys() | {'order_sudo'})
+
+    def _assert_reaches_the_route(self, url):
+        """Guard the guard: the request must not be short-circuited by a redirect."""
+        response = self.url_open(url, allow_redirects=False)
+        self.assertEqual(
+            response.status_code, 200,
+            f'{url} must render the page, else this test proves nothing '
+            f'(got {response.status_code})',
+        )
+
+    @mute_logger('odoo.http')
+    def test_shop_address_get_ignores_reserved_query_params(self):
+        self._assert_reaches_the_route('/shop/address')
+        for key in self._reserved_keys():
+            with self.subTest(key=key):
+                response = self.url_open(f'/shop/address?{key}=x', allow_redirects=False)
+                self.assertEqual(
+                    response.status_code, 200,
+                    f'query param {key!r} must not rebind an internal argument',
+                )
+
+    @mute_logger('odoo.http')
+    def test_shop_checkout_ignores_reserved_query_params(self):
+        self._assert_reaches_the_route('/shop/checkout')
+        for key in self._reserved_keys():
+            with self.subTest(key=key):
+                response = self.url_open(f'/shop/checkout?{key}=x', allow_redirects=False)
+                self.assertEqual(
+                    response.status_code, 200,
+                    f'query param {key!r} must not rebind an internal argument',
+                )
+
+    def test_order_sudo_is_in_the_reserved_set(self):
+        """website_sale must declare its own trusted kwarg."""
+        self.assertIn('order_sudo', WebsiteSale()._get_reserved_address_form_keys())

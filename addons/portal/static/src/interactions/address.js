@@ -147,8 +147,11 @@ export class CustomerAddress extends Interaction {
     }
 
     _getInputLabel(name) {
+        // `?.` on parentElement too: the optional chain on `input` alone still
+        // threw for a control that exists but is not attached (a detached node
+        // during a re-render), which aborted the country refinement mid-way.
         const input = this.addressForm[name];
-        return input?.parentElement.querySelector(`label[for='${input.id}']`);
+        return input?.parentElement?.querySelector(`label[for='${input.id}']`) ?? null;
     }
 
     _showInput(name) {

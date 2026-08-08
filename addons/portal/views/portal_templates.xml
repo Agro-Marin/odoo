@@ -281,6 +281,13 @@
     </template>
 
     <template id="portal_docs_entry" name="My Portal Docs Entry">
+        <!-- ``force_show``: this counter was non-zero on the previous visit
+             (``portal_counters`` session hint, written by
+             ``CustomerPortal.counters``). Reveal the card up front so a
+             returning customer does not watch it flash in after the
+             ``/my/counters`` round-trip. It is only a hint about the *initial*
+             paint: ``portal.portal_home_counters`` still resolves the real
+             value and owns the final visibility. -->
         <t t-set="force_show"
             t-value="placeholder_count and request.session.get('portal_counters', {}).get(placeholder_count) and not show_count" />
         <div
@@ -294,7 +301,15 @@
                     <div
                         t-attf-class="mt-0 mb-1 fs-5 fw-normal lh-1 #{'d-flex gap-2' if placeholder_count or count else ''}">
                         <t t-out="count" />
-                        <span t-if="placeholder_count and not force_show"
+                        <!-- Published whenever the card is counter-driven, including
+                             when ``force_show`` already revealed it. This element is
+                             the only thing ``portal.portal_home_counters`` looks for,
+                             so withholding it stopped the client from ever asking
+                             about this counter again — which froze the session hint
+                             that revealed the card in the first place, leaving a
+                             permanently visible link to a page whose documents were
+                             long gone. -->
+                        <span t-if="placeholder_count"
                             t-att-class="'fw-bold' if show_count else 'd-none'"
                             t-att-data-placeholder_count="placeholder_count" />
                         <span t-out="title" />
