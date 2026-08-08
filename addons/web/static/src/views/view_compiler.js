@@ -35,13 +35,40 @@ const INTERP_REGEXP = /(\{\{|#\{)(.*?)(\}{1,2})/g;
 const MODIFIER_ATTRS = ["column_invisible", "invisible", "readonly", "required"];
 
 /**
+ * Arch tags that own their compilation: each has its own entry in
+ * `ViewCompiler.compilers` and turns into a component, not into markup. A Bootstrap
+ * positioning class on one of them is styling for the wrapper that component renders
+ * — never a dropdown container, whose recognised shape is a *parent* directly holding
+ * a toggle and a menu, something these tags never have as children.
+ *
+ * They are excluded from the dropdown selector because dispatch is first-match-wins
+ * and the dropdown entry precedes theirs. Without this, `<field class="btn-group"/>`,
+ * `<widget class="btn-group"/>` and `<button type="object" class="btn-group"/>` were
+ * claimed by `compileDropdown`, found no toggle/menu pair, and fell through to
+ * `compileGenericNode` — emitting the raw arch tag into the DOM as an inert element.
+ * The field never rendered, the widget never instantiated and the button did nothing
+ * when clicked, all silently, decided by a *class name*.
+ * Guarded by `stock/static/tests/operations_form_arch.test.js`.
+ */
+const NOT_SELF_COMPILING_TAG =
+    ":not(field):not(widget):not(button):not(a[type]):not(a[data-type])";
+
+/**
  * Elements Bootstrap accepts as a dropdown's positioning parent. A construct is
  * only recognised when one of these directly contains both the toggle and the
  * menu, which is also the shape Bootstrap itself documents. A bare
  * toggle/menu pair with no such parent is left alone.
  */
-const DROPDOWN_CONTAINER_SELECTOR =
-    ".dropdown,.dropup,.dropend,.dropstart,.btn-group,.btn-group-vertical";
+const DROPDOWN_CONTAINER_SELECTOR = [
+    ".dropdown",
+    ".dropup",
+    ".dropend",
+    ".dropstart",
+    ".btn-group",
+    ".btn-group-vertical",
+]
+    .map((positioning) => `${positioning}${NOT_SELF_COMPILING_TAG}`)
+    .join(",");
 const DROPDOWN_TOGGLE_SELECTOR = selfHandledSelector("dropdown");
 
 /**
