@@ -47,6 +47,9 @@ class LoadMixin(_ModelStubs):
         batch = []
         batch_xml_ids = set()
         creatable_models = {self._name}
+        if invalid := self._invalid_load_paths(fields):
+            return {"ids": False, "messages": invalid, "nextrow": 0}
+
         for field_path in fields:
             if field_path[0] in (None, "id", ".id"):
                 continue
@@ -220,6 +223,58 @@ class LoadMixin(_ModelStubs):
             re.split(r"[/.]", path, maxsplit=1)[0]
             for path in context.get("import_skip_records") or []
         )
+
+    @api.model
+    def _invalid_load_paths(self, field_paths: list[tuple[str | None, ...]]) -> list[dict]:
+        """ Report column mappings that descend through something with no
+        sub-fields, e.g. ``name/foo`` where ``name`` is a Char.
+
+        ``load`` validated this asymmetrically: a bad subpath under a relation
+        (``parent_id/nope``) was refused, while one under a scalar was silently
+        truncated to its first segment and imported there -- ``name/foo`` set
+        ``name``. So a mapping the user cannot have meant produced a record
+        anyway, and the only signal was the absence of one.
+
+        Reported rather than raised, and reported before any row is touched, so
+        the caller gets the same ``{ids, messages}`` shape it gets for every
+        other import error.
+
+        :param field_paths: paths already split by :func:`fix_import_export_id_paths`
+        :returns: one message dict per unusable path, empty when all are usable
+        :rtype: list[dict]
+        """
+        messages = []
+        for field_path in field_paths:
+            if not field_path or field_path[0] in (None, "id", ".id"):
+                continue
+            model = self
+            for index, field_name in enumerate(field_path[:-1]):
+                if field_name in (None, "id", ".id"):
+                    break
+                field = model._fields.get(field_name)
+                if field is None:
+                    # Unknown field: already reported per row, with the model
+                    # name, by the converter. Don't pre-empt it with a worse
+                    # message.
+                    break
+                if not field.relational:
+                    messages.append({
+                        "type": "error",
+                        "rows": {"from": 0, "to": 0},
+                        "record": 0,
+                        "field": field_path[0],
+                        "field_path": list(field_path),
+                        "message": _(
+                            "Column %(path)s cannot be imported: %(field)s is not a "
+                            "relation on model %(model)s, so it has no sub-fields.",
+                            path="/".join(field_path),
+                            field="/".join(field_path[: index + 1]),
+                            model=model._name,
+                        ),
+                    })
+                    break
+                model = self.env[field.comodel_name]
+        return messages
 
     def _extract_records(
         self,

@@ -53,11 +53,10 @@ class ImportAuditChallenge(TransactionCase):
             self.fail(f"C4 CONFIRMED: KeyError({e}) escaped execute_import")
         self.assertTrue(result.get('messages'), "the bad mapping must be reported")
         self.assertIn('not a relation', result['messages'][0]['message'])
-        # Removing the crash is not enough. `load` accepts `name/foo`, drops
-        # the value and creates the record anyway -- measured, it returned
-        # {'ids': [...], 'messages': []} for a row whose only mapped value was
-        # discarded. Silently importing nothing is worse than the crash, so
-        # base_import rejects the path before load ever sees it.
+        # Removing the crash was not enough on its own: `load` used to accept
+        # `name/foo` and silently import the value into `name`, so a mapping
+        # the user cannot have meant produced a record anyway. Both layers
+        # refuse it now -- see `test_load_rejects_subpath_on_scalar_field`.
         self.assertFalse(result.get('ids'), "nothing may be created from an unusable mapping")
 
     def test_c4_unknown_leaf_is_still_left_to_load(self):
@@ -479,3 +478,68 @@ class BinaryFilenameAlignment(TransactionCase):
                 result['ids'],
                 "placeholder %r rejected: %r" % (placeholder, result['messages']))
             self.assertFalse(result['messages'])
+
+
+class LoadFieldPathValidation(TransactionCase):
+    """ `load` validated field paths asymmetrically: a bad subpath under a
+    relation was refused, while one under a scalar was silently truncated to
+    its first segment and imported there. """
+
+    def test_load_rejects_subpath_on_scalar_field(self):
+        """ `name/foo` used to create a partner named after the value, because
+        `_extract_records` keys records on `fnames[0]` and drops the rest. The
+        user asked for something that cannot exist; producing a record anyway
+        is the one outcome that hides the mistake. """
+        for path in ('name/foo', 'name/id', 'name/foo/bar'):
+            result = self.env['res.partner'].with_context(import_file=True).load(
+                [path], [['Zeta']])
+            self.assertFalse(result['ids'], "%s silently imported" % path)
+            self.assertIn('is not a relation', result['messages'][0]['message'])
+            self.assertEqual(result['messages'][0]['field_path'], path.split('/'))
+
+    def test_load_still_accepts_real_relational_paths(self):
+        """ Control: the check must not touch paths that do address something. """
+        country = self.env['res.country'].search([('code', '=', 'BE')], limit=1)
+        result = self.env['res.partner'].with_context(import_file=True).load(
+            ['name', 'country_id/id'],
+            [['Rel path', 'base.be']])
+        self.assertTrue(result['ids'], result['messages'])
+        self.assertEqual(self.env['res.partner'].browse(result['ids']).country_id, country)
+
+    def test_load_leaves_unknown_leaf_names_to_the_converter(self):
+        """ An unknown field is reported per row by the converter, with the
+        model name. Pre-empting it here would only produce a worse message. """
+        result = self.env['res.partner'].with_context(import_file=True).load(
+            ['nope'], [['x']])
+        self.assertIn('does not exist', result['messages'][0]['message'])
+
+
+class SelectionLabelLanguage(TransactionCase):
+    """ Importing a selection column must accept the label in the source
+    language as well as the user's, because exported files routinely carry
+    English labels while the session is in another language. """
+
+    def test_source_labels_are_indexed_alongside_translated_ones(self):
+        """ `_selection_for_import` asked for the source labels with
+        `lang=None`. That is not "no translation": `_()` resolves its language
+        by walking the stack for a frame whose `self.env.lang` is truthy, so a
+        `None` lang is a frame to skip and the walk found the caller's French.
+        Only the French labels were indexed, and a file written with the
+        English ones failed with "Value 'Wheee' not found in selection field".
+        """
+        from odoo.tools.translate import code_translations
+        self.env['res.lang']._activate_lang('fr_FR')
+        code_translations.python_translations[('test_import_export', 'fr_FR')] = {
+            "Corge": "toto", "Grault": "titi", "Wheee": "tete", "Moog": "tutu",
+        }
+        self.addCleanup(
+            code_translations.python_translations.pop, ('test_import_export', 'fr_FR'))
+
+        converter = self.env['ir.fields.converter'].with_context(lang='fr_FR')
+        field = self.env['export.selection.function']._fields['value']
+        index = converter._selection_import_index(field)
+
+        for label in ('wheee', 'corge', 'grault', 'moog'):
+            self.assertIn(label, index, "source label %r not importable" % label)
+        for label in ('tete', 'toto', 'titi', 'tutu'):
+            self.assertIn(label, index, "translated label %r not importable" % label)

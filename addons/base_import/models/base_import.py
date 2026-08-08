@@ -1660,13 +1660,16 @@ class Base_ImportImport(models.TransientModel):
     def _validate_import_paths(self, import_fields):
         """ Reject column mappings that descend through a non-relational field.
 
-        ``name/foo`` asks for a subfield of a Char. Both previous behaviours
-        were wrong: this module used to raise ``KeyError('relation')`` while
-        building its parse plan, escaping ``execute_import`` as an HTTP 500;
-        and ``load``, reached with the crash removed, accepts the column,
-        silently discards the value and creates the record anyway -- verified,
-        ``{'ids': [...], 'messages': []}`` for a row whose only mapped value
-        was dropped. Silently importing nothing is worse than crashing.
+        ``name/foo`` asks for a subfield of a Char. This module used to raise
+        ``KeyError('relation')`` while building its parse plan, escaping
+        ``execute_import`` as an HTTP 500.
+
+        ``load`` now refuses the same paths (`_invalid_load_paths`), so this
+        check is belt-and-braces rather than the only guard -- but it is the
+        one that runs before the file is parsed, and it names the column the
+        user actually mapped. Keeping both is deliberate: this module builds a
+        parse plan from these paths *before* handing them over, and that plan
+        has no sensible meaning for a path that addresses nothing.
 
         Only *intermediate* segments are checked. An unknown leaf, or a
         pseudo-field like ``.id``, is left to ``load`` -- it reports those
