@@ -488,12 +488,12 @@ class StockMove(models.Model):
     def _set_value(self, correction_quantity=None):
         """Set the value of the move.
 
-        :param correction_quantity: if set, it means that the quantity of the move has been
-            changed by this amount (can be positive or negative). In that case, we just update
-            the value of the move based on the ratio of extra_quantity / quantity. It only applies
-            on out_move since their value is computed during action_done, and it's used to get a
-            more accurate value for COGS. In case of in move correction, you have to call _set_value
-            without arguments.
+        :param correction_quantity: if set, it means that the valued quantity of the move
+            has been changed by this amount, **in the product's UoM** (can be positive or
+            negative). In that case, we just update the value of the move based on the ratio
+            of extra_quantity / quantity. It only applies on out_move since their value is
+            computed during action_done, and it's used to get a more accurate value for COGS.
+            In case of in move correction, you have to call _set_value without arguments.
         """
         fifo_qty_processed = defaultdict(float)
 
@@ -562,7 +562,11 @@ class StockMove(models.Model):
                             lots_to_recompute.update(move.move_line_ids.lot_id.ids)
                     continue
                 if correction_quantity:
-                    previous_qty = move.quantity - correction_quantity
+                    # Both terms in the product's UoM, and both counting only the
+                    # lines the value was computed over: `move.quantity` is the
+                    # move's UoM and includes unpicked and consigned lines, which
+                    # `correction_quantity` (and `value`) exclude.
+                    previous_qty = move._get_valued_qty() - correction_quantity
                     ratio = correction_quantity / previous_qty if previous_qty else 0
                     move.value += ratio * move.value
                     continue

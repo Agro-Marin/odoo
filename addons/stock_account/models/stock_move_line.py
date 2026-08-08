@@ -35,8 +35,14 @@ class StockMoveLine(models.Model):
         valuation_trigger = any(field in vals for field in valuation_fields)
         qty_by_ml = {}
         if valuation_trigger:
+            # In the product's UoM, like every other quantity the valuation deals
+            # in: a line's `product_uom_id` is a writable compute that only
+            # *defaults* to its move's, so `quantity` here and `move.quantity` on
+            # the other side of the correction are not necessarily the same unit.
             qty_by_ml = {
-                ml: ml.quantity for ml in self if ml.move_id.is_in or ml.move_id.is_out
+                ml: ml.quantity_product_uom
+                for ml in self
+                if ml.move_id.is_in or ml.move_id.is_out
             }
         res = super().write(vals)
         if valuation_trigger:
@@ -98,7 +104,7 @@ class StockMoveLine(models.Model):
                 move_to_update.add(move.id)
             elif move.is_out:
                 delta = sum(
-                    ml.quantity - old_qty_by_ml.get(ml, 0)
+                    ml.quantity_product_uom - old_qty_by_ml.get(ml, 0)
                     for ml in mls
                     if not ml._should_exclude_for_valuation()
                 )

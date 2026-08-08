@@ -67,13 +67,18 @@ class ProductValue(models.Model):
 
     def _compute_current_value_details(self):
         for product_value in self:
-            if not (product_value.move_id and product_value.move_id.quantity):
+            move = product_value.move_id
+            # Describe the quantity that `value` actually covers, in the unit that
+            # `standard_price` is quoted in -- this line exists so the reader can
+            # compare the two. `move.quantity` is the move's UoM and counts lines
+            # that were never picked, so it produced a unit price for a quantity
+            # the value was not computed over.
+            quantity = move._get_valued_qty() if move else 0
+            if not (move and quantity):
                 product_value.current_value_details = False
                 continue
-            move = product_value.move_id
-            quantity = move.quantity
-            uom = move.product_uom_id.name
-            price_unit = move.value / move.quantity
+            uom = move.product_id.uom_id.name
+            price_unit = move.value / quantity
             product_value.current_value_details = _(
                 "For %(quantity)s %(uom)s (%(price_unit)s per %(uom)s)",
                 quantity=quantity,

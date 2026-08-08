@@ -12,7 +12,7 @@ from datetime import timedelta
 
 from freezegun import freeze_time
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -533,3 +533,59 @@ class TestValuationAuditFixes(TestStockValuationCommon):
         self.assertAlmostEqual(second.remaining_qty, 6.0, places=2)
         self.assertAlmostEqual(first.remaining_value, 30.0, places=2)
         self.assertAlmostEqual(second.remaining_value, 60.0, places=2)
+
+    def test_out_correction_ratio_ignores_unvalued_lines(self):
+        """Correcting a delivery's quantity scales its value by
+        `delta / previous`. Both terms must be the quantity the value was
+        computed over: `move.quantity` also counts consigned and unpicked lines,
+        which the value excludes, so the ratio came out too small."""
+        product = self.product_avco.with_company(self.company)
+        self._make_in_move(product, 20, unit_cost=10)
+        self.env.flush_all()
+
+        out = self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "product_uom_id": self.uom.id,
+                "product_uom_qty": 10,
+                "picking_type_id": self.picking_type_out.id,
+            }
+        )
+        out._action_confirm()
+        out._action_assign()
+        out.move_line_ids.unlink()
+        out.move_line_ids = [
+            Command.create(
+                {
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                    "quantity": 6,
+                    "product_id": product.id,
+                }
+            ),
+            Command.create(
+                {
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                    "quantity": 4,
+                    "product_id": product.id,
+                    "owner_id": self.owner.id,  # consigned: excluded from the value
+                }
+            ),
+        ]
+        out.picked = True
+        out._action_done()
+        self.env.flush_all()
+        self.assertEqual(out._get_valued_qty(), 6.0)
+        self.assertEqual(out.quantity, 10.0)
+        self.assertAlmostEqual(out.value, 60.0, places=2)
+
+        out.move_line_ids.filtered(lambda ml: not ml.owner_id).quantity = 8
+        self.env.flush_all()
+        out.invalidate_recordset()
+
+        self.assertEqual(out._get_valued_qty(), 8.0)
+        # 8 valued units at 10; taking the ratio over `quantity` (12) gave 72.
+        self.assertAlmostEqual(out.value, 80.0, places=2)
