@@ -305,10 +305,22 @@ def parse_requirements(reqpath: Path) -> dict[str, list[tuple[str, Marker]]]:
             requirement = Requirement(req_line)
             version = None
             if requirement.specifier:
-                if len(requirement.specifier) > 1:
-                    msg = "multi spec not supported yet"
+                # A pin may legitimately carry an upper bound as well as a floor
+                # (`protobuf>=6.31.0,<8`). The distro comparison only has a floor
+                # to compare against, so take that and ignore the ceiling —
+                # previously any such line aborted the whole run.
+                floors = [
+                    spec
+                    for spec in requirement.specifier
+                    if spec.operator in ("==", ">=", "~=")
+                ]
+                if not floors:
+                    msg = (
+                        f"{requirement.name}: no lower bound in "
+                        f"{str(requirement.specifier)!r}, nothing to compare"
+                    )
                     raise NotImplementedError(msg)
-                version = next(iter(requirement.specifier)).version
+                version = floors[0].version
             reqs.setdefault(requirement.name, []).append((version, requirement.marker))
     return reqs
 

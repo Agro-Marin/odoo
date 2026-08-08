@@ -129,7 +129,7 @@ jobs:
         run: |
           sudo apt-get install -y --no-install-recommends \
             libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
-          pip install --quiet -r requirements.txt "pytest==9.1.1"
+          pip install --quiet -r requirements-test.txt
 
       - name: Contract suite (psycopg / psql / pg_dump)
         run: python -m pytest tests/contract -q

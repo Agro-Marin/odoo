@@ -40,12 +40,18 @@ setup(
     packages=find_namespace_packages(include=["odoo*", "addons*"]),
     package_dir={"%s" % lib_name: "odoo"},
     include_package_data=True,
+    # Keep in lockstep with requirements.txt — the two had drifted apart, and a
+    # dependency listed in only one of them is a dependency that goes missing in
+    # whichever install path reads the other.
     install_requires=[
         "asn1crypto",
         "babel >= 1.0",
+        "beautifulsoup4",
+        "blake3",
         "cbor2",
         "chardet",
         "cryptography",
+        "defusedxml",
         "docutils",
         "geoip2",
         "idna",
@@ -56,15 +62,21 @@ setup(
         "num2words",
         "ofxparse",
         "openpyxl",
+        "pdfminer.six",
+        "phonenumbers",
         "pillow",  # windows binary http://www.lfd.uci.edu/~gohlke/pythonlibs/
         "polib",
-        "protobuf",
+        # Bounded for the reason recorded in requirements.txt: the vendored SCSS
+        # gencode rejects a runtime whose major is below its 6.31.1 stamp.
+        "protobuf >= 6.31.0, < 8",
         "psutil",  # windows binary code.google.com/p/psutil/downloads/list
         "psycopg[binary] >= 3.3.2",
+        "psycopg-pool >= 3.3.0",
         "pyopenssl",
         "pypdf",
         "pyserial",
         "python-dateutil",
+        "python-magic ; sys_platform != 'win32'",
         "python-stdnum",
         "pytz",
         "pyusb >= 1.0.0b1",
@@ -74,6 +86,7 @@ setup(
         "requests",
         "urllib3",
         "vobject",
+        "weasyprint",
         "werkzeug",
         "xlsxwriter",
         "zeep",
@@ -81,5 +94,8 @@ setup(
     python_requires=">=" + ".".join(map(str, MIN_PY_VERSION)),
     extras_require={
         "ldap": ["python-ldap"],
+        # AGPL-3.0-or-commercial, and base/ir_actions_report already guards the
+        # import — so it is offered rather than imposed.
+        "pdf-raster": ["PyMuPDF"],
     },
 )

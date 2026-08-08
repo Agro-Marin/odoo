@@ -1,0 +1,13 @@
+# Dependencies needed to RUN the test suites — not to run the server.
+#
+# Split out of requirements.txt so a production install does not carry test
+# machinery, and split out of requirements-dev.txt so CI test lanes do not
+# install linters and type checkers they never invoke. The workflows that
+# execute tests install this file; test_lint.yml and asset_lint.yml install
+# plain requirements.txt, which is what keeps the split honest.
+-r requirements.txt
+
+aiosmtpd==1.4.6  # odoo/addons/base/tests/test_ir_mail_server_smtpd.py
+freezegun==1.5.5  # 486 test modules across core, enterprise and agromarin
+pytest==9.1.1  # Tier-1/Tier-2 framework suites (see pytest.ini)
+websocket-client==1.9.0  # odoo/tests/browser.py (HttpCase driver), bus + mail suites

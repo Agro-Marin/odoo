@@ -1,14 +1,16 @@
-# Development and testing tools — NOT required for production.
--r requirements.txt
+# Developer tooling — NOT required for production, and not required to run the
+# suites either (that is requirements-test.txt, included below).
+-r requirements-test.txt
 
 # Linting & formatting
-astroid==4.0.4
-Pygments==2.19.2
+# ruff must stay in lockstep with .pre-commit-config.yaml and the ruff.yml
+# ratchet: the floor is a count measured by one exact version.
 ruff==0.16.2
 
 # Type checking
+# Likewise pinned — py_typecheck.yml measures the mypy floor with this version.
 mypy==1.19.1
 
-# Testing
-pytest==9.1.1
-aiosmtpd==1.4.6
+# Build tooling for the odoo_rust native extension (crates/odoo_rust).
+# The upper bound matches what every workflow already installs inline.
+maturin>=1.0,<2

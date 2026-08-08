@@ -1,42 +1,70 @@
+# Runtime dependencies for the Odoo server and a default addon install.
+#
+# Versions are chosen from PyPI and validated on Python 3.14 (the floor is
+# MIN_PY_VERSION in odoo/release.py). They are NOT tracked against the
+# python3-* packages of Ubuntu 24.04 (Noble) or Debian 13 (Trixie), which is
+# what this header used to claim: Noble froze in April 2024 and Trixie in
+# mid-2025, while the pins below already require cryptography, Pillow, lxml,
+# psycopg and pdfminer.six releases that postdate both. The rule described
+# almost none of the lines it governed, so it is retired here rather than left
+# standing as a brake on upgrades. `setup/requirements-check.py` still renders
+# the distro comparison on demand for anyone packaging against one.
+#
+# What belongs where:
+#   requirements.txt       the server and a default addon install
+#   requirements-test.txt  needed to RUN the suites, not to run the server
+#   requirements-dev.txt   linters, type checkers, native-extension build tools
+#
+# A library used by exactly one addon is declared in that addon's
+# __manifest__.py `external_dependencies` and pinned in its own repo's
+# requirements.txt (doc/coding_guidelines.rst §1.2) — not here.
 asn1crypto==1.5.1
 Babel==2.18.0
-blake3==1.0.9
-cbor2==5.8.0
+# No python3-blake3 exists in any current distro, so this one always comes from
+# PyPI. Prebuilt manylinux wheels (incl. cp314) — no Rust toolchain needed to
+# install. The import is guarded (odoo/tools/hashing.py falls back to
+# sha1/sha256), so an image that skips it degrades instead of failing to boot.
+blake3==1.0.9  # content/cache digests (odoo/tools/hashing.py)
+cbor2==5.8.0  # web/auth_passkey (auto_install, so effectively always present)
 chardet==5.2.0
 cryptography==46.0.4
 docutils==0.22.4
-freezegun==1.5.5
 geoip2==5.2.0
 idna==3.11
-inotify==0.2.10 ; sys_platform == 'linux'  # (Noble) autoreload backend for --dev=reload; preferred over watchdog on Linux
+inotify==0.2.10 ; sys_platform == 'linux'  # autoreload backend for --dev=reload; preferred over watchdog on Linux
 Jinja2==3.1.6
 lxml==6.0.2
-lxml-html-clean  # (Noble - removed from lxml, unpinned for future security patches)
+lxml-html-clean  # (removed from lxml, unpinned for future security patches)
 MarkupSafe==3.0.3
 num2words==0.5.14
 odfpy==1.4.1  # base_import: .ods reader (models/odf_ods_reader.py)
-ofxparse==0.21
+ofxparse==0.21  # enterprise/account_bank_statement_import_ofx (sdist-only, last release 2021)
 openpyxl==3.1.5
 orjson==3.11.7
-pdfminer.six==20260107
+pdfminer.six==20260107  # optional: attachment_indexation degrades without it (find_spec-guarded)
 phonenumbers==9.0.24
 Pillow==12.1.1
 polib==1.2.0
-protobuf>=6.31.0
+# Upper bound is load-bearing: the vendored SCSS gencode
+# (odoo/libs/_vendor/embedded_sass_pb2.py) calls ValidateProtobufRuntimeVersion
+# with a 6.31.1 stamp, and that validator rejects a runtime whose MAJOR is below
+# the gencode's. An unbounded `>=` lets pip install protobuf 8 and break asset
+# compilation at boot. Regenerate the gencode before raising the ceiling.
+protobuf>=6.31.0,<8
 psutil==7.2.2
 psycopg[c,binary]>=3.3.2
 psycopg-pool>=3.3.0
-PyMuPDF==1.27.2.2
+PyMuPDF==1.27.2.2  # AGPL-3.0-or-commercial; base/ir_actions_report guards the import and degrades
 pyopenssl==25.3.0
 pypdf==6.6.2
 pypiwin32 ; sys_platform == 'win32'
-pyserial==3.5
+pyserial==3.5  # iot_handlers/ only; iot_drivers is installable=False so no manifest can declare it
 python-dateutil==2.9.0.post0
-python-magic==0.4.27 ; sys_platform != 'win32'  # (Noble)
+python-magic==0.4.27 ; sys_platform != 'win32'
 python-ldap==3.4.5 ; sys_platform != 'win32'
 python-stdnum==2.2  # Fixes operation_timeout in SOAP client
 pytz  # no version pinning to avoid OS perturbations
-pyusb==1.3.1
+pyusb==1.3.1  # iot_handlers/ only; see pyserial above
 qrcode==8.2
 reportlab==4.4.10
 requests==2.32.5
@@ -49,14 +77,12 @@ weasyprint==69.0
 Werkzeug==3.1.5
 xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader
 XlsxWriter==3.2.9
-zeep==4.3.2  # Fixes notation visitor bug (issue #1185)
-maturin>=1.0  # Build tool for odoo_rust extension
-beautifulsoup4==4.14.3  # core/odoo/_monkeypatches/bs4.py, core/html_editor
+zeep==4.3.2  # _monkeypatches, base_vat, and l10n/HR modules in enterprise + agromarin
+beautifulsoup4==4.14.3  # odoo/_monkeypatches/bs4.py, html_editor
+defusedxml==0.7.1  # attachment_indexation, website
+geojson==3.2.0  # agromarin/geoengine (enterprise/web_map only uses the string 'geojson', not the library)
+google-auth==2.49.2  # cloud_storage_google, enterprise/social_push_notifications
 dbfread==2.0.7  # enterprise/account_winbooks_import
-defusedxml==0.7.1  # core/odoo/logutils.py
-geojson==3.2.0  # enterprise/web_map
-google-auth==2.49.2  # core/cloud_storage_google, enterprise/social_push_notifications
 paramiko==4.0.0  # enterprise/l10n_be_hr_payroll
 PyJWT==2.12.1  # enterprise/l10n_in_reports, l10n_be_hr_payroll_dimona
-websocket-client==1.9.0  # core/iot_drivers/websocket_client.py
 xmlsec==1.3.17  # enterprise/l10n_nl_reports
