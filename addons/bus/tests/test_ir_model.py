@@ -4,7 +4,7 @@ import time
 
 import odoo
 from odoo.http import STORED_SESSION_BYTES
-from odoo.tests import HttpCase, new_test_user
+from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
 
 
 @odoo.tests.tagged("-at_install", "post_install")
@@ -117,3 +117,30 @@ class TestGetModelDefinitions(HttpCase):
         )
         # res.country is requested, country_id should be present on res.partner
         self.assertIn("country_id", model_definitions["res.partner"]["fields"])
+
+
+@tagged("-at_install", "post_install")
+class TestGetModelDefinitionsPayload(TransactionCase):
+    def test_duplicate_model_names_are_collapsed(self):
+        """A repeated name must not redo the whole per-model pass.
+
+        The payload is client-controlled and the result is keyed by model
+        name, so a duplicate only ever overwrote its own entry -- while
+        paying for another ``fields_get`` and inverse-field scan.
+        """
+        once = self.env["ir.model"]._get_model_definitions(["res.partner"])
+        many = self.env["ir.model"]._get_model_definitions(["res.partner"] * 50)
+        self.assertEqual(many, once)
+
+    def test_relational_fields_still_resolved_against_the_request(self):
+        """Deduplication must not change which relations are kept."""
+        both = self.env["ir.model"]._get_model_definitions(
+            ["res.partner", "res.users", "res.partner"]
+        )
+        self.assertIn("res.partner", both)
+        self.assertIn("res.users", both)
+        # A relation pointing at a requested model is retained...
+        self.assertIn("partner_id", both["res.users"]["fields"])
+        # ...and one pointing outside the request is dropped.
+        alone = self.env["ir.model"]._get_model_definitions(["res.users"])
+        self.assertNotIn("partner_id", alone["res.users"]["fields"])
