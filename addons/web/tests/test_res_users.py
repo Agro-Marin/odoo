@@ -223,6 +223,15 @@ class TestWebCreateUsers(TransactionCase):
 @tagged("post_install", "-at_install", "web_tour", "web_users")
 class TestUserSettings(HttpCaseWithUserDemo):
     def test_user_group_settings(self):
+        # Start where the tour declares it starts. `start_tour`'s `url_path`
+        # overrides the tour's own `url`, and this one opened `/odoo`, whose
+        # landing page carries none of the Settings chrome the first step
+        # reaches for — so the tour sat on a trigger that would never appear
+        # and the case died on the 120s browser timeout with no failing step
+        # named, which reads as a hung browser rather than a wrong address.
         self.start_tour(
-            "/odoo?debug=1", "test_user_group_settings", login="admin", timeout=120
+            "/odoo/settings?debug=assets,tests",
+            "test_user_group_settings",
+            login="admin",
+            timeout=120,
         )
