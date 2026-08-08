@@ -8,8 +8,9 @@ name: Doc Link Check
 # tolerated baseline; removing that scope removed the reason to tolerate.
 #
 # What the gate catches: dangling references to `*.md` files in
-# CI workflows, machine_doc_v1, CLAUDE.md surfaces, and the knowledge
-# tree. Three real instances motivated this gate (the
+# CI workflows, machine_doc_v1, CLAUDE.md surfaces, the core package
+# READMEs, the ADR log, and the architecture document set. Three real
+# instances motivated this gate (the
 # 2026-04-19-web-module-architecture-review.md ref in CONVENTIONS.md
 # and STATE_MANAGEMENT.md, the 2026-04-28-typecheck-ci-gate-plan.md
 # ref in this very file's sibling typecheck.yml, and the
@@ -23,6 +24,14 @@ name: Doc Link Check
 # dependency just to match language would be net negative.
 
 on:
+  # Mainline re-verification, matching architecture.yml / ruff.yml / lint.yml.
+  # This gate was the only blocking one of the four with no `push:` trigger,
+  # so a direct commit or a merge skew that dangled a reference was caught by
+  # nothing until the next PR happened to touch a `.md`. That is exactly the
+  # bypass ADR-0009 closed elsewhere, left open here. No path filter on
+  # purpose: mainline is always re-checked in full.
+  push:
+    branches: ['19.0-marin', '19.0']
   pull_request:
     branches: ['*']
     paths:

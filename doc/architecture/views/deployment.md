@@ -92,10 +92,10 @@ Failure is handled in `odoo/db/`, and each piece has one job:
 Two properties worth carrying into any capacity decision:
 
 **The budget is per PostgreSQL server, not per process or per database.**
-`db_maxconn` caps a *server's* checked-out connections; `db/README.md` records
-that this has been mis-keyed in both directions historically — a budget per
-database over-committed the server, and a single budget across two independent
-servers under-used both.
+`db_maxconn` caps a *server's* checked-out connections; `odoo/db/README.md`
+records that this has been mis-keyed in both directions historically — a
+budget per database over-committed the server, and a single budget across two
+independent servers under-used both.
 
 **The replica is optional and self-demoting.** Lag is sampled, and reads that
 would be too stale go to the primary instead of being served wrong. The breaker

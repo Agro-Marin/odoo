@@ -338,7 +338,8 @@ the one least visible to every structural gate in this document.
 **The set of addon-owned models the framework may name is closed.** The
 framework's largest real coupling to its consumer produces no import edge
 either, because it is spelled as a string (`env["res.users"]`, see *Models are
-assembled per database* in [`ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md)).
+assembled per database* in
+[`odoo/ARCHITECTURE.md`](../../../odoo/ARCHITECTURE.md)).
 `env_model_surface_check.py` ratchets *which* models are reached, as an exact
 set, and pins seven subtrees at zero reaches — `orm/components`, `libs`, `db`,
 the `api`/`fields`/`models` shims, `_monkeypatches` — each of which already

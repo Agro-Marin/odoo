@@ -4,16 +4,16 @@ The framework core in `odoo/` — ORM, persistence, HTTP, server, module system,
 utilities. This page is the front door: what the core is *for*, the forces that
 shaped it, the mechanisms that cut across every part of it, and an index of the
 views that describe it in detail. It is the framework-level counterpart to the
-per-addon `machine_doc_v1/ARCHITECTURE.md` maps.
+per-addon `addons/*/machine_doc_v1/ARCHITECTURE.md` maps.
 
 | If you are… | Read |
 |---|---|
-| new to the core | *Context* and *The forces* below, then [`views/module.md`](../doc/architecture/views/module.md) |
+| new to the core | *Context* and *The forces* below, then [`doc/architecture/views/module.md`](../doc/architecture/views/module.md) |
 | placing new code | *Where to add code* below |
-| debugging a runtime path | [`views/runtime.md`](../doc/architecture/views/runtime.md) |
-| changing a boundary | [`gates.md`](../doc/architecture/gates.md), then `doc/adr/` |
-| wondering why a rule exists | `doc/adr/`, then [`MEASUREMENTS.md`](../doc/architecture/MEASUREMENTS.md) |
-| judging a change's cost | [`qualities.md`](../doc/architecture/qualities.md) |
+| debugging a runtime path | [`doc/architecture/views/runtime.md`](../doc/architecture/views/runtime.md) |
+| changing a boundary | [`doc/architecture/gates.md`](../doc/architecture/gates.md), then `doc/adr/` |
+| wondering why a rule exists | `doc/adr/`, then [`doc/architecture/MEASUREMENTS.md`](../doc/architecture/MEASUREMENTS.md) |
+| judging a change's cost | [`doc/architecture/qualities.md`](../doc/architecture/qualities.md) |
 
 ## Context
 
@@ -192,8 +192,8 @@ unflattened HTTP call graph.
 > produces it rather than restated.
 >
 > **If you add a number to this page, add the assertion with it.** Prose that no
-> test reads is prose that has already drifted — `MEASUREMENTS.md` records what
-> that cost when it was learned.
+> test reads is prose that has already drifted —
+> `doc/architecture/MEASUREMENTS.md` records what that cost when it was learned.
 >
 > That rule has a failure mode worth naming, because this page is the correction
 > for it: it selects for claims that are *checkable*, not claims that are
@@ -218,7 +218,8 @@ unflattened HTTP call graph.
 | A package README module index | register it in `PACKAGE_INDEXES` | an unregistered index is gated by nothing | `package_index_check.py` |
 
 Two rules that apply to all of the above: a new module must appear in the
-**Subsystem map** in [`views/module.md`](../doc/architecture/views/module.md) if
+**Subsystem map** in
+[`doc/architecture/views/module.md`](../doc/architecture/views/module.md) if
 its package's contents are enumerated there, and a new number written anywhere in
 this document set must arrive with the assertion that re-derives it.
 

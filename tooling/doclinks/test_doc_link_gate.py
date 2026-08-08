@@ -65,6 +65,41 @@ class TestScanCoverage:
         on_disk = {p for p in on_disk if "node_modules" not in p.parts}
         assert scanned == on_disk, f"unwatched machine_doc trees: {on_disk - scanned}"
 
+    def test_every_architecture_document_is_covered(self):
+        # The architecture set is ONE document split across two directories --
+        # the front door in the core package, its views and meta-pages under
+        # `doc/architecture/`. `test_architecture_doc.py` concatenates all ten
+        # and asserts against the blob, so the split is presentational; what
+        # holds it together for a human is ~30 relative links.
+        #
+        # None of them was checked. The only `doc/` entry in the scan globs was
+        # `doc/*.md`, which reads like a deliberate one-level narrowing around
+        # `doc/cla/` and in fact matched ZERO files -- `doc/` has no `.md` at
+        # its top level at all. Widening surfaced 15 broken references on the
+        # first run, every one a backticked bare filename that resolves only
+        # from the directory the *other* half of the document lives in.
+        files = set(gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES))
+        on_disk = set((gate.REPO_ROOT / "doc" / "architecture").glob("**/*.md"))
+        front_door = gate.REPO_ROOT / "odoo" / "ARCHITECTURE.md"
+        assert front_door.is_file(), (
+            "the front door has moved; point this test at its new home -- and "
+            "drop the special case entirely if it now lives under "
+            "doc/architecture/, where the glob above already covers it"
+        )
+        on_disk.add(front_door)
+        assert on_disk, "the architecture document set has moved; this test is blind"
+        assert on_disk <= files, f"unwatched architecture docs: {on_disk - files}"
+
+    def test_the_adr_log_is_scanned_as_markdown_not_only_for_citations(self):
+        # `ADR_SCAN_GLOBS` already reaches the records, but only to resolve
+        # `ADR-NNNN` citations. That grammar says nothing about the `.md` paths
+        # an ADR cites in its Context and Enforcement sections, and those are
+        # the ones that rot when a file moves under an immutable record.
+        files = set(gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES))
+        on_disk = set((gate.REPO_ROOT / "doc" / "adr").glob("*.md"))
+        assert on_disk, "the ADR log has moved; this test is blind"
+        assert on_disk <= files, f"unwatched ADRs: {on_disk - files}"
+
     def test_third_party_trees_are_excluded(self):
         files = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
         assert not [f for f in files if "node_modules" in f.parts]
