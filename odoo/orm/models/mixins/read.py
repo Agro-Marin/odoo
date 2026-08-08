@@ -337,8 +337,12 @@ class ReadMixin(_ModelStubs):
         return fields_to_fetch
 
     def _fetch_query(self, query: Query, fields: Sequence[Field]) -> Self:
-        prof = _OrmProfile(_orm_read)
+        """Split the fields by storage shape, then hand the read to the backend.
 
+        The profiling and the ``context`` reads that used to live here moved
+        with the SQL into :meth:`_fetch_query_sql`; what is left is the part
+        both backends share.
+        """
         column_fields: OrderedSet[Field] = OrderedSet()
         other_fields: OrderedSet[Field] = OrderedSet()
         for field in fields:
@@ -348,10 +352,18 @@ class ReadMixin(_ModelStubs):
                 raise RuntimeError(f"_fetch_query expects stored fields, got {field}")
             (column_fields if field.column_type else other_fields).add(field)
 
-        context = self.env.context
+        return self.env.backend.fetch(self, query, column_fields, other_fields)
 
-        if (backend := self.env.backend) is not None:
-            return backend.fetch(self, query, column_fields, other_fields)
+    def _fetch_query_sql(
+        self,
+        query: Query,
+        column_fields: typing.Iterable[Field],
+        other_fields: typing.Iterable[Field],
+    ) -> Self:
+        prof = _OrmProfile(_orm_read)
+        context = self.env.context
+        column_fields = OrderedSet(column_fields)
+        other_fields = OrderedSet(other_fields)
 
         if column_fields:
             sql_terms = [SQL.identifier(self._table, "id")]

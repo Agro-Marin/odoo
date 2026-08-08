@@ -18,6 +18,20 @@ _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 # those figures anywhere else: this dict is the count, and
 # test_the_header_count_matches_the_dict re-derives them from it.
 #
+# WHAT A SITE IS HAS CHANGED, and the notes below should be read with that in
+# mind.  These were `if env.backend is not None: <port call> else: <inline SQL>`
+# -- the null branch WAS the PostgreSQL implementation, unnamed.  Extracting
+# ``PostgresBackend`` (ADR-0011's Amendment) moved that SQL behind the port, so
+# most of these are now an unconditional call and the two paths are two
+# implementors rather than an implementor and a fallthrough.
+#
+# Three are NOT calls and never will be.  ``many2many.read``,
+# ``reference._reference_exists`` and ``textual._languages_in_sync_with`` branch
+# on a declared capability, because the two backends run genuinely different
+# algorithms there rather than two implementations of one -- the sharpest being
+# the m2m read, where the SQL path fuses a JOIN into the comodel's Query and the
+# port's ``read_m2m_pairs`` signature has nowhere to put it.
+#
 # Each entry records whether the two branches are known to be BEHAVIOURALLY
 # EQUIVALENT.  They are not a formality: where a branch is marked lossy, a
 # DB-free test exercising that code path asserts against semantics the SQL path
@@ -47,11 +61,15 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
         "guarded by backend.supports_parent_store"
     ),
     ("models/mixins/unlink.py", "_unlink_process_batch"): (
-        "LOSSY: the SQL branch collects ir.model.data + ir.attachment rows and "
-        "runs the many2one_company_dependents ir.default cleanup. "
-        "InMemoryBackend.delete() returns two EMPTY recordsets and is not even "
-        "passed the Defaults recordset the cleanup needs -- see "
-        "test_in_memory_delete_is_declared_lossy below"
+        "LOSSY: the SQL path collects ir.model.data + ir.attachment rows and "
+        "runs the many2one_company_dependents ir.default cleanup; "
+        "InMemoryBackend.delete() returns two EMPTY recordsets and does "
+        "neither. It IS now passed the Defaults recordset -- extracting "
+        "PostgresBackend showed the port's signature was missing an argument "
+        "the operation needs, which nobody had noticed because the SQL path "
+        "never went through the port. Half the gap is therefore closed: the "
+        "in-memory side is handed what it would need, and what remains is that "
+        "it does not use it"
     ),
     ("models/mixins/search.py", "lock_for_update"): "equivalent",
     ("models/mixins/search.py", "try_lock_for_update"): "equivalent",
@@ -134,11 +152,7 @@ def test_layer1_dispatch_stays_explicitly_enumerated():
     # reaching env.backend is a runtime Layer-1 -> Layer-3 dependency that
     # layer_check cannot see, because it travels through `env` and creates no
     # import.  Keep the exception list closed.
-    layer1 = {
-        site
-        for site in _dispatch_sites()
-        if site[0].startswith(LAYER1_PREFIXES)
-    }
+    layer1 = {site for site in _dispatch_sites() if site[0].startswith(LAYER1_PREFIXES)}
     pinned_layer1 = {
         site for site in DISPATCH_SITES if site[0].startswith(LAYER1_PREFIXES)
     }
@@ -162,9 +176,12 @@ def test_in_memory_delete_is_declared_lossy():
         "and the LOSSY note on unlink in DISPATCH_SITES."
     )
     params = list(inspect.signature(InMemoryBackend.delete).parameters)
-    assert "Defaults" not in params, (
-        "InMemoryBackend.delete now receives Defaults; if it performs the "
-        "many2one_company_dependents cleanup, update the unlink note."
+    assert "Defaults" in params, (
+        "InMemoryBackend.delete no longer receives Defaults. It gained the "
+        "argument when PostgresBackend was extracted and the SQL path started "
+        "going through the port, which showed the signature was missing "
+        "something the operation needs. Narrowing the port back would re-open "
+        "the wider half of this divergence."
     )
 
 
@@ -177,9 +194,21 @@ def test_lossy_sites_are_spelled_out():
 
 #: Number words this module's header uses, so the counts can be re-derived.
 _NUMBER_WORDS = {
-    "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
-    "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
-    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
 }
 
 
@@ -192,9 +221,11 @@ def test_the_header_count_matches_the_dict():
     this whole module exists to stop one level down. A count in a comment is a
     second copy, so it gets an assertion or it goes.
     """
-    header = pathlib.Path(__file__).read_text(encoding="utf-8").split(
-        "DISPATCH_SITES: dict", 1
-    )[0]
+    header = (
+        pathlib.Path(__file__)
+        .read_text(encoding="utf-8")
+        .split("DISPATCH_SITES: dict", 1)[0]
+    )
     stated = re.search(
         r"grown to (\w+) sites across (\w+) files\s*"
         r"#\s*-- including (\w+) in Layer 1",

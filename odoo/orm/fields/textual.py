@@ -580,9 +580,12 @@ class BaseString(Field[str | typing.Literal[False]]):
         nothing: it is creating a translation, not editing one.
         """
         ids = [id_ for id_ in records._ids if id_]
-        if not ids or records.env.backend is not None:
-            # no ids, or a non-SQL backend (the DB-free test env) with no jsonb
-            # column to compare the stored terms against
+        if not ids or not records.env.backend.supports_translation_terms:
+            # No ids, or a backend with no jsonb column to compare the stored
+            # terms against. That is a real semantic gap rather than a slower
+            # path -- on such a backend no translation ever follows a write --
+            # which is why it is a declared capability and why DISPATCH_SITES
+            # marks this site LOSSY.
             return {}
         if lang == "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
             # With English uninstalled, _mark_dirty_model_translation mirrors

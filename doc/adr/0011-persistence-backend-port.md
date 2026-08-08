@@ -116,3 +116,61 @@ them; the in-memory branch has no jsonb column to compare and returns `{}`, so o
 that backend no translation ever follows a write. That is the shape of divergence
 the pin exists to make visible — a DB-free test of translation propagation would
 pass without exercising the behaviour at all.
+
+### 2026-08-08 — the port had no PostgreSQL implementor, so `None` was one
+
+This record says the port replaced nine inline `transaction.storage` sniffs.
+Measured afterwards, it renamed them. `fields/reference.py` said so in its own
+comment: "`env.backend is None` gates a prefetch SELECT, i.e. it reads as 'am I
+on PostgreSQL?'. This is the inline test-backend sniff ADR-0011 set out to
+remove, renamed from `transaction.storage`."
+
+Every one of the fifteen dispatch sites had the shape
+
+    if (backend := self.env.backend) is not None:
+        return backend.fetch(...)
+    ...inline SQL...
+
+so **`env.backend is None` was the PostgreSQL implementation** — an unnamed
+branch across nine files. Three things followed. `StorageBackend` described only
+the test double, and nothing checked the SQL path against its signatures. The
+question "am I on PostgreSQL?" was spelled as a null check, which reads as an
+accident rather than a decision. And a differential suite had only one object to
+run against.
+
+`PostgresBackend` (`orm/runtime/backend.py`) is that branch, named.
+`Transaction.backend` is non-optional, every null check is gone, and the
+Protocol now describes production as well as the double. It **adapts** the port
+to the model's own `_*_sql` methods rather than moving the SQL: building it
+needs `_field_to_sql`, `_table_sql`, the field objects and the `Query`, which is
+model knowledge. `InMemoryBackend` adapts the same port to `DictBackend`. Both
+are adapters; the port is the seam and now has two sides.
+
+Two findings the extraction produced that reading had not:
+
+- **The port's `delete` was missing an argument the operation needs.**
+  `_unlink_process_batch` takes `Defaults` and uses it for the
+  `many2one_company_dependents` cleanup; `delete(model, sub_ids, Data,
+  Attachment)` had no place for it, which is exactly what this record's own
+  LOSSY note describes ("is not even passed the Defaults recordset the cleanup
+  needs"). Nobody had noticed because the SQL path never went through the port.
+  The signature now carries it, so half that divergence is closed: the in-memory
+  side is handed what it would need, and what remains is that it does not use it.
+- **Three sites are not two implementations of one operation**, and collapsing
+  them would have been a silent behaviour change. The sharpest is
+  `Many2many.read`: the SQL path fuses a JOIN into the *comodel's* `Query` —
+  which already carries that model's domain, order and access filter — and gets
+  one statement and the ordering for free. `read_m2m_pairs(model, relation,
+  column1, column2, ids)` has nowhere to put that query, so a backend without
+  the fusion must read every pair and re-sort against an already-executed query.
+  Two algorithms, not two implementations. It, `Reference._reference_exists`
+  (a prefetch scan) and `Char._languages_in_sync_with` (needs the jsonb column)
+  now branch on declared capabilities — `supports_joined_m2m_read`,
+  `supports_column_scan`, `supports_translation_terms` — so what was a null
+  check reads as the question it was always asking.
+
+What this does **not** do is close the LOSSY notes. Four remain, and the
+differential suite (`test_orm/tests/test_backend_differential.py`, 22 tests) is
+where closing them would be proved. Naming the implementor is what makes that
+suite able to compare two things instead of one thing and a fallthrough.
+

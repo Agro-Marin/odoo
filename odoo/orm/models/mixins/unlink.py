@@ -129,9 +129,15 @@ class UnlinkMixin(_ModelStubs):
         Defaults: typing.Any,
         Attachment: typing.Any,
     ) -> tuple[Self, Self]:
-        if (backend := self.env.backend) is not None:
-            return backend.delete(self, sub_ids, Data, Attachment)
+        return self.env.backend.delete(self, sub_ids, Data, Defaults, Attachment)
 
+    def _delete_sql(
+        self,
+        sub_ids: tuple[int, ...],
+        Data: typing.Any,
+        Defaults: typing.Any,
+        Attachment: typing.Any,
+    ) -> tuple[Self, Self]:
         cr = self.env.cr
         records = self.browse(sub_ids)
 

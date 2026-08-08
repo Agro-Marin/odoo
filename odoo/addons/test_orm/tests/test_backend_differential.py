@@ -436,7 +436,12 @@ class TestBackendDifferential(TransactionCase):
             self.assertFalse(env_a.backend.supports_record_rules)
             with self.assertRaises(InMemoryRecordRulesNotSupported):
                 _ = env_a["ir.rule"]
-        self.assertIsNone(self.env.backend)
+        # Not `assertIsNone(self.env.backend)`: `None` stopped being the
+        # PostgreSQL implementation when PostgresBackend was extracted. The
+        # claim this test makes is about *capability*, and it is the same claim
+        # either way -- one backend enforces record rules, the other says it
+        # cannot and refuses rather than pretending.
+        self.assertTrue(self.env.backend.supports_record_rules)
         self.assertIn("ir.rule", self.env.registry)
 
     def test_divergence_raw_sql_fails_loud(self):

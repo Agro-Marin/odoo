@@ -397,7 +397,6 @@ class CreateMixin(_ModelStubs):
     def _create(self, data_list: list[ValuesType]) -> Self:
         if not data_list:
             raise ValueError("_create() called with empty data_list")
-        cr = self.env.cr
         prof = _OrmProfile(_orm_crud)
 
         ids: list[int] = []
@@ -420,63 +419,9 @@ class CreateMixin(_ModelStubs):
                 if field.type == "properties":
                     other_fields.add(field)
 
-            if (backend := self.env.backend) is not None:
-                ids.extend(backend.create_rows(self, stored_list, columns, col_fields))
-                continue
-
-            use_copy = (
-                not COPY_DISABLED and col_fields and len(stored_list) >= COPY_THRESHOLD
+            ids.extend(
+                self.env.backend.create_rows(self, stored_list, columns, col_fields)
             )
-            subprof = _OrmProfile(_orm_crud)
-
-            if use_copy:
-                copy_rows = self._build_insert_rows(stored_list, columns, col_fields)
-                batch_ids = cr.copy_from(
-                    self._table,
-                    columns,
-                    copy_rows,
-                    returning_ids=True,
-                    binary=True,
-                )
-                ids.extend(batch_ids)
-                if subprof.debug:
-                    subprof.stop()
-                    _orm_crud.debug(
-                        "[%.3f ms] _create %s: %d records via COPY (%d columns)",
-                        subprof.elapsed * 1000,
-                        self._name,
-                        len(stored_list),
-                        len(columns),
-                    )
-            else:
-                if col_fields:
-                    rows: list[tuple] = self._build_insert_rows(
-                        stored_list, columns, col_fields
-                    )
-                else:
-                    columns = ["id"]
-                    rows = [(SQL_DEFAULT,) for _ in stored_list]
-
-                cr.execute(
-                    SQL(
-                        'INSERT INTO %s (%s) VALUES %s RETURNING "id"',
-                        SQL.identifier(self._table),
-                        SQL(", ").join(map(SQL.identifier, columns)),
-                        SQL(", ").join(
-                            SQL("(%s)", SQL(", ").join(row)) for row in rows
-                        ),
-                    )
-                )
-                ids.extend(id_ for (id_,) in cr.fetchall())
-                if subprof.debug:
-                    subprof.stop()
-                    _orm_crud.debug(
-                        "[%.3f ms] _create %s: %d records via INSERT (%d columns)",
-                        subprof.elapsed * 1000,
-                        self._name,
-                        len(stored_list),
-                        len(columns),
-                    )
 
         prof.mark("sql")
 
@@ -523,6 +468,73 @@ class CreateMixin(_ModelStubs):
                 prof.ms("inverses", "end"),
             )
         return records
+
+    def _create_rows_sql(
+        self,
+        stored_list: list[ValuesType],
+        columns: list[str],
+        col_fields: list[Field],
+    ) -> list[int]:
+        """PostgreSQL's half of :meth:`_create`, reached through ``env.backend``.
+
+        Holds the COPY fast path, which the in-memory backend does not have and
+        does not need: ``DISPATCH_SITES`` records that divergence as
+        performance-only, and it is the only one at this site.
+        """
+        cr = self.env.cr
+        ids: list[int] = []
+        use_copy = (
+            not COPY_DISABLED and col_fields and len(stored_list) >= COPY_THRESHOLD
+        )
+        subprof = _OrmProfile(_orm_crud)
+
+        if use_copy:
+            copy_rows = self._build_insert_rows(stored_list, columns, col_fields)
+            batch_ids = cr.copy_from(
+                self._table,
+                columns,
+                copy_rows,
+                returning_ids=True,
+                binary=True,
+            )
+            ids.extend(batch_ids)
+            if subprof.debug:
+                subprof.stop()
+                _orm_crud.debug(
+                    "[%.3f ms] _create %s: %d records via COPY (%d columns)",
+                    subprof.elapsed * 1000,
+                    self._name,
+                    len(stored_list),
+                    len(columns),
+                )
+        else:
+            if col_fields:
+                rows: list[tuple] = self._build_insert_rows(
+                    stored_list, columns, col_fields
+                )
+            else:
+                columns = ["id"]
+                rows = [(SQL_DEFAULT,) for _ in stored_list]
+
+            cr.execute(
+                SQL(
+                    'INSERT INTO %s (%s) VALUES %s RETURNING "id"',
+                    SQL.identifier(self._table),
+                    SQL(", ").join(map(SQL.identifier, columns)),
+                    SQL(", ").join(SQL("(%s)", SQL(", ").join(row)) for row in rows),
+                )
+            )
+            ids.extend(id_ for (id_,) in cr.fetchall())
+            if subprof.debug:
+                subprof.stop()
+                _orm_crud.debug(
+                    "[%.3f ms] _create %s: %d records via INSERT (%d columns)",
+                    subprof.elapsed * 1000,
+                    self._name,
+                    len(stored_list),
+                    len(columns),
+                )
+        return ids
 
     def _populate_create_cache(
         self, ids: list[int], data_list: list[dict]
@@ -612,8 +624,7 @@ class CreateMixin(_ModelStubs):
     def _parent_store_create(self) -> None:
         if not self._parent_store:
             return
-        backend = self.env.backend
-        if backend is not None and not backend.supports_parent_store:
+        if not self.env.backend.supports_parent_store:
             return
 
         updated = self.env.execute_query(

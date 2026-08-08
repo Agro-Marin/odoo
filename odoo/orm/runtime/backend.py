@@ -44,6 +44,29 @@ class StorageBackend(typing.Protocol):
     supports_parent_store: bool
     supports_record_rules: bool
 
+    #: Whether a relational read may be served by fusing a JOIN into the
+    #: comodel's ``Query``. This is NOT a performance knob: the port's
+    #: ``read_m2m_pairs`` takes ids and returns pairs, and has nowhere to put
+    #: the comodel query that carries the comodel's own domain, order and
+    #: access filter. A backend that can fuse runs one query and gets ordering
+    #: for free; one that cannot reads every pair and re-sorts against an
+    #: already-executed query. Two algorithms, not two implementations -- which
+    #: is why this is a declared capability rather than a port method.
+    supports_joined_m2m_read: bool
+
+    #: Whether the backend can answer "the distinct values of one column over
+    #: these ids" cheaply enough to be worth a prefetch.
+    #: ``Reference._reference_exists`` uses it to collapse a per-record model
+    #: lookup into one scan; without it the fallback is correct, just slower.
+    supports_column_scan: bool
+
+    #: Whether stored translations live in a jsonb column the backend can
+    #: compare term by term. ``Char._languages_in_sync_with`` needs that to
+    #: decide which languages echo the one being written; a backend without it
+    #: propagates to nothing, which is a real semantic gap and not a slower
+    #: path -- see DISPATCH_SITES' LOSSY note on textual.py.
+    supports_translation_terms: bool
+
     def create_rows(
         self,
         model: BaseModel,
@@ -71,6 +94,9 @@ class StorageBackend(typing.Protocol):
         offset: int,
         limit: int | None,
         order: str | None,
+        *,
+        check_access: bool = True,
+        prof: typing.Any = None,
     ) -> Query: ...
 
     def as_query(self, model: BaseModel, ordered: bool = True) -> Query: ...
@@ -92,8 +118,9 @@ class StorageBackend(typing.Protocol):
     def delete(
         self,
         model: BaseModel,
-        sub_ids: typing.Iterable[int],
+        sub_ids: tuple[int, ...],
         Data: BaseModel,
+        Defaults: BaseModel,
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]: ...
 
@@ -125,10 +152,172 @@ class StorageBackend(typing.Protocol):
     ) -> None: ...
 
 
+class PostgresBackend:
+    """The production backend: PostgreSQL, through the model's own SQL.
+
+    Until 19.0-marin this class did not exist, and ``env.backend is None`` *was*
+    the PostgreSQL implementation -- an unnamed branch at fifteen sites across
+    nine files. ADR-0011 introduced the port to remove nine ``transaction.storage``
+    sniffs and, measured afterwards, had renamed them rather than removed them:
+    ``fields/reference.py`` said so in its own comment, "this is the inline
+    test-backend sniff ADR-0011 set out to remove, renamed from
+    transaction.storage".
+
+    Three things followed from having no named production implementor. The
+    Protocol described only the test double, so nothing checked that the SQL
+    path honoured its signatures. No differential test was possible, because
+    there was no second object to compare against -- in its place
+    ``orm/tests/test_backend_dispatch_surface.py`` keeps a hand-maintained
+    inventory of known divergences, four of them marked LOSSY. And "am I on
+    PostgreSQL?" was spelled as a null check, which reads as an accident.
+
+    **This adapts the port to the model; it does not move the SQL.** Every
+    method here delegates to a ``_*_sql`` method on the model, which is where
+    the SQL already lived and where it belongs: building it needs
+    ``_field_to_sql``, ``_table_sql``, the field objects and the ``Query`` --
+    model knowledge, not storage knowledge. ``InMemoryBackend`` adapts the same
+    port to ``DictBackend``. Both are adapters; the port is the seam, and now it
+    has two sides that can be run against the same scenarios.
+
+    Stateless, so one instance is shared -- see :data:`POSTGRES_BACKEND`.
+    """
+
+    supports_parent_store: bool = True
+
+    supports_record_rules: bool = True
+
+    supports_joined_m2m_read: bool = True
+
+    supports_column_scan: bool = True
+
+    supports_translation_terms: bool = True
+
+    __slots__ = ()
+
+    def create_rows(
+        self,
+        model: BaseModel,
+        stored_list: list[dict[str, typing.Any]],
+        columns: list[str],
+        col_fields: list[Field],
+    ) -> list[int]:
+        return model._create_rows_sql(stored_list, columns, col_fields)
+
+    def update_rows(
+        self, model: BaseModel, fnames: tuple[str, ...], rows: list[tuple]
+    ) -> None:
+        model._update_rows_sql(fnames, rows)
+
+    def fetch(
+        self,
+        model: BaseModel,
+        query: Query,
+        column_fields: typing.Iterable[Field],
+        other_fields: typing.Iterable[Field],
+    ) -> BaseModel:
+        return model._fetch_query_sql(query, column_fields, other_fields)
+
+    def search(
+        self,
+        model: BaseModel,
+        domain: Domain,
+        offset: int,
+        limit: int | None,
+        order: str | None,
+        *,
+        check_access: bool = True,
+        prof: typing.Any = None,
+    ) -> Query:
+        return model._search_sql(
+            domain, offset, limit, order, check_access=check_access, prof=prof
+        )
+
+    def as_query(self, model: BaseModel, ordered: bool = True) -> Query:
+        return model._as_query_sql(ordered)
+
+    def existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
+        return model._existing_ids_sql(ids)
+
+    def lock_for_update(
+        self, model: BaseModel, *, allow_referencing: bool = False
+    ) -> None:
+        model._lock_for_update_sql(allow_referencing=allow_referencing)
+
+    def try_lock_for_update(
+        self,
+        model: BaseModel,
+        *,
+        allow_referencing: bool = False,
+        limit: int | None = None,
+    ) -> BaseModel:
+        return model._try_lock_for_update_sql(
+            allow_referencing=allow_referencing, limit=limit
+        )
+
+    def delete(
+        self,
+        model: BaseModel,
+        sub_ids: tuple[int, ...],
+        Data: BaseModel,
+        Defaults: BaseModel,
+        Attachment: BaseModel,
+    ) -> tuple[BaseModel, BaseModel]:
+        return model._delete_sql(sub_ids, Data, Defaults, Attachment)
+
+    def read_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        ids: typing.Collection[int],
+    ) -> list[tuple[int, int]]:
+        """Only reached when the caller cannot fuse the join.
+
+        ``supports_joined_m2m_read`` is True here, so ``Many2many.read`` takes
+        the fused path and never calls this. It is implemented anyway because
+        the port declares it and a half-implemented adapter is worse than a
+        slower one -- and because a caller that holds no comodel query has
+        nothing to fuse.
+        """
+        return model._read_m2m_pairs_sql(relation, column1, column2, ids)
+
+    def link_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None:
+        model._link_m2m_pairs_sql(relation, column1, column2, pairs)
+
+    def unlink_m2m_pairs(
+        self,
+        model: BaseModel,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None:
+        model._unlink_m2m_pairs_sql(relation, column1, column2, pairs)
+
+
+#: Stateless, so the transaction shares one rather than building a new one per
+#: request. ``InMemoryBackend`` cannot be shared -- it holds the ``DictBackend``.
+POSTGRES_BACKEND = PostgresBackend()
+
+
 class InMemoryBackend:
     supports_parent_store: bool = False
 
     supports_record_rules: bool = False
+
+    supports_joined_m2m_read: bool = False
+
+    supports_column_scan: bool = False
+
+    supports_translation_terms: bool = False
 
     __slots__ = ("storage",)
 
@@ -241,6 +430,9 @@ class InMemoryBackend:
         offset: int,
         limit: int | None,
         order: str | None,
+        *,
+        check_access: bool = True,
+        prof: typing.Any = None,
     ) -> Query:
         model.env.flush_all()
 
@@ -331,8 +523,9 @@ class InMemoryBackend:
     def delete(
         self,
         model: BaseModel,
-        sub_ids: typing.Iterable[int],
+        sub_ids: tuple[int, ...],
         Data: BaseModel,
+        Defaults: BaseModel,
         Attachment: BaseModel,
     ) -> tuple[BaseModel, BaseModel]:
         self.storage.delete_rows(model._table, list(sub_ids))

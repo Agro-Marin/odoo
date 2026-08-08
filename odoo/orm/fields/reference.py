@@ -103,7 +103,7 @@ class Reference(Selection):
             and len(prefetch_ids) > 1
             and self.store
             and self.column_type
-            and env.backend is None
+            and env.backend.supports_column_scan
         ):
             env.cr.execute(
                 SQL(

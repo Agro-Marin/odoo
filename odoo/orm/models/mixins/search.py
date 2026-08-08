@@ -304,9 +304,9 @@ class SearchMixin(_ModelStubs):
 
     @api.private
     def lock_for_update(self, *, allow_referencing: bool = False) -> None:
-        if (backend := self.env.backend) is not None:
-            backend.lock_for_update(self, allow_referencing=allow_referencing)
-            return
+        self.env.backend.lock_for_update(self, allow_referencing=allow_referencing)
+
+    def _lock_for_update_sql(self, *, allow_referencing: bool = False) -> None:
         ids = {id_ for id_ in self._ids if id_}
         if not ids:
             return
@@ -326,10 +326,13 @@ class SearchMixin(_ModelStubs):
     def try_lock_for_update(
         self, *, allow_referencing: bool = False, limit: int | None = None
     ) -> Self:
-        if (backend := self.env.backend) is not None:
-            return backend.try_lock_for_update(
-                self, allow_referencing=allow_referencing, limit=limit
-            )
+        return self.env.backend.try_lock_for_update(
+            self, allow_referencing=allow_referencing, limit=limit
+        )
+
+    def _try_lock_for_update_sql(
+        self, *, allow_referencing: bool = False, limit: int | None = None
+    ) -> Self:
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
         if limit is not None and len(new_ids) >= limit:
             return self.browse(new_ids[:limit])

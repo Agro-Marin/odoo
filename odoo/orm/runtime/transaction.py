@@ -16,7 +16,7 @@ from ..components.cache import FieldCache
 from ..components.compute import ComputeEngine
 from ..components.core import OrmCore
 from ..components.unit_of_work import UnitOfWork
-from .backend import InMemoryBackend
+from .backend import POSTGRES_BACKEND, InMemoryBackend
 from .cache_compat import Cache
 from .registry import Registry
 
@@ -80,12 +80,18 @@ class Transaction:
     def __init__(self, registry: Registry, storage=None):
         self.registry = registry
         # `storage` is consumed here and not retained.  It used to be kept as
-        # `self.storage`, which was the channel six CRUD mixins sniffed to ask
-        # "am I on the test backend?"; ADR-0011 replaced those sniffs with the
-        # `env.backend` port and left the attribute behind.  Nothing has read it
-        # since -- verified across odoo/, enterprise/ and agromarin/ -- so it is
-        # gone; `backend` is the whole of what callers need.
-        self.backend = InMemoryBackend(storage) if storage is not None else None
+        # `self.storage`, the channel six CRUD mixins sniffed to ask "am I on the
+        # test backend?"; ADR-0011 replaced those sniffs with the `env.backend`
+        # port and left the attribute behind, with no reader since.
+        #
+        # And `backend` is non-optional.  It was `... else None`, which made
+        # `env.backend is None` the PostgreSQL implementation -- an unnamed
+        # branch at fifteen sites across nine files.  `PostgresBackend` is that
+        # branch, named, so the null check is gone and the Protocol describes
+        # production as well as the test double.
+        self.backend = (
+            InMemoryBackend(storage) if storage is not None else POSTGRES_BACKEND
+        )
         self.envs: _EnvironmentSet = _EnvironmentSet()
         self.default_env: Environment | None = None
         self._last_env: weakref_ref[Environment] | None = None

@@ -271,10 +271,9 @@ class WriteMixin(_ModelStubs):
             )
 
     def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
-        if (backend := self.env.backend) is not None:
-            backend.update_rows(self, fnames, rows)
-            return
+        self.env.backend.update_rows(self, fnames, rows)
 
+    def _update_rows_sql(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
         columns = []
         assignments = []
         for fname in fnames:
@@ -331,8 +330,7 @@ class WriteMixin(_ModelStubs):
     def _parent_store_update_prepare(self, vals_list: list[ValuesType]) -> Self:
         if not self._parent_store:
             return self.browse()
-        backend = self.env.backend
-        if backend is not None and not backend.supports_parent_store:
+        if not self.env.backend.supports_parent_store:
             return self.browse()
 
         parent_to_ids = defaultdict(list)

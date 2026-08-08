@@ -31,7 +31,11 @@ def _signature_call_sites() -> list[tuple[str, int, bool]]:
     sites: list[tuple[str, int, bool]] = []
     for path in sorted(_CORE.rglob("*.py")):
         rel = path.relative_to(_CORE).as_posix()
-        if rel.startswith("addons/") or "tests/" in rel or path.name.startswith("test_"):
+        if (
+            rel.startswith("addons/")
+            or "tests/" in rel
+            or path.name.startswith("test_")
+        ):
             continue
         try:
             tree = ast.parse(path.read_text())
@@ -87,7 +91,9 @@ def _make_callable(body: str):
 def test_route_param_filter_survives_type_checking_annotation():
     from odoo.http.routing import _route_param_filter
 
-    ns = _make_callable("def endpoint(self, thing: Environment, limit: int = 10):\n    return thing")
+    ns = _make_callable(
+        "def endpoint(self, thing: Environment, limit: int = 10):\n    return thing"
+    )
     accepts_kw, named, bound = _route_param_filter(ns["endpoint"])
     assert named == frozenset({"thing", "limit"})
     assert bound == "self"
@@ -97,7 +103,9 @@ def test_route_param_filter_survives_type_checking_annotation():
 def test_build_param_specs_leaves_unresolvable_annotation_uncoerced():
     from odoo.http._params import build_param_specs
 
-    ns = _make_callable("def endpoint(self, thing: Environment, limit: int = 10):\n    return thing")
+    ns = _make_callable(
+        "def endpoint(self, thing: Environment, limit: int = 10):\n    return thing"
+    )
     specs = build_param_specs(ns["endpoint"])
     # The concrete annotation still coerces...
     assert specs["limit"].target is int

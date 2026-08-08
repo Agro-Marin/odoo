@@ -10,7 +10,18 @@ _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 _MIXINS_DIR = _ORM_DIR / "models" / "mixins"
 _DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields")
 
-_ATTRIBUTE_MEMBERS = {"supports_parent_store", "supports_record_rules"}
+#: Declared *capabilities*, not operations: they are read as attributes, so a
+#: "dispatch site" for them is an ``if`` rather than a call. Three were added
+#: when PostgresBackend was extracted, for the sites where the two backends run
+#: genuinely different algorithms rather than two implementations of one -- see
+#: their docstrings on the Protocol.
+_ATTRIBUTE_MEMBERS = {
+    "supports_parent_store",
+    "supports_record_rules",
+    "supports_joined_m2m_read",
+    "supports_column_scan",
+    "supports_translation_terms",
+}
 
 
 def _protocol_methods() -> set[str]:
@@ -58,6 +69,28 @@ def test_supports_record_rules_is_consulted():
         for path in _MIXINS_DIR.rglob("*.py")
     )
     assert consulted, "supports_record_rules attribute is never consulted"
+
+
+def test_every_capability_is_consulted_somewhere():
+    """A capability nothing reads is a claim, not a switch."""
+    text = "".join(
+        path.read_text()
+        for directory in _DISPATCH_DIRS
+        for path in directory.rglob("*.py")
+    )
+    unread = sorted(m for m in _ATTRIBUTE_MEMBERS if f"backend.{m}" not in text)
+    assert not unread, (
+        f"capability flag(s) declared on StorageBackend but consulted nowhere: "
+        f"{unread}. Either a site should branch on it, or it should not exist."
+    )
+
+
+def test_both_backends_declare_every_capability():
+    from odoo.orm.runtime.backend import PostgresBackend
+
+    for backend in (InMemoryBackend, PostgresBackend):
+        missing = sorted(m for m in _ATTRIBUTE_MEMBERS if not hasattr(backend, m))
+        assert not missing, f"{backend.__name__} does not declare: {missing}"
 
 
 if __name__ == "__main__":

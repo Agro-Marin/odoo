@@ -1298,13 +1298,26 @@ class TestSeams(unittest.TestCase):
             self.assertIn(f"`{named}`", DOC, f"the page no longer names {named}")
 
     def test_transaction_storage_sniffing_is_gone(self) -> None:
-        """ADR-0011's claim: production CRUD no longer reads transaction.storage."""
+        """ADR-0011's claim: production CRUD no longer reads transaction.storage.
+
+        And, since the 2026-08-08 amendment, does not sniff via ``env.backend is
+        None`` either -- which is what ADR-0011 actually left behind. The null
+        check WAS the PostgreSQL implementation, so grepping only for
+        ``transaction.storage`` reported the sniff gone while it had merely been
+        renamed. Both spellings are checked now, across the mixins AND the two
+        Layer-1 field modules that carried four of the fifteen sites.
+        """
         self.assertIn("no longer sniffs the test backend via", DOC_FLAT)
-        mixins = ROOT / "odoo" / "orm" / "models" / "mixins"
+        scopes = [
+            ROOT / "odoo" / "orm" / "models" / "mixins",
+            ROOT / "odoo" / "orm" / "fields",
+        ]
         offenders = [
-            p.relative_to(ROOT)
-            for p in mixins.rglob("*.py")
-            if "transaction.storage" in p.read_text(encoding="utf-8")
+            (p.relative_to(ROOT), needle)
+            for directory in scopes
+            for p in directory.rglob("*.py")
+            for needle in ("transaction.storage", "backend is None", "backend is not None")
+            if needle in p.read_text(encoding="utf-8")
         ]
         self.assertEqual([], offenders)
 

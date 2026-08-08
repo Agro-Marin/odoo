@@ -458,10 +458,19 @@ cross-layer dependency means adding a seam, not an import.
   injects `BaseModel` at import time via `set_base_model()` — so Layer 1 never
   imports Layer 2 (ADR-0001).
 - **CRUD ↔ persistence backend:** the model mixins (`create`/`write`/`read`/
-  `search`/`unlink`) dispatch row I/O through `env.backend` — `None` takes the
-  PostgreSQL fast path (SQL inline), a non-`None`
-  `runtime/backend.py::InMemoryBackend` owns the DB-free variant. Production CRUD
-  no longer sniffs the test backend via `transaction.storage` (ADR-0011).
+  `search`/`unlink`) dispatch row I/O through `env.backend`, which is
+  **non-optional** and has two implementors: `PostgresBackend` adapts the port to
+  the model's own `_*_sql` methods and `runtime/backend.py::InMemoryBackend`
+  adapts it to `DictBackend` (ADR-0011 and its 2026-08-08 amendment). Production
+  CRUD no longer sniffs the test backend via `transaction.storage`, and since
+  2026-08-08 it does not sniff it via a null check either. Until then `env.backend is None` *was*
+  the PostgreSQL implementation — an unnamed branch at fifteen sites across nine
+  files, which meant the Protocol described only the test double and a
+  differential suite had one object to compare against. Three sites still branch,
+  on declared capabilities rather than a null check, because there the two
+  backends run different algorithms rather than two implementations of one; the
+  sharpest is `Many2many.read`, where the SQL path fuses a JOIN into the comodel's
+  `Query` and the port's signature has nowhere to put it.
 - **Framework ↔ addon-owned models:** the core reaches application models by
   string key (`env["res.users"]`), never by import. That is deliberate, and it is
   the one seam with no import edge at all, so it has its own gate — see

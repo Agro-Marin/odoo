@@ -198,7 +198,7 @@ class Environment(Mapping[str, "BaseModel"]):
         return self.transaction.core
 
     @property
-    def backend(self) -> StorageBackend | None:
+    def backend(self) -> StorageBackend:
         return self.transaction.backend
 
     @functools.cached_property

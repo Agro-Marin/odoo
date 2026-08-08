@@ -60,6 +60,30 @@ class Many2many(_RelationalMulti):
             **kwargs,
         )
 
+    def _relation_columns(self) -> tuple[str, str, str]:
+        """The relation table and its two columns -- for the row-I/O paths only.
+
+        All three are declared ``str | None`` because a ``Many2many`` exists
+        before setup runs.  After it they are None together or set together:
+        :meth:`setup_nonrelated` fills all three when ``store`` and clears all
+        three when not.  Row I/O only ever happens on a stored field, so on
+        those paths the union's None arm is unreachable.
+
+        Stating that once matters more than it looks.  These three were the
+        subject of six ``SQL.identifier(str | None)`` reports until the SQL
+        behind them moved into ``_query.py``, whose parameters are declared
+        ``str`` -- at which point the reports vanished *without the None-ness
+        going anywhere*, because ``env.backend`` reaches Layer 1 through
+        ``_ModelStubs.env: Any``, so the port calls are unchecked.  Six fewer
+        findings, exactly as much risk.  This accessor is what makes the
+        narrowing real rather than invisible.
+        """
+        relation, column1, column2 = self.relation, self.column1, self.column2
+        assert relation and column1 and column2, (
+            f"{self}: row I/O before setup resolved the relation table"
+        )
+        return relation, column1, column2
+
     @override
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
@@ -207,10 +231,19 @@ class Many2many(_RelationalMulti):
             ) from e
 
         group = defaultdict(list)
-        if (backend := records.env.backend) is not None:
+        relation, column1, column2 = self._relation_columns()
+        backend = records.env.backend
+        if not backend.supports_joined_m2m_read:
+            # NOT the same operation as the branch below, which is why this is a
+            # declared capability and not a port call. The SQL path fuses a JOIN
+            # into `query` -- the comodel's query, already carrying its domain,
+            # order and access filter -- and gets one statement and the ordering
+            # for free. `read_m2m_pairs` takes ids and returns pairs; it has
+            # nowhere to put that query, so a backend without the fusion must
+            # read every pair and re-sort against an already-executed query.
             position = {id2: index for index, id2 in enumerate(query.get_result_ids())}
             pairs = backend.read_m2m_pairs(
-                records, self.relation, self.column1, self.column2, records.ids
+                records, relation, column1, column2, records.ids
             )
             for id1, id2 in pairs:
                 if id2 in position:
@@ -218,11 +251,11 @@ class Many2many(_RelationalMulti):
             for ids2 in group.values():
                 ids2.sort(key=position.__getitem__)
         else:
-            sql_id1 = SQL.identifier(self.relation, self.column1)
-            sql_id2 = SQL.identifier(self.relation, self.column2)
+            sql_id1 = SQL.identifier(relation, column1)
+            sql_id2 = SQL.identifier(relation, column2)
             query.add_join(
                 "JOIN",
-                self.relation,
+                relation,
                 None,
                 SQL(
                     "%s = %s",
@@ -262,20 +295,9 @@ class Many2many(_RelationalMulti):
         pairs = [(x, y) for x, ys in new_relation.items() for y in ys - old_relation[x]]
         if pairs:
             if store:
-                if (backend := records.env.backend) is not None:
-                    backend.link_m2m_pairs(
-                        records, self.relation, self.column1, self.column2, pairs
-                    )
-                else:
-                    records.env.cr.execute(
-                        SQL(
-                            "INSERT INTO %s (%s, %s) VALUES %s ON CONFLICT DO NOTHING",
-                            SQL.identifier(self.relation),
-                            SQL.identifier(self.column1),
-                            SQL.identifier(self.column2),
-                            SQL(", ").join(pairs),
-                        )
-                    )
+                records.env.backend.link_m2m_pairs(
+                    records, *self._relation_columns(), pairs
+                )
 
             y_to_xs = defaultdict(OrderedSet)
             for x, y in pairs:
@@ -308,30 +330,9 @@ class Many2many(_RelationalMulti):
                 modified_corecord_ids.add(y)
 
             if store:
-                if (backend := records.env.backend) is not None:
-                    backend.unlink_m2m_pairs(
-                        records, self.relation, self.column1, self.column2, pairs
-                    )
-                else:
-                    xs_to_ys = defaultdict(set)
-                    for y, xs in y_to_xs.items():
-                        xs_to_ys[frozenset(xs)].add(y)
-                    records.env.cr.execute(
-                        SQL(
-                            "DELETE FROM %s WHERE %s",
-                            SQL.identifier(self.relation),
-                            SQL(" OR ").join(
-                                SQL(
-                                    "%s = ANY(%s) AND %s = ANY(%s)",
-                                    SQL.identifier(self.column1),
-                                    list(xs),
-                                    SQL.identifier(self.column2),
-                                    list(ys),
-                                )
-                                for xs, ys in xs_to_ys.items()
-                            ),
-                        )
-                    )
+                records.env.backend.unlink_m2m_pairs(
+                    records, *self._relation_columns(), pairs
+                )
 
             for invf in records.pool.field_inverses[self]:
                 inv_cache = invf._get_cache(comodel.env)
@@ -521,7 +522,7 @@ class Many2many(_RelationalMulti):
     ) -> SQL:
         if coquery.is_empty():
             return SQL("FALSE") if exists else SQL("TRUE")
-        rel_table, rel_id1, rel_id2 = self.relation, self.column1, self.column2
+        rel_table, rel_id1, rel_id2 = self._relation_columns()
         rel_alias = query.make_alias(alias, self.name)
         if not coquery.where_clause:
             return SQL(

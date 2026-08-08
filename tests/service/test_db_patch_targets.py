@@ -53,7 +53,7 @@ _STRING_TARGET = re.compile(r'["\']odoo\.service\.db\.([A-Za-z_][\w.]*)["\']')
 _ALIAS_BINDING = re.compile(
     r"^\s*(?:import\s+odoo\.service\.db\s+as\s+(\w+)"
     r"|from\s+odoo\.service\s+import\s+db(?:\s+as\s+(\w+))?)",
-    re.M,
+    re.MULTILINE,
 )
 
 
@@ -72,8 +72,7 @@ def _object_targets(text: str):
             + re.escape(alias)
             + r"\s*,\s*[\"']([A-Za-z_]\w*)[\"']"
         )
-        for m in pattern.finditer(text):
-            yield m
+        yield from pattern.finditer(text)
 
 
 #: Trees that may patch this package. Kept explicit so a new one is a decision.

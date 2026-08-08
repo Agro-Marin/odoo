@@ -147,6 +147,7 @@ class TestUpdateCacheItems:
         ``env`` as ``Environment``, a name imported only under
         ``if TYPE_CHECKING:`` -- so ``signature()`` raises ``NameError`` here.
         """
+
         def params(func):
             return func.__code__.co_varnames[: func.__code__.co_argcount]
 

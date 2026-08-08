@@ -90,9 +90,12 @@ def test_teardown_call_sites_use_forget_not_delete():
 
     root = pathlib.Path(reg_mod.__file__).resolve().parents[3]
     expected = {
-        # _drop_database, _rename_database (old name); both live in the
-        # lifecycle module since service/db.py became a package.
-        "odoo/service/db/lifecycle.py": 2,
+        # ADR-0014 split service/db.py into a package; the two teardown calls
+        # live with the DDL that performs them. This test read the old path and
+        # broke on FileNotFoundError when that landed -- caught late, because
+        # that change verified `tests/service` and Tier 1 but not Tier 2, which
+        # is the "pass all three paths" trap odoo/CLAUDE.md names.
+        "odoo/service/db/lifecycle.py": 2,  # _drop_database, _rename_database
         "odoo/http/_serve.py": 1,  # db_absent after a RegistryError
     }
     for rel, count in expected.items():

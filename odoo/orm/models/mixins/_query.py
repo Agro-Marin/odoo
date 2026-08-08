@@ -1,5 +1,6 @@
 import logging
 import typing
+from collections import defaultdict
 from typing import Self
 
 from odoo.exceptions import UserError
@@ -182,16 +183,42 @@ class _QueryMixin(_ModelStubs):
         if domain.is_false():
             return self.browse()._as_query()
 
-        if (backend := self.env.backend) is not None:
-            if check_access and not backend.supports_record_rules:
-                raise NotImplementedError(
-                    f"{type(backend).__name__} does not enforce ir.rule record "
-                    f"rules, so it cannot serve an access-checked search on "
-                    f"{self._name}. Use a database-backed test tier, or pass "
-                    f"bypass_access=True if the caller is genuinely trusted."
-                )
-            return backend.search(self, domain, offset, limit, order)
+        backend = self.env.backend
+        if check_access and not backend.supports_record_rules:
+            raise NotImplementedError(
+                f"{type(backend).__name__} does not enforce ir.rule record "
+                f"rules, so it cannot serve an access-checked search on "
+                f"{self._name}. Use a database-backed test tier, or pass "
+                f"bypass_access=True if the caller is genuinely trusted."
+            )
+        return backend.search(
+            self, domain, offset, limit, order, check_access=check_access, prof=prof
+        )
 
+    def _search_sql(
+        self,
+        domain: Domain,
+        offset: int | None,
+        limit: int | None,
+        order: str | None,
+        *,
+        check_access: bool,
+        prof: typing.Any = None,
+    ) -> Query:
+        """PostgreSQL's half of :meth:`_search`, reached through ``env.backend``.
+
+        It applies the ``ir.rule`` domain itself, which is what
+        ``PostgresBackend.supports_record_rules = True`` claims: a backend that
+        says it enforces record rules is the one that has to. The *policy* still
+        comes from the model (``env["ir.rule"]._compute_domain``); what happens
+        here is turning it into SQL, which is the same thing the user domain
+        two lines above gets.
+
+        ``prof`` is threaded in rather than restarted so the marks stay on one
+        timeline with the ``acl`` mark ``_search`` takes before dispatching.
+        """
+        if prof is None:
+            prof = _OrmProfile(_orm_read)
         query = Query(self.env, self._table, self._table_sql)
         if not domain.is_true():
             query.add_where(domain._to_sql(self, self._table, query))
@@ -231,11 +258,82 @@ class _QueryMixin(_ModelStubs):
         return query
 
     def _as_query(self, ordered: bool = True) -> Query:
-        if (backend := self.env.backend) is not None:
-            return backend.as_query(self, ordered)
+        return self.env.backend.as_query(self, ordered)
+
+    def _as_query_sql(self, ordered: bool = True) -> Query:
         query = Query(self.env, self._table, self._table_sql)
         query.set_result_ids(self._ids, ordered)
         return query
+
+    def _read_m2m_pairs_sql(
+        self, relation: str, column1: str, column2: str, ids: typing.Collection[int]
+    ) -> list[tuple[int, int]]:
+        """Unfused pair read. See ``supports_joined_m2m_read``.
+
+        ``Many2many.read`` never reaches this on PostgreSQL, because it can fuse
+        the join into the comodel query instead. It exists so the adapter
+        implements the whole port rather than most of it.
+        """
+        sql_id1 = SQL.identifier(relation, column1)
+        sql_id2 = SQL.identifier(relation, column2)
+        rows = self.env.execute_query(
+            SQL(
+                "SELECT %s, %s FROM %s WHERE %s = ANY(%s)",
+                sql_id1,
+                sql_id2,
+                SQL.identifier(relation),
+                sql_id1,
+                list(ids),
+            )
+        )
+        return [(id1, id2) for id1, id2 in rows]
+
+    def _link_m2m_pairs_sql(
+        self,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None:
+        self.env.cr.execute(
+            SQL(
+                "INSERT INTO %s (%s, %s) VALUES %s ON CONFLICT DO NOTHING",
+                SQL.identifier(relation),
+                SQL.identifier(column1),
+                SQL.identifier(column2),
+                SQL(", ").join(pairs),
+            )
+        )
+
+    def _unlink_m2m_pairs_sql(
+        self,
+        relation: str,
+        column1: str,
+        column2: str,
+        pairs: typing.Iterable[tuple[int, int]],
+    ) -> None:
+        xs_to_ys: dict[frozenset, set] = defaultdict(set)
+        y_to_xs: dict[typing.Any, set] = defaultdict(set)
+        for x, y in pairs:
+            y_to_xs[y].add(x)
+        for y, xs in y_to_xs.items():
+            xs_to_ys[frozenset(xs)].add(y)
+        self.env.cr.execute(
+            SQL(
+                "DELETE FROM %s WHERE %s",
+                SQL.identifier(relation),
+                SQL(" OR ").join(
+                    SQL(
+                        "%s = ANY(%s) AND %s = ANY(%s)",
+                        SQL.identifier(column1),
+                        list(xs),
+                        SQL.identifier(column2),
+                        list(ys),
+                    )
+                    for xs, ys in xs_to_ys.items()
+                ),
+            )
+        )
 
     def _traverse_related_sql(
         self, alias: str, field: Field, query: Query
@@ -297,13 +395,11 @@ class _QueryMixin(_ModelStubs):
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
         if not ids:
             return self
-        if (backend := self.env.backend) is not None:
-            valid_ids = {*backend.existing_ids(self, ids), *new_ids}
-            return self.browse(i for i in self._ids if i in valid_ids)
-        query = Query(self.env, self._table, self._table_sql)
-        query.add_where(
-            SQL("%s = ANY(%s)", SQL.identifier(self._table, "id"), list(ids))
-        )
-        real_ids = (id_ for [id_] in self.env.execute_query(query.select()))
-        valid_ids = {*real_ids, *new_ids}
+        valid_ids = {*self.env.backend.existing_ids(self, ids), *new_ids}
         return self.browse(i for i in self._ids if i in valid_ids)
+
+    def _existing_ids_sql(self, ids: typing.Iterable[int]) -> set[int]:
+        ids = list(ids)
+        query = Query(self.env, self._table, self._table_sql)
+        query.add_where(SQL("%s = ANY(%s)", SQL.identifier(self._table, "id"), ids))
+        return {id_ for [id_] in self.env.execute_query(query.select())}

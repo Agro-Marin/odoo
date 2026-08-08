@@ -25,7 +25,6 @@ class CopyMixin(_ModelStubs):
                 f"twice over would yield a single copy."
             )
 
-
         vals_list = []
         default = dict(default or {})
         if "__copy_data_seen" not in self.env.context:
