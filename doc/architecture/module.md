@@ -359,14 +359,25 @@ invisible to `layer_check`, and measured by nothing until 2026-08-08 while being
 reached. Each composition carries its own floors and a drift in either fails.
 
 The first run found what the absence of a gate had allowed: a 2-cycle,
-`_field_convert` ⇄ `base.py`. `base.py` reaches conversion from the descriptor
+`_field_convert` ⇄ `base.py`. `base.py` reached conversion from the descriptor
 protocol (`convert_to_cache` / `convert_to_record` / `convert_to_write`) and
-conversion reaches back for *declared attributes* (`column_type`,
-`company_dependent`, `translate`, …). That is the shape `BaseModel` had before
-2026-08a, and the same fix applies — the metadata belongs on a leaf, as
-`_metadata` / `_properties` / `_magic_fields` are for models. `Field` has ~40
-declared attributes, so the floor records the tangle rather than pretending it
-away, and stops it growing meanwhile.
+conversion reached back for *declared attributes* (`column_type`,
+`company_dependent`, `translate`, `_is_context_dependent`,
+`_company_dependent_fallback_raw`) — it had been there, unmeasured, for as long
+as the split existed.
+
+It was the shape `BaseModel` had before 2026-08a, and it was broken the same
+way: by moving the declarations off the composition root. `_FieldMetadataMixin`
+(`fields/_field_metadata.py`) holds the **column-shape** cluster — what a field
+*is*, as a column, and what derives from that — so conversion, SQL generation
+and description can ask that question without reaching the root.
+`cyclic_edges` 2 → 0, `max_scc` 2 → 1. **Both ORM compositions are now DAGs**,
+and both gates forbid a cycle rather than bounding one.
+
+The leaf is deliberately the column shape rather than all ~40 of `Field`'s
+declared attributes: that cluster is what conversion, SQL and description
+actually ask for, and it is the only one whose removal moves the graph. Widening
+it further would be a larger move with no gate movement to show for it.
 
 For `Field` the units are the mixin composition only. Concrete field types are
 *subclasses*, and they override base methods freely — `BaseString` overrides six

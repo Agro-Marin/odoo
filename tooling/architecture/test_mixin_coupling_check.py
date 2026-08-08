@@ -373,7 +373,13 @@ class TestFieldComposition(unittest.TestCase):
 
     def test_it_collects_the_mixin_composition_and_nothing_else(self):
         self.assertEqual(
-            {"base.py", "_field_convert", "_field_description", "_field_sql"},
+            {
+                "base.py",
+                "_field_convert",
+                "_field_description",
+                "_field_metadata",
+                "_field_sql",
+            },
             set(self.units),
         )
 
@@ -391,29 +397,45 @@ class TestFieldComposition(unittest.TestCase):
     def test_the_stub_module_is_excluded(self):
         self.assertNotIn("_field_stubs", self.units)
 
-    def test_the_known_cycle_is_the_one_recorded(self):
-        """Pinned as a finding, not as an accident.
+    def test_the_composition_is_a_dag(self):
+        """It was not when this gate first ran.
 
-        The first run of this gate found it. Both endpoints are named so that
-        fixing it is a visible diff here rather than a silent baseline edit.
+        The first run found ``_field_convert`` <-> ``base.py``. These
+        assertions named both endpoints so that fixing it would be a visible
+        diff here rather than a silent baseline edit -- and it was: they failed
+        the moment the cycle went, which is what turned them into these.
         """
-        self.assertEqual([["_field_convert", "base.py"]], self.m["sccs"])
-        self.assertEqual(mcc.FIELD_BASELINE["cyclic_edges"], self.m["cyclic_edges"])
+        self.assertEqual([], self.m["sccs"])
+        self.assertEqual(0, self.m["cyclic_edges"])
+        self.assertEqual(0, mcc.FIELD_BASELINE["cyclic_edges"])
 
-    def test_the_cycle_is_root_versus_declared_metadata(self):
-        """Which is why the fix is the one ``models/`` already made.
+    def test_the_metadata_leaf_is_a_leaf(self):
+        """The property that broke the cycle, and the one that can silently rot.
 
-        ``base.py`` reaches conversion from the descriptor protocol; conversion
-        reaches back for *declared attributes*. That is the shape ``BaseModel``
-        had before its metadata went onto a leaf.
+        ``base.py`` still reaches conversion from the descriptor protocol --
+        that edge is fine, one direction is a DAG edge. What must not come back
+        is conversion reaching the root: it now asks ``_field_metadata`` what a
+        field *is*, and that unit reaches nothing, so nothing that uses it can
+        close a cycle through it.
         """
         edges, _ = mcc.build_edges(self.units)
         self.assertLessEqual(
             {"convert_to_cache", "convert_to_record", "convert_to_write"},
             edges["base.py"]["_field_convert"],
         )
-        back = edges["_field_convert"]["base.py"]
-        self.assertLessEqual({"column_type", "company_dependent", "translate"}, back)
+        self.assertNotIn(
+            "base.py",
+            edges.get("_field_convert", {}),
+            "conversion reaches the composition root again -- that is the "
+            "back-edge _FieldMetadataMixin was extracted to remove",
+        )
+        self.assertLessEqual(
+            {"column_type", "company_dependent", "translate"},
+            edges["_field_convert"]["_field_metadata"],
+        )
+        self.assertEqual(
+            {}, edges.get("_field_metadata", {}), "_field_metadata must stay a leaf"
+        )
 
     def test_it_has_its_own_floors(self):
         """Two graphs, two baselines -- neither may mask the other."""

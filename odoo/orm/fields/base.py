@@ -27,6 +27,7 @@ from ..domain import Domain
 from ..primitives import COLLECTION_TYPES, STATE_FIELD
 from ._field_convert import _FieldConvertMixin
 from ._field_description import _FieldDescriptionMixin
+from ._field_metadata import _FieldMetadataMixin
 from ._field_sql import _FieldSqlMixin
 
 if typing.TYPE_CHECKING:
@@ -139,10 +140,11 @@ def determine(
 _global_seq = itertools.count()
 
 
-class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
+class Field[T](
+    _FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin, _FieldMetadataMixin
+):
     type: str
     relational: bool = False
-    translate: bool = False
     is_text: bool = False
     falsy_value: T | None = None
 
@@ -163,7 +165,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     Custom field types with similar dependencies should override this attribute.
     """
-    _column_type: tuple[str, str] | None = None
 
     _args__: dict[str, typing.Any] | None = None
     _module: str | None = None
@@ -178,8 +179,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     inherited: bool = False
     inherited_field: Field | None = None
 
-    name: str = ""
-    model_name: str = ""
     comodel_name: str | None = None
     context: ContextType = {}
     """Extra context a relational field applies to its comodel.
@@ -192,7 +191,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     on a computed scalar raised ``AttributeError`` on every read of that field.
     """
 
-    store: bool = True
     index: str | None = None
     manual: bool = False
     copy: bool = True
@@ -205,7 +203,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     inverse: str | Callable[[BaseModel], None] | None = None
     search: str | Callable[[BaseModel, str, typing.Any], DomainType] | None = None
     related: str | None = None
-    company_dependent: bool = False
     default: Callable[[ModelLike], T] | T | None = None
 
     string: str | None = None
@@ -603,29 +600,12 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     _related_aggregator = property(attrgetter("aggregator"))
 
     @functools.cached_property
-    def column_type(self) -> tuple[str, str] | None:
-        return (
-            ("jsonb", "jsonb")
-            if self.company_dependent or self.translate
-            else self._column_type
-        )
-
-    @functools.cached_property
-    def is_column(self) -> bool:
-        return bool(self.store and self.column_type)
-
-    @functools.cached_property
     def is_stored_computed(self) -> bool:
         return bool(self.compute and self.store)
 
     @property
     def base_field(self) -> Self:
         return self.inherited_field.base_field if self.inherited_field else self
-
-    def _company_dependent_fallback_raw(self, records: BaseModel) -> typing.Any:
-        return records.env._ir_defaults._get_model_defaults(records._name).get(
-            self.name
-        )
 
     def get_company_dependent_fallback(self, records: BaseModel) -> typing.Any:
         assert self.company_dependent
@@ -878,9 +858,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         cache_value = self.convert_to_cache(value, records)
         records = self._filter_not_equal(records, cache_value)
         return records, cache_value
-
-    def _is_context_dependent(self, env: Environment) -> bool:
-        return self in env._field_depends_context
 
     def _get_cache(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
         field_cache = env._field_cache_memo.get(self)

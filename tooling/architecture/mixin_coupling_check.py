@@ -24,7 +24,8 @@ each with its own floors, and a drift in either fails.
 
 The first run of the ``Field`` graph found a 2-cycle, ``_field_convert`` <->
 ``base.py`` — see :data:`FIELD_BASELINE`. That is what generalising the gate was
-worth: the tangle was there, and nothing could see it.
+worth: the tangle was there, unmeasured, and nothing could see it. It is fixed,
+and both compositions are DAGs.
 
 For ``Field`` the units are the mixin composition only. Concrete field types
 (``BaseString(Field[...])``, ``Many2many(_RelationalMulti)``) are *subclasses*;
@@ -219,22 +220,25 @@ BASELINE = {
 #: graphs answer the same question about different classes and must not mask
 #: each other.
 #:
-#: These are NOT zero, and that is the honest state on the day the gate was
-#: written: ``Field``'s composition has a 2-cycle, ``_field_convert`` <->
-#: ``base``. ``base`` reaches conversion (``convert_to_cache`` /
-#: ``convert_to_record`` / ``convert_to_write``, from the descriptor protocol)
-#: and conversion reaches back for declared metadata (``column_type``,
-#: ``company_dependent``, ``translate``, ``_is_context_dependent``,
-#: ``_company_dependent_fallback_raw``).
-#:
-#: It is the same shape ``BaseModel`` had before 2026-08a, and the same fix
-#: applies: the metadata belongs on a leaf, as ``_metadata`` / ``_properties`` /
-#: ``_magic_fields`` are for models. That is a real refactor of ``Field``'s
-#: ~40 declared attributes, so it is not bundled here -- the floor records the
-#: tangle rather than pretending it away, and stops it growing meanwhile.
+#: History:
+#:  * first recorded at ``max_scc`` 2 / ``cyclic_edges`` 2. The gate's first run
+#:    on this composition found a 2-cycle, ``_field_convert`` <-> ``base.py``:
+#:    ``base.py`` reached conversion (``convert_to_cache`` /
+#:    ``convert_to_record`` / ``convert_to_write``, from the descriptor
+#:    protocol) and conversion reached back for declared metadata
+#:    (``column_type``, ``company_dependent``, ``translate``,
+#:    ``_is_context_dependent``, ``_company_dependent_fallback_raw``). It had
+#:    been there, unmeasured, for as long as the split existed.
+#:  * broken the way ``BaseModel``'s predecessors were, by moving the
+#:    declarations off the composition root: the column-shape cluster lives on
+#:    a ``_FieldMetadataMixin`` leaf (``fields/_field_metadata.py``), so
+#:    conversion asks what a field *is* without touching the root.
+#:    ``cyclic_edges`` 2 -> 0, ``max_scc`` 2 -> 1. **Both compositions are now
+#:    DAGs**, so this gate too has hardened from "the tangle must not grow" to
+#:    "there must be no tangle at all".
 FIELD_BASELINE = {
-    "max_scc": 2,
-    "cyclic_edges": 2,
+    "max_scc": 1,
+    "cyclic_edges": 0,
     "scc_without_base": 1,
 }
 

@@ -141,10 +141,13 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
     Known("odoo/orm/fields/textual.py", "_field_cache_memo", _MEMO_REASON),
     Known("odoo/orm/fields/relational/many2one.py", "_field_cache_memo", _MEMO_REASON),
     Known(
-        "odoo/orm/fields/base.py",
+        "odoo/orm/fields/_field_metadata.py",
         "_field_depends_context",
-        "Field.cache_key() derives the per-field context dependency. Candidate "
-        "for promotion to a public Environment accessor.",
+        "Field._is_context_dependent() derives the per-field context "
+        "dependency. Candidate for promotion to a public Environment accessor. "
+        "Moved here from fields/base.py when the column-shape cluster was "
+        "extracted onto _FieldMetadataMixin to break the _field_convert <-> "
+        "base.py cycle; the reach is unchanged, only its file.",
     ),
     Known(
         "odoo/orm/models/mixins/cache.py",
@@ -152,10 +155,11 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
         "Same accessor, from Layer 2. Promote both together.",
     ),
     Known(
-        "odoo/orm/fields/base.py",
+        "odoo/orm/fields/_field_metadata.py",
         "_ir_defaults",
-        "Field.default_for() reads model defaults to dedup against the write "
-        "side. Belongs behind a public accessor.",
+        "Field._company_dependent_fallback_raw() reads model defaults for the "
+        "company-dependent fallback. Belongs behind a public accessor. Moved "
+        "here from fields/base.py with _is_context_dependent, same extraction.",
     ),
     Known(
         "odoo/orm/fields/textual.py",
