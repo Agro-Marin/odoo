@@ -1,13 +1,21 @@
 import argparse
+import functools
 import os
 import re
 import sys
 from collections.abc import Generator
 from pathlib import Path
-
-import jinja2
+from typing import TYPE_CHECKING, Any
 
 from . import Command
+
+if TYPE_CHECKING:
+    from jinja2 import Environment
+else:
+    # jinja2 is imported lazily inside _env(), so the name does not exist at
+    # module scope. The fallback keeps the annotation resolvable without it —
+    # test_lint's TestPEP649Annotations introspects this module.
+    Environment = Any
 
 
 class Scaffold(Command):
@@ -94,11 +102,31 @@ def directory(p: str, create: bool = False) -> Path:
     return expanded
 
 
-# S701: scaffold renders Python/XML/CSV SOURCE files, not HTML — autoescaping
-# would HTML-escape the generated code and corrupt every scaffolded module.
-_env = jinja2.Environment()  # noqa: S701  see comment above
-_env.filters["snake"] = snake
-_env.filters["pascal"] = pascal
+@functools.cache
+def _env() -> Environment:
+    """Build the Jinja environment, importing Jinja2 on first render.
+
+    Jinja2 is not a server dependency. Nothing outside this command imports it,
+    and ``cli/__init__`` loads a command module only when that command is
+    dispatched — so a server process never reaches it. Keeping the import out
+    of module scope is what lets ``odoo.cli.scaffold`` be *imported* without
+    Jinja2 installed, which ``base``'s ``test_cli`` and ``test_lint``'s
+    ``test_pep649`` both do. It is pinned in ``requirements-test.txt`` and
+    offered as the ``scaffold`` extra in ``setup.py``.
+    """
+    try:
+        import jinja2
+    except ImportError:
+        sys.exit(
+            "odoo-bin scaffold needs Jinja2, which is not installed.\n"
+            "    pip install Jinja2      (or: pip install 'odoo[scaffold]')"
+        )
+    # S701: scaffold renders Python/XML/CSV SOURCE files, not HTML — autoescaping
+    # would HTML-escape the generated code and corrupt every scaffolded module.
+    env = jinja2.Environment()  # noqa: S701  see comment above
+    env.filters["snake"] = snake
+    env.filters["pascal"] = pascal
+    return env
 
 
 class Template:
@@ -160,8 +188,9 @@ class Template:
         """Render this module template to ``directory`` with the provided
         rendering parameters.
         """
+        env = _env()
         for path, content in self.files():
-            rendered = Path(_env.from_string(str(path)).render(params))
+            rendered = Path(env.from_string(str(path)).render(params))
             local = rendered.relative_to(self.path)
             ext = rendered.suffix
             if ext == ".template":
@@ -181,7 +210,7 @@ class Template:
                 ):
                     f.write(content)
                 else:
-                    _env.from_string(content.decode("utf-8")).stream(params or {}).dump(
+                    env.from_string(content.decode("utf-8")).stream(params or {}).dump(
                         f, encoding="utf-8"
                     )
                     f.write(b"\n")

@@ -255,6 +255,84 @@ class TestCommand(BaseCase):
         self.assertIn("usage:", proc.stderr)
         self.assertIn("not a valid module template", proc.stderr)
 
+    def test_scaffold_renders_default_template(self):
+        """The render path itself, which nothing covered until 2026-08-08.
+
+        Every other scaffold test stops at argparse — ``--help``, or a bad
+        template name rejected before rendering — so ``render_to`` and the Jinja
+        environment behind it were dark. That mattered once the ``jinja2``
+        import moved out of module scope: an ImportError there would have
+        surfaced only to whoever next ran the command.
+
+        Asserts the three template features stdlib string formatting cannot
+        express, so a "simplification" away from Jinja fails here rather than
+        silently emitting broken modules:
+        ``{% set %}`` + the custom ``snake`` filter, ``{% for %}`` over
+        ``range()``, and arithmetic in an expression.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = self.run_command("scaffold", "MyModule", tmp)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+
+            # modname_for() snake-cases the CLI name into the directory name.
+            mod = Path(tmp) / "my_module"
+            self.assertTrue(
+                mod.is_dir(), msg=f"scaffold produced {list(Path(tmp).iterdir())}"
+            )
+
+            # .template is stripped from every rendered file.
+            rendered = sorted(
+                p.relative_to(mod).as_posix() for p in mod.rglob("*") if p.is_file()
+            )
+            self.assertNotIn(
+                ".template", " ".join(rendered), msg=f"unstripped suffix in {rendered}"
+            )
+            self.assertIn("__manifest__.py", rendered)
+
+            manifest = (mod / "__manifest__.py").read_text()
+            self.assertIn("'name': \"MyModule\"", manifest)
+
+            # {%- set -%} + the custom `snake` filter + |format.
+            acl = (mod / "security" / "ir.model.access.csv").read_text()
+            self.assertIn(
+                "access_my_module_my_module,my_module.my_module,"
+                "model_my_module_my_module,base.group_user,1,1,1,1",
+                acl,
+            )
+
+            # {% for item in range(5) %} with arithmetic: the last record is 4*10.
+            demo = (mod / "demo" / "demo.xml").read_text()
+            self.assertIn('<record id="object4" model="my_module.my_module">', demo)
+            self.assertIn('<field name="value">40</field>', demo)
+
+            # Nothing anywhere kept an unrendered delimiter.
+            for rel in rendered:
+                with self.subTest(file=rel):
+                    body = (mod / rel).read_text()
+                    self.assertNotIn("{{", body)
+                    self.assertNotIn("{%", body)
+
+    def test_scaffold_renders_templated_filenames(self):
+        """``l10n_payroll`` is the only template whose *filename* is rendered.
+
+        ``render_to`` runs the path through Jinja separately from the content
+        (``l10n_{{code}}_hr_payroll_demo.xml.template``), and it is also the one
+        template with a non-default ``parse_params``/``modname_for`` pair — so
+        this covers a branch the default template never reaches.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = self.run_command("scaffold", "-t", "l10n_payroll", "mexico-mx", tmp)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+            mod = Path(tmp) / "l10n_mx_hr_payroll"
+            self.assertTrue(
+                mod.is_dir(), msg=f"scaffold produced {list(Path(tmp).iterdir())}"
+            )
+            self.assertTrue(
+                (mod / "data" / "l10n_mx_hr_payroll_demo.xml").is_file(),
+                msg=f"filename not rendered: "
+                f"{sorted(p.name for p in (mod / 'data').iterdir())}",
+            )
+
     def test_db_load_validates_before_drop(self):
         from odoo.cli import db as dbmod
 
