@@ -54,7 +54,30 @@ def _contrast_ratio(fg, bg):
     return (lighter + 0.05) / (darker + 0.05)
 
 
-_VAR_WITH_FALLBACK = re.compile(r"var\(\s*--[\w-]+\s*,\s*([^()]*)\)")
+def _matching_paren(css_value, open_index):
+    """Index of the `)` closing the `(` at `open_index`, or -1 if unbalanced."""
+    depth = 0
+    for index in range(open_index, len(css_value)):
+        if css_value[index] == "(":
+            depth += 1
+        elif css_value[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return -1
+
+
+def _top_level_comma(css_value):
+    """Index of the first comma outside any parentheses, or -1."""
+    depth = 0
+    for index, char in enumerate(css_value):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif char == "," and depth == 0:
+            return index
+    return -1
 
 
 def _resolve_var_fallbacks(css_value):
@@ -64,12 +87,34 @@ def _resolve_var_fallbacks(css_value):
     so a surface can retune it; unset - which `@property … inherits:false`
     guarantees at the top of a cascade - the browser uses the fallback, and that
     is the colour the declaration ships.
+
+    Parsed by balanced scan rather than by regex: a fallback is itself a CSS
+    value and may be a function call (`var(--o-text-muted, rgba(51, 65, 85,
+    .76))`) or another `var()`. A `[^()]*` fallback pattern matches neither, so
+    the token survived unresolved and `_parse_color` rejected the whole
+    declaration as "not a colour" - the design system reads as broken when only
+    the reader is. A `var(--x)` with no fallback stays verbatim: it resolves to
+    nothing here, and keeping the token makes the resulting error name it.
     """
-    previous = None
-    while previous != css_value:
-        previous = css_value
-        css_value = _VAR_WITH_FALLBACK.sub(r"\1", css_value)
-    return css_value
+    out = []
+    index = 0
+    while index < len(css_value):
+        if not css_value.startswith("var(", index):
+            out.append(css_value[index])
+            index += 1
+            continue
+        end = _matching_paren(css_value, index + 3)
+        if end == -1:
+            out.append(css_value[index:])
+            break
+        inner = css_value[index + 4 : end]
+        comma = _top_level_comma(inner)
+        if comma == -1:
+            out.append(css_value[index : end + 1])
+        else:
+            out.append(_resolve_var_fallbacks(inner[comma + 1 :].strip()))
+        index = end + 1
+    return "".join(out)
 
 
 def _parse_color(css_value):
@@ -130,8 +175,8 @@ class TestScssDesignSystem(TransactionCase):
             raise AssertionError(f"{bundle_name} produced no CSS attachment")
         return base64.b64decode(attachment.datas).decode()
 
-    def _rules(self, selector, css=None):
-        """Bodies of every rule whose (possibly grouped) selector list holds `selector`.
+    def _matches(self, selector, css=None):
+        """`(selector list, body)` of every rule whose selector list holds `selector`.
 
         The leading delimiter is a *lookbehind*: consuming it instead meant the
         `}` closing one rule was eaten by that rule's own match, so a rule
@@ -143,15 +188,39 @@ class TestScssDesignSystem(TransactionCase):
             r"(?:^|(?<=[}\s;]))([^{}@]*" + re.escape(selector) + r"[^{}]*)\{([^}]*)\}"
         )
         haystack = self.css if css is None else css
-        return [body for _, body in re.findall(pattern, haystack, re.MULTILINE)]
+        return re.findall(pattern, haystack, re.MULTILINE)
 
     def _rule(self, selector, declaring=None, css=None):
-        """Body of the last matching rule, optionally the last one declaring `declaring`."""
-        bodies = [
-            b
-            for b in self._rules(selector, css=css)
-            if declaring is None or _declaration(b, declaring) is not None
+        """Body of the last matching rule, optionally the last one declaring `declaring`.
+
+        "Last" resolves ties the way the cascade does, but only among rules that
+        are in the same cascade context. Substring matching answers
+        `.text-primary` with every rule whose selector list *mentions* it, and in
+        a bundle that carries both schemes the last of those is
+        `:root[data-color-scheme=dark] a.text-primary:hover`. Measured against
+        the light `--body-bg` it reads 2.17:1, so the gate reported a contrast
+        regression the product does not have: a dark-scheme hover tone is not the
+        declaration under test.
+
+        So among the candidates that declare what the caller asked for, prefer
+        those whose selector list holds `selector` as a whole comma-separated
+        part - the base rule, `.text-primary` or `h1,.h1`. Selectors that only
+        ever appear compounded keep the looser match, which is why the
+        preference is applied after the `declaring` filter and not before it:
+        `h1` has a base rule of its own, but the one carrying `letter-spacing`
+        groups it with other levels.
+        """
+        candidates = [
+            (selectors, body)
+            for selectors, body in self._matches(selector, css=css)
+            if declaring is None or _declaration(body, declaring) is not None
         ]
+        exact = [
+            (selectors, body)
+            for selectors, body in candidates
+            if any(part.strip() == selector for part in selectors.split(","))
+        ]
+        bodies = [body for _, body in (exact or candidates)]
         self.assertTrue(
             bodies, f"no rule found for {selector} (declaring {declaring!r})"
         )
