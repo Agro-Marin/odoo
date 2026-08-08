@@ -76,6 +76,7 @@ setup(
         "pyserial",
         "python-dateutil",
         "python-magic ; sys_platform != 'win32'",
+        "pywin32 ; sys_platform == 'win32'",
         "python-stdnum",
         "pytz",
         "pyusb >= 1.0.0b1",

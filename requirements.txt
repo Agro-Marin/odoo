@@ -98,7 +98,16 @@ psycopg-pool>=3.3.1
 PyMuPDF==1.28.2  # AGPL-3.0-or-commercial; base/ir_actions_report guards the import and degrades
 pyopenssl==25.3.0
 pypdf==6.15.0
-pypiwin32 ; sys_platform == 'win32'
+# win32api (service/_threaded.py), win32service/win32serviceutil
+# (libs/filesystem/osutil.py), win32com.shell (libs/filesystem/appdirs.py, whose
+# helper is already named _get_win_folder_with_pywin32) and win32print/pywintypes
+# (iot_drivers printer handlers). This line used to read `pypiwin32`, unpinned —
+# a 1674-byte metadata-only shim last published in 2018 that ships no modules and
+# exists solely to declare `Requires-Dist: pywin32 (>=223)`. It resolved, so
+# nothing looked broken, but it left pywin32 as the one dependency in this file
+# with no pin at all, floored at a 2018 build and free to drift on every Windows
+# install. Naming pywin32 directly closes that and drops the dead indirection.
+pywin32==312 ; sys_platform == 'win32'
 pyserial==3.5  # iot_handlers/ only; iot_drivers is installable=False so no manifest can declare it
 python-dateutil==2.9.0.post0
 python-magic==0.4.27 ; sys_platform != 'win32'
