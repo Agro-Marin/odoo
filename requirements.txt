@@ -23,11 +23,28 @@
 # these lines cannot carry on their own, so bump them one at a time, not in a
 # sweep:
 #   cbor2 (6.x)         major; auth_passkey's vendored webauthn decodes with it
-#   chardet (7.x)       two majors; charset-normalizer is already in the tree as
-#                       a requests dependency and is the better target
+#   chardet (7.x)       two majors. Do NOT "simplify" this away to
+#                       charset-normalizer: measured on 26 KB of cp1252/latin-1
+#                       Mexican Spanish (the shape marin/bbva_parser.py reads),
+#                       charset-normalizer picks cp1250 at confidence 1.0 and
+#                       mangles the text ('º'->'ş', 'ñ'->'ń') on BOTH its
+#                       detect() shim and its native from_bytes().best(), while
+#                       chardet answers ISO-8859-1 and round-trips exactly. It
+#                       also returns 'utf-8' rather than None for undetectable
+#                       input, which would silently disable the "could not
+#                       detect the encoding" error in base_import.
 #   cryptography (50.x) four majors across 54 call sites
 #   protobuf (8.x)      blocked on regenerating the vendored SCSS gencode
-#   pyopenssl (26.x)    major; the real fix is dropping it for cryptography
+#   pyopenssl (26.x)    major. It is load-bearing, not legacy cruft: mail
+#                       servers store certificate material in the database and
+#                       base/ir_mail_server.py feeds it to a PyOpenSSLContext
+#                       via _ctx.use_certificate()/use_privatekey(), which
+#                       stdlib ssl cannot do — load_cert_chain() takes file
+#                       paths only, so dropping it would mean writing private
+#                       keys to disk. Also reached by auth_passkey's vendored
+#                       webauthn (chain validation), certificate/, l10n_it_edi
+#                       (PKCS#7 via private OpenSSL APIs) and enterprise
+#                       l10n_nl_reports. Removing it is a project, not a bump.
 #   reportlab (5.x)     major; PDF output needs visual comparison
 asn1crypto==1.5.1
 Babel==2.18.0
