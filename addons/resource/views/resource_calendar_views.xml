@@ -25,9 +25,12 @@
         <field name="name">resource.calendar.form</field>
         <field name="model">resource.calendar</field>
         <field name="arch" type="xml">
+            <!-- No empty <header/> here on purpose: it renders nothing, and
+                 inheriting modules add their own with
+                 <xpath expr="//sheet" position="before"> (as
+                 l10n_mx_edi_payslip does), which next to a placeholder header
+                 yields two status bars in one form. -->
             <form string="Working Time">
-                <header>
-                </header>
                 <sheet string="Working Time">
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                         invisible="active" />
@@ -155,7 +158,7 @@
                             </group>
                             <field name="attendance_ids" widget="section_one2many" />
                         </page>
-                        <page string="Week 1 Working Hours" name="working_hours"
+                        <page string="Week 1 Working Hours" name="working_hours_week_1"
                             invisible="flexible_hours or not two_weeks_calendar">
                             <field name="two_weeks_explanation" />
                             <group>
@@ -179,7 +182,7 @@
                             <field name="attendance_ids_1st_week" widget="section_one2many"
                                 context="{'default_week_type':'0'}" />
                         </page>
-                        <page string="Week 2 Working Hours" name="working_hours"
+                        <page string="Week 2 Working Hours" name="working_hours_week_2"
                             invisible="flexible_hours or not two_weeks_calendar">
                             <field name="two_weeks_explanation" />
                             <group>

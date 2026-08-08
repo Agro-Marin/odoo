@@ -60,16 +60,21 @@
         `resource.calendar.attendance`.
 
         These are the only company-owned models in this module without one
-        (`resource.resource`, the time off and the reservations all have one),
-        so any internal user can read every company's working hours and
-        enumerate their attendance lines. That is a real read leak, and the
-        obvious `[('company_id', 'in', company_ids + [False])]` was tried and
-        reverted: working schedules are read as *reference data* well outside
-        the reader's own company. `hr_holidays` computes a leave's duration
-        through `resource.mixin._list_work_time_per_day` as the acting user, so
-        the rule made an employee unable to read their own working calendar and
-        `hr_holidays` `test_get_mandatory_days` failed with an AccessError on
-        `resource.calendar`.
+        (`resource.resource`, the time off and the reservations all have one).
+        The gap is narrower than it looks: `action_resource_calendar_form`
+        already carries `['|', ('company_id','=',False), ('company_id','in',
+        allowed_company_ids)]`, so the menu itself is company-filtered and the
+        exposure is limited to paths that bypass that action — a direct
+        search/read RPC, or another view onto the model.
+
+        The obvious `[('company_id', 'in', company_ids + [False])]` was still
+        tried, and reverted: working schedules are read as *reference data*
+        well outside the reader's own company. `hr_holidays` computes a leave's
+        duration through `resource.mixin._list_work_time_per_day` as the acting
+        user, so the rule made an employee unable to read their own working
+        calendar and `hr_holidays` `test_get_mandatory_days` failed with an
+        AccessError on `resource.calendar`. That upstream reaches for an action
+        domain rather than a rule here looks like the same conclusion.
 
         Closing this therefore needs a decision, not a rule: either the
         schedule-computation entry points in this module read the calendar
