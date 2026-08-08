@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-from odoo.tests import new_test_user, tagged
+from odoo.tests import TransactionCase, new_test_user, tagged
 
 from .common import WebsocketCase
 
@@ -55,3 +55,32 @@ class TestIrWebsocket(WebsocketCase):
             expected_channels.issubset(channels),
             f"The channels list is missing some expected values: {expected_channels - channels}.",
         )
+
+
+@tagged("-at_install", "post_install")
+class TestBuildBusChannelList(TransactionCase):
+    """``_build_bus_channel_list`` must not need an ambient request.
+
+    It used to branch on ``(request or wsrequest).session.uid``, which made a
+    plain model method unusable from a test, a cron or a shell: with neither
+    global bound, werkzeug raises ``RuntimeError: object is not bound``.
+    ``env.user`` carries the same information (``_authenticate`` binds the
+    public user exactly when the session has no uid).
+    """
+
+    def test_callable_without_any_request_bound(self):
+        channels = self.env["ir.websocket"]._build_bus_channel_list(["custom"])
+        self.assertIn("custom", channels)
+        self.assertIn("broadcast", channels)
+
+    def test_logged_in_user_gets_their_partner_channel(self):
+        user = new_test_user(self.env, login="bus_chan_user")
+        channels = self.env["ir.websocket"].with_user(user)._build_bus_channel_list([])
+        self.assertIn(user.partner_id, channels)
+
+    def test_public_user_gets_no_partner_channel(self):
+        public = self.env.ref("base.public_user")
+        channels = (
+            self.env["ir.websocket"].with_user(public)._build_bus_channel_list([])
+        )
+        self.assertNotIn(public.partner_id, channels)
