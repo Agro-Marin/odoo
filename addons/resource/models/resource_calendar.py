@@ -504,9 +504,17 @@ class ResourceCalendar(models.Model):
             self.attendance_ids.filtered(lambda att: att.day_period == "lunch").unlink()
         else:
             self.attendance_ids.unlink()
-            self.attendance_ids = self._get_default_attendance_ids(self.company_id)
+            default_vals = self._get_default_attendance_vals(self.company_id)
             if self.two_weeks_calendar:
-                self.attendance_ids = self._get_two_weeks_attendance()
+                # Build the two-week set straight from the defaults.  Creating
+                # the defaults first and then calling
+                # ``_get_two_weeks_attendance()`` appended the duplicates next
+                # to the originals — nothing cleared them — so the calendar
+                # ended up with both, its week-less originals inflating
+                # ``hours_per_week`` and belonging to neither week.
+                self.attendance_ids = self._get_two_weeks_attendance(default_vals)
+            else:
+                self.attendance_ids = [Command.create(vals) for vals in default_vals]
 
     # --------------------------------------------------
     # Computation API
@@ -826,18 +834,22 @@ class ResourceCalendar(models.Model):
         # ``_leave_intervals`` reads ``result[False]`` unconditionally and used
         # to fail there with a bare ``KeyError: False``.
         resources_list.append(self.env["resource.resource"])
-        if self:
-            domain = domain + [("calendar_id", "in", [False] + self.ids)]
-        else:
-            # No calendar means no calendar-bound leaves.  Without this clause
+        # Rebuilt by unpacking, never with ``+=``: ``domain`` is the caller's
+        # own list and an in-place extend would leave our leave filters in it.
+        calendar_leaf = (
+            ("calendar_id", "in", [False] + self.ids)
+            if self
+            # No calendar means no calendar-bound leaves.  Without this branch
             # the domain carried no calendar filter at all, so an empty
             # recordset swept *every* leave in the database and attributed them
             # to the queried resources.
-            domain = domain + [("calendar_id", "=", False)]
-
+            else ("calendar_id", "=", False)
+        )
         # for the computation, express all datetimes in UTC
         # Public leave don't have a resource_id
-        domain = domain + [
+        domain = [
+            *domain,
+            calendar_leaf,
             ("resource_id", "in", [False] + [r.id for r in resources_list]),
             ("date_from", "<=", end_dt.astimezone(utc).replace(tzinfo=None)),
             ("date_to", ">=", start_dt.astimezone(utc).replace(tzinfo=None)),
@@ -1185,22 +1197,34 @@ class ResourceCalendar(models.Model):
         }
 
     def _get_default_attendance_ids(self, company_id=None):
-        """return a copy of the company's calendar attendance or default 40 hours/week"""
+        """Same as :meth:`_get_default_attendance_vals`, as x2many commands."""
+        return [
+            Command.create(vals)
+            for vals in self._get_default_attendance_vals(company_id)
+        ]
+
+    def _get_default_attendance_vals(self, company_id=None):
+        """Return a copy of the company's calendar attendance, or the default
+        40 hours/week, as plain dicts.
+
+        Kept separate from the command form so callers that need to transform
+        the lines before creating them — ``switch_based_on_duration`` has to
+        spread them over two weeks — can do so without a round trip through
+        the database.
+        """
         if company_id and (
             attendances := company_id.resource_calendar_id.attendance_ids
         ):
             return [
-                Command.create(
-                    {
-                        "name": attendance.name,
-                        "dayofweek": attendance.dayofweek,
-                        "week_type": attendance.week_type,
-                        "hour_from": attendance.hour_from,
-                        "hour_to": attendance.hour_to,
-                        "day_period": attendance.day_period,
-                        "display_type": attendance.display_type,
-                    }
-                )
+                {
+                    "name": attendance.name,
+                    "dayofweek": attendance.dayofweek,
+                    "week_type": attendance.week_type,
+                    "hour_from": attendance.hour_from,
+                    "hour_to": attendance.hour_to,
+                    "day_period": attendance.day_period,
+                    "display_type": attendance.display_type,
+                }
                 for attendance in attendances
             ]
         # Standard Mon-Fri 8-12 / 12-13 (lunch) / 13-17.  The full per-day
@@ -1240,27 +1264,37 @@ class ResourceCalendar(models.Model):
         )
         periods = (("morning", 8, 12), ("lunch", 12, 13), ("afternoon", 13, 17))
         return [
-            Command.create(
-                {
-                    "name": name,
-                    "dayofweek": dayofweek,
-                    "hour_from": hour_from,
-                    "hour_to": hour_to,
-                    "day_period": day_period,
-                }
-            )
+            {
+                "name": name,
+                "dayofweek": dayofweek,
+                "hour_from": hour_from,
+                "hour_to": hour_to,
+                "day_period": day_period,
+            }
             for dayofweek, *names in default_days
             for (day_period, hour_from, hour_to), name in zip(
                 periods, names, strict=True
             )
         ]
 
-    def _get_two_weeks_attendance(self):
+    def _get_two_weeks_attendance(self, attendance_vals=None):
+        """Spread ``attendance_vals`` over two week-typed sets, with sections.
+
+        ``attendance_vals`` defaults to this calendar's own lines, which is what
+        ``switch_calendar_type`` needs.  Callers that are *replacing* the lines
+        pass the replacements directly: materialising them first and reading
+        them back would leave the calendar holding week-less lines, which a
+        two-weeks calendar must never have.
+        """
+        if attendance_vals is None:
+            attendance_vals = [
+                attendance._copy_attendance_vals() for attendance in self.attendance_ids
+            ]
         # The second-week section must sort after every first-week line
         # whatever the calendar size (the old fixed offset of 25 let week-one
         # lines of a 25+-line calendar spill past the section marker, which
         # ``_onchange_attendance_ids`` then reassigned to the wrong week).
-        second_week_seq = len(self.attendance_ids) + 1
+        second_week_seq = len(attendance_vals) + 1
         final_attendances = [
             Command.create(
                 {
@@ -1287,19 +1321,13 @@ class ResourceCalendar(models.Model):
                 }
             ),
         ]
-        for idx, att in enumerate(self.attendance_ids):
+        for idx, vals in enumerate(attendance_vals):
             final_attendances.append(
-                Command.create(
-                    dict(att._copy_attendance_vals(), week_type="0", sequence=idx + 1)
-                )
+                Command.create(dict(vals, week_type="0", sequence=idx + 1))
             )
             final_attendances.append(
                 Command.create(
-                    dict(
-                        att._copy_attendance_vals(),
-                        week_type="1",
-                        sequence=second_week_seq + idx + 1,
-                    )
+                    dict(vals, week_type="1", sequence=second_week_seq + idx + 1)
                 )
             )
         return final_attendances
