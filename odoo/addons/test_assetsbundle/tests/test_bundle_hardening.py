@@ -316,7 +316,6 @@ class TestExternalAssetFilter(TransactionCase):
 class TestBridgeShimLiterals(TransactionCase):
     NAMES = {"alpha", "class", "default", "a-b"}
 
-
     def test_shim_specifier_is_json_quoted(self):
         shim, is_fallback = AssetsBundle._bridge_shim_source(
             "@web/core/x", set(), {"alpha"}, True
@@ -933,6 +932,107 @@ class TestSecondaryStubMirror(BaseCase):
             self.assertIn("SHIM_FACE", proc.stdout)
             self.assertIn("REAL_SUB", proc.stdout)
             self.assertIn("SHIM_RPC", proc.stdout)
+
+
+class TestDeepStubMirror(BaseCase):
+    """A stub more than one level below another must not reach the source tree.
+
+    `TestSecondaryStubMirror` pins the one-level case, and shadowing by
+    immediate parent passed it while protecting nothing deeper: a stub at
+    ``<face>/<dir>/<name>`` is not a child of the face, so the face's sibling
+    directory was symlinked whole and the shim write followed that link out of
+    the mirror. That overwrote 42 modules under
+    ``addons/spreadsheet/static/src`` and 39 under
+    ``spreadsheet_edition/static/src/bundle`` with their own shims, from a
+    plain secondary-bundle compile. The shape is ordinary rather than exotic --
+    a plugin directory beside a module face -- so it is pinned at depth.
+    """
+
+    FACE = "@probe/core/network"
+    DEEP = "@probe/core/network/plugins/core"
+
+    def _build_mirror(self, tmp):
+        odoo_root = Path(tmp)
+        real = odoo_root / "addons" / "probe" / "static" / "src" / "core"
+        (real / "network" / "plugins").mkdir(parents=True)
+        (real / "network.js").write_text("export const face = 'REAL_FACE';")
+        (real / "network" / "rpc.js").write_text("export const rpc = 'REAL_RPC';")
+        (real / "network" / "plugins" / "core.js").write_text(
+            "export const core = 'REAL_DEEP';"
+        )
+        (real / "network" / "plugins" / "other.js").write_text(
+            "export const other = 'REAL_OTHER';"
+        )
+        stub_root = odoo_root / "stubs"
+        EsbuildCompiler._write_stub_mirror(
+            stub_root,
+            {
+                self.FACE: "export const face = 'SHIM_FACE';",
+                self.DEEP: "export const core = 'SHIM_DEEP';",
+            },
+            ["--alias:@probe=./addons/probe/static/src"],
+            odoo_root,
+        )
+        return stub_root, real
+
+    def test_a_deeply_nested_stub_does_not_overwrite_the_real_module(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _stub_root, real = self._build_mirror(tmp)
+
+            self.assertEqual(
+                (real / "network" / "plugins" / "core.js").read_text(),
+                "export const core = 'REAL_DEEP';",
+                "the shim was written through a symlink into the source tree",
+            )
+
+    def test_the_deeply_nested_shim_still_lands_in_the_mirror(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, _real = self._build_mirror(tmp)
+
+            self.assertEqual(
+                (stub_root / "probe/core/network/plugins/core.js").read_text(),
+                "export const core = 'SHIM_DEEP';",
+            )
+
+    def test_unstubbed_neighbours_at_every_depth_reach_the_real_files(self):
+        """The rebuild has to stay transparent, or it trades one bug for another.
+
+        Rebuilding a directory entry by entry is only correct while every entry
+        no shim claims still resolves -- at the rebuilt level and at the one
+        below it, which the recursion newly rebuilds too.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, _real = self._build_mirror(tmp)
+
+            for rel, expected in (
+                ("probe/core/network/rpc.js", "export const rpc = 'REAL_RPC';"),
+                (
+                    "probe/core/network/plugins/other.js",
+                    "export const other = 'REAL_OTHER';",
+                ),
+            ):
+                with self.subTest(rel=rel):
+                    self.assertEqual((stub_root / rel).read_text(), expected)
+
+    def test_a_write_that_escapes_the_mirror_raises(self):
+        """The backstop, exercised directly rather than through a live escape.
+
+        Every escape this guard exists for is a layout bug that has not been
+        thought of yet, so the test cannot reproduce one; it can only pin that
+        a path resolving outside the mirror is refused instead of written.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root = Path(tmp) / "stubs"
+            outside = Path(tmp) / "source"
+            outside.mkdir()
+            stub_root.mkdir()
+            (stub_root / "leaked").symlink_to(outside, target_is_directory=True)
+
+            with self.assertRaises(RuntimeError) as caught:
+                EsbuildCompiler._ensure_inside_mirror(
+                    stub_root / "leaked" / "module.js", stub_root
+                )
+            self.assertIn("outside the stub mirror", str(caught.exception))
 
 
 class TestLastModifiedFallback(TransactionCase):
