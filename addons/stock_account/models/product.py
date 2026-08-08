@@ -688,7 +688,13 @@ class ProductProduct(models.Model):
             moves = self.env["stock.move"].concat(*moves)
             if not moves:
                 continue
-            qty_by_move = {m: m.quantity for m in moves[1:]}
+            # `_get_valued_qty()`, not `quantity`: the bottom-of-stack figure below
+            # comes from `_run_fifo_get_stack` in the product's UoM, so reading the
+            # rest in the *move's* UoM put two units of measure in one mapping. A
+            # receipt of one "Pack of 6" then reported 1 remaining where its
+            # neighbour reported 6, and `_compute_remaining_value` divided one by
+            # the other.
+            qty_by_move = {m: m._get_valued_qty() for m in moves[1:]}
             qty_by_move[moves[0]] = remaining_qty
             moves_qty_by_product[product] = qty_by_move
         return moves_qty_by_product

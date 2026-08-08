@@ -224,7 +224,13 @@ class StockMove(models.Model):
             if not move.is_in:
                 move.remaining_value = 0
                 continue
-            ratio = move.remaining_qty / move.quantity if move.quantity else 0
+            # Both terms in the product's UoM: `remaining_qty` is, and `value` is
+            # the value of `_get_valued_qty()` units. Dividing by `quantity` (the
+            # move's UoM) inflated the ratio by the conversion factor -- a partly
+            # consumed "Pack of 6" receipt reported 180 of remaining value where
+            # 30 was left.
+            valued_qty = move._get_valued_qty()
+            ratio = move.remaining_qty / valued_qty if valued_qty else 0
             if move.product_id.cost_method == "fifo":
                 move.remaining_value = ratio * move.value if ratio else 0
             else:

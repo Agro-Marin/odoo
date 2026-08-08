@@ -506,3 +506,30 @@ class TestValuationAuditFixes(TestStockValuationCommon):
             parent_scoped._get_last_product_value(),
             "the price history row is invisible to the company that wrote it",
         )
+
+    def test_remaining_qty_is_in_the_product_uom(self):
+        """`_get_remaining_moves` mixed two units of measure in one mapping: the
+        bottom-of-stack move got `_run_fifo_get_stack`'s product-UoM figure and
+        every other move got its own `quantity`. `_compute_remaining_value` then
+        divided one by the other."""
+        product = self.product_fifo.with_company(self.company)
+        day1 = fields.Datetime.now() - timedelta(days=2)
+        day2 = fields.Datetime.now() - timedelta(days=1)
+        with freeze_time(day1):
+            first = self._make_in_move(
+                product, 1, unit_cost=10, uom_id=self.uom_pack_of_6.id
+            )
+        with freeze_time(day2):
+            second = self._make_in_move(
+                product, 1, unit_cost=10, uom_id=self.uom_pack_of_6.id
+            )
+        self._make_out_move(product, 3)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(product.qty_available, 9.0)
+
+        # 9 units left: 3 of the first pack, all 6 of the second.
+        self.assertAlmostEqual(first.remaining_qty, 3.0, places=2)
+        self.assertAlmostEqual(second.remaining_qty, 6.0, places=2)
+        self.assertAlmostEqual(first.remaining_value, 30.0, places=2)
+        self.assertAlmostEqual(second.remaining_value, 60.0, places=2)
