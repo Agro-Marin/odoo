@@ -803,3 +803,88 @@ test("worker answers BUS:PING probes... only pings silent clients", async () => 
     worker._sweepClientLiveness();
     expect(pinged).toEqual([]);
 });
+
+test("the reconnect flush is paced so it cannot trip the server rate limiter", async () => {
+    // The server rate-limits INCOMING frames (`Websocket._limit_rate`) and
+    // answers a breach by closing with TRY_LATER. Flushing the offline queue
+    // in one tight loop killed the connection as soon as `websocket_rate_limit_burst`
+    // (default 10) messages had piled up — measured over the wire: 9 queued
+    // messages survive, 10 close the freshly opened socket.
+    const worker = await startWebSocketWorker();
+    const client = { postMessage() {}, addEventListener() {} };
+    worker.registerClient(client);
+    worker._addChannel(client, "chA");
+    await runAllTimers();
+    worker._stop();
+    for (let i = 0; i < 20; i++) {
+        worker._sendToServer({ event_name: "queued", data: i });
+    }
+    expect(worker.messageWaitQueue).toHaveLength(20);
+    worker._start();
+    const sentFrames = [];
+    const ogSend = worker.websocket.send.bind(worker.websocket);
+    worker.websocket.send = (message) => {
+        if (typeof message === "string") {
+            sentFrames.push(JSON.parse(message));
+        }
+        ogSend(message);
+    };
+    await waitUntil(() => worker.state !== "CONNECTING");
+    await advanceTime(300); // debounced open-time `_updateChannels`
+    // First chunk only: subscribe + FLUSH_CHUNK_SIZE, comfortably under the
+    // server's burst of 10.
+    expect(sentFrames.filter((f) => f.event_name === "queued")).toHaveLength(
+        worker.FLUSH_CHUNK_SIZE,
+    );
+    expect(worker.messageWaitQueue).toHaveLength(20 - worker.FLUSH_CHUNK_SIZE);
+    // The rest drains on the following ticks, never more than a chunk at a time.
+    await advanceTime(worker.FLUSH_CHUNK_DELAY);
+    expect(sentFrames.filter((f) => f.event_name === "queued")).toHaveLength(
+        worker.FLUSH_CHUNK_SIZE * 2,
+    );
+    // 20 messages / 4 per chunk = 5 chunks; two have gone out. Each chunk
+    // re-arms its own timer, so step the clock rather than draining once.
+    for (let i = 0; i < 3; i++) {
+        await advanceTime(worker.FLUSH_CHUNK_DELAY);
+    }
+    expect(sentFrames.filter((f) => f.event_name === "queued")).toHaveLength(20);
+    expect(worker.messageWaitQueue).toHaveLength(0);
+});
+
+test("a paced flush interrupted by a disconnect keeps the remaining messages", async () => {
+    const worker = await startWebSocketWorker();
+    const client = { postMessage() {}, addEventListener() {} };
+    worker.registerClient(client);
+    worker._addChannel(client, "chA");
+    await runAllTimers();
+    worker._stop();
+    for (let i = 0; i < 20; i++) {
+        worker._sendToServer({ event_name: "queued", data: i });
+    }
+    worker._start();
+    await waitUntil(() => worker.state !== "CONNECTING");
+    await advanceTime(300);
+    const leftAfterFirstChunk = worker.messageWaitQueue.length;
+    expect(leftAfterFirstChunk).toBe(20 - worker.FLUSH_CHUNK_SIZE);
+    worker._stop(); // connection dies mid-flush
+    await advanceTime(worker.FLUSH_CHUNK_DELAY * 3);
+    // Un-sent messages are still queued for the next connection, and the
+    // cancelled flush does not keep firing against the dead socket.
+    expect(worker.messageWaitQueue).toHaveLength(leftAfterFirstChunk);
+});
+
+test("the offline message queue is bounded, dropping the stalest entries", async () => {
+    // Nothing capped the queue: a long outage with a chatty sender grew it
+    // without limit, and the messages were stale by the time it ended anyway.
+    const worker = await startWebSocketWorker();
+    worker._stop();
+    for (let i = 0; i < worker.MESSAGE_QUEUE_MAX + 5; i++) {
+        worker._sendToServer({ event_name: "queued", data: i });
+    }
+    expect(worker.messageWaitQueue).toHaveLength(worker.MESSAGE_QUEUE_MAX);
+    // The most RECENT messages are the ones kept.
+    const first = JSON.parse(worker.messageWaitQueue[0]);
+    const last = JSON.parse(worker.messageWaitQueue.at(-1));
+    expect(first.data).toBe(5);
+    expect(last.data).toBe(worker.MESSAGE_QUEUE_MAX + 4);
+});

@@ -108,6 +108,26 @@ export class WebsocketWorker {
     // Defensive cap: a pathological notification flood must not grow the
     // seen-id map without bound between prunes.
     SEEN_NOTIFICATION_MAX_COUNT = 10_000;
+    // Pacing for the reconnect flush of `messageWaitQueue`.
+    //
+    // The server rate-limits INCOMING frames (`Websocket._limit_rate`:
+    // `websocket_rate_limit_burst` frames, default 10, per
+    // `burst * websocket_rate_limit_delay` seconds, default 2s) and answers a
+    // breach by closing with TRY_LATER. Flushing the queue in one tight loop
+    // therefore killed the connection outright as soon as 10 messages had
+    // piled up while offline -- measured exactly: 9 queued messages survive,
+    // 10 close the freshly opened socket. Two uncoordinated subsystems, one
+    // constant apart from a reconnect loop.
+    //
+    // 4 frames per second stays under the server's *sustainable* rate
+    // (1/delay = 5/s) rather than merely under its burst, so the limiter's
+    // sliding window never fills no matter how long the queue is.
+    FLUSH_CHUNK_SIZE = 4;
+    FLUSH_CHUNK_DELAY = 1000;
+    // Nothing bounded the offline queue. Presence/keepalive-style messages are
+    // worthless by the time a long outage ends, so keep the most recent ones
+    // and drop the stale head rather than growing without limit.
+    MESSAGE_QUEUE_MAX = 200;
 
     constructor(name) {
         this.name = name;
@@ -149,6 +169,8 @@ export class WebsocketWorker {
         // monotonic watermark filter would silently drop them.
         this.seenNotificationIds = new Map();
         this.messageWaitQueue = [];
+        // Handle of the paced flush in progress, so `_stop` can cancel it.
+        this._flushTimeout = null;
         this._forceUpdateChannels = debounce(this._forceUpdateChannels, 300);
         this._debouncedUpdateChannels = debounce(this._updateChannels, 300);
         this._debouncedSendToServer = debounce(this._sendToServer, 300);
@@ -861,12 +883,51 @@ export class WebsocketWorker {
             // Flush the queued application messages after this connection's own
             // subscribe. No subscribe can be queued: `_updateChannels` only ever
             // subscribes while the socket is open (sending directly), so the
-            // queue holds application messages only.
-            const queue = this.messageWaitQueue;
-            this.messageWaitQueue = [];
-            queue.forEach((msg) => this.websocket.send(msg));
+            // queue holds application messages only. Paced, not in one burst --
+            // see FLUSH_CHUNK_SIZE.
+            this._flushMessageQueue(connection);
         });
         this._restartConnectionCheckInterval();
+    }
+
+    /**
+     * Send the messages queued while offline, in chunks small enough that the
+     * server's incoming-frame rate limiter never trips (see FLUSH_CHUNK_SIZE).
+     *
+     * Messages are removed from the queue only as they are sent, so a socket
+     * that dies mid-flush leaves the remainder queued for the next connection
+     * instead of dropping it.
+     *
+     * @param {Connection} connection the connection this flush belongs to
+     */
+    _flushMessageQueue(connection) {
+        this._flushTimeout = null;
+        if (this._connection !== connection || !this._isWebsocketConnected()) {
+            // Closed or superseded: keep what is left for the next open.
+            return;
+        }
+        for (const message of this.messageWaitQueue.splice(0, this.FLUSH_CHUNK_SIZE)) {
+            this.websocket.send(message);
+        }
+        if (this.messageWaitQueue.length) {
+            this._flushTimeout = setTimeout(
+                () => this._flushMessageQueue(connection),
+                this.FLUSH_CHUNK_DELAY,
+            );
+        }
+    }
+
+    /**
+     * Queue a message for the next connection, bounded by MESSAGE_QUEUE_MAX.
+     *
+     * @param {string} payload serialized message
+     */
+    _queueMessage(payload) {
+        while (this.messageWaitQueue.length >= this.MESSAGE_QUEUE_MAX) {
+            this.messageWaitQueue.shift();
+            this._logDebug("message_queue_overflow: dropped oldest queued message");
+        }
+        this.messageWaitQueue.push(payload);
     }
 
     /**
@@ -935,7 +996,7 @@ export class WebsocketWorker {
             // application messages ever reach here while offline — subscribes
             // are sent by `_updateChannels`, which no-ops unless the socket is
             // open, so nothing stale can pile up in the queue.
-            this.messageWaitQueue.push(payload);
+            this._queueMessage(payload);
             return;
         }
         if (message["event_name"] === "subscribe") {
@@ -949,7 +1010,7 @@ export class WebsocketWorker {
                 if (this._connection === connection && this._isWebsocketConnected()) {
                     this.websocket.send(payload);
                 } else {
-                    this.messageWaitQueue.push(payload);
+                    this._queueMessage(payload);
                 }
             });
         }
@@ -1016,6 +1077,10 @@ export class WebsocketWorker {
         // (the other place clearing this interval) will not run: clear it here
         // to avoid leaking a timer on every stop cycle.
         clearInterval(this._connectionCheckInterval);
+        // Same for a paced queue flush in progress: it targets the socket
+        // this stop is tearing down.
+        clearTimeout(this._flushTimeout);
+        this._flushTimeout = null;
         // Cancel pending debounced work so it can't fire against the *next*
         // connection: a trailing `_updateChannels`/`_sendToServer` would act on
         // a socket this stop is tearing down.
