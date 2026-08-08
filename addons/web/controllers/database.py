@@ -26,6 +26,22 @@ from odoo.addons.base.models.ir_qweb import render as qweb_render
 
 _logger = logging.getLogger(__name__)
 
+#: Failures that mean "the request was rejected", not "the server broke".  Every
+#: one of them is already rendered back to the caller by ``_render_template``,
+#: so a stack trace at ERROR adds nothing an operator can act on while making a
+#: log look like it holds a fault: posting an unknown backup format to
+#: ``/web/database/backup`` — which ``test_backup_invalid_format_rejected`` does
+#: on purpose — printed a full traceback under ``ERROR``.
+REJECTED_INPUT_ERRORS = (ValueError, odoo.exceptions.AccessDenied)
+
+
+def _log_operation_failure(operation: str, exc: BaseException) -> None:
+    """Log a database-manager failure at the level its cause deserves."""
+    if isinstance(exc, REJECTED_INPUT_ERRORS):
+        _logger.warning("%s: %s", operation, exc)
+    else:
+        _logger.exception(operation)
+
 
 def _is_loopback(addr: str | None) -> bool:
     """Whether *addr* is a loopback address (127.0.0.0/8, ::1, or an
@@ -184,7 +200,7 @@ class Database(http.Controller):
                 request.session.db = name
             return request.redirect("/odoo")
         except Exception as e:
-            _logger.exception("Database creation error.")
+            _log_operation_failure("Database creation error.", e)
             error = f"Database creation error: {str(e) or repr(e)}"
         return self._render_template(error=error)
 
@@ -219,7 +235,7 @@ class Database(http.Controller):
                 request.detach_database()
             return request.redirect("/web/database/manager")
         except Exception as e:
-            _logger.exception("Database duplication error.")
+            _log_operation_failure("Database duplication error.", e)
             error = f"Database duplication error: {str(e) or repr(e)}"
             return self._render_template(error=error)
 
@@ -240,7 +256,7 @@ class Database(http.Controller):
                 request.session.logout()
             return request.redirect("/web/database/manager")
         except Exception as e:
-            _logger.exception("Database deletion error.")
+            _log_operation_failure("Database deletion error.", e)
             error = f"Database deletion error: {str(e) or repr(e)}"
             return self._render_template(error=error)
 
@@ -292,7 +308,7 @@ class Database(http.Controller):
             ]
             return Response(dump_stream, headers=headers, direct_passthrough=True)
         except Exception as e:
-            _logger.exception("Database.backup")
+            _log_operation_failure("Database.backup", e)
             error = f"Database backup error: {str(e) or repr(e)}"
             return self._render_template(error=error)
 
@@ -333,7 +349,7 @@ class Database(http.Controller):
             )
             return request.redirect("/web/database/manager")
         except Exception as e:
-            _logger.exception("Database restore error.")
+            _log_operation_failure("Database restore error.", e)
             error = f"Database restore error: {str(e) or repr(e)}"
             return self._render_template(error=error)
         finally:
