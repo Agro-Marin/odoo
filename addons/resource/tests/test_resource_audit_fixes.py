@@ -10,7 +10,7 @@ from datetime import datetime
 from psycopg.errors import CheckViolation
 from pytz import utc
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 
@@ -425,3 +425,68 @@ class TestOriginDisplayAccess(TransactionCase):
         reservation = self._reservation("no.such.model", 7, 4)
         reservation.invalidate_recordset(["origin_display"])
         self.assertEqual(reservation.origin_display, "no.such.model,7")
+
+
+@tagged("post_install", "-at_install")
+class TestResourceAdminAccess(TransactionCase):
+    """``resource.resource`` was the only model here a sysadmin could not edit.
+
+    The module ships ``menu_resource_resource`` under Settings > Technical >
+    Resource, pointing at a ``list,form`` action — but ``base.group_system``
+    held read-only rights, so the New button and every save raised AccessError.
+    Its siblings (calendar, attendance, time off, reservation) all grant the
+    group full CRUD; only this one did not, so the menu promised something the
+    ACL refused. Consumer modules (``hr``, ``mrp``) grant their own groups
+    write access, which is why the gap stayed invisible wherever one of them
+    was installed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.sysadmin = cls.env["res.users"].create(
+            {
+                "name": "Resource sysadmin",
+                "login": "resource_sysadmin",
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            cls.env.ref("base.group_user").id,
+                            cls.env.ref("base.group_system").id,
+                        ],
+                    )
+                ],
+            }
+        )
+
+    def test_sysadmin_can_manage_resources(self):
+        Resource = self.env["resource.resource"].with_user(self.sysadmin)
+        for operation in ("read", "write", "create", "unlink"):
+            with self.subTest(operation=operation):
+                Resource.check_access(operation)
+
+    def test_the_menu_action_actually_works(self):
+        resource = (
+            self.env["resource.resource"]
+            .with_user(self.sysadmin)
+            .create({"name": "made from the menu", "tz": "UTC"})
+        )
+        resource.name = "renamed"
+        self.assertEqual(resource.name, "renamed")
+        resource.unlink()
+
+    def test_plain_user_stays_read_only(self):
+        reader = self.env["res.users"].create(
+            {
+                "name": "Resource reader",
+                "login": "resource_reader",
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        Resource = self.env["resource.resource"].with_user(reader)
+        Resource.check_access("read")
+        for operation in ("write", "create", "unlink"):
+            with self.subTest(operation=operation), self.assertRaises(AccessError):
+                Resource.check_access(operation)
