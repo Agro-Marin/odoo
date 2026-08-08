@@ -535,3 +535,49 @@ class TestViewAvatarFields(TransactionCase):
                 )
                 checked += 1
         self.assertTrue(checked, "no avatar_field found — the guard would be vacuous")
+
+
+@tagged("post_install", "-at_install")
+class TestViewNodeNames(TransactionCase):
+    """Named nodes must be unique inside a view, or inheritance targets the wrong one.
+
+    The working-time form gave all three notebook pages ``name="working_hours"``
+    — the single-week page and both two-week pages.  ``//page[@name=...]`` is
+    the normal way to extend a page, and it resolves to the first match, so any
+    module trying to reach the Week 2 page silently patched the Week 1 one.
+    """
+
+    def _module_views(self):
+        view_ids = (
+            self.env["ir.model.data"]
+            .search([("module", "=", "resource"), ("model", "=", "ir.ui.view")])
+            .mapped("res_id")
+        )
+        return self.env["ir.ui.view"].browse(view_ids)
+
+    def test_notebook_page_names_are_unique_per_view(self):
+        for view in self._module_views():
+            names = [
+                page.get("name")
+                for page in etree.fromstring(view.arch_db).xpath("//page[@name]")
+            ]
+            with self.subTest(view=view.xml_id):
+                self.assertEqual(
+                    len(names),
+                    len(set(names)),
+                    f"{view.xml_id}: duplicate <page name=...>: "
+                    f"{sorted(n for n in names if names.count(n) > 1)}",
+                )
+
+    def test_form_views_have_at_most_one_header(self):
+        """A placeholder <header/> collides with inheritors adding their own."""
+        for view in self._module_views():
+            root = etree.fromstring(view.arch_db)
+            if root.tag != "form":
+                continue
+            with self.subTest(view=view.xml_id):
+                self.assertLessEqual(
+                    len(root.xpath("./header")),
+                    1,
+                    f"{view.xml_id}: more than one <header> in a form",
+                )
