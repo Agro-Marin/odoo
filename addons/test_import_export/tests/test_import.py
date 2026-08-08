@@ -991,7 +991,11 @@ foo3,US,0,persons\n""",
             }
         )
         self.assertFalse(response.get('messages'))
-        self.assertEqual(response['name'], ['foo', '08:10:00 06/01/2020', '01/07/2025', '', '', ''])
+        # One entry per imported row. This used to assert three extra trailing
+        # '' -- one per data row -- because execute_import padded the tail with
+        # `[''] * (len(data) - (import_limit or 0))`, which with no `limit`
+        # option padded by the whole data length instead of by nothing.
+        self.assertEqual(response['name'], ['foo', '08:10:00 06/01/2020', '01/07/2025'])
 
     @unittest.skipUnless(can_import('openpyxl'), "openpyxl not available")
     def test_xlsx_datetime_values_assigned_to_related_char_field(self):

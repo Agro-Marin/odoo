@@ -5,6 +5,7 @@ import contextlib
 import csv
 import datetime
 import difflib
+import functools
 import io
 import itertools
 import logging
@@ -17,6 +18,7 @@ from pathlib import Path
 
 import chardet
 import psycopg
+import requests
 from PIL import Image
 
 from odoo import api, fields, models
@@ -32,6 +34,10 @@ from odoo.tools.translate import _
 FIELDS_RECURSION_LIMIT = 3
 ERROR_PREVIEW_BYTES = 200
 DEFAULT_CHUNK_SIZE = 32768
+# Number of rows the separator sniffer looks at. Sniffing used to build a full
+# csv.reader pass over the *whole* decoded file for each candidate delimiter;
+# the shape of a file is decided by its first lines, so cap the work.
+SEPARATOR_SNIFF_ROWS = 100
 _logger = logging.getLogger(__name__)
 BOM_MAP = {
     'utf-16le': codecs.BOM_UTF16_LE,
@@ -45,6 +51,26 @@ MIMETYPE_TO_READER = {
     'application/vnd.ms-excel': 'xls',  # legacy .xls (BIFF), read via xlrd
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
     'application/vnd.oasis.opendocument.spreadsheet': 'ods',
+}
+
+# Explicit allow-list of the formats `_read_file` may dispatch to. This exists
+# so a file *name* can never select the method that reads it: `_read_file` used
+# to do `getattr(self, '_read_' + <suffix of the uploaded filename>)`, which
+#   * resolved `foo.file` to `_read_file` itself -> unbounded self-recursion.
+#     Each frame then logged its own chained traceback, and because every level
+#     re-renders the whole `__context__` chain the log output is quadratic:
+#     one upload produced ~490 recursions, ~980 WARNING records and ~240 MiB of
+#     log text, pinning a worker for ~60s (measured over HTTP);
+#   * exposed unrelated ORM internals (`foo.group` -> `_read_group`,
+#     `foo.format` -> `_read_format`, ...) to filename-driven invocation.
+# Keys are lower-cased extensions without the dot; `xlsm` is macro-enabled xlsx
+# and is read by the same handler (the UI already accepts it).
+EXTENSION_TO_READER = {
+    'csv': '_read_csv',
+    'ods': '_read_ods',
+    'xls': '_read_xls',
+    'xlsm': '_read_xlsx',
+    'xlsx': '_read_xlsx',
 }
 
 CONCAT_SEPARATOR_IMPORT = {
@@ -106,9 +132,14 @@ class Base_ImportMapping(models.Model):
     _name = 'base_import.mapping'
     _description = 'Base Import Mapping'
 
-    res_model = fields.Char(index=True)
-    column_name = fields.Char()
-    field_name = fields.Char()
+    res_model = fields.Char(index=True, required=True)
+    column_name = fields.Char(required=True)
+    field_name = fields.Char(required=True)
+
+    _column_unique_per_model = models.Constraint(
+        'UNIQUE(res_model, column_name)',
+        "A column name can only be mapped to one field per model.",
+    )
 
 
 class ResUsers(models.Model):
@@ -250,8 +281,17 @@ class Base_ImportImport(models.TransientModel):
             ]
 
         :param str model: name of the model to get fields form
-        :param int depth: depth of recursion into o2m fields
+        :param int depth: depth of recursion into o2m fields, clamped to
+            :data:`FIELDS_RECURSION_LIMIT`
         """
+        # This method is a public (RPC-callable) entry point and `depth` is
+        # caller-supplied, so it is an unauthenticated-shaped amplification
+        # knob: each extra level multiplies the result by ~2-4x (measured over
+        # JSON-RPC on res.partner: depth 3 -> 0.5 MiB, depth 7 -> 11 MiB,
+        # depth 9 -> 47 MiB), and nothing refused the call. Clamp rather than
+        # raise: enterprise overrides pass `depth` straight through, and the
+        # only legitimate callers use the default.
+        depth = min(depth, FIELDS_RECURSION_LIMIT)
         Model = self.env[model]
         importable_fields = [{
             'id': 'id',
@@ -272,7 +312,11 @@ class Base_ImportImport(models.TransientModel):
         blacklist = models.MAGIC_COLUMNS
 
         for name, field in dict(model_fields).items():
-            if field['type'] not in 'properties':
+            # `not in 'properties'` was a substring test against the *string*
+            # "properties", not a type comparison: it happened to behave for
+            # today's field types only because none of them is a substring of
+            # "properties".
+            if field['type'] != 'properties':
                 continue
             definition_record = field['definition_record']
             definition_record_field = field['definition_record_field']
@@ -365,6 +409,16 @@ class Base_ImportImport(models.TransientModel):
         :param list header_types: Contains the extracted fields types of the current header.
             Generated in :meth:`_extract_header_types`.
         """
+        # 'all' is the sentinel `_extract_header_types` returns for a column
+        # whose preview rows are all empty: nothing is known about it, so every
+        # field is a candidate. Without this case the filter kept only fields
+        # that have subfields -- i.e. only relational ones -- so an empty column
+        # silently lost every fuzzy suggestion it would otherwise have got
+        # (header "Functon" matched `function` when the column had data, and
+        # matched nothing at all when it did not).
+        if 'all' in header_types:
+            return model_fields_tree
+
         most_likely_fields_tree = []
         for field in model_fields_tree:
             subfields = field.get('fields')
@@ -377,9 +431,12 @@ class Base_ImportImport(models.TransientModel):
         return most_likely_fields_tree
 
     def _read_file(self, options):
-        """ Dispatch to specific method to read file content, according to its mimetype or file type
+        """ Dispatch to the reader for this file's format, deduced from its
+        content, its declared mimetype, or its extension (in that order).
 
         :param dict options: reading options (quoting, separator, ...)
+        :returns: the file's non-empty rows
+        :rtype: list[list]
         """
         self.ensure_one()
 
@@ -394,22 +451,27 @@ class Base_ImportImport(models.TransientModel):
         # leading to browser not sending mime types)
         if self.file_name:
             ext = Path(self.file_name).suffix
-            extensions_to_try.append((ext.removeprefix('.'), f"decided from file extension {ext!r}"))
+            extensions_to_try.append((ext.removeprefix('.').lower(), f"decided from file extension {ext!r}"))
 
         e = None
         requires = None
+        requires_extension = None
         tried_extensions = set()
         for file_extension, guess_message in extensions_to_try:
             if not file_extension or file_extension in tried_extensions:
                 continue
             tried_extensions.add(file_extension)
+            # Allow-list lookup, never `getattr(self, '_read_' + <user input>)`:
+            # see EXTENSION_TO_READER for what that used to make reachable.
+            handler_name = EXTENSION_TO_READER.get(file_extension)
+            if not handler_name:
+                continue
             try:
-                handler = getattr(self, '_read_' + file_extension, None)
-                if callable(handler):
-                    return handler(options)
+                return getattr(self, handler_name)(options)
             except ImportError as exc:
                 # exc.name_from attribute is present as of python 3.12
                 requires = str(getattr(exc, 'name_from', None) or exc.name)
+                requires_extension = file_extension
             except (ImportValidationError, ValueError):
                 raise
             except Exception as exc:
@@ -419,8 +481,18 @@ class Base_ImportImport(models.TransientModel):
             raise e
 
         if requires:
-            raise UserError(_("Unable to load \"{extension}\" file: requires Python module \"{modname}\"").format(extension=file_extension, modname=requires))
-        raise UserError(_("Unsupported file format \"{}\", import only supports CSV, ODS and XLSX").format(self.file_type))
+            # `requires_extension`, not the loop variable: the latter holds
+            # whichever candidate was tried *last*, which is not necessarily the
+            # one whose reader was missing its optional dependency.
+            raise UserError(_(
+                'Unable to load "%(extension)s" file: requires Python module "%(modname)s"',
+                extension=requires_extension, modname=requires,
+            ))
+        raise UserError(_(
+            'Unsupported file format "%(file_type)s", import only supports %(supported)s',
+            file_type=self.file_type or (self.file_name or ''),
+            supported=', '.join(sorted(EXTENSION_TO_READER)),
+        ))
 
     def _read_xls(self, options):
         # Lazy import, mirroring _read_xlsx's `import openpyxl` and _read_ods's
@@ -465,7 +537,7 @@ class Base_ImportImport(models.TransientModel):
                     values.append(cell.value)
             if any(x and (not isinstance(x, str) or x.strip()) for x in values):
                 rows.append(values)
-        return sheet.nrows, rows
+        return rows
 
     def _read_xlsx(self, options):
         import openpyxl
@@ -507,7 +579,7 @@ class Base_ImportImport(models.TransientModel):
 
                 if any(x and (not isinstance(x, str) or x.strip()) for x in values):
                     rows.append(values)
-            return sheet.max_row or len(rows), rows
+            return rows
         finally:
             book.close()
 
@@ -517,23 +589,29 @@ class Base_ImportImport(models.TransientModel):
         sheets = options['sheets'] = list(doc.SHEETS.keys())
         sheet = options['sheet'] = options.get('sheet') or sheets[0]
 
-        content = [
+        return [
             row
             for row in doc.getSheet(sheet)
             if any(x for x in row if x.strip())
         ]
 
-        # return the file length as first value
-        return len(content), content
-
     def _read_csv(self, options):
-        """ Returns file length and a CSV-parsed list of all non-empty lines in the file.
+        """ Returns a CSV-parsed list of all non-empty lines in the file.
 
         :raises csv.Error: if an error is detected during CSV parsing
         """
+        # Validated before any use of `quoting` below. It used to be checked
+        # only *after* the separator-sniffing loop had already handed it to
+        # csv.reader, so whenever the separator was auto-detected (the default)
+        # the user got csv's raw `TypeError: "quotechar" must be a unicode
+        # character` instead of this actionable message.
+        quoting = options.setdefault('quoting', '"')
+        if not isinstance(quoting, str) or len(quoting) != 1:
+            raise ImportValidationError(_("Error while importing records: Text Delimiter should be a single character."))
+
         csv_data = self.file or b''
         if not csv_data:
-            return 0, []
+            return []
 
         encoding = options.get('encoding')
         encoding_guessed = False
@@ -568,35 +646,33 @@ class Base_ImportImport(models.TransientModel):
             # having to specify it
             separator = ','
             for candidate in (',', ';', '\t', ' ', '|', unicodedata.lookup('unit separator')):
-                # pass through the CSV and check if all rows are the same
-                # length & at least 2-wide assume it's the correct one
-                it = csv.reader(io.StringIO(csv_text), quotechar=options['quoting'], delimiter=candidate)
+                # Check whether the first rows all split to the same, >1 width;
+                # if so assume this is the right delimiter. Bounded to
+                # SEPARATOR_SNIFF_ROWS: a delimiter that happens to be
+                # consistent (e.g. ',' on a file with one comma per line) used
+                # to drag the whole decoded file through csv.reader once per
+                # candidate before being accepted or rejected.
+                it = csv.reader(io.StringIO(csv_text), quotechar=quoting, delimiter=candidate)
                 w = None
-                for row in it:
+                for row in itertools.islice(it, SEPARATOR_SNIFF_ROWS):
                     width = len(row)
                     if w is None:
                         w = width
                     if width == 1 or width != w:
-                        break # next candidate
-                else: # nobreak
+                        break  # next candidate
+                else:  # nobreak
                     separator = options['separator'] = candidate
                     break
 
-        if not len(options['quoting']) == 1:
-            raise ImportValidationError(_("Error while importing records: Text Delimiter should be a single character."))
-
         csv_iterator = csv.reader(
             io.StringIO(csv_text),
-            quotechar=options['quoting'],
+            quotechar=quoting,
             delimiter=separator)
 
-        content = [
+        return [
             row for row in csv_iterator
             if any(x for x in row if x.strip())
         ]
-
-        # return the file length as first value
-        return len(content), content
 
     @api.model
     def _extract_header_types(self, preview_values, options):
@@ -634,7 +710,11 @@ class Base_ImportImport(models.TransientModel):
 
             # If all values can be cast to int type is either integer, float or monetary
             # Exception: if we only have 1 and 0, it can also be a boolean
-            if all(v.isdigit() for v in values if v):
+            # `str.isdigit` was both too narrow and too wide here: it rejects
+            # "-1" (a column of negative integers was typed as float/monetary,
+            # so integer fields never showed up as suggestions) and it accepts
+            # non-ASCII digits such as "٣" or "²", for which int() then fails.
+            if all(_is_integer_literal(v) for v in values if v):
                 field_type = ['integer', 'float', 'monetary']
                 if {'0', '1', ''}.issuperset(values):
                     field_type.append('boolean')
@@ -647,17 +727,21 @@ class Base_ImportImport(models.TransientModel):
             # If all values can be cast to float, type is either float or monetary
             try:
                 thousand_separator = decimal_separator = False
+                currency_symbols = None
                 for val in preview_values:
                     val = val.strip()
                     if not val:
                         continue
                     # value might have the currency symbol left or right from the value
-                    val = self._remove_currency_symbol(val)
+                    # (looked up once per column, lazily, instead of once per value)
+                    if currency_symbols is None:
+                        currency_symbols = self._currency_symbols()
+                    val = self._remove_currency_symbol(val, currency_symbols)
                     if val:
                         if options.get('float_thousand_separator') and options.get('float_decimal_separator'):
                             if options['float_decimal_separator'] == '.' and val.count('.') > 1:
-                                # This is not a float so exit this try
-                                float('a')
+                                # not a float: leave the try block
+                                raise ValueError(val)
                             val = val.replace(options['float_thousand_separator'], '').replace(options['float_decimal_separator'], '.')
                         # We are now sure that this is a float, but we still need to find the
                         # thousand and decimal separator
@@ -674,8 +758,8 @@ class Base_ImportImport(models.TransientModel):
                             thousand_separator = '.'
                             decimal_separator = ','
                     else:
-                        # This is not a float so exit this try
-                        float('a')
+                        # not a float: leave the try block
+                        raise ValueError(val)
                 if thousand_separator and not options.get('float_decimal_separator'):
                     options['float_thousand_separator'] = thousand_separator
                     options['float_decimal_separator'] = decimal_separator
@@ -744,7 +828,14 @@ class Base_ImportImport(models.TransientModel):
         """
         headers_types = {}
         for column_index, header_name in enumerate(headers):
-            preview_values = [record[column_index] for record in preview]
+            # Rows may be shorter than the header row (ragged CSV, or a file
+            # whose last columns are blank); treat the missing cells as empty
+            # rather than raising IndexError, which the caller's blanket handler
+            # would turn into a raw "list index out of range" in the UI.
+            preview_values = [
+                record[column_index] if column_index < len(record) else ''
+                for record in preview
+            ]
             type_field = self._extract_header_types(preview_values, options)
             headers_types[(column_index, header_name)] = type_field
         return headers_types
@@ -817,14 +908,24 @@ class Base_ImportImport(models.TransientModel):
 
         # First, check in saved mapped fields
         mapping_field_name = mapping_fields.get(header.lower())
-        if mapping_field_name:
+        # A saved mapping outlives the field it points at: renaming or removing
+        # the field (or uninstalling the module that defined it) leaves a row in
+        # `base_import.mapping` that was replayed verbatim, with distance -1 --
+        # the highest possible priority -- so the column was claimed by a path
+        # the client cannot resolve and ended up silently unmapped, suppressing
+        # the suggestion it would otherwise have received.
+        if mapping_field_name and self._mapping_path_exists(mapping_field_name, fields_tree):
             return {
                 'field_path': mapping_field_name.split('/'),
                 'distance': -1  # Trick to force to keep that match during mapping deduplication.
             }
 
+        # `get_field_string` rebuilds a {field: label} dict on every call; it was
+        # invoked once per candidate field per header (475 calls for 5 headers on
+        # res.partner, all for the same handful of models). Memoize per call tree.
+        field_strings_en = self._get_field_strings_en()
+
         if '/' not in header:
-            IrModelFieldsUs = self.with_context(lang='en_US').env['ir.model.fields']
             for field in fields_tree:
                 fname = field['name']
                 # exact match found based on the field technical name
@@ -833,8 +934,8 @@ class Base_ImportImport(models.TransientModel):
                 # match found using either user translation, either model defined field label
                 if header.casefold() == field['string'].casefold():
                     break
-                field_strings_en = IrModelFieldsUs.get_field_string(field['model_name'])
-                if fname in field_strings_en and header.casefold() == field_strings_en[fname].casefold():
+                strings_en = field_strings_en(field['model_name'])
+                if fname in strings_en and header.casefold() == strings_en[fname].casefold():
                     break
             else:
                 field = None
@@ -861,7 +962,7 @@ class Base_ImportImport(models.TransientModel):
                     self._get_distance(header.casefold(), field['string'].casefold()),
                 ]
 
-                if field_string_en := IrModelFieldsUs.get_field_string(field['model_name']).get(fname):
+                if field_string_en := field_strings_en(field['model_name']).get(fname):
                     distances.append(
                         self._get_distance(header.casefold(), field_string_en.casefold()),
                     )
@@ -900,6 +1001,34 @@ class Base_ImportImport(models.TransientModel):
             field_path.append(field_name)
         # No need to return distance for hierarchy mapping
         return {'field_path': field_path}
+
+    def _get_field_strings_en(self):
+        """ Return a memoized ``model_name -> {field: english label}`` lookup,
+        cached for the lifetime of the returned callable.
+        """
+        IrModelFieldsUs = self.with_context(lang='en_US').env['ir.model.fields']
+
+        @functools.cache
+        def lookup(model_name):
+            return IrModelFieldsUs.get_field_string(model_name)
+
+        return lookup
+
+    def _mapping_path_exists(self, field_path, fields_tree):
+        """ Whether ``field_path`` (a ``'/'``-joined saved mapping) still
+        resolves against ``fields_tree``.
+
+        :param str field_path: e.g. ``'partner_id/name'``
+        :param list fields_tree: as built by :meth:`get_fields_tree`
+        :rtype: bool
+        """
+        subtree = fields_tree
+        for name in field_path.split('/'):
+            match = next((f for f in subtree if f['name'] == name), None)
+            if match is None:
+                return False
+            subtree = match.get('fields') or []
+        return True
 
     def _get_distance(self, a, b):
         """ Return a score between 0 and 1 for the distance between strings
@@ -1013,8 +1142,8 @@ class Base_ImportImport(models.TransientModel):
         self.ensure_one()
         fields_tree = self.get_fields_tree(self.res_model)
         try:
-            file_length, data_rows = self._read_file(options)
-            if file_length <= 0:
+            data_rows = self._read_file(options)
+            if not data_rows:
                 raise ImportValidationError(_("Import file has no content or is corrupt"))
 
             preview = data_rows[:count]
@@ -1059,13 +1188,23 @@ class Base_ImportImport(models.TransientModel):
             # Take first non null values for each column to show preview to users.
             # Initially first non null value is displayed to the user.
             # On hover preview consists in 5 values.
+            #
+            # Column count comes from the header when there is no data row left
+            # (a header-only file). `preview[0]` was indexed unconditionally, so
+            # such a file raised IndexError, which the blanket handler below
+            # turned into the literal string "list index out of range" shown to
+            # the user. Now the columns are listed with empty examples and the
+            # file stays mappable.
+            column_count = max(len(headers), *(len(row) for row in preview or [[]]))
             column_example = []
-            for column_index, _unused in enumerate(preview[0]):
+            for column_index in range(column_count):
                 vals = []
                 for record in preview:
-                    val = record[column_index]
+                    # Rows may be shorter than the header (ragged CSV); treat the
+                    # missing cells as empty rather than raising IndexError.
+                    val = record[column_index] if column_index < len(record) else ''
                     if val and isinstance(val, str):
-                        vals.append("%s%s" % (record[column_index][:50], "..." if len(record[column_index]) > 50 else ""))
+                        vals.append("%s%s" % (val[:50], "..." if len(val) > 50 else ""))
                     elif isinstance(val, datetime.datetime):
                         vals.append(val.strftime(options.get('datetime_format') or DEFAULT_SERVER_DATETIME_FORMAT))
                     elif isinstance(val, datetime.date):
@@ -1099,7 +1238,10 @@ class Base_ImportImport(models.TransientModel):
                 'advanced_mode': advanced_mode,
                 'debug': self.env.user.has_group('base.group_no_one'),
                 'batch': batch,
-                'num_rows': len(data_rows),
+                # Data rows only. This drives the client's batch count
+                # (`totalSteps = ceil((num_rows - skip) / limit)`); counting the
+                # header row in it made that count one too high.
+                'num_rows': len(data_rows) - (1 if headers else 0),
             }
         except Exception as error:
             # Due to lazy generators, UnicodeDecodeError (for
@@ -1149,7 +1291,7 @@ class Base_ImportImport(models.TransientModel):
         # Get only list of actually imported fields
         import_fields = [f for f in fields if f]
 
-        _file_length, rows_to_import = self._read_file(options)
+        rows_to_import = self._read_file(options)
         if not rows_to_import:
             # Reachable when called directly (RPC/automation) without going through
             # parse_preview's file_length guard first: an empty or all-blank-rows
@@ -1175,10 +1317,65 @@ class Base_ImportImport(models.TransientModel):
 
         # slicing needs to happen after filtering out empty rows as the
         # data offsets from load are post-filtering
-        return data[options.get('skip'):], import_fields
+        return data[options.get('skip') or 0:], import_fields
+
+    def _batch_window(self, import_fields, data, limit):
+        """ Number of leading rows of ``data`` that this batch can possibly
+        consume, so the caller can drop the rest before any per-row work.
+
+        Everything between :meth:`_convert_import_data` and ``load`` used to run
+        over *all* remaining rows, because only ``load`` honours the batch
+        limit. That made each stage quadratic in the file size (measured: 1.8x
+        redundant row visits at 5k rows, 5.5x at 20k), and for binary columns it
+        was not merely wasteful -- ``_parse_import_data`` downloads remote image
+        URLs, so a 50-URL file imported at limit 5 performed 50 fetches in the
+        first batch and 275 overall instead of 50.
+
+        The bound mirrors ``_extract_records``: it stops at row index ``limit``,
+        but a record started before that point absorbs the immediately following
+        *one2many continuation* rows (rows carrying only o2m values). Those
+        trailing rows must stay in the window or the record loses part of its
+        one2many lines and they are re-read as a broken record next batch.
+
+        :param list import_fields: field paths, positionally matching ``data``
+        :param list data: rows remaining after ``skip``
+        :param limit: batch size, or a falsy value for "no batching"
+        :rtype: int
+        """
+        if not limit or limit >= len(data):
+            return len(data)
+
+        model = self.env[self.res_model]
+        o2m_indexes, other_indexes = [], []
+        for index, path in enumerate(import_fields):
+            field = model._fields.get(path.split('/')[0])
+            (o2m_indexes if field is not None and field.type == 'one2many' else other_indexes).append(index)
+
+        if not o2m_indexes:
+            return limit
+
+        window = limit
+        while window < len(data):
+            row = data[window]
+            only_o2m = (
+                any(row[i] for i in o2m_indexes if i < len(row))
+                and not any(row[i] for i in other_indexes if i < len(row))
+            )
+            if not only_o2m:
+                break
+            window += 1
+        return window
 
     @api.model
-    def _remove_currency_symbol(self, value):
+    def _remove_currency_symbol(self, value, currency_symbols=None):
+        """ Strip a leading/trailing currency symbol off ``value``.
+
+        :param str value: the raw cell value
+        :param set currency_symbols: known symbols, from :meth:`_currency_symbols`.
+            Callers in a loop should pass it; ``None`` falls back to a lookup
+            for this one symbol, preserving the behaviour of external callers.
+        :returns: the numeric part, or ``False`` if this is not a decorated number
+        """
         value = value.strip()
         negative = False
         # Careful that some countries use () for negative so replace it by - sign
@@ -1200,16 +1397,42 @@ class Base_ImportImport(models.TransientModel):
             if float_regex.search(split_value[0]) is not None:
                 currency_index = 1
             # Check that currency exists
-            currency = self.env['res.currency'].search([('symbol', '=', split_value[currency_index].strip())])
-            if len(currency):
+            symbol = split_value[currency_index].strip()
+            if currency_symbols is None:
+                known = bool(self.env['res.currency'].search_count([('symbol', '=', symbol)], limit=1))
+            else:
+                known = symbol in currency_symbols
+            if known:
                 return split_value[(currency_index + 1) % 2] if not negative else '-' + split_value[(currency_index + 1) % 2]
             # Otherwise it is not a float with a currency symbol
             return False
 
     @api.model
+    def _currency_symbols(self):
+        """ Every known currency symbol, as one query.
+
+        :meth:`_remove_currency_symbol` is called once per value, so letting it
+        look symbols up individually meant a currency-decorated column ("$ 1.50",
+        ...) issued one ``res.currency`` SELECT *per row* (300 rows -> 300
+        queries). Callers that loop hoist this out of the loop and pass the
+        result down. Deliberately not ormcached: a registry-level cache would go
+        stale when a currency is added, and one query per import stage is
+        already negligible.
+        """
+        symbols = self.env['res.currency'].with_context(active_test=False).search([]).mapped('symbol')
+        return {s for s in symbols if s}
+
+    @api.model
     def _parse_float_from_data(self, data, index, name, options):
+        currency_symbols = self._currency_symbols()
         for line in data:
-            line[index] = line[index].strip()
+            # The xls/xlsx readers hand back native date/datetime objects for
+            # date-formatted cells. Landing one in a float column used to raise
+            # a bare AttributeError ('datetime.date' object has no attribute
+            # 'strip') which escaped execute_import -- it only catches
+            # ImportValidationError -- and surfaced as an HTTP 500. Re-stringify
+            # first so it fails as a normal, per-column import error instead.
+            line[index] = self._stringify_date_like_objects(line[index], options, trim=True)
             if not line[index]:
                 continue
             thousand_separator, decimal_separator = self._infer_separators(line[index], options)
@@ -1225,7 +1448,7 @@ class Base_ImportImport(models.TransientModel):
 
             line[index] = line[index].replace(thousand_separator, '').replace(decimal_separator, '.')
             old_value = line[index]
-            line[index] = self._remove_currency_symbol(line[index])
+            line[index] = self._remove_currency_symbol(line[index], currency_symbols)
             if line[index] is False:
                 raise ImportValidationError(_("Column %(column)s contains incorrect values (value: %(value)s)", column=name, value=old_value), field=name)
 
@@ -1286,7 +1509,6 @@ class Base_ImportImport(models.TransientModel):
             elif field['type'] == 'binary' and field.get('attachment') and name in import_fields:
                 index = import_fields.index(name)
 
-                import requests
                 with requests.Session() as session:
                     session.stream = True
 
@@ -1454,8 +1676,13 @@ class Base_ImportImport(models.TransientModel):
         self.ensure_one()
         import_savepoint = self.env.cr.savepoint(flush=False)
 
+        import_limit = options.get('limit')
         try:
             input_file_data, import_fields = self._convert_import_data(fields, options)
+            # Only `load` used to honour the batch limit, so every stage below
+            # ran over the whole remainder of the file on every batch. Trim to
+            # what this batch can actually consume first -- see _batch_window.
+            input_file_data = input_file_data[:self._batch_window(import_fields, input_file_data, import_limit)]
             # Parse date and float field
             input_file_data = self._parse_import_data(input_file_data, import_fields, options)
         except ImportValidationError as error:
@@ -1471,7 +1698,7 @@ class Base_ImportImport(models.TransientModel):
             merged_data = self._handle_fallback_values(import_fields, merged_data, options['fallback_values'])
 
         name_create_enabled_fields = options.pop('name_create_enabled_fields', {})
-        import_limit = options.pop('limit', None)
+        options.pop('limit', None)
         model = self.env[self.res_model].with_context(
             import_file=True,
             name_create_enabled_fields=name_create_enabled_fields,
@@ -1494,30 +1721,20 @@ class Base_ImportImport(models.TransientModel):
 
         # Insert/Update mapping columns when import complete successfully
         if import_result['ids'] and options.get('has_headers'):
-            BaseImportMapping = self.env['base_import.mapping']
-            for index, column_name in enumerate(columns):
-                if column_name:
-                    # Update to latest selected field
-                    mapping_domain = [('res_model', '=', self.res_model), ('column_name', '=', column_name)]
-                    column_mapping = BaseImportMapping.search(mapping_domain, limit=1)
-                    if column_mapping:
-                        if column_mapping.field_name != fields[index]:
-                            column_mapping.field_name = fields[index]
-                    else:
-                        BaseImportMapping.create({
-                            'res_model': self.res_model,
-                            'column_name': column_name,
-                            'field_name': fields[index]
-                        })
+            self._save_column_mappings(columns, fields)
+
         if 'name' in import_fields:
+            # `merged_data`, not `input_file_data`: `import_fields` was rebound
+            # by _handle_multi_mapping above to the *deduplicated* field list, so
+            # its index no longer addresses the pre-merge rows. With two columns
+            # mapped to the same field ahead of `name` -- e.g. [city, city, name]
+            # -- index('name') is 1, which in the original row is the second
+            # `city` cell: the import reported "FR" as the record name.
             index_of_name = import_fields.index('name')
             skipped = options.get('skip', 0)
-            # pad front as data doesn't contain anythig for skipped lines
+            # pad front as data doesn't contain anything for skipped lines
             r = import_result['name'] = [''] * skipped
-            # only add names for the window being imported
-            r.extend(self._stringify_date_like_objects(x[index_of_name], options) for x in input_file_data[:import_limit])
-            # pad back (though that's probably not useful)
-            r.extend([''] * (len(input_file_data) - (import_limit or 0)))
+            r.extend(self._stringify_date_like_objects(x[index_of_name], options) for x in merged_data)
         else:
             import_result['name'] = []
 
@@ -1529,6 +1746,47 @@ class Base_ImportImport(models.TransientModel):
             import_result['binary_filenames'] = binary_filenames
 
         return import_result
+
+    def _save_column_mappings(self, columns, fields):
+        """ Remember the column-name -> field mapping so the next import from
+        the same source can suggest it.
+
+        :param list columns: column labels, ``False`` for unnamed columns
+        :param list fields: field path per column, ``False`` where unmapped
+        """
+        # Only columns the user actually mapped. Storing the unmapped ones wrote
+        # a `field_name = False` row for every ignored column of every import --
+        # rows that can never produce a suggestion and are never vacuumed.
+        wanted = {
+            column_name: field_name
+            for column_name, field_name in zip(columns, fields, strict=False)
+            if column_name and field_name
+        }
+        if not wanted:
+            return
+
+        BaseImportMapping = self.env['base_import.mapping']
+        # One search for all columns instead of one per column.
+        existing = BaseImportMapping.search([
+            ('res_model', '=', self.res_model),
+            ('column_name', 'in', list(wanted)),
+        ])
+        seen = set()
+        for mapping in existing:
+            field_name = wanted[mapping.column_name]
+            if mapping.column_name in seen:
+                # duplicate rows can exist: there is no unique constraint on
+                # (res_model, column_name), and concurrent imports race here
+                continue
+            seen.add(mapping.column_name)
+            if mapping.field_name != field_name:
+                mapping.field_name = field_name
+
+        BaseImportMapping.create([
+            {'res_model': self.res_model, 'column_name': column_name, 'field_name': field_name}
+            for column_name, field_name in wanted.items()
+            if column_name not in seen
+        ])
 
     def _extract_binary_filenames(self, import_fields, data, model=False, prefix='', binary_filenames=False):
         model = model or self.res_model
@@ -1607,14 +1865,19 @@ class Base_ImportImport(models.TransientModel):
                 split_fields = field_key.split('/')
                 target_field = split_fields[-1]
 
-                # get target_field type (on target model)
+                # get target_field type (on target model). Walk by *position*,
+                # not by comparing each segment to the last one by name: a
+                # self-referential path such as 'parent_id/parent_id' has its
+                # first segment equal to `target_field`, so the name comparison
+                # skipped it and left the model un-retargeted.
                 target_model = self.res_model
-                for field in split_fields:
-                    # if not on the last hierarchy level, retarget the model.
-                    # Also check if the field exists to silently ignore properties field and
-                    # since we don't have the definition here anyway.
-                    if field != target_field and field in self.env[target_model]:
-                        target_model = self.env[target_model][field]._name
+                for fname in split_fields[:-1]:
+                    # Check the field exists to silently ignore properties
+                    # sub-columns, whose definition we don't have here anyway.
+                    parent_field = self.env[target_model]._fields.get(fname)
+                    if parent_field is None or not parent_field.comodel_name:
+                        break
+                    target_model = parent_field.comodel_name
 
                 field = self.env[target_model]._fields.get(target_field.split('.')[0])
                 field_type = field.type if field else ''
@@ -1632,7 +1895,14 @@ class Base_ImportImport(models.TransientModel):
                             )
                         )
                     else:
-                        new_record.append(separator.join(record[idx] for idx in indexes if record[idx]))
+                        # `_stringify_date_like_objects` here too: the xls/xlsx
+                        # readers can put a native date in a many2many column,
+                        # and str.join on it raised a bare TypeError that escaped
+                        # execute_import as an HTTP 500.
+                        new_record.append(separator.join(
+                            self._stringify_date_like_objects(record[idx], import_options)
+                            for idx in indexes if record[idx]
+                        ))
                 elif field_type == 'properties':
                     # for property fields date and datetime objects are not suitable for JSON values
                     new_record.append(self._stringify_date_like_objects(record[indexes[0]], import_options))
@@ -1691,7 +1961,16 @@ class Base_ImportImport(models.TransientModel):
             target_field = field_path[-1]
             target_model = self.env[fallback_values[field_string]['field_model']]
 
-            selection_values = [value.lower() for (key, value) in target_model.fields_get([target_field])[target_field]['selection']]
+            # A Properties sub-column ("<field>.<property>") is not a field of
+            # the model, so fields_get returns nothing for it and indexing the
+            # result raised KeyError -- an HTTP 500 rather than an import error.
+            # The client already sends the selection for those (it reads it off
+            # the field tree), so honour that and only fall back to fields_get.
+            description = target_model.fields_get([target_field]).get(target_field) or {}
+            selection = description.get('selection')
+            if selection is None:
+                selection = fallback_values[field_string].get('selection') or []
+            selection_values = [str(value).lower() for _key, value in selection]
             fallback_values[field_string]['selection_values'] = selection_values
 
         # check fallback values
@@ -1701,6 +1980,10 @@ class Base_ImportImport(models.TransientModel):
 
                 if field in fallback_values:
                     fallback_value = fallback_values[field]['fallback_value']
+                    # A spreadsheet date cell reaching here is not a str, and
+                    # `.lower()` on it raised a bare AttributeError that escaped
+                    # execute_import as an HTTP 500.
+                    value = self._stringify_date_like_objects(value, self.env.context.get('import_options', {}))
                     # Boolean
                     if fallback_values[field]['field_type'] == "boolean":
                         value = value if value.lower() in ('0', '1', 'true', 'false') else fallback_value
@@ -1740,6 +2023,18 @@ TIME_PATTERNS = [
     '%I:%M:%S %p', '%I:%M %p', '%I %p', # 12h
 ]
 
+_INTEGER_RE = re.compile(r'^[+-]?[0-9]+$')
+
+
+def _is_integer_literal(value):
+    """ Whether ``value`` is an ASCII integer literal, optionally signed.
+
+    Not ``str.isdigit``: that rejects "-1" and accepts non-ASCII digits such as
+    "٣" and "²", which ``int()`` then refuses.
+    """
+    return bool(_INTEGER_RE.match(value))
+
+
 def check_patterns(patterns, values):
     for pattern in patterns:
         p = to_re(pattern)
@@ -1754,8 +2049,12 @@ def check_patterns(patterns, values):
 
     return None
 
+@functools.lru_cache(maxsize=1024)
 def to_re(pattern):
     """ cut down version of TimeRE converting strptime patterns to regex
+
+    Memoized: `check_patterns` walks ~280 candidate date/datetime patterns per
+    column per preview, and the pattern set is a module-level constant.
     """
     pattern = re.sub(r'\s+', r'\\s+', pattern)
     pattern = re.sub(r'%([a-z])', _replacer, pattern, flags=re.IGNORECASE)
@@ -1784,7 +2083,15 @@ def read_file_failed(exc: Exception, message: str) -> UserError:
     # exc_info=exc (not True): this function can be called after the original
     # except frame that produced `exc` is no longer the active exception, in
     # which case exc_info=True would silently log no traceback at all (t24068).
-    _logger.warning(message, exc_info=exc)
+    #
+    # Logged at debug, not warning: an unreadable upload is a user error, not a
+    # server fault, and the message below already reaches the user. Emitting a
+    # full traceback per failed candidate format also made log volume quadratic
+    # whenever the readers nested (each frame re-renders the whole __context__
+    # chain) -- one crafted upload produced ~240 MiB of log text and ~60s of
+    # formatting. The dispatch allow-list now prevents the nesting; keeping this
+    # at debug removes the amplification itself.
+    _logger.debug(message, exc_info=exc)
     e = UserError(message)
     e.__cause__ = exc
     return e
