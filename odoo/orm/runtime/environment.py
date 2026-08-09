@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from weakref import ref as weakref_ref
 
 from odoo_rust import rows_to_dicts as _rows_to_dicts
+from psycopg import ProgrammingError
 
 from odoo.db import BaseCursor
 from odoo.exceptions import AccessError, UserError
@@ -474,21 +475,28 @@ class Environment(Mapping[str, "BaseModel"]):
             raise TypeError(f"execute_query expected SQL, got {type(query).__name__}")
         self.flush_query(query)
         self.cr.execute(query)
-        if self.cr.description is None:
-            # The statement returned no result set (DDL, or DML without
-            # RETURNING). Asked declaratively, as `execute_query_dict` below
-            # already does -- until 2026-08-09 this called `fetchall()` and
-            # discriminated on `ProgrammingError.sqlstate is None`, which made
-            # the ORM depend on psycopg raising a *client-side* error with no
-            # sqlstate for "the last operation didn't produce records". That
-            # assumption held (verified on psycopg 3.3.4 / PostgreSQL 18) but
-            # was pinned by nothing, and `tests/contract` exists precisely
-            # because such assumptions are how this codebase breaks. Reading
-            # `description` deletes the assumption instead of pinning it, and
-            # still distinguishes an empty result set (description present,
-            # zero rows) from no result set at all.
+        try:
+            return self.cr.fetchall()
+        except ProgrammingError as exc:
+            # "The last operation didn't produce records" -- a DDL statement or
+            # a DML without RETURNING. psycopg raises this CLIENT-side, so it
+            # carries no sqlstate, which is what tells it apart from a real
+            # server error. Pinned by
+            # `tests/contract/test_execute_query_result_detection.py`.
+            #
+            # DO NOT rewrite this as `if self.cr.description is None: return []`.
+            # It looks equivalent, `execute_query_dict` below genuinely does ask
+            # the question that way, and it is WRONG here: inside
+            # `cr.pipeline()` psycopg has not synced yet, so `description` is
+            # None for a perfectly good SELECT while `fetchall()` forces the
+            # sync and returns the rows. The declarative form therefore returns
+            # [] for real result sets whenever a caller is inside a pipeline --
+            # silently, with no error anywhere. Tried on 2026-08-09; it passed
+            # both pytest tiers and broke `base: TestParentStore` via
+            # `child_of`. The contract test covers the pipeline case too.
+            if exc.sqlstate is not None:
+                raise
             return []
-        return self.cr.fetchall()
 
     def execute_query_dict(self, query: SQL) -> list[dict]:
         rows = self.execute_query(query)
