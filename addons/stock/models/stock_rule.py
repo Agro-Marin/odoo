@@ -684,9 +684,39 @@ class StockRule(models.Model):
             # from raising an AttributeError instead of a readable log line.
             run_action = getattr(self.env["stock.rule"], f"_run_{action}", None)
             if run_action is None:
+                # A rule whose action nothing implements cannot be run, and the
+                # demand it was selected for is simply lost. This used to be an
+                # ERROR line in the server log and nothing else: the caller --
+                # `action_replenish`, a scheduler run, an MTO sale confirmation
+                # -- reported success, no move was created, and the orderpoint
+                # stayed unfulfilled with nothing on screen to explain it.
+                #
+                # It is the same class of misconfiguration as "no rule has been
+                # found" a few lines above (a route that cannot satisfy the
+                # demand), so it is reported the same way, to the user who can
+                # act on it. Reachable whenever a route keeps rules from a
+                # module that is not installed: uninstalling `mrp` while
+                # manufacture rules remain on a warehouse, an imported route, or
+                # a registry that has not loaded the contributing module yet.
                 _logger.error(
                     "The method _run_%s doesn't exist on the procurement rules", action
                 )
+                for procurement, rule in action_procurements:
+                    procurement_errors.append(
+                        (
+                            procurement,
+                            _(
+                                'The rule "%(rule)s" cannot replenish "%(product)s" in'
+                                ' "%(location)s": nothing in this database implements'
+                                " its “%(action)s” action. Install the module providing"
+                                " it, or change the routes on the product.",
+                                rule=rule.display_name,
+                                product=procurement.product_id.display_name,
+                                location=procurement.location_id.display_name,
+                                action=action,
+                            ),
+                        )
+                    )
                 continue
             try:
                 run_action(action_procurements)

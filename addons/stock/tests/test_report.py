@@ -1090,8 +1090,22 @@ class TestReports(TestReportsCommon):
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.reception_steps = "three_steps"
         # Product config.
+        # The reception route is pinned on the product on purpose. Without it
+        # the product carries no route at all -- `route_warehouse0_mto` is
+        # archived by default, so linking it contributes nothing -- and
+        # replenishment falls back to resolving against the *warehouse* routes.
+        # Which one wins there depends on what else is installed: with `mrp` in
+        # the database the warehouse also offers "Manufacture", whose rule pulls
+        # straight into WH/Stock and is selected over the reception chain, so
+        # this test silently stopped exercising a receipt at all. Naming the
+        # route makes the resupply path the test is about the one it gets.
         self.product.write(
-            {"route_ids": [(4, self.env.ref("stock.route_warehouse0_mto").id)]}
+            {
+                "route_ids": [
+                    (4, self.env.ref("stock.route_warehouse0_mto").id),
+                    (4, warehouse.reception_route_id.id),
+                ]
+            }
         )
         # Create a RR
         reordering_rule = self.env["stock.warehouse.orderpoint"].create(
