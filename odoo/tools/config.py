@@ -354,6 +354,27 @@ class configmanager:
             )
         )
 
+        self._add_common_options(parser, OdooOption, PosixOnlyOption)
+        self._add_http_options(parser, OdooOption, PosixOnlyOption)
+        self._add_web_interface_options(parser, OdooOption, PosixOnlyOption)
+        self._add_testing_options(parser, OdooOption, PosixOnlyOption)
+        self._add_logging_options(parser, OdooOption, PosixOnlyOption)
+        self._add_smtp_options(parser, OdooOption, PosixOnlyOption)
+        self._add_database_options(parser, OdooOption, PosixOnlyOption)
+        self._add_i18n_options(parser, OdooOption, PosixOnlyOption)
+        self._add_security_options(parser, OdooOption, PosixOnlyOption)
+        self._add_advanced_options(parser, OdooOption, PosixOnlyOption)
+        self._add_multiprocessing_options(parser, OdooOption, PosixOnlyOption)
+
+        return parser
+
+    def _add_common_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Common options" option group."""
         group = optparse.OptionGroup(parser, "Common options")
         group.add_option(
             "-c",
@@ -509,6 +530,13 @@ class configmanager:
         )
         parser.add_option_group(group)
 
+    def _add_http_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "HTTP Service Configuration" option group."""
         group = optparse.OptionGroup(parser, "HTTP Service Configuration")
         group.add_option(
             "--http-interface",
@@ -559,6 +587,13 @@ class configmanager:
         )
         parser.add_option_group(group)
 
+    def _add_web_interface_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Web interface Configuration" option group."""
         group = optparse.OptionGroup(parser, "Web interface Configuration")
         group.add_option(
             "--db-filter",
@@ -570,6 +605,13 @@ class configmanager:
         )
         parser.add_option_group(group)
 
+    def _add_testing_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Testing Configuration" option group."""
         group = optparse.OptionGroup(parser, "Testing Configuration")
         group.add_option(
             "--test-file",
@@ -632,6 +674,13 @@ class configmanager:
         )
         parser.add_option_group(group)
 
+    def _add_logging_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Logging Configuration" option group."""
         group = optparse.OptionGroup(parser, "Logging Configuration")
         group.add_option(
             "--logfile",
@@ -711,6 +760,13 @@ class configmanager:
 
         parser.add_option_group(group)
 
+    def _add_smtp_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "SMTP Configuration" option group."""
         group = optparse.OptionGroup(parser, "SMTP Configuration")
         group.add_option(
             "--email-from",
@@ -788,6 +844,13 @@ class configmanager:
         )
         parser.add_option_group(group)
 
+    def _add_database_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Database related options" option group."""
         group = optparse.OptionGroup(parser, "Database related options")
         group.add_option(
             "-d",
@@ -1076,6 +1139,13 @@ class configmanager:
         )
         parser.add_option_group(group)
 
+    def _add_i18n_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Internationalisation options" option group."""
         group = optparse.OptionGroup(
             parser,
             "Internationalisation options",
@@ -1099,8 +1169,15 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-        security = optparse.OptionGroup(parser, "Security-related options")
-        security.add_option(
+    def _add_security_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Security-related options" option group."""
+        group = optparse.OptionGroup(parser, "Security-related options")
+        group.add_option(
             "--no-database-list",
             action="store_false",
             dest="list_db",
@@ -1109,8 +1186,15 @@ class configmanager:
             "Also disable access to the database manager and selector, "
             "so be sure to set a proper --database parameter first",
         )
-        parser.add_option_group(security)
+        parser.add_option_group(group)
 
+    def _add_advanced_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Advanced options" option group."""
         group = optparse.OptionGroup(parser, "Advanced options")
         group.add_option(
             "--dev",
@@ -1204,6 +1288,13 @@ class configmanager:
         )
         parser.add_option_group(group)
 
+    def _add_multiprocessing_options(
+        self,
+        parser: optparse.OptionParser,
+        OdooOption: type,
+        PosixOnlyOption: type,
+    ) -> None:
+        """Register the "Multiprocessing options" option group."""
         group = optparse.OptionGroup(parser, "Multiprocessing options")
         group.add_option(
             PosixOnlyOption(
@@ -1291,7 +1382,6 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-        return parser
 
     def _load_default_options(self) -> None:
         self._default_options.clear()
