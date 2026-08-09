@@ -1,9 +1,6 @@
-import logging
 from collections import defaultdict
 
 from odoo import api, models
-
-_logger = logging.getLogger(__name__)
 
 
 class IrConfig_Parameter(models.Model):
@@ -96,17 +93,11 @@ class IrConfig_Parameter(models.Model):
         # the stored value is free text typed in Settings > Technical > System
         # Parameters: warn about a typo instead of raising in whichever flow
         # happens to read it. 0 is returned as-is, callers may fall back on it.
-        raw = self.env["ir.config_parameter"].sudo().get_param(key, default)
-        try:
-            return int(raw)
-        except TypeError, ValueError:
-            _logger.warning(
-                "ir.config_parameter %r is not an integer (%r); falling back to %r.",
-                key,
-                raw,
-                default,
-            )
-            return default
+        #
+        # Parsing and the warning belong to base's get_param_int -- this used to
+        # re-implement both, which put the warning on mail's logger and let the
+        # two copies drift. Kept as a named helper because mail callers use it.
+        return self.sudo().get_param_int(key, default)
 
     @api.model
     def set_param(self, key, value):
