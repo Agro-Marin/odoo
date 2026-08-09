@@ -11,6 +11,7 @@ import {
 } from "@odoo/hoot";
 import { on } from "@odoo/hoot-dom";
 import { mockFetch } from "@odoo/hoot-mock";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import {
     ConnectionAbortedError,
@@ -1091,4 +1092,65 @@ test("Dedup: the shared request is cancelled once the last caller leaves", async
     // with no subscribers left the entry is evicted and the next call re-issues
     expect(await rpc("/test/", {}, { dedup: true })).toEqual({ ok: true });
     expect.verifySteps(["Fetch:2"]);
+});
+
+test("Retry: the server-overload backoff floor survives a smaller maxMs", async () => {
+    /** @type {number[]} */
+    const delays = [];
+    const realSetTimeout = browser.setTimeout;
+    patchWithCleanup(browser, {
+        setTimeout(fn, delay, ...rest) {
+            delays.push(delay);
+            return realSetTimeout(fn, delay, ...rest);
+        },
+    });
+
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        // 503 => ServerOverloadError, which is retryable and earns the floor.
+        return new Response("<html>overloaded</html>", { status: 503 });
+    });
+
+    // `maxMs` below the floor: capping after flooring silently returned 5ms,
+    // dropping retries straight back onto a server already failing to serve
+    // JSON. The floor is deliberate and outranks the caller's cap.
+    const prom = rpc("/test/", {}, { retry: { retries: 1, baseMs: 1, maxMs: 5 } });
+    prom.catch(() => {}); // the retry chain is aborted below; don't leak a rejection
+    await tick();
+    await tick();
+    expect(fetchCount).toBe(1);
+    expect(delays).toHaveLength(1);
+    expect(delays[0]).toBeGreaterThan(999, {
+        message: `scheduled retry after ${delays[0]}ms; the floor is 1000ms`,
+    });
+
+    prom.abort(false);
+    await runAllTimers();
+});
+
+test("Retry: a normal retryable error still honours maxMs", async () => {
+    /** @type {number[]} */
+    const delays = [];
+    const realSetTimeout = browser.setTimeout;
+    patchWithCleanup(browser, {
+        setTimeout(fn, delay, ...rest) {
+            delays.push(delay);
+            return realSetTimeout(fn, delay, ...rest);
+        },
+    });
+
+    mockFetch(() => Promise.reject(new TypeError("Failed to fetch")));
+
+    const prom = rpc("/test/", {}, { retry: { retries: 1, baseMs: 1, maxMs: 5 } });
+    prom.catch(() => {}); // the retry chain is aborted below; don't leak a rejection
+    await tick();
+    await tick();
+    expect(delays).toHaveLength(1);
+    expect(delays[0]).toBeLessThan(6, {
+        message: "no ServerOverloadError: the cap applies unchanged",
+    });
+
+    prom.abort(false);
+    await runAllTimers();
 });

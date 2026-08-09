@@ -396,12 +396,20 @@ const SERVER_OVERLOAD_BACKOFF_FLOOR_MS = 1000;
  * @returns {number}
  */
 function backoffDelay(attempt, config, lastError) {
-    let exp = config.baseMs * 2 ** (attempt - 1);
-    if (lastError instanceof ServerOverloadError) {
-        exp = Math.max(exp, SERVER_OVERLOAD_BACKOFF_FLOOR_MS);
-    }
+    const exp = config.baseMs * 2 ** (attempt - 1);
     const jitter = Math.random() * config.baseMs;
-    return Math.min(exp + jitter, config.maxMs);
+    const capped = Math.min(exp + jitter, config.maxMs);
+    if (lastError instanceof ServerOverloadError) {
+        // Applied AFTER the `maxMs` cap, not before it. Flooring `exp` first
+        // let the cap undo the floor: `retry({ maxMs: 500 })` against an
+        // overloaded server waited 500ms, not the 1000ms this exists to
+        // guarantee, and did so silently. The floor is the whole point of the
+        // branch -- backing off HARDER is what keeps retries from piling onto
+        // a server already returning non-JSON -- so it wins over a caller's
+        // cap rather than losing to it.
+        return Math.max(capped, SERVER_OVERLOAD_BACKOFF_FLOOR_MS);
+    }
+    return capped;
 }
 
 /**
