@@ -948,7 +948,15 @@ class StockMove(models.Model):
         return domain
 
     def _get_production_assignation_domain(self):
-        return [("production_group_id", "=", self.production_group_id.id)]
+        # Through `move_ids`, explicitly: this is a domain on `stock.picking`,
+        # and what it asks is "does this transfer already carry a move of my
+        # production group". It used to be spelled `production_group_id`, a
+        # `related="move_ids.production_group_id"` field on `stock.picking`.
+        # Searching a related through a one2many means "any", which is right
+        # here -- but *reading* it means "whichever move sorts first", so the
+        # field quietly answered a different question depending on how it was
+        # used. Naming the path leaves only the meaning that is wanted.
+        return [("move_ids.production_group_id", "=", self.production_group_id.id)]
 
     def action_view_reference(self):
         res = super().action_view_reference()

@@ -16,5 +16,6 @@ from . import test_backorder
 from . import test_consume_component
 from . import test_manual_consumption
 from . import test_workcenter
+from . import test_workcenter_slots
 from . import test_mrp_reports
 from . import test_audit_fixes

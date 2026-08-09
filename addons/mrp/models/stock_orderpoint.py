@@ -2,8 +2,10 @@
 
 from collections import defaultdict
 from datetime import datetime, time
+from itertools import batched
 
 from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
 
@@ -382,3 +384,38 @@ class StockWarehouseOrderpoint(models.Model):
             ]
         ).action_confirm()
         return super()._post_process_scheduler()
+
+    @api.constrains("product_id")
+    def check_product_is_not_kit(self):
+        domain = [
+            "&",
+            "|",
+            ("product_id", "in", self.product_id.ids),
+            "&",
+            ("product_id", "=", False),
+            ("product_tmpl_id", "in", self.product_id.product_tmpl_id.ids),
+            ("type", "=", "phantom"),
+            "|",
+            ("company_id", "in", self.company_id.ids),
+            ("company_id", "=", False),
+        ]
+        if self.env["mrp.bom"].search_count(domain, limit=1):
+            raise ValidationError(
+                _(
+                    "A product with a kit-type bill of materials can not have a reordering rule."
+                )
+            )
+
+    def _get_orderpoint_products(self):
+        non_kit_ids = []
+        for batch_ids in batched(
+            super()._get_orderpoint_products().ids, 2000, strict=False
+        ):
+            products = self.env["product.product"].browse(batch_ids)
+            kit_ids = {
+                k.id
+                for k in self.env["mrp.bom"]._bom_find(products, bom_type="phantom")
+            }
+            non_kit_ids.extend(id_ for id_ in products.ids if id_ not in kit_ids)
+            products.invalidate_recordset()
+        return self.env["product.product"].browse(non_kit_ids)

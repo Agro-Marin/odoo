@@ -204,11 +204,15 @@ class StockPicking(models.Model):
         string="Manufacturing Orders",
         groups="mrp.group_mrp_user",
     )
-    production_group_id = fields.Many2one(
-        "mrp.production.group",
-        string="Production Group",
-        related="move_ids.production_group_id",
-    )
+    # `production_group_id` used to sit here as
+    # `related="move_ids.production_group_id"`. Its only consumer was the
+    # picking-assignation domain in `stock.move`, where searching a related
+    # through a one2many means "any move in this group" -- the right question.
+    # Read as a value, though, the same field means "whichever move sorts
+    # first", so a transfer spanning two production groups reported one of them
+    # by move ordering. The domain now names `move_ids.production_group_id`
+    # itself and the field is gone, leaving one meaning instead of two. It was
+    # never stored, so there is no column to migrate.
 
     @api.depends("move_ids")
     def _compute_has_kits(self):

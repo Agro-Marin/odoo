@@ -3,7 +3,7 @@
 
 {
     "name": "Manufacturing",
-    "version": "2.1",
+    "version": "2.2",
     "website": "https://www.odoo.com/app/manufacturing",
     "category": "Supply Chain/Manufacturing",
     "sequence": 55,

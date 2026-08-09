@@ -236,13 +236,17 @@ class MrpWorkcenter(models.Model):
                 )
             )
         if not has_workorder:
+            # Illustrative bars for a workcenter that has never been used, so the
+            # dashboard shows the shape of the chart rather than an empty frame.
+            # The payload carries `is_sample_data: True` and the UI says so.
+            # Derived from the workcenter and the week rather than drawn at
+            # random: this is a non-stored compute, so `randint` produced a
+            # different chart on every read, and two users looking at the same
+            # fresh workcenter saw different numbers.
             for wc in self:
-                load_limit = (
-                    40  # default max load per week is 40 hours on a new workcenter
-                )
                 load_data[wc] = {
-                    week_start: randint(0, int(load_limit * 2))
-                    for week_start in week_range
+                    week_start: wc._get_sample_week_load(index)
+                    for index, week_start in enumerate(week_range)
                 }
             return load_data
 
@@ -260,6 +264,25 @@ class MrpWorkcenter(models.Model):
             load_in_hours = round(r[2] / 60, 1)
             load_data[r[0]].update({r[1]: load_in_hours})
         return load_data
+
+    # Default maximum load per week used for the illustrative chart, in hours.
+    SAMPLE_WEEK_LOAD_LIMIT = 40
+
+    def _get_sample_week_load(self, week_index):
+        """A stable illustrative load for week `week_index` of the dashboard.
+
+        Any function of (workcenter, week) that varies plausibly will do; what
+        matters is that it returns the same answer every time it is asked.
+        """
+        self.ensure_one()
+        # A short fixed cycle, offset per workcenter so a row of cards does not
+        # show the same chart five times.
+        shape = (0.35, 0.8, 1.25, 0.6, 1.0)
+        return round(
+            self.SAMPLE_WEEK_LOAD_LIMIT
+            * shape[(week_index + (self.id or 0)) % len(shape)],
+            1,
+        )
 
     def _prepare_graph_data(self, load_data, week_range, has_workorder=None):
         graph_data = {wid: [] for wid in self._ids}

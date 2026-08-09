@@ -115,12 +115,6 @@ class MrpWorkorder(models.Model):
         copy=False,
         index=True,
     )
-    leave_id = fields.Many2one(
-        "resource.calendar.leaves",
-        help="Deprecated: use reservation_id instead.",
-        check_company=True,
-        copy=False,
-    )
     reservation_id = fields.Many2one(
         "resource.reservation",
         help="Resource reservation booking this workcenter time slot.",

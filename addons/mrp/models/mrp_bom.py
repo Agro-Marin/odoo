@@ -1128,23 +1128,39 @@ class MrpBomLine(models.Model):
 
     @api.depends("product_id")
     def _compute_attachments_count(self):
-        for line in self:
-            nbr_attach = self.env["product.document"].search_count(
-                [
-                    "&",
-                    "&",
-                    ("attached_on_mrp", "=", "bom"),
-                    ("active", "=", "t"),
-                    "|",
-                    "&",
-                    ("res_model", "=", "product.product"),
-                    ("res_id", "=", line.product_id.id),
-                    "&",
-                    ("res_model", "=", "product.template"),
-                    ("res_id", "=", line.product_tmpl_id.id),
-                ]
+        # Two grouped queries for the whole set. This ran one `search_count` per
+        # line, and every component row of every BoM form reads it.
+        counts_by_product = {}
+        counts_by_template = {}
+        for res_model, counts in (
+            ("product.product", counts_by_product),
+            ("product.template", counts_by_template),
+        ):
+            res_ids = (
+                self.product_id.ids
+                if res_model == "product.product"
+                else self.product_tmpl_id.ids
             )
-            line.attachments_count = nbr_attach
+            if not res_ids:
+                continue
+            counts.update(
+                dict(
+                    self.env["product.document"]._read_group(
+                        [
+                            ("attached_on_mrp", "=", "bom"),
+                            ("active", "=", True),
+                            ("res_model", "=", res_model),
+                            ("res_id", "in", res_ids),
+                        ],
+                        ["res_id"],
+                        ["__count"],
+                    )
+                )
+            )
+        for line in self:
+            line.attachments_count = counts_by_product.get(
+                line.product_id.id, 0
+            ) + counts_by_template.get(line.product_tmpl_id.id, 0)
 
     @api.depends("child_bom_id")
     def _compute_child_line_ids(self):
