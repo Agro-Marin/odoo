@@ -150,6 +150,19 @@ class TestConnectionInfoForUri(unittest.TestCase):
             db, _ = self._info("postgresql://host.example")
         self.assertEqual(db, "host.example")
 
+    def test_a_uri_with_no_path_user_or_host_still_returns_a_string(self):
+        """The label is a pool key, and this branch used to return None.
+
+        `postgresql:///` has nothing to name the database after, so the
+        hostname fallback had nothing to fall back to — and the function is
+        declared to return a str.
+        """
+        for uri in ("postgresql:///", "postgresql://?connect_timeout=1"):
+            with self.subTest(uri=uri), self.assertWarns(RuntimeWarning):
+                db, info = self._info(uri)
+            self.assertEqual(db, "")
+            self.assertEqual(info["dsn"], uri)
+
     def test_health_params_do_not_override_the_uri_query_string(self):
         _, info = self._info("postgresql://h/db?connect_timeout=60&keepalives=0")
         self.assertNotIn("connect_timeout", info)

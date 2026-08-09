@@ -110,7 +110,10 @@ class TestSampleClaimIsExclusive(unittest.TestCase):
         gate._last_sample -= 1000.0
 
         barrier = threading.Barrier(self.THREADS)
-        gate.sample_interval = self._BlockingInterval(30.0, barrier)
+        # Substituting a non-float is the experiment: the gate must compare
+        # the interval exactly once, and _BlockingInterval blocks in __gt__
+        # to prove it.
+        gate.sample_interval = self._BlockingInterval(30.0, barrier)  # type: ignore[assignment]
 
         granted = []
         append_lock = threading.Lock()

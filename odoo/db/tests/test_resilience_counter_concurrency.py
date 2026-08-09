@@ -163,7 +163,8 @@ def test_pool_lock_covers_every_stats_mutation_or_none():
     def indent(s: str) -> int:
         return len(s) - len(s.lstrip())
 
-    locked, unlocked = [], []
+    locked: list[int] = []
+    unlocked: list[int] = []
     for i, line in enumerate(lines):
         if not re.search(r"self\.stats\.\w+ \+= 1", line):
             continue

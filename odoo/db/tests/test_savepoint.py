@@ -94,6 +94,7 @@ class TestDepthCounterFailsSafe(unittest.TestCase):
                 query: object,
                 params: object = None,
                 log_exceptions: bool = True,
+                prepare: bool | None = None,
             ) -> None:
                 self.sql.append(query)
 

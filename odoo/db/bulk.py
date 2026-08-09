@@ -110,7 +110,7 @@ class _BulkAccessMixin:
                 for i in batches:
                     batch = argslist[i : i + page_size]
                     placeholders = []
-                    params = []
+                    params: list[Any] = []
                     for row in batch:
                         if isinstance(row, (list, tuple)):
                             if template:
@@ -276,7 +276,12 @@ class _BulkAccessMixin:
             return seq_name
         ident = _table_identifier(table).as_string(self._cnx)
         self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", ident))
-        (seq_name,) = self.fetchone()
+        row = self.fetchone()
+        # pg_get_serial_sequence is a scalar function, so the SELECT yields one
+        # row whether or not the column has a sequence; "no sequence" comes back
+        # as a NULL in that row, which is the branch below.
+        assert row is not None, "pg_get_serial_sequence returned no row"
+        (seq_name,) = row
         if seq_name is None:
             self.execute(
                 SQL(

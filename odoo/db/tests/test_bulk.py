@@ -133,7 +133,10 @@ class TestBinaryPaysOff(unittest.TestCase):
             def _can_dump_binary(self, oids):
                 return False
 
-        self.assertFalse(_NoDumper()._binary_pays_off([_TEXT_OID] * 20))
+        # _BulkAccessMixin's methods declare `self: _CursorInternals`, so the
+        # mixin alone does not satisfy its own contract. Instantiating it bare
+        # is the point here: only _can_dump_binary is reached.
+        self.assertFalse(_NoDumper()._binary_pays_off([_TEXT_OID] * 20))  # type: ignore[misc]
 
 
 if __name__ == "__main__":

@@ -74,7 +74,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from _repo_root import find_odoo_root  # noqa: E402
 
-REPO = find_odoo_root(Path(__file__).resolve(), tool="py_scope_gate")
+ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_scope_gate")
 EXCEPTIONS_DIR = HERE / "exceptions" / "mypy"
 BUDGETS_DIR = HERE / "budgets"
 
@@ -135,7 +135,7 @@ def normalise(path: str) -> str:
     candidate = Path(path)
     if candidate.is_absolute():
         try:
-            candidate = candidate.relative_to(REPO)
+            candidate = candidate.relative_to(ROOT)
         except ValueError:
             return candidate.as_posix()
     return candidate.as_posix()
@@ -179,9 +179,9 @@ def total(codes: dict[str, int]) -> int:
 
 def package_files(package: str) -> set[str]:
     """Every ``.py`` under a gated package, repo-relative."""
-    root = REPO / "odoo" / package
+    root = ROOT / "odoo" / package
     return {
-        path.relative_to(REPO).as_posix()
+        path.relative_to(ROOT).as_posix()
         for path in root.rglob("*.py")
         if "__pycache__" not in path.parts
     }
@@ -446,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.update:
         for path in write_state(errors, checked):
-            print(f"wrote {path.relative_to(REPO)}")
+            print(f"wrote {path.relative_to(ROOT)}")
 
     verdicts = [evaluate_package(p, errors, checked) for p in SCOPED_PACKAGES]
 

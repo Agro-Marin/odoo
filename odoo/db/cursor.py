@@ -1,12 +1,12 @@
 import logging
 import os
 import threading
-from collections.abc import Generator, Iterable
+from collections.abc import Collection, Generator, Iterable
 from contextlib import contextmanager, suppress
 from datetime import datetime
 from inspect import currentframe
 from time import monotonic
-from typing import TYPE_CHECKING, Any, NoReturn, Self
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self
 
 import psycopg
 from odoo_rust import rows_to_dicts as _rows_to_dicts
@@ -171,7 +171,13 @@ class BaseCursor:
     def now(self) -> datetime:
         if self._now is None:
             self.execute("SELECT (now() AT TIME ZONE 'UTC')")
-            self._now = self.fetchone()[0]
+            row = self.fetchone()
+            # A bare SELECT of an expression always yields exactly one row, so
+            # the None branch is unreachable. Stating it here rather than at the
+            # subscript is what makes the guarantee reviewable — the shape used
+            # for the same situation in _resolve_id_sequence.
+            assert row is not None, "SELECT now() returned no row"
+            self._now = row[0]
         return self._now
 
 
@@ -181,6 +187,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     sql_log_count: int
 
     _closed: bool = True
+
+    # `False` is the "not captured" sentinel, not a degenerate frame: the
+    # capture only happens under DEBUG. Declared because inference takes the
+    # type from whichever branch it sees first and then rejects the other.
+    __caller: tuple[str | None, int | str] | Literal[False]
 
     def __init__(
         self,
@@ -335,7 +346,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 raise ValueError(
                     "Unexpected parameters combined with a SQL query object"
                 )
-            query, params = query.code, query.params
+            # Bound first: rebinding `query` in a tuple assignment narrows it to
+            # `str` for the rest of the statement, so `query.params` is read off
+            # the narrowed name rather than off the SQL object.
+            code, embedded = query.code, query.params
+            query, params = code, embedded
         else:
             if isinstance(query, _sql.Composable):
                 query = query.as_string(self._cnx)
@@ -433,9 +448,15 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         elif isinstance(query, _sql.Composable):
             query = query.as_string(self._cnx)
 
-        if not hasattr(params_seq, "__len__"):
-            params_seq = list(params_seq)
-        if not params_seq:
+        # Materialised because the row count is read twice AFTER psycopg has
+        # consumed the sequence (the debug line and the metrics call below), and
+        # a generator is both a legal argument and empty by then. `Collection`
+        # rather than a `hasattr(__len__)` probe so the guarantee is in the type:
+        # it is what `len()` needs, and mypy cannot narrow on hasattr.
+        rows: Collection[tuple | list | dict] = (
+            params_seq if isinstance(params_seq, Collection) else list(params_seq)
+        )
+        if not rows:
             return
 
         hooks = getattr(self._thread, "query_hooks", None)
@@ -443,7 +464,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         obj = self._obj
         t0 = monotonic()
         try:
-            obj.executemany(query, params_seq, returning=returning)
+            obj.executemany(query, rows, returning=returning)
         except Exception as e:
             if log_exceptions:
                 _log_sql_error(e, query)
@@ -454,13 +475,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 _logger.debug(
                     "[%.3f ms] executemany (%d rows): %s",
                     1000 * delay,
-                    len(params_seq),
+                    len(rows),
                     query,
                 )
 
-        self._record_metrics(
-            delay, len(params_seq), query=query, start=start, hooks=hooks
-        )
+        self._record_metrics(delay, len(rows), query=query, start=start, hooks=hooks)
 
         if _logger.isEnabledFor(logging.DEBUG):
             query_type, table = categorize_query(query)

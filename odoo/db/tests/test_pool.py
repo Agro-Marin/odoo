@@ -26,14 +26,6 @@ def _fake_pool_factory(*_a, **_k):
     return _FakePool()
 
 
-def _raise(exc):
-
-    def _fn(*a, **k):
-        raise exc
-
-    return _fn
-
-
 class TestBorrowBudgetHelpers(unittest.TestCase):
     def test_remaining_is_unbounded_without_a_deadline(self):
         self.assertEqual(_remaining(None), float("inf"))
@@ -102,14 +94,25 @@ class TestSuppressKnownPoolWarnings(unittest.TestCase):
 
 
 class _FakePool:
-    def __init__(self, size=1, available=1, closed=False):
+    def __init__(self, size=1, available=1, closed=False, getconn_raises=None):
         self._stats = {"pool_size": size, "pool_available": available}
         self.closed = closed
         self.close_calls = 0
         self.drain_calls = 0
+        self._getconn_raises = getconn_raises
 
     def get_stats(self):
         return dict(self._stats)
+
+    def getconn(self, timeout=None):
+        # The real pool's borrow entry point, which was missing here entirely:
+        # the one test driving _getconn_with_retry grafted it on per-instance,
+        # so the double did not carry the method the code under test calls.
+        # A constructor argument rather than an assignment, because overwriting
+        # a method on an instance is invisible to every reader of this class.
+        if self._getconn_raises is not None:
+            raise self._getconn_raises
+        raise NotImplementedError("this test needs _FakePool(getconn_raises=...)")
 
     def close(self):
         self.close_calls += 1
@@ -428,7 +431,9 @@ class TestReachabilityProof(unittest.TestCase):
     def _pool_with_probe_counter(self, **kw):
         pool = ConnectionPool(maxconn=2, **kw)
         calls = []
-        pool._probe_connectable = lambda *a, **k: calls.append(a)
+        # Deliberate per-instance override: the test counts probe calls, and
+        # the pool has no seam for injecting one.
+        pool._probe_connectable = lambda *a, **k: calls.append(a)  # type: ignore[method-assign]
         return pool, calls
 
     def test_first_cold_start_probes(self):
@@ -477,8 +482,7 @@ class TestReachabilityProof(unittest.TestCase):
         pool = ConnectionPool(maxconn=2, borrow_timeout=0.05)
         key = _normalize_dsn_key({"dbname": "d"})
         pool._mark_reachable(key)
-        failing = _FakePool()
-        failing.getconn = _raise(psycopg.errors.InvalidCatalogName("gone"))
+        failing = _FakePool(getconn_raises=psycopg.errors.InvalidCatalogName("gone"))
         with self.assertRaises(psycopg.Error):
             pool._getconn_with_retry(failing, key, {"dbname": "d"}, monotonic() + 0.05)
         self.assertFalse(pool._is_proven_reachable(key))

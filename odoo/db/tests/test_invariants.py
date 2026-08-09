@@ -128,7 +128,7 @@ class TestEveryDsnConsumerExpandsConninfo(unittest.TestCase):
         for path in sorted(_DB_PACKAGE.glob("*.py")):
             tree = ast.parse(path.read_text())
             for node in ast.walk(tree):
-                names = ()
+                names: tuple[str, ...] = ()
                 if isinstance(node, ast.ImportFrom):
                     names = tuple(a.name for a in node.names)
                 if "conninfo_to_dict" in names:

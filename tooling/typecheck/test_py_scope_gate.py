@@ -30,7 +30,7 @@ def log(*lines: str) -> str:
 
 def parsing(path: str, module: str = "odoo.orm.x") -> str:
     """As mypy --verbose emits it: absolute, under the repo, module in parens."""
-    return f"LOG:  Parsing {(gate.REPO / path).as_posix()} ({module})"
+    return f"LOG:  Parsing {(gate.ROOT / path).as_posix()} ({module})"
 
 
 def error(path: str, code: str = "[arg-type]", line: int = 1) -> str:
@@ -52,7 +52,7 @@ class ParseLog(unittest.TestCase):
         )
 
     def test_absolute_paths_normalise_to_repo_relative(self) -> None:
-        absolute = (gate.REPO / ORM / "fields/textual.py").as_posix()
+        absolute = (gate.ROOT / ORM / "fields/textual.py").as_posix()
         errors, _ = gate.parse_log(log(error(absolute)))
         self.assertIn(f"{ORM}/fields/textual.py", errors)
 
@@ -236,7 +236,7 @@ class CommittedState(unittest.TestCase):
 
     def test_scoped_packages_all_exist(self) -> None:
         for package in gate.SCOPED_PACKAGES:
-            self.assertTrue((gate.REPO / "odoo" / package).is_dir(), package)
+            self.assertTrue((gate.ROOT / "odoo" / package).is_dir(), package)
 
 
 if __name__ == "__main__":
