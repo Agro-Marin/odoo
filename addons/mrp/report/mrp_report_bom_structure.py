@@ -282,54 +282,30 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             product_info = {}
         if simulated_leaves_per_workcenter is False:
             simulated_leaves_per_workcenter = defaultdict(list)
+        if not is_minimized and "mrp_bom_attachment_index" not in self.env.context:
+            # Resolve the BoM-attachment index once for the whole walk; every
+            # recursive call below goes through `self` and inherits it.
+            self = self.with_context(
+                mrp_bom_attachment_index=self._get_bom_attachment_index()
+            )
 
         company = bom.company_id or self.env.company
         current_quantity = line_qty
         if bom_line:
             current_quantity = (
-                bom_line.product_uom_id._compute_quantity_report(line_qty, bom.product_uom_id)
+                bom_line.product_uom_id._compute_quantity_report(
+                    line_qty, bom.product_uom_id
+                )
                 or 0
             )
 
         has_attachments = False
         if not is_minimized:
             if product:
-                has_attachments = (
-                    self.env["product.document"].search_count(
-                        [
-                            "&",
-                            "&",
-                            ("attached_on_mrp", "=", "bom"),
-                            ("active", "=", "t"),
-                            "|",
-                            "&",
-                            ("res_model", "=", "product.product"),
-                            ("res_id", "=", product.id),
-                            "&",
-                            ("res_model", "=", "product.template"),
-                            ("res_id", "=", product.product_tmpl_id.id),
-                        ],
-                        limit=1,
-                    )
-                    > 0
-                )
+                has_attachments = self._has_bom_attachment(product)
             else:
                 # Use the product template instead of the variant
-                has_attachments = (
-                    self.env["product.document"].search_count(
-                        [
-                            "&",
-                            "&",
-                            ("attached_on_mrp", "=", "bom"),
-                            ("active", "=", "t"),
-                            "&",
-                            ("res_model", "=", "product.template"),
-                            ("res_id", "=", bom.product_tmpl_id.id),
-                        ],
-                        limit=1,
-                    )
-                    > 0
-                )
+                has_attachments = self._has_bom_attachment(template=bom.product_tmpl_id)
 
         key = product.id
         bom_key = bom.id
@@ -650,22 +626,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
         has_attachments = False
         if not self.env.context.get("minimized", False):
-            has_attachments = (
-                self.env["product.document"].search_count(
-                    [
-                        "&",
-                        ("attached_on_mrp", "=", "bom"),
-                        "|",
-                        "&",
-                        ("res_model", "=", "product.product"),
-                        ("res_id", "=", bom_line.product_id.id),
-                        "&",
-                        ("res_model", "=", "product.template"),
-                        ("res_id", "=", bom_line.product_id.product_tmpl_id.id),
-                    ]
-                )
-                > 0
-            )
+            has_attachments = self._has_bom_attachment(bom_line.product_id)
 
         return {
             "type": "component",
@@ -1274,6 +1235,40 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return data["has_attachments"] or any(
             self._has_attachments(component) for component in data.get("components", [])
         )
+
+    @api.model
+    def _get_bom_attachment_index(self):
+        """Ids of the products and templates carrying a BoM-attached document.
+
+        Resolved in one query and cached in the context for the rest of the
+        walk. The report asks this question once per node of the exploded BoM,
+        purely to decide whether to draw a paperclip, and used to spend one
+        `search_count` on each -- exactly one query per product in the tree.
+
+        :rtype: dict with 'product.product' and 'product.template' id sets
+        """
+        index = self.env.context.get("mrp_bom_attachment_index")
+        if index is not None:
+            return index
+        documents = self.env["product.document"].search_read(
+            [("attached_on_mrp", "=", "bom")], ["res_model", "res_id"], load=False
+        )
+        index = {"product.product": set(), "product.template": set()}
+        for document in documents:
+            ids = index.get(document["res_model"])
+            if ids is not None:
+                ids.add(document["res_id"])
+        return index
+
+    def _has_bom_attachment(self, product=None, template=None):
+        """Whether `product` (or `template`) carries a BoM-attached document."""
+        index = self._get_bom_attachment_index()
+        if product:
+            return (
+                product.id in index["product.product"]
+                or product.product_tmpl_id.id in index["product.template"]
+            )
+        return bool(template) and template.id in index["product.template"]
 
     def _merge_components(self, component_1, component_2):
         component_1["quantity"] = component_1["quantity"] + component_2["quantity"]

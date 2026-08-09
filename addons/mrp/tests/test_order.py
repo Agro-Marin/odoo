@@ -4785,16 +4785,15 @@ class TestMrpOrder(TestMrpCommon):
         mo = mo_form.save()
         mo.action_confirm()
 
+        quant = self.env["stock.quant"]
         self.assertEqual(mo.move_raw_ids.product_uom_qty, 1)
         self.assertEqual(
             mo.move_raw_ids.move_line_ids.quantity, mo.move_raw_ids.product_uom_qty
         )
-        # One box250 converts to exactly 250 units. This used to read
-        # `move_raw_ids.availability`, deleted in 3bcf5d144f9 as a consumerless
-        # field costing 2 queries per move; that assertion was only ever
-        # standing in for the demand in the product's UoM, which is what this
-        # test is about, so it is asserted directly.
-        self.assertEqual(mo.move_raw_ids.product_qty, 250)
+        # One box of 250 is reserved out of the 500 units on hand.
+        self.assertEqual(
+            quant._get_available_quantity(self.product_2, self.stock_location), 250
+        )
         update_quantity_wizard = self.env["change.production.qty"].create(
             {
                 "mo_id": mo.id,
@@ -4803,13 +4802,14 @@ class TestMrpOrder(TestMrpCommon):
         )
         update_quantity_wizard.change_prod_qty()
 
-        # 300/250 of a box is 1.2, and 'Product Unit' is set to 0 digits above,
-        # so the demand rounds UP to 2 whole boxes -- never 1.2, never 1.
         self.assertEqual(mo.move_raw_ids.product_uom_qty, 2)
         self.assertEqual(
             mo.move_raw_ids.move_line_ids.quantity, mo.move_raw_ids.product_uom_qty
         )
-        self.assertEqual(mo.move_raw_ids.product_qty, 500)
+        # 300 finished units round up to two boxes, consuming the whole 500.
+        self.assertEqual(
+            quant._get_available_quantity(self.product_2, self.stock_location), 0
+        )
 
     def test_update_qty_to_consume_of_component(self):
         """

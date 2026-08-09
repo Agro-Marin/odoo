@@ -1,5 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from datetime import datetime, timedelta
+
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -443,3 +445,271 @@ class TestMrpAuditFixes(TestMrpCommon):
                     ],
                 }
             )
+
+    # ------------------------------------------------------------------
+    # mrp.workorder.write -- per-record derived values
+    # ------------------------------------------------------------------
+    def _audit_mo_with_two_workorders(self):
+        unit = self.env.ref("uom.product_uom_unit")
+        finished = self.env["product.product"].create(
+            {"name": "Audit WO finished", "is_storable": True}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Audit WO component", "is_storable": True}
+        )
+        workcenter_a = self.env["mrp.workcenter"].create(
+            {"name": "Audit WC A", "time_efficiency": 100.0}
+        )
+        workcenter_b = self.env["mrp.workcenter"].create(
+            {"name": "Audit WC B", "time_efficiency": 100.0}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "product_uom_id": unit.id,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "product_qty": 1.0, "bom_id": bom.id}
+        )
+        workorders = self.env["mrp.workorder"].create(
+            [
+                {
+                    "name": "Audit WO 1",
+                    "workcenter_id": workcenter_a.id,
+                    "product_uom_id": unit.id,
+                    "production_id": production.id,
+                    "duration_expected": 60.0,
+                },
+                {
+                    "name": "Audit WO 2",
+                    "workcenter_id": workcenter_b.id,
+                    "product_uom_id": unit.id,
+                    "production_id": production.id,
+                    "duration_expected": 30.0,
+                },
+            ]
+        )
+        return production, workorders
+
+    def test_workorder_write_keeps_per_record_end_date(self):
+        """mrp.workorder.write
+
+        `date_end` is recomputed from each work order's own duration. It used to
+        be written back into the dict shared by the whole recordset, so a single
+        `write` of both dates gave every work order the end date computed for the
+        last one.
+        """
+        _production, workorders = self._audit_mo_with_two_workorders()
+        start = datetime(2030, 1, 1, 8, 0, 0)
+        workorders.write({"date_start": start, "date_end": start + timedelta(hours=1)})
+        self.assertEqual(workorders[0].date_end, start + timedelta(minutes=60))
+        self.assertEqual(workorders[1].date_end, start + timedelta(minutes=30))
+
+    def test_workorder_write_keeps_per_record_duration(self):
+        """mrp.workorder.write
+
+        The multi-edit shape: only `date_start` is sent, for two work orders
+        already planned over different spans. Each one's `duration_expected` is
+        derived from its own span, and they must not collapse onto one value.
+        """
+        _production, workorders = self._audit_mo_with_two_workorders()
+        base = datetime(2030, 2, 1, 6, 0, 0)
+        workorders[0].write(
+            {
+                "date_start": base,
+                "date_end": base + timedelta(hours=6),
+                "duration_expected": 360.0,
+            }
+        )
+        workorders[1].write(
+            {
+                "date_start": base,
+                "date_end": base + timedelta(hours=10),
+                "duration_expected": 600.0,
+            }
+        )
+        workorders.write({"date_start": base + timedelta(hours=1)})
+        self.assertNotEqual(
+            workorders[0].duration_expected,
+            workorders[1].duration_expected,
+            "the two work orders span different intervals and cannot share a duration",
+        )
+
+    def test_workorder_write_does_not_mutate_caller_vals(self):
+        """mrp.workorder.write must not rewrite the dict it was handed."""
+        _production, workorders = self._audit_mo_with_two_workorders()
+        # The 30-minute work order, against a one-hour request: the recomputed
+        # end date differs from the one passed in, so a write-back is visible.
+        vals = {
+            "date_start": datetime(2030, 3, 1, 8, 0, 0),
+            "date_end": datetime(2030, 3, 1, 9, 0, 0),
+        }
+        snapshot = dict(vals)
+        workorders[1].write(vals)
+        self.assertEqual(vals, snapshot)
+
+    # ------------------------------------------------------------------
+    # mrp.production.write -- multi-record safety
+    # ------------------------------------------------------------------
+    def _audit_two_productions(self):
+        unit = self.env.ref("uom.product_uom_unit")
+        finished = self.env["product.product"].create(
+            {"name": "Audit MO finished", "is_storable": True}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Audit MO component", "is_storable": True}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "product_uom_id": unit.id,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        productions = self.env["mrp.production"].create(
+            [
+                {"product_id": finished.id, "product_qty": 5.0, "bom_id": bom.id},
+                {"product_id": finished.id, "product_qty": 5.0, "bom_id": bom.id},
+            ]
+        )
+        return productions, component, unit
+
+    def test_production_write_multi_record_with_raw_moves(self):
+        """mrp.production.write
+
+        Adding a component to several manufacturing orders at once used to raise
+        `Expected singleton`: the method read `self.state` and
+        `self.location_src_id` straight off the recordset. Each order must get
+        its own move, stamped with its own source warehouse.
+        """
+        productions, component, unit = self._audit_two_productions()
+        productions.action_confirm()
+        productions.write(
+            {
+                "move_raw_ids": [
+                    Command.create(
+                        {
+                            "product_id": component.id,
+                            "product_uom_qty": 1.0,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ]
+            }
+        )
+        for production in productions:
+            added = production.move_raw_ids.filtered(lambda m: not m.bom_line_id)
+            self.assertEqual(len(added), 1)
+            self.assertEqual(
+                added.warehouse_id, production.location_src_id.warehouse_id
+            )
+
+    def test_production_write_multi_record_product_id_is_dropped(self):
+        """mrp.production.write
+
+        `product_id` is silently dropped once an order has left draft. On a
+        recordset the guard used to raise `Expected singleton` instead.
+        """
+        productions, _component, _unit = self._audit_two_productions()
+        original = productions.product_id
+        productions.action_confirm()
+        other = self.env["product.product"].create(
+            {"name": "Audit MO other", "is_storable": True}
+        )
+        productions.write({"product_id": other.id})
+        self.assertEqual(productions.product_id, original)
+
+    def test_production_write_does_not_mutate_caller_vals(self):
+        """mrp.production.write must not rewrite the dict it was handed."""
+        productions, _component, _unit = self._audit_two_productions()
+        productions.action_confirm()
+        vals = {"product_id": productions[0].product_id.id, "priority": "1"}
+        snapshot = dict(vals)
+        productions.write(vals)
+        self.assertEqual(vals, snapshot)
+
+    # ------------------------------------------------------------------
+    # Misc robustness
+    # ------------------------------------------------------------------
+    def test_get_name_backorder_reads_its_own_group(self):
+        """mrp.production._get_name_backorder
+
+        It reads `self.production_group_id`, so it is not an `@api.model`
+        helper; called on the bare model the `max()` over an empty group raised.
+        """
+        self.assertEqual(
+            self.env["mrp.production"]._get_name_backorder("WH/MO/00001-002", 3),
+            "WH/MO/00001-003",
+        )
+
+    def test_autoprint_mass_generated_lots_without_label_format(self):
+        """mrp.production._autoprint_mass_generated_lots
+
+        The label format is an optional selection. With no format set, neither
+        print branch bound `action` and `clean_action` raised UnboundLocalError.
+        """
+        productions, _component, _unit = self._audit_two_productions()
+        picking_type = productions[0].picking_type_id
+        picking_type.write(
+            {
+                "auto_print_generated_mrp_lot": True,
+                "generated_mrp_lot_label_to_print": False,
+            }
+        )
+        self.assertEqual(productions._autoprint_mass_generated_lots(), [])
+
+    def test_bom_overview_attachment_lookup(self):
+        """report.mrp.report_bom_structure._has_bom_attachment
+
+        Resolved from one batched index instead of a `search_count` per node;
+        it must still answer for both a variant-level and a template-level
+        document.
+        """
+        report = self.env["report.mrp.report_bom_structure"]
+        on_variant = self.env["product.product"].create(
+            {"name": "Audit attach variant", "is_storable": True}
+        )
+        on_template = self.env["product.product"].create(
+            {"name": "Audit attach template", "is_storable": True}
+        )
+        plain = self.env["product.product"].create(
+            {"name": "Audit attach none", "is_storable": True}
+        )
+        self.env["product.document"].create(
+            [
+                {
+                    "name": "variant-spec.txt",
+                    "attached_on_mrp": "bom",
+                    "res_model": "product.product",
+                    "res_id": on_variant.id,
+                },
+                {
+                    "name": "template-spec.txt",
+                    "attached_on_mrp": "bom",
+                    "res_model": "product.template",
+                    "res_id": on_template.product_tmpl_id.id,
+                },
+            ]
+        )
+        # A variant-level document answers for the variant only ...
+        self.assertTrue(report._has_bom_attachment(on_variant))
+        self.assertFalse(
+            report._has_bom_attachment(template=on_variant.product_tmpl_id)
+        )
+        # ... a template-level one answers for both.
+        self.assertTrue(report._has_bom_attachment(on_template))
+        self.assertTrue(
+            report._has_bom_attachment(template=on_template.product_tmpl_id)
+        )
+        self.assertFalse(report._has_bom_attachment(plain))
+        self.assertFalse(report._has_bom_attachment(template=plain.product_tmpl_id))

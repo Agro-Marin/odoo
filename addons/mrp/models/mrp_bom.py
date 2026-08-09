@@ -496,7 +496,9 @@ class MrpBom(models.Model):
                 bom.product_qty > 1 or bom.product_uom_id != bom.product_tmpl_id.uom_id
             ):
                 display_name += f" ({bom.product_qty} {bom.product_uom_id.name})"
-            bom.display_name = _("%(display_name)s", display_name=display_name)
+            # Not wrapped in `_()`: the msgid would be a bare placeholder, which
+            # gives translators nothing to translate and exports a useless entry.
+            bom.display_name = display_name
 
     @api.depends("operation_ids")
     def _compute_operation_count(self):

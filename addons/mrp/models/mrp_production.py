@@ -1688,7 +1688,17 @@ class MrpProduction(models.Model):
                 raise UserError(_("You cannot set more than 1 lot"))
 
     def write(self, vals):
-        if "product_id" in vals and self.state != "draft":
+        # A copy: the normalisation below pops and rewrites keys, and doing that
+        # to the caller's dict handed it back a different payload than it passed.
+        vals = dict(vals)
+        if "product_id" in vals and any(
+            production.state != "draft" for production in self
+        ):
+            # The product cannot change once a production has left draft. A
+            # single shared `vals` has no per-record answer, so the key is
+            # dropped as soon as one record refuses it -- identical to the old
+            # behaviour on the single record this method used to assume, and no
+            # longer `Expected singleton` on a set.
             vals.pop("product_id")
         if "move_byproduct_ids" in vals and "move_finished_ids" not in vals:
             vals["move_finished_ids"] = (
@@ -1714,10 +1724,28 @@ class MrpProduction(models.Model):
                 joined_move_ids.append(move_finished)
             vals["move_finished_ids"] = joined_move_ids
             del vals["move_byproduct_ids"]
-        if "workorder_ids" in self:
-            production_to_replan = self.filtered(lambda p: p.is_planned)
-        for move_str in ("move_raw_ids", "move_finished_ids"):
-            if move_str not in vals or self.state in ["cancel", "done"]:
+        move_keys = [
+            key for key in ("move_raw_ids", "move_finished_ids") if key in vals
+        ]
+        if len(self) > 1 and move_keys:
+            # The warehouse stamped on a new move comes from *that* production's
+            # source location, so one shared `vals` cannot serve a whole set.
+            # Reading `self.location_src_id` for it raised `Expected singleton`;
+            # each production now normalises and writes its own copy.
+            result = True
+            for production in self:
+                # Eagerly, not via `all(...)`: every production must be written.
+                result = production.write(vals) and result
+            return result
+
+        # `production_to_replan` is read unconditionally further down. The guard
+        # that used to stand here was `"workorder_ids" in self`, which tests the
+        # *field names* of the recordset and is therefore always true; spelling
+        # it `in vals` instead leaves the name unbound on every write that does
+        # not carry work orders.
+        production_to_replan = self.filtered(lambda p: p.is_planned)
+        for move_str in move_keys:
+            if any(production.state in ("cancel", "done") for production in self):
                 continue
             # When adding a move raw/finished, it should have the source location's `warehouse_id`.
             # Before, it was handle by an onchange, now it's forced if not already in vals.
@@ -1727,12 +1755,18 @@ class MrpProduction(models.Model):
                     vals.get("location_src_id")
                 )
                 warehouse_id = location_source.warehouse_id.id
+            # Rebuilt rather than updated in place: the values dict inside a
+            # CREATE command belongs to the caller.
+            stamped_commands = []
             for move_vals in vals[move_str]:
                 if move_vals[0] != Command.CREATE:
+                    stamped_commands.append(move_vals)
                     continue
-                _command, _id, field_values = move_vals
+                command, command_id, field_values = move_vals
                 if not field_values.get("warehouse_id"):
-                    field_values["warehouse_id"] = warehouse_id
+                    field_values = {**field_values, "warehouse_id": warehouse_id}
+                stamped_commands.append((command, command_id, field_values))
+            vals[move_str] = stamped_commands
 
         moves_to_reassign = self.env["stock.move"]
         if vals.get("picking_type_id"):
@@ -3075,8 +3109,12 @@ class MrpProduction(models.Model):
             ]
         return True
 
-    @api.model
     def _get_name_backorder(self, name, sequence):
+        """Return `name` carrying the backorder suffix for `sequence`.
+
+        Not `@api.model`: the decision below reads this production's group, and
+        called on the bare model that group is empty and `max()` raises.
+        """
         if not sequence:
             return name
         seq_back = (
@@ -3086,7 +3124,10 @@ class MrpProduction(models.Model):
         )
         regex = re.compile(r"-\d+$")
         if regex.search(name) and (
-            max(self.production_group_id.production_ids.mapped("backorder_sequence"))
+            max(
+                self.production_group_id.production_ids.mapped("backorder_sequence"),
+                default=0,
+            )
             > 1
             or sequence > 1
         ):
@@ -3960,10 +4001,6 @@ class MrpProduction(models.Model):
         # For draft MO, all the work will be done by compute methods.
         # For cancelled and done MO, we don't want to do anything more than assinging the BoM.
         if self.state == "draft" and self.bom_id == bom:
-            # Only remove manual lines (not coming from BoM)
-            workorders_to_unlink = workorders_to_unlink.filtered(
-                lambda w: not w.operation_id
-            )
             # Empties `bom_id` field so when the BoM is reassigns to this field, depending computes
             # will be triggered (doesn't happen if the field's value doesn't change).
             self.bom_id = False
@@ -3971,6 +4008,15 @@ class MrpProduction(models.Model):
             if self.state == "draft":
                 # Don't straight delete the moves/workorders to avoid to cancel the MO, those will
                 # be deleted once the BoM is assigned (and thus after new moves/WO were created).
+                #
+                # Everything, manual additions included: relinking a BoM to a
+                # draft order resets it to what the BoM describes. A previous
+                # comment here claimed only manual entries were spared, and
+                # filtered the *empty* recordset above to say so -- a no-op that
+                # never matched anything. The claim cannot be implemented as
+                # written either: `operation_id`/`bom_line_id` are cleared when
+                # the BoM record they point at is deleted, so an orphaned entry
+                # is indistinguishable from a hand-added one.
                 moves_to_unlink = self.move_raw_ids
                 workorders_to_unlink = self.workorder_ids
             self.bom_id = bom
@@ -4533,16 +4579,18 @@ class MrpProduction(models.Model):
         for print_format in productions_to_print.picking_type_id.mapped(
             "generated_mrp_lot_label_to_print"
         ):
+            # The selection is not required, so an operation type may carry no
+            # format at all; there is nothing to print for it.
+            if print_format not in ("pdf", "zpl"):
+                continue
             grouped_productions = productions_by_print_formats.get(print_format)
             lots_to_print = grouped_productions.mapped("lot_producing_ids")
-            if print_format == "pdf":
-                action = self.env.ref("stock.action_report_lot_label").report_action(
-                    lots_to_print.ids, config=False
-                )
-            elif print_format == "zpl":
-                action = self.env.ref("stock.label_lot_template").report_action(
-                    lots_to_print.ids, config=False
-                )
+            report = (
+                "stock.action_report_lot_label"
+                if print_format == "pdf"
+                else "stock.label_lot_template"
+            )
+            action = self.env.ref(report).report_action(lots_to_print.ids, config=False)
             clean_action(action, self.env)
             actions.append(action)
         return actions

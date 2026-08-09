@@ -70,7 +70,19 @@ FLOORS = {
     # calls -> 1. Attribution checked the way the guide asks: the count is 430 on
     # a pristine `HEAD` worktree and 429 with only this change applied to it, so
     # the -1 is this commit's and not a neighbour's uncommitted work.
-    "n-plus-one-query": 429,
+    #
+    # 429 -> 428: report.mrp.report_bom_structure asked
+    # `product.document.search_count()` once per node of the exploded BoM, purely
+    # to decide whether to draw a paperclip — measured at exactly one query per
+    # product in the tree (4, 13 and 40 queries for 4-, 13- and 40-node BoMs).
+    # The whole set of BoM-attached documents is now read once and indexed by
+    # product/template id, so the same three walks cost 1 query each. The other
+    # N+1 removed in the same commit
+    # (`mrp.workcenter.productivity._check_open_time_ids`, one `_read_group` per
+    # work order) this rule does not report, so it moves no count. Attribution
+    # checked as above: 429 on a pristine `HEAD` worktree, 428 with only this
+    # change applied to it.
+    "n-plus-one-query": 428,
 }
 
 

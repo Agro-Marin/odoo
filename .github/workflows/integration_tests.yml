@@ -43,6 +43,10 @@ on:
       - 'odoo/libs/**'
       - 'odoo/addons/base/**'
       - 'odoo/addons/test_orm/**'
+      # The mrp lane below. Without this an mrp-only pull request triggered no
+      # DB-backed workflow at all — `addons/**` appeared nowhere in this filter.
+      - 'addons/mrp/**'
+      - 'addons/stock/**'
       - 'crates/odoo_rust/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
@@ -113,6 +117,25 @@ env:
   # test_http: these suites interfere when installed together.
   ORM_INSTALL: test_orm
   ORM_TEST_TAGS: /test_orm
+
+  # mrp, added 2026-08-09 — the first *business* addon to get a lane, and it is
+  # here for the same reason test_http was: a suite nothing ran.
+  #
+  # 398 TransactionCases over 26k lines executed in no workflow. The cost is
+  # already on the books: 3bcf5d144f9 deleted `stock.move.availability` on the
+  # finding that it had "no consumer anywhere in the workspace", and the sweep
+  # missed addons/mrp/tests/test_order.py, which asserted on it. That test had
+  # been erroring ever since -- every assertion after the failing line, the
+  # rounding behaviour it exists to guard, silently unexecuted. Nothing noticed,
+  # because nothing ran it.
+  #
+  # mrp is also the deepest ORM consumer among the bundled addons -- recursive
+  # BoM explosion, backorder splitting, multi-level procurement, compute chains
+  # across four models -- so it exercises the core in ways `base` cannot.
+  #
+  # Its own database, same reasoning as test_http and test_orm above.
+  MRP_INSTALL: mrp
+  MRP_TEST_TAGS: /mrp
 
 jobs:
   base-smoke:
@@ -260,6 +283,41 @@ jobs:
           echo "test_orm tests run: $RAN (floor: 900)"
           if [ "$RAN" -lt 900 ]; then
             echo "::error::only $RAN test_orm tests ran, below the floor of 900 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run mrp suite
+        # Its own database (ci_mrp), same reasoning as test_http and test_orm.
+        # `mrp` pulls in stock, product, uom and resource, so this lane also
+        # gives those their first DB-backed exercise through a real consumer.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_mrp \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${MRP_INSTALL}" \
+            --test-enable --test-tags "${MRP_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/mrp-suite.log
+
+      - name: Assert the mrp suite actually ran
+        # Same guard as the two suites above. 398 tests today; the floor sits
+        # well under it so that a narrowed tag or a module that failed to
+        # install fails loudly, rather than a single deleted test doing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/mrp-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — mrp did not report a count"
+            exit 1
+          fi
+          echo "mrp tests run: $RAN (floor: 350)"
+          if [ "$RAN" -lt 350 ]; then
+            echo "::error::only $RAN mrp tests ran, below the floor of 350 —"
             echo "::error::something was skipped rather than failed."
             exit 1
           fi

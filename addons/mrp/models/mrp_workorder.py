@@ -768,7 +768,10 @@ class MrpWorkorder(models.Model):
         return None
 
     def write(self, vals):
-        values = vals
+        # A copy: everything below writes derived values back into ``values``,
+        # and mutating the caller's dict made ``write`` hand back a different
+        # ``date_end``/``duration_expected`` than the one it was given.
+        values = dict(vals)
         new_workcenter = False
         if "qty_produced" in values:
             for wo in self:
@@ -802,6 +805,17 @@ class MrpWorkorder(models.Model):
                     if workorder.state == "progress":
                         continue
                     workorders_with_new_wc |= workorder
+        # ``date_end`` and ``duration_expected`` are derived from each work
+        # order's own workcenter calendar and its own span, so they cannot
+        # travel in the dict shared by the whole recordset: the value computed
+        # for the last record used to overwrite the one computed for every
+        # other, and a single `super().write()` then applied it to all of them.
+        # Multi-editing the start date of two planned work orders collapsed
+        # their durations onto one value. They are collected per record here
+        # and merged into the write of the group they belong to, which keeps
+        # both dates in one `write` -- the reservation's own span constraint
+        # rejects an intermediate state where only one of them has moved.
+        derived_vals = {}
         if "date_start" in values or "date_end" in values:
             for workorder in self:
                 date_start = fields.Datetime.to_datetime(
@@ -816,19 +830,22 @@ class MrpWorkorder(models.Model):
                             "The planned end date of the work order cannot be prior to the planned start date, please correct this to save the work order."
                         )
                     )
+                derived = {}
                 if "duration_expected" not in values and not self.env.context.get(
                     "bypass_duration_calculation"
                 ):
                     if values.get("date_start") and values.get("date_end"):
-                        computed_finished_time = workorder._calculate_date_finished(
+                        derived["date_end"] = workorder._calculate_date_finished(
                             date_start=date_start, new_workcenter=new_workcenter
                         )
-                        values["date_end"] = computed_finished_time
                     elif date_start and date_end:
-                        computed_duration = workorder._calculate_duration_expected(
-                            date_start=date_start, date_end=date_end
+                        derived["duration_expected"] = (
+                            workorder._calculate_duration_expected(
+                                date_start=date_start, date_end=date_end
+                            )
                         )
-                        values["duration_expected"] = computed_duration
+                if derived:
+                    derived_vals[workorder.id] = derived
                 # Update MO dates if the start date of the first WO or the
                 # finished date of the last WO is update.
                 if (
@@ -847,27 +864,44 @@ class MrpWorkorder(models.Model):
                     workorder == workorder.production_id.workorder_ids[-1]
                     and "date_end" in values
                 ):
-                    if values["date_end"]:
+                    # The work order's own recomputed end, not the raw request:
+                    # that is what the MO has to follow.
+                    propagated_end = derived.get("date_end", values["date_end"])
+                    if propagated_end:
                         workorder.production_id.with_context(force_date=True).write(
-                            {
-                                "date_end": fields.Datetime.to_datetime(
-                                    values["date_end"]
-                                )
-                            }
+                            {"date_end": fields.Datetime.to_datetime(propagated_end)}
                         )
 
-        res = super().write(values)
-        productions = self.production_id.filtered(
-            lambda p: p.product_uom_id.compare(values.get("qty_produced", 0), 0) > 0
-        )
-        if "qty_produced" in values and productions:
+        if derived_vals:
+            # One write per distinct set of derived values; records that need
+            # none share the plain `values` group.
+            groups = defaultdict(self.browse)
+            for workorder in self:
+                derived = derived_vals.get(workorder.id) or {}
+                groups[tuple(sorted(derived.items()))] |= workorder
+            res = True
+            for derived_items, workorders in groups.items():
+                res = (
+                    super(MrpWorkorder, workorders).write(
+                        {**values, **dict(derived_items)}
+                    )
+                    and res
+                )
+        else:
+            res = super().write(values)
+
+        if "qty_produced" in values:
+            productions = self.production_id.filtered(
+                lambda p: p.product_uom_id.compare(values["qty_produced"], 0) > 0
+            )
             for production in productions:
                 min_wo_qty = min(production.workorder_ids.mapped("qty_produced"))
                 if production.product_uom_id.compare(min_wo_qty, 0) > 0:
                     production.workorder_ids.filtered(
                         lambda w: w.state != "done"
                     ).qty_producing = min_wo_qty
-            self._set_qty_producing()
+            if productions:
+                self._set_qty_producing()
         for workorder in workorders_with_new_wc:
             workorder.duration_expected = workorder._get_duration_expected()
             if workorder.date_start:

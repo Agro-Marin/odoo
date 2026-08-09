@@ -927,19 +927,22 @@ class MrpWorkcenterProductivity(models.Model):
 
     @api.constrains("workorder_id")
     def _check_open_time_ids(self):
-        for workorder in self.workorder_id:
-            open_time_ids_by_user = self.env["mrp.workcenter.productivity"]._read_group(
-                [("id", "in", workorder.time_ids.ids), ("date_end", "=", False)],
-                ["user_id"],
-                having=[("__count", ">", 1)],
-            )
-            if open_time_ids_by_user:
-                raise ValidationError(
-                    _(
-                        "The Workorder (%s) cannot be started twice!",
-                        workorder.display_name,
-                    )
+        workorders = self.workorder_id
+        if not workorders:
+            return
+        # One grouped query for the whole set: this ran once per work order.
+        open_by_workorder_user = self.env["mrp.workcenter.productivity"]._read_group(
+            [("workorder_id", "in", workorders.ids), ("date_end", "=", False)],
+            ["workorder_id", "user_id"],
+            having=[("__count", ">", 1)],
+        )
+        for workorder, _user, *_dummy in open_by_workorder_user:
+            raise ValidationError(
+                _(
+                    "The Workorder (%s) cannot be started twice!",
+                    workorder.display_name,
                 )
+            )
 
     def button_block(self):
         self.ensure_one()
