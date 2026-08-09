@@ -174,6 +174,16 @@ export class CommandPalette extends Component {
 
         this.keyId = 1;
         this.race = new Race();
+        // Deliberately NOT `rejectSuperseded`. This is the one caller in the
+        // module where the never-settling promise is a control-flow mechanism
+        // rather than an oversight: `setCommandPaletteConfig` is awaited by
+        // `onWillStart`, so a superseded config's palette is prevented from
+        // mounting *by* the hang. Making it settle mounts an empty palette for
+        // a config the user has already replaced -- pinned by
+        // `command_service.test.js`, "calling openPalette multiple times".
+        // Converting it means destroying the superseded palette instance
+        // instead of leaving it pending, which is a change to the component,
+        // not a wrapper around this line.
         this.keepLast = new KeepLast();
         this._sessionId = CommandPalette.lastSessionId++;
         this.DefaultCommandItem = DefaultCommandItem;
@@ -196,7 +206,46 @@ export class CommandPalette extends Component {
         });
         useExternalListener(window, "mousedown", this.onWindowMouseDown);
 
-        this.state = useState(/** @type {any} */ ({}));
+        /**
+         * Declared in full because the template renders against it before any
+         * config resolves: `t-if="!state.commands.length"` on an undeclared
+         * `commands` is a TypeError, and the only thing standing between the
+         * component and that crash used to be `setCommandPaletteConfig`
+         * never returning early. A component's initial state should not
+         * depend on a promise's failure mode.
+         *
+         * @type {{
+         *   commands: any[];
+         *   namespace: string;
+         *   searchValue: string;
+         *   placeholder: string;
+         *   emptyMessage: string;
+         *   hiddenCount: number;
+         *   selectedIndex: number;
+         *   isLoading: boolean;
+         *   FooterComponent: any;
+         * }}
+         */
+        this.state = useState({
+            commands: [],
+            namespace: "default",
+            searchValue: "",
+            placeholder: "",
+            emptyMessage: "",
+            hiddenCount: 0,
+            selectedIndex: -1,
+            isLoading: false,
+            FooterComponent: undefined,
+        });
+
+        // Same reasoning as `state` above, one level down: `commandsByCategory`
+        // reads both during the first render, and only `setCommands` used to
+        // assign them. They are plain fields rather than state because
+        // `state.commands` is what changes; these follow it in the same tick.
+        /** @type {string[]} */
+        this.categoryKeys = ["default"];
+        /** @type {Record<string, string>} */
+        this.categoryNames = {};
 
         this.root = useRef("root");
         this.listboxRef = useRef("listbox");
