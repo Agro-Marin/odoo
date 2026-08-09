@@ -196,11 +196,11 @@ GaugeField.formattedValue  odoo
 GaugeField.renderChart  odoo
 GaugeField.setup  odoo
 GraphController.setup  enterprise
-GraphModel._getLineOverlayDataset  odoo
 GraphModel._getProcessedDataPoints  odoo
-GraphModel._loadDataPoints  odoo
-GraphModel._prepareData  odoo
+GraphModel.getLineOverlayDataset  odoo
 GraphModel.load  odoo enterprise
+GraphModel.loadDataPoints  odoo
+GraphModel.prepareData  odoo
 GraphModel.setup  odoo enterprise
 GraphRenderer.getBarChartData  odoo
 GraphRenderer.getLineChartData  odoo

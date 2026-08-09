@@ -64,8 +64,8 @@ export class BurndownChartModel extends GraphModel {
     /**
      * @override
      */
-    _prepareData() {
-        super._prepareData();
+    prepareData() {
+        super.prepareData();
         const { groupBy } = this.searchParams;
         const { mode } = this.metaData;
         if (mode === "line" && groupBy.includes("step_id")) {
@@ -86,8 +86,8 @@ export class BurndownChartModel extends GraphModel {
      * @protected
      * @override
      */
-    async _loadDataPoints(metaData) {
+    async loadDataPoints(metaData) {
         metaData.measures.__count.string = _t("# of Tasks");
-        return super._loadDataPoints(metaData);
+        return super.loadDataPoints(metaData);
     }
 }

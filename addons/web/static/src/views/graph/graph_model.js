@@ -90,7 +90,7 @@ export class GraphModel extends Model {
             await this.fetches.whenIdle();
         }
         this.forceAllDataPoints = true;
-        this._prepareData();
+        this.prepareData();
         this.notify();
     }
 
@@ -116,7 +116,7 @@ export class GraphModel extends Model {
                 await this.fetches.whenIdle();
             }
             this.metaData = { ...this.metaData, ...params };
-            this._prepareData();
+            this.prepareData();
         }
         this.notify();
     }
@@ -200,7 +200,7 @@ export class GraphModel extends Model {
     async _fetchDataPoints(metaData) {
         let dataPoints;
         try {
-            dataPoints = await this.keepLast.add(this._loadDataPoints(metaData));
+            dataPoints = await this.keepLast.add(this.loadDataPoints(metaData));
         } catch (error) {
             if (error instanceof SupersededError) {
                 return false;
@@ -209,7 +209,7 @@ export class GraphModel extends Model {
         }
         /** @type {any} */ (this).dataPoints = dataPoints;
         this.metaData = metaData;
-        this._prepareData();
+        this.prepareData();
         return true;
     }
 
@@ -302,7 +302,7 @@ export class GraphModel extends Model {
         return { datasets, labels, exceeds };
     }
 
-    _getLineOverlayDataset() {
+    getLineOverlayDataset() {
         const { stacked } = this.metaData;
         const datasets = this.data.datasets;
         let lineOverlayDataset = null;
@@ -394,7 +394,7 @@ export class GraphModel extends Model {
      * @param {Object} metaData
      * @returns {Promise<any[]>}
      */
-    async _loadDataPoints(metaData) {
+    async loadDataPoints(metaData) {
         metaData.allIntegers = true;
         const { measure, domain, fields, groupBy, resModel, cumulatedStart } = metaData;
         const xFieldName = groupBy[0]?.fieldName;
@@ -566,12 +566,12 @@ export class GraphModel extends Model {
     /**
      * @protected
      */
-    _prepareData() {
+    prepareData() {
         const processedDataPoints = this._getProcessedDataPoints();
         this.data = this._getData(processedDataPoints, this.forceAllDataPoints);
         this.lineOverlayDataset = null;
         if (this.metaData.mode === "bar") {
-            this.lineOverlayDataset = this._getLineOverlayDataset();
+            this.lineOverlayDataset = this.getLineOverlayDataset();
         }
     }
 }

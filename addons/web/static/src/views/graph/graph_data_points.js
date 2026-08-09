@@ -6,7 +6,7 @@
 /**
  * The data-shaping half of `graph_model`, as pure functions.
  *
- * `GraphModel._loadDataPoints` was 195 lines — the unit's longest — and every
+ * `GraphModel.loadDataPoints` was 195 lines — the unit's longest — and every
  * branch in it (eight label shapes, the monetary multi-currency fallback, the
  * cumulated-start fold) was reachable only through a mounted webclient, because
  * the shaping sat between two `orm.formattedReadGroup` awaits. `views/pivot` does

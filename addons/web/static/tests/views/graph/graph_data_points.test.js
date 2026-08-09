@@ -3,7 +3,7 @@
 /**
  * Pure unit tests for graph's data shaping.
  *
- * `GraphModel._loadDataPoints` was 195 lines sitting between two
+ * `GraphModel.loadDataPoints` was 195 lines sitting between two
  * `orm.formattedReadGroup` awaits, so every branch below — eight label shapes,
  * the many2one disambiguation counter, the cumulated-start fold and the
  * multi-currency fallback — was reachable only by mounting a webclient

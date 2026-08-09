@@ -14,7 +14,7 @@ export class HrHolidaysGraphModel extends GraphModel {
         return super.load(searchParams);
     }
 
-    _getLineOverlayDataset() {
+    getLineOverlayDataset() {
         // Given that there are at least 2 stacks one for allocation and one for time off
         // then there shouldn't be a lineOverlay. 
         return null;
