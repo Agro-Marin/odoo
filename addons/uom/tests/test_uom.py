@@ -249,6 +249,75 @@ class TestUom(UomCommon):
         with self.assertRaises(UserError):
             self.uom_kgm.unlink()
 
+    def test_unlink_cannot_cascade_onto_protected_children(self):
+        """Hours is deliberately unprotected, but Days and Minutes are defined
+        against it and *are* protected. `relative_uom_id` is ON DELETE CASCADE,
+        so deleting Hours used to take both with it without either passing
+        through `unlink()` -- leaving their `ir.model.data` rows dangling, so
+        `env.ref("uom.product_uom_day")` raised for every module built on it.
+        """
+        hour = self.quick_ref("uom.product_uom_hour")
+        day = self.quick_ref("uom.product_uom_day")
+        minute = self.quick_ref("uom.product_uom_minute")
+        self.assertFalse(hour._filter_protected_uoms(), "Hours is unprotected")
+        self.assertEqual(day | minute, (day | minute)._filter_protected_uoms())
+
+        with self.assertRaises(UserError):
+            hour.unlink()
+
+        # Nothing was removed, and the xml ids still resolve.
+        self.assertTrue(day.exists() and minute.exists())
+        self.assertEqual(self.env.ref("uom.product_uom_day"), day)
+        self.assertEqual(self.env.ref("uom.product_uom_minute"), minute)
+
+    def test_unlink_cannot_silently_take_descendants(self):
+        """Deleting a user-made reference unit used to cascade-delete the whole
+        family defined against it, with no warning and no way to notice."""
+        root = self.env["uom.uom"].create({"name": "Root", "relative_factor": 1})
+        mid = self.env["uom.uom"].create(
+            {"name": "Mid", "relative_factor": 10, "relative_uom_id": root.id}
+        )
+        leaf = self.env["uom.uom"].create(
+            {"name": "Leaf", "relative_factor": 10, "relative_uom_id": mid.id}
+        )
+
+        with self.assertRaises(UserError):
+            root.unlink()
+        self.assertTrue((mid | leaf).exists())
+
+        # Deleting the family explicitly is unambiguous, so it stays allowed.
+        (root | mid | leaf).unlink()
+        self.assertFalse((root | mid | leaf).exists())
+
+    def test_unlink_descendant_check_sees_archived_children(self):
+        """An archived child is cascade-deleted exactly like an active one, so
+        the guard must look for it with `active_test=False`."""
+        root = self.env["uom.uom"].create({"name": "ARoot", "relative_factor": 1})
+        child = self.env["uom.uom"].create(
+            {
+                "name": "AChild",
+                "relative_factor": 4,
+                "relative_uom_id": root.id,
+                "active": False,
+            }
+        )
+        with self.assertRaises(UserError):
+            root.unlink()
+        self.assertTrue(child.exists())
+
+    def test_unlink_leaf_is_still_allowed(self):
+        """The guard must not turn into a blanket ban: a unit nothing is
+        defined against is still deletable."""
+        leaf = self.env["uom.uom"].create(
+            {
+                "name": "Lonely",
+                "relative_factor": 3,
+                "relative_uom_id": self.uom_unit.id,
+            }
+        )
+        leaf.unlink()
+        self.assertFalse(leaf.exists())
+
     def test_sequence_defaults(self):
         uom = self.env["uom.uom"].create(
             {
@@ -311,3 +380,99 @@ class TestUom(UomCommon):
             several.compare(1.0, 2.0)
         with self.assertRaises(ValueError):
             several.is_zero(0.0)
+
+    def test_rounding_follows_the_precision_within_a_transaction(self):
+        """`rounding` is a compute with no `@api.depends` (it reads a
+        `decimal.precision` row, not a field), so nothing invalidated it when
+        the precision changed. A cached `rounding` then disagreed with
+        `precision_get` for the rest of the transaction: `_compute_quantity`
+        (reads `rounding`) and `round` (reads the precision) returned different
+        numbers for the same input, and which one you got depended on whether
+        the unit was already in cache.
+        """
+        precision = self.env["decimal.precision"].search(
+            [("name", "=", "Product Unit")]
+        )
+        # Warm the cache at the current precision, as any earlier read would.
+        self.assertEqual(self.uom_unit.rounding, 0.01)
+
+        precision.digits = 4
+
+        self.assertEqual(self.uom_unit.rounding, 0.0001)
+        self.assertEqual(self.uom_unit._precision_digits(), 4)
+        self.assertEqual(self.uom_unit.round(1.234567), 1.2346)
+        # The two paths agree: both round at 4 digits now.
+        self.assertEqual(
+            self.uom_gram._compute_quantity(1234.5678, self.uom_kgm), 1.2346
+        )
+
+    def test_has_common_reference_accepts_an_unset_unit(self):
+        """An unset unit shares a reference with nothing -- including another
+        unset one. It is not a caller error: the call sites reach a
+        `product_uom_id`/`uom_id` that is legitimately empty on a half-filled
+        record, and each had to pre-guard to avoid a bare ValueError."""
+        no_uom = self.env["uom.uom"]
+        self.assertFalse(self.uom_gram._has_common_reference(no_uom))
+        self.assertFalse(no_uom._has_common_reference(self.uom_gram))
+        self.assertFalse(no_uom._has_common_reference(no_uom))
+        # More than one unit stays ambiguous, hence still an error.
+        several = self.uom_unit | self.uom_dozen
+        with self.assertRaises(ValueError):
+            several._has_common_reference(self.uom_gram)
+        with self.assertRaises(ValueError):
+            self.uom_gram._has_common_reference(several)
+
+    def test_compute_price_accepts_an_unset_unit(self):
+        """`_compute_price` `ensure_one()`d before its degenerate-input guard,
+        so an unset source unit raised where `_compute_quantity` returned
+        quietly. The two are now symmetric."""
+        no_uom = self.env["uom.uom"]
+        self.assertEqual(no_uom._compute_price(5.0, self.uom_gram), 5.0)
+        self.assertEqual(self.uom_gram._compute_price(5.0, no_uom), 5.0)
+        self.assertEqual(
+            no_uom._compute_price(5.0, self.uom_gram),
+            no_uom._compute_quantity(5.0, self.uom_gram),
+        )
+
+    def test_get_reference_uom_uses_parent_path(self):
+        """The root is read off `parent_path` instead of walking one query per
+        level, and the answer is unchanged -- including for a new record, which
+        has no `parent_path` yet and still needs the walk."""
+        chain = self.uom_unit
+        for i in range(4):
+            chain = self.env["uom.uom"].create(
+                {"name": f"Link{i}", "relative_factor": 2, "relative_uom_id": chain.id}
+            )
+        self.assertEqual(chain._get_reference_uom(), self.uom_unit)
+        self.assertEqual(self.uom_unit._get_reference_uom(), self.uom_unit)
+        self.assertEqual(self.uom_ton._get_reference_uom(), self.uom_gram)
+
+        # One query, whatever the depth of the chain. `browse` on its own is
+        # what makes this measure anything: a recordset carried over from the
+        # creations above prefetches its whole batch, which hides the walk's
+        # one-query-per-level behind a single warm fetch.
+        self.env.invalidate_all()
+        cold = self.env["uom.uom"].browse(chain.id)
+        with self.assertQueryCount(1):
+            cold._get_reference_uom().id
+
+        # New records have no parent_path: the walk is still the fallback.
+        draft = self.env["uom.uom"].new(
+            {"name": "Draft", "relative_factor": 3, "relative_uom_id": self.uom_ton.id}
+        )
+        self.assertFalse(draft.parent_path)
+        self.assertEqual(draft._get_reference_uom(), self.uom_gram)
+        self.assertTrue(draft._has_common_reference(self.uom_kgm))
+        self.assertFalse(draft._has_common_reference(self.uom_hour))
+
+    def test_display_name_follows_a_parent_rename(self):
+        """`display_name` interpolates the *parent's* name but did not depend
+        on it, so renaming a reference unit left every child stale."""
+        ctx = {"formatted_display_name": True}
+        self.assertEqual(
+            self.uom_dozen.with_context(**ctx).display_name, "Dozens\t--12.0 Units--"
+        )
+        self.uom_unit.name = "Pieces"
+        self.assertEqual(
+            self.uom_dozen.with_context(**ctx).display_name, "Dozens\t--12.0 Pieces--"
+        )

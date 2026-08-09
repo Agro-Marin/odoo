@@ -2,7 +2,6 @@
 import { onWillUpdateProps } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { KeepLast } from "@web/core/utils/concurrency";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import {
     Many2ManyTagsFieldColorEditable,
@@ -52,15 +51,16 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
 
     setup() {
         super.setup();
-        // Serialises the reference-unit fetches: when the product changes faster
-        // than the RPCs resolve, only the latest webRead is allowed to write
-        // `this.referenceUnit`; superseded ones stay pending forever (KeepLast
-        // default), so a slow early response can never clobber a newer one.
-        this.referenceUnitLoader = new KeepLast();
-        // Fire-and-forget on purpose: an `await` here (or an async
-        // onWillUpdateProps callback returning a promise) would put this RPC on
-        // OWL's render path and block the field from patching on every product
-        // change. `referenceUnit` is only consumed later, in search().
+        // Monotonic token: when the product changes faster than the RPCs
+        // resolve, only the newest fetch is allowed to commit `referenceUnit`,
+        // so a slow early response can never clobber a newer one. A `KeepLast`
+        // would express the same intent but leaves superseded promises pending
+        // forever, and search() below *awaits* this handle -- awaiting a
+        // never-settling promise would wedge the dropdown open on a spinner.
+        this.referenceUnitSeq = 0;
+        // Kept off OWL's render path on purpose: an `await` here (or an async
+        // onWillUpdateProps callback returning a promise) would block the field
+        // from patching on every product change.
         this.updateReferenceUnit();
         onWillUpdateProps((nextProps) => {
             if (
@@ -72,43 +72,53 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
         });
     }
 
-    async updateReferenceUnit(props = this.props) {
-        if (!props.productModel || !props.productId) {
-            this.referenceUnit = undefined;
-            return;
-        }
-        try {
-            const products = await this.referenceUnitLoader.add(
-                this.orm.webRead(props.productModel, [props.productId], {
-                    specification: {
-                        uom_id: {
-                            fields: {
-                                name: {},
-                                factor: {},
-                                parent_path: {},
-                                rounding: {},
+    updateReferenceUnit(props = this.props) {
+        // Handle kept so search() can wait for the in-flight fetch instead of
+        // reading a still-undefined `referenceUnit`: opening the dropdown
+        // before the initial RPC landed used to silently degrade to an
+        // unsorted, unannotated list, which made the widget's behaviour a race
+        // against the network.
+        this.referenceUnitReady = this._loadReferenceUnit(props, ++this.referenceUnitSeq);
+        return this.referenceUnitReady;
+    }
+
+    async _loadReferenceUnit(props, seq) {
+        let referenceUnit;
+        if (props.productModel && props.productId) {
+            try {
+                const products = await this.orm.webRead(
+                    props.productModel,
+                    [props.productId],
+                    {
+                        specification: {
+                            uom_id: {
+                                fields: {
+                                    name: {},
+                                    factor: {},
+                                    parent_path: {},
+                                    rounding: {},
+                                },
                             },
                         },
+                        context: { active_test: false },
                     },
-                    context: { active_test: false },
-                }),
-            );
-            this.referenceUnit = products[0]?.uom_id || undefined;
-        } catch {
-            // deleted or inaccessible product: degrade to a plain autocomplete
-            this.referenceUnit = undefined;
+                );
+                referenceUnit = products[0]?.uom_id || undefined;
+            } catch {
+                // deleted or inaccessible product: degrade to a plain autocomplete
+                referenceUnit = undefined;
+            }
+        }
+        if (seq === this.referenceUnitSeq) {
+            this.referenceUnit = referenceUnit;
         }
     }
 
     async search(name) {
-        const fields = [
-            "id",
-            "display_name",
-            "relative_factor",
-            "factor",
-            "relative_uom_id",
-            "parent_path",
-        ];
+        // The reference unit decides both the ordering and the annotations
+        // below, so the dropdown must not be built before it is known.
+        await this.referenceUnitReady;
+        const fields = ["id", "display_name", "factor", "parent_path"];
         const domain = [...this.props.getDomain(), ["name", "ilike", name]];
         const limit = this.props.searchLimit + 1;
         let records;
@@ -145,16 +155,24 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
         const quantity = this.props.productQuantity || 1;
         return records.map((record) => {
             // Only advertise a conversion for units actually convertible into
-            // the product's unit (i.e. sharing its reference root).
+            // the product's unit (i.e. sharing its reference root), and always
+            // express it *in the product's unit*.
+            //
+            // This used to branch on whether the candidate had a parent: a
+            // candidate with one was shown as `qty * relative_factor` of its
+            // own parent, which is the product's unit only when the parent
+            // happens to be it. With a product in Dozens, "Pack of 6" read
+            // "42 Units" -- a correct number in the wrong unit, sitting in the
+            // same dropdown as "0.58 Dozen" for a root candidate. The single
+            // factor-ratio form below is the general case and subsumes both.
             let relativeInfo = "";
             if (
                 reference &&
                 record.id !== reference.id &&
                 record.parent_path.split("/")[0] === referenceRoot
             ) {
-                relativeInfo = record.relative_uom_id
-                    ? `${roundPrecision(quantity * record.relative_factor, reference.rounding)} ${record.relative_uom_id[1]}`
-                    : `${roundPrecision((quantity * record.factor) / reference.factor, reference.rounding)} ${reference.name}`;
+                const converted = (quantity * record.factor) / reference.factor;
+                relativeInfo = `${roundPrecision(converted, reference.rounding)} ${reference.name}`;
             }
             return { ...record, relative_info: relativeInfo };
         });

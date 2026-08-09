@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-
 from datetime import timedelta
 from typing import Literal, Self
 
@@ -66,9 +65,14 @@ class UomUom(models.Model):
     def _compute_rounding(self):
         """All Units of Measure share the same rounding precision defined in 'Product Unit'.
         Set in a compute to ensure compatibility with previous calls to `uom.rounding`.
+
+        There is deliberately no `@api.depends`: the value follows a
+        `decimal.precision` row, not a field of `self`, so the ORM has nothing to
+        watch. `decimal.precision.write` is extended (see `decimal_precision.py`)
+        to invalidate this field, which is what keeps a cached `rounding` from
+        disagreeing with `_precision_digits()` inside a single transaction.
         """
-        decimal_precision = self.env["decimal.precision"].precision_get("Product Unit")
-        self.rounding = 10**-decimal_precision
+        self.rounding = 10 ** -self._precision_digits()
 
     @api.depends("relative_factor", "relative_uom_id", "relative_uom_id.factor")
     def _compute_factor(self):
@@ -120,7 +124,26 @@ class UomUom(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_master_data(self):
-        locked_uoms = self._filter_protected_uoms()
+        """Veto a delete that would take units with it that the caller never named.
+
+        `relative_uom_id` is `ondelete="cascade"`, so Postgres removes every
+        descendant of `self` in the same statement -- without any of them ever
+        passing through `unlink()`. Vetting only `self` therefore left two holes:
+
+        - Deleting `Hours` (deliberately unprotected, see
+          `_unprotected_uom_xml_ids`) silently deleted `Days` and `Minutes`,
+          which *are* protected master data, and left their `ir.model.data`
+          rows behind: `env.ref("uom.product_uom_day")` then raised for every
+          module built on it.
+        - Deleting any user-made reference unit silently deleted the whole
+          family defined against it.
+
+        Both are checked here, on `self` plus its descendants. Deleting a
+        subtree explicitly (parent and children in the same recordset) stays
+        allowed -- the intent is unambiguous then.
+        """
+        descendants = self._descendant_uoms()
+        locked_uoms = (self | descendants)._filter_protected_uoms()
         if locked_uoms:
             raise UserError(
                 _(
@@ -128,15 +151,36 @@ class UomUom(models.Model):
                     ", ".join(locked_uoms.mapped("name")),
                 )
             )
+        if descendants:
+            raise UserError(
+                _(
+                    "%(unit)s is the reference unit of %(dependent_units)s."
+                    " Deleting it would delete those too. Delete them first, or"
+                    " give them another reference unit.",
+                    unit=", ".join(self.mapped("name")),
+                    dependent_units=", ".join(descendants.mapped("name")),
+                )
+            )
 
     # === BUSINESS METHODS === #
+
+    def _precision_digits(self) -> int:
+        """Number of decimals every unit is rounded at.
+
+        Single accessor for the 'Product Unit' precision, so `rounding`,
+        `round`, `compare` and `is_zero` cannot drift apart the way three
+        independent `precision_get` calls could. Cheap to call in a loop:
+        `precision_get` is ormcached on the "stable" cache.
+        """
+        return self.env["decimal.precision"].precision_get("Product Unit")
 
     def round(self, value: float, rounding_method: RoundingMethod = "HALF-UP") -> float:
         """Round the value using the 'Product Unit' precision"""
         self.ensure_one()
-        digits = self.env["decimal.precision"].precision_get("Product Unit")
         return float_round(
-            value, precision_digits=digits, rounding_method=rounding_method
+            value,
+            precision_digits=self._precision_digits(),
+            rounding_method=rounding_method,
         )
 
     def _check_at_most_one(self) -> None:
@@ -166,8 +210,7 @@ class UomUom(models.Model):
         :return: -1, 0 or 1, if ``value1`` is lower than, equal to, or greater than ``value2``.
         """
         self._check_at_most_one()
-        digits = self.env["decimal.precision"].precision_get("Product Unit")
-        return float_compare(value1, value2, precision_digits=digits)
+        return float_compare(value1, value2, precision_digits=self._precision_digits())
 
     def is_zero(self, value: float) -> bool:
         """Check if the value is zero after rounding with the 'Product Unit' precision
@@ -175,10 +218,9 @@ class UomUom(models.Model):
         Callable on an empty recordset; see :meth:`_check_at_most_one`.
         """
         self._check_at_most_one()
-        digits = self.env["decimal.precision"].precision_get("Product Unit")
-        return float_is_zero(value, precision_digits=digits)
+        return float_is_zero(value, precision_digits=self._precision_digits())
 
-    @api.depends("name", "relative_factor", "relative_uom_id")
+    @api.depends("name", "relative_factor", "relative_uom_id", "relative_uom_id.name")
     @api.depends_context("formatted_display_name")
     def _compute_display_name(self):
         super()._compute_display_name()
@@ -337,10 +379,16 @@ class UomUom(models.Model):
         Call-sites that must degrade instead of raising use the named wrappers
         below (`_compute_price_report` / `_compute_price_estimate`) -- see the
         comment block above them for the decision rule.
+
+        Degenerate recordsets are handled exactly as in `_compute_quantity`: an
+        unset unit on either side returns the price untouched instead of
+        raising. The two were asymmetric -- `_compute_price` `ensure_one()`d
+        first, so a price read off a record whose unit is not resolved yet blew
+        up with `ValueError` where the quantity path returned quietly.
         """
-        self.ensure_one()
-        if not price or not to_unit or self == to_unit:
+        if not self or not price or not to_unit or self == to_unit:
             return price
+        self.ensure_one()
         if not self._has_common_reference(to_unit):
             if raise_if_failure:
                 raise UserError(
@@ -413,18 +461,49 @@ class UomUom(models.Model):
         )
         return self.browse(set(linked_model_data.mapped("res_id")))
 
+    def _descendant_uoms(self) -> Self:
+        """Every unit transitively defined against `self`, `self` excluded.
+
+        `active_test=False` is not optional: half the shipped hierarchy is
+        archived (cm, Dozens, the imperial units...), and an archived child is
+        cascade-deleted exactly like an active one.
+        """
+        if not self:
+            return self
+        return (
+            self.with_context(active_test=False).search([("id", "child_of", self.ids)])
+            - self
+        )
+
     def _get_reference_uom(self) -> Self:
         """Return the root unit `self` is (transitively) defined against."""
         self.ensure_one()
+        # `parent_path` already holds the whole ancestry ("<root>/…/<self>/"),
+        # so the root is one browse. Walking `relative_uom_id` instead cost one
+        # query per level on a cold cache -- 6 for a Mile.
+        if self.parent_path:
+            return self.browse(int(self.parent_path.split("/", 1)[0]))
+        # New records (e.g. during an onchange) have no parent_path yet.
         uom = self
         while uom.relative_uom_id:
             uom = uom.relative_uom_id
         return uom
 
     def _has_common_reference(self, other_uom: Self) -> bool:
-        """Check if `self` and `other_uom` have a common reference unit"""
-        self.ensure_one()
-        other_uom.ensure_one()
+        """Check if `self` and `other_uom` have a common reference unit
+
+        An unset unit on either side is `False`: it shares a reference with
+        nothing, since there is no reference to share. It is not a caller error
+        -- the ~30 call sites reach `product_uom_id`, `uom_id` or a
+        `seller.product_uom_id` that is legitimately empty on a half-filled
+        record, and each of them had to pre-guard the operands to avoid a bare
+        `ValueError`. More than one unit stays a caller error: that really is
+        ambiguous. Same rule as :meth:`_check_at_most_one`.
+        """
+        self._check_at_most_one()
+        other_uom._check_at_most_one()
+        if not self or not other_uom:
+            return False
         if self.parent_path and other_uom.parent_path:
             return (
                 self.parent_path.split("/", 1)[0]

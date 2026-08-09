@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import {
     clickFieldDropdown,
     contains,
@@ -179,18 +180,59 @@ test("many2one_uom: conversions shown relative to the product's unit", async () 
     expect(searchDomains[1]).toInclude("!");
 });
 
-test("many2one_uom: root unit converts into the product's reference unit", async () => {
+test("many2one_uom: every conversion is expressed in the product's unit", async () => {
     mockUomRpc();
-    // Product unit is Dozen: 'Units' (a root) has no parent to show, so it is
-    // expressed in Dozen -> 7 * 1/12 = 0.58; 'Pack of 6' still shows 7*6 Units.
+    // Product unit is Dozen, so *both* candidates are quoted in Dozen:
+    // 'Units'     -> 7 * 1/12 = 0.58 Dozen
+    // 'Pack of 6' -> 7 * 6/12 = 3.5  Dozen
+    // 'Pack of 6' used to be quoted as "42 Units" -- its own parent's unit,
+    // not the product's -- next to a sibling quoted in Dozen.
     await mountView({ type: "form", resModel: "sale.line", resId: 2, arch: FORM_M2O });
 
     await clickFieldDropdown("uom_id");
 
     expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual([
         "0.58 Dozen",
+        "3.5 Dozen",
+    ]);
+});
+
+test("many2one_uom: dropdown waits for the reference unit before rendering", async () => {
+    const deferred = new Deferred();
+    const searchDomains = [];
+    onRpc("product.product", "web_read", async ({ args }) => {
+        await deferred; // reference-unit fetch still in flight
+        return [{ id: args[0][0], uom_id: PRODUCT_REFERENCE_UOM[args[0][0]] }];
+    });
+    onRpc("uom.uom", "search_read", ({ kwargs }) => {
+        searchDomains.push(kwargs.domain);
+        const usesRootSplit = JSON.stringify(kwargs.domain).includes("=like");
+        const ids = !usesRootSplit
+            ? [...COMMON_ROOT_IDS, ...OTHER_IDS]
+            : kwargs.domain.includes("!")
+              ? OTHER_IDS
+              : COMMON_ROOT_IDS;
+        return ids.map((id) => ({ ...UOM_ROWS[id] })).slice(0, kwargs.limit);
+    });
+    await mountView({ type: "form", resModel: "sale.line", resId: 1, arch: FORM_M2O });
+
+    // Opening before the product read resolves used to race: search() read a
+    // still-undefined referenceUnit and silently produced a flat, unannotated
+    // list. It must now wait instead. The deferred is held until the dropdown
+    // has had every chance to build itself -- releasing it earlier is what made
+    // an equivalent test pass with and without the fix.
+    await clickFieldDropdown("uom_id");
+    await animationFrame();
+    expect(searchDomains).toHaveLength(0); // search still parked on the fetch
+    deferred.resolve();
+    await animationFrame();
+    await animationFrame();
+
+    expect(queryAllTexts(".dropdown-menu li .text-muted")).toEqual([
+        "84 Units",
         "42 Units",
     ]);
+    expect(searchDomains).toHaveLength(2);
 });
 
 test("many2one_uom: no product falls back to a plain autocomplete", async () => {
