@@ -447,7 +447,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 raise ValueError(
                     f"Property name {property_name!r} has to be used on a property field."
                 )
-            if field.type in ("date", "datetime"):
+            if field.is_temporal:
                 annotated_groupby[group_spec] = f"{field_name}:{granularity or 'month'}"
             else:
                 annotated_groupby[group_spec] = group_spec

@@ -91,13 +91,13 @@ class WriteMixin(_ModelStubs):
                 raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
             field_values.append((field, value))
             if field.inverse:
-                if field.type in ("one2many", "many2many"):
+                if field.is_x2many:
                     x2m_inverse_fnames.append(fname)
                 determine_inverses[field.inverse].append(field)
             if self.pool.is_modifying_relations(field):
                 fnames_modifying_relations.append(fname)
             if field.inverse or (field.compute and not field.readonly):
-                if field.store or field.type not in ("one2many", "many2many"):
+                if field.store or not field.is_x2many:
                     protected.update(self.pool.field_computed.get(field, [field]))
 
         if x2m_inverse_fnames:
@@ -149,10 +149,7 @@ class WriteMixin(_ModelStubs):
                 for field in fields:
                     if (
                         not field.store
-                        and (
-                            not field.inherited
-                            or field.type not in ("one2many", "many2many")
-                        )
+                        and (not field.inherited or not field.is_x2many)
                         and any(field._cache_missing_ids(real_recs))
                     ):
                         field.mark_dirty(real_recs, vals[field.name])

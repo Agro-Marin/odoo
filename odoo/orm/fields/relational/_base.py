@@ -276,6 +276,7 @@ class _Relational(Field["BaseModel"]):
 
 class _RelationalMulti(_Relational):
     write_sequence = 20
+    is_x2many = True
 
     @override
     def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:

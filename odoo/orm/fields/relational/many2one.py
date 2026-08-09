@@ -29,6 +29,11 @@ class Many2one(_Relational):
     ondelete: OnDelete | None = None
     delegate: bool = False
 
+    @property
+    def is_delegating(self) -> bool:
+        """See :attr:`Field.is_delegating`."""
+        return self.delegate
+
     @typing.overload
     def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
     @typing.overload
@@ -98,7 +103,10 @@ class Many2one(_Relational):
                 f"The m2o field {self.name} of model {model._name} is required but declares its ondelete policy "
                 "as being 'set null'. Only 'restrict' and 'cascade' make sense."
             )
-        if self.ondelete == "restrict" and model.env[self.comodel_name]._is_registry_metadata:
+        if (
+            self.ondelete == "restrict"
+            and model.env[self.comodel_name]._is_registry_metadata
+        ):
             raise ValueError(
                 f"Field {self.name} of model {model._name} is defined as ondelete='restrict' "
                 f"while having {self.comodel_name} as comodel, the 'restrict' mode is not "

@@ -108,7 +108,7 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
             field_name = group.split(":")[0].split(".")[0]
             field = self._fields[field_name]
 
-            if field.type in ("date", "datetime"):
+            if field.is_temporal:
                 granularity = group.split(":")[1] if ":" in group else "month"
                 if granularity in READ_GROUP_TIME_GRANULARITY:
                     locale = get_lang(self.env).code
@@ -139,7 +139,7 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                 else:
                     additional_domain = [(field_name, "=", value)]
 
-                if field.type in ("date", "datetime"):
+                if field.is_temporal:
                     # datetime is a subclass of date, so this admits both; which
                     # one arrives is decided by field.type, not by the check.
                     if value and isinstance(value, datetime.date):

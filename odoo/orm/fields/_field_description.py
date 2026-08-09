@@ -65,9 +65,7 @@ class _FieldDescriptionMixin(_FieldStubs):
 
         model = env[self.model_name]
         query = model._as_query(ordered=False)
-        groupby = (
-            self.name if self.type not in ("date", "datetime") else f"{self.name}:month"
-        )
+        groupby = self.name if not self.is_temporal else f"{self.name}:month"
         try:
             model._read_group_groupby(model._table, groupby, query)
             return True

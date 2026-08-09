@@ -276,7 +276,7 @@ class CreateMixin(_ModelStubs):
                 inv_relational_fnames = [
                     field.name
                     for field in fields
-                    if field.type in ("one2many", "many2many") and not field.store
+                    if field.is_x2many and not field.store
                 ]
                 inv_records.invalidate_recordset(fnames=inv_relational_fnames)
         prof.mark("trigger")
@@ -549,7 +549,7 @@ class CreateMixin(_ModelStubs):
         for field in self._fields.values():
             if not field.store:
                 continue
-            if field.type in ("one2many", "many2many"):
+            if field.is_x2many:
                 _stored_x2m_caches.append((field, field._get_cache(env)))
             else:
                 default = PENDING if field.is_stored_computed else None

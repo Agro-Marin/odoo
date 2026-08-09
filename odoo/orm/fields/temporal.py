@@ -32,6 +32,8 @@ DATETIME_LENGTH = len(datetime.now().strftime(DATETIME_FORMAT))
 
 
 class BaseDate[T](Field[T | typing.Literal[False]]):
+    is_temporal = True
+
     start_of = staticmethod(date_utils.start_of)
     end_of = staticmethod(date_utils.end_of)
     add = staticmethod(date_utils.add)

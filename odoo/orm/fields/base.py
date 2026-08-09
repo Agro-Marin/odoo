@@ -164,9 +164,61 @@ class Field[T](
     _FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin, _FieldMetadataMixin
 ):
     type: str
+    """The serialised discriminator: what ``ir.model.fields`` stores, what
+    ``fields_get`` reports and what the web client dispatches on.
+
+    It is a *persistence* concern, and the class hierarchy is what code in this
+    package should branch on. ``relational``/``is_text`` below, and the
+    predicates after them, exist so that a caller asks the field what it is
+    rather than comparing this string -- see :attr:`is_delegating` for what the
+    comparison form costs.
+    """
+
     relational: bool = False
     is_text: bool = False
     falsy_value: T | None = None
+
+    is_x2many: bool = False
+    """Whether the field holds a *set* of comodel records (o2m or m2m).
+
+    Declared with an inert default and overridden on ``_RelationalMulti``, the
+    shared base of ``One2many`` and ``Many2many``, so the sites that spelled
+    this as a membership test over the two type strings ask the field instead of
+    reproducing the list.
+    """
+
+    is_temporal: bool = False
+    """Whether the field holds a date or a datetime."""
+
+    @property
+    def is_delegating(self) -> bool:
+        """Whether this is a Many2one that sets up ``_inherits`` delegation.
+
+        The predicate form of ``self.type == "many2one" and self.delegate``,
+        which is what ``__get__``'s cache-miss path -- the hottest read in the
+        ORM -- used to spell. That expression was correct only by accident:
+        ``delegate`` lived on ``Many2one`` alone, so it was ``and``
+        short-circuiting on the type string that kept every other field from
+        raising ``AttributeError``. Reordering the two terms, or adding a second
+        reader that tested ``delegate`` first, broke every non-m2o field on the
+        hot path. The attribute was hoisted to this class with an inert default
+        on 2026-08-09 to stop that; the predicate is the other half, because a
+        hoisted attribute makes the base class carry a subclass's vocabulary and
+        leaves the caller still doing the dispatch.
+
+        ``Many2one`` overrides this to report ``self.delegate``.
+        """
+        return False
+
+    @property
+    def is_attachment_backed(self) -> bool:
+        """Whether this is a Binary that stores its bytes as an ``ir.attachment``.
+
+        Same shape and same history as :attr:`is_delegating`:
+        ``self.related_field.type == "binary" and self.related_field.attachment``
+        in :meth:`update_db`, safe only by short-circuiting.
+        """
+        return False
 
     write_sequence: int = 0
     """Field processing priority in ``write()`` — lower values are processed first.
@@ -759,10 +811,8 @@ class Field[T](
             and self.related.count(".") == 1
             and self.related_field.store
             and not self.related_field.compute
-            and not (
-                self.related_field.type == "binary" and self.related_field.attachment
-            )
-            and self.related_field.type not in ("one2many", "many2many")
+            and not self.related_field.is_attachment_backed
+            and not self.related_field.is_x2many
         ):
             join_field = model._fields[self._related_names[0]]
             if (
@@ -1129,6 +1179,7 @@ class Field[T](
             origin_prefetch = recs._origin._prefetch_ids
             spawn = type(recs)._spawn
             recs_env = recs.env
+
             def _batch() -> None:
                 for rec in recs:
                     rec_id = rec._ids[0]
@@ -1190,7 +1241,7 @@ class Field[T](
                 field_cache = self._get_cache(env)
                 value = field_cache[record_id]
 
-        elif self.type == "many2one" and self.delegate and not record_id:
+        elif self.is_delegating and not record_id:
 
             def is_inherited_field(name):
                 field = record._fields[name]
