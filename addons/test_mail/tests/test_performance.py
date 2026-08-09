@@ -281,26 +281,37 @@ class TestBaseMailPerformance(BaseMailPerformance):
     @warmup
     def test_create_mail_with_tracking(self):
         """ Create records inheriting from 'mail.thread' (with field tracking). """
-        with self.assertQueryCount(admin=9, demo=9):
+        # +2 vs the pre-fork floor: mail.followers._insert_followers wraps its
+        # create in cr.savepoint(flush=False) and retries row-by-row on
+        # IntegrityError, because concurrent auto-subscribes race the
+        # unique(res_model, res_id, partner_id) index. SAVEPOINT + RELEASE are
+        # two real queries, so every auto-subscribing create pays them.
+        with self.assertQueryCount(admin=11, demo=11):
             self.env['mail.performance.thread'].create({'name': 'X'})
 
     @users('admin', 'employee')
     @warmup
     def test_create_mail_simple(self):
-        with self.assertQueryCount(admin=8, employee=8):
+        # +2: the mail.followers savepoint guard (see test_create_mail_with_tracking).
+        with self.assertQueryCount(admin=10, employee=10):
             self.env['mail.test.simple'].create({'name': 'Test'})
 
     @users('admin', 'employee')
     @warmup
     def test_create_mail_simple_multi(self):
-        with self.assertQueryCount(admin=8, employee=8):
+        # +2: the mail.followers savepoint guard (see test_create_mail_with_tracking).
+        with self.assertQueryCount(admin=10, employee=10):
             self.env['mail.test.simple'].create([{'name': 'Test'}] * 5)
 
     @users('admin', 'employee')
     @warmup
     def test_write_mail_simple(self):
         rec = self.env['mail.test.simple'].create({'name': 'Test'})
-        with self.assertQueryCount(admin=1, employee=1):
+        # +1 vs the pre-fork floor, all of it the ORM record-rule access check:
+        # since a7450df423d rules are evaluated in Python against the records
+        # (check_access -> _check_access -> filtered_domain), so a non-superuser
+        # fetches whatever field the rule names when it is not already cached.
+        with self.assertQueryCount(admin=2, employee=2):
             rec.write({
                 'name': 'Test2',
                 'email_from': 'test@test.mycompany.com',
@@ -322,7 +333,8 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_adv_activity(self):
         model = self.env['mail.test.activity']
 
-        with self.assertQueryCount(admin=8, employee=8):
+        # +2: the mail.followers savepoint guard (see test_create_mail_with_tracking).
+        with self.assertQueryCount(admin=10, employee=10):
             model.create({'name': 'Test'})
 
     @users('admin', 'employee')
@@ -344,7 +356,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
             # voip module read activity_type during create leading to one less query in enterprise on action_feedback
             _category = activity.activity_type_id.category
 
-        with self.assertQueryCount(admin=9, employee=9):  # tm: 7 / 7
+        with self.assertQueryCount(admin=8, employee=8):  # tm: 7 / 7
             activity.action_feedback(feedback='Zizisse Done !')
 
     @warmup
@@ -379,7 +391,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
 
         record.write({'name': 'Dupe write'})
 
-        with self.assertQueryCount(admin=13, employee=13):  # tm: 11 / 11
+        with self.assertQueryCount(admin=12, employee=12):  # tm: 11 / 11
             record.action_close('Dupe feedback')
 
         self.assertEqual(record.activity_ids, self.env['mail.activity'])
@@ -405,7 +417,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
 
         record.write({'name': 'Dupe write'})
 
-        with self.assertQueryCount(admin=15, employee=15):  # tm 10 / 10
+        with self.assertQueryCount(admin=14, employee=14):  # tm 10 / 10
             record.action_close('Dupe feedback', attachment_ids=attachments.ids)
 
         # notifications
@@ -462,7 +474,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
         test_record, _test_template = self._create_test_records()
         customer = self.env['res.partner'].browse(self.customer.ids)
         attachments = self.env['ir.attachment'].with_user(self.env.user).create(self.test_attachments_vals)
-        with self.assertQueryCount(admin=18, employee=18):  # tm 15/15
+        with self.assertQueryCount(admin=17, employee=17):  # tm 15/15
             composer_form = Form(
                 self.env['mail.compose.message'].with_context({
                     'default_composition_mode': 'comment',
@@ -531,7 +543,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
         test_record, test_template = self._create_test_records()
         test_template.write({'attachment_ids': [(5, 0)]})
 
-        with self.assertQueryCount(admin=27, employee=27):  # tm: 20/20
+        with self.assertQueryCount(admin=25, employee=25):  # tm: 20/20
             composer = self.env['mail.compose.message'].with_context({
                 'default_composition_mode': 'comment',
                 'default_model': test_record._name,
@@ -558,7 +570,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_mail_composer_w_template_attachments(self):
         test_record, test_template = self._create_test_records()
 
-        with self.assertQueryCount(admin=28, employee=28):  # tm: 21/21
+        with self.assertQueryCount(admin=26, employee=26):  # tm: 21/21
             composer = self.env['mail.compose.message'].with_context({
                 'default_composition_mode': 'comment',
                 'default_model': test_record._name,
@@ -587,7 +599,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
         test_template.write({'attachment_ids': [(5, 0)]})
 
         customer = self.env['res.partner'].browse(self.customer.ids)
-        with self.assertQueryCount(admin=38, employee=38):  # tm 29/29
+        with self.assertQueryCount(admin=35, employee=35):  # tm 29/29
             composer_form = Form(
                 self.env['mail.compose.message'].with_context({
                     'default_composition_mode': 'comment',
@@ -617,7 +629,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
         test_record, test_template = self._create_test_records()
 
         customer = self.env['res.partner'].browse(self.customer.ids)
-        with self.assertQueryCount(admin=40, employee=40):  # tm 31/31
+        with self.assertQueryCount(admin=37, employee=37):  # tm 31/31
             composer_form = Form(
                 self.env['mail.compose.message'].with_context({
                     'default_composition_mode': 'comment',
@@ -714,7 +726,11 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_message_log_with_post(self):
         record = self.env['mail.test.simple'].create({'name': 'Test'})
 
-        with self.assertQueryCount(admin=5, employee=5):
+        # +2 vs the pre-fork floor, all of it the ORM record-rule access check:
+        # since a7450df423d rules are evaluated in Python against the records
+        # (check_access -> _check_access -> filtered_domain), so a non-superuser
+        # fetches whatever field the rule names when it is not already cached.
+        with self.assertQueryCount(admin=7, employee=7):
             record.message_post(
                 body=Markup('<p>Test message_post as log</p>'),
                 subtype_xmlid='mail.mt_note',
@@ -725,7 +741,8 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_message_post_no_notification(self):
         record = self.env['mail.test.simple'].create({'name': 'Test'})
 
-        with self.assertQueryCount(admin=7, employee=7):
+        # +2: the ORM record-rule access check (see test_write_mail_simple).
+        with self.assertQueryCount(admin=9, employee=9):
             record.message_post(
                 body=Markup('<p>Test Post Performances basic</p>'),
                 partner_ids=[],
@@ -763,10 +780,14 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_message_subscribe_default(self):
         record = self.env['mail.test.simple'].create({'name': 'Test'})
 
-        with self.assertQueryCount(admin=6, employee=6):
+        # +3: the mail.followers savepoint guard (+2, new followers are added)
+        # plus one ORM record-rule access-check fetch (+1). See the sibling
+        # block below for the access-check explanation.
+        with self.assertQueryCount(admin=9, employee=9):
             record.message_subscribe(partner_ids=self.user_emp_inbox.partner_id.ids)
 
-        with self.assertQueryCount(admin=3, employee=3):
+        # +1: the ORM record-rule access check (see test_write_mail_simple).
+        with self.assertQueryCount(admin=4, employee=4):
             record.message_subscribe(partner_ids=self.user_emp_inbox.partner_id.ids)
 
     @mute_logger('odoo.models.unlink')
@@ -776,10 +797,14 @@ class TestBaseAPIPerformance(BaseMailPerformance):
         record = self.env['mail.test.simple'].create({'name': 'Test'})
         subtype_ids = (self.env.ref('test_mail.st_mail_test_simple_external') | self.env.ref('mail.mt_comment')).ids
 
-        with self.assertQueryCount(admin=5, employee=5):
+        # +3: the mail.followers savepoint guard (+2, new followers are added)
+        # plus one ORM record-rule access-check fetch (+1). See the sibling
+        # block below for the access-check explanation.
+        with self.assertQueryCount(admin=8, employee=8):
             record.message_subscribe(partner_ids=self.user_emp_inbox.partner_id.ids, subtype_ids=subtype_ids)
 
-        with self.assertQueryCount(admin=2, employee=2):
+        # +1: the ORM record-rule access check (see test_write_mail_simple).
+        with self.assertQueryCount(admin=3, employee=3):
             record.message_subscribe(partner_ids=self.user_emp_inbox.partner_id.ids, subtype_ids=subtype_ids)
 
     @mute_logger('odoo.models.unlink')
@@ -954,7 +979,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
     @warmup
     def test_message_get_default_recipients(self):
         record = self.test_records_recipients[0].with_env(self.env)
-        with self.assertQueryCount(employee=7):
+        with self.assertQueryCount(employee=5):
             defaults = record._message_get_default_recipients()
         self.assertDictEqual(defaults, {record.id: {
             'email_cc': '', 'email_to': 'only.email.1@test.example.com', 'partner_ids': [],
@@ -964,7 +989,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
     @warmup
     def test_message_get_default_recipients_batch(self):
         records = self.test_records_recipients.with_env(self.env)
-        with self.assertQueryCount(employee=9):
+        with self.assertQueryCount(employee=8):
             defaults = records._message_get_default_recipients()
         self.assertDictEqual(defaults, {
             records[0].id: {
@@ -993,7 +1018,8 @@ class TestMailAPIPerformance(BaseMailPerformance):
     @warmup
     def test_message_get_suggested_recipients(self):
         record = self.test_records_recipients[0].with_env(self.env)
-        with self.assertQueryCount(employee=23):  # tm: 16
+        # +2: the ORM record-rule access check (see test_write_mail_simple).
+        with self.assertQueryCount(employee=25):  # tm: 16
             recipients = record._message_get_suggested_recipients(no_create=False)
         new_partner = self.env['res.partner'].search([('email_normalized', '=', 'only.email.1@test.example.com')])
         self.assertEqual(len(new_partner), 1)
@@ -1089,7 +1115,10 @@ class TestMailAPIPerformance(BaseMailPerformance):
         self.assertEqual(rec1.message_partner_ids, self.env.user.partner_id | self.user_portal.partner_id)
 
         # subscribe new followers with forced given subtypes
-        with self.assertQueryCount(admin=4, employee=4):
+        # +2: the mail.followers savepoint guard (SAVEPOINT + RELEASE). Every
+        # block here widens the partner set ([:4], [:6], then all), so each one
+        # does add new followers and _insert_followers takes the savepoint.
+        with self.assertQueryCount(admin=6, employee=6):
             rec.message_subscribe(
                 partner_ids=pids[:4],
                 subtype_ids=subtype_ids
@@ -1098,7 +1127,10 @@ class TestMailAPIPerformance(BaseMailPerformance):
         self.assertEqual(rec1.message_partner_ids, self.env.user.partner_id | self.user_portal.partner_id | self.partners[:4])
 
         # subscribe existing and new followers with force=False, meaning only some new followers will be added
-        with self.assertQueryCount(admin=5, employee=5):
+        # +2: the mail.followers savepoint guard (SAVEPOINT + RELEASE). Every
+        # block here widens the partner set ([:4], [:6], then all), so each one
+        # does add new followers and _insert_followers takes the savepoint.
+        with self.assertQueryCount(admin=7, employee=7):
             rec.message_subscribe(
                 partner_ids=pids[:6],
                 subtype_ids=None
@@ -1107,7 +1139,10 @@ class TestMailAPIPerformance(BaseMailPerformance):
         self.assertEqual(rec1.message_partner_ids, self.env.user.partner_id | self.user_portal.partner_id | self.partners[:6])
 
         # subscribe existing and new followers with force=True, meaning all will have the same subtypes
-        with self.assertQueryCount(admin=4, employee=4):
+        # +2: the mail.followers savepoint guard (SAVEPOINT + RELEASE). Every
+        # block here widens the partner set ([:4], [:6], then all), so each one
+        # does add new followers and _insert_followers takes the savepoint.
+        with self.assertQueryCount(admin=6, employee=6):
             rec.message_subscribe(
                 partner_ids=pids,
                 subtype_ids=subtype_ids
@@ -1120,7 +1155,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
     def test_partner_find_from_emails(self):
         """ Test '_partner_find_from_emails', notably to check batch optimization """
         records = self.test_records_recipients.with_user(self.env.user)
-        with self.assertQueryCount(employee=27):  # tm: 20
+        with self.assertQueryCount(employee=25):  # tm: 20
             partners = records._partner_find_from_emails(
                 {record: [record.email_from, record.partner_id.email, record.user_id.email] for record in records},
                 avoid_alias=True,
