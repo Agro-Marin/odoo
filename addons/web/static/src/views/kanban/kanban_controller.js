@@ -377,7 +377,9 @@ export class KanbanController extends MultiRecordController {
                     if (!noReload) {
                         await root.load();
                         this.model.useSampleModel = false;
-                        this.render(true);
+                        // Not forced: `load()` replaces the datapoints the columns
+                        // read, so the cards re-render off their own subscriptions.
+                        this.render();
                     }
                 },
             };

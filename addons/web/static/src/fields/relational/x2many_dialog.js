@@ -62,7 +62,11 @@ export class X2ManyFieldDialog extends Component {
         useSubEnv({ config: this.props.config });
         this.env.dialogData.dismiss = () => this.discard();
 
-        useBus(this.record.model.bus, ModelEvent.UPDATE, () => this.render(true));
+        // Not forced. This is the per-dialog form of the blanket that used to
+        // live in `useModelWithSampleData`: the dialog re-renders on a model
+        // update, but its children re-render off their own subscriptions
+        // rather than being swept along unconditionally.
+        useBus(this.record.model.bus, ModelEvent.UPDATE, () => this.render());
 
         this.modalRef = useChildRef();
 

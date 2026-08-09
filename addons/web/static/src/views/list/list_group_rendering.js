@@ -108,7 +108,10 @@ export const listGroupRenderingMixin = {
             onUpdate: async ({ offset, limit }) => {
                 if (await this.props.list.leaveEditMode()) {
                     await list.load({ limit, offset });
-                    this.render(true);
+                    // Not forced: `load()` replaces the group's datapoints and the
+                    // rows re-render off their own subscriptions. A forced render
+                    // here would re-render every row in every group.
+                    this.render();
                 }
             },
             withAccessKey: false,
