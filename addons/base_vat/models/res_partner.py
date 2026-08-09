@@ -213,7 +213,7 @@ class ResPartner(models.Model):
             # real installed `zeep` package directly is a safe, local fix.
             import zeep
             try:
-                vies_valid = check_vies(partner.vat, timeout=10)
+                vies_valid = partner._check_vies(partner.vat)
                 partner.vies_valid = vies_valid['valid']
             except (OSError, InvalidComponent, zeep.exceptions.Fault) as e:
                 if partner._origin.id:
@@ -227,6 +227,20 @@ class ResPartner(models.Model):
                     partner._origin.message_post(body=msg)
                 _logger.warning("The VAT number %s failed VIES check.", partner.vat)
                 partner.vies_valid = False
+
+    def _check_vies(self, vat):
+        """Query the VIES service for ``vat``.
+
+        Kept as its own method so the network call has a seam: upstream exposed
+        one (``_check_vies_iap``) and this fork's switch to calling ``stdnum``'s
+        ``check_vies`` directly removed it, leaving callers -- notably tests
+        that must simulate VIES answers without a network round trip -- nothing
+        to override.
+
+        :param vat: VAT number to validate, country prefix included
+        :return: the VIES response mapping, carrying at least a ``valid`` key
+        """
+        return check_vies(vat, timeout=10)
 
     def _split_vat(self, vat):
         vat_prefix, vat_number = vat[:2].upper(), vat[2:].replace(' ', '')
