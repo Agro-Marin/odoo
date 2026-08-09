@@ -1875,12 +1875,22 @@ class Base_ImportImport(models.TransientModel):
             import_limit = options.get('limit')
             try:
                 input_file_data, import_fields = self._convert_import_data(fields, options)
-                # Only `load` used to honour the batch limit, so every stage below
-                # ran over the whole remainder of the file on every batch. Trim to
-                # what this batch can actually consume first -- see _batch_window.
-                input_file_data = input_file_data[:self._batch_window(import_fields, input_file_data, import_limit)]
                 # Parse date and float field
                 input_file_data = self._parse_import_data(input_file_data, import_fields, options)
+                # Only `load` used to honour the batch limit, so every stage below
+                # ran over the whole remainder of the file on every batch. Trim to
+                # what this batch can actually consume -- see _batch_window.
+                #
+                # Trim *after* parsing, not before: overrides of
+                # _parse_import_data legitimately read the whole remaining file.
+                # The bank-statement importer takes the statement's closing
+                # balance from its last row and drops rows carrying no amount, so
+                # bounding the rows beforehand both mis-stated that balance and
+                # yielded fewer records than the limit -- which in turn made
+                # `load` report end-of-file and silently import only the first
+                # batch. Everything from here on is per-row, and `load` applies
+                # the same bound anyway.
+                input_file_data = input_file_data[:self._batch_window(import_fields, input_file_data, import_limit)]
             except ImportValidationError as error:
                 return {'messages': [error.__dict__]}
 
