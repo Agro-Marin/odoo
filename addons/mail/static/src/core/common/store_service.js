@@ -225,8 +225,16 @@ export class Store extends BaseStore {
             // patches are applied: guard so portal/livechat bundles that load
             // core/common alone don't crash.
             const searchTerm = cleanTerm(this.discuss?.searchTerm ?? "");
+            // Iterate the maintained candidate list, NOT Thread.records: the
+            // latter re-observes every thread in the store (see
+            // menuThreadCandidates) and, because eligibility now lives in
+            // Thread.storeAsMenuThreadCandidate rather than here, would also
+            // let ineligible threads into the menu.
             /** @type {import("models").Thread[]} */
-            let threads = Object.values(this.Thread.records).filter(
+            let threads = this.menuThreadCandidates.filter(
+                // Skip the per-thread cleanTerm(displayName) normalization when
+                // no search is active (the common case): includes("") is always
+                // true, so it only ever cost CPU on every menuThreads recompute.
                 (thread) =>
                     !searchTerm || cleanTerm(thread.displayName).includes(searchTerm),
             );
