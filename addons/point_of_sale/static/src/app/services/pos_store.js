@@ -27,6 +27,7 @@ import {
     random5Chars,
     uuidv4,
 } from "@point_of_sale/utils";
+import { router as webRouter } from "@web/core/browser/router";
 import { Domain } from "@web/core/domain";
 import { formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
@@ -2523,6 +2524,14 @@ export class PosStore extends WithLazyGetterTrap {
         this.dialog.add(FormViewDialog, this.orderDetailsProps(order));
     }
     async closePos() {
+        // Before anything closes: on a phone the burger menu this was chosen
+        // from is a BottomSheet, which holds an ephemeral history entry and
+        // unwinds it with `history.go(-1)` when it closes. That traversal
+        // cancels the navigation below -- the server served the backend page
+        // and the browser threw the response away, leaving the cashier in the
+        // point of sale with nothing to show for it. We are leaving the
+        // document, so there is nothing to unwind.
+        webRouter.dropEphemerals();
         this._resetConnectedCashier();
         // If pos is not properly loaded, we just go back to /web without
         // doing anything in the order data. (`if (!this)` was dead — `this` is

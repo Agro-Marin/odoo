@@ -533,6 +533,20 @@ export const router = {
     },
 
     /**
+     * Forget every ephemeral entry WITHOUT traversing history.
+     *
+     * For a caller that is leaving the document: `releaseEphemeral` unwinds
+     * with `history.go(-1)`, and a history traversal cancels a navigation
+     * already in flight -- the response arrives and the browser discards it.
+     * Nothing needs unwinding when the page itself is going away, so a caller
+     * about to navigate drops the stack first and the overlays that close on
+     * the way out find nothing left to unwind.
+     */
+    dropEphemerals: () => {
+        _router.ephemeralStack.length = 0;
+    },
+
+    /**
      * @param {object} marker
      */
     releaseEphemeral: (marker) => {

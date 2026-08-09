@@ -2203,6 +2203,43 @@ describe("ephemeral history entries", () => {
         expect(router.ephemeralDepth).toBe(0);
     });
 
+    test("dropEphemerals forgets the entries without traversing history", async () => {
+        // For a caller that is leaving the document: `releaseEphemeral` unwinds
+        // with `history.go(-1)`, and a history traversal cancels a navigation
+        // already in flight. Dropping must empty the stack and move nothing.
+        redirect("/odoo");
+        createRouter();
+        on(routerBus, RouterEvent.EPHEMERAL_POPPED, () => expect.step("popped"));
+
+        router.pushEphemeral({ sheet: 1 });
+        router.pushEphemeral({ sheet: 2 });
+        expect(router.ephemeralDepth).toBe(2);
+        const before = browser.history.length;
+
+        router.dropEphemerals();
+        await tick();
+
+        expect(router.ephemeralDepth).toBe(0);
+        expect(browser.history.length).toBe(before);
+        expect.verifySteps([]);
+    });
+
+    test("releaseEphemeral after dropEphemerals is a no-op", async () => {
+        redirect("/odoo");
+        createRouter();
+        const marker = { sheet: 1 };
+        router.pushEphemeral(marker);
+
+        router.dropEphemerals();
+        const before = browser.history.length;
+        // What the owning overlay does on unmount, once the page is leaving.
+        router.releaseEphemeral(marker);
+        await tick();
+
+        expect(router.ephemeralDepth).toBe(0);
+        expect(browser.history.length).toBe(before);
+    });
+
     test("Forward back INTO a dismissed ephemeral entry does not fabricate a marker", async () => {
         redirect("/odoo");
         createRouter();
