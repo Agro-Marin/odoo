@@ -1,3 +1,4 @@
+import functools
 import inspect
 import logging
 import threading
@@ -421,6 +422,26 @@ class Registry(
         for Model in self.models.values():
             Model._inherit_children.discard(model_name)
 
+    @functools.cached_property
+    def models_by_table(self) -> dict[str, type[BaseModel]]:
+        """``{table_name: model_cls}`` — the first model declaring each table.
+
+        "First" reproduces the linear scan this replaces: several models can
+        share a table (``_inherits`` delegation, an explicit ``_table``), and
+        the previous readers took the first match in registry order, so
+        ``setdefault`` over ``self.models.values()`` is the same answer without
+        the scan.
+
+        Invalidated with the other cached properties by
+        ``reset_cached_properties(self)`` in :meth:`load` and
+        :meth:`_setup_models__`, which are the only places ``models`` changes.
+        """
+        by_table: dict[str, type[BaseModel]] = {}
+        for model_cls in self.models.values():
+            if table := getattr(model_cls, "_table", None):
+                by_table.setdefault(table, model_cls)
+        return by_table
+
     def descendants(
         self,
         model_names: Iterable[str],
@@ -657,6 +678,26 @@ class Registry(
     def ormcache_lrus(self) -> dict[str, LRU]:
         return self._caches.lrus
 
+    def _log_invalidation(self, cache_names: Collection[str], level: int) -> None:
+        """Log which cache groups were invalidated, and by whom.
+
+        Shared by :meth:`clear_cache` and :meth:`clear_all_caches` so the
+        decision "is this level enabled?" is made once. It has to be made at
+        all: ``format_frame`` walks a stack frame, and ``clear_all_caches``
+        used to call it unconditionally and only then choose between ``info``
+        and ``debug`` -- so on the ``debug`` branch with debug disabled it
+        formatted a frame and threw it away. ``clear_cache`` guarded correctly,
+        four lines above. One helper, one answer.
+        """
+        if not _logger.isEnabledFor(level):
+            return
+        _logger.log(
+            level,
+            "Invalidating %s model caches from %s",
+            ",".join(cache_names),
+            format_frame(inspect.currentframe().f_back.f_back),
+        )
+
     def clear_cache(self, *cache_names: str) -> None:
         cache_names = cache_names or ("default",)
         for cache_name in cache_names:
@@ -671,22 +712,16 @@ class Registry(
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
 
-        if _logger.isEnabledFor(logging.DEBUG):
-            caller_info = format_frame(inspect.currentframe().f_back)
-            _logger.debug(
-                "Invalidating %s model caches from %s",
-                ",".join(cache_names),
-                caller_info,
-            )
+        self._log_invalidation(cache_names, logging.DEBUG)
 
     def clear_all_caches(self) -> None:
         for cache_name in CACHES_BY_KEY:
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
 
-        caller_info = format_frame(inspect.currentframe().f_back)
-        log = _logger.info if self.loaded else _logger.debug
-        log("Invalidating all model caches from %s", caller_info)
+        self._log_invalidation(
+            ("all",), logging.INFO if self.loaded else logging.DEBUG
+        )
 
     @property
     def registry_invalidated(self) -> bool:

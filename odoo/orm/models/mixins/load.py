@@ -8,13 +8,14 @@ from typing import Self
 
 import psycopg
 
+from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs.lru import LRU
 from odoo.tools.translate import _
 
 from ... import decorators as api
 from ..._typing import ValuesType
-from ...helpers import get_columns_from_sql_diagnostics, itemgetter_tuple
+from ...helpers import itemgetter_tuple
 from ...parsing import fix_import_export_id_paths
 from ._model_stubs import _ModelStubs
 
@@ -125,7 +126,7 @@ class LoadMixin(_ModelStubs):
                     info = rec_data["info"]
                     pg_error_info = {"message": self._sql_error_to_message(e)}
                     if e.diag.table_name == self._table:
-                        e_fields = get_columns_from_sql_diagnostics(
+                        e_fields = sql.constraint_columns(
                             self.env.cr, e.diag, check_registry=True
                         )
                         if len(e_fields) == 1:

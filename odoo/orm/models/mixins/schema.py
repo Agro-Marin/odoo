@@ -7,7 +7,6 @@ from odoo.db import schema as sql
 from odoo.tools import SQL, format_list, ormcache
 
 from ... import decorators as api
-from ...helpers import get_columns_from_sql_diagnostics
 from ...validation import raise_on_invalid_object_name
 from ._model_stubs import _ModelStubs
 
@@ -216,11 +215,11 @@ class SchemaMixin(_ModelStubs):
             "constraint_name": diag.constraint_name,
         }
         if self._table == diag.table_name:
-            columns = get_columns_from_sql_diagnostics(
+            columns = sql.constraint_columns(
                 self.env.cr, diag, check_registry=True
             )
         else:
-            columns = get_columns_from_sql_diagnostics(self.env.cr, diag)
+            columns = sql.constraint_columns(self.env.cr, diag)
             info["model_display"] = unknown
         if not columns:
             info["field_display"] = unknown

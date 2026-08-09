@@ -8,7 +8,6 @@ from contextlib import contextmanager
 from weakref import ref as weakref_ref
 
 from odoo_rust import rows_to_dicts as _rows_to_dicts
-from psycopg import ProgrammingError
 
 from odoo.db import BaseCursor
 from odoo.exceptions import AccessError, UserError
@@ -475,12 +474,21 @@ class Environment(Mapping[str, "BaseModel"]):
             raise TypeError(f"execute_query expected SQL, got {type(query).__name__}")
         self.flush_query(query)
         self.cr.execute(query)
-        try:
-            return self.cr.fetchall()
-        except ProgrammingError as exc:
-            if exc.sqlstate is not None:
-                raise
+        if self.cr.description is None:
+            # The statement returned no result set (DDL, or DML without
+            # RETURNING). Asked declaratively, as `execute_query_dict` below
+            # already does -- until 2026-08-09 this called `fetchall()` and
+            # discriminated on `ProgrammingError.sqlstate is None`, which made
+            # the ORM depend on psycopg raising a *client-side* error with no
+            # sqlstate for "the last operation didn't produce records". That
+            # assumption held (verified on psycopg 3.3.4 / PostgreSQL 18) but
+            # was pinned by nothing, and `tests/contract` exists precisely
+            # because such assumptions are how this codebase breaks. Reading
+            # `description` deletes the assumption instead of pinning it, and
+            # still distinguishes an empty result set (description present,
+            # zero rows) from no result set at all.
             return []
+        return self.cr.fetchall()
 
     def execute_query_dict(self, query: SQL) -> list[dict]:
         rows = self.execute_query(query)

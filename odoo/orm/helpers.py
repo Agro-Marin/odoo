@@ -3,8 +3,6 @@ from operator import itemgetter
 
 from odoo_rust import origin_ids as _origin_ids_rust
 
-from odoo.libs.sql import SQL
-
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -74,34 +72,27 @@ def to_record_ids(arg) -> list[int]:
         return [id_ for id_ in arg if id_]
 
 
-def get_columns_from_sql_diagnostics(
-    cr: typing.Any, diagnostics: typing.Any, *, check_registry: bool = False
-) -> list[str]:
-    if column := diagnostics.column_name:
-        return [column]
-    if not check_registry:
-        return []
-    cr.execute(
-        SQL(
-            """
-        SELECT
-            ARRAY(
-                SELECT attname FROM pg_attribute
-                WHERE attrelid = conrelid
-                AND attnum = ANY(conkey)
-            ) as "columns"
-        FROM pg_constraint
-        JOIN pg_class t ON t.oid = conrelid
-        WHERE conname = %s
-            AND t.relname = %s
-            AND t.relnamespace = current_schema::regnamespace
-    """,
-            diagnostics.constraint_name,
-            diagnostics.table_name,
-        )
-    )
-    columns = cr.fetchone()
-    return columns[0] if columns else []
+def _ancestor_company_ids(self: BaseModel, company_ids: list[int]) -> list[int]:
+    """Every company in *company_ids* plus all of their ancestors.
+
+    Expanded here rather than left to the `parent_of` operator, which the
+    string branches of the two callers use and which produces a semantically
+    IDENTICAL result (verified against a 3-level hierarchy with records at
+    every level). The reason is speed, not history: these domains are
+    evaluated on essentially every multi-company query, and one browse + a
+    parent_path split beats making the domain layer resolve the hierarchy --
+    measured 0.220 ms vs 0.368 ms per search (+67%). The `env["res.company"]`
+    reach is therefore deliberate; do not "simplify" it to `parent_of`.
+
+    Extracted 2026-08-09: this comprehension was copy-pasted into both callers
+    and the rationale above sat on only one of them, so the other read as
+    gratuitous complexity and was the one a future reader would "simplify".
+    """
+    return [
+        int(parent)
+        for rec in self.env["res.company"].sudo().browse(company_ids)
+        for parent in rec.parent_path.split("/")[:-1]
+    ]
 
 
 def check_company_domain_parent_of(
@@ -119,26 +110,7 @@ def check_company_domain_parent_of(
     if not companies:
         return [("company_id", "=", False)]
 
-    # Expanded here rather than left to the `parent_of` operator, which the
-    # string branch above uses and which produces a semantically IDENTICAL
-    # result (verified against a 3-level hierarchy with records at every level).
-    # The reason is speed, not history: this domain is evaluated on essentially
-    # every multi-company query, and one browse + a parent_path split beats
-    # making the domain layer resolve the hierarchy -- measured 0.220 ms vs
-    # 0.368 ms per search (+67%). The `env["res.company"]` reach is therefore
-    # deliberate; do not "simplify" it to `parent_of`.
-    return [
-        (
-            "company_id",
-            "in",
-            [
-                int(parent)
-                for rec in self.env["res.company"].sudo().browse(companies)
-                for parent in rec.parent_path.split("/")[:-1]
-            ]
-            + [False],
-        )
-    ]
+    return [("company_id", "in", _ancestor_company_ids(self, companies) + [False])]
 
 
 def check_companies_domain_parent_of(
@@ -152,14 +124,4 @@ def check_companies_domain_parent_of(
     if not companies:
         return []
 
-    return [
-        (
-            "company_ids",
-            "in",
-            [
-                int(parent)
-                for rec in self.env["res.company"].sudo().browse(companies)
-                for parent in rec.parent_path.split("/")[:-1]
-            ],
-        )
-    ]
+    return [("company_ids", "in", _ancestor_company_ids(self, companies))]

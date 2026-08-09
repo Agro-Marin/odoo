@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Final
 
 import dateutil.relativedelta
 
-from odoo.tools import SQL
+from odoo.libs.sql import SQL
 
 if TYPE_CHECKING:
     from collections.abc import Callable

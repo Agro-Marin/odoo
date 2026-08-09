@@ -987,13 +987,18 @@ class TestRequestIsResetForReplay:
 
 class TestIntegrityErrorPicksTheRightModel:
     """The friendly ``ValidationError`` is built from the model whose ``_table``
-    matches the failing constraint's — ``exc.diag.table_name == rclass._table``.
+    matches the failing constraint's — ``registry.models_by_table[table_name]``.
 
-    Every existing test registers exactly ONE model in ``env.registry.values()``
-    and has ``env[...]`` return that same mock regardless of the key, so the
-    lookup could not be wrong: confirmed by mutation, flipping that ``==`` to
-    ``!=`` left the suite green.  With several models registered — which is the
-    real shape of a registry — the comparison is load-bearing again.
+    Every existing test registers exactly ONE model and has ``env[...]`` return
+    that same mock regardless of the key, so the lookup could not be wrong:
+    confirmed by mutation, flipping the old scan's ``==`` to ``!=`` left the
+    suite green.  With several models registered — which is the real shape of a
+    registry — the lookup is load-bearing again.
+
+    The fake carried ``registry.values()`` until 2026-08-09, when the linear
+    scan over every model became a ``models_by_table`` index on ``Registry``;
+    ``values()`` is still populated so the fake stays a faithful registry and a
+    reader can see what the index is built from.
     """
 
     @staticmethod
@@ -1011,6 +1016,7 @@ class TestIntegrityErrorPicksTheRightModel:
         by_name = {m._name: m for m in (partner, invoice, base)}
 
         mock_env.registry.values.return_value = [partner, invoice]
+        mock_env.registry.models_by_table = {m._table: m for m in (partner, invoice)}
         mock_env.__getitem__ = MagicMock(side_effect=by_name.__getitem__)
 
         def func():

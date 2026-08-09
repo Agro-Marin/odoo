@@ -40,11 +40,11 @@ MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
 def _integrity_error_to_validation(
     env: Environment, exc: IntegrityError
 ) -> ValidationError:
-    model = env["base"]
-    for rclass in env.registry.values():
-        if exc.diag.table_name == rclass._table:
-            model = env[rclass._name]
-            break
+    # Indexed lookup, not a scan over every model in the registry: this runs
+    # while a user waits for an error message, and the registry holds 154
+    # models with `base` alone -- thousands with a real addon set.
+    rclass = env.registry.models_by_table.get(exc.diag.table_name)
+    model = env[rclass._name] if rclass is not None else env["base"]
     message = env._(
         "The operation cannot be completed: %s",
         model._sql_error_to_message(exc),
