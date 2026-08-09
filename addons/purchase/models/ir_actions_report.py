@@ -39,9 +39,15 @@ class IrActionsReport(models.Model):
             writer = OdooPdfFileWriter()
             writer.clone_reader_document_root(reader)
 
-            # Generate and attach EDI documents from each builder
+            # Generate and attach EDI documents from each builder.
+            # sudo(): the UBL export reaches fields the printing user may not be
+            # able to read on their own — with account_intrastat installed,
+            # account.edi.xml.ubl_bis3 reads product.intrastat_code_id, which
+            # needs an Accounting group. A Purchase-only user printing an RFQ
+            # would otherwise hit an AccessError. Mirrors the same fix in sale
+            # (opw-5976725); the order itself is already access-checked above.
             for builder in builders:
-                xml_content = builder._export_order(purchase_order)
+                xml_content = builder._export_order(purchase_order.sudo())
 
                 writer.add_attachment(
                     builder._export_invoice_filename(
