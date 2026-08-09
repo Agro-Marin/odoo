@@ -915,6 +915,43 @@ time, so it must be defined *above* the field block and stays there.
 ``_search_display_name(self, operator, value)`` is the Odoo 19 API hook backing
 ``name_search``. Override it; ``_name_search`` no longer exists.
 
+**Cache lifecycle verbs: ``invalidate_`` / ``clear_`` / ``reset_``.** [review]
+These three are not interchangeable, and the core used them as though they were:
+an audit in 2026-08 counted **20 such methods across 9 classes** in
+``orm/runtime``, ``orm/components``, ``modules`` and ``db`` — ``clear``,
+``clear_all``, ``clear_group``, ``clear_cache``, ``clear_all_caches``,
+``clear_caches``, ``clear_catalog_facts``, ``invalidate``, ``invalidate_field``,
+``invalidate_all``, ``invalidate_field_data``, ``reset``, ``reset_changes``,
+``reset_triggers``, ``reset_field_metadata``, ``reset_modules_state`` — with
+nothing stating what separated them. ``Transaction.clear()`` and
+``Transaction.invalidate_field_data()`` drop overlapping-but-different sets;
+``FieldCache`` has both ``invalidate_all()`` and ``clear()``. Cache-coherency
+bugs are the most expensive class of bug in this system, and that was the
+vocabulary they are reasoned about in.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Verb
+     - Means
+     - Failure it prevents
+   * - ``invalidate_*``
+     - Drop values that may be **stale with respect to the database**. A
+       *correctness* operation: the data is still wanted, it is no longer
+       trustworthy.
+     - Serving a value the database has since changed.
+   * - ``clear_*``
+     - Drop everything held, unconditionally. A *lifecycle* operation —
+       teardown, or handing the object to a new owner.
+     - Leaking one transaction's or database's state into the next.
+   * - ``reset_*``
+     - Rebuild derived state **from its source**. Not a drop: the state exists
+       again afterwards.
+     - Reasoning over a derived structure that no longer matches what derived it.
+
+Pick the verb by what the caller needs, and do not add a fourth. When a method
+would honestly need two of them, it is doing two things.
+
 2.5 Docstrings and comments
 ---------------------------
 
@@ -3318,6 +3355,19 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.6
+     - 2026-08-09
+     - **§2.4 gains the cache lifecycle verbs.** ``invalidate_`` /
+       ``clear_`` / ``reset_`` were used interchangeably across 20 methods in
+       9 classes of the core with nothing stating what separated them —
+       ``Transaction.clear()`` and ``Transaction.invalidate_field_data()``
+       dropping overlapping-but-different sets, ``FieldCache`` carrying both
+       ``invalidate_all()`` and ``clear()``. Each verb now has one meaning and
+       the failure it prevents: invalidate = drop what may be stale w.r.t. the
+       database (correctness), clear = drop everything unconditionally
+       (lifecycle), reset = rebuild derived state from its source. Documented
+       rather than mechanically renamed: the existing names are addon-facing,
+       so the contract lands first and the renames follow it.
    * - 5.5
      - 2026-08-08
      - **§1.2 names the right requirements file, and states when NOT to
