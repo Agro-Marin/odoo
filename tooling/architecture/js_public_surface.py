@@ -127,6 +127,7 @@ CONSUMER_ROOTS = (
     ("agromarin", ROOT.parent / "agromarin"),
     ("design-themes", ROOT.parent / "design-themes"),
 )
+KNOWN_UNRESOLVED: frozenset[str] = frozenset()
 
 
 def _named_roots(consumer_roots) -> list[tuple[str, Path]]:
@@ -310,6 +311,31 @@ def drift(
     return new, gone
 
 
+def unresolved(specifiers) -> list[str]:
+    """The specifiers that resolve to no module in ``web``.
+
+    A specifier is a path into ``web/static/src``: ``@web/a/b`` is ``a/b.js``,
+    or ``a/b/index.js`` where the module publishes a face. One matching neither
+    is not surface at all — it is an import that cannot load, recorded as
+    surface because the harvest measures what consumers *write* rather than
+    what `web` *publishes*. Nothing in the pin distinguishes the two, which is
+    how three of them accumulated before this check existed.
+
+    R6's Trap already stated the rule this enforces: treat a pinned specifier
+    that resolves to no file as evidence the harvest was wrong rather than as
+    surface to preserve.
+    """
+    src = WEB / "static" / "src"
+    return sorted(
+        spec
+        for spec in specifiers
+        if not (
+            (src / f"{spec.removeprefix('@web/')}.js").is_file()
+            or (src / spec.removeprefix("@web/") / "index.js").is_file()
+        )
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="exit 1 on drift")
@@ -347,6 +373,13 @@ def main(argv: list[str] | None = None) -> int:
     pinned = load_pinned()
     new, gone = drift(measured_provenance, pinned, present)
 
+    # Judged against the measurement, not the pin: an import that resolves to
+    # nothing is wrong the moment it is written, and waiting for it to be
+    # pinned is how the pin came to record three of them.
+    dangling = set(unresolved(measured_provenance))
+    unexpected = sorted(dangling - KNOWN_UNRESOLVED)
+    resolved = sorted(KNOWN_UNRESOLVED - dangling)
+
     # Everything below derives from the one walk already done.
     by_scope = {
         spec: (
@@ -369,11 +402,13 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     "new": new,
                     "gone": gone,
+                    "unresolved_unexpected": unexpected,
+                    "unresolved_fixed": resolved,
                 },
                 indent=2,
             )
         )
-        return 1 if ((new or gone) and args.check) else 0
+        return 1 if ((new or gone or unexpected or resolved) and args.check) else 0
 
     print("JS public-surface ratchet (shrink-only, per consumer scope)")
     print("=" * 64)
@@ -404,11 +439,31 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    {s}")
         if len(specs) > 20:
             print(f"    … and {len(specs) - 20} more")
+    if unexpected:
+        print(
+            f"\n[FAIL] {len(unexpected)} specifier(s) resolve to no module in web — "
+            f"these cannot load, and are not surface:"
+        )
+        for s in unexpected:
+            print(f"    {s}  ({measured[s]} importer(s))")
+        print("    Fix the import; do not pin it.")
+    if resolved:
+        print(
+            f"\n[FAIL] {len(resolved)} known-unresolved specifier(s) no longer "
+            f"dangle — shrink KNOWN_UNRESOLVED:"
+        )
+        for s in resolved:
+            print(f"    {s}")
     print("-" * 64)
-    if not new and not gone:
+    if not new and not gone and not unexpected and not resolved:
         print(f"\nSurface unchanged across {len(present)} scope(s). ✓")
+        if KNOWN_UNRESOLVED:
+            print(
+                f"  {len(KNOWN_UNRESOLVED)} known-unresolved specifier(s) carried "
+                f"as debt (see R6)."
+            )
 
-    return 1 if ((new or gone) and args.check) else 0
+    return 1 if ((new or gone or unexpected or resolved) and args.check) else 0
 
 
 if __name__ == "__main__":

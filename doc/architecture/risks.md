@@ -121,7 +121,9 @@ the surface can only shrink. On 2026-08-08 it was regenerated after 32 deep
 imports in `agromarin` were rewritten to enter at their face, which removed the
 deep entries and took it from 235 to 222; re-pinning against the real sibling
 checkouts then took it to 219, and following `web`'s own module renames took it
-to **222 specifiers**. What remains is **recorded**, not resolved.
+to 222. Later the same day, removing three specifiers that resolved to no
+module at all took it to **219 specifiers**. What remains is **recorded**, not
+resolved.
 
 Each of those moves was a separate commit, and one of them left this paragraph
 stating 222 while the file said 219 — the pin and its prose are two copies of
@@ -129,15 +131,39 @@ one number, and only `test_the_public_surface_pin_size_is_measured` reads both.
 Regenerating the pin without editing this line fails that gate; that is the
 gate working.
 
-**The 219 → 222 move is not new exposure.** `web` renamed modules
-(`@web/core/user` → `@web/services/user`, and `browser`/`datetime`/`popover`
-moved), `agromarin` followed, and the pin now records the new names against the
-scopes that reach them; two `@web/legacy/...` specifiers in `design-themes` were
-recorded for the first time. A count that rises because the *names* moved is not
-the same as one that rises because a consumer reached deeper — but this file
-cannot tell the two apart, which is why the shape gate
-(`js_face_boundary.py`) was added alongside: it refuses a specifier that steps
-over a face regardless of how the count moves.
+**The 219 → 222 move was not new exposure, and part of it was not exposure at
+all.** `web` dissolved `services/` in b6c0619c571, so `@web/services/user`
+became `@web/core/user` and `browser`/`datetime`/`popover` moved with it;
+`agromarin` followed in 0aa8c0f5 and the pin recorded the new names against the
+scopes that reach them. But that same commit sent
+`cloud_drive_s3/drive_action.js` to the *dissolved* name, and `--update`
+recorded `@web/services/user` as surface — a specifier `web` has not published
+since the dissolution, backing an import that could not load. It was repointed
+at `@web/core/user` and the entry removed on 2026-08-08. The Trap below had
+named this failure mode before it happened; what was missing was a gate that
+read it.
+
+**Now there is one.** `js_public_surface.py` resolves every measured specifier
+against `web/static/src` — `a/b.js`, or `a/b/index.js` at a face — and fails on
+one that matches neither, judged against the measurement rather than the pin so
+a dead import is caught when it is written rather than after it is recorded.
+It found two more the same day: `@web/legacy/js/core/dom` and
+`@web/legacy/js/public/public_widget`, written by four
+`design-themes/theme_common` files against the publicWidget system `web` has
+not shipped since the native-ESM loader landed.
+
+Those four were **deleted rather than ported**, because nothing loaded them.
+`theme_common` never lists its own `data/ir_asset.xml` in the manifest — its
+siblings `theme_avantgarde` and `theme_graphene` do list theirs — so the
+records were never created; the three naming JS were `active=False` regardless;
+and no other theme references their keys. Three unreachable `theme.ir.asset`
+records went with the files, plus a fourth naming a JS file deleted long before.
+`KNOWN_UNRESOLVED` is therefore empty, which is the state to keep it in.
+
+A count that rises because the *names* moved is not the same as one that rises
+because a consumer reached deeper — but this file cannot tell the two apart,
+which is why the shape gate (`js_face_boundary.py`) was added alongside: it
+refuses a specifier that steps over a face regardless of how the count moves.
 
 **Evidence.** `tooling/architecture/public_surface_web.txt`;
 `js_public_surface.py`.
@@ -152,15 +178,22 @@ hit on 2026-08-08:
   legitimate exposure — that produced 245 specifiers rather than 222.
   **Fix the violations first, regenerate second.**
 - Run it against **stale sibling checkouts** and it pins specifiers that resolve
-  to nothing, which no in-repo gate can catch: `--check` compares the pin to the
-  same tree that produced it, so a wrong pin and a stale checkout agree with
-  each other. It surfaces only where the siblings are current, as drift in
-  someone else's workspace. **Confirm every sibling is up to date before
-  regenerating**, and treat a pinned specifier that resolves to no file as
-  evidence the harvest was wrong rather than as surface to preserve.
+  to nothing: `--check` compares the pin to the same tree that produced it, so a
+  wrong pin and a stale checkout agree with each other, and the drift surfaces
+  only where the siblings are current — in someone else's workspace. **Confirm
+  every sibling is up to date before regenerating**, and treat a pinned
+  specifier that resolves to no file as evidence the harvest was wrong rather
+  than as surface to preserve.
 
-Both the 245 and the 222 are of their day; the pin's size today is the one
-above.
+  This half is now enforced rather than advised: `unresolved()` resolves each
+  measured specifier against `web/static/src` and fails on one backed by no
+  module, so a dead import can no longer be laundered into the pin by a
+  regeneration. It cannot make a *stale* checkout current — a specifier the
+  siblings no longer import still needs the sibling to be up to date — but it
+  does catch the class of wrong pin that staleness produces.
+
+The 245, the 222 and the 219 are each of their day; the pin's size today is the
+one above.
 
 ## R7 — Every measured figure is single-process
 

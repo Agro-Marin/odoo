@@ -81,7 +81,7 @@
 @web/core/transition  odoo enterprise
 @web/core/translation  odoo enterprise agromarin design-themes
 @web/core/tree  odoo enterprise agromarin
-@web/core/user  odoo enterprise
+@web/core/user  odoo enterprise agromarin
 @web/core/utils/collections/arrays  odoo enterprise
 @web/core/utils/collections/cache  odoo enterprise
 @web/core/utils/collections/objects  odoo enterprise agromarin
@@ -167,8 +167,6 @@
 @web/fields/temporal/remaining_days/remaining_days_field  odoo enterprise
 @web/fields/translation_button  odoo
 @web/fields/translation_dialog  enterprise
-@web/legacy/js/core/dom  design-themes
-@web/legacy/js/public/public_widget  design-themes
 @web/libs/bootstrap  odoo enterprise
 @web/model/model  odoo enterprise agromarin
 @web/model/record  odoo enterprise
@@ -194,7 +192,6 @@
 @web/search/utils/dates  odoo
 @web/search/utils/misc  enterprise
 @web/search/with_search/with_search  enterprise
-@web/services/user  agromarin
 @web/session  odoo enterprise agromarin
 @web/ui/carousel/carousel_hook  enterprise
 @web/ui/collapse/collapse  odoo

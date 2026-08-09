@@ -300,3 +300,57 @@ def test_the_real_surface_is_overwhelmingly_production():
     assert len(test_only) < len(by_scope) // 10, (
         f"{len(test_only)} of {len(by_scope)} specifiers are reached only by tests"
     )
+
+
+# --- a specifier that resolves to nothing is not surface ---
+
+
+def _web(root, *paths):
+    for p in paths:
+        f = root / "static" / "src" / p
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("export const x = 1;\n")
+    return root
+
+
+def test_a_specifier_backed_by_a_file_resolves(tmp_path, monkeypatch):
+    monkeypatch.setattr(jps, "WEB", _web(tmp_path, "core/user.js"))
+    assert jps.unresolved(["@web/core/user"]) == []
+
+
+def test_a_specifier_backed_by_a_face_resolves(tmp_path, monkeypatch):
+    # A module publishes its face as index.js; entering at the face is the
+    # thing the shape gate wants, so it must not read as dangling here.
+    monkeypatch.setattr(jps, "WEB", _web(tmp_path, "components/barcode/index.js"))
+    assert jps.unresolved(["@web/components/barcode"]) == []
+
+
+def test_a_specifier_backed_by_nothing_is_unresolved(tmp_path, monkeypatch):
+    # The defect this catches: `web` dissolved services/, a consumer followed
+    # the move to the dissolved name, and --update recorded the dead import as
+    # surface web owed it.
+    monkeypatch.setattr(jps, "WEB", _web(tmp_path, "core/user.js"))
+    assert jps.unresolved(["@web/services/user"]) == ["@web/services/user"]
+
+
+def test_a_directory_without_a_face_does_not_resolve(tmp_path, monkeypatch):
+    # A bare directory is not importable — accepting one would let a specifier
+    # pointing at a folder full of internals pass as a published module.
+    root = _web(tmp_path, "core/utils/dnd.js")
+    monkeypatch.setattr(jps, "WEB", root)
+    assert jps.unresolved(["@web/core/utils"]) == ["@web/core/utils"]
+
+
+def test_every_known_unresolved_entry_really_dangles():
+    # The tolerated set is shrink-only, so it has to stay true: an entry that
+    # someone fixed must fail here rather than sit on the list forever.
+    assert jps.unresolved(jps.KNOWN_UNRESOLVED) == sorted(jps.KNOWN_UNRESOLVED), (
+        "an entry in KNOWN_UNRESOLVED now resolves — shrink the set"
+    )
+
+
+def test_the_real_surface_carries_no_unaccounted_dangling_specifier():
+    measured = jps.measure()
+    assert set(jps.unresolved(measured)) <= jps.KNOWN_UNRESOLVED, (
+        "a specifier imported from outside web resolves to no module in it"
+    )
