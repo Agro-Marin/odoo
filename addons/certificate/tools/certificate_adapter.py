@@ -34,7 +34,12 @@ class CertificateAdapter(requests.adapters.HTTPAdapter):
                     x509 = X509.from_cryptography(load_pem_x509_certificate(b64decode(cert.pem_certificate)))
                     context._ctx.get_cert_store().add_cert(x509)
                 except (TypeError, CryptoError) as e:
-                    raise SSLError(f"CA certificate {cert.name} is invalid: {e.message}") from e
+                    # `e` directly, not `e.message`: neither TypeError nor
+                    # OpenSSL.crypto.Error carries a `.message` attribute on any
+                    # pyOpenSSL release, so formatting one raised AttributeError
+                    # from inside this handler and lost the certificate name the
+                    # message exists to report.
+                    raise SSLError(f"CA certificate {cert.name} is invalid: {e}") from e
 
         kwargs['ssl_context'] = context
         super().init_poolmanager(*args, **kwargs)
