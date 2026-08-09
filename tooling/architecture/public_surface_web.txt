@@ -29,7 +29,7 @@
 @web/components/dropdown  odoo enterprise
 @web/components/dropzone  odoo
 @web/components/emoji_picker/emoji_picker  odoo enterprise
-@web/components/errors  odoo enterprise agromarin
+@web/components/errors  odoo enterprise
 @web/components/expression_editor_dialog/expression_editor_dialog  enterprise
 @web/components/file_input/file_input  odoo enterprise
 @web/components/file_upload  odoo
@@ -46,7 +46,7 @@
 @web/components/tree_editor  agromarin
 @web/components/user_switch/user_switch  odoo
 @web/core/action_hook  odoo enterprise
-@web/core/assets  odoo enterprise agromarin
+@web/core/assets  odoo enterprise
 @web/core/browser/browser  odoo enterprise
 @web/core/browser/cookie  odoo enterprise
 @web/core/browser/feature_detection  odoo enterprise
