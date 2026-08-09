@@ -2117,6 +2117,13 @@ class CalendarEvent(models.Model):
         return attendee.do_tentative()
 
     def find_partner_customer(self):
+        """Return the first attendee partner that is not the organizer.
+
+        :rtype: res.partner
+        :return: the contact partner, or an empty res.partner recordset (the
+            sentinel matches the return type, so callers can read e.g. `.name`
+            on the result even when there is no such partner).
+        """
         self.ensure_one()
         return next(
             (
@@ -2124,7 +2131,7 @@ class CalendarEvent(models.Model):
                 for attendee in self.attendee_ids
                 if attendee.partner_id != self.user_id.partner_id
             ),
-            self.env["calendar.attendee"],
+            self.env["res.partner"],
         )
 
     # ------------------------------------------------------------
