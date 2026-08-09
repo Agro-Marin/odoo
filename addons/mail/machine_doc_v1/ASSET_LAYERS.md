@@ -70,8 +70,11 @@ reasons:
 2. **Side-effect module order** — patches and registry additions that have no import edge
    between them run in this deterministic block order.
 
-`*.dark.scss` files are `("remove", ...)`'d from the layer bundles and shipped separately in
-`web.assets_web_dark`.
+Mail no longer ships any `*.dark.scss`, and declares no dark bundle: since
+`[IMP] web,*: own dark mode, and answer both colour schemes from one stylesheet`
+the mechanism lives in `web` and one stylesheet answers both schemes. The
+`("remove", ...)` lines that stripped `*.dark.scss` from mail's layer bundles,
+and the `web.assets_web_dark` bundle itself, went with it.
 
 ## Public-page bundle (`mail.assets_public`)
 
@@ -81,15 +84,14 @@ not assume the webclient is present, so it re-includes the web platform from scr
 `web._assets_core`, `web/static/src/fields/formatters.js`, all of `bus/static/src/**` (minus
 `bus_worker_script.js`), and `html_editor._assets_editor`. Then it adds mail's
 `common` + `public_web` + `public` layers plus the discuss block (mirroring the
-remove-then-re-add pattern, but with `public_web`/`public` instead of `web`/`web_portal`),
-and strips `*.dark.scss`.
+remove-then-re-add pattern, but with `public_web`/`public` instead of `web`/`web_portal`).
 
 ## Named sub-bundles (the supported extension seam)
 
 Downstream modules (portal, im_livechat, …) embed mail layers by `("include", ...)`-ing
 these named bundles **instead of** globbing `mail/static/src/**` paths — this decouples them
-from mail's internal file layout. They deliberately keep `*.dark.scss` (the consumer decides
-whether to strip them).
+from mail's internal file layout. Their globs still decline to strip `*.dark.scss` — the
+consumer decides — even though mail itself now contributes none.
 
 | Bundle | Contains | For |
 |--------|----------|-----|
@@ -151,7 +153,6 @@ Four bundles are esbuild-compiled as native ESM:
 
 - `web.assets_frontend` — only `mail/static/src/utils/common/format.js` (mail's date/format
   helpers reused by non-backend frontend pages).
-- `web.assets_web_dark` — `mail/static/src/**/*.dark.scss`.
 - `web.assets_unit_tests` — `mail/static/tests/**/*` (minus `tours/**`) plus
   `mail/static/src/service_worker_utils.js` (the worker is served as raw text, not bundled,
   but its helpers are exposed to HOOT for unit testing).

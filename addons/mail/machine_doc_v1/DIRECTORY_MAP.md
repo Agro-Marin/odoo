@@ -101,8 +101,9 @@ subdirectory); they sum to the subtree's 50 files.
 | `scss/variables/` | `primary_variables.scss` (→ `web._assets_primary_variables`) + `derived_variables.scss` |
 
 > Component SCSS is **co-located** with its `.js`/`.xml` trio (e.g.
-> `core/common/composer.{js,xml,scss,dark.scss}`), following the same OWL-trio convention as
-> the web module. `*.dark.scss` files ship separately in `web.assets_web_dark`.
+> `core/common/composer.{js,xml,scss}`), following the same OWL-trio convention as
+> the web module. There are no `*.dark.scss` files left in mail: `web` now answers
+> both colour schemes from one stylesheet (see `ASSET_LAYERS.md`).
 
 ## Non-JS directories (module root)
 

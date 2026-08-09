@@ -12,12 +12,24 @@
 # state the expected value as a literal, the claim is not yet fact-checked.
 
 set -u
-MAIL="/home/marin/Odoo/addons/odoo/addons/mail"
-DOC="$MAIL/machine_doc_v1"
-# A couple of claims depend on the FRAMEWORK, not on mail. Address the framework root
-# directly rather than as "$MAIL/../.." — otherwise relocating the module makes those
-# greps hit a missing file and return empty, which reads as a confusing failure.
-ODOO="/home/marin/Odoo/addons/odoo"
+# Resolve every root from this script's own location, the way the rest of the
+# repo's tooling does (tooling/_repo_root.py locates the checkout by its
+# odoo-bin marker). These used to be absolute paths baked in from one
+# developer's layout: on a checkout arranged differently every grep hit a
+# missing file and returned empty, which the assertions reported as 156
+# "failures" that were really one path error.
+DOC="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+MAIL="$(dirname -- "$DOC")"
+# A couple of claims depend on the FRAMEWORK, not on mail. Resolve it once, here,
+# rather than spelling "$MAIL/../.." at each use — otherwise relocating the
+# module makes those greps hit a missing file and return empty, which reads as a
+# confusing failure. The marker check below turns that into one loud error.
+ODOO="$(cd -- "$MAIL/../.." && pwd)"
+if [ ! -f "$ODOO/odoo-bin" ]; then
+    echo "FATAL: resolved framework root '$ODOO' has no odoo-bin." >&2
+    echo "       This script expects <checkout>/addons/mail/machine_doc_v1/." >&2
+    exit 2
+fi
 PASS=0
 FAIL=0
 
@@ -42,13 +54,13 @@ assert_range() {
 assert_eq "JS file count (static/src)" \
     "$(find "$MAIL/static/src" -name '*.js' -type f | wc -l)" "392"
 assert_eq "JS test file count (*.test.js)" \
-    "$(find "$MAIL/static/tests" -name '*.test.js' | wc -l)" "128"
+    "$(find "$MAIL/static/tests" -name '*.test.js' | wc -l)" "139"
 assert_eq "Python model files (models/, excl __init__)" \
     "$(find "$MAIL/models" -name '*.py' ! -name '__init__.py' | wc -l)" "76"
 assert_eq "discuss/ model files (excl __init__)" \
     "$(find "$MAIL/models/discuss" -name '*.py' ! -name '__init__.py' | wc -l)" "15"
 assert_eq "Python test_*.py files" \
-    "$(find "$MAIL/tests" -name 'test_*.py' | wc -l)" "62"
+    "$(find "$MAIL/tests" -name 'test_*.py' | wc -l)" "64"
 assert_eq "Python wizard files (excl __init__/xml)" \
     "$(find "$MAIL/wizard" -name '*.py' ! -name '__init__.py' | wc -l)" "9"
 
@@ -207,8 +219,14 @@ assert_eq "discuss.rtc service in rtc_service.js" \
 assert_eq "manifest esm.bundles lists exactly the 4 documented ESM bundles" \
     "$(python3 -c "import ast,sys;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(','.join(sorted(m['esm']['bundles'])))")" \
     "mail.assets_discuss_public_test_tours,mail.assets_lamejs,mail.assets_odoo_sfu,mail.assets_public"
-assert_eq "manifest declares 17 asset bundles" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(len(m['assets']))")" "17"
+# 16, not 17: web.assets_web_dark went away with the dark-mode rework (mail ships
+# no *.dark.scss and web now answers both colour schemes from one stylesheet).
+assert_eq "manifest declares 16 asset bundles" \
+    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(len(m['assets']))")" "16"
+assert_eq "manifest declares no dark bundle" \
+    "$(grep -c 'assets_web_dark' "$MAIL/__manifest__.py")" "0"
+assert_eq "mail ships no *.dark.scss" \
+    "$(find "$MAIL/static/src" -name '*.dark.scss' | wc -l)" "0"
 assert_eq "manifest declares mail.assets_core_common sub-bundle" \
     "$(grep -c '"mail.assets_core_common"' "$MAIL/__manifest__.py")" "1"
 # odoo_sfu / lamejs each appear 3x: the assets-dict bundle key + esm.bundles + dynamic_children.
@@ -216,9 +234,10 @@ assert_eq "manifest declares mail.assets_odoo_sfu (bundle + esm + dynamic_child)
     "$(grep -c '"mail.assets_odoo_sfu"' "$MAIL/__manifest__.py")" "3"
 assert_eq "manifest declares mail.assets_lamejs (bundle + esm + dynamic_child)" \
     "$(grep -c '"mail.assets_lamejs"' "$MAIL/__manifest__.py")" "3"
-# discuss remove lines: 2 in web.assets_backend + 2 in mail.assets_public (glob + dark.scss).
-assert_eq "manifest has discuss remove-then-re-add block (4 remove lines)" \
-    "$(grep -cE 'remove.*mail/static/src/discuss' "$MAIL/__manifest__.py")" "4"
+# discuss remove lines: 1 in web.assets_backend + 1 in mail.assets_public. Was 4 while
+# each also stripped *.dark.scss; those two went with the dark-mode rework.
+assert_eq "manifest has discuss remove-then-re-add block (2 remove lines)" \
+    "$(grep -cE 'remove.*mail/static/src/discuss' "$MAIL/__manifest__.py")" "2"
 # Vendored libs exist.
 for lib in idb-keyval/idb-keyval.js lame/lame.js odoo_sfu/odoo_sfu.js selfie_segmentation/selfie_segmentation.js; do
     assert_eq "static/lib/$lib exists" \
@@ -406,11 +425,11 @@ assert_eq "TEST_TAGS.md no stale ~52 cite" \
 
 # JS test directory table. core/ was cited as 15 (really 16) and widgets/ as 2 (really 1);
 # the two errors cancelled, so the table summed correctly while both rows were wrong.
-assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "16"
+assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "22"
 assert_eq "static/tests/widgets/ test files" "$(find "$MAIL/static/tests/widgets" -name '*.test.js' | wc -l)" "1"
-assert_eq "static/tests/discuss/ test files" "$(find "$MAIL/static/tests/discuss" -name '*.test.js' | wc -l)" "40"
-assert_eq "TEST_TAGS.md cites core/ 16" \
-    "$(grep -c '| `core/` | 16 |' "$DOC/TEST_TAGS.md")" "1"
+assert_eq "static/tests/discuss/ test files" "$(find "$MAIL/static/tests/discuss" -name '*.test.js' | wc -l)" "43"
+assert_eq "TEST_TAGS.md cites core/ 22" \
+    "$(grep -c '| `core/` | 22 |' "$DOC/TEST_TAGS.md")" "1"
 assert_eq "TEST_TAGS.md moved widgets/ to the '1 each' row" \
     "$(grep -c 'translation/`, `widgets/`' "$DOC/TEST_TAGS.md")" "1"
 
@@ -418,10 +437,10 @@ assert_eq "TEST_TAGS.md moved widgets/ to the '1 each' row" \
 # the bare form undercounts (that is how "97 post_install classes" was reached).
 tagged_total=$(grep -rhcE '^@(odoo\.tests\.)?tagged\(' "$MAIL/tests" | awk '{s+=$1} END{print s}')
 tagged_post=$(grep -rhE '^@(odoo\.tests\.)?tagged\(' "$MAIL/tests" | grep -c 'post_install')
-assert_eq "tagged test classes (both decorator spellings)" "$tagged_total" "131"
-assert_eq "tagged classes carrying post_install" "$tagged_post" "116"
-assert_eq "TEST_TAGS.md cites 116 of 131" \
-    "$(grep -c 'Of \*\*131\*\* tagged classes, \*\*116\*\*' "$DOC/TEST_TAGS.md")" "1"
+assert_eq "tagged test classes (both decorator spellings)" "$tagged_total" "135"
+assert_eq "tagged classes carrying post_install" "$tagged_post" "120"
+assert_eq "TEST_TAGS.md cites 120 of 135" \
+    "$(grep -c 'Of \*\*135\*\* tagged classes, \*\*120\*\*' "$DOC/TEST_TAGS.md")" "1"
 assert_eq "TEST_TAGS.md warns about the two decorator spellings" \
     "$(grep -c 'decorator spellings are in use' "$DOC/TEST_TAGS.md")" "1"
 

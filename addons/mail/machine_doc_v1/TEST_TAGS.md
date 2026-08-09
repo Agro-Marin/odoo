@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 62 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 128 `*.test.js`).
+(`tests/`, 64 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 139 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -10,7 +10,7 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). Of **131** tagged classes, **116** carry `post_install`/`-at_install`. Note both
+etc.). Of **135** tagged classes, **120** carry `post_install`/`-at_install`. Note both
 decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
 e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
 will undercount. Topic tags on top of that are
@@ -28,6 +28,7 @@ filter (`-u mail`) alone, not by a topic tag.
 | `mail_hardening_v10` (3) | `test_mail_hardening_v10.py` | Hardening v10 |
 | `mail_hardening_v11` (7) | `test_mail_hardening_v11.py` | Hardening v11: `/mail/data` fetch-param isolation, dynamic-model-name guards, controller id coercion, inbox fan-out cost |
 | `mail_hardening_v12` (2) | `test_mail_hardening_v12.py` | Hardening v12: regex-render root resolution, `_prepare_message_data` `from_create` contract |
+| `mail_hardening_v13` (3) | `test_mail_hardening_v13.py` | Hardening v13: activity reschedule vs assignee timezone, the UTC "today" fallback, batched `_notify_thread_by_email` mail↔notification pairing |
 | `mail_controller` (7) | `test_mock_server_contract.py`, `discuss/test_*_controller.py` (message, reaction, binary, message_update, thread, attachment) | HTTP controller ↔ store-payload contract |
 | `mail_store_contract` | `test_mock_server_contract.py` | The JS-store ↔ server payload shape contract |
 | `mail_tools` | `test_mail_tools.py`, `test_res_users.py`, `test_res_partner.py` | Email parsing/normalization helpers |
@@ -90,6 +91,165 @@ $PY -c $CONF -d <db> --test-tags '/mail:TestMailActivity.test_activity_flow' --s
 $PY -c $CONF -d <db> -u mail --test-enable --stop-after-init --no-http
 ```
 
+### ⚠ The query-count suite is red before you start
+
+`test_mail/tests/test_performance.py` (tag `mail_performance`) pins exact query
+counts with `assertQueryCount`. **It currently fails wholesale — measured at 94
+failing assertions across 57 tests, 93 of them "Query count *more* than
+expected".** Verified independent of any local change: reverting the working
+tree and re-running reproduces the same 94.
+
+Two separate things inflate it, so check both before believing a number:
+
+1. **Your database's module set.** A DB built with the workspace conf installs
+   ~40 modules, because `enterprise/` is on the `addons_path` and pulls in
+   auto-installs (`ai_fields`, `snailmail`, `mail_enterprise`, `auth_totp_mail`,
+   …), each adding `write`/`create` overrides. Harvest and compare at **CI
+   scope** instead — 27 modules:
+
+   ```bash
+   # from the odoo checkout root -- the CI addons-path, per odoo/CLAUDE.md
+   odoo-bin --addons-path=odoo/addons,addons -d <ci-db> -i mail,test_mail \
+       --no-http --stop-after-init
+   ```
+
+2. **The floors themselves have drifted** (e.g. 48 vs 34, 113 vs 94). Fixing that
+   is a per-test judgement — is this delta legitimate or a real regression? —
+   *not* a blanket re-baseline, which would cement whatever regressions are
+   hiding in it.
+
+   Measured shape of the drift, at CI scope over the four performance classes
+   (48 distinct failing tests, 172 surplus queries in total):
+
+   | Cause | Share of the 283 surplus queries |
+   |-------|-------|
+   | `mail.followers` savepoint guard (below) | 52 (~18%), present in 25 assertions, the whole surplus in 6 |
+   | ORM record-rule access check (below) | 20 (~11%), fully explains 6 tests |
+   | still unattributed | the rest — concentrated in `message_post` / `_notify_thread` |
+
+   So there is **no single cause** — do not assume one. Two are identified and
+   both are *legitimate cost*, i.e. the floors are stale rather than the code
+   being wrong:
+
+   **The follower savepoint.** `mail.followers._insert_followers` wraps its
+   `create` in `cr.savepoint(flush=False)` and retries row-by-row on
+   `IntegrityError`, because two transactions auto-subscribing the same partner
+   race the `unique(res_model, res_id, partner_id)` index. `SAVEPOINT` +
+   `RELEASE` are two real queries, so **any test that auto-subscribes a follower
+   pays +2** — that is the entire delta for `test_create_mail_simple`,
+   `test_create_mail_simple_multi`, `test_create_mail_with_tracking` and
+   `test_adv_activity` (all 10/8-shaped). Deliberate, commented, and not to be
+   "optimised" away without replacing the race protection.
+
+   The access-check share is
+   real but small: since `a7450df423d [IMP] core: checking/testing/filtering
+   access on records`, record rules are evaluated **in Python against the
+   records** (`write -> check_access -> _check_access -> filtered_domain`) rather
+   than folded into SQL, so a non-superuser write fetches whatever field the rule
+   names when it is not already cached. `TestBaseMailPerformance.test_write_mail_simple`
+   (2 > 1) is exactly and only that, and is **not** a mail defect.
+
+   **The residual is diffuse, and that is a measured result, not a shrug.**
+   Attributing every query in the `message_post` tests to its own call site
+   (deepest `/addons/` frame, with line numbers) gives ~25 distinct sites each
+   contributing exactly one query — `_message_compute_parent_id`,
+   `_notify_get_reply_to_batch`, `_get_forbidden_access`,
+   `_filter_records_for_message_operation`, `_add_default_followers`,
+   `_get_subscription_data`, `_get_recipient_data`, `_compute_main_user_id`,
+   `_notify_by_email_prepare_rendering_context`, `_split_by_mail_configuration`,
+   `_prepare_outgoing_list`, `_postprocess_sent_message`, and so on. No third
+   systematic cause exists to find: these floors have to be re-judged
+   test-by-test, asking of each added query whether it belongs to a fork feature
+   that was meant to cost it.
+
+   Ranked by size, for whoever starts: `test_mail_composer_mass_w_template` +21,
+   `test_message_post_template` +11/+10, `test_message_post_view` +11,
+   `test_mail_mail_send_batch_complete` +10, `test_message_post_followers` +7/+6.
+
+   Two things that look like causes but are not. `base.py:36` (mail's `unlink`
+   override on `base`) tops the per-caller counts, but line 36 is
+   `result = super().unlink()` — those are the ORM's own deletes, attributed to
+   the nearest addon frame. Mail's *own* cost there is the `mail.activity` search
+   on line 45, and it is **one** query per `unlink()` call, batched over all the
+   ids, not per record.
+
+   **The drift runs both ways.** Of 68 failing assertions at CI scope, 57 are
+   "more than expected" (283 surplus queries) but **11 are "less"** (19 queries
+   below the floor) — floors that improvements have already overtaken (e.g.
+   `test_mail_composer_w_template`, `test_partner_find_from_emails`, both -2).
+   A blanket raise would be wrong in both directions at once.
+
+**Ten floors are already re-set**, as the worked precedent for the rest. The bar
+used, and to keep using: raise a floor only where the *entire* surplus of that
+one `assertQueryCount` block is a named, understood cause.
+
+- Savepoint pair (+2 each): `test_create_mail_simple`,
+  `test_create_mail_simple_multi`, `test_create_mail_with_tracking`,
+  `test_adv_activity`.
+- Access check (+1 or +2): `test_write_mail_simple`,
+  `test_message_log_with_post`, `test_message_post_no_notification`,
+  `test_message_get_suggested_recipients`, and *one block each* of
+  `test_message_subscribe_subtypes` and `test_message_subscribe_default`.
+
+- Both together: the remaining blocks of `test_message_subscribe_subtypes`,
+  `test_message_subscribe_default`, and all three blocks of
+  `test_message_subscribe` (savepoint +2, sometimes plus one access-check fetch).
+
+**The 19 "less than expected" floors are also done, and they needed no cause
+analysis at all.** A floor the code has already outrun can be lowered to the
+measured value safely: a *lower* floor cannot hide a regression, it only tightens
+future detection. Each mapped to a unique block, so all 11 tests were updated
+mechanically — `test_activity_full`, `test_activity_mixin`(+`_w_attachments`),
+the five `test_mail_composer_*` variants, `test_partner_find_from_emails`, and
+`test_message_get_default_recipients`(+`_batch`). Do these first in any future
+pass: they are free.
+
+Verified at CI scope: **"less than expected" 19 -> 0**, failing tests
+**48 -> 34**, with **nothing newly failing** at any step. (Odoo's headline
+"65 failed" barely moves across the last step, because most of those tests have a
+second block still failing for an unrelated reason — count blocks, not tests,
+when judging progress.)
+
+Two traps this exercise hit, both worth avoiding:
+
+- **Fix blocks, not tests.** A test with several `assertQueryCount` blocks can
+  have several failing for different reasons. `test_message_subscribe_subtypes`
+  had one block explained purely by the access check and another needing the
+  savepoint too.
+- **Never `sort -u` the failure list while mapping blocks.** Two blocks of
+  `test_message_subscribe` both expected 4 and both got 6, so dedup collapsed
+  them into one line and hid the third failing block. It only surfaced after the
+  first two were fixed.
+
+One raise is independently corroborated: the access-check analysis put
+`test_message_get_suggested_recipients` at 25 (from 23), and the pristine
+upstream floor for that block is **also 25** — two unrelated routes agreeing on
+the same number. Our 23 had simply been set too low.
+
+**A shortcut that does not work, so you need not retry it.** The pristine
+upstream `19.0` mirror carries this same file, so it is tempting to adopt its
+floors wholesale. Measured: of the 64 remaining failing assertions, **zero** have
+an actual count equal to upstream's floor for the same block. The remaining drift
+is genuinely fork-specific behaviour, not our copy of the floors having gone
+stale against upstream — which is precisely why the rest needs per-query
+judgement rather than a diff. (Worth knowing anyway: 24 blocks already differ
+from upstream, and before this pass a handful of ours sat *below* it.)
+
+**To tell whether *your* change moved a count**, diff the numbers rather than the
+pass/fail, since the tests fail either way:
+
+```bash
+odoo-bin --addons-path=odoo/addons,addons -d <ci-db> --test-enable \
+    --test-tags /test_mail:TestMailAPIPerformance,/test_mail:TestBaseAPIPerformance \
+    --stop-after-init --no-http 2>&1 \
+  | grep -oE "for user [a-z]+: [0-9]+ > [0-9]+ in [a-z_]+" | LC_ALL=C sort > after.txt
+# ...then the same with your change reverted, and `diff before.txt after.txt`.
+```
+
+`assertQueryCount` reports only the count, never the queries. To see *which*
+queries, wrap `self.cr.execute` for the duration of the block — the useful frame
+is the last one under `/addons/`, since everything below it is ORM.
+
 ## JavaScript — HOOT suites (`static/tests/`)
 
 128 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
@@ -97,19 +257,19 @@ interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 ### File groups (by subdirectory)
 
-Rows below sum to 128.
+Rows below sum to 139.
 
 | Directory | Files | Scope |
 |-----------|------:|-------|
-| `discuss/` | 40 | Discuss app: channels, members, calls, sidebar, sub-channels |
-| `core/` | 16 | Store/Record framework, personas, notifications, settings, presence |
+| `discuss/` | 43 | Discuss app: channels, members, calls, sidebar, sub-channels |
+| `core/` | 22 | Store/Record framework, personas, notifications, settings, presence |
 | `web/` | 9 | Backend-web integration (systray, form chatter wiring) |
 | `chatter/` | 9 | Form-view chatter |
 | `discuss_app/` | 6 | Discuss client-action shell |
+| `utils/` | 6 | Date/format/misc helper units |
 | `thread/` | 5 | Thread rendering + message list |
-| `utils/` | 5 | Date/format/misc helper units |
+| `(root)` | 5 | Cross-cutting suites + helpers |
 | `composer/` | 4 | Message composer |
-| `(root)` | 4 | Cross-cutting suites + helpers |
 | `activity/`, `message/`, `mock_server/` | 3 each | Activities · message component · mock-server units |
 | `chat_window/`, `emoji/`, `inline/`, `messaging_menu/`, `views/` | 2 each | — |
 | `chat_bubble/`, `crosstab/`, `gif_picker/`, `html_editor/`, `messaging/`, `mobile/`, `quick_reaction_menu/`, `scheduled_message/`, `suggestion/`, `translation/`, `widgets/` | 1 each | — |
