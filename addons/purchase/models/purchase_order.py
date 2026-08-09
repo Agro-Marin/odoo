@@ -1049,7 +1049,9 @@ class PurchaseOrder(models.Model):
                 # price's UoM, so we need to convert it into to match the displayed UoM.
                 # Display value: degrade rather than raise when the vendor quotes
                 # in a unit unrelated to the product's own (which is allowed).
-                price = product_uom_id._compute_price_report(price, seller.product_uom_id)
+                price = product_uom_id._compute_price_report(
+                    price, seller.product_uom_id
+                )
                 product_infos.update(
                     uomFactor=seller.product_uom_id.factor / product_uom_id.factor
                 )
