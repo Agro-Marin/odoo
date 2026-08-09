@@ -204,8 +204,8 @@ class Speedscope:
         entry_end = previous_end = None
         if not entries:
             return []
-        events = []
-        current_stack_ids = []
+        events: list[dict] = []
+        current_stack_ids: list[int] = []
         frames_start = entries[0]["start"]
 
         last_entry = entries[-1]

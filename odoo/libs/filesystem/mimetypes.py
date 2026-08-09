@@ -5,7 +5,7 @@ import mimetypes
 import re
 import zipfile
 from collections.abc import Callable
-from typing import NamedTuple, Protocol
+from typing import Literal, NamedTuple, Protocol
 
 _utf8_incremental_decoder = codecs.getincrementaldecoder("utf-8")
 
@@ -34,7 +34,7 @@ _ooxml_dirs = {
 }
 
 
-def _check_ooxml(data: bytes) -> str | bool:
+def _check_ooxml(data: bytes) -> str | Literal[False]:
     with io.BytesIO(data) as f, zipfile.ZipFile(f) as z:
         filenames = z.namelist()
         if "[Content_Types].xml" not in filenames:
@@ -59,7 +59,7 @@ _mime_validator = re.compile(
 )
 
 
-def _check_open_container_format(data: bytes) -> str | bool:
+def _check_open_container_format(data: bytes) -> str | Literal[False]:
     with io.BytesIO(data) as f, zipfile.ZipFile(f) as z:
         if "mimetype" not in z.namelist():
             return False
@@ -100,7 +100,7 @@ _ppt_pattern = re.compile(
 )
 
 
-def _check_olecf(data: bytes) -> str | bool:
+def _check_olecf(data: bytes) -> str | Literal[False]:
     offset = 0x200
     if data.startswith(b"\xec\xa5\xc1\x00", offset):
         return "application/msword"
@@ -325,14 +325,18 @@ def fix_filename_extension(filename: str, mimetype: str) -> str:
     }:
         return filename
 
-    if extension := mimetypes.guess_extension(mimetype):
+    # A distinct name from the `extension` above: the walrus used to rebind it,
+    # so the two lines below silently switched from the filename's own
+    # extension to the guessed one. Same values, but only one of them is
+    # `str` — which is how the reuse surfaced at all.
+    if guessed_extension := mimetypes.guess_extension(mimetype):
         _logger.warning(
             "File %r has an invalid extension for mimetype %r, adding %r",
             filename,
             mimetype,
-            extension,
+            guessed_extension,
         )
-        return filename + extension
+        return filename + guessed_extension
 
     _logger.warning(
         "File %r has an unknown extension for mimetype %r", filename, mimetype

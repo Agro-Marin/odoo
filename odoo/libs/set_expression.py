@@ -1,6 +1,6 @@
 import ast
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
@@ -13,10 +13,23 @@ class SetExpressionError(ValueError):
     pass
 
 
+class SetDefinition(TypedDict):
+    """One set's declaration, as `SetDefinitions` reads it.
+
+    Was `dict[str, object]`, which made every read of it an error: `ref` is a
+    str, and the two relation keys hold ids. They are optional because the code
+    reaches them with `.get(..., default)` and `ref` with `[...]`.
+    """
+
+    ref: str
+    supersets: NotRequired[Collection[int]]
+    disjoints: NotRequired[Collection[int]]
+
+
 class SetDefinitions:
     __slots__ = ("__leaves",)
 
-    def __init__(self, definitions: dict[int, dict[str, object]]) -> None:
+    def __init__(self, definitions: dict[int, SetDefinition]) -> None:
         self.__leaves: dict[int | str, Leaf] = {}
 
         for leaf_id, info in definitions.items():
@@ -113,26 +126,38 @@ class SetDefinitions:
             return Leaf(UnknownId(ref), ref)
         return self.__leaves[ref]
 
+    # The three accessors below return list[int] and mean it. Every leaf in
+    # __leaves is built from `definitions`, whose keys are ints, and a stored
+    # leaf's subset/superset/disjoint sets only ever hold ids of such leaves.
+    # The other two members of LeafIdType belong to the universal leaf and to
+    # the on-demand unknown leaf, and neither is ever stored here.
+
     def get_superset_ids(self, ids: Iterable[int]) -> list[int]:
         return sorted(
-            {
-                sup_id
-                for id_ in ids
-                if id_ in self.__leaves
-                for sup_id in self.__leaves[id_].supersets
-                if sup_id != id_
-            }
+            cast(
+                "set[int]",
+                {
+                    sup_id
+                    for id_ in ids
+                    if id_ in self.__leaves
+                    for sup_id in self.__leaves[id_].supersets
+                    if sup_id != id_
+                },
+            )
         )
 
     def get_subset_ids(self, ids: Iterable[int]) -> list[int]:
         return sorted(
-            {
-                sub_id
-                for id_ in ids
-                if id_ in self.__leaves
-                for sub_id in self.__leaves[id_].subsets
-                if sub_id != id_
-            }
+            cast(
+                "set[int]",
+                {
+                    sub_id
+                    for id_ in ids
+                    if id_ in self.__leaves
+                    for sub_id in self.__leaves[id_].subsets
+                    if sub_id != id_
+                },
+            )
         )
 
 

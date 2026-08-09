@@ -53,7 +53,7 @@ POSIX_TO_LDML = {
 
 
 def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
-    buf = []
+    buf: list[str] = []
     pc = False
     minus = False
     quoted = []

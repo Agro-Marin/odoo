@@ -5,7 +5,7 @@ from odoo.libs.lru import LRU
 
 class TestLRU(unittest.TestCase):
     def test_shrink_keeps_most_recent(self):
-        cache = LRU(10)
+        cache: LRU = LRU(10)
         for i in range(10):
             cache[i] = i
         cache.count = 3
@@ -13,7 +13,7 @@ class TestLRU(unittest.TestCase):
         self.assertEqual(sorted(cache.keys()), [7, 8, 9])
 
     def test_shrink_respects_recent_access(self):
-        cache = LRU(5)
+        cache: LRU = LRU(5)
         for i in range(5):
             cache[i] = i
         _ = cache[0]
@@ -22,7 +22,7 @@ class TestLRU(unittest.TestCase):
         self.assertIn(0, cache)
 
     def test_count_must_be_positive(self):
-        cache = LRU(5)
+        cache: LRU = LRU(5)
         with self.assertRaises(ValueError):
             cache.count = 0
 

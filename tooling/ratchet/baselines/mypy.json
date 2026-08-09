@@ -1,4 +1,4 @@
 {
-  "count": 1205,
-  "note": "1267 -> 1205. Two effects, opposite directions. Down: odoo/libs image/utils (38->0), intervals (20->0), tests/test_intervals (11->0), datetime/date_utils (9->0), plus whatever the ~50 commits rebased under this one moved. Up, and recorded rather than fixed: test_init_models_phase (17) and test_newid_ordering (1) landed erroring after the per-file gate did, and many2many's ceiling went 25 -> 26 -- all three belong to e44a2979af7 / 3be14c30689, in-flight orm work by another session, so they are pinned as debt for their author rather than rewritten here."
+  "count": 1147,
+  "note": "1205 -> 1147, all of it odoo/libs: 12 more files cleared to zero (libs 36 -> 24 exceptions, 76% -> 84% locked). Four recurring shapes, not 58 unrelated fixes: a bool-typed sentinel that only ever holds False (email/parsing, filesystem/mimetypes' three sub-checkers), one name bound to two types (html.py's _style_whitelist, mimetypes' extension walrus), an unstated payload/definition shape (set_expression's dict[str, object] -> TypedDict), and deliberate supertype violations that had never been marked as such (frozendict). No behaviour change intended anywhere; 724 odoo/libs tests pass."
 }

@@ -42,8 +42,8 @@ def batch_cache_get(
     pending: object,
     none_val: object,
 ) -> tuple[list, list[int]]:
-    results = []
-    miss_indices = []
+    results: list = []
+    miss_indices: list[int] = []
     _get = field_cache.get
     _MISSING = object()
     _append_result = results.append
@@ -67,8 +67,8 @@ def batch_cache_filter(
     ids: tuple,
     pending: object,
 ) -> tuple[list, list[int]]:
-    passing_ids = []
-    miss_indices = []
+    passing_ids: list = []
+    miss_indices: list[int] = []
     _get = field_cache.get
     _MISSING = object()
     _append_pass = passing_ids.append
@@ -89,7 +89,7 @@ def batch_cache_values(
     ids: tuple,
     pending: object,
 ) -> list | None:
-    values = []
+    values: list = []
     _get = field_cache.get
     _MISSING = object()
     _append = values.append
@@ -159,7 +159,7 @@ def sort_ids_by_cache(
     reverse: bool,
     null_high: bool | None = None,
 ) -> tuple | None:
-    values = []
+    values: list = []
     _get = field_cache.get
     _MISSING = object()
     _append = values.append
@@ -175,10 +175,9 @@ def batch_group_ids(ids: tuple, values: list) -> dict[object, list]:
     if len(values) != len(ids):
         raise ValueError("batch_group_ids: `values` must have the same length as `ids`")
     result: dict[object, list] = {}
-    _MISSING = object()
     for id_, val in zip(ids, values, strict=True):
-        group = result.get(val, _MISSING)
-        if group is _MISSING:
+        group = result.get(val)
+        if group is None:
             result[val] = [id_]
         else:
             group.append(id_)

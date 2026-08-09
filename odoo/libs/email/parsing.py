@@ -2,6 +2,7 @@ import base64
 import contextlib
 import email.utils
 import re
+from typing import Literal
 from urllib.parse import urlparse
 
 import idna
@@ -53,7 +54,7 @@ def email_split_tuples(text: str) -> list[tuple[str, str]]:
         if not name and email and " " in email:
             inside_pairs = getaddresses([email.replace(" ", ",")])
             name_parts: list[str] = []
-            found_email: str | bool = False
+            found_email: str | Literal[False] = False
             for inner in inside_pairs:
                 if inner[1] and "@" not in inner[1]:
                     name_parts.append(inner[1])
@@ -106,7 +107,7 @@ def email_split_and_format_normalize(text: str) -> list[str]:
     ]
 
 
-def email_normalize(text: str, strict: bool = True) -> str | bool:
+def email_normalize(text: str, strict: bool = True) -> str | Literal[False]:
     emails = email_split(text)
     if not emails or (strict and len(emails) != 1):
         return False
@@ -137,14 +138,14 @@ def email_anonymize(normalized_email: str, *, redact_domain: bool = False) -> st
     return f"{anon_local}{at}{anon_host}{dot}{tld}"
 
 
-def email_domain_extract(email: str) -> str | bool:
+def email_domain_extract(email: str) -> str | Literal[False]:
     normalized_email = email_normalize(email)
     if normalized_email:
         return normalized_email.split("@")[1]
     return False
 
 
-def email_domain_normalize(domain: str) -> str | bool:
+def email_domain_normalize(domain: str) -> str | Literal[False]:
     if not domain or "@" in domain:
         return False
     return domain.lower()

@@ -12,6 +12,19 @@ from odoo.libs.text.html import (
 )
 
 
+def sanitize(src: str) -> str:
+    """`html_sanitize` through an assertion that it answered at all.
+
+    It returns None for falsy input and a Markup otherwise; every call in this
+    module passes a non-empty document, so a None here would mean the sanitizer
+    silently dropped the whole input — which is the one failure a security
+    suite must not read as "the bad thing is not in the output".
+    """
+    out = html_sanitize(src)
+    assert out is not None, f"html_sanitize returned None for {src!r}"
+    return out
+
+
 class TestHtmlNormalizeEncodingStrip(unittest.TestCase):
     def test_strips_only_the_encoding_attribute(self):
         out = html_normalize('<p><span encoding="x" style="color:red">imp</span> t</p>')
@@ -28,19 +41,19 @@ class TestHtmlNormalizeEncodingStrip(unittest.TestCase):
 
 class TestSanitizeSvgLink(unittest.TestCase):
     def test_javascript_scheme_is_stripped(self):
-        out = html_sanitize(
+        out = sanitize(
             '<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>'
         )
         self.assertNotIn("javascript:", out)
 
     def test_data_scheme_is_stripped(self):
-        out = html_sanitize(
+        out = sanitize(
             '<svg><a xlink:href="data:text/html;base64,PHNjcmlwdD4="><text>x</text></a></svg>'
         )
         self.assertNotIn("base64", out)
 
     def test_http_url_survives(self):
-        out = html_sanitize(
+        out = sanitize(
             '<svg><a xlink:href="https://ok.example"><text>x</text></a></svg>'
         )
         self.assertIn("https://ok.example", out)
@@ -117,20 +130,20 @@ if __name__ == "__main__":
 
 class TestSanitizeRemovesActiveContent(unittest.TestCase):
     def test_script_element_is_removed(self):
-        out = html_sanitize("<p>keep</p><script>alert(1)</script>")
+        out = sanitize("<p>keep</p><script>alert(1)</script>")
         self.assertNotIn("script", out)
         self.assertIn("keep", out)
 
     def test_event_handler_attribute_is_removed(self):
-        out = html_sanitize('<p onclick="alert(1)">keep</p>')
+        out = sanitize('<p onclick="alert(1)">keep</p>')
         self.assertNotIn("onclick", out)
         self.assertIn("keep", out)
 
     def test_javascript_url_in_href_is_stripped(self):
-        out = html_sanitize('<a href="javascript:alert(1)">x</a>')
+        out = sanitize('<a href="javascript:alert(1)">x</a>')
         self.assertNotIn("javascript:", out)
 
     def test_ordinary_markup_survives(self):
-        out = html_sanitize("<p><b>bold</b> and <i>italic</i></p>")
+        out = sanitize("<p><b>bold</b> and <i>italic</i></p>")
         self.assertIn("<b>bold</b>", out)
         self.assertIn("<i>italic</i>", out)

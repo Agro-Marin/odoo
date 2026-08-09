@@ -137,7 +137,7 @@ class TestDictToXml(unittest.TestCase):
                 "attribute1": "value1",
             },
         }
-        template = {
+        template: dict = {
             "Child1": {},
             "Child3": {},
         }
@@ -172,7 +172,7 @@ class TestDictToXml(unittest.TestCase):
                 "attribute1": "value1",
             },
         }
-        template = {
+        template: dict = {
             "Child1": {},
             "Child3": {},
         }
@@ -200,7 +200,7 @@ class TestDictToXml(unittest.TestCase):
                 "attribute1": "value1",
             },
         }
-        template = {
+        template: dict = {
             "ns1:Child1": {},
             "ns3:Child3": {},
         }
@@ -244,7 +244,7 @@ class TestDictToXml(unittest.TestCase):
                 None,
             ],
         }
-        template = {
+        template: dict = {
             "ns1:Child1": {
                 "ns3:SubChild1": {},
             },
@@ -289,7 +289,7 @@ class TestDictToXml(unittest.TestCase):
                 None,
             ],
         }
-        template = {
+        template: dict = {
             "ns1:Child1": {
                 "ns3:SubChild1": {},
                 "ns3:SubChild2": {},

@@ -185,7 +185,7 @@ SANITIZE_TAGS = {
 class _Cleaner(clean.Cleaner):
     _style_re = re.compile(r"""([\w-]+)\s*:\s*((?:[^;"']|"[^";]*"|'[^';]*')+)""")
 
-    _style_whitelist = (
+    _style_whitelist_base = (
         "font-size",
         "font-family",
         "font-weight",
@@ -237,7 +237,7 @@ class _Cleaner(clean.Cleaner):
         "table-layout",
     )
 
-    _style_whitelist = frozenset(_style_whitelist) | {
+    _style_whitelist = frozenset(_style_whitelist_base) | {
         f"border-{position}-{attribute}"
         for position in ["top", "bottom", "left", "right"]
         for attribute in (
@@ -671,7 +671,7 @@ def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
     if is_html_empty(html):
         return ""
     if not isinstance(html, markupsafe.Markup):
-        html = html_sanitize(html)
+        html = html_sanitize(html) or ""
     processed = re.sub(HTML_NEWLINES_REGEX, " ", html)
     processed = re.sub(HTML_TAGS_REGEX, "", processed)
     processed = re.sub(r" {2,}|\t", " ", processed)
