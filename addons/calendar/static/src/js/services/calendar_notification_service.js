@@ -3,6 +3,11 @@ import { browser } from "@web/core/browser/browser";
 import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { markup } from "@odoo/owl";
+
+// Floor for the re-poll delay, so a batch of already-overdue reminders
+// reschedules instead of hammering the route.
+const MIN_REPOLL_DELAY_SECONDS = 60;
 
 export const calendarNotificationService = {
     dependencies: ["action", "bus_service", "notification"],
@@ -35,7 +40,11 @@ export const calendarNotificationService = {
                     return;
                 }
                 calendarNotifTimeouts[key] = browser.setTimeout(function () {
-                    const notificationRemove = notification.add(notif.message, {
+                    // `markup`: the server sends the formatted time and the
+                    // alarm's body as HTML, and the notification renders its
+                    // message with `t-out`, which escapes a plain string -- the
+                    // user was reading the tags.
+                    const notificationRemove = notification.add(markup(notif.message), {
                         title: notif.title,
                         type: "warning",
                         sticky: true,
@@ -76,11 +85,14 @@ export const calendarNotificationService = {
                 lastNotifTimer = Math.max(lastNotifTimer, notif.timer);
             });
 
-            // Set a timeout to get the next notifications when the last one has been displayed
-            if (lastNotifTimer > 0) {
+            // Set a timeout to get the next notifications when the last one has
+            // been displayed. `timer` is negative for a reminder that is already
+            // overdue, and a batch where every reminder is overdue used to leave
+            // this at 0 and stop polling until the next bus push.
+            if (notifications.length) {
                 nextCalendarNotifTimeout = browser.setTimeout(
                     getNextCalendarNotif,
-                    lastNotifTimer * 1000
+                    Math.max(lastNotifTimer, MIN_REPOLL_DELAY_SECONDS) * 1000,
                 );
             }
         }

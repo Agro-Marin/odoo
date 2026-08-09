@@ -61,10 +61,16 @@ class CalendarRecurrence(models.Model):
     def _get_organizer(self):
         return self.base_event_id.user_id
 
-    def _get_rrule(self, dtstart=None):
+    def _get_rrule(self, dtstart=None, **kwargs):
+        # Pass the rest through: `calendar.recurrence._get_rrule` also takes
+        # `bounded` (whether a `forever` rule is capped for enumeration) and
+        # `count` (an override used by `_range_calculation`). Pinning the
+        # signature to `dtstart` alone made `_rrule_serialize`, which calls it
+        # with `bounded=False`, raise TypeError for every recurrence as soon as
+        # this module was installed.
         if not dtstart and self.dtstart:
             dtstart = self.dtstart
-        return super()._get_rrule(dtstart)
+        return super()._get_rrule(dtstart, **kwargs)
 
     def _get_microsoft_synced_fields(self):
         return {'rrule'} | self.env['calendar.event']._get_microsoft_synced_fields()

@@ -15,7 +15,7 @@ const ICON_BY_STATUS = {
 export class Many2ManyAttendee extends Many2ManyTagsAvatarField {
     static template = "calendar.Many2ManyAttendee";
     static components = {
-        ...Many2ManyAttendee.components,
+        ...Many2ManyTagsAvatarField.components,
         TagsList: AttendeeTagsList,
     };
     setup() {
@@ -66,11 +66,10 @@ export class Many2ManyAttendee extends Many2ManyTagsAvatarField {
         const organizer = partnerIds.find((partner) => partner.is_organizer);
         if (organizer) {
             const orgId = organizer.id;
-            // sort elements according to the partner id
-            tags.sort((a, b) => {
-                const a_org = a.resId === orgId;
-                return a_org ? -1 : 1;
-            });
+            // Organizer first, everyone else in their existing order. The old
+            // comparator returned -1/1 without ever returning 0 and was not
+            // antisymmetric, so the order it produced was engine-defined.
+            tags.sort((a, b) => (b.resId === orgId) - (a.resId === orgId));
         }
         return tags;
     }

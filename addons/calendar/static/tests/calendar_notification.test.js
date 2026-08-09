@@ -1,6 +1,6 @@
 import { defineCalendarModels } from "@calendar/../tests/calendar_test_helpers";
 import { click, contains, start, startServer } from "@mail/../tests/mail_test_helpers";
-import { test } from "@odoo/hoot";
+import { expect, test } from "@odoo/hoot";
 import {
     asyncStep,
     mockService,
@@ -75,4 +75,27 @@ test("can listen on bus and display notifications in DOM and click Snooze", asyn
     await click(".o_notification button", { text: "Snooze" });
     await contains(".o_notification", { count: 0 });
     await waitForSteps([]);
+});
+
+test("alarm body renders as markup, not as escaped text", async () => {
+    // The server sends the formatted time and the alarm body as HTML; the
+    // notification renders `props.message` with `t-out`, which escapes a plain
+    // string. This payload is verbatim from GET /calendar/notify.
+    const pyEnv = await startServer();
+    await start();
+    pyEnv["bus.bus"]._sendone(serverState.partnerId, "calendar.alarm", [
+        {
+            alarm_id: 1,
+            event_id: 2,
+            title: "standup",
+            message:
+                "08/09/2026 at (08:15:13 PM To 09:15:13 PM) (UTC)<p>bring the deck</p>",
+            timer: 0,
+            notify_at: "2026-08-09 20:05:13",
+        },
+    ]);
+    await contains(".o_notification_content p", { text: "bring the deck" });
+    expect(document.querySelector(".o_notification_content").textContent).not.toInclude(
+        "<p>",
+    );
 });

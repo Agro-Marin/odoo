@@ -31,10 +31,9 @@ class ResPartner(models.Model):
 
             query = self.env['calendar.event']._search([])  # ir.rules will be applied
             meeting_data = self.env.execute_query(SQL("""
-                SELECT res_partner_id, calendar_event_id, count(1)
+                SELECT DISTINCT res_partner_id, calendar_event_id
                   FROM calendar_event_res_partner_rel
                  WHERE res_partner_id = ANY(%s) AND calendar_event_id IN %s
-              GROUP BY res_partner_id, calendar_event_id
                 """,
                 list(all_partners._ids),
                 query.subselect(),
@@ -42,7 +41,7 @@ class ResPartner(models.Model):
 
             # Create a dict {partner_id: event_ids} and fill with events linked to the partner
             meetings = {}
-            for p_id, m_id, _ in meeting_data:
+            for p_id, m_id in meeting_data:
                 meetings.setdefault(p_id, set()).add(m_id)
 
             # Add the events linked to the children of the partner
@@ -89,8 +88,16 @@ class ResPartner(models.Model):
 
     @api.model
     def _set_calendar_last_notif_ack(self):
-        partner = self.env['res.users'].browse(self.env.context.get('uid', self.env.uid)).partner_id
-        partner.write({'calendar_last_notif_ack': datetime.now()})
+        """Stamp the calling user's reminder acknowledgement."""
+        # `self.env.user`, not `self.env.context.get('uid', ...)`: the route calls
+        # this through sudo(), and taking the identity from a context key means
+        # any caller able to set `uid` in the context stamps somebody else's
+        # partner. `fields.Datetime.now()` rather than `datetime.now()` for the
+        # same reason every other write of this column uses it -- the two agree
+        # today, and the field's own default is already spelled this way.
+        self.env.user.partner_id.write({
+            'calendar_last_notif_ack': fields.Datetime.now(),
+        })
 
     def schedule_meeting(self):
         self.ensure_one()

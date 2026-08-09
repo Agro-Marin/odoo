@@ -20,17 +20,8 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
     def close(self):
         # Return if there are multiple attendees or if the organizer's partner_id differs
         if self.calendar_event_id.attendees_count != 1 or self.calendar_event_id.user_id.partner_id != self.calendar_event_id.partner_ids:
-            return self.calendar_event_id.action_unlink_event(self.calendar_event_id.partner_id.id, self.delete)
-        if not self.calendar_event_id or not self.delete:
-            pass
-        elif self.delete == 'one':
-            self.calendar_event_id.unlink()
-        else:
-            switch = {
-                'next': 'future_events',
-                'all': 'all_events'
-            }
-            self.calendar_event_id.action_mass_deletion(switch.get(self.delete, ''))
+            return self.calendar_event_id.action_unlink_event(self.delete)
+        self.calendar_event_id._unlink_by_recurrence_policy(self.delete)
         return None
 
     @api.depends('calendar_event_id')
@@ -68,26 +59,15 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
         :return: Action URL to redirect to the calendar view
         """
         self.ensure_one()
-        event = self.calendar_event_id
-        deletion_type = self.env.context.get('default_recurrence')
-
-        # Unlink recurrent events. Accept both this wizard's own
-        # 'one'/'next'/'all' vocabulary (the simple popover view) and the
-        # recurrence_update vocabulary the calendar form passes through
-        # action_unlink_event as `recurrence` ('self_only'/'future_events'/
-        # 'all_events'). Previously only 'next'/'all' triggered a mass deletion,
-        # so deleting "this and following" or "all events" from the form view
-        # silently deleted nothing. Anything unrecognised falls back to deleting
-        # just this occurrence, never nothing -- the user did confirm a delete.
-        if event.recurrency:
-            if deletion_type in ('next', 'future_events'):
-                event.action_mass_deletion('future_events')
-            elif deletion_type in ('all', 'all_events'):
-                event.action_mass_deletion('all_events')
-            else:
-                event.unlink()
-        else:
-            event.unlink()
+        # The policy reaches this wizard in either vocabulary -- its own
+        # 'one'/'next'/'all' from the popover view, or `recurrence_update`'s
+        # 'self_only'/'future_events'/'all_events' from the calendar form
+        # through action_unlink_event. `_unlink_by_recurrence_policy` accepts
+        # both; before it existed, only 'next'/'all' triggered a mass deletion,
+        # so "this and following" and "all events" from the form deleted nothing.
+        self.calendar_event_id._unlink_by_recurrence_policy(
+            self.env.context.get('default_recurrence')
+        )
 
         return {
             'type': 'ir.actions.act_url',

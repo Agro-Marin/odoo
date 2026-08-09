@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from . import ir_http
+from . import calendar_privacy_mixin
 from . import res_partner
 from . import calendar_event
 from . import calendar_alarm

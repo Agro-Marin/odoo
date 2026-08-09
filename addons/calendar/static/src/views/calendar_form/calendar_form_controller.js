@@ -40,10 +40,14 @@ export class CalendarFormController extends FormController {
         if (rootValues.attendees_count == 1 && rootValues.user_id.id !== rootValues.partner_ids._currentIds[0]) {
             await this._archiveRecord(record.resId, recurrenceUpdate);
         } else {
+            // Send the answer the user just gave in the dialog. This branch used
+            // to send `data.recurrence_update` -- the inline radio at the top of
+            // the form -- so answering "All events" in the dialog while the radio
+            // still read "This event" deleted a single occurrence. Fall back to
+            // the field only when there was no dialog (a non-recurrent event).
             await this.orm.call("calendar.event", "action_unlink_event", [
                 this.model.root.resId,
-                this.model.root.data.partner_ids.resIds,
-                this.model.root.data.recurrence_update,
+                recurrenceUpdate || this.model.root.data.recurrence_update,
             ])
             .then((action) => {
                 if (action && action.context) {

@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from markupsafe import Markup
+
 from odoo import api, fields, models
 from odoo.libs.sql import SQL
 from odoo.tools import plaintext2html
@@ -126,41 +128,45 @@ class CalendarAlarm_Manager(models.AbstractModel):
         self,
         one_date,
         event,
-        event_maxdelta,
         in_the_next_X_seconds,
         alarm_type,
         after=False,
-        missing=False,
     ):
-        """Search for some alarms in the interval of time determined by some parameters (after, in_the_next_X_seconds, ...)
-        :param one_date: date of the event to check (not the same that in the event browse if recurrent)
-        :param event: Event browse record
-        :param event_maxdelta: biggest duration from alarms for this event
-        :param in_the_next_X_seconds: looking in the future (in seconds)
-        :param after: if not False: will return alert if after this date (date as string - todo: change in master)
-        :param missing: if not False: will return alert even if we are too late
-        :param notif: Looking for type notification
-        :param mail: looking for type email
+        """Alarms of `event` that fire within the next `in_the_next_X_seconds`.
+
+        :param one_date: start of the occurrence to check (not the event's own
+            start when it is recurrent)
+        :param event: <calendar.event> record
+        :param in_the_next_X_seconds: how far into the future to look
+        :param after: only return alarms firing strictly after this datetime --
+            the user's last acknowledgement
+        :return: list of {alarm_id, event_id, notify_at}
         """
+        # `event_maxdelta` and `missing` used to be parameters here. No caller
+        # ever passed `missing`, so `missing * duration` was always zero and
+        # `event_maxdelta` only fed a bound that the loop overwrote on its first
+        # iteration -- the code said as much ("TODO: remove event_maxdelta").
         result = []
-        # TODO: remove event_maxdelta and if using it
-        past = one_date - timedelta(minutes=(missing * event_maxdelta))
         future = fields.Datetime.now() + timedelta(seconds=in_the_next_X_seconds)
-        if future <= past:
-            return result
+        acknowledged_until = fields.Datetime.from_string(after) if after else None
         for alarm in event.alarm_ids:
             if alarm.alarm_type != alarm_type:
                 continue
-            past = one_date - timedelta(minutes=(missing * alarm.duration_minutes))
-            if future <= past:
+            notify_at = one_date - timedelta(minutes=alarm.duration_minutes)
+            if future <= notify_at:
                 continue
-            if after and past <= fields.Datetime.from_string(after):
+            # Compare the acknowledgement against the moment the reminder fires,
+            # not against the event's start. Comparing against the start meant an
+            # acknowledgement only counted once the event had already begun: the
+            # web client hides a dismissed reminder for the rest of the session,
+            # but every reload asked the server again and got it back.
+            if acknowledged_until is not None and notify_at <= acknowledged_until:
                 continue
             result.append(
                 {
                     "alarm_id": alarm.id,
                     "event_id": event.id,
-                    "notify_at": one_date - timedelta(minutes=alarm.duration_minutes),
+                    "notify_at": notify_at,
                 }
             )
         return result
@@ -263,29 +269,28 @@ class CalendarAlarm_Manager(models.AbstractModel):
     @api.model
     def get_next_notif(self):
         partner = self.env.user.partner_id
-        all_notif = []
-
         if not partner:
             return []
 
         all_meetings = self._get_next_potential_limit_alarm(
             "notification", partners=partner
         )
+        # One browse for the whole set, not one per notification: this route is
+        # polled by every open tab, and `display_time` below is a compute, so a
+        # per-event browse made the query count scale with the user's alarms
+        # (measured ~5 queries per pending notification).
+        meetings = self.env["calendar.event"].browse(all_meetings)
         time_limit = 3600 * 24  # return alarms of the next 24 hours
-        for event_id in all_meetings:
-            max_delta = all_meetings[event_id]["max_duration"]
-            meeting = self.env["calendar.event"].browse(event_id)
-            in_date_format = fields.Datetime.from_string(meeting.start)
-            last_found = self.do_check_alarm_for_one_date(
-                in_date_format,
+        all_notif = []
+        for meeting in meetings:
+            alerts = self.do_check_alarm_for_one_date(
+                meeting.start,
                 meeting,
-                max_delta,
                 time_limit,
                 "notification",
                 after=partner.calendar_last_notif_ack,
             )
-            if last_found:
-                all_notif.extend(self.do_notif_reminder(alert) for alert in last_found)
+            all_notif.extend(self.do_notif_reminder(alert) for alert in alerts)
         return all_notif
 
     def do_notif_reminder(self, alert):
@@ -293,9 +298,15 @@ class CalendarAlarm_Manager(models.AbstractModel):
         meeting = self.env["calendar.event"].browse(alert["event_id"])
 
         if alarm.alarm_type == "notification":
-            message = meeting.display_time
+            # Markup, and one paragraph: `plaintext2html` already wraps its
+            # result in <p>, so wrapping it again emitted `<p><p>body</p></p>`,
+            # and building the whole thing as a plain str meant the web client
+            # -- which renders it with `t-out` -- escaped the tags and showed
+            # them to the user verbatim. The client marks this value up on
+            # arrival (see calendar_notification_service.js).
+            message = Markup("%s") % meeting.display_time
             if alarm.body:
-                message += "<p>%s</p>" % plaintext2html(alarm.body)
+                message += plaintext2html(alarm.body)
 
             delta = alert["notify_at"] - fields.Datetime.now()
             delta = delta.seconds + delta.days * 3600 * 24

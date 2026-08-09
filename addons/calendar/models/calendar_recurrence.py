@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 from odoo.libs.datetime import localize_standard, timezone
 from odoo.tools.misc import clean_context
 
@@ -91,7 +92,10 @@ def weekday_to_field(weekday_index):
 
 class CalendarRecurrence(models.Model):
     _name = 'calendar.recurrence'
+    _inherit = ['calendar.privacy.mixin']
     _description = 'Event Recurrence Rule'
+
+    _privacy_event_fname = 'calendar_event_ids'
 
     name = fields.Char(compute='_compute_name', store=True)
     base_event_id = fields.Many2one(
@@ -130,6 +134,58 @@ class CalendarRecurrence(models.Model):
         ),
         "The day must be between 1 and 31",
     )
+
+    # ------------------------------------------------------------
+    # PRIVACY
+    # ------------------------------------------------------------
+
+    @api.model
+    def _get_privacy_domain(self):
+        # The link is an x2many, so the mixin's `any` default would search the
+        # comodel with the field's own context and drop recurrences whose events
+        # are all archived -- exactly the ones `action_mass_archive` produces.
+        # Select through the events instead, with active_test off.
+        events = self.env['calendar.event'].with_context(active_test=False)
+        visible = events._search(
+            Domain(events._get_default_privacy_domain()), active_test=False,
+        )
+        # A recurrence with no events yet protects nothing, and it is a state the
+        # machinery passes through: `_apply_recurrence_values` creates the
+        # recurrence and only then hangs events off it, so a guard that looked
+        # only at the events denied the creator access to the record they had
+        # just created (`microsoft_sync.write` reading `need_sync_m` on it was
+        # the first casualty).
+        return Domain('calendar_event_ids', '=', False) | Domain(
+            'id', 'in', visible.select('recurrence_id')
+        )
+
+    def _check_calendar_privacy_write_permissions(self):
+        """Refuse writes on a recurrence whose events the user may not see.
+
+        `calendar.attendee` gets this for free -- its own `write` already calls
+        `event_id.check_access('write')`. A recurrence had no such check, so any
+        employee could rewrite the repetition rule of another user's private
+        event even though every event in it refused the same write.
+        """
+        if self.env.su:
+            return
+        hidden = self._privacy_hidden()
+        if hidden:
+            raise self.env['ir.rule']._make_access_error('write', hidden[0])
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        recurrences = super().create(vals_list)
+        recurrences._check_calendar_privacy_write_permissions()
+        return recurrences
+
+    def write(self, vals):
+        self._check_calendar_privacy_write_permissions()
+        return super().write(vals)
+
+    def unlink(self):
+        self._check_calendar_privacy_write_permissions()
+        return super().unlink()
 
     def _get_daily_recurrence_name(self):
         if self.end_type == 'count':
@@ -392,6 +448,18 @@ class CalendarRecurrence(models.Model):
             raise UserError(_('The interval cannot be negative.'))
         if self.end_type == 'count' and self.count <= 0:
             raise UserError(_('The number of repetitions cannot be negative.'))
+        if self.end_type == 'count' and self.count > MAX_RECURRENT_EVENT:
+            # Enumeration is capped at MAX_RECURRENT_EVENT, but this string is
+            # not: asking for 800 occurrences used to create 720 while the
+            # stored `count` and the serialised rule both kept saying 800. That
+            # string is what goes into the .ics attachment and into Google and
+            # Outlook sync, so the external calendar materialised the full 800
+            # against our 720 and the two could never reconcile. Refuse instead
+            # of silently disagreeing with ourselves.
+            raise UserError(_(
+                "A recurrence cannot repeat more than %(maximum)s times.",
+                maximum=MAX_RECURRENT_EVENT,
+            ))
 
         return str(self._get_rrule(bounded=False)) if self.rrule_type else ''
 

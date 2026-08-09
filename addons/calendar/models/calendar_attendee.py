@@ -16,6 +16,7 @@ _logger = logging.getLogger(__name__)
 class CalendarAttendee(models.Model):
     """ Calendar Attendee Information """
     _name = 'calendar.attendee'
+    _inherit = ['calendar.privacy.mixin']
     _rec_name = 'common_name'
     _description = 'Calendar Attendee Information'
     _order = 'create_date ASC'
@@ -38,12 +39,27 @@ class CalendarAttendee(models.Model):
     email = fields.Char('Email', related='partner_id.email')
     phone = fields.Char('Phone', related='partner_id.phone')
     common_name = fields.Char('Common name', compute='_compute_common_name', store=True)
-    access_token = fields.Char('Invitation Token', default=_default_access_token)
+    # `access_token` is the bearer credential of the `calendar` auth method:
+    # holding one is enough to accept or decline an invitation from an
+    # unauthenticated browser, and the controllers that do it sudo() without
+    # checking who is calling. Any employee could read every attendee row, so
+    # every token in the database was one search_read away from anyone.
+    #
+    # Restricted with `groups` rather than masked in `_fetch_query`, which is how
+    # `calendar.event` hides its private fields: masking writes False into the
+    # *shared* field cache, and a token is per-reader, so a masked read would be
+    # served from cache to the very sudo() render that needs the real value --
+    # emptying the accept/decline links of the invitation mail. `groups` is
+    # checked at access time, keeps the cache honest, and sudo() bypasses it, so
+    # the legitimate readers (mail templates, token controllers) still work.
+    access_token = fields.Char(
+        'Invitation Token', default=_default_access_token, groups='base.group_system')
     mail_tz = fields.Selection(_tz_get, compute='_compute_mail_tz', help='Timezone used for displaying time in the mail template')
     # state
     state = fields.Selection(STATE_SELECTION, string='Status', default='needsAction')
-    availability = fields.Selection(
-        [('free', 'Available'), ('busy', 'Busy')], 'Available/Busy', readonly=True)
+    # `availability` (free/busy) used to be declared here: a stored column with
+    # no reader, no writer and no view in any repo. The event's own `show_as`
+    # carries that information.
 
     @api.depends('partner_id', 'partner_id.name', 'email')
     def _compute_common_name(self):
@@ -190,9 +206,17 @@ class CalendarAttendee(models.Model):
 
         # Render the template once for all recipients instead of three times per
         # recipient inside the loop; _render_field already batches by id.
-        bodies = mail_template._render_field('body_html', recipients.ids, compute_lang=True)
-        subjects = mail_template._render_field('subject', recipients.ids, compute_lang=True)
-        emails_from = mail_template._render_field('email_from', recipients.ids)
+        #
+        # sudo: the invitation body embeds each recipient's own `access_token` in
+        # the accept/decline/view links, and `_fetch_query` masks that token for
+        # every attendee but the reader -- so the organiser rendering invitations
+        # for other people would otherwise produce links with an empty token.
+        # Rendering is the one legitimate reader of somebody else's token; it
+        # emits it only into the mail addressed to that person.
+        rendering_template = mail_template.sudo()
+        bodies = rendering_template._render_field('body_html', recipients.ids, compute_lang=True)
+        subjects = rendering_template._render_field('subject', recipients.ids, compute_lang=True)
+        emails_from = rendering_template._render_field('email_from', recipients.ids)
 
         mail_messages = self.env['mail.message']
         for attendee in recipients:

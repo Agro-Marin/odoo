@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class CalendarFilters(models.Model):
@@ -17,6 +17,8 @@ class CalendarFilters(models.Model):
         'A user cannot have the same contact twice.',
     )
 
-    @api.model
-    def unlink_from_partner_id(self, partner_id):
-        return self.search([('partner_id', '=', partner_id)]).unlink()
+    # `unlink_from_partner_id(partner_id)` used to live here: an @api.model
+    # public -- so RPC-callable -- method that unlinked the filters of *every*
+    # user for a partner. Nothing in any repo called it, and with no record rule
+    # on this model it let any employee wipe another's calendar overlays. The
+    # rule is now `calendar_filters_rule_own`; the method is gone.

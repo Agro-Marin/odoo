@@ -115,6 +115,11 @@ export class AttendeeCalendarModel extends CalendarModel {
             attendeeIds,
             eventIds,
         ]);
+        // Indexed once: the two loops below look a detail up per (record, attendee)
+        // pair, which was a linear scan of the whole list every time.
+        const attendeeByKey = new Map(
+            data.attendees.map((a) => [`${a.id},${a.event_id}`, a])
+        );
         const currentPartnerId = user.partnerId;
         if (!isEveryoneFilterActive && attendeeFilters) {
             const activeAttendeeIds = new Set(
@@ -138,9 +143,7 @@ export class AttendeeCalendarModel extends CalendarModel {
                     }
                     // Records will share the same rawRecord.
                     const record = { ...event };
-                    const attendeeInfo = data.attendees.find(
-                        (a) => a.id === attendee && a.event_id === event.id
-                    );
+                    const attendeeInfo = attendeeByKey.get(`${attendee},${event.id}`);
                     record.attendeeId = attendee;
                     // Colors are linked to the partner_id but in this case we want it linked
                     // to attendeeId
@@ -163,9 +166,7 @@ export class AttendeeCalendarModel extends CalendarModel {
             for (const event of Object.values(data.records)) {
                 const eventData = event.rawRecord;
                 event.attendeeId = eventData.partner_id && eventData.partner_id[0];
-                const attendeeInfo = data.attendees.find(
-                    (a) => a.id === currentPartnerId && a.event_id === event.id
-                );
+                const attendeeInfo = attendeeByKey.get(`${currentPartnerId},${event.id}`);
                 if (attendeeInfo) {
                     event.isAlone = attendeeInfo.is_alone;
                     event.calendarAttendeeId = attendeeInfo.attendee_id;
@@ -191,7 +192,10 @@ export class AttendeeCalendarModel extends CalendarModel {
                     body: deleteConfirmationMessage,
                     confirm: resolve.bind(null, true),
                     confirmLabel: _t("Delete"),
-                    cancel: () => resolve.bind(null, false),
+                    // `() => resolve.bind(null, false)` built a bound function
+                    // and threw it away, so cancelling left this promise pending
+                    // for ever and archiveRecord never returned.
+                    cancel: () => resolve(false),
                     cancelLabel: _t("No, keep it"),
                 });
             });
@@ -203,7 +207,9 @@ export class AttendeeCalendarModel extends CalendarModel {
     }
 
     async _archiveRecord(id, recurrenceUpdate) {
-        if (!recurrenceUpdate && recurrenceUpdate !== "self_only") {
+        // `&& recurrenceUpdate !== "self_only"` used to be here: unreachable,
+        // "self_only" being truthy.
+        if (!recurrenceUpdate) {
             await this.orm.call(this.resModel, "action_archive", [[id]]);
         } else {
             await this.orm.call(this.resModel, "action_mass_archive", [[id], recurrenceUpdate]);

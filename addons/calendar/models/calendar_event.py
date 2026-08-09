@@ -41,11 +41,6 @@ except ImportError:
     )
     vobject = None
 
-SORT_ALIASES = {
-    "start": "sort_start",
-    "start_date": "sort_start",
-}
-
 RRULE_TYPE_SELECTION_UI = [
     ("daily", "Daily"),
     ("weekly", "Weekly"),
@@ -801,25 +796,25 @@ class CalendarEvent(models.Model):
     # CRUD
     # ------------------------------------------------------------
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        # Prevent sending update notification when _inverse_dates is called
-        self = self.with_context(is_calendar_event_new=True)
-        defaults = self.browse().default_get(
-            [
-                "activity_ids",
-                "allday",
-                "description",
-                "name",
-                "partner_ids",
-                "res_model_id",
-                "res_id",
-                "start",
-                "user_id",
-            ]
-        )
+    # Values `create` needs present on every vals dict, whether or not the
+    # caller supplied them: the activity and contact-description steps below
+    # read them unconditionally.
+    _CREATE_DEFAULT_FNAMES = (
+        "activity_ids",
+        "allday",
+        "description",
+        "name",
+        "partner_ids",
+        "res_model_id",
+        "res_id",
+        "start",
+        "user_id",
+    )
 
-        vals_list = [  # Else bug with quick_create when we are filter on an other user
+    def _create_apply_defaults(self, vals_list, defaults):
+        """Fill in `_CREATE_DEFAULT_FNAMES` from `defaults` where absent."""
+        # Else bug with quick_create when we are filter on an other user
+        return [
             {
                 **vals,
                 "activity_ids": vals.get("activity_ids", defaults.get("activity_ids")),
@@ -837,9 +832,43 @@ class CalendarEvent(models.Model):
             }
             for vals in vals_list
         ]
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Prevent sending update notification when _inverse_dates is called
+        self = self.with_context(is_calendar_event_new=True)
+        defaults = self.browse().default_get(list(self._CREATE_DEFAULT_FNAMES))
+        vals_list = self._create_apply_defaults(vals_list, defaults)
+        self._create_prepare_activities(vals_list)
+        self._set_videocall_location(vals_list)
+        vals_list = self._create_prepare_attendees(vals_list, defaults)
+        if not self.env.context.get("skip_contact_description"):
+            self._create_prepare_contact_description(vals_list)
+
+        events = self._create_split_by_recurrency(vals_list)
+
+        events.filtered(
+            lambda event: event.start > fields.Datetime.now()
+        ).attendee_ids._send_invitation_emails()
+        self._create_sync_activities(events, vals_list)
+        if not self.env.context.get("dont_notify"):
+            self._create_setup_alarms(events, vals_list)
+        return events.with_context(is_calendar_event_new=False)
+
+    def _create_prepare_activities(self, vals_list):
+        """Attach a meeting activity to the linked document, in place.
+
+        An event created *from* a record (a lead, an order) that supports
+        activities gets one, so the document shows the meeting in its activity
+        stream. Skipped when the caller already supplied a complete
+        `(0, 0, vals)` activity command, unless the event is being created from
+        an activity that already has an event -- then a second one is wanted.
+        """
         meeting_activity_types = self.env["mail.activity.type"].search(
             [("category", "=", "meeting")]
         )
+        if not meeting_activity_types:
+            return
         # get list of models ids and filter out None values directly
         model_ids = list(filter(None, {values["res_model_id"] for values in vals_list}))
         all_models = self.env["ir.model"].sudo().browse(model_ids)
@@ -860,65 +889,66 @@ class CalendarEvent(models.Model):
             ):
                 existing_type = orig_activity_ids.activity_type_id
 
-        if meeting_activity_types:
-            for values in vals_list:
-                # created from calendar: try to create an activity on the related record
-                if values["activity_ids"] and not existing_event:
-                    continue
-                res_model = all_models.filtered(
-                    lambda m: m.id == values["res_model_id"]  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
+        for values in vals_list:
+            # created from calendar: try to create an activity on the related record
+            if values["activity_ids"] and not existing_event:
+                continue
+            res_model = all_models.filtered(
+                lambda m: m.id == values["res_model_id"]  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
+            )
+            res_id = values["res_id"]
+            if (
+                not res_model
+                or not res_id
+                or res_model.model in excluded_models
+                or not res_model.is_mail_activity
+            ):
+                continue
+
+            meeting_activity_type = self.env["mail.activity.type"]
+            if existing_type and existing_type.res_model in {False, res_model.model}:
+                meeting_activity_type = existing_type
+            if not meeting_activity_type:
+                meeting_activity_type = meeting_activity_types.filtered(
+                    lambda act: act.res_model in {False, res_model.model}  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
                 )
-                res_id = values["res_id"]
-                if (
-                    not res_model
-                    or not res_id
-                    or res_model.model in excluded_models
-                    or not res_model.is_mail_activity
-                ):
-                    continue
+            if not meeting_activity_type:
+                continue
 
-                meeting_activity_type = self.env["mail.activity.type"]
-                if existing_type and existing_type.res_model in {
-                    False,
-                    res_model.model,
-                }:
-                    meeting_activity_type = existing_type
-                if not meeting_activity_type:
-                    meeting_activity_type = meeting_activity_types.filtered(
-                        lambda act: act.res_model in {False, res_model.model}  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
-                    )
-                if not meeting_activity_type:
-                    continue
+            values["activity_ids"] = [
+                (0, 0, self._prepare_meeting_activity_vals(values, meeting_activity_type[0]))
+            ]
 
-                activity_vals = {
-                    "res_model_id": values["res_model_id"],
-                    "res_id": res_id,
-                    "activity_type_id": meeting_activity_type[0].id,
-                }
-                if values["description"]:
-                    activity_vals["note"] = values["description"]
-                if values["name"]:
-                    activity_vals["summary"] = values["name"]
-                if values["start"]:
-                    activity_vals["date_deadline"] = (
-                        self._get_activity_deadline_from_start(
-                            fields.Datetime.from_string(values["start"]),
-                            values["allday"],
-                        )
-                    )
-                if values["user_id"]:
-                    activity_vals["user_id"] = values["user_id"]
-                values["activity_ids"] = [(0, 0, activity_vals)]
+    def _prepare_meeting_activity_vals(self, values, activity_type):
+        """Activity values mirroring the event values it is created from."""
+        activity_vals = {
+            "res_model_id": values["res_model_id"],
+            "res_id": values["res_id"],
+            "activity_type_id": activity_type.id,
+        }
+        if values["description"]:
+            activity_vals["note"] = values["description"]
+        if values["name"]:
+            activity_vals["summary"] = values["name"]
+        if values["start"]:
+            activity_vals["date_deadline"] = self._get_activity_deadline_from_start(
+                fields.Datetime.from_string(values["start"]), values["allday"]
+            )
+        if values["user_id"]:
+            activity_vals["user_id"] = values["user_id"]
+        return activity_vals
 
-        self._set_videocall_location(vals_list)
+    def _create_prepare_attendees(self, vals_list, defaults):
+        """Derive the attendee commands from the partners, where absent.
 
-        # Add commands to create attendees from partners (if present) if no attendee command
-        # is already given (coming from Google event for example).
-        # Automatically add the current partner when creating an event if there is none (happens when we quickcreate an event)
+        An explicit `attendee_ids` wins (Google and Outlook events arrive with
+        one); otherwise the current user is added, which is what makes a
+        quick-created event have an organizer.
+        """
         default_partners_ids = defaults.get("partner_ids") or (
             [(4, self.env.user.partner_id.id)]
         )
-        vals_list = [
+        return [
             dict(
                 vals,
                 attendee_ids=self._attendees_values(
@@ -930,52 +960,55 @@ class CalendarEvent(models.Model):
             for vals in vals_list
         ]
 
-        if not self.env.context.get("skip_contact_description"):
-            # Add organizer and first partner details to event description
-            organizer_ids, partner_ids = set(), set()
-            vals_partner_list = []
-            for vals in vals_list:
-                if vals.get("user_id"):
-                    organizer_ids.add(vals["user_id"])
-                # attendee_ids structure = [[2, partner_id_to_remove], [0, 0, {'partner_id': partner_id_to_add}], ...]
-                partner_ids_from_attendees = {
-                    attendee_vals[2]["partner_id"]
-                    for attendee_vals in vals["attendee_ids"]
-                    if len(attendee_vals) > 2
-                    and isinstance(attendee_vals[2], dict)
-                    and "partner_id" in attendee_vals[2]
-                }
-                partner_ids.update(partner_ids_from_attendees)
-                vals_partner_list.append(partner_ids_from_attendees)
-            organizers = (
-                self.env["res.users"].browse(organizer_ids).with_prefetch(organizer_ids)
-            )
-            partners = (
-                self.env["res.partner"].browse(partner_ids).with_prefetch(partner_ids)
-            )
+    def _create_prepare_contact_description(self, vals_list):
+        """Append the organizer's and first attendee's details to the description, in place."""
+        organizer_ids, partner_ids = set(), set()
+        vals_partner_list = []
+        for vals in vals_list:
+            if vals.get("user_id"):
+                organizer_ids.add(vals["user_id"])
+            # attendee_ids structure = [[2, partner_id_to_remove], [0, 0, {'partner_id': partner_id_to_add}], ...]
+            partner_ids_from_attendees = {
+                attendee_vals[2]["partner_id"]
+                for attendee_vals in vals["attendee_ids"]
+                if len(attendee_vals) > 2
+                and isinstance(attendee_vals[2], dict)
+                and "partner_id" in attendee_vals[2]
+            }
+            partner_ids.update(partner_ids_from_attendees)
+            vals_partner_list.append(partner_ids_from_attendees)
+        organizers = (
+            self.env["res.users"].browse(organizer_ids).with_prefetch(organizer_ids)
+        )
+        partners = (
+            self.env["res.partner"].browse(partner_ids).with_prefetch(partner_ids)
+        )
 
-            for vals, vals_partner_ids in zip(vals_list, vals_partner_list, strict=True):
-                contact_description = self._get_contact_details_description(
-                    organizers.browse(vals.get("user_id", False)),
-                    partners.browse(vals_partner_ids),
+        for vals, vals_partner_ids in zip(vals_list, vals_partner_list, strict=True):
+            contact_description = self._get_contact_details_description(
+                organizers.browse(vals.get("user_id", False)),
+                partners.browse(vals_partner_ids),
+            )
+            if not is_html_empty(contact_description):
+                base_description = (
+                    f"{vals['description']}<br/>"
+                    if not is_html_empty(vals.get("description"))
+                    else ""
                 )
-                if not is_html_empty(contact_description):
-                    base_description = (
-                        f"{vals['description']}<br/>"
-                        if not is_html_empty(vals.get("description"))
-                        else ""
-                    )
-                    vals["description"] = (
-                        f"<div>{base_description}{contact_description}</div>"
-                    )
+                vals["description"] = (
+                    f"<div>{base_description}{contact_description}</div>"
+                )
 
+    def _create_split_by_recurrency(self, vals_list):
+        """Create the events and return them in `vals_list` order.
+
+        Recurring and non-recurring vals go through two separate super() calls
+        (recurring events need follow_recurrence=True and a recurrence applied
+        afterwards). The returned recordset must still line up with `vals_list`:
+        the callers pair each event with its own vals by position. Track the
+        original index of every vals so `events` can be rebuilt in caller order.
+        """
         recurrence_fields = self._get_recurrent_fields()
-        # Recurring and non-recurring vals are created in two separate super()
-        # calls (recurring events need follow_recurrence=True and a recurrence
-        # applied afterwards). The returned recordset must still line up with
-        # `vals_list`: the two zip(events, vals_list) loops below (activity sync,
-        # alarm setup) pair each event with its own vals by position. Track the
-        # original index of every vals so `events` can be rebuilt in caller order.
         other_idx = [i for i, vals in enumerate(vals_list) if not vals.get("recurrency")]
         recurring_idx = [i for i, vals in enumerate(vals_list) if vals.get("recurrency")]
         other_vals = [vals_list[i] for i in other_idx]
@@ -1003,15 +1036,17 @@ class CalendarEvent(models.Model):
                 )._apply_recurrence_values(recurrence_values)
                 detached_events.active = False
 
-        events.filtered(
-            lambda event: event.start > fields.Datetime.now()
-        ).attendee_ids._send_invitation_emails()
+        return events
 
-        # update activities based on calendar event data, unless already prepared
-        # above manually. Heuristic: a new command (0, 0, vals) is considered as
-        # complete
+    @api.model
+    def _create_sync_activities(self, events, vals_list):
+        """Push the event values onto activities the caller did not fully specify.
+
+        Heuristic, unchanged: a new `(0, 0, vals)` command is considered
+        complete, so only events whose activity commands include something else
+        are synced. `events` is in `vals_list` order, so this pairing is correct.
+        """
         to_sync_activities = self.browse()
-        # `events` is rebuilt in `vals_list` order above, so this pairing is correct.
         for event, event_values in zip(events, vals_list, strict=True):
             if any(
                 command[0] != 0 for command in event_values.get("activity_ids") or []
@@ -1021,17 +1056,18 @@ class CalendarEvent(models.Model):
             fields={f for vals in vals_list for f in vals}
         )
 
-        if not self.env.context.get("dont_notify"):
-            alarm_events = self.env["calendar.event"]
-            for event, values in zip(events, vals_list, strict=True):
-                if values.get("allday"):
-                    # All day events will trigger the _inverse_date method which will create the trigger.
-                    continue
-                alarm_events |= event
-            recurring_events = alarm_events.filtered("recurrence_id")
-            recurring_events.recurrence_id._setup_alarms()
-            (alarm_events - recurring_events)._setup_alarms()
-        return events.with_context(is_calendar_event_new=False)
+    @api.model
+    def _create_setup_alarms(self, events, vals_list):
+        """Schedule the cron triggers for the events just created."""
+        alarm_events = self.browse()
+        for event, values in zip(events, vals_list, strict=True):
+            if values.get("allday"):
+                # All day events will trigger the _inverse_date method which will create the trigger.
+                continue
+            alarm_events |= event
+        recurring_events = alarm_events.filtered("recurrence_id")
+        recurring_events.recurrence_id._setup_alarms()
+        (alarm_events - recurring_events)._setup_alarms()
 
     def _compute_field_value(self, field):
         if field.compute_sudo:
@@ -1101,36 +1137,25 @@ class CalendarEvent(models.Model):
             lambda ev: ev.user_id and self.env.user != ev.user_id
         )._check_calendar_privacy_write_permissions()
 
-        update_alarms = False
-        update_time = False
         self._set_videocall_location([values])
         if "partner_ids" in values:
             values["attendee_ids"] = self._attendees_values(values["partner_ids"])
-            update_alarms = True
-            if self.videocall_channel_id:
-                new_partner_ids = []
-                for command in values["partner_ids"]:
-                    if command[0] == Command.LINK:
-                        new_partner_ids.append(command[1])
-                    elif command[0] == Command.SET:
-                        new_partner_ids.extend(command[2])
-                self.videocall_channel_id.add_members(new_partner_ids)
+            self._write_sync_videocall_members(values["partner_ids"])
 
-        time_fields = self.env["calendar.event"]._get_time_fields()
-        if any(values.get(key) for key in time_fields):
-            update_alarms = True
-            update_time = True
-        if "alarm_ids" in values:
-            update_alarms = True
+        time_fields = self._get_time_fields()
+        touches_time = self._touches_time(values)
+        update_time = touches_time
+        # Alarms are rescheduled when the event moves, when its reminders change,
+        # and when its attendees change -- a new attendee has a next-notification
+        # of their own, and a removed one no longer has this event's.
+        update_alarms = touches_time or "alarm_ids" in values or "partner_ids" in values
 
         if (
             not recurrence_update_setting
             or (recurrence_update_setting == "self_only"
             and len(self) == 1)
         ) and "follow_recurrence" not in values:
-            if any(
-                {field: values.get(field) for field in time_fields if field in values}
-            ):
+            if touches_time:
                 values["follow_recurrence"] = False
 
         previous_attendees = self.attendee_ids
@@ -1182,26 +1207,60 @@ class CalendarEvent(models.Model):
         (detached_events & self).active = False
         (detached_events - self).with_context(archive_on_error=True).unlink()
 
-        # Notify attendees if there is an alarm on the modified event, or if there was an alarm
-        # that has just been removed, as it might have changed their next event notification
         if not self.env.context.get("dont_notify") and update_alarms:
-            self.recurrence_id._setup_alarms(recurrence_update=True)
-            if not self.recurrence_id:
-                self._setup_alarms()
-        attendee_update_events = self.filtered(
+            self._write_reschedule_alarms()
+        if update_time:
+            self._write_reset_organizer_answer()
+        self._write_notify_attendees(values, previous_attendees, update_recurrence)
+
+        # Change base event when the main base event is archived. If it isn't done when trying to modify
+        # all events of the recurrence an error can be thrown or all the recurrence can be deleted.
+        if values.get("active") is False:
+            self.env["calendar.recurrence"].search(
+                [("base_event_id", "in", self.ids)]
+            )._select_new_base_event()
+
+        return True
+
+    def _write_sync_videocall_members(self, partner_commands):
+        """Add newly invited partners to the event's discuss channel."""
+        if not self.videocall_channel_id:
+            return
+        new_partner_ids = []
+        for command in partner_commands:
+            if command[0] == Command.LINK:
+                new_partner_ids.append(command[1])
+            elif command[0] == Command.SET:
+                new_partner_ids.extend(command[2])
+        self.videocall_channel_id.add_members(new_partner_ids)
+
+    def _write_reschedule_alarms(self):
+        """Reschedule the cron triggers after a write that can move a reminder."""
+        self.recurrence_id._setup_alarms(recurrence_update=True)
+        if not self.recurrence_id:
+            self._setup_alarms()
+
+    def _write_reset_organizer_answer(self):
+        """Un-accept the organizer when somebody else moved the event.
+
+        Otherwise the base event of a recurrence stays accepted by its organizer
+        while the following occurrences are not, which reads as a half-answered
+        series.
+        """
+        moved_by_others = self.filtered(
             lambda ev: ev.user_id and ev.user_id != self.env.user
         )
-        if update_time and attendee_update_events:
-            # Another user update the event time fields. It should not be auto accepted for the organizer.
-            # This prevent weird behavior when a user modified future events time fields and
-            # the base event of a recurrence is accepted by the organizer but not the following events
-            attendee_update_events.attendee_ids.filtered(
+        if moved_by_others:
+            moved_by_others.attendee_ids.filtered(
                 lambda att: self.user_id.partner_id == att.partner_id
             ).write({"state": "needsAction"})
 
+    def _write_notify_attendees(self, values, previous_attendees, update_recurrence):
+        """Mail the invitation to new attendees and the new date to the old ones."""
+        if self.env.context.get("skip_attendee_notification"):
+            return
         current_attendees = self.filtered("active").attendee_ids
-        skip_attendee_notification = self.env.context.get("skip_attendee_notification")
-        if not skip_attendee_notification and "partner_ids" in values:
+        if "partner_ids" in values:
             # we send to all partners and not only the new ones
             (current_attendees - previous_attendees)._notify_attendees(
                 self.env.ref(
@@ -1210,33 +1269,20 @@ class CalendarEvent(models.Model):
                 ),
                 force_send=True,
             )
-        if (
-            not skip_attendee_notification
-            and not self.env.context.get("is_calendar_event_new")
-            and "start" in values
-        ):
-            start_date = fields.Datetime.to_datetime(values.get("start"))
-            # Only notify on future events
-            if start_date and start_date >= fields.Datetime.now():
-                (current_attendees & previous_attendees).with_context(
-                    calendar_template_ignore_recurrence=not update_recurrence
-                )._notify_attendees(
-                    self.env.ref(
-                        "calendar.calendar_template_meeting_changedate",
-                        raise_if_not_found=False,
-                    ),
-                    force_send=True,
-                )
-
-        # Change base event when the main base event is archived. If it isn't done when trying to modify
-        # all events of the recurrence an error can be thrown or all the recurrence can be deleted.
-        if values.get("active") is False:
-            recurrences = self.env["calendar.recurrence"].search(
-                [("base_event_id", "in", self.ids)]
+        if self.env.context.get("is_calendar_event_new") or "start" not in values:
+            return
+        start_date = fields.Datetime.to_datetime(values.get("start"))
+        # Only notify on future events
+        if start_date and start_date >= fields.Datetime.now():
+            (current_attendees & previous_attendees).with_context(
+                calendar_template_ignore_recurrence=not update_recurrence
+            )._notify_attendees(
+                self.env.ref(
+                    "calendar.calendar_template_meeting_changedate",
+                    raise_if_not_found=False,
+                ),
+                force_send=True,
             )
-            recurrences._select_new_base_event()
-
-        return True
 
     def _check_calendar_privacy_write_permissions(self):
         """
@@ -1431,16 +1477,23 @@ class CalendarEvent(models.Model):
             new_event.write({"partner_ids": [(Command.set(old_event.partner_ids.ids))]})
         return new_events
 
-    def action_unlink_event(self, attendee_id=None, recurrence=False):
+    def action_unlink_event(self, recurrence=False):
         """
         Delete the event after displaying the delete wizard if necessary.
 
-        :param attendee_id: The ID of the attendee for the event
-        :param recurrence: Boolean indicating if the event is recurring
-        :return: Action to delete the event
+        :param recurrence: which occurrences to delete. Accepts the
+            `recurrence_update` vocabulary the form view sends
+            ('self_only'/'future_events'/'all_events') and the delete wizard's
+            own ('one'/'next'/'all'); anything else means this occurrence only.
+        :return: Action to delete the event, or to open the wizard
         """
         if self.user_id._has_any_active_synchronization() or len(self.ids) > 1:
-            self.unlink()
+            # This branch used to `self.unlink()` and drop `recurrence` on the
+            # floor, so a Google- or Outlook-synced user who answered "all
+            # events" deleted exactly one occurrence and was redirected as
+            # though it had worked. Apply the policy the caller asked for --
+            # the same one the wizard applies on the branch below.
+            self._unlink_by_recurrence_policy(recurrence)
             return {
                 "type": "ir.actions.act_url",
                 "target": "self",
@@ -1458,10 +1511,13 @@ class CalendarEvent(models.Model):
             return {}
 
         if self.ids and (lang := template._render_lang(self.ids)[self.id]):
+            # `default_attendee_id` used to be set here from an `attendee_id`
+            # parameter that three JS call sites threaded through -- one of them
+            # passing a *list* of partner ids. `calendar.popover.delete.wizard`
+            # has no `attendee_id` field, so the key was read by nobody.
             context = {
                 "default_use_template": bool(template),
                 "default_template_id": template.id,
-                "default_attendee_id": attendee_id,
                 "default_calendar_event_id": self.id,
                 "default_recurrence": recurrence,
                 "model_description": self.with_context(lang=lang),
@@ -1578,33 +1634,46 @@ class CalendarEvent(models.Model):
         return videocall_channel
 
     def _get_default_privacy_domain(self):
-        # Sub query user settings from calendars that are not private ('public' and 'confidential').
-        public_calendars_settings = (
-            self.env["res.users.settings"]
-            .sudo()
-            ._search([("calendar_default_privacy", "!=", "private")])
-            .select("user_id")
+        """Search-domain complement of `_check_private_event_conditions`.
+
+        Show an event unless it is private -- explicitly, or by its owner's
+        default -- AND the user is neither its organizer nor an attendee. So
+        participants (organizer via `user_id`, attendee via `partner_ids`)
+        always pass; everyone else passes only for public/confidential events,
+        or for default-privacy events whose owner's default is not private.
+
+        :rtype: Domain
+        """
+        settings = self.env["res.users.settings"].sudo()
+        # Owners whose *stored* default is not private ('public'/'confidential').
+        owner_default_is_public = Domain(
+            "user_id",
+            "in",
+            settings._search([("calendar_default_privacy", "!=", "private")]).select(
+                "user_id"
+            ),
         )
-        # This must be the search-domain complement of `_check_private_event_conditions`
-        # (the rule `_fetch_query` masks by): show an event unless it is private
-        # (explicitly, or by the owner's default) AND the user is neither its
-        # organizer nor an attendee. So: participants (organizer via user_id,
-        # attendee via partner_ids) always pass; everyone else passes only for
-        # public/confidential events, or default-privacy events whose owner's
-        # default is not private.
-        return [
-            "|",
-            "|",
-            "|",
-            ("privacy", "in", ["public", "confidential"]),
-            ("user_id", "=", self.env.user.id),
-            ("partner_ids", "in", self.env.user.partner_id.id),
-            "&",
-            ("privacy", "=", False),
-            "|",
-            ("user_id", "=", False),
-            ("user_id", "in", public_calendars_settings),
-        ]
+        # `_check_private_event_conditions` reads `user_id.calendar_default_privacy`,
+        # which falls back to the `calendar.default_privacy` config parameter for a
+        # user with no `res.users.settings` row -- OdooBot has none, and neither has
+        # anyone who existed before this module was installed. Without the same
+        # fallback here the two halves of the pair disagree: the predicate calls such
+        # an event public while the domain hides it from everyone, so it vanishes
+        # from any search that touches a non-public field even for its own attendees.
+        if (
+            self.env["res.users"]._default_user_calendar_default_privacy()
+            != "private"
+        ):
+            owner_default_is_public |= Domain(
+                "user_id", "not in", settings._search([]).select("user_id")
+            )
+        return Domain.OR([
+            Domain("privacy", "in", ["public", "confidential"]),
+            Domain("user_id", "=", self.env.user.id),
+            Domain("partner_ids", "in", self.env.user.partner_id.id),
+            Domain("privacy", "=", False)
+            & (Domain("user_id", "=", False) | owner_default_is_public),
+        ])
 
     def _is_event_over(self):
         """Check if the event is over. This method is used to check if the event
@@ -1694,6 +1763,36 @@ class CalendarEvent(models.Model):
         partner = self.env["res.partner"].browse(partner_id)
         if partner not in self.partner_ids:
             self.write({"partner_ids": [(4, partner.id)]})
+
+    # The two vocabularies a delete policy arrives in: the form view sends the
+    # `recurrence_update` selection, the delete wizard its own `delete` field.
+    # They mean the same three things, so normalise once here instead of letting
+    # each call site test for one spelling and silently ignore the other.
+    RECURRENCE_DELETE_POLICIES = {
+        "all_events": "all_events",
+        "all": "all_events",
+        "future_events": "future_events",
+        "next": "future_events",
+        "self_only": "self_only",
+        "one": "self_only",
+    }
+
+    @api.model
+    def _normalize_recurrence_policy(self, policy):
+        """Map either delete vocabulary onto `recurrence_update`'s.
+
+        Anything unrecognised (including False) means this occurrence only: the
+        user did ask for a delete, so the one thing we must never do is nothing.
+        """
+        return self.RECURRENCE_DELETE_POLICIES.get(policy, "self_only")
+
+    def _unlink_by_recurrence_policy(self, policy):
+        """Delete the occurrences `policy` selects, for a possibly-recurrent event."""
+        policy = self._normalize_recurrence_policy(policy)
+        if policy == "self_only" or not self.recurrency or len(self) > 1:
+            self.unlink()
+            return
+        self.action_mass_deletion(policy)
 
     def action_mass_deletion(self, recurrence_update_setting):
         self.ensure_one()
@@ -1801,9 +1900,7 @@ class CalendarEvent(models.Model):
             ):
                 at = event.start - timedelta(minutes=alarm.duration_minutes)
                 create_trigger = (
-                    not existing_trigger
-                    or (existing_trigger
-                    and existing_trigger.call_at != at)
+                    not existing_trigger or existing_trigger.call_at != at
                 )
                 if create_trigger and (not cron.lastcall or at > cron.lastcall):
                     # Don't trigger for past alarms, they would be skipped by design
@@ -1891,16 +1988,10 @@ class CalendarEvent(models.Model):
         return to_update._apply_recurrence()
 
     def _get_recurrence_params(self):
+        """Recurrence parameters derived from this event's own start date."""
         if not self:
             return {}
-        event_date = self._get_start_date()
-        weekday_field_name = weekday_to_field(event_date.weekday())
-        return {
-            weekday_field_name: True,
-            "weekday": weekday_field_name.upper(),
-            "byday": str(get_weekday_occurence(event_date)),
-            "day": event_date.day,
-        }
+        return self._get_recurrence_params_by_date(self._get_start_date())
 
     @api.model
     def _get_recurrence_params_by_date(self, event_date):
@@ -2407,6 +2498,21 @@ class CalendarEvent(models.Model):
     @api.model
     def _get_time_fields(self):
         return {"start", "stop", "start_date", "stop_date"}
+
+    @api.model
+    def _touches_time(self, values):
+        """Whether `values` moves the event in time.
+
+        `write` used to ask this twice, eleven lines apart, in two spellings
+        that disagree for a falsy value: `any(values.get(f) for f in ...)`
+        (truthiness) decided whether to reschedule alarms, while
+        `any({f: values.get(f) for f in ... if f in values})` -- which iterates
+        the dict's *keys*, so it is a presence test whose values are decoration
+        -- decided whether to detach the event from its recurrence. Writing
+        `{'start_date': False}` therefore detached an event that had not moved.
+        One predicate, truthiness, used by both.
+        """
+        return any(values.get(fname) for fname in self._get_time_fields())
 
     @api.model
     def _get_custom_fields(self):
