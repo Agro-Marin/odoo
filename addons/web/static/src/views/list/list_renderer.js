@@ -60,6 +60,20 @@ import {
     useListVirtualization,
 } from "./list_virtualization.js";
 
+// Named so a profile shows which phase of `syncRenderState` a sample landed
+// in. `odoo.debug` is read per call rather than captured once, so toggling
+// debug mode at runtime starts and stops the marks immediately.
+const perfMark = (/** @type {string} */ name) => {
+    if (odoo.debug) {
+        performance.mark(name);
+    }
+};
+const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) => {
+    if (odoo.debug) {
+        performance.measure(name, start);
+    }
+};
+
 /**
  * @typedef {import('@web/model/relational_model/dynamic_list').DynamicList} DynamicList
  * @typedef {import('@web/model/relational_model/group').Group} Group
@@ -259,6 +273,25 @@ export class ListRenderer extends Component {
     rowApi;
 
     setup() {
+        // Split into ordered PHASES, not by concern. The original order is
+        // deliberately interleaved -- `gridState` is built near the end, after
+        // the hooks that resolve it lazily -- and OWL registers lifecycle
+        // hooks in call order, so regrouping these by topic would change
+        // behaviour. Each phase is called synchronously from here, so every
+        // hook still registers exactly where it did before.
+        this.setupServices();
+        this.setupSharedContexts();
+        this.setupRowInteractions();
+        this.setupLayoutAndFocus();
+    }
+
+    /**
+     * Services, the per-view storage keys, and the table ref. Nothing here
+     * reads another phase's state.
+     *
+     * @returns {void}
+     */
+    setupServices() {
         useRenderCounter("list.ListRenderer");
         this._displaySaveNotification = this.displaySaveNotification.bind(this);
         this.actionService = useAction();
@@ -277,7 +310,16 @@ export class ListRenderer extends Component {
             /** @type {EventListener} */ (this.onGlobalClick.bind(this)),
         );
         this.tableRef = useRef("table");
+    }
 
+    /**
+     * The two shared surfaces: `gridContext` for the satellite hooks and
+     * the row context (`rowFlags` + `rowApi`) for the record rows. Built
+     * before the hooks that capture them.
+     *
+     * @returns {void}
+     */
+    setupSharedContexts() {
         // The single surface the list satellite hooks read from: one typed
         // context built once, rather than a separate callback bag per hook (with
         // the keyboard-nav hook cross-wiring into selection and virtualization).
@@ -286,39 +328,7 @@ export class ListRenderer extends Component {
         // them at call time. Hook-specific *config* (refs, thresholds, storage
         // keys) is passed separately -- it is not part of the shared surface.
         /** @type {import("./list_renderer").ListGridContext} */
-        this.gridContext = {
-            getProps: () => this.props,
-            getEnv: () => this.env,
-            getColumns: () => this.columns,
-            getAllColumns: () => this.allColumns,
-            getFields: () => this.fields,
-            getGridState: () => this.gridState,
-            getEditedRecord: () => this.editedRecord,
-            getOptionalActiveFields: () => this.optionalActiveFields,
-            getAllowSelectors: () => this.props.allowSelectors,
-            getCanCreate: () => this.canCreate,
-            getDisplayRowCreates: () => this.displayRowCreates,
-            getControls: () => this.controls,
-            getSel: () => this.sel,
-            getVirtualization: () => this.virt,
-            canResequence: () => this.canResequenceRows,
-            toggleRecordSelection: (record) => this.toggleRecordSelection(record),
-            onToggleGroup: (group) => this.toggleGroup(group),
-            onAdd: (params) => this.add(params),
-            onOpenRecord: (record) => this.props.openRecord(record),
-            onDeleteRecord: (record) => this.onDeleteRecord(record),
-            onEditNextRecord: (record, group) => this.editNextRecord(record, group),
-            onSave: () => this.saveOptionalActiveFields(),
-            findFocusFutureCell: (cell, cellIsInGroupRow, direction) =>
-                this.findFocusFutureCell(cell, cellIsInGroupRow, direction),
-            isInlineEditable: (record) => this.isInlineEditable(record),
-            isCellReadonly: (column, record) => this.isCellReadonly(column, record),
-            expandCheckboxes: (record, direction) =>
-                this.sel.expandCheckboxes(
-                    record,
-                    /** @type {"up" | "down"} */ (direction),
-                ),
-        };
+        this.gridContext = this.buildGridContext();
 
         // The record rows' explicit row context: one stable reactive flags
         // object and one stable api object shared by every row (see the
@@ -327,7 +337,17 @@ export class ListRenderer extends Component {
         // cross-row flips.
         this.rowFlags = reactive({ isEditing: false, canSelectRecord: true });
         this.rowApi = this.buildRowApi();
+    }
 
+    /**
+     * The hooks that act on rows -- selection, group management, keyboard
+     * navigation, optional fields, aggregates -- plus the per-render state
+     * sync. `onMounted`/`onWillPatch` here record which row held focus so
+     * `setupLayoutAndFocus`'s `onPatched` can put it back.
+     *
+     * @returns {void}
+     */
+    setupRowInteractions() {
         this.sel = useListSelection(this.gridContext, {
             longTouchThreshold: /** @type {any} */ (this.constructor)
                 .LONG_TOUCH_THRESHOLD,
@@ -375,60 +395,19 @@ export class ListRenderer extends Component {
         this.columns = [];
         this.editedRecord = null;
         this.agg = useListAggregates(this.gridContext);
-        const mark = odoo.debug ? (name) => performance.mark(name) : () => {};
-        const measure = odoo.debug
-            ? (name, start) => performance.measure(name, start)
-            : () => {};
-        onWillRender(() => {
-            this.editedRecord = this.props.list.editedRecord;
-            // `list.isEditing`, not `Boolean(this.editedRecord)`: see the
-            // ListRowFlags typedef. Rows with a button column subscribe to this
-            // key, and deriving it from `editedRecord` made moving the edited
-            // row repaint every one of them twice.
-            this.rowFlags.isEditing = this.props.list.isEditing;
-            this.rowFlags.canSelectRecord = this.canSelectRecord;
-            this._readonlyCache = new Map();
-            this._renderedRowIds = new Set();
+        onWillRender(() => this.syncRenderState());
+    }
 
-            if (this.tooltipInfoDebug !== this.isDebugMode) {
-                this.tooltipInfoDebug = this.isDebugMode;
-                this.tooltipInfoByColumn = {};
-            }
-
-            mark("list:processAllColumns:start");
-            this.allColumns = /** @type {Column[]} */ (
-                this.processAllColumns(this.props.archInfo.columns, this.props.list)
-            );
-            measure("list:processAllColumns", "list:processAllColumns:start");
-
-            Object.assign(
-                this.optionalActiveFields,
-                this.computeOptionalActiveFields(),
-            );
-            this.debugOpenView = this.opt.debugOpenView;
-
-            mark("list:getActiveColumns:start");
-            this.columns = this._toStableColumns(this.getActiveColumns());
-            measure("list:getActiveColumns", "list:getActiveColumns:start");
-
-            this.withHandleColumn = this.columns.some((col) => col.widget === "handle");
-
-            this.gridState.update({
-                list: this.props.list,
-                columns: this.columns,
-                hasSelectors: this.hasSelectors,
-                hasOpenFormViewColumn: this.hasOpenFormViewColumn,
-                hasActionsColumn: this.hasActionsColumn,
-                showGroupAddLine: Boolean(this.props.editable && this.canCreate),
-            });
-            mark("list:gridState.rebuild:start");
-            this.gridState.rebuild();
-            measure("list:gridState.rebuild", "list:gridState.rebuild:start");
-
-            mark("list:virt.refresh:start");
-            this.virt.refresh();
-            measure("list:virt.refresh", "list:virt.refresh:start");
-        });
+    /**
+     * Layout and geometry (resequencing, column widths, virtualization,
+     * grid state) and the `onPatched` pass that restores the caret to the
+     * edited cell. `gridState` is constructed here, near the end, because
+     * `gridState.update()` in `syncRenderState` supplies the rest -- passing
+     * it earlier would read half-initialised getters.
+     *
+     * @returns {void}
+     */
+    setupLayoutAndFocus() {
         this.state = useState({ showGroupInput: false });
         let dataRowId;
         let dataGroupId;
@@ -470,38 +449,7 @@ export class ListRenderer extends Component {
             hasActionsColumn: this.hasActionsColumn,
         }));
 
-        onPatched(async () => {
-            await Promise.resolve();
-            if (status(this) === "destroyed") {
-                return;
-            }
-            if (this.activeElement !== this.uiService.activeElement) {
-                /** @type {any} */ (this.nav).clearPendingVirtFocus();
-                return;
-            }
-            if (this.editedRecord && this.activeRowId !== this.editedRecord.id) {
-                if (
-                    this.nav.cellToFocus &&
-                    this.nav.cellToFocus.record === this.editedRecord
-                ) {
-                    const column = this.nav.cellToFocus.column;
-                    const forward = this.nav.cellToFocus.forward;
-                    this.focusCell(column, forward);
-                } else {
-                    const column = this.nav.lastEditedCell?.column || this.columns[0];
-                    if (
-                        column &&
-                        (column.widget !== "daterange" ||
-                            !this.editedRecord.data[column.name])
-                    ) {
-                        this.focusCell(column);
-                    }
-                }
-            }
-            this.nav.cellToFocus = null;
-            this.nav.lastEditedCell = null;
-            /** @type {any} */ (this.nav).resolvePendingVirtFocus();
-        });
+        onPatched(() => this.restoreEditionFocus());
         this.isRTL = localization.direction === "rtl";
 
         // Everything else is (re)set by gridState.update() in onWillRender, which
@@ -636,6 +584,164 @@ export class ListRenderer extends Component {
             return group;
         }
         return this.gridState.findRowByGroupId(String(group.id))?.group ?? group;
+    }
+
+    /**
+     * Puts the caret back in the edited cell after a patch.
+     *
+     * The leading `await` is load-bearing: it lets the browser finish its own
+     * focus handling for this patch before we read `document.activeElement`,
+     * so the destroyed guard below is a real possibility rather than
+     * defensive noise. `setupRowInteractions` recorded `activeRowId` in
+     * `onWillPatch`, i.e. BEFORE the DOM moved; comparing it with the edited
+     * record is how we tell "the user moved rows" from "the row re-rendered
+     * underneath a caret that should stay put".
+     *
+     * Bails without touching focus when the active element belongs to someone
+     * else (a dialog, an autocomplete) -- stealing it back would fight them.
+     *
+     * @returns {Promise<void>}
+     */
+    async restoreEditionFocus() {
+        await Promise.resolve();
+        if (status(this) === "destroyed") {
+            return;
+        }
+        if (this.activeElement !== this.uiService.activeElement) {
+            /** @type {any} */ (this.nav).clearPendingVirtFocus();
+            return;
+        }
+        if (this.editedRecord && this.activeRowId !== this.editedRecord.id) {
+            if (
+                this.nav.cellToFocus &&
+                this.nav.cellToFocus.record === this.editedRecord
+            ) {
+                const column = this.nav.cellToFocus.column;
+                const forward = this.nav.cellToFocus.forward;
+                this.focusCell(column, forward);
+            } else {
+                const column = this.nav.lastEditedCell?.column || this.columns[0];
+                if (
+                    column &&
+                    (column.widget !== "daterange" ||
+                        !this.editedRecord.data[column.name])
+                ) {
+                    this.focusCell(column);
+                }
+            }
+        }
+        this.nav.cellToFocus = null;
+        this.nav.lastEditedCell = null;
+        /** @type {any} */ (this.nav).resolvePendingVirtFocus();
+    }
+
+    /**
+     * Everything the template needs derived and published, once per render.
+     * Runs from `onWillRender`, so it is the last point at which a derived
+     * value can still be written before the template reads it.
+     *
+     * Order is load-bearing: `allColumns` feeds `getActiveColumns`, which
+     * feeds `gridState.update`, which `gridState.rebuild` materialises and
+     * `virt.refresh` then windows. A subclass overriding this must call
+     * `super.syncRenderState()` rather than reorder it.
+     *
+     * @returns {void}
+     */
+    syncRenderState() {
+        this.editedRecord = this.props.list.editedRecord;
+        // `list.isEditing`, not `Boolean(this.editedRecord)`: see the
+        // ListRowFlags typedef. Rows with a button column subscribe to this
+        // key, and deriving it from `editedRecord` made moving the edited
+        // row repaint every one of them twice.
+        this.rowFlags.isEditing = this.props.list.isEditing;
+        this.rowFlags.canSelectRecord = this.canSelectRecord;
+        this._readonlyCache = new Map();
+        this._renderedRowIds = new Set();
+
+        if (this.tooltipInfoDebug !== this.isDebugMode) {
+            this.tooltipInfoDebug = this.isDebugMode;
+            this.tooltipInfoByColumn = {};
+        }
+
+        perfMark("list:processAllColumns:start");
+        this.allColumns = /** @type {Column[]} */ (
+            this.processAllColumns(this.props.archInfo.columns, this.props.list)
+        );
+        perfMeasure("list:processAllColumns", "list:processAllColumns:start");
+
+        Object.assign(this.optionalActiveFields, this.computeOptionalActiveFields());
+        this.debugOpenView = this.opt.debugOpenView;
+
+        perfMark("list:getActiveColumns:start");
+        this.columns = this._toStableColumns(this.getActiveColumns());
+        perfMeasure("list:getActiveColumns", "list:getActiveColumns:start");
+
+        this.withHandleColumn = this.columns.some((col) => col.widget === "handle");
+
+        this.gridState.update({
+            list: this.props.list,
+            columns: this.columns,
+            hasSelectors: this.hasSelectors,
+            hasOpenFormViewColumn: this.hasOpenFormViewColumn,
+            hasActionsColumn: this.hasActionsColumn,
+            showGroupAddLine: Boolean(this.props.editable && this.canCreate),
+        });
+        perfMark("list:gridState.rebuild:start");
+        this.gridState.rebuild();
+        perfMeasure("list:gridState.rebuild", "list:gridState.rebuild:start");
+
+        perfMark("list:virt.refresh:start");
+        this.virt.refresh();
+        perfMeasure("list:virt.refresh", "list:virt.refresh:start");
+    }
+
+    /**
+     * The shared surface handed to every list satellite hook, built once in
+     * `setup`. A method rather than a literal inline for the same reason
+     * `buildRowApi` is one: a renderer subclass extends the context by
+     * overriding this and spreading `super.buildGridContext()`, which is not
+     * possible against an object literal buried in `setup`.
+     *
+     * Every member is a lazy getter or a bound callback, so a hook built
+     * BEFORE `this.sel` / `this.virt` / `this.gridState` exist still resolves
+     * them at call time. Do not turn any of these into a plain value.
+     *
+     * @returns {import("./list_renderer").ListGridContext}
+     */
+    buildGridContext() {
+        return {
+            getProps: () => this.props,
+            getEnv: () => this.env,
+            getColumns: () => this.columns,
+            getAllColumns: () => this.allColumns,
+            getFields: () => this.fields,
+            getGridState: () => this.gridState,
+            getEditedRecord: () => this.editedRecord,
+            getOptionalActiveFields: () => this.optionalActiveFields,
+            getAllowSelectors: () => this.props.allowSelectors,
+            getCanCreate: () => this.canCreate,
+            getDisplayRowCreates: () => this.displayRowCreates,
+            getControls: () => this.controls,
+            getSel: () => this.sel,
+            getVirtualization: () => this.virt,
+            canResequence: () => this.canResequenceRows,
+            toggleRecordSelection: (record) => this.toggleRecordSelection(record),
+            onToggleGroup: (group) => this.toggleGroup(group),
+            onAdd: (params) => this.add(params),
+            onOpenRecord: (record) => this.props.openRecord(record),
+            onDeleteRecord: (record) => this.onDeleteRecord(record),
+            onEditNextRecord: (record, group) => this.editNextRecord(record, group),
+            onSave: () => this.saveOptionalActiveFields(),
+            findFocusFutureCell: (cell, cellIsInGroupRow, direction) =>
+                this.findFocusFutureCell(cell, cellIsInGroupRow, direction),
+            isInlineEditable: (record) => this.isInlineEditable(record),
+            isCellReadonly: (column, record) => this.isCellReadonly(column, record),
+            expandCheckboxes: (record, direction) =>
+                this.sel.expandCheckboxes(
+                    record,
+                    /** @type {"up" | "down"} */ (direction),
+                ),
+        };
     }
 
     /**
