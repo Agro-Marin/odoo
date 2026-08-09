@@ -47,6 +47,14 @@ class MailMessageReaction(models.Model):
     def _to_store(self, store: Store, fields):
         if fields:
             raise NotImplementedError("Fields are not supported for reactions.")
+        # Every reactor in the batch, resolved once, purely to seed the prefetch
+        # of the per-group sets below. ``union()`` returns a recordset whose
+        # prefetch covers only its own group, so serializing a message with N
+        # distinct reactions would read one reactor per group -- N round trips
+        # for what is one set of partners. Prefetching over the whole batch lets
+        # the first group's read cover every later one.
+        all_partner_ids = self.partner_id._ids
+        all_guest_ids = self.guest_id._ids
         for (message, content), reactions in groupby(
             self, lambda r: (r.message_id, r.content)
         ):
@@ -54,10 +62,13 @@ class MailMessageReaction(models.Model):
             data = {
                 "content": content,
                 "count": len(reactions),
-                "guests": Store.Many(reactions.guest_id, ["avatar_128", "name"]),
+                "guests": Store.Many(
+                    reactions.guest_id.with_prefetch(all_guest_ids),
+                    ["avatar_128", "name"],
+                ),
                 "message": message.id,
                 "partners": Store.Many(
-                    reactions.partner_id,
+                    reactions.partner_id.with_prefetch(all_partner_ids),
                     ["avatar_128", *message._get_store_partner_name_fields()],
                 ),
                 "sequence": min(reactions.ids),
