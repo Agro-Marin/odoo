@@ -3,7 +3,12 @@
 import { expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { contains, mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    mountWithCleanup,
+    onRpc,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { NameAndSignature } from "@web/components/signature/name_and_signature";
 
 const TINY_PNG =
@@ -141,22 +146,26 @@ test("printImage serializes concurrent calls with KeepLast (only the last draws)
         },
     });
 
-    let firstResolved = false;
-    let secondResolved = false;
-
-    const p1 = res.printImage(TINY_PNG).then(() => {
-        firstResolved = true;
+    // The contract is about the canvas, not about promise timing: a superseded
+    // call must not paint. It used to be asserted by checking that the loser's
+    // promise never settled, which pinned the dangling continuation rather than
+    // the behaviour -- a superseded call now returns early, and still does not
+    // draw.
+    const ctx = res.signaturePad.canvas.getContext("2d");
+    patchWithCleanup(ctx, {
+        drawImage() {
+            expect.step("drawImage");
+            return super.drawImage(...arguments);
+        },
     });
-    const p2 = res.printImage(TINY_PNG).then(() => {
-        secondResolved = true;
-    });
 
-    await p2;
+    const first = res.printImage(TINY_PNG);
+    const second = res.printImage(TINY_PNG);
+
+    await Promise.all([first, second]);
     await animationFrame();
 
-    expect(secondResolved).toBe(true);
-    expect(firstResolved).toBe(false);
-    void p1;
+    expect.verifySteps(["drawImage"]);
 });
 
 test("a signature model handed over without a name is normalised, not crashed on", async () => {

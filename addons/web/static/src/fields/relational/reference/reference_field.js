@@ -5,7 +5,7 @@
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
@@ -40,22 +40,47 @@ export class ReferenceField extends Component {
             currentRelation: undefined,
         });
         this.nameService = useService("name");
-        const keepLast = new KeepLast();
+        const keepLast = new KeepLast({ rejectSuperseded: true });
         if (this._isCharField(this.props)) {
             let currentValue = undefined;
             useRecordObserver(async (record, props) => {
                 if (currentValue !== record.data[props.name]) {
-                    /** @type {any} */ (this.state).formattedCharValue =
-                        await keepLast.add(this._fetchReferenceCharData(props));
+                    let formatted;
+                    try {
+                        formatted = await keepLast.add(
+                            this._fetchReferenceCharData(props),
+                        );
+                    } catch (error) {
+                        // Leaving `currentValue` untouched matters: a newer
+                        // observer run owns the fetch, and marking this value
+                        // as seen would stop it being fetched at all.
+                        if (error instanceof SupersededError) {
+                            return;
+                        }
+                        throw error;
+                    }
+                    /** @type {any} */ (this.state).formattedCharValue = formatted;
                     currentValue = record.data[props.name];
                 }
             });
         } else if (this.props.modelField) {
             useRecordObserver(async (record, props) => {
                 if (this.currentModelId !== record.data[props.modelField]?.id) {
-                    /** @type {any} */ (this.state).modelName = await keepLast.add(
-                        this._fetchModelTechnicalName(props),
-                    );
+                    let modelName;
+                    try {
+                        modelName = await keepLast.add(
+                            this._fetchModelTechnicalName(props),
+                        );
+                    } catch (error) {
+                        // Superseded: do not clear the reference and do not
+                        // mark this model as seen -- the run that took over
+                        // will do both against the value the user landed on.
+                        if (error instanceof SupersededError) {
+                            return;
+                        }
+                        throw error;
+                    }
+                    /** @type {any} */ (this.state).modelName = modelName;
                     if (this.currentModelId !== undefined) {
                         record.update({ [props.name]: false });
                     }

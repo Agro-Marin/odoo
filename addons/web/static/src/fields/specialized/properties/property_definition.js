@@ -12,7 +12,7 @@ import { ModelSelector } from "@web/components/model_selector/model_selector";
 import { Domain } from "@web/core/domain";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uuid } from "@web/core/utils/format/strings";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
@@ -60,8 +60,8 @@ export class PropertyDefinition extends Component {
     setup() {
         this.orm = useService("orm");
 
-        this.keepLastCount = new KeepLast();
-        this.keepLastModelDescription = new KeepLast();
+        this.keepLastCount = new KeepLast({ rejectSuperseded: true });
+        this.keepLastModelDescription = new KeepLast({ rejectSuperseded: true });
 
         this.propertyDefinitionRef = useRef("propertyDefinition");
         this.addDialog = useOwnedDialogs();
@@ -395,11 +395,18 @@ export class PropertyDefinition extends Component {
                     return;
                 }
                 this.state.resModelDescription = result[0].display_name;
-            } catch {
-                this.state.resModelDescription = _t(
-                    'You do not have access to the model "%s".',
-                    newModel,
-                );
+            } catch (error) {
+                // Superseded is not an access failure. Falling through would
+                // tell the user they lack access to a model they simply
+                // stopped asking about.
+                if (!(error instanceof SupersededError)) {
+                    this.state.resModelDescription = _t(
+                        'You do not have access to the model "%s".',
+                        newModel,
+                    );
+                } else {
+                    return;
+                }
             }
 
             await this._updateMatchingRecordsCount();
@@ -422,7 +429,10 @@ export class PropertyDefinition extends Component {
                         [domainList],
                     ),
                 );
-            } catch {
+            } catch (error) {
+                if (error instanceof SupersededError) {
+                    return;
+                }
                 this.state.matchingRecordsCount = undefined;
             }
         } else {

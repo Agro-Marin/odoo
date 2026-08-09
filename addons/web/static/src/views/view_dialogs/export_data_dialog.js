@@ -16,7 +16,7 @@ import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
@@ -118,8 +118,8 @@ export class ExportDataDialog extends Component {
         this.expandedFields = {};
         this.availableFormats = [];
         this.templates = [];
-        this.exportListKeepLast = new KeepLast();
-        this.fetchFieldsKeepLast = new KeepLast();
+        this.exportListKeepLast = new KeepLast({ rejectSuperseded: true });
+        this.fetchFieldsKeepLast = new KeepLast({ rejectSuperseded: true });
 
         this.state = useState({
             exportList: [],
@@ -253,7 +253,16 @@ export class ExportDataDialog extends Component {
     async fetchFields() {
         const isCompatible = this.state.isCompatible;
         const pending = { knownFields: {}, expandedFields: {} };
-        await this.fetchFieldsKeepLast.add(this.loadFields(undefined, false, pending));
+        try {
+            await this.fetchFieldsKeepLast.add(
+                this.loadFields(undefined, false, pending),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         if (isCompatible !== this.state.isCompatible) {
             return;
         }
@@ -292,12 +301,20 @@ export class ExportDataDialog extends Component {
         if (!value || value === "new_template") {
             return;
         }
-        const fields = await this.exportListKeepLast.add(
-            rpc("/web/export/namelist", {
-                model: this.props.root.resModel,
-                export_id: Number(value),
-            }),
-        );
+        let fields;
+        try {
+            fields = await this.exportListKeepLast.add(
+                rpc("/web/export/namelist", {
+                    model: this.props.root.resModel,
+                    export_id: Number(value),
+                }),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         this.state.exportList = fields;
     }
 

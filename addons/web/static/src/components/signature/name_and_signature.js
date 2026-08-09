@@ -8,7 +8,7 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { rpc } from "@web/core/network/rpc";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
@@ -73,7 +73,7 @@ export class NameAndSignature extends Component {
         this.props.signature.name ??= "";
         this.defaultName = this.props.signature.name;
         this.currentFont = 0;
-        this.printImageKeepLast = new KeepLast();
+        this.printImageKeepLast = new KeepLast({ rejectSuperseded: true });
 
         this.state = useState({
             signMode:
@@ -285,7 +285,12 @@ export class NameAndSignature extends Component {
         img.src = imgSrc;
         try {
             await this.printImageKeepLast.add(img.decode());
-        } catch {
+        } catch (error) {
+            // A newer printImage owns the pad now; reporting this one's
+            // signature state would announce the wrong image.
+            if (error instanceof SupersededError) {
+                return;
+            }
             this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
             this.props.onSignatureChange(this.state.signMode);
             return;

@@ -13,7 +13,7 @@ import { rpc } from "@web/core/network/rpc";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
 import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
@@ -48,8 +48,8 @@ export class DomainField extends Component {
         this.getDefaultLeafDomain = useGetDefaultLeafDomain();
         this.addDialog = useOwnedDialogs();
 
-        this.keepLastCount = new KeepLast();
-        this.keepLastFacets = new KeepLast();
+        this.keepLastCount = new KeepLast({ rejectSuperseded: true });
+        this.keepLastFacets = new KeepLast({ rejectSuperseded: true });
 
         this.state = useState({
             isValid: null,
@@ -222,7 +222,12 @@ export class DomainField extends Component {
                     );
                 })(),
             );
-        } catch {
+        } catch (error) {
+            // A newer facet load took over. Clearing here would blank the
+            // facets a load that is still running is about to fill in.
+            if (error instanceof SupersededError) {
+                return;
+            }
             this.state.facets = [];
             this.state.folded = false;
             return;
@@ -270,7 +275,12 @@ export class DomainField extends Component {
                     limit,
                 }),
             );
-        } catch {
+        } catch (error) {
+            // Superseded is not an invalid domain: reporting it as one flags a
+            // domain the user is still typing as broken.
+            if (error instanceof SupersededError) {
+                return;
+            }
             this.updateState({
                 isValid: false,
                 recordCount: 0,
