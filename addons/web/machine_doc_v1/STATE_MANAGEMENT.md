@@ -121,6 +121,37 @@ never read or written by raw string literal from anywhere else:
 Both are centralised here rather than open-coded per consumer, so the parse
 policy (what a corrupt or missing value resolves to) is uniform across readers.
 
+### A bare `reactive()` handed down as a prop subscribes NOBODY
+
+`reactive(target)` with no second argument uses OWL's `NO_CALLBACK`, and
+`observeTargetKey` **returns early** for it (`static/lib/owl/owl.es.js`). A
+component that receives such a proxy as a prop and reads it during render is
+therefore not subscribed at all: the value changes and nothing re-renders.
+
+Subscriptions are keyed on the **raw target**, not on the proxy. So the fix is to
+re-target — `useState(obj)` returns `reactive(rawTarget, thisComponentsRender)`,
+and a write through *any* proxy of that raw target then notifies you.
+
+Two instances were live in this addon until 2026-08-09, both invisible while the
+blanket forced render was papering over them:
+
+| Where | Shape | Fix |
+|---|---|---|
+| `views/kanban/progress_bar_hook.js` | `groupInfo.activeBar` was a **getter closed over `self`**, the proxy that seeded the group — no reader could ever subscribe | plain reactive property synced by `_syncActiveBar`; `KanbanRenderer` / `KanbanHeader` re-target with `useState` |
+| `views/kanban/kanban_renderer.js` | `this.props.quickCreateState \|\| useState({...})` — the controller always supplies the prop, so `useState` was never reached | `useState` called unconditionally on whichever object is used |
+
+**Spotting it.** `props.X || useState(...)` is the mechanical tell; a fork-wide
+sweep found no third instance. The harder shape is a getter inside a reactive
+closing over an outer `this`/`self` — grep `const self = this` near `reactive(`.
+Not every such closure is a fault: `kanban_controller.js`'s `quickCreateState`
+getter reads `this._groupId`, which resolves through whichever proxy is reading,
+and its `self` is used only by the setter for a side effect.
+
+**A green suite does not clear this.** Both instances had passing tests —
+something else re-rendered at the same moment, so the behaviour was right by
+coincidence rather than by subscription. What changes when you fix it is that the
+dependency becomes stated.
+
 ## Pattern 3: `SignalStore` Base Class — Model Entities
 
 Classes extending `SignalStore` (`core/utils/reactive.js`) auto-wrap

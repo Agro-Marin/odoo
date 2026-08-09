@@ -969,6 +969,21 @@ assert_eq "STATE_MANAGEMENT documents useReactiveModel" \
 assert_eq "STATE_MANAGEMENT documents that the escape hatch is gone" \
     "$(grep -c 'forceRenderOnUpdate' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 
+# 24b. A bare `reactive()` passed as a prop subscribes nobody. Both instances are
+# fixed; these pin the fixes rather than the prose, so a regression fails here.
+assert_eq "progress bar syncs activeBar instead of closing over the seeding proxy" \
+    "$(grep -c '_syncActiveBar' "$WEB/static/src/views/kanban/progress_bar_hook.js")" "5"
+assert_eq "progress bar no longer builds activeBar as a self-closure getter" \
+    "$(grep -c 'get activeBar()' "$WEB/static/src/views/kanban/progress_bar_hook.js")" "0"
+assert_eq "no component skips useState when a reactive prop is supplied" \
+    "$(grep -rc '|| useState(' "$WEB/static/src" | grep -v ':0$' | wc -l)" "0"
+assert_eq "kanban renderer wraps the quick-create state in useState" \
+    "$(grep -c 'this.quickCreateState = useState(' "$WEB/static/src/views/kanban/kanban_renderer.js")" "1"
+assert_eq "kanban renderer re-targets progressBarState with useState" \
+    "$(grep -c 'useState(this.props.progressBarState)' "$WEB/static/src/views/kanban/kanban_renderer.js")" "1"
+assert_eq "STATE_MANAGEMENT documents the bare-reactive-as-prop rule" \
+    "$(grep -c 'subscribes NOBODY' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
+
 # 25. _updateConfig is now _patchConfig / _reloadWithConfig.
 assert_eq "no _updateConfig left in model/" \
     "$(grep -rc '_updateConfig' "$WEB/static/src/model" --include='*.js' 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "0"
