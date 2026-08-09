@@ -36,8 +36,11 @@ FLOORS = {
     "orm-import": 0,
     # 80 -> 79. The single unit is odoo/tools/float_utils.py, deleted by
     # 8340ad81fb4 while dropping dead surfaces: it was a two-line re-export
-    # shim whose `from odoo.libs.numbers import *  # noqa: F403` carried no
-    # reason. Every other difference against the 80-era list is line drift
+    # shim whose star-import carried a bare F403 suppression and no reason
+    # (spelled out here rather than quoted inline: ruff reads a "noqa" marker
+    # even inside prose and warns that the directive is malformed, on every run
+    # of a gate whose floor is zero).
+    # Every other difference against the 80-era list is line drift
     # within bus.py, resource_mixin.py, product.py and orm/fields/numeric.py --
     # confirmed by diffing the gate's own finding list at 1bbb97189d9 against
     # HEAD, with the floor forced to 0 so the list is printed.
