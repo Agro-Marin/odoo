@@ -78,12 +78,16 @@ _old_ms_office_mimetypes = {
     ".ppt": "application/vnd.ms-powerpoint",
 }
 _olecf_mimetypes = ("application/x-ole-storage", "application/CDFV2")
-_xls_pattern = re.compile(
-    b"""
-    \x09\x08\x10\x00\x00\x06\x05\x00
-  | \xfd\xff\xff\xff(\x10|\x1f|\x20|"|\\#|\\(|\\))
-""",
-    re.VERBOSE,
+
+# OLE compound-file directory entry names, UTF-16LE as they are stored. The
+# signature checks in _check_olecf look at one fixed offset and only match when
+# the stream happens to be the first sector allocated; these names are present
+# whichever sector the FAT put the stream in.
+_olecf_streams = (
+    ("WordDocument".encode("utf-16-le"), "application/msword"),
+    ("Workbook".encode("utf-16-le"), "application/vnd.ms-excel"),
+    ("Book".encode("utf-16-le"), "application/vnd.ms-excel"),
+    ("PowerPoint Document".encode("utf-16-le"), "application/vnd.ms-powerpoint"),
 )
 _ppt_pattern = re.compile(
     rb"""
@@ -104,6 +108,13 @@ def _check_olecf(data: bytes) -> str | bool:
         return "application/vnd.ms-excel"
     elif _ppt_pattern.match(data, offset):
         return "application/vnd.ms-powerpoint"
+    # Every check above reads one fixed offset, so a real .doc whose
+    # WordDocument stream is not the first sector fell through to False and was
+    # served as the container type application/x-ole-storage -- which is not
+    # even an IANA-registered mimetype. The directory entry names do not move.
+    for stream, mimetype in _olecf_streams:
+        if stream in data:
+            return mimetype
     return False
 
 

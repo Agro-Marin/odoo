@@ -3,6 +3,7 @@ import unittest
 from odoo.libs.filesystem.mimetypes import (
     MIMETYPE_HEAD_SIZE,
     UNKNOWN_MIMETYPE,
+    _check_olecf,
     _odoo_guess_mimetype,
     guess_mimetype,
 )
@@ -81,10 +82,6 @@ class TestNoStateLeakBetweenCalls(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestBytearrayMatchesBytes(unittest.TestCase):
     """A bytearray must classify exactly as the same bytes do.
 
@@ -112,9 +109,7 @@ class TestBytearrayMatchesBytes(unittest.TestCase):
     def test_ooxml_survives_the_bytearray_branch(self):
         raw = self._minimal_xlsx()
         self.assertGreater(len(raw), MIMETYPE_HEAD_SIZE)
-        expected = (
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        expected = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         self.assertEqual(_odoo_guess_mimetype(raw), expected)
         self.assertEqual(guess_mimetype(raw), expected)
         self.assertEqual(guess_mimetype(bytearray(raw)), expected)
@@ -139,3 +134,52 @@ class TestBytearrayMatchesBytes(unittest.TestCase):
             # The wrong type is the point of the test; odoo/libs/ is inside the
             # mypy gate's scope, tests included, so the call needs the waiver.
             guess_mimetype("not bytes")  # type: ignore[arg-type]
+
+
+class TestOlecfStreamNames(unittest.TestCase):
+    """OLE subtype detection must not depend on which sector a stream landed in.
+
+    _check_olecf read three fixed offsets: the Word FIB signature at 0x200, a
+    "Microsoft Excel" substring, and the PowerPoint pattern at 0x200. 0x200 is
+    the first sector after the 512-byte header, which holds the stream only when
+    the FAT happened to allocate it first. A real Word 97 document that did not
+    fall that way returned False and was served as application/x-ole-storage --
+    the container type, and not an IANA-registered mimetype at all.
+    """
+
+    OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+    def _olecf(self, stream_name: str, sector: int = 3) -> bytes:
+        """An OLE header plus a directory entry name at a NON-first sector."""
+        buf = bytearray(self.OLE_MAGIC + b"\0" * (0x200 * sector))
+        buf += stream_name.encode("utf-16-le")
+        buf += b"\0" * 512
+        return bytes(buf)
+
+    def test_word_stream_away_from_the_first_sector(self):
+        data = self._olecf("WordDocument")
+        self.assertFalse(data.startswith(b"\xec\xa5\xc1\x00", 0x200))
+        self.assertEqual(_check_olecf(data), "application/msword")
+        self.assertEqual(_odoo_guess_mimetype(data), "application/msword")
+
+    def test_excel_and_powerpoint_streams(self):
+        for stream, expected in (
+            ("Workbook", "application/vnd.ms-excel"),
+            ("Book", "application/vnd.ms-excel"),
+            ("PowerPoint Document", "application/vnd.ms-powerpoint"),
+        ):
+            with self.subTest(stream=stream):
+                self.assertEqual(_check_olecf(self._olecf(stream)), expected)
+
+    def test_first_sector_signature_still_wins(self):
+        # The original fast path must keep working where it did apply.
+        data = self.OLE_MAGIC + b"\0" * (0x200 - 8) + b"\xec\xa5\xc1\x00" + b"\0" * 512
+        self.assertEqual(_check_olecf(data), "application/msword")
+
+    def test_unknown_olecf_is_still_rejected(self):
+        data = self.OLE_MAGIC + b"\0" * 2048
+        self.assertIs(_check_olecf(data), False)
+
+
+if __name__ == "__main__":
+    unittest.main()
