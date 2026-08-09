@@ -46,6 +46,10 @@ class _StubField:
         self.store = True
         self.required = False
         self.inherited = False
+        # The optimizer reads `related` alongside `store` to tell the ORM's own
+        # `_search_related` rewrite (where a field's `groups=` would be lost)
+        # from a model-declared `search=` (which owns its own access policy).
+        self.related = None
         self.company_dependent = False
         self.falsy_value = (
             self._FALSY_BY_TYPE.get(ftype) if falsy_value is _UNSET else falsy_value

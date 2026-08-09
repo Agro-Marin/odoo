@@ -950,7 +950,34 @@ class DomainCondition(Domain):
                 return DomainCondition(parent_fname, "any", parent_domain)
 
             if field.search and field.name == self.field_expr:
-                model._check_field_access(field, "read")
+                # Only for the rewrite the ORM performs *itself*.  A non-stored
+                # related field gets `search = _search_related`, which restates
+                # the leaf on the target field -- so the target's groups are
+                # checked and the field's own `groups=` is silently dropped
+                # (0230b17b332, pinned by test_orm's TestFieldGroupsInSql,
+                # whose subject asserts `not field.related_field.groups`).
+                # Nothing is dropped when the model DECLARES a `search=`: that
+                # method is the access policy for filtering, and it may
+                # deliberately grant less than read yet more than nothing.
+                # `mail.thread._search_message_partner_ids` lets a portal user
+                # filter by their own partner -- what website_forum's "Followed"
+                # filter does -- while `groups="base.group_user"` still keeps
+                # them from reading the follower list.  Checking here made that
+                # branch unreachable and turned its error into a generic denial.
+                # Such a method rewrites onto a field that carries its own
+                # groups anyway (`product_template.standard_price` ->
+                # `product_variant_ids.standard_price`), so the check still
+                # lands, one level down.
+                #
+                # Spelled with `related`/`store` rather than by comparing
+                # `field.search` against `Field._search_related`: those two are
+                # what `_setup_related_full` itself branches on when it installs
+                # that method, they are the exact pair the pinned test asserts
+                # (`field.related and not field.store`), and they keep this
+                # layer off `Field`'s private methods -- which is also what lets
+                # the domain unit suite's `_StubField` model the contract.
+                if field.related and not field.store:
+                    model._check_field_access(field, "read")
                 if field.type == "boolean":
                     for opt in _OPTIMIZATIONS_FOR[level].get("boolean", ()):
                         collapsed = opt(self, model)
