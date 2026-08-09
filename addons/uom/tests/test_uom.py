@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from psycopg import IntegrityError
 
 from odoo.exceptions import UserError
