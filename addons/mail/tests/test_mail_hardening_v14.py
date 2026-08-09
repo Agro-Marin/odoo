@@ -274,3 +274,34 @@ class TestReactionBatchingV14(MailCommon):
             f"{queries_few} queries for 2 vs {queries_many} for 12. Each grouped "
             "union() must still prefetch over every reactor in the batch.",
         )
+
+
+@tagged("mail_store", "post_install", "-at_install")
+class TestStoreSingletonGuardV14(MailCommon):
+    """A singleton routed through the per-record entry point must be refused.
+
+    Singleton models declare no id fields, so ``_get_record_index`` returns the
+    empty tuple. That is falsy, and ``_add_values`` used to treat a falsy index
+    as "no index" and write the values straight into the model's own dict --
+    silently corrupting the payload and leaving an unserializable tuple key
+    behind. Unreachable through today's call sites, which is exactly why it
+    needed pinning before someone made it reachable.
+    """
+
+    def test_singleton_via_add_model_values_is_refused(self):
+        store = Store()
+        with self.assertRaises(AssertionError):
+            store.add_model_values("Store", {"some_key": True})
+
+    def test_singleton_values_still_land_on_the_singleton(self):
+        store = Store()
+        store.add_global_values(some_key=True)
+        self.assertEqual(store.get_result()["Store"], {"some_key": True})
+
+    def test_regular_model_values_still_land_on_the_record(self):
+        store = Store()
+        store.add_model_values("mail.thread", {"id": 7, "model": "res.partner"})
+        self.assertEqual(
+            store.get_result()["mail.thread"],
+            [{"id": 7, "model": "res.partner"}],
+        )

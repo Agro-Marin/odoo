@@ -148,6 +148,14 @@ class Store:
         """
         if not values:
             return self
+        # Singletons carry no id fields, so their index is the empty tuple --
+        # which is falsy, and ``_add_values`` would then write the values into
+        # the model's own dict instead of the record slot, silently corrupting
+        # the payload (and leaving an unserializable tuple key behind). They
+        # have their own entry point; say so rather than mangle the data.
+        assert ids_by_model[model_name], (
+            f"{model_name} is a singleton: use add_singleton_values()"
+        )
         index = self._get_record_index(model_name, values)
         self._ensure_record_at_index(model_name, index)
         self._add_values(values, model_name, index)
@@ -244,7 +252,11 @@ class Store:
 
     def _add_values(self, values, model_name, index=None):
         """Adds values to the store for a given model name and index."""
-        target = self.data[model_name][index] if index else self.data[model_name]
+        # ``is not None``, not truthiness: an index is a tuple, and only the
+        # singleton case yields a falsy one -- which the callers now reject.
+        target = (
+            self.data[model_name][index] if index is not None else self.data[model_name]
+        )
         for key, val in values.items():
             assert key != "_DELETE", f"invalid key {key} in {model_name}: {values}"
             if isinstance(val, Store.Relation):
