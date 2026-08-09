@@ -701,3 +701,223 @@ class TestPurchaseQtyInvoicedParity(AccountTestInvoicingCommon):
         bills.action_post()
         self.assertEqual(po1.amount_taxinc_to_invoice, 0.0)
         self.assertEqual(po2.amount_taxinc_to_invoice, 0.0)
+
+
+@tagged("-at_install", "post_install")
+class TestTransferredQtyPostingGuard(AccountTestInvoicingCommon):
+    """`_assert_transferred_uom_convertible` must validate without mutating.
+
+    The guard re-runs the transferred-quantity conversions under
+    `uom_reconcile_strict` so an impossible UoM conversion raises at the
+    posting boundary rather than silently sizing a bill line. It used to do
+    that by calling `_compute_qty_transferred()` directly -- but that compute
+    is `store=True, readonly=False` and opens with "reset manual lines to
+    zero", so calling it by hand *wrote* the field. Billing a purchase order
+    therefore erased the manually-entered received quantity of every service
+    line, the bill came out at quantity 0, and the order stayed unbillable.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.svc_tr = cls.env["product.product"].create(
+            {
+                "name": "Svc billed on received",
+                "type": "service",
+                "bill_policy": "transferred",
+                "purchase_ok": True,
+                "standard_price": 100.0,
+                "supplier_taxes_id": [Command.clear()],
+            },
+        )
+
+    def _confirmed_po_with_received(self, qty, received):
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.svc_tr.id,
+                            "product_qty": qty,
+                            "price_unit": 100,
+                            "tax_ids": [Command.clear()],
+                        },
+                    ),
+                ],
+            },
+        )
+        po.action_confirm()
+        po.line_ids.qty_transferred = received
+        return po
+
+    def test_guard_does_not_erase_a_manual_transferred_qty(self):
+        line = self._confirmed_po_with_received(10, 5).line_ids
+        self.assertEqual(line.qty_transferred_method, "manual")
+
+        line._assert_transferred_uom_convertible()
+
+        self.assertEqual(
+            line.qty_transferred, 5, "The guard must not write the field it checks"
+        )
+        self.assertEqual(line.qty_to_invoice, 5)
+
+    def test_guard_posts_no_chatter_message(self):
+        """Purchase logs every `qty_transferred` change to the order chatter, so
+        a guard that wrote the field -- even one that restored it afterwards --
+        would narrate two quantity changes the user never made."""
+        po = self._confirmed_po_with_received(10, 5)
+        messages_before = len(po.message_ids)
+
+        po.line_ids._assert_transferred_uom_convertible()
+
+        self.assertEqual(len(po.message_ids), messages_before)
+
+    def test_billing_a_service_line_uses_the_received_qty(self):
+        """End to end: the quantity the user typed is what gets billed."""
+        po = self._confirmed_po_with_received(10, 5)
+        self.assertEqual(po.invoice_state, "to do")
+
+        bill = po.create_invoice()
+        self.assertEqual(
+            bill.invoice_line_ids.quantity,
+            5,
+            "The bill line must carry the received qty",
+        )
+        bill.invoice_date = "2026-01-01"
+        bill.action_post()
+
+        self.assertEqual(po.line_ids.qty_invoiced, 5)
+        self.assertEqual(po.line_ids.qty_transferred, 5)
+        self.assertEqual(po.invoice_state, "done")
+
+    def test_guard_still_raises_on_an_impossible_conversion(self):
+        """The leniency it exists to close must still be closed: a transferred
+        quantity that cannot be converted into the line's UoM must block the
+        posting instead of being billed unconverted."""
+        line = self._confirmed_po_with_received(10, 5).line_ids
+        hour = self.env.ref("uom.product_uom_hour")
+        with patch.object(
+            type(line),
+            "_prepare_qty_transferred",
+            lambda self: self.product_uom_id.with_context(
+                uom_reconcile_strict=True
+            )._compute_quantity_reconcile(1.0, hour),
+        ):
+            with self.assertRaises(UserError):
+                line._assert_transferred_uom_convertible()
+
+
+@tagged("-at_install", "post_install")
+class TestInvoiceAnalysisVisibility(AccountTestInvoicingCommon):
+    """Installing purchase must not narrow Invoice Analysis for a billing user.
+
+    Record rules carrying groups are OR'ed, and a user is restricted to the
+    union of the ones they hold -- holding none leaves the model unrestricted.
+    `purchase` adds two rules on `account.invoice.report` limited to vendor
+    bills, so a user with a purchase group and no sales group went from seeing
+    every move type to seeing only vendor bills, silently: no access error, and
+    the customer invoices still fully visible in Billing.
+
+    `account.move` never had the problem because `account` grants
+    `group_account_invoice` an unrestricted rule of its own
+    (`account_move_see_all`); the report simply never got the matching one.
+    """
+
+    def _billing_buyer(self):
+        return self.env["res.users"].create(
+            {
+                "name": "Billing buyer",
+                "login": "billing_buyer",
+                "company_id": self.env.company.id,
+                "company_ids": [Command.set(self.env.company.ids)],
+                "group_ids": [
+                    Command.set(
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("account.group_account_invoice").id,
+                            self.env.ref("purchase.group_purchase_user_all").id,
+                        ]
+                    )
+                ],
+            }
+        )
+
+    def _posted_customer_invoice(self):
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "quantity": 3,
+                            "price_unit": 100,
+                        },
+                    ),
+                ],
+            },
+        )
+        invoice.action_post()
+        return invoice
+
+    def test_billing_user_with_a_purchase_group_still_sees_customer_invoices(self):
+        user = self._billing_buyer()
+        invoice = self._posted_customer_invoice()
+
+        self.assertTrue(
+            self.env["account.move"].with_user(user).search([("id", "=", invoice.id)]),
+            "Precondition: the move itself is visible in Billing",
+        )
+        self.assertTrue(
+            self.env["account.invoice.report"]
+            .with_user(user)
+            .search([("move_id", "=", invoice.id)]),
+            "A customer invoice visible in Billing must be visible in its analysis",
+        )
+
+    def test_analysis_is_never_narrower_than_the_moves_it_reports_on(self):
+        """The general invariant, across every move type the report covers."""
+        user = self._billing_buyer()
+        moves = self.env["account.move"]
+        for move_type, partner in (
+            ("out_invoice", self.partner_a),
+            ("out_refund", self.partner_a),
+            ("in_invoice", self.partner_b),
+            ("in_refund", self.partner_b),
+        ):
+            move = self.env["account.move"].create(
+                {
+                    "move_type": move_type,
+                    "partner_id": partner.id,
+                    "invoice_date": "2026-01-01",
+                    "invoice_line_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.product_a.id,
+                                "quantity": 1,
+                                "price_unit": 10,
+                            },
+                        ),
+                    ],
+                },
+            )
+            move.action_post()
+            moves |= move
+
+        visible_moves = (
+            self.env["account.move"].with_user(user).search([("id", "in", moves.ids)])
+        )
+        analysed_moves = (
+            self.env["account.invoice.report"]
+            .with_user(user)
+            .search([("move_id", "in", moves.ids)])
+            .move_id
+        )
+        self.assertEqual(
+            analysed_moves,
+            visible_moves,
+            "Invoice Analysis must cover exactly the moves the user can read",
+        )
