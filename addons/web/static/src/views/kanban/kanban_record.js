@@ -14,6 +14,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { imageUrl } from "@web/core/utils/urls";
 import { Field } from "@web/fields/field";
 import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
@@ -227,6 +228,12 @@ export class KanbanRecord extends Component {
     static template = "web.KanbanRecord";
 
     setup() {
+        // The kanban analogue of `list.ListRecordRow`: the per-record component
+        // that exists in bulk, so it is the one whose render count is worth a
+        // budget. Without it a card-render assertion has to patch the
+        // prototype, which is exactly the ad-hoc instrumentation this facility
+        // replaces.
+        useRenderCounter("kanban.KanbanRecord");
         this.LONG_TOUCH_THRESHOLD = this.props.canResequence ? 600 : 400;
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         this.action = useAction();
