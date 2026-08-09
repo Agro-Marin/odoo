@@ -1,24 +1,5 @@
-# Dependencies needed to RUN the test suites — not to run the server.
-#
-# Split out of requirements.txt so a production install does not carry test
-# machinery, and split out of requirements-dev.txt so CI test lanes do not
-# install linters and type checkers they never invoke.
-#
-# requirements-addons.txt is pulled in because the suites install and exercise
-# the bundled addons, so they need every dependency those modules own — a test
-# lane is exactly the case where the server/addons split must NOT apply.
--r requirements.txt
--r requirements-addons.txt
-
-aiosmtpd==1.4.6  # odoo/addons/base/tests/test_ir_mail_server_smtpd.py
-freezegun==1.5.5  # 486 test modules across core, enterprise and agromarin
-# Reached only from `odoo-bin scaffold` (odoo/cli/scaffold.py), which builds its
-# environment lazily — so importing odoo.cli.scaffold does NOT need this, and the
-# lanes that only import it (test_lint.yml) stay green without it. It is here so
-# the RENDER path is covered: test_cli.py's test_scaffold_renders_default_template
-# runs in integration_tests.yml, which installs this file. It was pinned in
-# requirements.txt until 2026-08-08, putting a dev-command dependency on every
-# server install; setup.py offers it as the `scaffold` extra.
+aiosmtpd==1.4.6
+freezegun==1.5.5
 Jinja2==3.1.6
-pytest==9.1.1  # Tier-1/Tier-2 framework suites (see pytest.ini)
-websocket-client==1.9.0  # odoo/tests/browser.py (HttpCase driver), bus + mail suites
+pytest==9.1.1
+websocket-client==1.9.0
