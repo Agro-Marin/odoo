@@ -1295,6 +1295,17 @@ class MrpProduction(models.Model):
         self.show_allocation = False
         if not self.env.user.has_group("mrp.group_mrp_reception_report"):
             return
+        # One recursive `child_of` per warehouse rather than per order: the
+        # answer depends only on the warehouse, and marking a batch of orders
+        # done evaluates this for every one of them.
+        location_ids_by_warehouse = {}
+        for warehouse in self.picking_type_id.warehouse_id:
+            location_ids_by_warehouse[warehouse.id] = self.env["stock.location"]._search(
+                [
+                    ("id", "child_of", warehouse.view_location_id.id),
+                    ("usage", "!=", "supplier"),
+                ]
+            )
         for mo in self:
             if not mo.picking_type_id:
                 continue
@@ -1305,16 +1316,9 @@ class MrpProduction(models.Model):
                 allowed_states = ["confirmed", "partially_available", "waiting"]
                 if mo.state == "done":
                     allowed_states += ["assigned"]
-                wh_location_ids = self.env["stock.location"]._search(
-                    [
-                        (
-                            "id",
-                            "child_of",
-                            mo.picking_type_id.warehouse_id.view_location_id.id,
-                        ),
-                        ("usage", "!=", "supplier"),
-                    ]
-                )
+                wh_location_ids = location_ids_by_warehouse[
+                    mo.picking_type_id.warehouse_id.id
+                ]
                 if self.env["stock.move"].search_count(
                     [
                         ("state", "in", allowed_states),

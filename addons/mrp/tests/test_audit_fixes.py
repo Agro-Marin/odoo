@@ -713,3 +713,61 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         self.assertFalse(report._has_bom_attachment(plain))
         self.assertFalse(report._has_bom_attachment(template=plain.product_tmpl_id))
+
+    # ------------------------------------------------------------------
+    # Batched counts. Unlike the tests above these pass against the
+    # pre-batch code too: they exist to pin the answers a `search_count`
+    # per record used to give, now that two grouped queries give them.
+    # ------------------------------------------------------------------
+    def test_bom_counts_are_deduplicated(self):
+        """product.template._compute_bom_count / _compute_used_in_bom_count
+
+        A BoM reached both ways -- it produces the template and lists it as a
+        by-product -- counts once, and so does a BoM naming the same component
+        on two lines.
+        """
+        unit = self.env.ref("uom.product_uom_unit")
+        finished = self.env["product.product"].create(
+            {"name": "Count finished", "is_storable": True}
+        )
+        other = self.env["product.product"].create(
+            {"name": "Count other", "is_storable": True}
+        )
+        component = self.env["product.product"].create(
+            {"name": "Count component", "is_storable": True}
+        )
+
+        def bom(product, lines, byproducts=()):
+            return self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": product.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "product_uom_id": unit.id,
+                    "type": "normal",
+                    "bom_line_ids": [
+                        Command.create({"product_id": c.id, "product_qty": qty})
+                        for c, qty in lines
+                    ],
+                    "byproduct_ids": [
+                        Command.create(
+                            {
+                                "product_id": p.id,
+                                "product_qty": 1.0,
+                                "product_uom_id": unit.id,
+                            }
+                        )
+                        for p in byproducts
+                    ],
+                }
+            )
+
+        bom(finished, [(component, 1.0)])
+        bom(finished, [(component, 2.0)])
+        # Lists `component` twice, and `finished` as a by-product.
+        bom(other, [(component, 1.0), (component, 5.0)], byproducts=(finished,))
+        self.env.invalidate_all()
+
+        self.assertEqual(finished.product_tmpl_id.bom_count, 3)
+        self.assertEqual(other.product_tmpl_id.bom_count, 1)
+        self.assertEqual(component.product_tmpl_id.used_in_bom_count, 3)
+        self.assertEqual(component.product_tmpl_id.bom_count, 0)

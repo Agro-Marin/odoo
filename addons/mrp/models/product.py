@@ -41,14 +41,24 @@ class ProductTemplate(models.Model):
     is_kits = fields.Boolean(compute="_compute_is_kits", search="_search_is_kits")
 
     def _compute_bom_count(self):
+        # Two grouped queries instead of one `search_count` per template. A BoM
+        # reached both ways -- it produces the template and lists it as a
+        # by-product -- must still count once, hence the set union.
+        bom_ids_by_template = collections.defaultdict(set)
+        for template, bom_ids in self.env["mrp.bom"]._read_group(
+            [("product_tmpl_id", "in", self.ids)],
+            ["product_tmpl_id"],
+            ["id:array_agg"],
+        ):
+            bom_ids_by_template[template.id].update(bom_ids)
+        for product, bom_ids in self.env["mrp.bom.byproduct"]._read_group(
+            [("product_id.product_tmpl_id", "in", self.ids)],
+            ["product_id"],
+            ["bom_id:array_agg"],
+        ):
+            bom_ids_by_template[product.product_tmpl_id.id].update(bom_ids)
         for product in self:
-            product.bom_count = self.env["mrp.bom"].search_count(
-                [
-                    "|",
-                    ("product_tmpl_id", "in", product.ids),
-                    ("byproduct_ids.product_id.product_tmpl_id", "in", product.ids),
-                ]
-            )
+            product.bom_count = len(bom_ids_by_template.get(product.id, ()))
 
     @api.depends_context("company")
     def _compute_is_kits(self):
@@ -95,10 +105,18 @@ class ProductTemplate(models.Model):
         return super()._should_open_product_quants() or self.is_kits
 
     def _compute_used_in_bom_count(self):
-        for template in self:
-            template.used_in_bom_count = self.env["mrp.bom"].search_count(
-                [("bom_line_ids.product_tmpl_id", "in", template.ids)]
+        # One grouped query instead of one `search_count` per template. Distinct
+        # BoMs, since a BoM may list the same product on several lines.
+        counts = {
+            template.id: count
+            for template, count in self.env["mrp.bom.line"]._read_group(
+                [("product_tmpl_id", "in", self.ids)],
+                ["product_tmpl_id"],
+                ["bom_id:count_distinct"],
             )
+        }
+        for template in self:
+            template.used_in_bom_count = counts.get(template.id, 0)
 
     def write(self, vals):
         if "active" in vals:

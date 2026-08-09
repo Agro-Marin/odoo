@@ -82,7 +82,29 @@ FLOORS = {
     # work order) this rule does not report, so it moves no count. Attribution
     # checked as above: 429 on a pristine `HEAD` worktree, 428 with only this
     # change applied to it.
-    "n-plus-one-query": 428,
+    #
+    # 428 -> 425 across two mrp commits, measured together because the first
+    # was verified against a stale worktree and left this gate red at 427:
+    #   * splitting mrp's five over-budget functions moved one query out of the
+    #     loop that enclosed it, which the rule reads as one finding fewer even
+    #     though nothing about the query changed (-1, and the miss that this
+    #     entry corrects);
+    #   * mrp.production._compute_show_allocation ran a recursive `child_of`
+    #     location search per manufacturing order, though the answer depends
+    #     only on the warehouse; it is now one search per distinct warehouse
+    #     (-1);
+    #   * product.template._compute_bom_count and _compute_used_in_bom_count
+    #     ran one `search_count` per template, each with a domain already
+    #     written for a set (`("product_tmpl_id", "in", product.ids)` on a
+    #     single record). Two grouped queries now answer for the whole
+    #     recordset, with the de-duplication the counts always implied pinned
+    #     by a test: a BoM that both produces a template and lists it as a
+    #     by-product counts once, and so does a BoM naming one component twice.
+    #     Measured flat at 1.3-1.7 ms for 1, 10 and 40 templates (-1: the rule
+    #     reports these two as one).
+    # Attribution: 427 on a pristine HEAD worktree and 425 with only addons/mrp
+    # replaced.
+    "n-plus-one-query": 425,
 }
 
 
