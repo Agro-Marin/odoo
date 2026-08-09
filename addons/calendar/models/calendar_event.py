@@ -13,6 +13,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.datetime import timezone
 from odoo.libs.intervals import intervals_overlap
 from odoo.tools import html2plaintext, html_sanitize, is_html_empty, single_email_re
 from odoo.tools.misc import get_lang
@@ -29,7 +30,6 @@ from odoo.addons.calendar.models.calendar_recurrence import (
     weekday_to_field,
 )
 from odoo.addons.calendar.models.utils import interval_from_events
-from odoo.libs.datetime import timezone
 
 _logger = logging.getLogger(__name__)
 
@@ -405,6 +405,7 @@ class CalendarEvent(models.Model):
     user_can_edit = fields.Boolean(compute="_compute_user_can_edit")
 
     @api.depends("attendee_ids")
+    @api.depends_context("uid")
     def _compute_should_show_status(self):
         for event in self:
             event.should_show_status = event.current_attendee and any(
@@ -413,6 +414,7 @@ class CalendarEvent(models.Model):
             )
 
     @api.depends("attendee_ids", "attendee_ids.state")
+    @api.depends_context("uid")
     def _compute_current_attendee(self):
         for event in self:
             current_attendee = event.attendee_ids.filtered(
@@ -487,6 +489,7 @@ class CalendarEvent(models.Model):
                 event.privacy or event.sudo().user_id.calendar_default_privacy
             )
 
+    @api.depends_context("active_model", "active_id")
     def _compute_is_highlighted(self):
         if self.env.context.get("active_model") == "res.partner":
             partner_id = self.env.context.get("active_id")
@@ -967,14 +970,28 @@ class CalendarEvent(models.Model):
                     )
 
         recurrence_fields = self._get_recurrent_fields()
-        recurring_vals = [vals for vals in vals_list if vals.get("recurrency")]
-        other_vals = [vals for vals in vals_list if not vals.get("recurrency")]
-        events = super().create(other_vals)
+        # Recurring and non-recurring vals are created in two separate super()
+        # calls (recurring events need follow_recurrence=True and a recurrence
+        # applied afterwards). The returned recordset must still line up with
+        # `vals_list`: the two zip(events, vals_list) loops below (activity sync,
+        # alarm setup) pair each event with its own vals by position. Track the
+        # original index of every vals so `events` can be rebuilt in caller order.
+        other_idx = [i for i, vals in enumerate(vals_list) if not vals.get("recurrency")]
+        recurring_idx = [i for i, vals in enumerate(vals_list) if vals.get("recurrency")]
+        other_vals = [vals_list[i] for i in other_idx]
+        recurring_vals = [vals_list[i] for i in recurring_idx]
+
+        other_events = super().create(other_vals)
 
         for vals in recurring_vals:
             vals["follow_recurrence"] = True
         recurring_events = super().create(recurring_vals)
-        events += recurring_events
+
+        events_by_index = dict(zip(other_idx, other_events, strict=True))
+        events_by_index.update(zip(recurring_idx, recurring_events, strict=True))
+        events = self.browse(
+            events_by_index[i].id for i in range(len(vals_list))
+        )
 
         for event, vals in zip(recurring_events, recurring_vals, strict=True):
             recurrence_values = {
@@ -994,13 +1011,7 @@ class CalendarEvent(models.Model):
         # above manually. Heuristic: a new command (0, 0, vals) is considered as
         # complete
         to_sync_activities = self.browse()
-        # NOTE (t24068 audit, task t24132): `events` is ordered
-        # [other_vals events..., recurring_events...] (see the split above),
-        # while `vals_list` retains the caller's ORIGINAL order. If a single
-        # create() call interleaves recurring and non-recurring vals, this
-        # zip() silently pairs each event with the WRONG vals dict. Not fixed
-        # here (patterns-only pass) - filed as t24132, requires restructuring
-        # to preserve original-order event/vals correlation.
+        # `events` is rebuilt in `vals_list` order above, so this pairing is correct.
         for event, event_values in zip(events, vals_list, strict=True):
             if any(
                 command[0] != 0 for command in event_values.get("activity_ids") or []
@@ -1012,7 +1023,6 @@ class CalendarEvent(models.Model):
 
         if not self.env.context.get("dont_notify"):
             alarm_events = self.env["calendar.event"]
-            # NOTE: same events/vals_list order mismatch as above (t24132)
             for event, values in zip(events, vals_list, strict=True):
                 if values.get("allday"):
                     # All day events will trigger the _inverse_date method which will create the trigger.
@@ -1064,6 +1074,16 @@ class CalendarEvent(models.Model):
         values = vals
         detached_events = self.env["calendar.event"]
         recurrence_update_setting = values.pop("recurrence_update", None)
+        # `recurrence_update` selects which occurrences of an EXISTING recurrence
+        # to touch. On an event with no recurrence yet (a plain event being made
+        # recurrent), it is meaningless: honouring 'self_only'/'all_events' here
+        # skipped _apply_recurrence_values and left the record contradictory
+        # (recurrency=True, recurrence_id=False), silently dropping the rrule.
+        # Its own default is 'self_only', so this bit any programmatic caller
+        # that passed the field through. Treat it as unset so the recurrence is
+        # built regardless of which policy was requested.
+        if recurrence_update_setting and not self.recurrence_id:
+            recurrence_update_setting = None
         update_recurrence = (
             recurrence_update_setting in ("all_events", "future_events")
             and len(self) == 1
@@ -1251,6 +1271,79 @@ class CalendarEvent(models.Model):
         hidden.display_name = _("Busy")
         super(CalendarEvent, self - hidden)._compute_display_name()
 
+    def _privacy_restricted_fnames(self, fnames):
+        """Return the real, non-public field names among `fnames`.
+
+        A private event is not hidden as a *record* (the employee ir.rule is
+        ``[(1, '=', 1)]``); its sensitive *field values* are masked after
+        fetching (see `_fetch_query`). Any code path that lets a non-participant
+        observe a private field's value some other way — a search domain, an
+        ``order``, a group-by, an aggregate — has to be gated too. This is the
+        single predicate all of those paths share.
+
+        Only *stored* fields count. Non-field specs (e.g. the ``__count``
+        aggregate) carry no field value; and the non-stored computes such as
+        ``current_attendee``/``current_status`` resolve through search methods
+        that already restrict to the current user, so searching them can never
+        expose another user's event and must not drag in the privacy domain.
+        Every field `_fetch_query` actually masks is a stored, non-public field,
+        so this set is exactly the search/group oracle surface.
+        """
+        public = self._get_public_fields()
+        return {
+            fname
+            for fname in fnames
+            if (field := self._fields.get(fname))
+            and field.store
+            and fname not in public
+        }
+
+    def _search(
+        self,
+        domain,
+        offset=0,
+        limit=None,
+        order=None,
+        *,
+        active_test=True,
+        bypass_access=False,
+    ):
+        # A domain and an order are evaluated in SQL against the raw columns,
+        # bypassing the field masking `_fetch_query` applies. Without this,
+        # `search`/`search_count` are an oracle: a non-participant can recover a
+        # private event's name/location/description/attendees character by
+        # character. Mirror the guard already applied in `_read_group`.
+        if not (self.env.su or bypass_access):
+            fnames = self._search_referenced_fnames(domain, order)
+            if self._privacy_restricted_fnames(fnames):
+                domain = Domain.AND([domain, self._get_default_privacy_domain()])
+        return super()._search(
+            domain,
+            offset=offset,
+            limit=limit,
+            order=order,
+            active_test=active_test,
+            bypass_access=bypass_access,
+        )
+
+    @api.model
+    def _search_referenced_fnames(self, domain, order):
+        """Base field names referenced by a search `domain` and `order` string.
+
+        Only the leading segment of a dotted path matters for privacy — it is
+        the field on `calendar.event` itself (``partner_ids.user_ids`` →
+        ``partner_ids``).
+        """
+        fnames = {
+            condition.field_expr.split(".")[0].split(":")[0]
+            for condition in Domain(domain).iter_conditions()
+        }
+        for spec in (order or "").split(","):
+            fname = spec.strip().split(" ")[0].split(".")[0]
+            if fname:
+                fnames.add(fname)
+        return fnames
+
     @api.model
     def _read_group(
         self,
@@ -1270,8 +1363,7 @@ class CalendarEvent(models.Model):
                 [cond[0] for cond in having if isinstance(cond, (list, tuple))],
             )
         }
-        private_fields = fnames - self._get_public_fields()
-        if not self.env.su and private_fields:
+        if not self.env.su and self._privacy_restricted_fnames(fnames):
             domain = Domain.AND([domain, self._get_default_privacy_domain()])
         return super()._read_group(
             domain,
@@ -1294,8 +1386,7 @@ class CalendarEvent(models.Model):
                 aggregates,
             )
         }
-        private_fields = fnames - self._get_public_fields()
-        if not self.env.su and private_fields:
+        if not self.env.su and self._privacy_restricted_fnames(fnames):
             domain = Domain.AND([domain, self._get_default_privacy_domain()])
         return super()._read_grouping_sets(
             domain, grouping_sets, aggregates, order=order
@@ -1494,12 +1585,20 @@ class CalendarEvent(models.Model):
             ._search([("calendar_default_privacy", "!=", "private")])
             .select("user_id")
         )
-        # display public, confidential events and events with default privacy when owner's default privacy is not private
+        # This must be the search-domain complement of `_check_private_event_conditions`
+        # (the rule `_fetch_query` masks by): show an event unless it is private
+        # (explicitly, or by the owner's default) AND the user is neither its
+        # organizer nor an attendee. So: participants (organizer via user_id,
+        # attendee via partner_ids) always pass; everyone else passes only for
+        # public/confidential events, or default-privacy events whose owner's
+        # default is not private.
         return [
+            "|",
             "|",
             "|",
             ("privacy", "in", ["public", "confidential"]),
             ("user_id", "=", self.env.user.id),
+            ("partner_ids", "in", self.env.user.partner_id.id),
             "&",
             ("privacy", "=", False),
             "|",

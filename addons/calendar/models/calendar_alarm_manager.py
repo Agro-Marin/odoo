@@ -170,11 +170,15 @@ class CalendarAlarm_Manager(models.AbstractModel):
         design. The attendees receive an invitation for any new event
         already.
         """
-        lastcall = self.env.context.get(
-            "lastcall", False
-        ) or fields.Date.today() - timedelta(weeks=1)
         extra_conditions = self._get_notify_alert_extra_conditions()
         now = fields.Datetime.now()
+        # Window is [lastcall, now). The one-week fallback (when the cron has no
+        # recorded previous run) is a deliberate catch-up: it lets a run that is
+        # several days late still pick up missed reminders and, for recurrences,
+        # schedule the next occurrence's trigger. Keep the week, but express the
+        # bound as a datetime rather than fields.Date.today(), which is a date and
+        # gets widened to midnight when compared against the `start` timestamp.
+        lastcall = self.env.context.get("lastcall") or (now - timedelta(weeks=1))
         self.env.cr.execute(
             SQL(
                 """

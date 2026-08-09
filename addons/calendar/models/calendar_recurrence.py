@@ -8,10 +8,10 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.datetime import localize_standard, timezone
 from odoo.tools.misc import clean_context
 
 from odoo.addons.base.models.res_partner import _tz_get
-from odoo.libs.datetime import localize_standard, timezone
 
 MAX_RECURRENT_EVENT = 720
 
@@ -211,7 +211,12 @@ class CalendarRecurrence(models.Model):
         for recurrence in self:
             current_rule = recurrence._rrule_serialize()
             if recurrence.rrule != current_rule:
-                recurrence.write({'rrule': current_rule})
+                # Plain assignment, not write(): rrule carries an inverse
+                # (_inverse_rrule) that reparses the string back into the param
+                # fields. write() here fires that inverse mid-compute, so a
+                # lossy round trip (e.g. forever serialised then reparsed as
+                # count) would overwrite the very params we just serialised.
+                recurrence.rrule = current_rule
 
     def _inverse_rrule(self):
         for recurrence in self:
@@ -388,7 +393,7 @@ class CalendarRecurrence(models.Model):
         if self.end_type == 'count' and self.count <= 0:
             raise UserError(_('The number of repetitions cannot be negative.'))
 
-        return str(self._get_rrule()) if self.rrule_type else ''
+        return str(self._get_rrule(bounded=False)) if self.rrule_type else ''
 
     @api.model
     def _rrule_parse(self, rule_str, date_start):
@@ -575,7 +580,18 @@ class CalendarRecurrence(models.Model):
         score = sum(1 if e.allday else -1 for e in self.calendar_event_ids)
         return score >= 0
 
-    def _get_rrule(self, dtstart=None):
+    def _get_rrule(self, dtstart=None, bounded=True):
+        """Build the dateutil rrule for this recurrence.
+
+        :param bounded: when True (enumerating occurrences) an unbounded
+            ``forever`` recurrence is capped at ``MAX_RECURRENT_EVENT`` so it
+            materialises a finite number of events; when False (serialising to
+            the canonical ``rrule`` string) it carries no ``COUNT``, so the
+            string round-trips back to ``end_type='forever'`` instead of being
+            re-parsed as ``end_type='count'`` with ``count=MAX_RECURRENT_EVENT``.
+            For a real ``count`` the string keeps the user's value while
+            enumeration still caps at ``MAX_RECURRENT_EVENT``.
+        """
         self.ensure_one()
         freq = self.rrule_type
         rrule_params = {
@@ -594,8 +610,8 @@ class CalendarRecurrence(models.Model):
             rrule_params['wkst'] = self._get_lang_week_start()
 
         if self.end_type == 'count':  # e.g. stop after X occurence
-            rrule_params['count'] = min(self.count, MAX_RECURRENT_EVENT)
-        elif self.end_type == 'forever':
+            rrule_params['count'] = min(self.count, MAX_RECURRENT_EVENT) if bounded else self.count
+        elif self.end_type == 'forever' and bounded:
             rrule_params['count'] = MAX_RECURRENT_EVENT
         elif self.end_type == 'end_date':  # e.g. stop after 12/10/2020
             rrule_params['until'] = datetime.combine(self.until, time.max)

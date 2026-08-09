@@ -44,15 +44,15 @@
                                     <th>Attendees</th>
                                     <td>
                                         <ul>
-                                            <li t-foreach="event.attendee_ids" t-as="attendee" t-attf-class="o_#{attendee.state}">
-                                                <t t-esc="attendee.common_name"/>
+                                            <li t-foreach="event.attendee_ids" t-as="event_attendee" t-attf-class="o_#{event_attendee.state}">
+                                                <t t-esc="event_attendee.common_name"/>
                                             </li>
                                         </ul>
                                     </td>
                                 </tr>
                                 <tr>
                                     <th>Description</th>
-                                    <td><t t-esc="event.description or '-'"/></td>
+                                    <td><t t-out="event.description or '-'"/></td>
                                 </tr>
                             </table>
                         </div>

@@ -143,10 +143,24 @@ class CalendarAttendee(models.Model):
             _logger.warning("No template passed to %s notification process. Skipped.", self)
             return False
 
-        # get ics file for all meetings
-        ics_files = notified_attendees.event_id._get_ics_file()
+        # The attendees that will actually receive a mail: an email address, and
+        # not excluded by _should_notify_attendee. Everything below is sized to
+        # this set, not to `self` -- copying an attachment or rendering the
+        # template for an attendee we never mail is pure waste (and, since the
+        # copies carry res_id=0/res_model='mail.compose.message', the wasted ones
+        # are only reclaimed a day later by the mail autovacuum).
+        recipients = notified_attendees.filtered(
+            lambda attendee: attendee.email
+            and attendee._should_notify_attendee(notify_author=notify_author)
+        )
+        if not recipients:
+            return None
 
-        # If the mail template has attachments, prepare copies for each attendee (to be added to each attendee's mail)
+        # get ics file for the meetings we will actually mail
+        ics_files = recipients.event_id._get_ics_file()
+
+        # If the mail template has attachments, prepare one copy per recipient (to be added to each recipient's mail)
+        attendee_id_attachment_id_map = {}
         if mail_template.attachment_ids:
 
             # Setting res_model to ensure attachments are linked to the msg (otherwise only internal users are allowed link attachments)
@@ -160,67 +174,61 @@ class CalendarAttendee(models.Model):
             # no content -- checksum unset, file_size 0 -- for any template
             # attachment held in the filestore, which is the normal case.
             #
-            # One copy per attendee rather than one batched create: the relink
+            # One copy per recipient rather than one batched create: the relink
             # costs no bytes, and going through the API that actually duplicates
             # an attachment is what stops this regressing again.
-            attendee_attachment_ids = []
-            for _attendee in self:
-                attendee_attachment_ids += mail_template.attachment_ids.copy({
+            recipient_attachment_ids = []
+            for _recipient in recipients:
+                recipient_attachment_ids += mail_template.attachment_ids.copy({
                     'res_id': 0,
                     'res_model': 'mail.compose.message',
                 }).ids
 
-            # Map attendees to their respective attachments
+            # Map recipients to their respective attachments
             template_attachment_count = len(mail_template.attachment_ids)
-            attendee_id_attachment_id_map = dict(zip(self.ids, (list(b) for b in batched(attendee_attachment_ids, template_attachment_count, strict=True)), strict=True))
+            attendee_id_attachment_id_map = dict(zip(recipients.ids, (list(b) for b in batched(recipient_attachment_ids, template_attachment_count, strict=True)), strict=True))
+
+        # Render the template once for all recipients instead of three times per
+        # recipient inside the loop; _render_field already batches by id.
+        bodies = mail_template._render_field('body_html', recipients.ids, compute_lang=True)
+        subjects = mail_template._render_field('subject', recipients.ids, compute_lang=True)
+        emails_from = mail_template._render_field('email_from', recipients.ids)
 
         mail_messages = self.env['mail.message']
-        for attendee in notified_attendees:
-            if attendee.email and attendee._should_notify_attendee(notify_author=notify_author):
-                event_id = attendee.event_id.id
-                ics_file = ics_files.get(event_id)
+        for attendee in recipients:
+            event_id = attendee.event_id.id
+            ics_file = ics_files.get(event_id)
 
-                # Add template attachments copies to the attendee's email, if available
-                attachment_ids = attendee_id_attachment_id_map[attendee.id] if mail_template.attachment_ids else []
+            # Add template attachments copies to the recipient's email, if available
+            attachment_ids = list(attendee_id_attachment_id_map.get(attendee.id, []))
 
-                if ics_file:
-                    context = {
-                        **clean_context(self.env.context),
-                        'no_document': True,  # An ICS file must not create a document
-                    }
-                    attachment_ids += self.env['ir.attachment'].with_context(context).create({
-                        'datas': base64.b64encode(ics_file),
-                        'description': 'invitation.ics',
-                        'mimetype': 'text/calendar',
-                        'res_id': 0,
-                        'res_model': 'mail.compose.message',
-                        'name': 'invitation.ics',
-                    }).ids
+            if ics_file:
+                context = {
+                    **clean_context(self.env.context),
+                    'no_document': True,  # An ICS file must not create a document
+                }
+                attachment_ids += self.env['ir.attachment'].with_context(context).create({
+                    'datas': base64.b64encode(ics_file),
+                    'description': 'invitation.ics',
+                    'mimetype': 'text/calendar',
+                    'res_id': 0,
+                    'res_model': 'mail.compose.message',
+                    'name': 'invitation.ics',
+                }).ids
 
-                body = mail_template._render_field(
-                    'body_html',
-                    attendee.ids,
-                    compute_lang=True)[attendee.id]
-                subject = mail_template._render_field(
-                    'subject',
-                    attendee.ids,
-                    compute_lang=True)[attendee.id]
-                email_from = mail_template._render_field(
-                    'email_from',
-                    attendee.ids)[attendee.id]
-                mail_messages += attendee.event_id.with_context(no_document=True).sudo().message_notify(
-                    email_from=email_from or None,  # use None to trigger fallback sender
-                    author_id=attendee.event_id.user_id.partner_id.id or self.env.user.partner_id.id,
-                    body=body,
-                    subject=subject,
-                    notify_author=notify_author,
-                    partner_ids=attendee.partner_id.ids,
-                    email_layout_xmlid='mail.mail_notification_light',
-                    attachment_ids=attachment_ids,
-                    force_send=False,
-                )
+            mail_messages += attendee.event_id.with_context(no_document=True).sudo().message_notify(
+                email_from=emails_from[attendee.id] or None,  # use None to trigger fallback sender
+                author_id=attendee.event_id.user_id.partner_id.id or self.env.user.partner_id.id,
+                body=bodies[attendee.id],
+                subject=subjects[attendee.id],
+                notify_author=notify_author,
+                partner_ids=attendee.partner_id.ids,
+                email_layout_xmlid='mail.mail_notification_light',
+                attachment_ids=attachment_ids,
+                force_send=False,
+            )
         # batch sending at the end
-        if force_send and len(notified_attendees) < force_send_limit:
+        if force_send and len(recipients) < force_send_limit:
             mail_messages.sudo().mail_ids.send_after_commit()
         return None
 
