@@ -43,12 +43,59 @@ export class ProjectTaskRecord extends RelationalRecord {
 }
 
 export class ProjectTaskKanbanModel extends ProjectTaskRelationalModel {
+    /**
+     * WIP limit per workflow step, keyed by step id. Empty unless the board is
+     * grouped by `step_id`.
+     *
+     * The limit lives on `project.workflow.step`, and the kanban's group data
+     * carries only the groupby value, its label and the count — the `<groupby>`
+     * arch element that would bring comodel fields along is parsed by the list
+     * view only. One read per board load, for the steps actually on screen, is
+     * cheaper than denormalising the limit onto every task row.
+     *
+     * @type {Record<number, number>}
+     */
+    wipLimits = {};
+
     async _webReadGroup(config) {
         config.context = {
             ...config.context,
             project_kanban: true,
         };
-        return super._webReadGroup(...arguments);
+        const result = await super._webReadGroup(...arguments);
+        await this._loadWipLimits(config, result);
+        return result;
+    }
+
+    /**
+     * Read the WIP limit of every step on the board.
+     *
+     * Silently leaves the map empty when the read fails: a column header that
+     * cannot show its limit is a smaller problem than a board that will not
+     * render.
+     */
+    async _loadWipLimits(config, result) {
+        if (config.groupBy?.[0] !== "step_id") {
+            this.wipLimits = {};
+            return;
+        }
+        const stepIds = result.groups
+            .map((group) => group.step_id?.[0] ?? group.step_id)
+            .filter((id) => typeof id === "number");
+        if (!stepIds.length) {
+            this.wipLimits = {};
+            return;
+        }
+        try {
+            const steps = await this.orm.read("project.workflow.step", stepIds, [
+                "wip_limit",
+            ]);
+            this.wipLimits = Object.fromEntries(
+                steps.map((step) => [step.id, step.wip_limit]),
+            );
+        } catch {
+            this.wipLimits = {};
+        }
     }
 }
 

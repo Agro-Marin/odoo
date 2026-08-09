@@ -180,11 +180,12 @@ export class ProjectTaskType extends models.Model {
 
     name = fields.Char();
     sequence = fields.Integer();
+    wip_limit = fields.Integer();
 
     _records = [
-        { id: 1, name: "Todo" },
-        { id: 2, name: "In Progress" },
-        { id: 3, name: "Done" },
+        { id: 1, name: "Todo", wip_limit: 0 },
+        { id: 2, name: "In Progress", wip_limit: 0 },
+        { id: 3, name: "Done", wip_limit: 0 },
     ];
 }
 

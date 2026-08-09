@@ -760,15 +760,28 @@ class ProjectProject(models.Model):
             return
 
         task_set = set(tasks.ids)
-        Dep = self.env["project.task.dependency"]
+        deps_on, successors_of = self._cpm_collect_edges(tasks, task_set)
+        duration = {t.id: t._get_cpm_duration_hours() for t in tasks}
+        self._cpm_check_acyclic(task_set, deps_on)
+        topo = self._cpm_topological_order(task_set, deps_on, successors_of)
+        es, ef = self._cpm_forward_pass(topo, deps_on, duration)
+        ls_map = self._cpm_backward_pass(
+            topo, deps_on, successors_of, duration, max(ef.values()) if ef else 0.0
+        )
+        self._cpm_write_results(tasks, es, ef, ls_map)
 
-        # Dependency data per task: predecessors with type and lag.
-        # project.task.dependency now mirrors predecessor_ids in both
-        # directions, so the typed rows are the complete graph. The M2M is
-        # still read as a belt-and-braces second source: an all-or-nothing
-        # "typed if any typed row exists" branch used to drop every plain edge
-        # as soon as one typed row existed anywhere in the project, and a
-        # schedule that silently omits edges is worse than a redundant read.
+    def _cpm_collect_edges(
+        self, tasks: Any, task_set: set[int]
+    ) -> tuple[dict[int, list[tuple[int, str, float]]], dict[int, list[int]]]:
+        """Build the dependency graph: predecessors with type and lag.
+
+        ``project.task.dependency`` mirrors ``predecessor_ids`` in both
+        directions, so the typed rows are the complete graph. The M2M is still
+        read as a belt-and-braces second source: an all-or-nothing "typed if any
+        typed row exists" branch used to drop every plain edge as soon as one
+        typed row existed anywhere in the project, and a schedule that silently
+        omits edges is worse than a redundant read.
+        """
         deps_on: dict[int, list[tuple[int, str, float]]] = defaultdict(list)
         successors_of: dict[int, list[int]] = defaultdict(list)
         seen_edges: set[tuple[int, int]] = set()
@@ -784,7 +797,9 @@ class ProjectProject(models.Model):
 
         # Typed rows first: they carry the richer (type, lag) information, and
         # add_edge keeps the first definition of any given edge.
-        for dep in Dep.search([("project_id", "=", self.id)]):
+        for dep in self.env["project.task.dependency"].search(
+            [("project_id", "=", self.id)]
+        ):
             add_edge(
                 dep.task_id.id,
                 dep.depends_on_id.id,
@@ -794,9 +809,11 @@ class ProjectProject(models.Model):
         for task in tasks:
             for pred in task.predecessor_ids:
                 add_edge(task.id, pred.id, "fs", 0.0)
+        return deps_on, successors_of
 
-        duration = {t.id: t._get_cpm_duration_hours() for t in tasks}
-
+    def _cpm_check_acyclic(
+        self, task_set: set[int], deps_on: dict[int, list[tuple[int, str, float]]]
+    ) -> None:
         # Guard against dependency cycles before running the passes: forward()
         # and backward() are plain recursive DFS and would recurse forever
         # (RecursionError → HTTP 500) on a cyclic graph. Dependencies are
@@ -830,11 +847,19 @@ class ProjectProject(models.Model):
                     color[node] = _DONE
                     dfs_stack.pop()
 
-        # Topological order (Kahn) so the forward/backward passes are iterative
-        # rather than recursive: a plain recursive DFS blows Python's recursion
-        # limit (~1000) on a long dependency chain, raising RecursionError →
-        # HTTP 500. Cycles are already rejected above, so Kahn consumes every
-        # node. Predecessors precede their successors in `topo`.
+    def _cpm_topological_order(
+        self,
+        task_set: set[int],
+        deps_on: dict[int, list[tuple[int, str, float]]],
+        successors_of: dict[int, list[int]],
+    ) -> list[int]:
+        """Kahn order, so the passes are iterative rather than recursive.
+
+        A plain recursive DFS blows Python's recursion limit (~1000) on a long
+        dependency chain, raising RecursionError -> HTTP 500. Cycles are
+        rejected before this runs, so Kahn consumes every node. Predecessors
+        precede their successors in the result.
+        """
         indegree = {tid: len(deps_on[tid]) for tid in task_set}
         ready = deque(sorted(tid for tid in task_set if indegree[tid] == 0))
         topo: list[int] = []
@@ -845,8 +870,15 @@ class ProjectProject(models.Model):
                 indegree[succ_id] -= 1
                 if indegree[succ_id] == 0:
                     ready.append(succ_id)
+        return topo
 
-        # Forward pass — earliest start/finish, predecessors first.
+    def _cpm_forward_pass(
+        self,
+        topo: list[int],
+        deps_on: dict[int, list[tuple[int, str, float]]],
+        duration: dict[int, float],
+    ) -> tuple[dict[int, float], dict[int, float]]:
+        """Earliest start/finish per task, predecessors first."""
         es: dict[int, float] = {}
         ef: dict[int, float] = {}
         for tid in topo:
@@ -873,10 +905,17 @@ class ProjectProject(models.Model):
                 max_es = max(max_es, max_ef_constraint - duration[tid])
             es[tid] = max_es
             ef[tid] = es[tid] + duration[tid]
+        return es, ef
 
-        project_end = max(ef.values()) if ef else 0.0
-
-        # Backward pass — latest start/finish, successors first (reverse topo).
+    def _cpm_backward_pass(
+        self,
+        topo: list[int],
+        deps_on: dict[int, list[tuple[int, str, float]]],
+        successors_of: dict[int, list[int]],
+        duration: dict[int, float],
+        project_end: float,
+    ) -> dict[int, float]:
+        """Latest start per task, successors first (reverse topological order)."""
         lf: dict[int, float] = {}
         ls_map: dict[int, float] = {}
         for tid in reversed(topo):
@@ -894,11 +933,21 @@ class ProjectProject(models.Model):
                     elif dtype == "sf":
                         lf[tid] = min(lf[tid], lf[succ_id] - lag + duration[tid])
             ls_map[tid] = lf[tid] - duration[tid]
+        return ls_map
 
-        # Convert abstract hours to calendar dates and write results.
-        # A project whose company has no working-time calendar still has to
-        # produce a schedule: fall back to plain elapsed hours instead of
-        # calling plan_hours on an empty recordset (ValueError -> HTTP 500).
+    def _cpm_write_results(
+        self,
+        tasks: Any,
+        es: dict[int, float],
+        ef: dict[int, float],
+        ls_map: dict[int, float],
+    ) -> None:
+        """Convert the abstract hour axis to calendar dates and store them.
+
+        A project whose company has no working-time calendar still has to
+        produce a schedule: fall back to plain elapsed hours instead of calling
+        plan_hours on an empty recordset (ValueError -> HTTP 500).
+        """
         calendar = self.resource_calendar_id
         now = fields.Datetime.now()
 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!--
+        Show a step's WIP limit next to the column count.
+
+        The limit was configurable and documented ("When exceeded, the step
+        header shows a warning") but read by nothing, so a team could set one
+        and never learn they had passed it. The count already sits in the
+        header; this appends "/ limit" to it and turns the pair red once the
+        column is over.
+    -->
+    <t t-name="project.ProjectTaskKanbanHeader" t-inherit="mail.RottingKanbanHeader" t-inherit-mode="primary">
+        <xpath expr="//span[@t-if='!progressBar and !props.list.model.useSampleModel']" position="replace">
+            <span t-if="!progressBar and !props.list.model.useSampleModel"
+                  class="o_column_task_count"
+                  t-att-class="{ 'text-danger fw-bolder': isOverWipLimit }"
+                  t-att-title="isOverWipLimit ? wipLimitTitle : undefined">
+                <t t-if="wipLimit" t-esc="'(' + group.count + ' / ' + wipLimit + ')'"/>
+                <t t-else="" t-esc="'(' + group.count + ')'"/>
+            </span>
+        </xpath>
+    </t>
+
+</templates>

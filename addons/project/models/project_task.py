@@ -2390,62 +2390,13 @@ class ProjectTask(models.Model):
         self_ctx.browse().check_access("create")
         default_stage = {}
         for vals, additional_vals in zip(vals_list, additional_vals_list, strict=True):
-            project_id = vals.get("project_id") or default_project_id
-
-            if vals.get("user_ids"):
-                # Resolve the commands before stamping: the web client sends
-                # [(6, 0, [])] for "no assignee", which is truthy but assigns
-                # nobody — that used to date-stamp an assignment that never
-                # happened, and queue/cycle time were measured from it.
-                user_ids = self_ctx._fields["user_ids"].convert_to_cache(
-                    vals["user_ids"], self_ctx.env["project.task"]
-                )
-                if user_ids:
-                    additional_vals["date_assign"] = fields.Datetime.now()
-                if user_ids and not (vals.get("parent_id") or project_id):
-                    if self_ctx.env.user.id not in list(user_ids) + [SUPERUSER_ID]:
-                        additional_vals["user_ids"] = [
-                            Command.set(list(user_ids) + [self_ctx.env.user.id])
-                        ]
-            if default_triage and "triage_id" not in vals:
-                additional_vals["triage_id"] = default_triage[0]
-            if not vals.get("name") and vals.get("display_name"):
-                vals["name"] = vals["display_name"]
-
-            if self_ctx.env.user._is_portal() and not self_ctx.env.su:
-                self_ctx._ensure_fields_write(vals, defaults=True)
-
-            if project_id and "company_id" not in vals:
-                additional_vals["company_id"] = (
-                    self_ctx.env["project.project"].browse(project_id).company_id.id
-                )
-            if not project_id and (
-                "step_id" in vals or self_ctx.env.context.get("default_step_id")
-            ):
-                vals["step_id"] = False
-
-            if project_id and "step_id" not in vals:
-                # 1) Allows keeping the batch creation of tasks
-                # 2) Ensure the defaults are correct (and computed once by project),
-                # by using default get (instead of _get_default_step_id or _step_find),
-                if project_id not in default_stage:
-                    default_stage[project_id] = (
-                        self_ctx.with_context(default_project_id=project_id)
-                        .default_get(["step_id"])
-                        .get("step_id")
-                    )
-                vals["step_id"] = default_stage[project_id]
-
-            # Step change: stamp date_last_status_change. date_closed is NOT
-            # touched here — it is derived from state (_compute_date_closed).
-            if vals.get("step_id"):
-                additional_vals["date_last_status_change"] = fields.Datetime.now()
-            # recurrence
-            rec_fields = vals.keys() & self_ctx._get_recurrence_fields()
-            if rec_fields and vals.get("recurring_task") is True:
-                rec_values = {rec_field: vals[rec_field] for rec_field in rec_fields}
-                recurrence = self_ctx.env["project.task.recurrence"].create(rec_values)
-                vals["recurrence_id"] = recurrence.id
+            self_ctx._create_prepare_vals(
+                vals,
+                additional_vals,
+                default_project_id=default_project_id,
+                default_triage=default_triage,
+                default_stage=default_stage,
+            )
 
         # create the task, write computed inaccessible fields in sudo
         for vals, computed_vals in zip(vals_list, additional_vals_list, strict=True):
@@ -2484,19 +2435,27 @@ class ProjectTask(models.Model):
 
         current_partner = self_ctx.env.user.partner_id
 
+        if tasks.project_id:
+            tasks.sudo()._set_step_on_project_from_task()
+        self_ctx._create_subscribe_followers(tasks, current_partner)
+        return tasks
+
+    def _create_subscribe_followers(self, tasks: Self, current_partner: Any) -> None:
+        """Give the new tasks their followers and their portal token.
+
+        The parent's followers, the creator, and any internal user named in
+        ``email_cc``. The CC partners are resolved for the whole batch first —
+        one search rather than one per task.
+        """
         all_partner_emails = []
         for task in tasks.sudo():
             all_partner_emails += tools.email_normalize_all(task.email_cc)
-        partners = self_ctx.env["res.partner"].search(
-            [("email", "in", all_partner_emails)]
-        )
+        partners = self.env["res.partner"].search([("email", "in", all_partner_emails)])
         partner_per_email = {
             partner.email: partner
             for partner in partners
             if not all(u.share for u in partner.user_ids)
         }
-        if tasks.project_id:
-            tasks.sudo()._set_step_on_project_from_task()
         for task in tasks.sudo():
             if task.project_id.privacy_visibility in [
                 "invited_users",
@@ -2509,31 +2468,178 @@ class ProjectTask(models.Model):
                 )
             if current_partner not in task.message_partner_ids:
                 task.message_subscribe(current_partner.ids)
-            if task.email_cc:
-                partners_with_internal_user = self_ctx.env["res.partner"]
-                for email in tools.email_normalize_all(task.email_cc):
-                    new_partner = partner_per_email.get(email)
-                    if new_partner:
-                        partners_with_internal_user |= new_partner
-                if not partners_with_internal_user:
-                    continue
-                task._send_email_notify_to_cc(partners_with_internal_user)
-                task.message_subscribe(partners_with_internal_user.ids)
-        return tasks
+            if not task.email_cc:
+                continue
+            partners_with_internal_user = self.env["res.partner"]
+            for email in tools.email_normalize_all(task.email_cc):
+                new_partner = partner_per_email.get(email)
+                if new_partner:
+                    partners_with_internal_user |= new_partner
+            if not partners_with_internal_user:
+                continue
+            task._send_email_notify_to_cc(partners_with_internal_user)
+            task.message_subscribe(partners_with_internal_user.ids)
 
     def write(self, vals: dict[str, Any]) -> bool:
+        """Write, in ordered phases around the ORM's own write.
+
+        The phases were one 130-line body (cyclomatic complexity 44, the worst
+        in the module) interleaving milestone propagation, step stamping,
+        recurrence, assignee dating, privacy-scoped sudo writes, dependency
+        sync, rating mail and two notification paths. Each is now a named
+        method, so the ORDER of the phases — which is the part that actually
+        matters here, and which the comments used to carry alone — is readable
+        in one screen.
+
+        The phases mutate ``vals`` and ``additional_vals`` in place, as the
+        original did: keys are removed before ``super()`` sees them (a
+        milestone rewritten as sudo, a cleared triage that has no column) and
+        added to the sudo batch for values a portal user may not write.
+        """
         self.check_access("write")
         if len(self) == 1:
             handle_history_divergence(self, "description", vals)
-        partner_ids = []
 
-        # Some values are determined by this override and must be written as
-        # sudo for portal users, because they do not have access to these
-        # fields. Other values must not be written as sudo.
+        # Values this override determines that a portal user may not write for
+        # themselves; applied as a separate sudo write below.
         additional_vals = {}
         if self.env.user._is_portal() and not self.env.su:
             self._ensure_fields_write(vals, defaults=False)
 
+        self._write_propagate_milestone(vals)
+
+        if vals.get("parent_id") in self.ids:
+            raise UserError(_("Sorry. You can't set a task as its parent task."))
+
+        now = fields.Datetime.now()
+        self._write_apply_step_change(vals, additional_vals, now)
+
+        task_ids_without_user_set = set()
+        if "user_ids" in vals and "date_assign" not in vals:
+            # Captured before the write: after it, every task has assignees.
+            task_ids_without_user_set = {task.id for task in self if not task.user_ids}
+
+        self._write_sync_recurrence(vals)
+
+        # Track user_ids to send assignment notifications
+        old_user_ids = {t: t.user_ids for t in self.sudo()}
+
+        self._write_clear_triage(vals)
+        partner_ids, project_link_per_task_id = self._write_prepare_transfer_notice(
+            vals
+        )
+
+        if vals.get("parent_id") is False:
+            additional_vals["display_in_project"] = True
+        if "description" in vals:
+            # A portal user cannot access html_field_history, so the description
+            # is written as sudo rather than granting them that access.
+            additional_vals["description"] = vals.pop("description")
+
+        if self.env.su or not self.env.user._is_portal():
+            vals.update(additional_vals)
+        elif additional_vals:
+            super(ProjectTask, self.sudo()).write(additional_vals)
+        result = super().write(vals)
+
+        if "predecessor_ids" in vals and not self.env.context.get(
+            "skip_dependency_sync"
+        ):
+            self._sync_dependency_rows()
+
+        self._write_apply_assignment(vals, now, task_ids_without_user_set)
+        self._write_send_step_rating(vals)
+        self._write_apply_state(vals, now)
+
+        # Do not recompute the state when changing the parent (to avoid resetting the state)
+        if "parent_id" in vals:
+            self.env.remove_to_compute(self._fields["state"], self)
+
+        self._task_message_auto_subscribe_notify(
+            {task: task.user_ids - old_user_ids[task] - self.env.user for task in self}
+        )
+        self._write_notify_transfer(partner_ids, project_link_per_task_id)
+        return result
+
+    def _create_prepare_vals(
+        self,
+        vals: dict[str, Any],
+        additional_vals: dict[str, Any],
+        *,
+        default_project_id: int | bool,
+        default_triage: Any,
+        default_stage: dict[int, int | bool],
+    ) -> None:
+        """Fill in one task's create values.
+
+        ``vals`` collects what the caller may write themselves; ``additional_vals``
+        collects what this override decides and a portal user may not, which
+        ``create`` then applies as sudo. ``default_stage`` is a per-batch cache so
+        a batch of tasks in one project resolves its default step once.
+
+        ``self`` here is the context-bearing recordset ``create`` built, not the
+        caller's — the defaults it reads live in that context.
+        """
+        project_id = vals.get("project_id") or default_project_id
+
+        if vals.get("user_ids"):
+            # Resolve the commands before stamping: the web client sends
+            # [(6, 0, [])] for "no assignee", which is truthy but assigns
+            # nobody — that used to date-stamp an assignment that never
+            # happened, and queue/cycle time were measured from it.
+            user_ids = self._fields["user_ids"].convert_to_cache(
+                vals["user_ids"], self.env["project.task"]
+            )
+            if user_ids:
+                additional_vals["date_assign"] = fields.Datetime.now()
+            if user_ids and not (vals.get("parent_id") or project_id):
+                if self.env.user.id not in list(user_ids) + [SUPERUSER_ID]:
+                    additional_vals["user_ids"] = [
+                        Command.set(list(user_ids) + [self.env.user.id])
+                    ]
+        if default_triage and "triage_id" not in vals:
+            additional_vals["triage_id"] = default_triage[0]
+        if not vals.get("name") and vals.get("display_name"):
+            vals["name"] = vals["display_name"]
+
+        if self.env.user._is_portal() and not self.env.su:
+            self._ensure_fields_write(vals, defaults=True)
+
+        if project_id and "company_id" not in vals:
+            additional_vals["company_id"] = (
+                self.env["project.project"].browse(project_id).company_id.id
+            )
+        if not project_id and (
+            "step_id" in vals or self.env.context.get("default_step_id")
+        ):
+            vals["step_id"] = False
+
+        if project_id and "step_id" not in vals:
+            # 1) Allows keeping the batch creation of tasks
+            # 2) Ensure the defaults are correct (and computed once by project),
+            # by using default get (instead of _get_default_step_id or _step_find),
+            if project_id not in default_stage:
+                default_stage[project_id] = (
+                    self.with_context(default_project_id=project_id)
+                    .default_get(["step_id"])
+                    .get("step_id")
+                )
+            vals["step_id"] = default_stage[project_id]
+
+        # Step change: stamp date_last_status_change. date_closed is NOT
+        # touched here — it is derived from state (_compute_date_closed).
+        if vals.get("step_id"):
+            additional_vals["date_last_status_change"] = fields.Datetime.now()
+        # recurrence
+        rec_fields = vals.keys() & self._get_recurrence_fields()
+        if rec_fields and vals.get("recurring_task") is True:
+            rec_values = {rec_field: vals[rec_field] for rec_field in rec_fields}
+            recurrence = self.env["project.task.recurrence"].create(rec_values)
+            vals["recurrence_id"] = recurrence.id
+
+    def _write_propagate_milestone(self, vals: dict[str, Any]) -> None:
+        """Reset a milestone that does not belong to the task's project, and
+        push a valid one down to the subtasks that shared the parent's."""
         if "milestone_id" in vals:
             # WARNING: has to be done after 'project_id' vals is written on subtasks
             # Capture the target milestone id up front: `vals["milestone_id"]` may be
@@ -2599,11 +2705,10 @@ class ProjectTask(models.Model):
             if subtasks_to_update:
                 subtasks_to_update.sudo().write({"milestone_id": milestone_id_val})
 
-        if vals.get("parent_id") in self.ids:
-            raise UserError(_("Sorry. You can't set a task as its parent task."))
-
-        # step change: update date_last_status_change
-        now = fields.Datetime.now()
+    def _write_apply_step_change(
+        self, vals: dict[str, Any], additional_vals: dict[str, Any], now: Any
+    ) -> None:
+        """Stamp the status-change date and discard a stale review verdict."""
         if "step_id" in vals:
             if "project_id" not in vals and self.filtered(lambda t: not t.project_id):
                 # The old text ("You can only set a personal stage on a private
@@ -2623,12 +2728,10 @@ class ProjectTask(models.Model):
                 self.filtered(
                     lambda t: t.state in STATES_RESET_ON_STEP_CHANGE
                 ).state = "in_progress"
-        task_ids_without_user_set = set()
-        if "user_ids" in vals and "date_assign" not in vals:
-            # prepare update of date_assign after super call
-            task_ids_without_user_set = {task.id for task in self if not task.user_ids}
 
-        # recurrence fields
+    def _write_sync_recurrence(self, vals: dict[str, Any]) -> None:
+        """Mirror the recurrence fields onto the recurrence record, creating or
+        dropping it as ``recurring_task`` is turned on and off."""
         rec_fields = vals.keys() & self._get_recurrence_fields()
         if rec_fields:
             rec_values = {rec_field: vals[rec_field] for rec_field in rec_fields}
@@ -2644,9 +2747,7 @@ class ProjectTask(models.Model):
             self.recurrence_id.unlink()
             tasks_in_recurrence.write({"recurring_task": False})
 
-        # Track user_ids to send assignment notifications
-        old_user_ids = {t: t.user_ids for t in self.sudo()}
-
+    def _write_clear_triage(self, vals: dict[str, Any]) -> None:
         # Clearing the personal triage: honour it instead of dropping the key.
         # ``triage_id`` is a non-stored related through ``personal_triage_id``,
         # whose inverse has nothing to write to when the value is False, so the
@@ -2659,8 +2760,15 @@ class ProjectTask(models.Model):
                 [("task_id", "in", self.ids), ("user_id", "=", self.env.uid)]
             ).triage_id = False
 
-        # sends an email to the 'Task Creation' subtype subscribers
-        # When project_id is changed
+    def _write_prepare_transfer_notice(
+        self, vals: dict[str, Any]
+    ) -> tuple[list[int], dict[int, Any]]:
+        """Collect who to tell about a project transfer, and the source link.
+
+        Read before ``super().write()`` because the source project is what the
+        message names, and the write is what replaces it.
+        """
+        partner_ids = []
         project_link_per_task_id = {}
         if vals.get("project_id"):
             project = self.env["project.project"].browse(vals.get("project_id"))
@@ -2682,25 +2790,12 @@ class ProjectTask(models.Model):
                                 )
                             )
                         project_link_per_task_id[task.id] = project_link
-        if vals.get("parent_id") is False:
-            additional_vals["display_in_project"] = True
-        if "description" in vals:
-            # the portal user cannot access to html_field_history and so it would be
-            # better to write in sudo for description field to avoid giving access to html_field_history
-            additional_vals["description"] = vals.pop("description")
+        return partner_ids, project_link_per_task_id
 
-            # write changes
-        if self.env.su or not self.env.user._is_portal():
-            vals.update(additional_vals)
-        elif additional_vals:
-            super(ProjectTask, self.sudo()).write(additional_vals)
-        result = super().write(vals)
-
-        if "predecessor_ids" in vals and not self.env.context.get(
-            "skip_dependency_sync"
-        ):
-            self._sync_dependency_rows()
-
+    def _write_apply_assignment(
+        self, vals: dict[str, Any], now: Any, task_ids_without_user_set: set[int]
+    ) -> None:
+        """Give every new assignee a triage row, and date the assignment."""
         if "user_ids" in vals:
             self._populate_missing_triages()
             # user_ids change: update date_assign
@@ -2710,12 +2805,15 @@ class ProjectTask(models.Model):
                 elif "date_assign" not in vals and task.id in task_ids_without_user_set:
                     task.date_assign = now
 
-        # rating on stage
-        if "step_id" in vals and vals.get("step_id"):
+    def _write_send_step_rating(self, vals: dict[str, Any]) -> None:
+        """Ask the customer to rate a task that just entered a rating step."""
+        if vals.get("step_id"):
             self.sudo().filtered(
                 lambda x: x.step_id.rating_active and x.step_id.rating_status == "stage"
             )._send_task_rating_mail(force_send=True)
 
+    def _write_apply_state(self, vals: dict[str, Any], now: Any) -> None:
+        """Keep state and its timestamp consistent with what the write said."""
         if "state" in vals:
             # Stamp the status-change date once for the whole batch (single UPDATE)
             # rather than per record inside the loop below.
@@ -2738,34 +2836,30 @@ class ProjectTask(models.Model):
                 lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
             ).state = "in_progress"
 
-        # Do not recompute the state when changing the parent (to avoid resetting the state)
-        if "parent_id" in vals:
-            self.env.remove_to_compute(self._fields["state"], self)
-
-        self._task_message_auto_subscribe_notify(
-            {task: task.user_ids - old_user_ids[task] - self.env.user for task in self}
-        )
-
-        if partner_ids:
-            for task in self:
-                project_link = project_link_per_task_id.get(task.id)
-                if project_link:
-                    body = _(
-                        "Task Transferred from Project %(source_project)s to %(destination_project)s",
-                        source_project=project_link,
-                        destination_project=task.project_id._get_html_link(
-                            title=task.project_id.display_name
-                        ),
-                    )
-                else:
-                    body = _("Task Converted from To-Do")
-                task.message_notify(
-                    body=body,
-                    partner_ids=partner_ids,
-                    email_layout_xmlid="mail.mail_notification_layout",
-                    notify_author_mention=False,
+    def _write_notify_transfer(
+        self, partner_ids: list[int], project_link_per_task_id: dict[int, Any]
+    ) -> None:
+        """Tell the destination project's followers where the task came from."""
+        if not partner_ids:
+            return
+        for task in self:
+            project_link = project_link_per_task_id.get(task.id)
+            if project_link:
+                body = _(
+                    "Task Transferred from Project %(source_project)s to %(destination_project)s",
+                    source_project=project_link,
+                    destination_project=task.project_id._get_html_link(
+                        title=task.project_id.display_name
+                    ),
                 )
-        return result
+            else:
+                body = _("Task Converted from To-Do")
+            task.message_notify(
+                body=body,
+                partner_ids=partner_ids,
+                email_layout_xmlid="mail.mail_notification_layout",
+                notify_author_mention=False,
+            )
 
     def unlink(self) -> bool:
         # Add subtasks to batch of tasks to delete
