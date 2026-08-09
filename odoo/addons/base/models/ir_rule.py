@@ -130,13 +130,60 @@ class IrRule(models.Model):
                     SELECT rule_group_id FROM rule_group_rel rg
                     WHERE rg.group_id = ANY(%s)
                 ))
+                %s
             ORDER BY r.id
         """,
             model_name,
             self._PERM_COLUMNS[mode],
             list(self.env.user._get_group_ids()),
+            self._unloaded_module_rules_clause(),
         )
         return self.browse(v for (v,) in self.env.execute_query(sql))
+
+    def _unloaded_module_rules_clause(self) -> SQL:
+        """Exclude rules owned by a module this registry has not loaded yet.
+
+        `ir_rule` rows survive in the database for every *installed* module,
+        but during `load_modules` the registry only holds the modules loaded so
+        far. A rule from a later module then references fields that simply are
+        not there, and the domain optimizer rejects the whole search:
+
+            hr/security/hr_security.xml
+                [('partner_id.employee_ids', '=', False)]  on res.partner.bank
+
+        `account` is module 58 of 123 and `hr` is 60, so every
+        `res.partner.bank` search run by an at-install `account` test died with
+        `ValueError: Invalid field res.partner.employee_ids` -- a module's tests
+        failing on a rule belonging to a module that does not exist yet from
+        where they stand.
+
+        `ir.ui.view._filter_loaded_views` guards views exactly this way; this is
+        the record-rule half of the same invariant. Scope is deliberately
+        narrow:
+
+        - It only applies while `pool._init` is set, i.e. inside the loading
+          window. A serving registry holds every installed module, so the
+          clause is empty and the query is unchanged.
+        - A rule is skipped only if it *has* an xml id whose module is absent.
+          A rule a user wrote by hand has no `ir.model.data` row and is never
+          skipped.
+        - A module is added to `_init_modules` before its own tests run, so no
+          module ever loses its own rules.
+        """
+        loaded_modules = list(self.pool._init_modules)
+        if not self.pool._init or not loaded_modules:
+            # Not loading (the normal case), or nothing loaded yet -- and with
+            # an empty list `<> ALL` is vacuously true, which would drop every
+            # module-owned rule instead of none.
+            return SQL("")
+        return SQL(
+            """AND NOT EXISTS (
+                    SELECT 1 FROM ir_model_data d
+                    WHERE d.model = 'ir.rule' AND d.res_id = r.id
+                      AND d.module <> ALL(%s)
+                )""",
+            loaded_modules,
+        )
 
     @api.model
     @tools.conditional(
@@ -147,6 +194,13 @@ class IrRule(models.Model):
             "model_name",
             "mode",
             "tuple(self._compute_domain_context_values())",
+            # A domain computed while the registry was still loading was built
+            # from a partial rule set (see `_unloaded_module_rules_clause`) and
+            # must never be served to a finished registry -- that would leave a
+            # record rule silently unapplied. Nothing clears the cache when
+            # loading ends, so the flag goes in the key instead: once `_init`
+            # flips, every loading-time entry becomes unreachable.
+            "self.pool._init",
         ),
     )
     def _compute_domain(self, model_name: str, mode: str = "read") -> Domain:

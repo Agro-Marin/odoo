@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from lxml import etree
 
 from odoo import Command
@@ -369,6 +371,109 @@ class TestIrRule(TransactionCaseWithUserDemo):
 
         with self.assertRaises(ValueError):
             demo_rule._get_rules("res.partner", "bogus")
+
+    @contextmanager
+    def _registry_loading(self, loading):
+        """Pin `registry._init` for the duration of the block.
+
+        Save-and-restore rather than set-and-clear: these tests run at install,
+        i.e. *inside* `load_modules`, where `_init` is already True. Forcing it
+        back to False afterwards told the loader it had finished and broke the
+        rest of the run.
+        """
+        registry = self.env.registry
+        previous = registry._init
+        registry._init = loading
+        try:
+            yield
+        finally:
+            registry._init = previous
+
+    def test_ir_rule_from_an_unloaded_module_is_skipped_while_loading(self):
+        """`ir_rule` rows exist for every *installed* module, but during
+        `load_modules` the registry only holds the modules loaded so far. A rule
+        from a later module references fields that are not in this registry yet,
+        and the domain optimizer rejects the entire search rather than the rule
+        -- `hr`'s `[('partner_id.employee_ids', '=', False)]` on
+        `res.partner.bank` broke every at-install `account` test that created a
+        bank account, because `account` loads at 58/123 and `hr` at 60/123.
+        """
+        model_res_partner = self.env.ref("base.model_res_partner")
+        rule = self.env["ir.rule"].create(
+            {
+                "name": "test_rule_from_a_later_module",
+                "model_id": model_res_partner.id,
+                "domain_force": "[('id', '!=', False)]",
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "a_module_this_registry_has_not_loaded",
+                "name": "test_rule_from_a_later_module",
+                "model": "ir.rule",
+                "res_id": rule.id,
+            }
+        )
+        demo_rule = self.env(user=self.user_demo)["ir.rule"]
+
+        # Serving registry: every installed module is loaded, so nothing is
+        # filtered and the rule applies as usual.
+        with self._registry_loading(False):
+            self.assertIn(rule, demo_rule._get_rules("res.partner", "read"))
+
+        # Loading window: the owning module is absent, so the rule is skipped
+        # instead of breaking the search.
+        with self._registry_loading(True):
+            self.assertNotIn(rule, demo_rule._get_rules("res.partner", "read"))
+            # ...but only that one. Rules from loaded modules still apply, and
+            # so do hand-written rules, which carry no `ir.model.data` row.
+            hand_written = self.env["ir.rule"].create(
+                {
+                    "name": "test_rule_written_by_hand",
+                    "model_id": model_res_partner.id,
+                    "domain_force": "[('id', '!=', False)]",
+                }
+            )
+            self.assertIn(hand_written, demo_rule._get_rules("res.partner", "read"))
+
+    def test_ir_rule_domain_computed_while_loading_is_not_reused_after(self):
+        """The loading-time rule set is partial, so a domain cached during
+        loading must never be served to a finished registry -- that would leave
+        a record rule silently unapplied. Nothing clears the cache when loading
+        ends, so `pool._init` is part of the cache key."""
+        model_res_partner = self.env.ref("base.model_res_partner")
+        rule = self.env["ir.rule"].create(
+            {
+                "name": "test_rule_cache_key_on_init",
+                "model_id": model_res_partner.id,
+                "domain_force": "[('id', '=', False)]",
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "a_module_this_registry_has_not_loaded",
+                "name": "test_rule_cache_key_on_init",
+                "model": "ir.rule",
+                "res_id": rule.id,
+            }
+        )
+        demo_partner = self.env(user=self.user_demo)["res.partner"]
+
+        # Warm the cache during "loading": the rule is skipped, partners visible.
+        with self._registry_loading(True):
+            self.assertTrue(
+                demo_partner.search_count([]),
+                "A rule from an unloaded module must not restrict during loading",
+            )
+
+        # Back in a serving registry the rule applies -- the domain cached a
+        # moment ago without it must not be reused.
+        with self._registry_loading(False):
+            self.assertEqual(
+                demo_partner.search_count([]),
+                0,
+                "The loading-time domain must not survive into a serving registry",
+            )
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
     def test_ir_rule_access_error_message(self):
