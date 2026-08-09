@@ -560,12 +560,24 @@ class _ModuleLoader:
         return True
 
     def run_pre_upgrade_scripts(self) -> None:
+        if not (self.update_module and self.upgrade_modules):
+            return
         for pyfile in tools.config["pre_upgrade_scripts"]:
             odoo.modules.migration.exec_script(
                 self.cr, self.graph["base"].db_version, pyfile, "base", "pre"
             )
 
     def capture_database_field_metadata(self) -> None:
+        """Snapshot which stored fields the DATABASE currently calls translated.
+
+        Read before the module graph converges, because that is the last moment
+        the old shape is still on disk -- and only when updating, since nothing
+        can change it otherwise. The table check is part of the precondition,
+        not of the caller: on a fresh database ``ir_model_fields`` does not
+        exist yet and there is nothing to capture.
+        """
+        if not (self.update_module and schema.table_exists(self.cr, "ir_model_fields")):
+            return
         cr = self.cr
         cr.execute(
             "SELECT model || '.' || name, translate FROM ir_model_fields WHERE translate IS NOT NULL"
@@ -607,6 +619,8 @@ class _ModuleLoader:
             self.registry._load_language_done = True
 
     def process_module_requests(self) -> None:
+        if not self.update_module:
+            return
         env = self.env
         cr = self.cr
         Module = env["ir.module.module"]
@@ -699,6 +713,8 @@ class _ModuleLoader:
                 break
 
     def untranslate_dropped_fields(self) -> None:
+        if not self.update_module:
+            return
         registry = self.registry
         database_translated_fields = registry._database_translated_fields
         registry._database_translated_fields = {}
@@ -732,6 +748,8 @@ class _ModuleLoader:
             )
 
     def run_end_migrations(self) -> None:
+        if not self.update_module:
+            return
         migrations = MigrationManager(self.cr, self.graph)
         for package in self.graph:
             migrations.migrate_module(package, "end")
@@ -795,6 +813,8 @@ class _ModuleLoader:
         env.flush_all()
 
     def uninstall_removed_modules(self) -> None:
+        if not self.update_module:
+            return
         env = self.env
         cr = self.cr
         cr.execute(
@@ -819,6 +839,8 @@ class _ModuleLoader:
         raise _UninstallRequiresReload
 
     def collect_models_with_manual_fields(self) -> None:
+        if not self.update_module:
+            return
         self.cr.execute(
             """SELECT DISTINCT model FROM ir_model_fields WHERE state = 'manual'"""
         )
@@ -839,6 +861,8 @@ class _ModuleLoader:
         )
 
     def validate_custom_views(self) -> None:
+        if not self.update_module:
+            return
         View = self.env["ir.ui.view"]
         for model in self.registry:
             try:
@@ -862,6 +886,8 @@ class _ModuleLoader:
         self.registry.check_null_constraints(self.cr)
 
     def flag_partially_updated_database(self) -> None:
+        if not self.update_module:
+            return
         self.cr.execute("""
             INSERT INTO ir_config_parameter(key, value)
             SELECT 'base.partially_updated_database', '1'
@@ -892,6 +918,27 @@ def load_modules(
     thread, where the test framework's process-global state (the registry test
     lock, ``current_test``, active patchers) is owned by the test thread — the
     run then wedges for 60s per case and exits.
+
+    **Every phase below runs unconditionally, and each decides for itself.**
+    Nine of them apply only while installing or upgrading, and this function
+    used to say so: 9 of its 11 ``if`` statements tested ``update_module``, in a
+    95-line body, so what a reader saw was one pipeline with holes rather than
+    the two that exist — *serve an existing database* and *install/upgrade*.
+    Worse, the precondition sat one level away from the code it protected, so
+    the only way to answer "does this step run on a plain boot?" was to re-read
+    the orchestrator.
+
+    The loader already carries ``update_module``, so each phase now opens with
+    its own guard and this reads as the sequence it is. Two phases have a
+    precondition wider than that flag and say so where it belongs:
+    :meth:`_ModuleLoader.run_pre_upgrade_scripts` also needs
+    ``upgrade_modules``, and :meth:`_ModuleLoader.capture_database_field_metadata`
+    also needs ``ir_model_fields`` to exist, which it does not on a fresh
+    database.
+
+    The one branch that remains is real control flow rather than a mode flag:
+    uninstalling a module can require the whole registry to be rebuilt, which is
+    a ``return``, not a step.
     """
     if models_to_check is None:
         models_to_check = OrderedSet()
@@ -914,35 +961,22 @@ def load_modules(
         if not loader.bootstrap():
             return
 
-        if update_module and upgrade_modules:
-            loader.run_pre_upgrade_scripts()
-        if update_module and schema.table_exists(cr, "ir_model_fields"):
-            loader.capture_database_field_metadata()
-
+        loader.run_pre_upgrade_scripts()
+        loader.capture_database_field_metadata()
         loader.open_environment_and_load_base()
         loader.load_languages()
-
-        if update_module:
-            loader.process_module_requests()
-
+        loader.process_module_requests()
         loader.converge_module_graph()
-
-        if update_module:
-            loader.untranslate_dropped_fields()
-
+        loader.untranslate_dropped_fields()
         loader.finish_registry_setup()
         loader.report_modules_that_never_loaded()
-
-        if update_module:
-            loader.run_end_migrations()
-
+        loader.run_end_migrations()
         loader.report_pending_module_states()
         loader.finalize_constraints()
         loader.run_post_update_model_checks()
 
         try:
-            if update_module:
-                loader.uninstall_removed_modules()
+            loader.uninstall_removed_modules()
         except _UninstallRequiresReload:
             _logger.info("Reloading registry once more after uninstalling modules")
             Registry.new(
@@ -952,19 +986,13 @@ def load_modules(
             )
             return
 
-        if update_module:
-            loader.collect_models_with_manual_fields()
+        loader.collect_models_with_manual_fields()
         loader.reinit_models_to_check()
-
-        if update_module:
-            loader.validate_custom_views()
-
+        loader.validate_custom_views()
         loader.log_assertion_report()
         loader.register_model_hooks()
         loader.check_null_constraints()
-
-        if update_module:
-            loader.flag_partially_updated_database()
+        loader.flag_partially_updated_database()
 
 
 def reset_modules_state(db_name: str) -> None:
