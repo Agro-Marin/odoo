@@ -13,6 +13,17 @@ import {
 defineCalendarModels();
 preloadFullCalendar();
 
+// Known: this test fails when it runs after `@calendar/activity` in the *same*
+// page load, and passes isolated -- which is how CI runs suites, so CI is green.
+// Ruled out, so nobody re-derives it: the server side is not the cause. Probed in
+// both orders, `_systray_get_calendar_event_domain()` matches the same two events
+// and `_get_activity_groups()` returns the same "Today's Meetings" group; only the
+// rendering differs. It is also not `registerArchs`, the one global that
+// `@calendar/activity` touches (removing it changes nothing here). The remaining
+// suspect is state the mail Store keeps across a page load. Note this is a
+// different problem from the `FIXME` in the mock server's
+// `_systray_get_calendar_event_domain`, which is about its commented-out allday
+// clause.
 test("activity menu widget:today meetings", async () => {
     // `mockDate(date, tz)`, not `mockDate(y, m, d, h, m, s)`: the old signature
     // is silently accepted -- a non-string first argument has no `.year`, so
