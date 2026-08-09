@@ -68,6 +68,37 @@ def _expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
             seen.add(id_)
 
 
+def _batch_then_single(
+    batch: Callable[[], None],
+    single: Callable[[], None],
+    recs: BaseModel,
+    *,
+    catching: tuple[type[BaseException], ...],
+    reraise_when_single: bool = True,
+) -> bool:
+    """Run *batch*; on a listed failure, fall back to *single*. Did it fall back?
+
+    Prefetching means a read for one record is attempted for many, so a failure
+    that belongs to a *sibling* must not surface as this record's failure --
+    the batch is an optimisation and the single-record path is the semantics.
+
+    ``Field._get_cache_miss`` implements this three times, and the three used
+    to differ in ways nothing declared: which exceptions they caught
+    (``AccessError`` / ``+KeyError, MissingError`` / ``+MissingError``) and
+    whether they re-raised when the batch was already a single record. A reader
+    could not tell which differences were deliberate. They are arguments now,
+    so each caller states its own answer at the call site.
+    """
+    try:
+        batch()
+        return False
+    except catching:
+        if reraise_when_single and len(recs) == 1:
+            raise
+    single()
+    return True
+
+
 def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
     rs = object.__new__(records.__class__)
     rs.env = records.env
@@ -184,6 +215,27 @@ class Field[T](
     -- its ``active_test`` branch reads ``field.context`` for any field whose
     ``depends_context`` mentions it, so ``@api.depends_context("active_test")``
     on a computed scalar raised ``AttributeError`` on every read of that field.
+    """
+
+    delegate: bool = False
+    """Whether a Many2one sets up ``_inherits`` delegation to its comodel.
+
+    Declared here, with an inert default, for the same reason as
+    ``comodel_name`` and ``context`` above: consumers key on it without first
+    proving the field is a Many2one. ``Field.__get__``'s cache-miss path reads
+    ``self.type == "many2one" and self.delegate``, and until 2026-08-09 the
+    attribute existed *only* on ``Many2one`` -- so that line was safe purely by
+    ``and`` short-circuiting on the type string. Reorder the condition, or add a
+    second reader that checks ``delegate`` first, and every non-m2o field raises
+    ``AttributeError`` on the hottest read path in the ORM.
+    """
+
+    attachment: bool = False
+    """Whether a Binary field stores its bytes as an ``ir.attachment``.
+
+    Same reason as ``delegate``: ``Field.update_db`` reads
+    ``self.related_field.type == "binary" and self.related_field.attachment``,
+    and the attribute lived only on ``Binary``.
     """
 
     index: str | None = None
@@ -1050,15 +1102,12 @@ class Field[T](
     ) -> T:
         if self.store and record_id:
             recs = self._to_prefetch(record)
-            try:
-                recs._fetch_field(self)
-                fallback_single = False
-            except AccessError:
-                if len(recs) == 1:
-                    raise
-                fallback_single = True
-            if fallback_single:
-                record._fetch_field(self)
+            _batch_then_single(
+                lambda: recs._fetch_field(self),
+                lambda: record._fetch_field(self),
+                recs,
+                catching=(AccessError,),
+            )
             field_cache = self._get_cache(env)
             value = field_cache.get(record_id, SENTINEL)
             if value is SENTINEL:
@@ -1080,25 +1129,31 @@ class Field[T](
             origin_prefetch = recs._origin._prefetch_ids
             spawn = type(recs)._spawn
             recs_env = recs.env
-            try:
+            def _batch() -> None:
                 for rec in recs:
                     rec_id = rec._ids[0]
                     if origin_id := (rec_id or getattr(rec_id, "origin", None)):
                         rec_origin = spawn(recs_env, (origin_id,), origin_prefetch)
-                        value = self.convert_to_cache(
-                            rec_origin[self.name], rec, validate=False
+                        self._update_cache(
+                            rec,
+                            self.convert_to_cache(
+                                rec_origin[self.name], rec, validate=False
+                            ),
                         )
-                        self._update_cache(rec, value)
-                fallback_single = False
-            except AccessError, KeyError, MissingError:
-                if len(recs) == 1:
-                    raise
-                fallback_single = True
-            if fallback_single:
-                value = self.convert_to_cache(
-                    record._origin[self.name], record, validate=False
+
+            def _single() -> None:
+                self._update_cache(
+                    record,
+                    self.convert_to_cache(
+                        record._origin[self.name], record, validate=False
+                    ),
                 )
-                self._update_cache(record, value)
+
+            # KeyError and MissingError as well as AccessError: reading through
+            # `_origin` can hit a record the origin no longer has.
+            _batch_then_single(
+                _batch, _single, recs, catching=(AccessError, KeyError, MissingError)
+            )
             field_cache = self._get_cache(env)
             value = field_cache[record_id]
 
@@ -1108,13 +1163,18 @@ class Field[T](
                 self._update_cache(record, value)
             else:
                 recs = record if self.recursive else self._to_prefetch(record)
-                try:
-                    self.compute_value(recs)
-                    fallback_single = False
-                except AccessError, MissingError:
-                    fallback_single = True
-                if fallback_single:
-                    self.compute_value(record)
+                # No KeyError here, and no `len(recs) == 1` re-raise guard: a
+                # compute that fails for the batch is retried for the single
+                # record even when the batch IS the single record, because
+                # `compute_value` may legitimately succeed the second time
+                # (it is the recursive/protected path that differs).
+                if _batch_then_single(
+                    lambda: self.compute_value(recs),
+                    lambda: self.compute_value(record),
+                    recs,
+                    catching=(AccessError, MissingError),
+                    reraise_when_single=False,
+                ):
                     recs = record
 
                 missing_recs_ids = tuple(self._cache_missing_ids(recs))
