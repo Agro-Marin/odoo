@@ -13,7 +13,7 @@ import {
 
 describe.current.tags("desktop");
 
-// UoM records shared by every test. `factor`/`parent_path` are stored
+// UoM records shared by every test. `factor`/`reference_uom_id` are stored
 // server-side in real life; here they are static so the search mock is
 // deterministic. Two independent chains: Units (root "1") and grams (root "10").
 const UOM_ROWS = {
@@ -23,7 +23,7 @@ const UOM_ROWS = {
         relative_factor: 1,
         factor: 1,
         relative_uom_id: false,
-        parent_path: "1/",
+        reference_uom_id: 1,
     },
     2: {
         id: 2,
@@ -31,7 +31,7 @@ const UOM_ROWS = {
         relative_factor: 12,
         factor: 12,
         relative_uom_id: [1, "Units"],
-        parent_path: "1/2/",
+        reference_uom_id: 1,
     },
     3: {
         id: 3,
@@ -39,7 +39,7 @@ const UOM_ROWS = {
         relative_factor: 6,
         factor: 6,
         relative_uom_id: [1, "Units"],
-        parent_path: "1/3/",
+        reference_uom_id: 1,
     },
     10: {
         id: 10,
@@ -47,7 +47,7 @@ const UOM_ROWS = {
         relative_factor: 1,
         factor: 1,
         relative_uom_id: false,
-        parent_path: "10/",
+        reference_uom_id: 10,
     },
     11: {
         id: 11,
@@ -55,17 +55,23 @@ const UOM_ROWS = {
         relative_factor: 1000,
         factor: 1000,
         relative_uom_id: [10, "g"],
-        parent_path: "10/11/",
+        reference_uom_id: 10,
     },
 };
-const COMMON_ROOT_IDS = [1, 2, 3]; // share root "1/"
+const COMMON_ROOT_IDS = [1, 2, 3]; // share the "Units" dimension (id 1)
 const OTHER_IDS = [10, 11];
 
 // The reference unit each product resolves to, as returned by web_read with the
-// widget's `uom_id: {name, factor, parent_path, rounding}` specification.
+// widget's `uom_id: {name, factor, reference_uom_id, rounding}` specification.
 const PRODUCT_REFERENCE_UOM = {
-    1: { id: 1, name: "Units", factor: 1, parent_path: "1/", rounding: 0.01 },
-    2: { id: 2, name: "Dozen", factor: 12, parent_path: "1/2/", rounding: 0.01 },
+    1: { id: 1, name: "Units", factor: 1, reference_uom_id: { id: 1 }, rounding: 0.01 },
+    2: {
+        id: 2,
+        name: "Dozen",
+        factor: 12,
+        reference_uom_id: { id: 1 },
+        rounding: 0.01,
+    },
 };
 
 class UomUom extends models.Model {
@@ -74,7 +80,7 @@ class UomUom extends models.Model {
     factor = fields.Float();
     relative_factor = fields.Float();
     rounding = fields.Float();
-    parent_path = fields.Char();
+    reference_uom_id = fields.Many2one({ relation: "uom.uom" });
     relative_uom_id = fields.Many2one({ relation: "uom.uom" });
     _records = Object.values(UOM_ROWS).map((r) => ({
         id: r.id,
@@ -82,7 +88,7 @@ class UomUom extends models.Model {
         factor: r.factor,
         relative_factor: r.relative_factor,
         rounding: 0.01,
-        parent_path: r.parent_path,
+        reference_uom_id: r.reference_uom_id,
         relative_uom_id: Array.isArray(r.relative_uom_id)
             ? r.relative_uom_id[0]
             : false,
@@ -128,7 +134,7 @@ function mockUomRpc() {
     onRpc("uom.uom", "search_read", ({ kwargs }) => {
         const domain = kwargs.domain;
         searchDomains.push(domain);
-        const usesRootSplit = JSON.stringify(domain).includes("=like");
+        const usesRootSplit = JSON.stringify(domain).includes("reference_uom_id");
         const isNegated = domain.includes("!");
         let ids;
         if (!usesRootSplit) {
@@ -138,7 +144,16 @@ function mockUomRpc() {
         } else {
             ids = COMMON_ROOT_IDS;
         }
-        return ids.map((id) => ({ ...UOM_ROWS[id] })).slice(0, kwargs.limit);
+        return ids
+            .map((id) => ({
+                ...UOM_ROWS[id],
+                // search_read returns a many2one as [id, display_name]
+                reference_uom_id: [
+                    UOM_ROWS[id].reference_uom_id,
+                    UOM_ROWS[UOM_ROWS[id].reference_uom_id].display_name,
+                ],
+            }))
+            .slice(0, kwargs.limit);
     });
     return searchDomains;
 }
@@ -176,7 +191,7 @@ test("many2one_uom: conversions shown relative to the product's unit", async () 
 
     // referenceUnit set -> exactly the common-root query and its negation.
     expect(searchDomains).toHaveLength(2);
-    expect(JSON.stringify(searchDomains[0])).toInclude("=like");
+    expect(JSON.stringify(searchDomains[0])).toInclude("reference_uom_id");
     expect(searchDomains[1]).toInclude("!");
 });
 
@@ -206,13 +221,24 @@ test("many2one_uom: dropdown waits for the reference unit before rendering", asy
     });
     onRpc("uom.uom", "search_read", ({ kwargs }) => {
         searchDomains.push(kwargs.domain);
-        const usesRootSplit = JSON.stringify(kwargs.domain).includes("=like");
+        const usesRootSplit = JSON.stringify(kwargs.domain).includes(
+            "reference_uom_id",
+        );
         const ids = !usesRootSplit
             ? [...COMMON_ROOT_IDS, ...OTHER_IDS]
             : kwargs.domain.includes("!")
               ? OTHER_IDS
               : COMMON_ROOT_IDS;
-        return ids.map((id) => ({ ...UOM_ROWS[id] })).slice(0, kwargs.limit);
+        return ids
+            .map((id) => ({
+                ...UOM_ROWS[id],
+                // search_read returns a many2one as [id, display_name]
+                reference_uom_id: [
+                    UOM_ROWS[id].reference_uom_id,
+                    UOM_ROWS[UOM_ROWS[id].reference_uom_id].display_name,
+                ],
+            }))
+            .slice(0, kwargs.limit);
     });
     await mountView({ type: "form", resModel: "sale.line", resId: 1, arch: FORM_M2O });
 
@@ -244,7 +270,7 @@ test("many2one_uom: no product falls back to a plain autocomplete", async () => 
     // No reference unit: every unit is listed, none annotated, single query.
     expect(".dropdown-menu li .text-muted").toHaveCount(0);
     expect(searchDomains).toHaveLength(1);
-    expect(JSON.stringify(searchDomains[0])).not.toInclude("=like");
+    expect(JSON.stringify(searchDomains[0])).not.toInclude("reference_uom_id");
 });
 
 test("many2many_uom_tags: reference-relative conversions in the tag autocomplete", async () => {
@@ -270,4 +296,31 @@ test("many2many_uom_tags: reference-relative conversions in the tag autocomplete
         "84 Units",
         "42 Units",
     ]);
+});
+
+test("many2one_uom: both dimension queries are issued in parallel", async () => {
+    // The compatible query and its negation go out together, each bounded by
+    // searchLimit + 1, and the overflow is sliced off. Waiting for the first
+    // before deciding whether to send the second would cost a second
+    // round-trip on every keystroke.
+    const order = [];
+    onRpc("product.product", "web_read", ({ args }) => [
+        { id: args[0][0], uom_id: PRODUCT_REFERENCE_UOM[args[0][0]] },
+    ]);
+    onRpc("uom.uom", "search_read", ({ kwargs }) => {
+        order.push(kwargs.domain.includes("!") ? "others" : "common");
+        const ids = kwargs.domain.includes("!") ? OTHER_IDS : COMMON_ROOT_IDS;
+        return ids.map((id) => ({
+            ...UOM_ROWS[id],
+            reference_uom_id: [
+                UOM_ROWS[id].reference_uom_id,
+                UOM_ROWS[UOM_ROWS[id].reference_uom_id].display_name,
+            ],
+        }));
+    });
+    await mountView({ type: "form", resModel: "sale.line", resId: 1, arch: FORM_M2O });
+
+    await clickFieldDropdown("uom_id");
+
+    expect(order).toEqual(["common", "others"]);
 });

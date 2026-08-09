@@ -2604,7 +2604,9 @@ class StockQuant(models.Model):
             self.env.context.get("packaging_uom_id")
             and product_id.product_tmpl_id.categ_id.packaging_reserve_method == "full"
         ):
-            available_quantity = self.env.context.get("packaging_uom_id")._check_qty(
+            available_quantity = self.env.context.get(
+                "packaging_uom_id"
+            )._round_to_packaging_multiple(
                 min(quantity, available_quantity), product_id.uom_id, "DOWN"
             )
 

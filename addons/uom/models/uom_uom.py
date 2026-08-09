@@ -3,8 +3,13 @@ from typing import Literal, Self
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.libs.numbers import RoundingMethod
+from odoo.libs.numbers import RoundingMethod, float_repr
 from odoo.tools import float_compare, float_is_zero, float_round
+
+#: Decimals used to render `relative_factor` for humans -- enough for every
+#: factor the module ships (the tightest is 0.0163871, in³ per litre). It is a
+#: display concern only: the column itself is an unlimited NUMERIC.
+_RELATIVE_FACTOR_DIGITS = 7
 
 
 class UomUom(models.Model):
@@ -12,7 +17,10 @@ class UomUom(models.Model):
     _description = "Product Unit of Measure"
     _parent_name = "relative_uom_id"
     _parent_store = True
-    _order = "sequence, relative_uom_id, id"
+    # `relative_uom_id` here made every search LEFT JOIN uom_uom to itself and
+    # order by the *parent's* sequence, which is 100 or 1000 for most parents.
+    # `parent_path` groups a family in one indexed column, with no join.
+    _order = "sequence, parent_path, id"
 
     name = fields.Char("Unit Name", required=True, translate=True)
     sequence = fields.Integer(
@@ -34,13 +42,22 @@ class UomUom(models.Model):
     relative_uom_id = fields.Many2one(
         "uom.uom", "Reference Unit", ondelete="cascade", index="btree_not_null"
     )
-    related_uom_ids = fields.One2many("uom.uom", "relative_uom_id", "Related UoMs")
     factor = fields.Float(
         "Absolute Quantity",
         digits=0,
         compute="_compute_factor",
         recursive=True,
         store=True,
+    )
+    reference_uom_id = fields.Many2one(
+        "uom.uom",
+        "Dimension",
+        compute="_compute_reference_uom_id",
+        recursive=True,
+        store=True,
+        index="btree_not_null",
+        help="The root unit this one is ultimately defined against."
+        " Two units are convertible if and only if they share it.",
     )
     parent_path = fields.Char(index=True)
 
@@ -53,12 +70,24 @@ class UomUom(models.Model):
 
     @api.depends("relative_factor")
     def _compute_sequence(self):
+        """Seed a sequence from the magnitude of the unit, once, at creation.
+
+        The guard tests `uom.id` alone. It used to also test `uom.sequence`,
+        which reads as "fill it in if empty" but cannot mean that: `sequence`
+        is an Integer, so an unset column and a deliberate 0 both arrive here
+        as 0. Dragging a unit to the top of the list (the handle widget writes
+        sequence 0) was therefore undone by the next `relative_factor` edit,
+        which recomputed it back to a magnitude-derived value.
+
+        The floor of 1 exists for the same reason: `relative_factor < 0.01`
+        produced sequence 0 on its own, so a computed value was indistinguishable
+        from a hand-placed first row.
+        """
         for uom in self:
-            if uom.id and uom.sequence:
-                # Only set a default sequence before the record creation, or on module update if
-                # there is no value.
+            if uom.id:
+                # Existing records keep whatever ordering they were given.
                 continue
-            uom.sequence = min(int(uom.relative_factor * 100.0), 1000)
+            uom.sequence = max(1, min(int(uom.relative_factor * 100.0), 1000))
 
     def _compute_rounding(self):
         """All Units of Measure share the same rounding precision defined in 'Product Unit'.
@@ -79,6 +108,27 @@ class UomUom(models.Model):
                 uom.factor = uom.relative_factor * uom.relative_uom_id.factor
             else:
                 uom.factor = uom.relative_factor
+
+    @api.depends("relative_uom_id", "relative_uom_id.reference_uom_id")
+    def _compute_reference_uom_id(self):
+        """The root of the chain, materialised as a column.
+
+        This is the dimension: 19.0 replaced `uom.category` with the
+        reference-unit tree but left the root implicit, so every consumer
+        re-derived it -- `_has_common_reference` compared `parent_path`
+        prefixes and the autocomplete widget did `parent_path.split("/")[0]`
+        to build a `=like` domain. Both are an equality test now, and
+        "compatible with X" is expressible as a plain domain for the first
+        time, which is what `parent_path` never gave callers.
+
+        `point_of_sale` and `pos_blackbox_be` still derive the root from
+        `parent_path` client-side; that field stays, so they are unaffected.
+
+        Deliberately not `precompute`: a root unit is its own reference, and
+        the id it needs does not exist until after the INSERT.
+        """
+        for uom in self:
+            uom.reference_uom_id = uom.relative_uom_id.reference_uom_id or uom
 
     # === ONCHANGE METHODS === #
 
@@ -173,8 +223,14 @@ class UomUom(models.Model):
         return self.env["decimal.precision"].precision_get("Product Unit")
 
     def round(self, value: float, rounding_method: RoundingMethod = "HALF-UP") -> float:
-        """Round the value using the 'Product Unit' precision"""
-        self.ensure_one()
+        """Round the value using the 'Product Unit' precision
+
+        Callable on an empty recordset; see :meth:`_check_at_most_one`. Like
+        `compare` and `is_zero` it never reads `self`, so it accepts exactly
+        the same receivers they do -- it was the last of the three still
+        raising on an unset unit.
+        """
+        self._check_at_most_one()
         return float_round(
             value,
             precision_digits=self._precision_digits(),
@@ -224,8 +280,17 @@ class UomUom(models.Model):
         super()._compute_display_name()
         for uom in self:
             if uom.env.context.get("formatted_display_name") and uom.relative_uom_id:
+                # `float_repr`, not `str`: `relative_factor` is stored as an
+                # unlimited NUMERIC, so interpolating the raw float printed
+                # "Minutes --0.016666666666666666 Hours--" in every dropdown
+                # that asks for a formatted name.
+                factor = (
+                    float_repr(uom.relative_factor, _RELATIVE_FACTOR_DIGITS)
+                    .rstrip("0")
+                    .rstrip(".")
+                )
                 uom.display_name = (
-                    f"{uom.name}\t--{uom.relative_factor} {uom.relative_uom_id.name}--"
+                    f"{uom.name}\t--{factor or '0'} {uom.relative_uom_id.name}--"
                 )
 
     def _compute_quantity(
@@ -251,7 +316,11 @@ class UomUom(models.Model):
         for the decision rule.
         """
         if not self or not qty:
-            return qty
+            # `qty or 0.0`, not `qty`: the annotation promises a float, and the
+            # falsy inputs that reach here are `False` (an unset Float read off
+            # a half-filled record) and `None`, both of which were handed back
+            # unchanged.
+            return qty or 0.0
         self.ensure_one()
 
         if self == to_unit:
@@ -333,9 +402,14 @@ class UomUom(models.Model):
             return self._compute_quantity(qty, to_unit, raise_if_failure=True, **kwargs)
         return self._compute_quantity_lenient(qty, to_unit, **kwargs)
 
-    def _check_qty(self, product_qty, uom, rounding_method="HALF-UP"):
+    def _round_to_packaging_multiple(self, product_qty, uom, rounding_method="HALF-UP"):
         """Round `product_qty` (expressed in `uom`) to a whole multiple of the
         packaging `self`, according to `rounding_method` ("UP", "HALF-UP" or "DOWN").
+
+        Named `_check_qty` until now, which described neither the argument nor
+        the return: it checks nothing and answers with a quantity. One
+        production call site (`stock.quant._get_available_quantity`, the
+        "reserve whole packages only" branch).
         """
         self.ensure_one()
         if self == uom:
@@ -444,7 +518,18 @@ class UomUom(models.Model):
         ]
 
     def _filter_protected_uoms(self):
-        """Return the subset of `self` that is protected master data."""
+        """Return the subset of `self` that is protected master data.
+
+        Any module's master data counts, not just this one's. The query used to
+        be pinned to `module = "uom"`, but sixteen modules ship `uom.uom`
+        records -- `l10n_mx`, `l10n_in`, `l10n_cl`, `hr_timesheet`,
+        `hr_expense`, `point_of_sale`, several enterprise `l10n_*`, and
+        AgroMarin's own `uom_extended`. None of them were protected, so a leaf
+        unit from any of them deleted cleanly and took its xml id with it:
+        `env.ref("uom_extended.product_uom_mw")` then raised for every module
+        built on it. The descendant guard in `_unlink_except_master_data`
+        blocked the cascade, never the direct delete.
+        """
         linked_model_data = (
             self.env["ir.model.data"]
             .sudo()
@@ -452,7 +537,6 @@ class UomUom(models.Model):
                 [
                     ("model", "=", self._name),
                     ("res_id", "in", self.ids),
-                    ("module", "=", "uom"),
                     ("name", "not in", self._unprotected_uom_xml_ids()),
                 ]
             )
@@ -476,16 +560,10 @@ class UomUom(models.Model):
     def _get_reference_uom(self) -> Self:
         """Return the root unit `self` is (transitively) defined against."""
         self.ensure_one()
-        # `parent_path` already holds the whole ancestry ("<root>/…/<self>/"),
-        # so the root is one browse. Walking `relative_uom_id` instead cost one
-        # query per level on a cold cache -- 6 for a Mile.
-        if self.parent_path:
-            return self.browse(int(self.parent_path.split("/", 1)[0]))
-        # New records (e.g. during an onchange) have no parent_path yet.
-        uom = self
-        while uom.relative_uom_id:
-            uom = uom.relative_uom_id
-        return uom
+        # One indexed column read, at any depth. This walked
+        # `relative_uom_id` once per level (6 queries for a Mile), then read it
+        # off `parent_path`; `reference_uom_id` now stores it outright.
+        return self.reference_uom_id or self
 
     def _has_common_reference(self, other_uom: Self) -> bool:
         """Check if `self` and `other_uom` have a common reference unit
@@ -502,10 +580,4 @@ class UomUom(models.Model):
         other_uom._check_at_most_one()
         if not self or not other_uom:
             return False
-        if self.parent_path and other_uom.parent_path:
-            return (
-                self.parent_path.split("/", 1)[0]
-                == other_uom.parent_path.split("/", 1)[0]
-            )
-        # New records (e.g. during an onchange) have no parent_path yet.
         return self._get_reference_uom() == other_uom._get_reference_uom()

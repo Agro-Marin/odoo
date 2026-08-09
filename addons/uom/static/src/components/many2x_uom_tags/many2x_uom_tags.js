@@ -78,7 +78,10 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
         // before the initial RPC landed used to silently degrade to an
         // unsorted, unannotated list, which made the widget's behaviour a race
         // against the network.
-        this.referenceUnitReady = this._loadReferenceUnit(props, ++this.referenceUnitSeq);
+        this.referenceUnitReady = this._loadReferenceUnit(
+            props,
+            ++this.referenceUnitSeq,
+        );
         return this.referenceUnitReady;
     }
 
@@ -95,7 +98,7 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
                                 fields: {
                                     name: {},
                                     factor: {},
-                                    parent_path: {},
+                                    reference_uom_id: {},
                                     rounding: {},
                                 },
                             },
@@ -118,28 +121,37 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
         // The reference unit decides both the ordering and the annotations
         // below, so the dropdown must not be built before it is known.
         await this.referenceUnitReady;
-        const fields = ["id", "display_name", "factor", "parent_path"];
+        const fields = ["id", "display_name", "factor", "reference_uom_id"];
         const domain = [...this.props.getDomain(), ["name", "ilike", name]];
         const limit = this.props.searchLimit + 1;
+        const reference = this.referenceUnit;
+        const referenceRoot = reference?.reference_uom_id?.id;
         let records;
-        if (this.referenceUnit) {
-            // Compatible units (sharing the reference unit's root) come first;
-            // both queries are bounded, the base component slices the overflow.
-            const commonRootDomain = [
-                "parent_path",
-                "=like",
-                `${this.referenceUnit.parent_path.split("/")[0]}/%`,
-            ];
+        if (referenceRoot) {
+            // Compatible units (sharing the reference unit's dimension) come
+            // first; both queries are bounded, the overflow is sliced off
+            // below. `reference_uom_id` is an indexed column, so this is an
+            // equality test rather than the `parent_path` prefix LIKE it
+            // replaces.
+            //
+            // The second query is issued even when the first already fills the
+            // dropdown, which does happen (the mm and ml families have 8
+            // members each, against a limit of searchLimit + 1 = 8). Skipping
+            // it means waiting for the first result before deciding, and a
+            // second round-trip on every keystroke costs the user more than a
+            // sometimes-discarded query costs the server. Kept parallel on
+            // purpose.
+            const sameDimension = ["reference_uom_id", "=", referenceRoot];
             const [common, others] = await Promise.all([
                 this.orm.searchRead(
                     this.props.resModel,
-                    [...domain, commonRootDomain],
+                    [...domain, sameDimension],
                     fields,
                     { limit },
                 ),
                 this.orm.searchRead(
                     this.props.resModel,
-                    [...domain, "!", commonRootDomain],
+                    [...domain, "!", sameDimension],
                     fields,
                     { limit },
                 ),
@@ -150,8 +162,6 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
                 limit,
             });
         }
-        const reference = this.referenceUnit;
-        const referenceRoot = reference?.parent_path.split("/")[0];
         const quantity = this.props.productQuantity || 1;
         return records.map((record) => {
             // Only advertise a conversion for units actually convertible into
@@ -169,7 +179,7 @@ export class Many2XUomTagsAutocomplete extends Many2XAutocomplete {
             if (
                 reference &&
                 record.id !== reference.id &&
-                record.parent_path.split("/")[0] === referenceRoot
+                record.reference_uom_id?.[0] === referenceRoot
             ) {
                 const converted = (quantity * record.factor) / reference.factor;
                 relativeInfo = `${roundPrecision(converted, reference.rounding)} ${reference.name}`;

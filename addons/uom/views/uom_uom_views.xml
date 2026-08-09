@@ -23,7 +23,7 @@
                 <field name="name" />
                 <field name="relative_factor"
                     invisible="relative_factor == 1 and not relative_uom_id"
-                    digits="[12, 3]" />
+                    digits="[12, 6]" />
                 <field name="relative_uom_id" />
             </list>
         </field>
@@ -44,7 +44,7 @@
                                 <field name="relative_factor" class="oe_inline"
                                     style="max-width: 80px;"
                                     readonly="(context.get('product_id') or context.get('product_ids')) and id"
-                                    digits="[12, 5]" />
+                                    digits="[12, 6]" />
                                 <field name="relative_uom_id" placeholder="Reference Unit"
                                     class="oe_inline" style="max-width: 150px;"
                                     readonly="(context.get('product_id') or context.get('product_ids')) and id" />

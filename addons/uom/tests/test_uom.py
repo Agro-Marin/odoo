@@ -41,31 +41,47 @@ class TestUom(UomCommon):
         self.assertEqual(qty, 1, "Converted quantity should be rounded up.")
 
     def test_30_quantity(self):
-        """_check_qty rounds the available quantity of a product. To prevent rounding issue,
-        there should be no rounding if the product uom is the same as the package uom.
+        """_round_to_packaging_multiple rounds the available quantity of a
+        product. To prevent rounding issues there should be no rounding when
+        the product uom is the same as the package uom.
         """
         uom = self.uom_unit
         quantity = 22.43
         rounding_method = "DOWN"
 
-        result = self.uom_unit._check_qty(quantity, uom, rounding_method)
+        result = self.uom_unit._round_to_packaging_multiple(
+            quantity, uom, rounding_method
+        )
 
         self.assertEqual(result, quantity, "Quantity should not be rounded.")
 
-    def test_check_qty_multiples(self):
-        """_check_qty must round to exact multiples of the packaging, without
+    def test_round_to_packaging_multiple_multiples(self):
+        """_round_to_packaging_multiple must round to exact multiples of the packaging, without
         distortion from pre-rounding the packaging factor (12 Units used to
         come back as 11.97 because 1/12 was rounded to 0.09 first)."""
         # 12 dozens = 144 units: already a whole multiple of one Unit
-        self.assertEqual(self.uom_unit._check_qty(12, self.uom_dozen), 12.0)
-        self.assertEqual(self.uom_unit._check_qty(11, self.uom_dozen, "DOWN"), 11.0)
+        self.assertEqual(
+            self.uom_unit._round_to_packaging_multiple(12, self.uom_dozen), 12.0
+        )
+        self.assertEqual(
+            self.uom_unit._round_to_packaging_multiple(11, self.uom_dozen, "DOWN"), 11.0
+        )
         # 1.04 dozen = 12.48 units -> 12 units (DOWN) / 13 units (UP)
-        self.assertEqual(self.uom_unit._check_qty(1.04, self.uom_dozen, "DOWN"), 1.0)
-        self.assertEqual(self.uom_unit._check_qty(1.04, self.uom_dozen, "UP"), 1.08)
+        self.assertEqual(
+            self.uom_unit._round_to_packaging_multiple(1.04, self.uom_dozen, "DOWN"),
+            1.0,
+        )
+        self.assertEqual(
+            self.uom_unit._round_to_packaging_multiple(1.04, self.uom_dozen, "UP"), 1.08
+        )
         # packaging expressed in the product uom (stock reservation direction)
         pack_6 = self.quick_ref("uom.product_uom_pack_6")
-        self.assertEqual(pack_6._check_qty(14, self.uom_unit, "DOWN"), 12.0)
-        self.assertEqual(pack_6._check_qty(14, self.uom_unit, "UP"), 18.0)
+        self.assertEqual(
+            pack_6._round_to_packaging_multiple(14, self.uom_unit, "DOWN"), 12.0
+        )
+        self.assertEqual(
+            pack_6._round_to_packaging_multiple(14, self.uom_unit, "UP"), 18.0
+        )
 
     def test_minute_hour_roundtrip(self):
         """The Minutes factor must be exactly 1/60: with the historical
@@ -432,18 +448,21 @@ class TestUom(UomCommon):
             no_uom._compute_quantity(5.0, self.uom_gram),
         )
 
-    def test_get_reference_uom_uses_parent_path(self):
-        """The root is read off `parent_path` instead of walking one query per
-        level, and the answer is unchanged -- including for a new record, which
-        has no `parent_path` yet and still needs the walk."""
+    def test_get_reference_uom_reads_the_stored_dimension(self):
+        """The root is a stored, indexed column (`reference_uom_id`), not a
+        walk up `relative_uom_id` (one query per level) nor a `parent_path`
+        prefix. The answer is unchanged, including for a new record."""
         chain = self.uom_unit
         for i in range(4):
             chain = self.env["uom.uom"].create(
                 {"name": f"Link{i}", "relative_factor": 2, "relative_uom_id": chain.id}
             )
         self.assertEqual(chain._get_reference_uom(), self.uom_unit)
+        self.assertEqual(chain.reference_uom_id, self.uom_unit)
         self.assertEqual(self.uom_unit._get_reference_uom(), self.uom_unit)
         self.assertEqual(self.uom_ton._get_reference_uom(), self.uom_gram)
+        # A root is its own dimension.
+        self.assertEqual(self.uom_gram.reference_uom_id, self.uom_gram)
 
         # One query, whatever the depth of the chain. `browse` on its own is
         # what makes this measure anything: a recordset carried over from the
@@ -454,23 +473,254 @@ class TestUom(UomCommon):
         with self.assertQueryCount(1):
             cold._get_reference_uom().id
 
-        # New records have no parent_path: the walk is still the fallback.
+        # The dimension is a plain domain now, which is the point of storing it.
+        self.assertIn(
+            self.uom_ton,
+            self.env["uom.uom"].search([("reference_uom_id", "=", self.uom_gram.id)]),
+        )
+        self.assertNotIn(
+            self.uom_hour,
+            self.env["uom.uom"].search([("reference_uom_id", "=", self.uom_gram.id)]),
+        )
+
+        # New records are computed in memory and resolve the same way.
         draft = self.env["uom.uom"].new(
             {"name": "Draft", "relative_factor": 3, "relative_uom_id": self.uom_ton.id}
         )
-        self.assertFalse(draft.parent_path)
         self.assertEqual(draft._get_reference_uom(), self.uom_gram)
         self.assertTrue(draft._has_common_reference(self.uom_kgm))
         self.assertFalse(draft._has_common_reference(self.uom_hour))
+
+    def test_reference_uom_follows_a_reparent(self):
+        """`reference_uom_id` is recursive and stored, so moving a unit to
+        another dimension has to move its whole subtree with it."""
+        root = self.env["uom.uom"].create({"name": "NewRoot", "relative_factor": 1})
+        mid = self.env["uom.uom"].create(
+            {"name": "NewMid", "relative_factor": 10, "relative_uom_id": root.id}
+        )
+        leaf = self.env["uom.uom"].create(
+            {"name": "NewLeaf", "relative_factor": 10, "relative_uom_id": mid.id}
+        )
+        self.assertEqual(leaf.reference_uom_id, root)
+
+        mid.relative_uom_id = self.uom_gram
+        self.assertEqual(mid.reference_uom_id, self.uom_gram)
+        self.assertEqual(leaf.reference_uom_id, self.uom_gram, "the subtree moves too")
+        self.assertTrue(leaf._has_common_reference(self.uom_ton))
 
     def test_display_name_follows_a_parent_rename(self):
         """`display_name` interpolates the *parent's* name but did not depend
         on it, so renaming a reference unit left every child stale."""
         ctx = {"formatted_display_name": True}
         self.assertEqual(
-            self.uom_dozen.with_context(**ctx).display_name, "Dozens\t--12.0 Units--"
+            self.uom_dozen.with_context(**ctx).display_name, "Dozens\t--12 Units--"
         )
         self.uom_unit.name = "Pieces"
         self.assertEqual(
-            self.uom_dozen.with_context(**ctx).display_name, "Dozens\t--12.0 Pieces--"
+            self.uom_dozen.with_context(**ctx).display_name, "Dozens\t--12 Pieces--"
+        )
+
+
+class TestUomConversionScale(UomCommon):
+    """The conversion result is quantised at the destination unit's precision,
+    with no reference to how fine the source unit is.
+
+    None of this was covered: the only large-ratio test converts 1020000 g into
+    1.02 Ton, comfortably above the floor, so it passes whatever the floor does.
+    These are characterisation tests -- they pin today's behaviour so that any
+    change to the rounding rule has to state its intent rather than discover it.
+    """
+
+    def test_conversion_floor_is_the_destination_unit(self):
+        """A quantity below one quantum of the destination unit cannot be
+        represented, and the default `rounding_method="UP"` (taken by 295 of
+        the 308 call sites) turns that floor into inflation, not loss."""
+        self.assertEqual(self.uom_kgm._compute_quantity(1, self.uom_ton), 0.01)
+        self.assertEqual(
+            self.uom_kgm._compute_quantity(1, self.uom_ton, round=False), 0.001
+        )
+        # The floor is flat: every order of magnitude under it collapses onto
+        # the same value, so a comparison against it cannot separate them.
+        for qty in (0.5, 1, 5, 9.9):
+            with self.subTest(qty=qty):
+                self.assertEqual(
+                    self.uom_kgm._compute_quantity(qty, self.uom_ton), 0.01
+                )
+
+    def test_conversion_is_not_round_trip_stable(self):
+        """Converting out and back does not return the original quantity.
+        `stock.tests.test_move.TestStockMove.test_set_quantity_done_with_rounding_issues`
+        depends on it: a 150 g delivery of an oz-measured product reserves
+        149.97 g."""
+        oz = self.quick_ref("uom.product_uom_oz")
+        in_oz = self.uom_gram._compute_quantity(150, oz, rounding_method="HALF-UP")
+        self.assertEqual(in_oz, 5.29)
+        self.assertEqual(
+            oz._compute_quantity(in_oz, self.uom_gram, rounding_method="HALF-UP"),
+            149.97,
+        )
+        # The wider the ratio, the wider the drift.
+        self.assertEqual(self.uom_gram._compute_quantity(4999, self.uom_ton), 0.01)
+        self.assertEqual(self.uom_ton._compute_quantity(0.01, self.uom_gram), 10000.0)
+
+    def test_conversion_down_annihilates_below_the_floor(self):
+        """DOWN loses the quantity outright instead of inflating it."""
+        self.assertEqual(
+            self.uom_gram._compute_quantity(
+                0.966, self.uom_kgm, rounding_method="DOWN"
+            ),
+            0.0,
+        )
+        self.assertEqual(
+            self.uom_gram._compute_quantity(0.966, self.uom_kgm, round=False), 0.000966
+        )
+
+    def test_round_false_is_the_escape_hatch(self):
+        """A conversion whose result feeds a comparison rather than a stored
+        quantity has to opt out of rounding, or the floor decides the
+        comparison for it. `product.pricelist._compute_price_rule` did not, and
+        priced a 0.5 kg order at a 10 kg bulk tier."""
+        for qty, expected in ((0.5, 0.0005), (1, 0.001), (9.9, 0.0099)):
+            with self.subTest(qty=qty):
+                self.assertEqual(
+                    self.uom_kgm._compute_quantity(qty, self.uom_ton, round=False),
+                    expected,
+                )
+
+    def test_compute_quantity_always_returns_a_float(self):
+        """The degenerate-input guard handed its argument straight back, so a
+        `False` read off a half-filled record came out as `False`."""
+        for qty in (0, 0.0, False, None):
+            with self.subTest(qty=qty):
+                self.assertEqual(
+                    self.uom_gram._compute_quantity(qty, self.uom_kgm), 0.0
+                )
+                self.assertIsInstance(
+                    self.uom_gram._compute_quantity(qty, self.uom_kgm), float
+                )
+        self.assertEqual(self.env["uom.uom"]._compute_quantity(5.0, self.uom_gram), 5.0)
+
+
+class TestUomPriceDegradeWrappers(UomCommon):
+    """The price wrappers had no coverage at all, while the quantity ones had
+    four tests -- including the vendor-bill call site named in their docstring."""
+
+    def test_price_wrappers_degrade_on_incompatible_units(self):
+        self.assertFalse(self.uom_gram._has_common_reference(self.uom_hour))
+        for wrapper in (
+            self.uom_gram._compute_price_report,
+            self.uom_gram._compute_price_estimate,
+        ):
+            with self.subTest(wrapper=wrapper.__name__):
+                self.assertEqual(wrapper(100.0, self.uom_hour), 100.0)
+                self.assertEqual(
+                    wrapper(100.0, self.uom_hour, raise_if_failure=True),
+                    100.0,
+                    "The forced opt-out must not be overridable by the caller",
+                )
+
+    def test_price_wrappers_match_the_base_for_compatible_units(self):
+        cases = [
+            (self.uom_gram, 2.0, self.uom_ton),
+            (self.uom_ton, 2000000.0, self.uom_gram),
+        ]
+        for wrapper_name in ("_compute_price_report", "_compute_price_estimate"):
+            for src, price, dst in cases:
+                with self.subTest(wrapper=wrapper_name, src=src.name, dst=dst.name):
+                    self.assertEqual(
+                        getattr(src, wrapper_name)(price, dst),
+                        src._compute_price(price, dst),
+                    )
+
+    def test_price_wrappers_do_not_escalate_under_the_posting_context(self):
+        """Only the *quantity* reconcile wrapper escalates on
+        `uom_reconcile_strict`. There is no price equivalent, and the price
+        wrappers must not acquire one by accident."""
+        strict = self.uom_gram.with_context(uom_reconcile_strict=True)
+        for wrapper_name in ("_compute_price_report", "_compute_price_estimate"):
+            with self.subTest(wrapper=wrapper_name):
+                self.assertEqual(
+                    getattr(strict, wrapper_name)(100.0, self.uom_hour), 100.0
+                )
+
+
+class TestUomSmallApiGaps(UomCommon):
+    def test_round_accepts_an_unset_unit_like_compare_and_is_zero(self):
+        """`round` ignores `self` exactly as `compare` and `is_zero` do, so it
+        takes the same receivers. It was the last of the three to raise."""
+        no_uom = self.env["uom.uom"]
+        self.assertEqual(no_uom.round(1.234), self.uom_unit.round(1.234))
+        self.assertEqual(no_uom.round(1.235, rounding_method="DOWN"), 1.23)
+        with self.assertRaises(ValueError):
+            (self.uom_unit | self.uom_dozen).round(1.234)
+
+    def test_a_hand_set_sequence_of_zero_survives_a_factor_write(self):
+        """The guard read `uom.sequence` for truthiness, so the 0 the handle
+        widget writes for a first row was taken to mean "unset" and recomputed
+        away on the next `relative_factor` edit."""
+        uom = self.env["uom.uom"].create(
+            {"name": "Seq", "relative_factor": 3, "relative_uom_id": self.uom_unit.id}
+        )
+        self.assertEqual(uom.sequence, 300)
+        uom.sequence = 0
+        uom.relative_factor = 9
+        self.assertEqual(uom.sequence, 0)
+
+    def test_a_computed_sequence_is_never_zero(self):
+        """...which is only unambiguous because a computed sequence has a floor
+        of 1: `relative_factor < 0.01` used to land on 0 by itself."""
+        tiny = self.env["uom.uom"].create(
+            {
+                "name": "Tiny",
+                "relative_factor": 0.004,
+                "relative_uom_id": self.uom_unit.id,
+            }
+        )
+        self.assertEqual(tiny.sequence, 1)
+
+    def test_protection_covers_master_data_from_any_module(self):
+        """Sixteen modules ship `uom.uom` records. The protection query was
+        pinned to `module = "uom"`, so a leaf from any of the others deleted
+        cleanly and took its xml id with it."""
+        foreign = self.env["uom.uom"].create({"name": "MX-KGM", "relative_factor": 1})
+        self.env["ir.model.data"].create(
+            {
+                "module": "l10n_fake",
+                "name": "product_uom_mx",
+                "model": "uom.uom",
+                "res_id": foreign.id,
+            }
+        )
+        self.assertEqual(foreign._filter_protected_uoms(), foreign)
+        with self.assertRaises(UserError):
+            foreign.unlink()
+        self.assertEqual(self.env.ref("l10n_fake.product_uom_mx"), foreign)
+
+    def test_unprotected_units_are_still_deletable_from_another_module(self):
+        """Dropping the module filter must not turn the guard into a blanket
+        ban: the unprotected xml ids stay unprotected whoever declares them."""
+        loose = self.env["uom.uom"].create({"name": "Loose", "relative_factor": 1})
+        self.env["ir.model.data"].create(
+            {
+                "module": "l10n_fake",
+                "name": "product_uom_dozen",
+                "model": "uom.uom",
+                "res_id": loose.id,
+            }
+        )
+        self.assertFalse(loose._filter_protected_uoms())
+        loose.unlink()
+        self.assertFalse(loose.exists())
+
+    def test_display_name_renders_a_non_integer_factor_for_humans(self):
+        """`relative_factor` is an unlimited NUMERIC, so interpolating the raw
+        float printed "Minutes --0.016666666666666666 Hours--"."""
+        ctx = {"formatted_display_name": True}
+        minute = self.quick_ref("uom.product_uom_minute")
+        self.assertEqual(
+            minute.with_context(**ctx).display_name, "Minutes\t--0.0166667 Hours--"
+        )
+        floz = self.quick_ref("uom.product_uom_floz")
+        self.assertEqual(
+            floz.with_context(**ctx).display_name, "fl oz (US)\t--0.0295735 L--"
         )
