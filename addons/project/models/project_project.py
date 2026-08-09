@@ -14,7 +14,7 @@ from odoo.tools.cache_version import versioned_envelope
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
 
-from .project_task import CLOSED_STATES
+from .project_task import CLOSED_STATES, DELIVERED_STATES
 from .project_update import STATUS_COLOR
 from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.rating.models import rating_data
@@ -1023,8 +1023,21 @@ class ProjectProject(models.Model):
                 new_start = (
                     calendar.plan_hours(0.0, latest_end) if calendar else latest_end
                 )
-                # Only shift if within float allowance
-                shift_hours = (new_start - task.cpm_date_start).total_seconds() / 3600
+                # Measure the shift on the same axis as the float it is checked
+                # against. ``total_float`` comes off the CPM abstract-hour axis,
+                # which is WORKING time; elapsed wall-clock between two dates is
+                # always >= that, so comparing the two rejected shifts that fit
+                # comfortably. Measured on a three-task project: 15h of float,
+                # a move needing ~8 working hours, refused because those 8 hours
+                # spanned 50h of wall clock. Levelling did nothing at all
+                # whenever a shift crossed a night or a weekend, i.e. always.
+                shift_hours = (
+                    calendar.get_work_duration_data(
+                        task.cpm_date_start, new_start, compute_leaves=True
+                    )["hours"]
+                    if calendar and new_start > task.cpm_date_start
+                    else (new_start - task.cpm_date_start).total_seconds() / 3600
+                )
                 if 0 < shift_hours <= max_shift_hours:
                     # Shifting preserves the activity's DURATION, not its
                     # effort: plan_hours must advance by the same working span
@@ -1113,29 +1126,29 @@ class ProjectProject(models.Model):
                 -- Schedule: pct of open tasks with deadline that are not overdue
                 CASE
                     WHEN COUNT(*) FILTER (
-                        WHERE t.state NOT IN ('done', 'canceled')
+                        WHERE t.state NOT IN %(closed_states)s
                           AND t.date_end IS NOT NULL
                     ) = 0 THEN 100.0
                     ELSE 100.0 * COUNT(*) FILTER (
-                        WHERE t.state NOT IN ('done', 'canceled')
+                        WHERE t.state NOT IN %(closed_states)s
                           AND t.date_end IS NOT NULL
                           AND t.date_end >= %(now)s
                     ) / NULLIF(COUNT(*) FILTER (
-                        WHERE t.state NOT IN ('done', 'canceled')
+                        WHERE t.state NOT IN %(closed_states)s
                           AND t.date_end IS NOT NULL
                     ), 0)
                 END AS schedule_score,
                 -- Staleness: pct of open tasks not rotting
                 CASE
                     WHEN COUNT(*) FILTER (
-                        WHERE t.state NOT IN ('done', 'canceled')
+                        WHERE t.state NOT IN %(closed_states)s
                     ) = 0 THEN 100.0
                     ELSE 100.0 * COUNT(*) FILTER (
-                        WHERE t.state NOT IN ('done', 'canceled')
+                        WHERE t.state NOT IN %(closed_states)s
                           AND COALESCE(t.date_last_status_change, t.create_date)
                               >= %(now)s - INTERVAL '14 days'
                     ) / NULLIF(COUNT(*) FILTER (
-                        WHERE t.state NOT IN ('done', 'canceled')
+                        WHERE t.state NOT IN %(closed_states)s
                     ), 0)
                 END AS staleness_score
             FROM project_task t
@@ -1145,6 +1158,7 @@ class ProjectProject(models.Model):
             GROUP BY t.project_id
             """,
                 project_ids=tuple(self.ids),
+                closed_states=tuple(CLOSED_STATES),
                 now=now,
             )
         )
@@ -1287,42 +1301,42 @@ class ProjectProject(models.Model):
                 project_id,
                 -- WIP: open non-blocked tasks
                 COUNT(*) FILTER (
-                    WHERE state NOT IN ('done', 'canceled', 'blocked')
+                    WHERE state NOT IN %(wip_excluded_states)s
                 ) AS wip_count,
                 -- Avg lead time: create→close (closed in last 90 days).
                 -- NOTE: date_closed is the actual completion timestamp; date_end
                 -- is the (renamed) deadline. Rolling windows must key off closure.
                 AVG(lead_time_hours) FILTER (
-                    WHERE state = 'done'
+                    WHERE state IN %(delivered_states)s
                       AND date_closed >= %(now)s - INTERVAL '90 days'
                       AND lead_time_hours > 0
                 ) AS avg_lead_time,
                 -- Avg cycle time: assign→close (closed in last 90 days)
                 AVG(cycle_time_hours) FILTER (
-                    WHERE state = 'done'
+                    WHERE state IN %(delivered_states)s
                       AND date_closed >= %(now)s - INTERVAL '90 days'
                       AND cycle_time_hours > 0
                 ) AS avg_cycle_time,
                 -- Throughput: tasks closed in last 28 days / 4
                 COUNT(*) FILTER (
-                    WHERE state = 'done'
+                    WHERE state IN %(delivered_states)s
                       AND date_closed >= %(now)s - INTERVAL '28 days'
                 ) / 4.0 AS throughput_week,
                 -- Deadline compliance: pct of deadline-having closed tasks whose
                 -- actual closure (date_closed) landed on or before the deadline.
                 CASE
                     WHEN COUNT(*) FILTER (
-                        WHERE state = 'done'
+                        WHERE state IN %(delivered_states)s
                           AND date_end IS NOT NULL
                           AND date_closed IS NOT NULL
                     ) = 0 THEN 0.0
                     ELSE 100.0 * COUNT(*) FILTER (
-                        WHERE state = 'done'
+                        WHERE state IN %(delivered_states)s
                           AND date_end IS NOT NULL
                           AND date_closed IS NOT NULL
                           AND date_closed <= date_end
                     ) / COUNT(*) FILTER (
-                        WHERE state = 'done'
+                        WHERE state IN %(delivered_states)s
                           AND date_end IS NOT NULL
                           AND date_closed IS NOT NULL
                     )
@@ -1336,6 +1350,8 @@ class ProjectProject(models.Model):
             GROUP BY project_id
             """,
                 project_ids=tuple(self.ids),
+                delivered_states=DELIVERED_STATES,
+                wip_excluded_states=(*CLOSED_STATES, "blocked"),
                 now=now,
             )
         )
@@ -1829,19 +1845,54 @@ class ProjectProject(models.Model):
         )
 
     @api.model
-    def name_create(self, name: str) -> tuple[int, str]:
-        res = super().name_create(name)
-        if res:
-            # Create the default `New` step already bound to the project.
-            # Linking it afterwards through the project side skipped
-            # project.workflow.step.create(), which is what enforces that a
-            # step is either a project step or a personal one — so the step
-            # came out owned by whoever created the project AND attached to it,
-            # violating the invariant the model exists to guarantee.
-            self.env["project.workflow.step"].sudo().create(
-                {"name": _("New"), "project_ids": [Command.link(res[0])]}
+    def _check_date_pair(self, date_start: Any, date_end: Any) -> None:
+        """A project has both scheduling dates or neither.
+
+        The timeline/Gantt range needs both ends, so rather than silently
+        wiping the counterpart or dropping the user's input, reject the
+        half-set combination and say what to do about it.
+
+        Enforced on ``create`` as well as ``write``. It used to guard ``write``
+        alone, which produced the worst of both: a one-sided project was
+        creatable but then unrepairable field-by-field, and ``project.date = x``
+        — the obvious API call, and the one the ``date_end`` alias funnels into
+        — raised on any project that had no start date yet.
+        """
+        if bool(date_start) != bool(date_end):
+            raise UserError(
+                self.env._(
+                    "A project's start date and expiration date must be set "
+                    "together: define both or clear both."
+                )
             )
-        return res
+
+    def _seed_default_workflow_step(self) -> None:
+        """Give every project that has no board column a first one.
+
+        A project with no ``project.workflow.step`` has no Kanban column, and
+        every task created in it lands on ``step_id = False``. Adding a column
+        later does NOT adopt those tasks — they stay off the board until each
+        one is moved by hand — so the empty state is not recoverable by using
+        the product normally.
+
+        This used to live in ``name_create``, i.e. only the quick-create you
+        get by typing a project name into a Many2one dropdown. Form Save,
+        imports, scripts and ``action_create_from_template`` all go through
+        ``create`` and got nothing.
+
+        Seeded only where a project ended up with no step at all, so copies and
+        template instantiations (which bring the source's columns with them)
+        are left alone.
+        """
+        stepless = self.filtered(lambda project: not project.workflow_step_ids)
+        if not stepless:
+            return
+        self.env["project.workflow.step"].sudo().create(
+            [
+                {"name": _("New"), "project_ids": [Command.link(project.id)]}
+                for project in stepless
+            ]
+        )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -1887,7 +1938,10 @@ class ProjectProject(models.Model):
         for vals in vals_list:
             if vals.pop("is_favorite", False):
                 vals["favorite_user_ids"] = [self.env.uid]
-        return super().create(vals_list)
+            self._check_date_pair(vals.get("date_start"), vals.get("date"))
+        projects = super().create(vals_list)
+        projects._seed_default_workflow_step()
+        return projects
 
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("access_token"):
@@ -1943,21 +1997,12 @@ class ProjectProject(models.Model):
         if vals.get("privacy_visibility"):
             self._change_privacy_visibility(vals["privacy_visibility"])
 
-        # A project's start date and expiration date form a pair: a project has
-        # both or neither (the timeline/Gantt range needs both ends). Rather than
-        # silently wiping the counterpart or dropping the user's input, reject a
-        # write that would leave exactly one side set, telling the user what to do.
         if "date_start" in vals or "date" in vals:
             for project in self:
-                new_start = vals.get("date_start", project.date_start)
-                new_end = vals.get("date", project.date)
-                if bool(new_start) != bool(new_end):
-                    raise UserError(
-                        self.env._(
-                            "A project's start date and expiration date must be set "
-                            "together: define both or clear both."
-                        )
-                    )
+                self._check_date_pair(
+                    vals.get("date_start", project.date_start),
+                    vals.get("date", project.date),
+                )
 
         res = super().write(vals) if vals else True
 

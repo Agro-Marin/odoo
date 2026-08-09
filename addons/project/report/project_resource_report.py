@@ -5,8 +5,10 @@ baseline), Flyvbjerg (92% of megaprojects over budget — overcommitment
 is the norm). This report makes invisible overallocation visible.
 """
 
-from odoo import fields, models, tools
+from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+
+from odoo.addons.project.models.project_task import CLOSED_STATES
 
 
 class ProjectResourceReport(models.Model):
@@ -57,7 +59,8 @@ class ProjectResourceReport(models.Model):
         per-resource reservation row is canonical.
         """
         drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute(f"""
+        self.env.cr.execute(
+            f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 WITH reservations AS (
                     SELECT
@@ -74,7 +77,7 @@ class ProjectResourceReport(models.Model):
                     JOIN project_task t
                          ON t.id = rr.res_id
                         AND rr.res_model = 'project.task'
-                    WHERE t.state NOT IN ('done', 'canceled')
+                    WHERE t.state <> ALL(%s)
                       AND t.project_id IS NOT NULL
                       AND t.is_template IS NOT TRUE
                       AND t.active = TRUE
@@ -125,4 +128,6 @@ class ProjectResourceReport(models.Model):
                 JOIN user_totals ut ON ut.user_id = up.user_id
                 LEFT JOIN user_peak pk ON pk.user_id = up.user_id
             )
-        """)
+            """,
+            (list(CLOSED_STATES),),
+        )

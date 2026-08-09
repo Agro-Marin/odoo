@@ -36,8 +36,14 @@ class ProjectTags(models.Model):
         "project.task", string="Tasks", export_string_translation=False
     )
 
-    _name_uniq = models.Constraint(
-        "unique (name)",
+    # ``name`` is ``translate=True``, so PostgreSQL stores it as jsonb and a
+    # plain ``UNIQUE (name)`` compares whole translation documents: once a
+    # second language exists, {"en_US": "Bug", "fr_FR": "Bogue"} and
+    # {"en_US": "Bug"} are different values and both are accepted, leaving two
+    # tags called "Bug". Index the source term instead, which is the one the
+    # user types and the one ``name_create`` de-duplicates against.
+    _name_uniq = models.UniqueIndex(
+        "((name ->> 'en_US'))",
         "A tag with the same name already exists.",
     )
 

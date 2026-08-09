@@ -715,7 +715,9 @@ class TestAuditFixesBatchC(TestProjectCommon):
         task closure), not the snapshot date."""
         start = fields.Date.today() - timedelta(days=100)
         project = self.env["project.project"].create(
-            {"name": "HistProj", "date_start": start}
+            # Both dates: a project carries its scheduling pair or neither
+            # (owner-confirmed rule, now enforced on create as well as write).
+            {"name": "HistProj", "date_start": start, "date": fields.Date.today()}
         )
         task = self.env["project.task"].create({"name": "T", "project_id": project.id})
         # Completed 90 days after start (10 days before "today").
@@ -907,22 +909,22 @@ class TestAuditFixesBatchD(TestProjectCommon):
         # Reading the count on an unsaved record must not raise.
         self.assertEqual(new_task.successor_count, 1)
 
-    def test_workflow_step_clear_command_keeps_owner(self) -> None:
-        """Creating a step with a clear/empty project command must keep it a
-        personal stage (user_id set), not orphan it.
+    def test_workflow_step_clear_command_creates_an_unattached_step(self) -> None:
+        """A clear/empty project command yields a step with no project.
 
-        Bug: `if vals.get("project_ids")` treated [(5,)] / [(6,0,[])] as truthy
-        and wiped user_id."""
+        This used to assert that such a step became a *personal stage*
+        (``user_id`` set). That field is gone — personal buckets are
+        ``project.triage`` — so what matters now is only that the commands are
+        resolved rather than treated as truthy: [(5,)] and [(6,0,[])] must not
+        be mistaken for a project assignment."""
         Step = self.env["project.workflow.step"]
         for command in ([(5,)], [(6, 0, [])]):
-            step = Step.create({"name": "Personal", "project_ids": command})
-            self.assertTrue(step.user_id, f"{command}: must remain a personal stage")
+            step = Step.create({"name": "Unattached", "project_ids": command})
             self.assertFalse(step.project_ids, f"{command}: must have no project")
-        # A real project assignment still clears the owner.
         proj_step = Step.create(
             {"name": "Proj", "project_ids": [(4, self.project_pigs.id)]}
         )
-        self.assertFalse(proj_step.user_id, "a project stage must not have an owner")
+        self.assertEqual(proj_step.project_ids, self.project_pigs)
 
     def test_task_count_archived_project_in_mixed_recordset(self) -> None:
         """task_count of an archived project must not read 0 just because the

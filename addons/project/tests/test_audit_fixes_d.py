@@ -564,15 +564,15 @@ class TestAuditFixesDMisc(TestProjectCommon):
         """The signature advertised date_to as optional but crashed without it."""
         self.env["project.task"].get_unusual_days("2026-07-01")  # must not raise
 
-    def test_name_create_step_respects_the_stage_invariant(self) -> None:
-        """A project created on the fly produced a step that was both a
-        project stage and someone's personal stage."""
+    def test_name_create_seeds_a_default_step(self) -> None:
+        """A project created on the fly still gets its first board column.
+
+        The seeding moved from ``name_create`` to ``create`` (so the form,
+        imports and scripts get one too); this pins that the dropdown
+        quick-create did not lose it in the move."""
         project_id, _name = self.env["project.project"].name_create("On the fly")
         step = self.env["project.project"].browse(project_id).workflow_step_ids
-        self.assertTrue(step)
-        self.assertFalse(
-            step.user_id, "a step attached to a project must not have an owner"
-        )
+        self.assertEqual(len(step), 1)
 
     def test_retrospective_actions_list_open_items_first(self) -> None:
         """_order sorted on the raw selection keys, putting Done above Open."""

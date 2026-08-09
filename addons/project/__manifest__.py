@@ -1,6 +1,6 @@
 {
     "name": "Project",
-    "version": "1.12",
+    "version": "1.13",
     "website": "https://www.odoo.com/app/project",
     "category": "Services/Project",
     "sequence": 45,
@@ -84,9 +84,8 @@
             "project/static/src/scss/project_form.scss",
             "project/static/src/scss/project_widgets.scss",
             "project/static/src/xml/**/*",
-                    ],
-        "web.assets_web_dark": [
         ],
+        "web.assets_web_dark": [],
         "web.assets_frontend": [
             "project/static/src/scss/portal_rating.scss",
             "project/static/src/interactions/*",

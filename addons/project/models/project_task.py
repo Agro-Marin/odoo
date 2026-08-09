@@ -10,6 +10,7 @@ from odoo import SUPERUSER_ID, _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Date, Domain
+from odoo.libs.intervals import Intervals
 from odoo.tools import (
     SQL,
     LazyTranslate,
@@ -18,6 +19,7 @@ from odoo.tools import (
     format_list,
     html_sanitize,
 )
+from odoo.tools.date_utils import localized
 
 from odoo.addons.html_editor.tools import handle_history_divergence
 from odoo.addons.mail.tools.discuss import Store
@@ -76,6 +78,11 @@ PROJECT_TASK_READABLE_FIELDS = {
     "cd3_score",
     "access_token",
     "access_url",
+    # Readable, never writable — see the note under the writable set. The
+    # portal's task list offers "Last Status Change" as a sort option, so the
+    # read has to stay.
+    "date_last_status_change",
+    "is_closed",
 }
 
 PROJECT_TASK_WRITABLE_FIELDS = {
@@ -84,7 +91,6 @@ PROJECT_TASK_WRITABLE_FIELDS = {
     "partner_id",
     "planned_date_begin",
     "date_end",
-    "date_last_status_change",
     "tag_ids",
     "sequence",
     "step_id",
@@ -93,13 +99,34 @@ PROJECT_TASK_WRITABLE_FIELDS = {
     "parent_id",
     "priority",
     "state",
-    "is_closed",
 }
+# NB: ``date_last_status_change`` and ``is_closed`` used to be in the writable
+# set. Neither belongs there. ``readonly=True`` is a client-side hint, not an
+# ORM guard, so listing the first let a portal collaborator stamp any value
+# they liked onto the timestamp that drives rotting, stage-duration tracking
+# and the burndown chart. The second is a non-stored compute with no inverse,
+# so writing it was accepted and silently did nothing. Both stay readable.
 
 CLOSED_STATES = {
     "done": "Done",
     "canceled": "Cancelled",
 }
+
+# Closed is not the same as delivered, and the metrics need both.
+#
+# ``CLOSED_STATES`` answers "is this task still in play?" — it drives WIP,
+# staleness and the open/closed counters, and a cancelled task is out of play.
+# ``DELIVERED_STATES`` answers "did this task ship?" — it drives throughput,
+# lead/cycle time and deadline compliance, where a cancellation is not a
+# delivery and must not count as one in either the numerator or the
+# denominator. A cancelled task did not miss its deadline; it was abandoned.
+#
+# Both are exported for SQL: the analytics computes in project_project.py and
+# the report views used to spell ``'done', 'canceled'`` by hand in seventeen
+# places, which is how the project-level deadline metric came to disagree with
+# the task-level ``deadline_met`` field. Pass these as query parameters instead
+# of retyping the literals.
+DELIVERED_STATES = ("done",)
 
 # Review verdicts: they describe the outcome of examining the task where it
 # stood, so moving it to another workflow step makes them stale and they fall
@@ -1068,6 +1095,33 @@ class ProjectTask(models.Model):
             for blocking_task in self.predecessor_ids
         )
 
+    def _apply_predecessor_block(self) -> None:
+        """Put newly created tasks that already have an open predecessor into
+        ``blocked``.
+
+        ``_compute_state`` cannot do this at create time: ``state`` carries a
+        ``default``, so the ORM writes ``todo`` straight to the row and the
+        compute is never invoked (instrumented: zero calls). The record then
+        stored ``todo`` while ``is_blocked_by_predecessors()`` answered True —
+        the same fact, two answers, depending on whether the dependency arrived
+        in the create call or in a later write.
+
+        The form was never affected (its onchange chain runs the compute), so
+        this is about every other producer: ``create`` from other modules,
+        ``_load_records_create``, and the spreadsheet import, where a batch of
+        dependent tasks all landed unblocked.
+        """
+        blocked = self.sudo().filtered(
+            lambda task: (
+                task.allow_dependencies
+                and task.state not in CLOSED_STATES
+                and task.state != "blocked"
+                and task.is_blocked_by_predecessors()
+            )
+        )
+        if blocked:
+            blocked.state = "blocked"
+
     def _inverse_state(self) -> None:
         last_task_id_per_recurrence_id = (
             self.recurrence_id._get_last_task_id_per_recurrence_id()
@@ -1430,41 +1484,89 @@ class ProjectTask(models.Model):
 
         Falls back to elapsed wall-clock time when no calendar resolves — for a
         private task, or a company with no working time configured. Reporting
-        0.0 there, as this used to, does not read as "unknown": it reads as
-        delivered instantly, and it silently flattened the flow metrics of
-        every such task.
+        0.0 there does not read as "unknown": it reads as delivered instantly,
+        and it silently flattened the flow metrics of every such task.
+
+        One calendar round-trip per (calendar, leave domain), not per task per
+        span. This used to call ``get_work_duration_data`` three times for every
+        record — measured at exactly 3.00 calls and 3 extra queries per task,
+        with no caching between identical runs — which every bulk close, bulk
+        assign and calendar change paid in full: ~3 000 queries to close 1 000
+        tasks. The batch form asks the calendar for the whole window once and
+        intersects each span against the result, which is what
+        ``get_work_duration_data`` does internally anyway.
         """
+        by_calendar = defaultdict(lambda: self.env["project.task"])
         for task in self:
             if not task.create_date:
                 task._set_elapsed()
                 continue
-            calendar = task.project_id.resource_calendar_id
+            key = (
+                task.project_id.resource_calendar_id.id,
+                tuple(task.project_id.company_id.ids),
+            )
+            by_calendar[key] |= task
+
+        for (calendar_id, company_ids), tasks in by_calendar.items():
+            calendar = self.env["resource.calendar"].browse(calendar_id)
+            if not calendar:
+                for task in tasks:
+                    task._set_elapsed(**task._elapsed_spans_wall_clock())
+                continue
             leave_domain = [
-                ("company_id", "in", task.project_id.company_id.ids),
+                ("company_id", "in", list(company_ids)),
                 ("time_type", "=", "leave"),
             ]
+            bounds = [
+                value
+                for task in tasks
+                for value in (task.create_date, task.date_assign, task.date_closed)
+                if value
+            ]
+            intervals = calendar._work_intervals_batch(
+                localized(min(bounds)),
+                localized(max(bounds)),
+                domain=leave_domain,
+            )[False]
+            for task in tasks:
+                task._set_elapsed(**task._elapsed_spans_calendar(calendar, intervals))
 
-            def span(start, stop, calendar=calendar, leave_domain=leave_domain):
-                if not (start and stop):
-                    return 0.0, 0.0
-                if calendar:
-                    data = calendar.get_work_duration_data(
-                        fields.Datetime.from_string(start),
-                        fields.Datetime.from_string(stop),
-                        compute_leaves=True,
-                        domain=leave_domain,
-                    )
-                    return data["hours"], data["days"]
-                elapsed = fields.Datetime.from_string(
-                    stop
-                ) - fields.Datetime.from_string(start)
-                hours = elapsed.total_seconds() / 3600
-                return hours, elapsed.days
+    def _elapsed_spans_wall_clock(self) -> dict[str, tuple[float, float]]:
+        """Queue/lead/cycle as raw elapsed time, for tasks with no calendar."""
+        self.ensure_one()
 
-            queue = span(task.create_date, task.date_assign)
-            lead = span(task.create_date, task.date_closed)
-            cycle = span(task.date_assign, task.date_closed)
-            task._set_elapsed(queue=queue, lead=lead, cycle=cycle)
+        def span(start, stop):
+            if not (start and stop):
+                return 0.0, 0.0
+            elapsed = stop - start
+            return elapsed.total_seconds() / 3600, elapsed.days
+
+        return {
+            "queue": span(self.create_date, self.date_assign),
+            "lead": span(self.create_date, self.date_closed),
+            "cycle": span(self.date_assign, self.date_closed),
+        }
+
+    def _elapsed_spans_calendar(
+        self, calendar: Any, intervals: Any
+    ) -> dict[str, tuple[float, float]]:
+        """Queue/lead/cycle clipped out of one pre-computed interval set."""
+        self.ensure_one()
+
+        def span(start, stop):
+            if not (start and stop) or start >= stop:
+                return 0.0, 0.0
+            clipped = intervals & Intervals(
+                [(localized(start), localized(stop), self.env["resource.calendar"])]
+            )
+            data = calendar._get_attendance_intervals_days_data(clipped)
+            return data["hours"], data["days"]
+
+        return {
+            "queue": span(self.create_date, self.date_assign),
+            "lead": span(self.create_date, self.date_closed),
+            "cycle": span(self.date_assign, self.date_closed),
+        }
 
     def _set_elapsed(self, queue=(0.0, 0.0), lead=(0.0, 0.0), cycle=(0.0, 0.0)) -> None:
         self.queue_time_hours, self.queue_time_days = queue
@@ -1473,14 +1575,21 @@ class ProjectTask(models.Model):
 
     @api.depends("date_closed", "date_end", "state")
     def _compute_deadline_met(self) -> None:
-        """Determine whether a closed task met its deadline.
+        """Determine whether a delivered task met its deadline.
 
-        Tri-state: empty (no deadline, or not yet closed), 'met', or 'missed'.
-        The empty case must stay distinct from 'missed' so reports don't count
-        deadline-less closed tasks as late.
+        Tri-state: empty (no deadline, not delivered), 'met', or 'missed'. The
+        empty case must stay distinct from 'missed' so reports don't count
+        deadline-less tasks as late.
+
+        Keyed on ``DELIVERED_STATES``, not ``CLOSED_STATES``: a cancelled task
+        did not miss its deadline, it was abandoned, and counting it as a miss
+        punishes teams for killing work early. This also makes the field agree
+        with ``project.deadline_compliance_pct``, which has always measured
+        delivered work only — the two used to return different answers about
+        the same task.
         """
         for task in self:
-            if not task.date_end or task.state not in CLOSED_STATES:
+            if not task.date_end or task.state not in DELIVERED_STATES:
                 task.deadline_met = False
             elif task.date_closed and task.date_closed <= task.date_end:
                 task.deadline_met = "met"
@@ -2368,6 +2477,7 @@ class ProjectTask(models.Model):
         tasks.sudo()._populate_missing_triages()
         if not self_ctx.env.context.get("skip_dependency_sync"):
             tasks.filtered("predecessor_ids")._sync_dependency_rows()
+        tasks._apply_predecessor_block()
         self_ctx._task_message_auto_subscribe_notify(
             {task: task.user_ids - self_ctx.env.user for task in tasks}
         )
@@ -2496,8 +2606,16 @@ class ProjectTask(models.Model):
         now = fields.Datetime.now()
         if "step_id" in vals:
             if "project_id" not in vals and self.filtered(lambda t: not t.project_id):
+                # The old text ("You can only set a personal stage on a private
+                # task.") named the one thing this guard then refused, and it
+                # described a feature that no longer exists: personal stages are
+                # project.triage buckets, not workflow steps.
                 raise UserError(
-                    _("You can only set a personal stage on a private task.")
+                    _(
+                        "A private task has no workflow step — steps belong to a "
+                        "project's board. Move the task into a project first, or "
+                        "use a personal triage bucket to organise it."
+                    )
                 )
 
             additional_vals["date_last_status_change"] = now
@@ -2529,8 +2647,17 @@ class ProjectTask(models.Model):
         # Track user_ids to send assignment notifications
         old_user_ids = {t: t.user_ids for t in self.sudo()}
 
+        # Clearing the personal triage: honour it instead of dropping the key.
+        # ``triage_id`` is a non-stored related through ``personal_triage_id``,
+        # whose inverse has nothing to write to when the value is False, so the
+        # write used to be deleted here and report success while the task stayed
+        # in its bucket. Clear the junction row directly — the only thing that
+        # ever held the value — and keep the key out of super().write().
         if "triage_id" in vals and not vals["triage_id"]:
             del vals["triage_id"]
+            self.env["project.task.triage"].sudo().search(
+                [("task_id", "in", self.ids), ("user_id", "=", self.env.uid)]
+            ).triage_id = False
 
         # sends an email to the 'Task Creation' subtype subscribers
         # When project_id is changed
@@ -2902,7 +3029,13 @@ class ProjectTask(models.Model):
     # Subtasks
     # ---------------------------------------------------
 
-    @api.depends("parent_id.partner_id", "project_id", "project_id.partner_id")
+    @api.depends(
+        "parent_id",
+        "parent_id.partner_id",
+        "project_id",
+        "project_id.partner_id",
+        "has_template_ancestor",
+    )
     def _compute_partner_id(self) -> None:
         """Compute the partner_id when the tasks have no partner_id.
 

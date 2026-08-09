@@ -197,7 +197,13 @@ class TestProjectBase(TestProjectCommon):
         )
 
     def test_auto_assign_stages_when_importing_tasks(self) -> None:
-        self.assertFalse(self.project_pigs.workflow_step_ids)
+        """Importing a task carrying a step adds that step to its project.
+
+        Every project now starts with one seeded column, so the assertions are
+        about what the import *adds*, not about the project starting empty.
+        """
+        seeded = self.project_pigs.workflow_step_ids
+        self.assertEqual(len(seeded), 1, "a project starts with one column")
         self.assertEqual(len(self.project_goats.workflow_step_ids), 2)
         first_stage = self.project_goats.workflow_step_ids[0]
         self.env["project.task"]._load_records_create(
@@ -209,7 +215,7 @@ class TestProjectBase(TestProjectCommon):
                 }
             ]
         )
-        self.assertEqual(self.project_pigs.workflow_step_ids, first_stage)
+        self.assertEqual(self.project_pigs.workflow_step_ids, seeded | first_stage)
         self.env["project.task"]._load_records_create(
             [
                 {
@@ -221,7 +227,8 @@ class TestProjectBase(TestProjectCommon):
             ]
         )
         self.assertEqual(
-            self.project_pigs.workflow_step_ids, self.project_goats.workflow_step_ids
+            self.project_pigs.workflow_step_ids,
+            seeded | self.project_goats.workflow_step_ids,
         )
 
     def test_filter_visibility_unread_messages(self) -> None:

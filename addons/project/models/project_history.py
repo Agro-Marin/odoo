@@ -7,6 +7,8 @@ view' corrects systematic optimism bias.
 
 from odoo import Command, api, fields, models
 
+from .project_task import CLOSED_STATES, DELIVERED_STATES
+
 
 class ProjectHistory(models.Model):
     """Archived project metrics for reference class comparison."""
@@ -126,7 +128,7 @@ class ProjectHistory(models.Model):
         # task closure), NOT when this snapshot happens to be taken. Otherwise a
         # project archived months after it ended records an inflated duration,
         # corrupting the reference-class forecasting this model feeds.
-        closed_tasks = tasks.filtered(lambda t: t.state in ("done", "canceled"))
+        closed_tasks = tasks.filtered(lambda t: t.state in CLOSED_STATES)
         closed_dates = closed_tasks.filtered("date_closed").mapped("date_closed")
         completion_date = (
             max(closed_dates).date() if closed_dates else fields.Date.today()
@@ -143,15 +145,27 @@ class ProjectHistory(models.Model):
         actual_hours = 0.0
         if "effective_hours" in Task._fields:
             actual_hours = sum(tasks.mapped("effective_hours"))
+        # Flow and compliance describe DELIVERED work, matching the live
+        # project fields this snapshot is meant to be comparable with
+        # (avg_lead_time, avg_cycle_time, deadline_compliance_pct all key off
+        # DELIVERED_STATES). Averaging a cancelled task's lead time in, or
+        # counting its deadline as missed, made a project that killed doomed
+        # work early look worse than one that let it run — the opposite of the
+        # lesson this reference class exists to teach.
+        delivered_tasks = tasks.filtered(lambda t: t.state in DELIVERED_STATES)
         avg_lt = 0.0
         avg_ct = 0.0
-        if closed_tasks:
-            lt_values = [t.lead_time_hours for t in closed_tasks if t.lead_time_hours]
+        if delivered_tasks:
+            lt_values = [
+                t.lead_time_hours for t in delivered_tasks if t.lead_time_hours
+            ]
             avg_lt = sum(lt_values) / len(lt_values) if lt_values else 0.0
-            ct_values = [t.cycle_time_hours for t in closed_tasks if t.cycle_time_hours]
+            ct_values = [
+                t.cycle_time_hours for t in delivered_tasks if t.cycle_time_hours
+            ]
             avg_ct = sum(ct_values) / len(ct_values) if ct_values else 0.0
 
-        dl_tasks = closed_tasks.filtered("date_end")
+        dl_tasks = delivered_tasks.filtered("date_end")
         dl_pct = 0.0
         if dl_tasks:
             met = dl_tasks.filtered(

@@ -197,9 +197,9 @@ class TestProjectTaskQuickCreate(TestProjectCommon):
                 "project_id": self.project_pigs.id,
             }
         )
-        self.assertEqual(
-            self.project_pigs.workflow_step_ids,
+        self.assertIn(
             new_stage,
+            self.project_pigs.workflow_step_ids,
             "Task stage is not set in project",
         )
 

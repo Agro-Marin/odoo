@@ -59,7 +59,18 @@ FLOORS = {
     #     `for rec in recs: rec.env['model'].search(...)` are reported again.
     #     The receiver test demanded a `self` root and silently dropped the most
     #     idiomatic N+1 there is.
-    "n-plus-one-query": 430,
+    #
+    # 430 -> 429: project.task._compute_elapsed called
+    # `calendar.get_work_duration_data()` once per record per span (queue, lead,
+    # cycle) — measured at exactly 3.00 calls and 3 extra queries per task, with
+    # no caching between identical runs, so every bulk close and bulk assign paid
+    # it in full. It now groups the recordset by (calendar, leave domain) and
+    # asks `_work_intervals_batch` once for the whole window, clipping each span
+    # out of the result. Measured on 50 tasks: 308 queries -> 10, 150 calendar
+    # calls -> 1. Attribution checked the way the guide asks: the count is 430 on
+    # a pristine `HEAD` worktree and 429 with only this change applied to it, so
+    # the -1 is this commit's and not a neighbour's uncommitted work.
+    "n-plus-one-query": 429,
 }
 
 

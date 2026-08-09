@@ -10,7 +10,8 @@ from typing import Any
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
-from odoo.exceptions import UserError
+
+from .project_task import CLOSED_STATES
 
 
 class ProjectWorkflowStep(models.Model):
@@ -19,7 +20,8 @@ class ProjectWorkflowStep(models.Model):
     Steps are shared across projects via the ``project_ids`` Many2many. Tasks
     move through steps to reflect WHERE in the process they are. This is
     distinct from task *state* (the internal condition) and personal *triage*
-    (the assignee's time-horizon bucket).
+    (the assignee's time-horizon bucket, which is ``project.triage`` — a
+    separate model, never a step: see the class comment on ``create``).
     """
 
     _name = "project.workflow.step"
@@ -35,15 +37,6 @@ class ProjectWorkflowStep(models.Model):
     active = fields.Boolean("Active", default=True, export_string_translation=False)
     name = fields.Char(string="Name", required=True, translate=True)
     sequence = fields.Integer(default=1)
-    user_id = fields.Many2one(
-        "res.users",
-        string="Personal Stage Owner",
-        ondelete="cascade",
-        help=(
-            "When set, this step is a personal stage visible only to this user. "
-            "Personal stages and project stages are mutually exclusive."
-        ),
-    )
     project_ids = fields.Many2many(
         "project.project",
         "project_workflow_step_project_rel",
@@ -136,58 +129,32 @@ class ProjectWorkflowStep(models.Model):
         required=True,
     )
 
-    def _vals_assign_projects(self, vals: dict) -> bool:
-        """Whether ``vals`` actually assigns at least one project.
-
-        A non-empty value that resolves to *no* project — e.g. ``[(6, 0, [])]``
-        or ``[(5,)]`` — is falsy for our purposes: it must not be mistaken for a
-        project assignment (which would wrongly wipe ``user_id`` and leave a step
-        that is neither a project nor a personal stage).
-
-        Resolution is delegated to the ORM rather than re-implemented, so every
-        form ``project_ids`` legitimately accepts (command list, bare id list,
-        recordset) is honoured.
-        """
-        if not vals.get("project_ids"):
-            return False
-        return bool(self.new(vals).project_ids)
-
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectWorkflowStep:
-        """Enforce mutual exclusivity between personal and project stages.
+        """Create steps and seed the first deadline of any periodic rater.
 
-        If ``project_ids`` is set, ``user_id`` is cleared.  If neither is
-        provided, ``user_id`` defaults to the current user (personal stage).
+        A step used to carry a ``user_id`` ("Personal Stage Owner") and this
+        override enforced that a step was *either* a project step *or* one
+        user's personal stage. That invariant died with the model split:
+        ``migrations/1.4/pre-migrate.py`` builds this table from
+        ``project_task_type`` rows with ``user_id IS NULL`` and routes the
+        owned rows to ``project.triage``, which is where personal buckets live
+        now. Nothing read the surviving field — no record rule, no view, no
+        domain, and ``step_find`` searches ``project_ids`` alone, so an owned
+        step could never be found for any task.
+
+        The guard also got the one case that mattered wrong: it inspected
+        ``vals["project_ids"]``, while the Kanban "add column" button supplies
+        the project through the field *default* (``_get_default_project_ids``
+        reading ``default_project_id``). Every column added from a project
+        board therefore came out owned *and* attached — the exact state the
+        old ``write`` refused to produce.
         """
-        for vals in vals_list:
-            if self._vals_assign_projects(vals):
-                vals.pop("user_id", None)
-            elif "user_id" not in vals:
-                vals["user_id"] = self.env.uid
         records = super().create(vals_list)
         records._seed_rating_deadlines()
         return records
 
     def write(self, vals: dict) -> bool:
-        """Enforce mutual exclusivity between personal and project stages.
-
-        Setting ``project_ids`` clears ``user_id``.  Setting ``user_id`` on a
-        step that already has ``project_ids`` (without clearing them) raises.
-        """
-        if vals.get("project_ids"):
-            # project_ids takes precedence — always clear user_id. Emptying
-            # project_ids intentionally leaves user_id False (a project stage is
-            # NOT turned into a personal stage — see test_modify_existing_stage).
-            vals["user_id"] = False
-        elif vals.get("user_id") and "project_ids" not in vals:
-            for step in self:
-                if step.project_ids:
-                    raise UserError(
-                        _(
-                            "Cannot set a personal owner on a project stage. "
-                            "Remove the project association first."
-                        )
-                    )
         res = super().write(vals)
         if {"rating_active", "rating_status", "rating_status_period"} & vals.keys():
             self._seed_rating_deadlines()
@@ -258,13 +225,33 @@ class ProjectWorkflowStep(models.Model):
             ]
         )
         for step in steps:
-            # Only the tasks currently IN this step, not every task of the
-            # project: _send_task_rating_mail keys off each task's own step, so
-            # blasting the whole project fires premature requests for tasks that
-            # sit in other (not-yet-due) periodic steps. Search the step's tasks
-            # directly instead of materialising every task of every linked
-            # project and filtering in memory.
-            tasks = self.env["project.task"].search([("step_id", "=", step.id)])
-            tasks._send_task_rating_mail()
+            step._get_rating_tasks()._send_task_rating_mail()
             step.rating_request_deadline = step._next_rating_deadline()
             self.env.cr.commit()
+
+    def _get_rating_tasks(self):
+        """The tasks a periodic rating request should go to for this step.
+
+        Only the tasks currently IN this step, not every task of the project:
+        ``_send_task_rating_mail`` keys off each task's own step, so blasting
+        the whole project fires premature requests for tasks sitting in other
+        (not-yet-due) periodic steps. Searching the step's tasks directly also
+        avoids materialising every task of every linked project.
+
+        Open tasks only. A periodic rater asks "how is this going?" on a
+        cadence; a task that is done or cancelled is not going anywhere, and
+        because it keeps sitting in the step the request repeated for as long
+        as the step existed. (Archived tasks are already excluded by the
+        default ``active_test``.)
+
+        Split out of ``_send_rating_all`` so the selection can be tested: that
+        method commits once per step, which a test cursor forbids outright, so
+        the scope had no way of being pinned through the cron entry point.
+        """
+        self.ensure_one()
+        return self.env["project.task"].search(
+            [
+                ("step_id", "=", self.id),
+                ("state", "not in", list(CLOSED_STATES)),
+            ]
+        )

@@ -274,6 +274,10 @@ class TestProjectSubtasks(TestProjectCommon):
         """The stage of the new child must be the default one of the project"""
         parent_task = self.task_1.with_context({"tracking_disable": True})
 
+        # The project already owns its seeded first column; push the two test
+        # stages behind it so "the default one of the project" is unambiguous
+        # and is still stage_a.
+        self.project_pigs.workflow_step_ids.sequence = 100
         stage_a = self.env["project.workflow.step"].create({"name": "a", "sequence": 1})
         stage_b = self.env["project.workflow.step"].create(
             {"name": "b", "sequence": 10}
