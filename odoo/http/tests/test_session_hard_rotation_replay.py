@@ -48,7 +48,13 @@ def test_hard_rotation_unlinks_the_cookie_sid(store):
 
 
 def test_refresh_after_rotation_keys_on_the_current_sid(store):
-    from odoo.service.transaction import _refresh_request_session
+    """The refresh keys on the session's CURRENT sid, not the cookie's.
+
+    Moved from ``service.transaction._refresh_request_session`` to
+    ``RequestRetryParticipant.on_rollback`` on 2026-08-09, when the retry
+    primitive stopped knowing about HTTP; the invariant is unchanged.
+    """
+    from odoo.http._retry import RequestRetryParticipant
 
     sess = _saved_session(store, "alice")
     cookie_sid = sess.sid
@@ -63,7 +69,7 @@ def test_refresh_after_rotation_keys_on_the_current_sid(store):
             return store.get(key), None
 
     request = _FakeRequest()
-    _refresh_request_session(request)
+    RequestRetryParticipant(request).on_rollback(Exception("rolled back"))
 
     assert not request.session.is_new, "the refresh minted an anonymous session"
     assert request.session.get("login") == "alice", "the session was lost"

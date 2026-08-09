@@ -12,6 +12,8 @@ from collections.abc import Callable, Collection, Mapping
 from inspect import Parameter, signature
 from typing import Any
 
+from .constants import REGISTRY_CACHES
+
 C = typing.TypeVar("C", bound=Callable)
 
 if typing.TYPE_CHECKING:
@@ -122,6 +124,20 @@ class ormcache:
     ) -> None:
         self.args = args
         self.skiparg = skiparg
+        if cache not in REGISTRY_CACHES:
+            # Validated against the BUCKETS, not the groups. Decoration names
+            # the LRU an entry is stored in (`pool.ormcache_lrus[name]`);
+            # `Registry.clear_cache` names a *group* of buckets to evict
+            # together, and its own validation is against `CACHES_BY_KEY`. The
+            # two sets are deliberately different -- `assets.links` is a real
+            # bucket that `@ormcache` may target and `clear_cache` may not,
+            # because it is cleared as part of the `assets` group. Validating
+            # this side against the groups rejects that legitimate decoration,
+            # which is what the first version of this check did.
+            raise ValueError(
+                f"@ormcache(cache={cache!r}): unknown cache. Valid buckets: "
+                f"{', '.join(sorted(REGISTRY_CACHES))}"
+            )
         self.cache_name = cache
         if skiparg is not None:
             warnings.warn(

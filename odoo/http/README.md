@@ -144,6 +144,7 @@ post_dispatch out of band.
 | `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl` — the werkzeug wrappers and cookie defaults |
 | `core.py` | serving | `_request_stack` (a werkzeug `LocalStack`), the `request` proxy bound to it, and `borrow_request` |
 | `helpers.py` | serving | `content_disposition`, `rewind_uploaded_files`, `db_list` and the `dbfilter` machinery |
+| `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler, installed on `service.transaction` at import |
 | `openapi.py` | features | `build_openapi`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |
 | `geoip.py` | features | `GeoIP` lookup exposed on the request (`_GeoIPNull` when unavailable) |

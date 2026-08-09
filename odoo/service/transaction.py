@@ -52,21 +52,52 @@ def _integrity_error_to_validation(
     return ValidationError(message)
 
 
-def _refresh_request_session(request: typing.Any) -> None:
-    current_sid = getattr(request.session, "sid", None)
-    request.session = request._get_session_and_dbname(sid=current_sid)[0]
+@typing.runtime_checkable
+class RetryParticipant(typing.Protocol):
+    """Transport state that must be restored when a handler is replayed.
+
+    ``retrying()`` is a *transaction* primitive, but a handler it re-runs may
+    have consumed transport-level state that a second run needs back: an HTTP
+    request has a session to refresh and uploaded file streams to rewind, and
+    knows whether an uncommitted-cursor warning would be noise.
+
+    Until 2026-08-09 this module did those three things itself, reaching
+    ``odoo.http`` through two function-level imports and a thread-local. That
+    was the ENTIRE ``service`` -> ``http`` coupling outside
+    ``service/lifecycle.py``, concentrated in the one primitive
+    ``ARCHITECTURE.md`` holds up as transport-independent, and it made the RPC
+    path opt out only implicitly -- by ``http.request`` being falsy.
+
+    The transport now supplies its own participant through
+    :data:`current_retry_participant`, the same injection shape ``db/`` uses
+    for the flushing savepoint (ADR-0003).
+    """
+
+    def on_rollback(self, exc: BaseException) -> None:
+        """After the transaction is rolled back, for *every* caught error.
+
+        Runs even when the error will not be retried -- an IntegrityError still
+        needs a usable session to render its response.
+        """
+
+    def on_retry(self, exc: BaseException) -> None:
+        """Just before the backoff sleep, only when the handler will re-run."""
+
+    def suppresses_uncommitted_warning(self) -> bool:
+        """Whether "cursor closed before commit" is expected rather than a bug."""
 
 
-def _rewind_request_files_for_retry(request: typing.Any, exc: BaseException) -> None:
-    from odoo.http.helpers import rewind_uploaded_files
-
-    rewind_uploaded_files(request.httprequest, cause=exc)
+def _no_participant() -> RetryParticipant | None:
+    return None
 
 
-def _reset_request_for_retry(request: typing.Any) -> None:
-    reset = getattr(request, "_reset_for_replay", None)
-    if reset is not None:
-        reset()
+#: Resolves the participant for the work in flight, or ``None``.
+#:
+#: ``odoo.http`` overwrites this at import time. Anything that is not served
+#: over a transport -- ``service/model.py``'s RPC dispatch, a cron job -- leaves
+#: it returning ``None`` and gets a pure transaction retry, which is what it
+#: always got, now by declaration rather than by a falsy thread-local.
+current_retry_participant: Callable[[], RetryParticipant | None] = _no_participant
 
 
 def _reset_env_state(env: Environment) -> None:
@@ -78,16 +109,11 @@ def _reset_env_state(env: Environment) -> None:
         env.registry.reset_changes()
 
 
-def _warn_cursor_closed_before_commit(func: Callable[..., object]) -> None:
+def _warn_cursor_closed_before_commit(
+    func: Callable[..., object], participant: RetryParticipant | None
+) -> None:
     """Warn that ``func`` closed its own cursor, so nothing was committed."""
-    from odoo import http
-
-    # `getattr` rather than attribute access: this runs on the tail of every
-    # served request, and `request` is not always a real `Request` (tests
-    # patch it, `borrow_request` swaps it). Missing the warning on such a
-    # stand-in is a far smaller failure than raising from here.
-    current_request = http.request
-    if current_request and getattr(current_request, "database_detached", False):
+    if participant is not None and participant.suppresses_uncommitted_warning():
         return
     _logger.warning(
         "retrying(): the cursor was closed before commit; %s's work was "
@@ -130,7 +156,7 @@ def _commit_and_signal(env: Environment) -> None:
 
 
 def retrying[T](func: Callable[[], T], env: Environment) -> T:
-    from odoo import http
+    participant = current_retry_participant()
 
     try:
         for tryno in range(1, MAX_TRIES_ON_CONCURRENCY_FAILURE + 1):
@@ -146,9 +172,8 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 with suppress(Exception):
                     env.cr.rollback()
                 _reset_env_state(env)
-                request = http.request
-                if request:
-                    _refresh_request_session(request)
+                if participant is not None:
+                    participant.on_rollback(exc)
                 if isinstance(exc, IntegrityError):
                     if env.cr.closed:
                         raise
@@ -169,9 +194,8 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     _logger.info("%s, maximum number of tries reached!", error)
                     raise
 
-                if request:
-                    _rewind_request_files_for_retry(request, exc)
-                    _reset_request_for_retry(request)
+                if participant is not None:
+                    participant.on_retry(exc)
                 wait_time = backoff.delay(
                     tryno,
                     base=BASE_CONCURRENCY_BACKOFF_SECONDS,
@@ -189,7 +213,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
         raise
 
     if env.cr.closed:
-        _warn_cursor_closed_before_commit(func)
+        _warn_cursor_closed_before_commit(func, participant)
         return result
 
     _commit_and_signal(env)

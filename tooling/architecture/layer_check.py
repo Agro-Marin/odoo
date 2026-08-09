@@ -323,6 +323,26 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
     ),
     Contract(
+        name="transaction-primitive-is-transport-agnostic",
+        adr="0003",
+        source=("odoo.service.transaction",),
+        forbidden=("odoo.http",),
+        allow=(),
+        rationale=(
+            "retrying() is a transaction primitive -- ARCHITECTURE.md presents "
+            "it as one -- and until 2026-08-09 it reached odoo.http through two "
+            "function-level imports and a thread-local, to refresh a session, "
+            "rewind uploaded files and read request.database_detached. That was "
+            "the entire service -> http coupling outside service/lifecycle.py, "
+            "concentrated in the one module claimed to be transport-independent, "
+            "and it let the RPC path opt out only by http.request being falsy. "
+            "The transport now injects a RetryParticipant, the same shape "
+            "ADR-0003 uses to give db/ its flushing savepoint without db/ "
+            "importing the ORM."
+            ""
+        ),
+    ),
+    Contract(
         name="root-modules-are-foundational",
         adr="0016",
         source=("odoo.exceptions", "odoo.release"),
@@ -562,6 +582,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo.http.controller",
             "odoo.http.core",
             "odoo.http.helpers",
+            "odoo.http._retry",
         ),
         allow=(),
         rationale=(

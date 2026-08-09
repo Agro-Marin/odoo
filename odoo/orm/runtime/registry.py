@@ -23,6 +23,7 @@ from odoo.libs.func import locked, reset_cached_properties
 from odoo.libs.lru import LRU
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import SQL, OrderedSet, config
+from odoo.tools.constants import CACHES_BY_KEY, REGISTRY_CACHES
 from odoo.tools.misc import Collector, format_frame
 
 from .. import registration
@@ -43,39 +44,6 @@ _logger = logging.getLogger("odoo.registry")
 _schema = logging.getLogger("odoo.schema")
 
 
-REGISTRY_CACHES = {
-    "default": 8192,
-    "assets": 512,
-    "assets.links": 8192,
-    "stable": 1024,
-    "templates": 1024,
-    "routing": 1024,
-    "routing.rewrites": 8192,
-    "templates.cached_values": 2048,
-    "groups": 64,
-    # Variant lookups keyed by template + attribute-value combination
-    # (`product.template._get_variant_id_for_combination` /
-    # `_get_first_possible_variant_id`). They live in their own bucket because
-    # product churn invalidates them constantly -- every variant create, archive
-    # or combination change -- and a bare `clear_cache()` would otherwise evict
-    # the whole "default" group (record-rule domains, ACL checks, xmlid lookups)
-    # in every worker each time a product is touched.
-    "product_variants": 8192,
-}
-
-CACHES_BY_KEY = {
-    "default": ("default", "templates.cached_values", "product_variants"),
-    "assets": ("assets", "assets.links", "templates.cached_values"),
-    "stable": ("stable", "default", "templates.cached_values", "product_variants"),
-    "templates": ("templates", "templates.cached_values"),
-    "routing": ("routing", "routing.rewrites", "templates.cached_values"),
-    "groups": (
-        "groups",
-        "templates",
-        "templates.cached_values",
-    ),
-    "product_variants": ("product_variants",),
-}
 
 _REPLICA_RETRY_TIME = 20 * 60
 """Ceiling on the replica breaker's backoff.
