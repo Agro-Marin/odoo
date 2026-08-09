@@ -812,6 +812,13 @@ class BaseString(Field[str | typing.Literal[False]]):
             if operator == "in" and len(value) == 1:
                 value = value_to_translated_trigram_pattern(next(iter(value)))
             elif operator != "in":
+                # Only "in" can still be holding a collection: the domain is
+                # optimized before it reaches SQL, and _optimize_like_str
+                # coerces a like-operand to str(value) -- or raises "The pattern
+                # to match must be a string" for =like/=ilike. Without that,
+                # pattern_to_translated_trigram_pattern would raise TypeError on
+                # a list, which the guard above still admits.
+                assert isinstance(value, str)
                 value = pattern_to_translated_trigram_pattern(value)
             else:
                 value = "%"
