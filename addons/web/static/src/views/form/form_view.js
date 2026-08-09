@@ -5,6 +5,7 @@
 
 import { registry } from "@web/core/registry";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
+import { defaultViewProps } from "@web/views/view_utils";
 
 import { FormArchParser } from "./form_arch_parser.js";
 import { FormCompiler } from "./form_compiler.js";
@@ -27,22 +28,14 @@ export const formView = {
      * @param {any} view
      */
     props: (genericProps, view) => {
-        const { ArchParser } = view;
-        const { arch, relatedModels, resModel } = genericProps;
-        const archInfo = new ArchParser().parse(arch, relatedModels, resModel);
-
-        return {
-            ...genericProps,
-            readonly:
-                genericProps.readonly ||
-                (archInfo.activeActions?.edit === false &&
-                    genericProps.resId !== false),
-            Model: view.Model,
-            Renderer: view.Renderer,
-            buttonTemplate: genericProps.buttonTemplate || view.buttonTemplate,
-            Compiler: view.Compiler,
-            archInfo,
-        };
+        const props = defaultViewProps(genericProps, view);
+        props.readonly =
+            genericProps.readonly ||
+            (props.archInfo.activeActions?.edit === false &&
+                genericProps.resId !== false);
+        // Unlike the other view types, form lets the caller supply one.
+        props.buttonTemplate = genericProps.buttonTemplate || view.buttonTemplate;
+        return props;
     },
 };
 

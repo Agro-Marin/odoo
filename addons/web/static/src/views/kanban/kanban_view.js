@@ -5,6 +5,7 @@
 
 import { registry } from "@web/core/registry";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
+import { defaultViewProps } from "@web/views/view_utils";
 
 import { KanbanArchParser } from "./kanban_arch_parser.js";
 import { KanbanCompiler } from "./kanban_compiler.js";
@@ -35,18 +36,9 @@ export const kanbanView = {
     buttonTemplate: "web.KanbanView.Buttons",
 
     props: (genericProps, view) => {
-        const { arch, relatedModels, resModel } = genericProps;
-        const { ArchParser } = view;
-        const archInfo = new ArchParser().parse(arch, relatedModels, resModel);
-        return {
-            ...genericProps,
-            readonly: genericProps.readonly || !archInfo.activeActions?.edit,
-            Compiler: view.Compiler,
-            Model: view.Model,
-            Renderer: view.Renderer,
-            buttonTemplate: view.buttonTemplate,
-            archInfo,
-        };
+        const props = defaultViewProps(genericProps, view);
+        props.readonly = genericProps.readonly || !props.archInfo.activeActions?.edit;
+        return props;
     },
 };
 

@@ -4,6 +4,7 @@
 /** @module @web/views/calendar/calendar_view */
 
 import { registry } from "@web/core/registry";
+import { defaultViewProps } from "@web/views/view_utils";
 
 import { CalendarArchParser } from "./calendar_arch_parser.js";
 import { CalendarController } from "./calendar_controller.js";
@@ -26,18 +27,8 @@ export const calendarView = {
      * @param {Record<string, any>} view
      * @returns {Record<string, any>}
      */
-    props: (props, view) => {
-        const { ArchParser } = view;
-        const { arch, relatedModels, resModel } = props;
-        const archInfo = new ArchParser().parse(arch, relatedModels, resModel);
-        return {
-            ...props,
-            Model: view.Model,
-            Renderer: view.Renderer,
-            buttonTemplate: view.buttonTemplate,
-            archInfo,
-        };
-    },
+    // Exactly the shared projection, with nothing of its own to add.
+    props: defaultViewProps,
 };
 
 registry.category("views").add("calendar", calendarView);

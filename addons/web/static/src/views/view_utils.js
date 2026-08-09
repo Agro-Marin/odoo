@@ -232,6 +232,40 @@ export function buildMultiRecordModelParams({
 /**
  * @returns {{ action: Object, dialog: Object, notification: Object, orm: Object, uiHooks: Object }}
  */
+/**
+ * The projection from a view *descriptor* to its controller's props.
+ *
+ * Every view type performed this by hand: copy `Model`, `Renderer`,
+ * `buttonTemplate` and `Compiler` across by name, then parse the arch. Four of
+ * the six in this module were the same fourteen lines, and each copy was free
+ * to drop a key silently -- a descriptor that forgets `buttonTemplate` does not
+ * fail a check, it renders without buttons.
+ *
+ * Only the invariant part lives here. A view type that needs more (`readonly`
+ * from its arch's active actions, a caller-supplied `buttonTemplate`) mutates
+ * the returned object, which is its own; views whose model is configured rather
+ * than arch-parsed (pivot, graph build a `modelParams` instead) do not use this
+ * at all, and forcing them through it would cost more than it saves.
+ *
+ * @param {Record<string, any>} genericProps the props `View.loadView` assembled
+ * @param {Record<string, any>} view the descriptor from `registry.category("views")`
+ * @returns {Record<string, any>}
+ */
+export function defaultViewProps(genericProps, view) {
+    const { arch, relatedModels, resModel } = genericProps;
+    const archInfo = new view.ArchParser().parse(arch, relatedModels, resModel);
+    return {
+        ...genericProps,
+        Model: view.Model,
+        Renderer: view.Renderer,
+        buttonTemplate: view.buttonTemplate,
+        // Absent on list and calendar; spreading a bare `undefined` would put
+        // the key on the props bag and defeat `Compiler`'s own default.
+        ...(view.Compiler ? { Compiler: view.Compiler } : {}),
+        archInfo,
+    };
+}
+
 export function useControllerServices() {
     const component = useComponent();
     const action = useAction();

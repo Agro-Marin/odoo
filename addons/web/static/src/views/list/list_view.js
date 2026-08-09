@@ -5,6 +5,7 @@
 
 import { registry } from "@web/core/registry";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
+import { defaultViewProps } from "@web/views/view_utils";
 
 import { ListArchParser } from "./list_arch_parser.js";
 import { ListController } from "./list_controller.js";
@@ -28,17 +29,9 @@ export const listView = {
      * @returns {Record<string, any>}
      */
     props: (genericProps, view) => {
-        const { ArchParser } = view;
-        const { arch, relatedModels, resModel } = genericProps;
-        const archInfo = new ArchParser().parse(arch, relatedModels, resModel);
-        return {
-            ...genericProps,
-            readonly: genericProps.readonly || !archInfo.activeActions?.edit,
-            Model: view.Model,
-            Renderer: view.Renderer,
-            buttonTemplate: view.buttonTemplate,
-            archInfo,
-        };
+        const props = defaultViewProps(genericProps, view);
+        props.readonly = genericProps.readonly || !props.archInfo.activeActions?.edit;
+        return props;
     },
 };
 
