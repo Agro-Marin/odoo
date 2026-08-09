@@ -228,6 +228,41 @@ def test_a_mixin_wrapped_base_resolves(tree):
     assert points(tree) == {"CharField.onChange"}
 
 
+def test_an_aliased_import_resolves_to_the_original_export(tree):
+    """`import { A as B }` binds B locally; the target module exports A.
+
+    Looking B up in the target resolves nothing, and the failure is silent —
+    the consumer simply vanishes from the surface. Four real points hid behind
+    this (`FileViewer.setup`/`close`/`next`/`previous`, patched by
+    enterprise/sign as `WebFileViewer`).
+    """
+    root, web_src = tree
+    _write(
+        web_src,
+        "components/file_viewer.js",
+        "export class FileViewer {\n    setup() {}\n}\n",
+    )
+    _write(
+        root,
+        "addons/sign/static/src/v.js",
+        'import { FileViewer as WebFileViewer } from "@web/components/file_viewer";\n'
+        "patch(WebFileViewer.prototype, {\n    setup() {},\n});\n",
+    )
+    assert points(tree) == {"FileViewer.setup"}
+
+
+def test_an_aliased_import_resolves_for_extends_too(tree):
+    root, web_src = tree
+    _write(web_src, "a.js", "export class Thing {\n    go() {}\n}\n")
+    _write(
+        root,
+        "addons/x/static/src/s.js",
+        'import { Thing as Renamed } from "@web/a";\n'
+        "export class Sub extends Renamed {\n    go() {}\n}\n",
+    )
+    assert points(tree) == {"Thing.go"}
+
+
 def test_a_face_reexport_resolves_to_the_defining_module(tree):
     root, web_src = tree
     _write(

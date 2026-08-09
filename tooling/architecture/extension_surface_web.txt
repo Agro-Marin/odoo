@@ -157,7 +157,10 @@ ExportDataDialog.fetchFields  enterprise
 Field.classNames  enterprise
 Field.fieldComponentProps  enterprise
 Field.setup  enterprise
-FileViewer.setup  enterprise
+FileViewer.close  odoo
+FileViewer.next  odoo
+FileViewer.previous  odoo
+FileViewer.setup  odoo enterprise
 FloatField.formattedValue  odoo
 FloatField.parse  odoo
 FloatTimeField.formattedValue  odoo enterprise
