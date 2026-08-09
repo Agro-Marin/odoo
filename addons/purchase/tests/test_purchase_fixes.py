@@ -1,12 +1,15 @@
 """Regression tests for fork-specific correctness fixes.
 
-Covers two previously-untested areas that broke during the order-state
+Covers previously-untested areas that broke during the order-state
 simplification (draft/done/cancel) and the base_order migration:
 
 * the portal RFQ list/counter state domain (was filtering the dead ``sent``
   state, leaving ``/my/rfq`` and ``rfq_count`` permanently empty);
 * the mass-cancel wizard, which bypassed the ``_can_cancel`` guards and could
-  silently cancel locked orders or orders with posted vendor bills.
+  silently cancel locked orders or orders with posted vendor bills;
+* the mail-composer entry points, where ``_get_mail_template`` returned an id
+  against an ecosystem-wide record contract and the template-language guard
+  named a context key nobody sets.
 """
 
 from unittest.mock import patch
@@ -920,4 +923,118 @@ class TestInvoiceAnalysisVisibility(AccountTestInvoicingCommon):
             analysed_moves,
             visible_moves,
             "Invoice Analysis must cover exactly the moves the user can read",
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseMailTemplate(AccountTestInvoicingCommon):
+    """The mail-composer entry points on purchase.order.
+
+    ``_get_mail_template`` used to return an id from ``_xmlid_lookup``, while
+    account.move, sale.order and l10n_co_dian's override all return a record —
+    and ``account.move.send`` calls the method generically. Its own caller had
+    to browse the id back.
+
+    The composers also resolved the template's language behind a guard testing
+    ``default_res_id``, but they set ``default_res_ids`` (mail.compose.message
+    carries ``res_ids``), so the guard never matched and the vendor's mail was
+    composed in the sender's language instead of the template's.
+    """
+
+    def _make_po(self):
+        return self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": self.product_a.id, "product_qty": 1.0},
+                    ),
+                ],
+            },
+        )
+
+    # --- the return-type contract ---
+
+    def test_returns_a_record_not_an_id(self):
+        template = self._make_po()._get_mail_template()
+        self.assertEqual(template._name, "mail.template")
+
+    def test_matches_the_contract_used_by_sale_and_account(self):
+        """The same method name must return the same kind of thing everywhere.
+
+        account.move is the canonical definition — account.move.send calls it
+        generically via _get_default_mail_template_id — and sale.order follows
+        it. sudo() on the sale order only sidesteps this class's accounting-only
+        user; the assertion is about the return type, not about access.
+        """
+        po_template = self._make_po()._get_mail_template()
+        move_template = self.init_invoice(
+            "out_invoice",
+            products=self.product_a,
+        )._get_mail_template()
+        sale_order = (
+            self.env["sale.order"]
+            .sudo()
+            .create(
+                {"partner_id": self.partner_a.id},
+            )
+        )
+        so_template = sale_order._get_mail_template()
+        self.assertEqual(po_template._name, move_template._name)
+        self.assertEqual(po_template._name, so_template._name)
+
+    def test_rfq_and_confirmed_use_different_templates(self):
+        order = self._make_po()
+        rfq_template = order.with_context(send_rfq=True)._get_mail_template()
+        done_template = order._get_mail_template()
+        self.assertEqual(
+            rfq_template,
+            self.env.ref("purchase.email_template_edi_purchase"),
+        )
+        self.assertEqual(
+            done_template,
+            self.env.ref("purchase.email_template_edi_purchase_done"),
+        )
+        self.assertNotEqual(rfq_template, done_template)
+
+    def test_send_action_carries_the_template_id(self):
+        order = self._make_po()
+        action = order.with_context(send_rfq=True).action_send_rfq()
+        self.assertEqual(action["res_model"], "mail.compose.message")
+        self.assertEqual(
+            action["context"]["default_template_id"],
+            self.env.ref("purchase.email_template_edi_purchase").id,
+        )
+
+    # --- the language guard ---
+
+    def test_template_language_wins(self):
+        """The guard must fire on default_res_ids, the key the composers set."""
+        self.env["res.lang"]._activate_lang("fr_FR")
+        order = self._make_po()
+        template = self.env.ref("purchase.email_template_edi_purchase")
+        template.lang = "fr_FR"
+        ctx = {
+            "default_template_id": template.id,
+            "default_model": "purchase.order",
+            "default_res_ids": order.ids,
+        }
+        self.assertEqual(order._get_mail_composer_lang(ctx), "fr_FR")
+
+    def test_language_falls_back_without_composer_keys(self):
+        order = self._make_po().with_context(lang="en_US")
+        self.assertEqual(order._get_mail_composer_lang({}), "en_US")
+
+    def test_language_falls_back_when_template_has_none(self):
+        order = self._make_po()
+        template = self.env.ref("purchase.email_template_edi_purchase")
+        template.lang = False
+        ctx = {
+            "default_template_id": template.id,
+            "default_model": "purchase.order",
+            "default_res_ids": order.ids,
+        }
+        self.assertEqual(
+            order.with_context(lang="en_US")._get_mail_composer_lang(ctx),
+            "en_US",
         )

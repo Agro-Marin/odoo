@@ -529,20 +529,13 @@ class PurchaseOrder(models.Model):
                 "model_description": self.type_name,
             },
         )
-        template_id = self._get_mail_template()
-        if template_id:
-            ctx.update({"default_template_id": template_id})
+        mail_template = self._get_mail_template()
+        if mail_template:
+            ctx.update({"default_template_id": mail_template.id})
         # In the case of a RFQ or a PO, we want the "View..." button in line with the state of the
         # object. Therefore, we pass the model description in the context, in the language in which
         # the template is rendered.
-        lang = self.env.context.get("lang")
-        if {"default_template_id", "default_model", "default_res_id"} <= ctx.keys():
-            template = self.env["mail.template"].browse(template_id)
-            if template and template.lang:
-                lang = template._render_lang([ctx["default_res_id"]])[
-                    ctx["default_res_id"]
-                ]
-        self = self.with_context(lang=lang)
+        self = self.with_context(lang=self._get_mail_composer_lang(ctx))
         compose_form_id = self._get_mail_compose_form()
         return {
             "name": _("Compose Email"),
@@ -961,19 +954,51 @@ class PurchaseOrder(models.Model):
         return date_planned.astimezone(tz)
 
     def _get_mail_template(self):
-        ir_model_data = self.env["ir.model.data"]
-        try:
-            if self.env.context.get("send_rfq", False):
-                template_id = ir_model_data._xmlid_lookup(
-                    "purchase.email_template_edi_purchase",
-                )[1]
-            else:
-                template_id = ir_model_data._xmlid_lookup(
-                    "purchase.email_template_edi_purchase_done",
-                )[1]
-        except ValueError:
-            template_id = False
-        return template_id
+        """Return the mail template used when sending this order.
+
+        RFQs get the request template, confirmed orders the order template.
+
+        Returns a **record**, not an id: ``account.move._get_mail_template``,
+        ``sale.order._get_mail_template`` and l10n_co_dian's override all
+        return one, and ``account.move.send`` calls the method generically
+        through ``_get_default_mail_template_id``. Purchase was the sole
+        outlier, returning ``_xmlid_lookup(...)[1]``, so its own caller had to
+        browse the id back into a record.
+
+        :return: the mail template, or an empty recordset if it is missing
+        :rtype: recordset of `mail.template`
+        """
+        self.ensure_one()
+        xmlid = (
+            "purchase.email_template_edi_purchase"
+            if self.env.context.get("send_rfq", False)
+            else "purchase.email_template_edi_purchase_done"
+        )
+        return (
+            self.env.ref(xmlid, raise_if_not_found=False) or self.env["mail.template"]
+        )
+
+    def _get_mail_composer_lang(self, ctx):
+        """Return the language the mail composer should open in.
+
+        The template's own language wins when it defines one, so the "View..."
+        button and ``model_description`` reach the vendor in the language the
+        template renders.
+
+        The guard tests ``default_res_ids``: ``mail.compose.message`` carries
+        ``res_ids``, and these composers set ``default_res_ids`` accordingly —
+        but the test named the singular ``default_res_id``, so it never matched
+        and the template language was silently never applied.
+        """
+        lang = self.env.context.get("lang")
+        required = {"default_template_id", "default_model", "default_res_ids"}
+        if not required <= ctx.keys():
+            return lang
+        res_ids = ctx["default_res_ids"]
+        template = self.env["mail.template"].browse(ctx["default_template_id"])
+        if res_ids and template.lang:
+            lang = template._render_lang(res_ids)[res_ids[0]]
+        return lang
 
     @api.model
     def _get_orders_to_remind(self):
@@ -1283,14 +1308,7 @@ class PurchaseOrder(models.Model):
                 "model_description": self.type_name,
             },
         )
-        lang = self.env.context.get("lang")
-        if {"default_template_id", "default_model", "default_res_id"} <= ctx.keys():
-            template = self.env["mail.template"].browse(template_id)
-            if template and template.lang:
-                lang = template._render_lang([ctx["default_res_id"]])[
-                    ctx["default_res_id"]
-                ]
-        self = self.with_context(lang=lang)
+        self = self.with_context(lang=self._get_mail_composer_lang(ctx))
         compose_form_id = self._get_mail_compose_form()
         return {
             "name": _("Compose Email"),
