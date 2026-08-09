@@ -40,6 +40,22 @@ else:
     RequestState = object
 
 
+class HasHttpStatus(Protocol):
+    """An exception that names the HTTP status it should be served as.
+
+    A structural contract spanning two modules that do not import each other:
+    ``odoo/exceptions.py`` sets it on ``UserError`` and four subclasses,
+    ``odoo/http/exceptions.py`` on ``SessionExpiredException``, and
+    ``http/dispatcher.py`` reads ``exc.http_status`` off a union of the two.
+    Nothing declared it, and the two modules disagreed on the type -- plain
+    ``int`` on one side, ``HTTPStatus`` on the other. Both work, because
+    ``HTTPStatus`` is an ``IntEnum``; declaring the protocol is what makes the
+    agreement checkable rather than incidental.
+    """
+
+    http_status: int
+
+
 @runtime_checkable
 class HttpExtension(Protocol):
     def routing_map(self, key: str | None = None) -> werkzeug.routing.Map:

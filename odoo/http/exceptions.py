@@ -11,4 +11,4 @@ class RegistryError(RuntimeError):
 class SessionExpiredException(Exception):
     __module__ = "odoo.http"
 
-    http_status = HTTPStatus.FORBIDDEN
+    http_status: int = HTTPStatus.FORBIDDEN

@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 __all__ = [
     "AccessDenied",
     "AccessError",
@@ -14,7 +16,7 @@ __all__ = [
 
 
 class UserError(Exception):
-    http_status = 422
+    http_status: int = HTTPStatus.UNPROCESSABLE_ENTITY
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -32,7 +34,7 @@ class RedirectWarning(Exception):
 
 
 class AccessDenied(UserError):
-    http_status = 403
+    http_status: int = HTTPStatus.FORBIDDEN
 
     def __init__(self, message: str = "Access Denied") -> None:
         super().__init__(message)
@@ -56,7 +58,7 @@ class AccessDenied(UserError):
 
 
 class AccessError(UserError):
-    http_status = 403
+    http_status: int = HTTPStatus.FORBIDDEN
 
 
 class CacheMiss(KeyError):
@@ -65,11 +67,11 @@ class CacheMiss(KeyError):
 
 
 class MissingError(UserError):
-    http_status = 404
+    http_status: int = HTTPStatus.NOT_FOUND
 
 
 class LockError(UserError):
-    http_status = 409
+    http_status: int = HTTPStatus.CONFLICT
 
 
 class ValidationError(UserError):

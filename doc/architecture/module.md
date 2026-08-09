@@ -109,6 +109,30 @@ contract, the direction is a CI gate rather than a convention.
 before anything else (see **Process boot**) and patches third-party modules
 only.
 
+### `tools/` has a third role: it is the façade for part of `libs/`
+
+The split above says `libs/` is Odoo-agnostic and `tools/` is Odoo-coupled. In
+practice `tools/__init__.py` also re-exports **23 of its 101 `__all__` symbols
+straight from `odoo.libs`** — `SQL`, `float_round`, `float_compare`,
+`classproperty`, `lazy`, `parse_version`, `SetDefinitions`, `pg_varchar`,
+`make_index_name` and 14 more.
+
+This is deliberate (`libs_facade_check.py` polices *how* `libs` is imported, so
+a re-export layer is the sanctioned door) but it was written down nowhere, and
+it has one real cost: at the point of use, `from odoo.tools import float_round`
+and `from odoo.tools import config` are indistinguishable, though one is a pure
+function and the other reaches the whole runtime. The distinction the
+`libs`/`tools` split exists to express is erased by the façade that publishes
+it.
+
+**The rule that follows:** addon code may keep using `odoo.tools` for either
+kind. **Core code should import from the owning package** — `odoo.libs.sql`,
+not `odoo.tools`, for `SQL` — so that a module's imports state which layer it
+actually depends on. That is not cosmetic: Layer 0 of the ORM reached for
+`odoo.tools` solely because it was the advertised door to `SQL`, and taking it
+from `odoo.libs.sql` instead is what allowed `orm-layer0-is-foundational` to be
+tightened (see the Layer 0 bullet under *The ORM layer model*).
+
 ### Public import surface
 
 Addon code imports from the stable façades — **`odoo.api`, `odoo.fields`,
