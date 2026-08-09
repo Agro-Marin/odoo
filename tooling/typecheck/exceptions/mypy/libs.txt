@@ -11,7 +11,6 @@ odoo/libs/collections/ordered_set.py
 odoo/libs/collections/tests/test_frozen_dict.py
 odoo/libs/collections/tests/test_misc.py
 odoo/libs/colors/conversions.py
-odoo/libs/datetime/date_utils.py
 odoo/libs/datetime/tests/test_start_end_of.py
 odoo/libs/datetime/tests/test_tz.py
 odoo/libs/datetime/tz.py
@@ -22,8 +21,6 @@ odoo/libs/filesystem/mimetypes.py
 odoo/libs/filesystem/which.py
 odoo/libs/func.py
 odoo/libs/hashing.py
-odoo/libs/image/utils.py
-odoo/libs/intervals.py
 odoo/libs/iteration/grouping.py
 odoo/libs/iteration/slicing.py
 odoo/libs/iteration/sorting.py
@@ -35,7 +32,6 @@ odoo/libs/password.py
 odoo/libs/profiling/speedscope.py
 odoo/libs/set_expression.py
 odoo/libs/tests/test_barcode_check_digit.py
-odoo/libs/tests/test_intervals.py
 odoo/libs/tests/test_logging.py
 odoo/libs/tests/test_lru.py
 odoo/libs/text/arabic_reshaper/__init__.py
@@ -43,5 +39,4 @@ odoo/libs/text/html.py
 odoo/libs/text/strings.py
 odoo/libs/text/tests/test_html_security.py
 odoo/libs/utils.py
-odoo/libs/web/tests/test_import_map.py
 odoo/libs/xml/tests/test_dict_to_xml.py

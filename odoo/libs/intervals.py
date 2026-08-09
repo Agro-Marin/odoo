@@ -5,33 +5,66 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
-    from collections.abc import Set as AbstractSet
+    from typing import Any, Protocol
+
+    class SupportsUnion(Protocol):
+        """What an interval's payload must provide: `union`, and nothing else.
+
+        The payload was annotated `collections.abc.Set`, which is the one thing
+        it is NOT required to be — `Set` publishes `|` and no `union`, while
+        this module only ever calls `union`. Both an Odoo recordset and a
+        frozenset satisfy this; `Set` additionally demanded `__contains__`,
+        `__iter__` and `__len__`, none of which is read here.
+        """
+
+        def union(self, other: Any, /) -> SupportsUnion: ...
+
+    # `Self` would be wrong: `set.union` is `(*s: Iterable[S]) -> set[T | S]`,
+    # so a plain set — which the callers here pass constantly — does not return
+    # its own exact type and would fail the protocol at every call site.
+
+    class SupportsOrdering(Protocol):
+        """A bound stating what this module needs of an interval's endpoints.
+
+        Every type parameter here is ordered — the whole point of an interval is
+        that its bounds compare — so the requirement belongs in the declaration
+        rather than being rediscovered at each `<`. `_typeshed`'s
+        `SupportsRichComparison` is the wrong bound: it is a *union* of "has
+        __lt__" and "has __gt__", so it cannot promise both, and this module
+        uses `<`, `>` and `>=` on the same values. Python would reflect `>` onto
+        the operand's `__lt__` at runtime, but that fallback is not something a
+        checker can assume. int, str, date and datetime all satisfy this.
+        """
+
+        def __lt__(self, other: Any, /) -> bool: ...
+        def __gt__(self, other: Any, /) -> bool: ...
+        def __ge__(self, other: Any, /) -> bool: ...
 
 
-def _boundaries[T](
-    intervals: Intervals[T] | Iterable[tuple[T, T, AbstractSet]],
+def _boundaries[T: SupportsOrdering](
+    intervals: Intervals[T] | Iterable[tuple[T, T, SupportsUnion]],
     opening: str,
     closing: str,
-) -> Iterator[tuple[T, str, AbstractSet]]:
+) -> Iterator[tuple[T, str, SupportsUnion]]:
     for start, stop, recs in intervals:
         if start < stop:
             yield (start, opening, recs)
             yield (stop, closing, recs)
 
 
-class Intervals[T]:
+class Intervals[T: SupportsOrdering]:
     def __init__(
         self,
-        intervals: Iterable[tuple[T, T, AbstractSet]] | None = None,
+        intervals: Iterable[tuple[T, T, SupportsUnion]] | None = None,
         *,
         keep_distinct: bool = False,
     ) -> None:
-        self._items: list[tuple[T, T, AbstractSet]] = []
+        self._items: list[tuple[T, T, SupportsUnion]] = []
         self._keep_distinct = keep_distinct
         if intervals:
             append = self._items.append
             starts: list[T] = []
-            items: AbstractSet | None = None
+            items: SupportsUnion | None = None
             if self._keep_distinct:
                 boundaries = sorted(
                     _boundaries(sorted(intervals), "start", "stop"),
@@ -49,6 +82,9 @@ class Intervals[T]:
                 else:
                     start = starts.pop()
                     if not starts:
+                        # `items` is set on the matching "start" above, and a
+                        # stop is only reached through one.
+                        assert items is not None, "a stop with no open start"
                         append((start, value, items))
                         items = None
 
@@ -58,10 +94,10 @@ class Intervals[T]:
     def __len__(self) -> int:
         return len(self._items)
 
-    def __iter__(self) -> Iterator[tuple[T, T, AbstractSet]]:
+    def __iter__(self) -> Iterator[tuple[T, T, SupportsUnion]]:
         return iter(self._items)
 
-    def __reversed__(self) -> Iterator[tuple[T, T, AbstractSet]]:
+    def __reversed__(self) -> Iterator[tuple[T, T, SupportsUnion]]:
         return reversed(self._items)
 
     def __or__(self, other: Intervals[T]) -> Intervals[T]:
@@ -71,21 +107,21 @@ class Intervals[T]:
         )
 
     def __and__(
-        self, other: Intervals[T] | Iterable[tuple[T, T, AbstractSet]]
+        self, other: Intervals[T] | Iterable[tuple[T, T, SupportsUnion]]
     ) -> Intervals[T]:
         return self._merge(other, difference=False)
 
     def __sub__(
-        self, other: Intervals[T] | Iterable[tuple[T, T, AbstractSet]]
+        self, other: Intervals[T] | Iterable[tuple[T, T, SupportsUnion]]
     ) -> Intervals[T]:
         return self._merge(other, difference=True)
 
     def _merge(
         self,
-        other: Intervals[T] | Iterable[tuple[T, T, AbstractSet]],
+        other: Intervals[T] | Iterable[tuple[T, T, SupportsUnion]],
         difference: bool,
     ) -> Intervals[T]:
-        result = Intervals(keep_distinct=self._keep_distinct)
+        result: Intervals[T] = Intervals(keep_distinct=self._keep_distinct)
         append = result._items.append
 
         bounds1 = _boundaries(self, "start", "stop")
@@ -107,26 +143,32 @@ class Intervals[T]:
                 start = value
                 recs1 = recs
             elif flag == "stop":
-                if enabled and start < value:
+                if enabled and start is not None and start < value:
+                    # Mirrors the guard the "switch" branch below already uses;
+                    # recs1 is assigned with start, so one implies the other.
+                    assert recs1 is not None, "a start without its records"
                     append((start, value, recs1))
                 start = None
             else:
                 if not enabled and start is not None:
                     start = value
                 if enabled and start is not None and start < value:
+                    assert recs1 is not None, "a start without its records"
                     append((start, value, recs1))
                 enabled = not enabled
 
         return result
 
 
-def intervals_overlap[T](interval_a: tuple[T, T], interval_b: tuple[T, T]) -> bool:
+def intervals_overlap[T: SupportsOrdering](
+    interval_a: tuple[T, T], interval_b: tuple[T, T]
+) -> bool:
     start_a, stop_a = interval_a
     start_b, stop_b = interval_b
     return start_a < stop_b and stop_a > start_b
 
 
-def invert_intervals[T](
+def invert_intervals[T: SupportsOrdering](
     intervals: Iterable[tuple[T, T]], first_start: T, last_stop: T
 ) -> list[tuple[T, T]]:
     items = []

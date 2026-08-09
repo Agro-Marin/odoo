@@ -2,7 +2,7 @@ import base64
 import binascii
 import io
 from random import randrange
-from typing import Self
+from typing import Any, Literal, Self
 
 from PIL import (
     # Imported so Pillow registers the ICO codec; nothing here calls it.
@@ -70,8 +70,21 @@ def image_data_uri(base64_source: bytes) -> str:
 
 
 class ImageProcess:
+    """Load ``source`` and apply operations to it.
+
+    ``False`` — never ``True`` — is the "no usable image" sentinel throughout,
+    for both attributes: an SVG, a WebP and an undecodable input all leave
+    ``image`` false while ``source`` keeps the original bytes to hand back. The
+    two are declared because each is assigned a sentinel before it is ever
+    assigned an image, so inference would fix the type as ``bool``.
+    """
+
+    image: PILImage | Literal[False]
+    source: bytes | Literal[False]
+    original_format: str
+
     def __init__(
-        self, source: bytes | bool | None, verify_resolution: bool = True
+        self, source: bytes | Literal[False] | None, verify_resolution: bool = True
     ) -> None:
         self.source = source or False
         self.operationsCount = 0
@@ -104,9 +117,17 @@ class ImageProcess:
 
             self.image = image_fix_orientation(self.image)
 
-    def image_quality(self, quality: int = 0, output_format: str = "") -> bytes | bool:
+    def image_quality(
+        self, quality: int = 0, output_format: str = ""
+    ) -> bytes | Literal[False]:
         if not self.image:
             return self.source
+
+        # Past that guard the source bytes exist: `image` is only ever set to an
+        # Image on the branch where `source` was truthy, so a false `source`
+        # implies a false `image` and we returned above.
+        source = self.source
+        assert source is not False, "an image was decoded from a falsy source"
 
         output_image = self.image
 
@@ -123,7 +144,9 @@ class ImageProcess:
         ):
             return self.source
 
-        opt = {"output_format": output_format}
+        # Heterogeneous by design: Pillow's save() takes optimize/save_all as
+        # bools and quality as an int alongside the format string.
+        opt: dict[str, Any] = {"output_format": output_format}
 
         if output_format == "PNG":
             opt["optimize"] = True
@@ -146,11 +169,11 @@ class ImageProcess:
 
         output_bytes = image_apply_opt(output_image, **opt)
         if (
-            len(output_bytes) >= len(self.source)
+            len(output_bytes) >= len(source)
             and self.original_format == output_format
             and not self.operationsCount
         ):
-            return self.source
+            return source
         return output_bytes
 
     def resize(
@@ -235,7 +258,7 @@ class ImageProcess:
 
 
 def image_process(
-    source: bytes | bool | None,
+    source: bytes | Literal[False] | None,
     size: tuple[int, int] = (0, 0),
     verify_resolution: bool = False,
     quality: int = 0,
@@ -245,7 +268,7 @@ def image_process(
     output_format: str = "",
     padding: int | bool = False,
     processor: type[ImageProcess] = ImageProcess,
-) -> bytes | bool | None:
+) -> bytes | Literal[False] | None:
     """Resize / crop / pad / re-encode ``source``, returning the new bytes.
 
     :param source: image bytes; a falsy value is returned unchanged.
@@ -351,15 +374,21 @@ def average_dominant_color(
 
     final_dominant = []
     brightest = max(dominant_avg)
-    for color in range(3):
+    # `band`, not `color`: this indexes dominant_avg, which holds one average
+    # per band, while `color` above is a (count, rgba) pair. One name for two
+    # types in one function is what 5d3c1a3b63f paid down in read_group.
+    for band in range(3):
         value = (
-            dominant_avg[color] / (brightest / mitigate)
+            dominant_avg[band] / (brightest / mitigate)
             if brightest > mitigate
-            else dominant_avg[color]
+            else dominant_avg[band]
         )
         final_dominant.append(int(value))
 
-    return tuple(final_dominant), remaining
+    # Unpacked rather than `tuple(...)`: the loop above runs exactly three
+    # times, and that is what the declared return type says.
+    red, green, blue = final_dominant
+    return (red, green, blue), remaining
 
 
 def binary_to_image(source: bytes) -> PILImage:
@@ -422,7 +451,9 @@ def is_image_size_above(
             self.width: int = width
             self.height: int = height
 
-    def get_image_size(base64_source: bytes | str) -> _SimpleSize | PILImage | bool:
+    def get_image_size(
+        base64_source: bytes | str,
+    ) -> _SimpleSize | PILImage | Literal[False]:
         source = base64.b64decode(base64_source)
         if source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
             size = get_webp_size(source)

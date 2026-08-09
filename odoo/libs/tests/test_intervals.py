@@ -1,4 +1,5 @@
 import unittest
+from typing import cast
 
 from odoo.libs.intervals import Intervals, intervals_overlap, invert_intervals
 
@@ -30,7 +31,12 @@ class Recordset:
 
 class TestIntervalsSemantics(unittest.TestCase):
     def _plain(self, triples, **kw):
-        return [(s, e, sorted(r)) for s, e, r in Intervals(triples, **kw)]
+        # Intervals only promises its payload has `union`; every payload in this
+        # class is a set, and sorting one is the assertion. The cast says the
+        # test knows more than the library's contract, which is the point.
+        return [
+            (s, e, sorted(cast("set[str]", r))) for s, e, r in Intervals(triples, **kw)
+        ]
 
     def test_adjacent_merged_by_default(self):
         self.assertEqual(
@@ -126,7 +132,8 @@ class TestPayloadParticipatesInOrdering(unittest.TestCase):
             [(0, 10, Recordset("a", [1])), (0, 5, Recordset("a", [2]))],
         )
         self.assertEqual([(s, e) for s, e, _ in result], [(0, 10)])
-        self.assertEqual(next(iter(result))[2].ids, frozenset({1, 2}))
+        payload = cast("Recordset", next(iter(result))[2])
+        self.assertEqual(payload.ids, frozenset({1, 2}))
 
     def test_merge_never_compares_payloads(self):
 

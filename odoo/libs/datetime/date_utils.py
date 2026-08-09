@@ -26,7 +26,7 @@ __all__ = [
 import calendar
 import math
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from dateutil.relativedelta import relativedelta, weekdays
 
@@ -160,7 +160,6 @@ def get_timedelta(
 
 
 def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
-    is_datetime = isinstance(value, datetime)
     if granularity == "year":
         result = value.replace(month=1, day=1)
     elif granularity == "quarter":
@@ -173,9 +172,9 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
         )
     elif granularity == "day":
         result = value
-    elif granularity == "hour" and is_datetime:
+    elif granularity == "hour" and isinstance(value, datetime):
         return datetime.combine(value, time.min, value.tzinfo).replace(hour=value.hour)
-    elif is_datetime:
+    elif isinstance(value, datetime):
         raise ValueError(
             f"Granularity must be year, quarter, month, week, day or hour for value {value}"
         )
@@ -184,11 +183,12 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
             f"Granularity must be year, quarter, month, week or day for value {value}"
         )
 
-    return datetime.combine(result, time.min, value.tzinfo) if is_datetime else result
+    if isinstance(value, datetime):
+        return datetime.combine(result, time.min, value.tzinfo)
+    return result
 
 
 def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
-    is_datetime = isinstance(value, datetime)
     if granularity == "year":
         result = value.replace(month=12, day=31)
     elif granularity == "quarter":
@@ -201,9 +201,9 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
         )
     elif granularity == "day":
         result = value
-    elif granularity == "hour" and is_datetime:
+    elif granularity == "hour" and isinstance(value, datetime):
         return datetime.combine(value, time.max, value.tzinfo).replace(hour=value.hour)
-    elif is_datetime:
+    elif isinstance(value, datetime):
         raise ValueError(
             f"Granularity must be year, quarter, month, week, day or hour for value {value}"
         )
@@ -212,7 +212,9 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
             f"Granularity must be year, quarter, month, week or day for value {value}"
         )
 
-    return datetime.combine(result, time.max, value.tzinfo) if is_datetime else result
+    if isinstance(value, datetime):
+        return datetime.combine(result, time.max, value.tzinfo)
+    return result
 
 
 def add[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
@@ -225,12 +227,14 @@ def subtract[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
 
 def date_range[D: (date, datetime)](
     start: D, end: D, step: relativedelta = relativedelta(months=1)
-) -> Iterator[datetime]:
-    # E731: kept as lambdas on purpose. As `def`s these become two CONDITIONAL
-    # variants of one name, which mypy rejects outright ("must have identical
-    # signatures"), and annotating them drags `date.replace(tzinfo=...)` into
-    # scope for the `D = date` instantiation. The lambda form types cleanly.
-    post_process = lambda dt: dt  # noqa: E731  see comment above
+) -> Iterator[D]:
+    # The timezone to put back on each yielded value, or None to yield it as
+    # it is. This was two conditional lambdas, which do NOT type cleanly however
+    # they are written: unannotated, the second is "cannot infer type of lambda";
+    # annotated, `date.replace(tzinfo=...)` comes into scope on the `D = date`
+    # leg of the constrained parameter, where it does not exist. Carrying the
+    # timezone instead of a function to apply it removes the dilemma.
+    restore_tz: tzinfo | None = None
 
     if isinstance(start, datetime) and isinstance(end, datetime):
         are_naive = start.tzinfo is None and end.tzinfo is None
@@ -254,9 +258,7 @@ def date_range[D: (date, datetime)](
             raise ValueError(msg)
 
         if not are_naive:
-            tz = start.tzinfo
-
-            post_process = lambda dt, tz=tz: dt.replace(tzinfo=tz)  # noqa: E731  see comment above
+            restore_tz = start.tzinfo
             start = start.replace(tzinfo=None)
             end = end.replace(tzinfo=None)
 
@@ -277,11 +279,14 @@ def date_range[D: (date, datetime)](
         raise ValueError(msg)
 
     while start <= end:
-        yield post_process(start)
+        if restore_tz is not None and isinstance(start, datetime):
+            yield start.replace(tzinfo=restore_tz)
+        else:
+            yield start
         start += step
 
 
-def sum_intervals(intervals: Iterable[tuple[datetime, datetime, ...]]) -> float:
+def sum_intervals(intervals: Iterable[tuple[datetime, datetime, Any]]) -> float:
     return sum(
         (interval[1] - interval[0]).total_seconds() / 3600 for interval in intervals
     )

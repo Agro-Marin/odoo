@@ -84,7 +84,9 @@ odoo/orm/tests/test_field_cache_memo_fast_path.py
 odoo/orm/tests/test_field_descriptor_types.py
 odoo/orm/tests/test_field_get_equivalence.py
 odoo/orm/tests/test_flush_superuser_fallback.py
+odoo/orm/tests/test_init_models_phase.py
 odoo/orm/tests/test_model_test_env.py
+odoo/orm/tests/test_newid_ordering.py
 odoo/orm/tests/test_newid_total_order.py
 odoo/orm/tests/test_orm_invariants.py
 odoo/orm/tests/test_parsing_validation_unit.py
