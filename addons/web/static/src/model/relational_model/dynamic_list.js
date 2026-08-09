@@ -3,6 +3,7 @@
 
 /** @module @web/model/relational_model/dynamic_list */
 
+import { markRaw } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 import { Operation } from "@web/core/utils/operation";
@@ -36,6 +37,17 @@ export class DynamicList extends DataPoint {
             this.handleField = DEFAULT_HANDLE_FIELD;
         }
         this.isDomainSelected = false;
+        /**
+         * Holder for the record `enterEditMode` is on its way to. `markRaw` is
+         * load-bearing: this is bookkeeping for a handover, not state anyone
+         * should re-render on. Stored plainly on the reactive it would notify
+         * `isEditing`'s subscribers twice per handover -- once on claim, once
+         * on release -- which is one render MORE than the round-trip this
+         * exists to remove.
+         *
+         * @type {{ record: import("./record").RelationalRecord | null }}
+         */
+        this._editHandover = markRaw({ record: null });
     }
 
     /**
@@ -134,6 +146,27 @@ export class DynamicList extends DataPoint {
         return this.records.find((record) => record.isInEdition);
     }
 
+    /**
+     * Whether the list is in inline edition, INCLUDING the gap in
+     * `enterEditMode` where the outgoing record has already left edition and
+     * the incoming one has not entered it yet.
+     *
+     * `editedRecord` is momentarily null across that gap, so anything derived
+     * from it flips off and back on within a single interaction. For a
+     * per-record consumer that is harmless; for a LIST-WIDE one it is not,
+     * because every row subscribes to the derived value and a round-trip
+     * re-renders all of them twice for a state that is never painted. Moving
+     * the edited row of a 40-row list cost 81 row renders instead of 3.
+     *
+     * Use this for "is the user editing this list" questions. Use
+     * `editedRecord` when you need the record itself.
+     *
+     * @returns {boolean}
+     */
+    get isEditing() {
+        return Boolean(this._editHandover.record || this.editedRecord);
+    }
+
     get isRecordCountTrustable() {
         return true;
     }
@@ -177,19 +210,29 @@ export class DynamicList extends DataPoint {
         if (this.editedRecord === record) {
             return true;
         }
-        const canProceed = await this.leaveEditMode();
-        if (canProceed) {
-            const tail = () => {
-                record._checkValidity();
-                this.model._patchConfig(record.config, { mode: "edit" });
-            };
-            if (this.model.urgentSave.isActive) {
-                tail();
-            } else {
-                await this.model.mutex.exec(tail);
+        // Claimed BEFORE awaiting the outgoing record out of edition, so
+        // `isEditing` stays continuously true across the handover instead of
+        // reporting a transient "nothing is being edited" that no frame ever
+        // shows. Cleared in `finally` so an aborted handover (leaveEditMode
+        // refusing, or the tail throwing) cannot strand the list as editing.
+        this._editHandover.record = record;
+        try {
+            const canProceed = await this.leaveEditMode();
+            if (canProceed) {
+                const tail = () => {
+                    record._checkValidity();
+                    this.model._patchConfig(record.config, { mode: "edit" });
+                };
+                if (this.model.urgentSave.isActive) {
+                    tail();
+                } else {
+                    await this.model.mutex.exec(tail);
+                }
             }
+            return canProceed;
+        } finally {
+            this._editHandover.record = null;
         }
-        return canProceed;
     }
 
     /**

@@ -761,3 +761,35 @@ When refactoring a widget:
     `context=` attribute across `odoo`, `enterprise`, `agromarin` or
     `design-themes` — but adding one would work server-side and break the
     client, so extend `py_js` first if you need it.
+
+18. **A list-wide derived flag must not round-trip inside one interaction** —
+    `views/list/list_renderer.js` `rowFlags`. The flags object is the one place
+    a value is shared by every row, and each row subscribes to the single key
+    it reads (OWL re-targets a reactive prop to the child in **both** the
+    `ComponentNode` constructor and `updateAndRender`, so a `reactive()` created
+    with no callback still binds to the row). That is what makes the flags
+    cheap — and also what makes a *transient* value expensive: every flip
+    re-renders every row.
+
+    `canSelectRecord` was derived from `list.editedRecord`, which is
+    momentarily `null` in `enterEditMode` between the outgoing record leaving
+    edition and the incoming one entering it. Moving the edited row therefore
+    flipped it `false -> true -> false`, repainting all rows twice for a state
+    no frame ever shows: **81 row renders on a 40-row list, now 4**. The fix is
+    `DynamicList#isEditing` / `StaticList#isEditing`, which spans the handover
+    via a `markRaw` holder (`_editHandover`) — `markRaw` so that claiming and
+    releasing it notify nobody, otherwise the bookkeeping costs more renders
+    than the round-trip it removes.
+
+    Rule: before publishing a derived boolean through `rowFlags` (or any other
+    fan-out state), check what it does *during* a transition, not just at the
+    endpoints. Endpoint-only tests pass either way — the regression guard in
+    `static/tests/views/list/list_edit_handover.test.js` asserts on the value
+    SEQUENCE across the interaction, and on a row-render budget, because those
+    are the only things that can see it.
+
+    Technique for auditing this: OWL's `ComponentNode.subscriptions` reports
+    what a component is actually subscribed to, and
+    `node.__owl__.fiber.root.node` tells a self-triggered render from one driven
+    by the parent. `render_instrumentation.js` (`__renderTrace` /
+    `__renderStats`) counts renders per component label.

@@ -88,6 +88,13 @@ export class StaticList extends DataPoint {
         this._unknownRecordCommands = {};
         this._loadingStubIds = new Set();
         /**
+         * Holder for the record `enterEditMode` is on its way to. `markRaw` so
+         * claiming/releasing it notifies nobody; see `DynamicList#isEditing`.
+         *
+         * @type {{ record: import("./record").RelationalRecord | null }}
+         */
+        this._editHandover = markRaw({ record: null });
+        /**
          * A tracked command replay rejected: some rows may be left as `{id}`
          * stubs with no display data. Read by `healFailedReplay` after the
          * next successful save. @type {boolean}
@@ -148,6 +155,20 @@ export class StaticList extends DataPoint {
 
     get editedRecord() {
         return this.records.find((record) => record.isInEdition);
+    }
+
+    /**
+     * Whether the list is in inline edition, INCLUDING the gap in
+     * `enterEditMode` where the outgoing record has left edition and the
+     * incoming one has not entered it yet. Same contract as
+     * `DynamicList#isEditing` — `ListRenderer` reads it through one shared
+     * `rowFlags` key that every row subscribes to, so it must not round-trip
+     * mid-handover.
+     *
+     * @returns {boolean}
+     */
+    get isEditing() {
+        return Boolean(this._editHandover.record || this.editedRecord);
     }
 
     get evalContext() {
@@ -324,11 +345,18 @@ export class StaticList extends DataPoint {
     }
 
     async enterEditMode(record) {
-        const canProceed = await this.leaveEditMode();
-        if (canProceed) {
-            await record.switchMode("edit");
+        // Claimed before the await so `isEditing` spans the handover; see the
+        // getter. `finally` so an aborted handover cannot strand it.
+        this._editHandover.record = record;
+        try {
+            const canProceed = await this.leaveEditMode();
+            if (canProceed) {
+                await record.switchMode("edit");
+            }
+            return canProceed;
+        } finally {
+            this._editHandover.record = null;
         }
-        return canProceed;
     }
 
     /**

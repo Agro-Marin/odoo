@@ -1171,7 +1171,13 @@ export class ListRenderer extends Component {
     }
 
     get canSelectRecord() {
-        return !this.editedRecord && !this.props.list.model.useSampleModel;
+        // `list.isEditing`, not `this.editedRecord`: this value is published to
+        // every row through `rowFlags`, and each row subscribes to that one
+        // key. `editedRecord` is transiently null while edition is handed from
+        // one row to the next, which would flip this false -> true -> false and
+        // re-render every row twice for a frame that is never painted.
+        // `isEditing` spans the handover. See DynamicList#isEditing.
+        return !this.props.list.isEditing && !this.props.list.model.useSampleModel;
     }
 
     toggleSelection() {
