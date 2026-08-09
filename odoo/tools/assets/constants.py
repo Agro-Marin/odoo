@@ -91,13 +91,23 @@ ODOO_EXTERNAL_LIBS = MappingProxyType(
         "@fullcalendar/core/locales-all": (
             "/web/static/lib/fullcalendar/locales-all.esm.js"
         ),
+        "ol": "/geoengine/static/lib/ol/ol.esm.js",
+        "chroma-js": "/geoengine/static/lib/chroma-js/chroma.esm.js",
+        "geostats": "/geoengine/static/lib/geostats/geostats.js",
     }
 )
 """Import-map entries for esbuild-externalized libraries (spec -> URL).
 
 An addon that ships an externalized JavaScript library adds its entry here.
 That makes this table an extension point implemented as a hardcoded dict, which
-is why two of its rows name addons that the framework does not depend on; see
-``ODOO_EXTERNAL_LIBS`` in the audit notes. Turning it into a real registration
-surface is a separate change -- this one only puts it in the right layer.
+is why several of its rows name addons that the framework does not depend on;
+see ``ODOO_EXTERNAL_LIBS`` in the audit notes. Turning it into a real
+registration surface is a separate change -- this one only puts it in the right
+layer.
+
+Three rows (``ol``, ``chroma-js``, ``geostats``) point outside this repository
+altogether, into ``geoengine`` in the AgroMarin addons checkout. Nothing breaks
+when that checkout is absent -- an entry whose addon is not on the addons path
+is skipped rather than raising -- but it does mean this table cannot be read as
+an inventory of what any given deployment serves.
 """

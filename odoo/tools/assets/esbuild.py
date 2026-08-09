@@ -35,6 +35,9 @@ EXTERNAL_BARE_SPECIFIERS = frozenset(
         "chartjs-plugin-datalabels",
         "@fullcalendar/core",
         "@fullcalendar/core/locales-all",
+        "ol",
+        "chroma-js",
+        "geostats",
     }
 )
 
