@@ -1,5 +1,6 @@
 import re
 from itertools import repeat
+from typing import Final
 
 from .letters import (
     UNSHAPED,
@@ -78,8 +79,11 @@ def reshape(text: str) -> str:
 
     output = []
 
-    LETTER = 0
-    FORM = 1
+    # Final, so each stays Literal[0] / Literal[1]: indexing a
+    # (letter, form) tuple with a plain int widens every read to `str | int`,
+    # which is where all eight of this module's type errors came from.
+    LETTER: Final = 0
+    FORM: Final = 1
     NOT_SUPPORTED = -1
 
     for letter in text:

@@ -23,7 +23,8 @@ class TestRejectsNonDigits(unittest.TestCase):
 
     def test_none(self):
         with self.assertRaises(ValueError):
-            get_barcode_check_digit(None)
+            # Passing None is the case under test.
+            get_barcode_check_digit(None)  # type: ignore[arg-type]
 
     def test_whitespace(self):
         with self.assertRaises(ValueError):

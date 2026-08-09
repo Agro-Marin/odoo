@@ -121,7 +121,7 @@ TIMEZONE_ALIASES: dict[str, str] = {
 }
 
 _timezone_cache: dict[str, ZoneInfo] = {}
-_available_timezones: frozenset[str] = available_timezones()
+_available_timezones: frozenset[str] = frozenset(available_timezones())
 
 
 def timezone(name: str) -> ZoneInfo:

@@ -75,7 +75,7 @@ class TestFrozendictCopyAndPickle(unittest.TestCase):
         payload = {"ctx": frozendict({"lang": "en_US"}), "other": [1]}
         clone = copy.deepcopy(payload)
         self.assertIsInstance(clone["ctx"], frozendict)
-        self.assertEqual(clone["ctx"]["lang"], "en_US")
+        self.assertEqual(clone["ctx"]["lang"], "en_US")  # type: ignore[index]
 
 
 if __name__ == "__main__":

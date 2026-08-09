@@ -2,12 +2,23 @@ __all__ = ["groupby", "partition", "unique"]
 
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator
+from typing import Any, overload
 
 
+@overload
+def groupby[T](iterable: Iterable[T]) -> Iterable[tuple[T, list[T]]]: ...
+
+
+@overload
 def groupby[T, K](
-    iterable: Iterable[T], key: Callable[[T], K] = lambda arg: arg
-) -> Iterable[tuple[K, list[T]]]:
-    groups: defaultdict[K, list[T]] = defaultdict(list)
+    iterable: Iterable[T], key: Callable[[T], K]
+) -> Iterable[tuple[K, list[T]]]: ...
+
+
+def groupby[T](
+    iterable: Iterable[T], key: Callable[[T], Any] = lambda arg: arg
+) -> Iterable[tuple[Any, list[T]]]:
+    groups: defaultdict[Any, list[T]] = defaultdict(list)
     for elem in iterable:
         groups[key(elem)].append(elem)
     return groups.items()

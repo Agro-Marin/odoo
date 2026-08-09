@@ -9,7 +9,7 @@ from decimal import (
     Decimal,
 )
 
-from odoo.libs.numbers.float_utils import float_repr, float_round
+from odoo.libs.numbers.float_utils import RoundingMethod, float_repr, float_round
 
 
 class TestFloatRound(unittest.TestCase):
@@ -76,7 +76,7 @@ class TestFloatRound(unittest.TestCase):
         )
 
     def test_matches_decimal_over_money_range(self):
-        dmeth = {
+        dmeth: dict[RoundingMethod, str] = {
             "HALF-UP": ROUND_HALF_UP,
             "HALF-EVEN": ROUND_HALF_EVEN,
             "HALF-DOWN": ROUND_HALF_DOWN,

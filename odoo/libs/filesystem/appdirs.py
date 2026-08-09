@@ -166,12 +166,12 @@ def user_log_dir(
         path = str(Path(Path("~/Library/Logs").expanduser(), appname))
     elif sys.platform == "win32":
         path = user_data_dir(appname, appauthor, version)
-        version = False
+        version = None
         if opinion:
             path = str(Path(path, "Logs"))
     else:
         path = user_cache_dir(appname, appauthor, version)
-        version = False
+        version = None
         if opinion:
             path = str(Path(path, "log"))
     if appname and version:
@@ -248,11 +248,11 @@ def _get_win_folder_from_registry(csidl_name: str) -> str:
         "CSIDL_LOCAL_APPDATA": "Local AppData",
     }[csidl_name]
 
-    key = _winreg.OpenKey(
-        _winreg.HKEY_CURRENT_USER,
+    key = _winreg.OpenKey(  # type: ignore[attr-defined]
+        _winreg.HKEY_CURRENT_USER,  # type: ignore[attr-defined]
         r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders",
     )
-    folder, _type = _winreg.QueryValueEx(key, shell_folder_name)
+    folder, _type = _winreg.QueryValueEx(key, shell_folder_name)  # type: ignore[attr-defined]
     return folder
 
 
@@ -290,7 +290,7 @@ def _get_win_folder_with_ctypes(csidl_name: str) -> str:
     }[csidl_name]
 
     buf = ctypes.create_unicode_buffer(1024)
-    ctypes.windll.shell32.SHGetFolderPathW(None, csidl_const, None, 0, buf)
+    ctypes.windll.shell32.SHGetFolderPathW(None, csidl_const, None, 0, buf)  # type: ignore[attr-defined]
 
     has_high_char = False
     for c in buf:
@@ -299,7 +299,7 @@ def _get_win_folder_with_ctypes(csidl_name: str) -> str:
             break
     if has_high_char:
         buf2 = ctypes.create_unicode_buffer(1024)
-        if ctypes.windll.kernel32.GetShortPathNameW(buf.value, buf2, 1024):
+        if ctypes.windll.kernel32.GetShortPathNameW(buf.value, buf2, 1024):  # type: ignore[attr-defined]
             buf = buf2
 
     return buf.value

@@ -1,4 +1,4 @@
 {
-  "count": 1147,
-  "note": "1205 -> 1147, all of it odoo/libs: 12 more files cleared to zero (libs 36 -> 24 exceptions, 76% -> 84% locked). Four recurring shapes, not 58 unrelated fixes: a bool-typed sentinel that only ever holds False (email/parsing, filesystem/mimetypes' three sub-checkers), one name bound to two types (html.py's _style_whitelist, mimetypes' extension walrus), an unstated payload/definition shape (set_expression's dict[str, object] -> TypedDict), and deliberate supertype violations that had never been marked as such (frozendict). No behaviour change intended anywhere; 724 odoo/libs tests pass."
+  "count": 1087,
+  "note": "1147 -> 1087: odoo/libs reaches ZERO -- 154 files, no exceptions, second package after odoo/db. The last 24 came out on the same four shapes as the previous batch plus one new one: a plain int used as a tuple index (arabic_reshaper's LETTER/FORM), which widened every (letter, form) read to str|int and produced all eight of that module's errors from one missing Final. No mypy.ini exemption was needed for it after all."
 }

@@ -90,7 +90,7 @@ class LRU[K, V](MutableMapping[K, V]):
         with self._lock:
             values = self._values
             result = {
-                key: val
+                key: typing.cast("V", val)
                 for key in self._ordering.copy()
                 if (val := values.get(key, SENTINEL)) is not SENTINEL
             }

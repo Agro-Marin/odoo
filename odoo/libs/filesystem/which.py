@@ -27,13 +27,21 @@ ENOENT = 2
 
 windows = sys.platform.startswith("win")
 
-defpath = environ.get("PATH", defpath).split(pathsep)
+default_path = environ.get("PATH", defpath).split(pathsep)
 
 if windows:
-    defpath.insert(0, ".")
-    seen = set()
-    defpath = [d for d in defpath if d.lower() not in seen and not seen.add(d.lower())]
-    del seen
+    default_path.insert(0, ".")
+    # Order-preserving, case-insensitive dedup. Was a comprehension whose filter
+    # leaned on `not seen.add(...)` being true because add() returns None --
+    # which also meant the checker read the whole clause as a type error.
+    seen: set[str] = set()
+    deduped = []
+    for entry in default_path:
+        if entry.lower() not in seen:
+            seen.add(entry.lower())
+            deduped.append(entry)
+    default_path = deduped
+    del seen, deduped
 
     defpathext = [""] + environ.get(
         "PATHEXT", ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC"
@@ -50,24 +58,30 @@ def which_files(
 ) -> Iterator[str]:
     filepath, file = split(file)
 
+    directories: list[str]
     if filepath:
-        path = (filepath,)
+        directories = [filepath]
     elif path is None:
-        path = defpath
+        directories = default_path
     elif isinstance(path, str):
-        path = path.split(pathsep)
+        directories = path.split(pathsep)
+    else:
+        directories = path
 
+    extensions: list[str]
     if pathext is None:
-        pathext = defpathext
+        extensions = defpathext
     elif isinstance(pathext, str):
-        pathext = pathext.split(pathsep)
+        extensions = pathext.split(pathsep)
+    else:
+        extensions = pathext
 
-    if "" not in pathext:
-        pathext = ["", *pathext]
+    if "" not in extensions:
+        extensions = ["", *extensions]
 
-    for directory in path:
+    for directory in directories:
         basepath = pathlib.Path(directory) / file
-        for ext in pathext:
+        for ext in extensions:
             fullpath = str(basepath) + ext
             if pathlib.Path(fullpath).exists() and access(fullpath, mode):
                 yield fullpath
@@ -79,14 +93,14 @@ def which(
     path: str | list[str] | None = None,
     pathext: str | list[str] | None = None,
 ) -> str:
-    path = next(which_files(file, mode, path, pathext), None)
-    if path is None:
+    found = next(which_files(file, mode, path, pathext), None)
+    if found is None:
         raise OSError(
             ENOENT,
             "%s not found" % ((mode & X_OK and "command") or "file"),
             file,
         )
-    return path
+    return found
 
 
 if __name__ == "__main__":

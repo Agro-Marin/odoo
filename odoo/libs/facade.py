@@ -2,16 +2,16 @@ __all__ = ["Proxy", "ProxyAttr", "ProxyFunc", "ProxyMeta"]
 
 import functools
 import inspect
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 
 class ProxyAttr[T = Any]:
-    _cast__: Callable[..., Any] | bool
+    _cast__: Callable[..., Any] | Literal[False]
 
-    def __init__(self, cast: Callable[..., T] | bool = False) -> None:
+    def __init__(self, cast: Callable[..., T] | Literal[False] = False) -> None:
         self._cast__ = cast
 
     if TYPE_CHECKING:
@@ -22,7 +22,7 @@ class ProxyAttr[T = Any]:
         def __set__(self, instance: Any, value: T) -> None:
             pass
 
-    def __set_name__(self, owner: type, name: str) -> None:
+    def __set_name__(self, owner: type[Proxy], name: str) -> None:
         cast = self._cast__
         if cast:
 
@@ -42,9 +42,9 @@ class ProxyAttr[T = Any]:
 
 
 class ProxyFunc[T = Any]:
-    _cast__: Callable[..., Any] | bool | None
+    _cast__: Callable[..., Any] | Literal[False] | None
 
-    def __init__(self, cast: Callable[..., T] | bool | None = False) -> None:
+    def __init__(self, cast: Callable[..., T] | Literal[False] | None = False) -> None:
         self._cast__ = cast
 
     if TYPE_CHECKING:
@@ -52,7 +52,7 @@ class ProxyFunc[T = Any]:
         def __call__(self, *args: Any, **kwargs: Any) -> T:
             pass
 
-    def __set_name__(self, owner: type, name: str) -> None:
+    def __set_name__(self, owner: type[Proxy], name: str) -> None:
         func = getattr(owner._wrapped__, name)
         descriptor = inspect.getattr_static(owner._wrapped__, name)
         cast = self._cast__
@@ -108,7 +108,7 @@ class ProxyMeta(type):
         attrs.update(
             {func: ProxyFunc() for func in ("__repr__", "__str__") if func not in attrs}
         )
-        proxy_class = super().__new__(cls, clsname, bases, attrs)
+        proxy_class = cast("type[Proxy]", super().__new__(cls, clsname, bases, attrs))
         functools.update_wrapper(
             proxy_class, proxy_class._wrapped__, assigned=("__doc__",), updated=[]
         )
@@ -121,6 +121,8 @@ class Proxy(metaclass=ProxyMeta):
     def __init__(self, instance: Any) -> None:
         object.__setattr__(self, "_wrapped__", instance)
 
-    @property
+    # Answering with the wrapped class IS the proxy; object's __class__ is
+    # read-write and this one deliberately is not.
+    @property  # type: ignore[misc]
     def __class__(self) -> type:
         return type(self)._wrapped__

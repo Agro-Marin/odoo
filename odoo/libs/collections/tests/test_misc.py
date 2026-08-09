@@ -5,7 +5,7 @@ from odoo.libs.collections.misc import Collector, StackMap
 
 class TestCollector(unittest.TestCase):
     def test_discard_accepts_generator(self):
-        c = Collector()
+        c: Collector = Collector()
         c["a"] = (1, 2)
         c["b"] = (3,)
         c.discard_keys_and_values(x for x in (1, 3))
@@ -13,7 +13,7 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(c["b"], ())
 
     def test_discard_removes_keys_and_values(self):
-        c = Collector()
+        c: Collector = Collector()
         c["a"] = (1, 2)
         c["k"] = (2, 3)
         c.discard_keys_and_values(["a", 2])

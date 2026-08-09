@@ -2,10 +2,17 @@ import unittest
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from odoo.libs.datetime.date_utils import end_of, start_of
+from odoo.libs.datetime.date_utils import Granularity, end_of, start_of
 
 TZ = ZoneInfo("America/Mexico_City")
-GRANULARITIES = ("year", "quarter", "month", "week", "day", "hour")
+GRANULARITIES: tuple[Granularity, ...] = (
+    "year",
+    "quarter",
+    "month",
+    "week",
+    "day",
+    "hour",
+)
 
 
 class TestStartEndOf(unittest.TestCase):

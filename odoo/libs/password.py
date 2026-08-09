@@ -64,7 +64,9 @@ class CryptContext:
     ) -> None:
         self._schemes = list(schemes) if schemes else ["pbkdf2_sha512"]
         self._deprecated = set(deprecated) if deprecated else set()
-        self._rounds = kwargs.get("pbkdf2_sha512__rounds", _DEFAULT_ROUNDS)
+        rounds = kwargs.get("pbkdf2_sha512__rounds", _DEFAULT_ROUNDS)
+        assert isinstance(rounds, int), "pbkdf2_sha512__rounds must be an int"
+        self._rounds = rounds
 
     def hash(self, password: str) -> str:
         return pbkdf2_sha512_hash(password, self._rounds)
@@ -120,13 +122,19 @@ class CryptContext:
             schemes = kwargs["schemes"]
             if isinstance(schemes, str):
                 schemes = [schemes]
+            assert isinstance(schemes, list | tuple | set), "schemes must be a sequence"
             assert all(isinstance(s, str) for s in schemes)
             self._schemes = list(schemes)
         if "deprecated" in kwargs:
             dep = kwargs["deprecated"]
+            assert dep is None or isinstance(dep, list | tuple | set), (
+                "deprecated must be a sequence"
+            )
             self._deprecated = set(dep) if dep else set()
         if "pbkdf2_sha512__rounds" in kwargs:
-            self._rounds = kwargs["pbkdf2_sha512__rounds"]
+            new_rounds = kwargs["pbkdf2_sha512__rounds"]
+            assert isinstance(new_rounds, int), "pbkdf2_sha512__rounds must be an int"
+            self._rounds = new_rounds
 
     def copy(self) -> CryptContext:
         ctx = CryptContext.__new__(CryptContext)

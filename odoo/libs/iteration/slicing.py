@@ -8,6 +8,18 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
 
 
+def _split_every[T](
+    n: int,
+    iterable: Iterable[T],
+    piece_maker: Callable[[Iterable[T]], Any] = tuple,
+) -> Iterator[Any]:
+    iterator = iter(iterable)
+    piece = piece_maker(islice(iterator, n))
+    while piece:
+        yield piece
+        piece = piece_maker(islice(iterator, n))
+
+
 @overload
 def split_every[T](n: int, iterable: Iterable[T]) -> Iterator[tuple[T, ...]]: ...
 
@@ -22,18 +34,6 @@ def split_every[T](
 def split_every[T, P](
     n: int, iterable: Iterable[T], piece_maker: Callable[[Iterable[T]], P]
 ) -> Iterator[P]: ...
-
-
-def _split_every[T](
-    n: int,
-    iterable: Iterable[T],
-    piece_maker: Callable[[Iterable[T]], Any] = tuple,
-) -> Iterator[Any]:
-    iterator = iter(iterable)
-    piece = piece_maker(islice(iterator, n))
-    while piece:
-        yield piece
-        piece = piece_maker(islice(iterator, n))
 
 
 def split_every[T](

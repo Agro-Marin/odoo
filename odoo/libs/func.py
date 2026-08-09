@@ -75,8 +75,10 @@ class classproperty[T]:
     def __get__(self, cls: Any, owner: type | None = None, /) -> T:
         return self.fget.__get__(None, owner)()
 
+    # A read-only __doc__ over the writeable one every object carries; that
+    # is what forwarding the wrapped function's docstring requires.
     @property
-    def __doc__(self) -> str | None:
+    def __doc__(self) -> str | None:  # type: ignore[override]
         return self.fget.__doc__
 
 
@@ -292,7 +294,7 @@ class lazy:
     def __imod__(self, other: Any) -> Any:
         return self._value.__imod__(other)
 
-    def __ipow__(self, other: Any) -> Any:
+    def __ipow__(self, other: Any) -> Any:  # type: ignore[misc]
         return self._value.__ipow__(other)
 
     def __ilshift__(self, other: Any) -> Any:

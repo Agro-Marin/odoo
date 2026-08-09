@@ -28,7 +28,8 @@ def hex_to_rgb(hx: str) -> tuple[int, int, int]:
     digits = hx.removeprefix("#")
     if len(digits) <= 4:
         digits = "".join(d * 2 for d in digits)
-    return tuple(int(digits[i : i + 2], 16) for i in range(0, 6, 2))
+    red, green, blue = (int(digits[i : i + 2], 16) for i in range(0, 6, 2))
+    return red, green, blue
 
 
 def rgb_to_hex(rgb: Sequence[int]) -> str:

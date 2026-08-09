@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import functools
 import re
+from collections.abc import Sequence
 from typing import Any, Protocol
 
 
@@ -22,7 +23,7 @@ def parse_grouping(grouping: str) -> tuple[int, ...]:
     return tuple(ast.literal_eval(grouping))
 
 
-def split(l: str, counts: list[int]) -> list[str]:
+def split(l: str, counts: Sequence[int]) -> list[str]:
     res = []
     saved_count = len(l)
     for count in counts:
@@ -46,14 +47,20 @@ def split(l: str, counts: list[int]) -> list[str]:
 intersperse_pat = re.compile(r"([^0-9]*)([^ ]*)(.*)")
 
 
-def intersperse(string: str, counts: list[int], separator: str = "") -> tuple[str, int]:
-    left, rest, right = intersperse_pat.match(string).groups()
+def intersperse(
+    string: str, counts: Sequence[int], separator: str = ""
+) -> tuple[str, int]:
+    matched = intersperse_pat.match(string)
+    # Every group is `*`-quantified, so this pattern matches any string,
+    # the empty one included.
+    assert matched is not None, f"intersperse_pat failed on {string!r}"
+    left, rest, right = matched.groups()
 
     def reverse(s: str) -> str:
         return s[::-1]
 
     splits = split(reverse(rest), counts)
-    res = separator.join(reverse(s) for s in reverse(splits))
+    res = separator.join(reverse(s) for s in reversed(splits))
     return left + res + right, (len(splits) > 0 and len(splits) - 1) or 0
 
 

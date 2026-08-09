@@ -25,7 +25,7 @@ def human_size(sz: float | str) -> str | Literal[False]:
     return f"{s:0.2f} {units[i]}"
 
 
-def str2bool(s: str, default: bool | None = None) -> bool:
+def str2bool(s: str | bool, default: bool | None = None) -> bool:
     if type(s) is bool:
         return s
 
