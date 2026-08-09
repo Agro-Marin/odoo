@@ -266,9 +266,9 @@ ungated module would lock past ~66%, and the ones that matter sit at 24–50%, s
 it is a cleanup effort rather than a switch. The cost is now derivable per
 module instead of guessed.
 
-**P2 is started**: five private override points promoted — three on `GraphModel`
-(hr_holidays, project) and two on `SearchModel` (crm, documents). 28 → 23
-remain. Each was a deliberate `super`-calling override whose underscore said
+**P2 is started**: seven private override points promoted — three on
+`GraphModel` (hr_holidays, project), two on `SearchModel` (crm, documents) and
+two on `RelationalModel` (crm, project ×2). 28 → 21 remain. Each was a deliberate `super`-calling override whose underscore said
 "internal" when the usage said "extension point".
 
 P3, P4 and P6 are unstarted.
@@ -301,7 +301,14 @@ something the others would have missed:
    ratchet floor, and a hand-written "7 privates over 53 accesses" figure in the
    contract docstring. For two accesses out of 247 that only pays as a batch.
 6. **Baseline the suite before and after**, and re-run any failure on unmodified
-   HEAD. The `--affected` run for the SearchModel change reported three failures
+   HEAD — then re-run the arm that surprised you, because load moves between
+   arms. The `RelationalModel` batch reported **72+ failures** in an 18-suite
+   `--affected` run, all in `webclient/actions`, while each suite passed in
+   isolation; unmodified HEAD then passed the same set (1239), which reads as
+   proof the change was at fault. It was not — re-running the same change again
+   gave 1239 too. The bad run went out with 8 warm hoot servers, 53 hoot
+   processes and 52 idle Postgres connections against a cap of 100. A single-arm
+   multi-suite hoot result under that load is evidence of nothing. The `--affected` run for the SearchModel change reported three failures
    in `search_panel_desktop/concurrency`; the identical suite set on untouched
    HEAD reported the same three, so they are pre-existing and
    combination-dependent.
