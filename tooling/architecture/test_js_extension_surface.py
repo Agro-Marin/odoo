@@ -374,6 +374,107 @@ def test_a_pin_naming_a_vanished_method_is_reported(tree):
     assert jes.unresolved(["Nonexistent.save"], web_src=web_src) == ["Nonexistent.save"]
 
 
+# --- patch(): the other mechanism, same contract ---
+
+
+def test_a_prototype_patch_is_an_override_point(tree):
+    """`patch` depends on the same member as `extends`, and fails worse.
+
+    Rename the member in `web` and the patch silently stops applying — a patch
+    matching nothing looks exactly like one that has not run yet, so there is no
+    error to notice.
+    """
+    root, web_src = tree
+    _write(
+        web_src,
+        "webclient/navbar.js",
+        "export class NavBar {\n    systrayItems() {}\n}\n",
+    )
+    _write(
+        root,
+        "addons/website/static/src/nav.js",
+        'import { patch } from "@web/core/utils/patch";\n'
+        'import { NavBar } from "@web/webclient/navbar";\n'
+        "patch(NavBar.prototype, {\n    systrayItems() {},\n});\n",
+    )
+    assert points(tree) == {"NavBar.systrayItems"}
+
+
+def test_a_bare_target_patch_counts_too(tree):
+    root, web_src = tree
+    _write(web_src, "a.js", "export class Thing {\n    go() {}\n}\n")
+    _write(
+        root,
+        "addons/x/static/src/p.js",
+        'import { Thing } from "@web/a";\npatch(Thing, {\n    go() {},\n});\n',
+    )
+    assert points(tree) == {"Thing.go"}
+
+
+def test_a_patch_adding_a_member_the_base_lacks_is_not_a_point(tree):
+    """Same rule as `extends`: adding behaviour is not depending on a contract."""
+    root, web_src = tree
+    _write(web_src, "a.js", "export class Thing {\n    go() {}\n}\n")
+    _write(
+        root,
+        "addons/x/static/src/p.js",
+        'import { Thing } from "@web/a";\npatch(Thing.prototype, {\n    brandNew() {},\n});\n',
+    )
+    assert points(tree) == set()
+
+
+def test_a_patch_on_a_non_web_target_is_ignored(tree):
+    root, web_src = tree
+    _write(web_src, "a.js", "export class Thing {\n    go() {}\n}\n")
+    _write(
+        root,
+        "addons/x/static/src/local.js",
+        "class Local {\n    go() {}\n}\npatch(Local.prototype, {\n    go() {},\n});\n",
+    )
+    assert points(tree) == set()
+
+
+def test_a_nested_object_literal_inside_a_patch_is_not_a_member(tree):
+    """Depth-1 keys only.
+
+    An object literal returned from a patched method has the same shape as the
+    patch body; an indentation-based scan cannot tell them apart and would
+    invent members from whatever the method happens to return.
+    """
+    root, web_src = tree
+    _write(web_src, "a.js", "export class Thing {\n    go() {}\n    stay() {}\n}\n")
+    _write(
+        root,
+        "addons/x/static/src/p.js",
+        'import { Thing } from "@web/a";\n'
+        "patch(Thing.prototype, {\n"
+        "    go() {\n        return { stay: 1, other: 2 };\n    },\n"
+        "});\n",
+    )
+    assert points(tree) == {"Thing.go"}
+
+
+def test_patch_and_extends_land_on_one_key(tree):
+    """Merged deliberately: the pin answers "depended on from outside", not
+    "by which syntax"."""
+    root, web_src = tree
+    _write(web_src, "a.js", "export class Thing {\n    go() {}\n}\n")
+    _write(
+        root,
+        "addons/x/static/src/sub.js",
+        'import { Thing } from "@web/a";\n'
+        "export class Sub extends Thing {\n    go() {}\n}\n",
+    )
+    _write(
+        root,
+        "addons/y/static/src/p.js",
+        'import { Thing } from "@web/a";\npatch(Thing.prototype, {\n    go() {},\n});\n',
+    )
+    detailed = jes.measure_detailed((root,), web_src=web_src)
+    assert set(detailed) == {"Thing.go"}
+    assert sum(sum(counts) for counts in detailed["Thing.go"].values()) == 2
+
+
 # --- --explain: the pin is a worklist, not just a count ---
 
 
