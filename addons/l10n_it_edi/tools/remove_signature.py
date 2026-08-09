@@ -3,30 +3,46 @@
 """
     Italian E-invoice signed files content extraction.
 
-    There are two methods: OpenSSL and Fallback.
-    Sometimes OpenSSL fail in reading signed invoices for some error in the signature itself.
-    The Fallback method only has minimal code to extract the invoices' content without verifying the signature itself.
-    It's only to be used as a no-requirements fallback for OpenSSL.
+    A '.xml.p7m' FatturaPA file is an XML invoice inside a PKCS#7 (CMS)
+    SignedData envelope. Two strategies unwrap it, in order:
+
+    - CMS: parse the envelope with asn1crypto and return the encapsulated
+      content exactly. Handles every conforming file.
+    - Fallback: walk the ASN.1 tree and concatenate the OctetStrings that follow
+      the pkcs7-data OID. For issuers (e.g. Servizio Elettrico Nazionale) whose
+      envelopes no conforming parser accepts.
+
+    Neither verifies the signature; both only unwrap. The fallback can return
+    MORE than the content -- on the malformed fixture in tests it appends 2779
+    bytes of certificate DER past the closing tag -- so the caller's
+    `recover=True` XML parser is load-bearing, not incidental.
 """
 
 import logging
 import struct
-import warnings
-from contextlib import suppress
 
-from OpenSSL import crypto as ssl_crypto
-import OpenSSL._util as ssl_util
+from asn1crypto import cms
 
 _logger = logging.getLogger(__name__)
 
 
 def remove_signature(content, target=None):
     """ Takes a bytestring supposedly PKCS7 signed and returns its PKCS7-data only """
-    for removal_strategy in (remove_signature_openssl, remove_signature_fallback):
+    for removal_strategy in (remove_signature_cms, remove_signature_fallback):
         if target:
             target.remove_signature_method = removal_strategy.__name__
-        with suppress(Exception):
+        try:
             return removal_strategy(content)
+        except Exception as e:
+            # Never raise: an unreadable envelope is handed back to the caller as
+            # None so it can report the file, not as a traceback. But do say which
+            # strategy declined and why -- this used to be a bare suppress(), which
+            # is how remove_signature_openssl went on raising AttributeError from
+            # its first line for releases without anyone noticing.
+            _logger.info("%s could not extract the p7m content: %s",
+                         removal_strategy.__name__, e)
+    _logger.warning("No strategy could extract the content of this p7m file.")
+    return None
 
 # --------------------------------------------------------------------------------
 # UTILS
@@ -48,33 +64,39 @@ def bit_array_to_byte(val):
 
 
 # --------------------------------------------------------------------------------
-# OPENSSL
+# CMS (PKCS#7 envelope)
 # --------------------------------------------------------------------------------
-def remove_signature_openssl(content):
+def remove_signature_cms(content):
     """ Remove the PKCS#7 envelope from given content, making a '.xml.p7m' file content readable as it was '.xml'.
-        As OpenSSL may not be installed, in that case a warning is issued and None is returned. """
 
-    # Load some tools from the library
-    null = ssl_util.ffi.NULL
-    verify = ssl_util.lib.PKCS7_verify
+        Parses the DER envelope as CMS and returns the encapsulated content
+        verbatim. `strict=True` rejects trailing bytes after the structure, so a
+        file that parses here yields exactly the content and nothing else --
+        unlike the fallback below.
 
-    # By default ignore the validity of the certificates, just validate the structure
-    flags = ssl_util.lib.PKCS7_NOVERIFY | ssl_util.lib.PKCS7_NOSIGS
+        This replaced an OpenSSL implementation that had stopped working: it
+        called `OpenSSL.crypto.load_pkcs7_data` and `OpenSSL._util.lib.PKCS7_verify`,
+        neither of which exists any more -- pyOpenSSL dropped the loader and
+        cryptography no longer compiles the PKCS7_* CFFI bindings. It raised
+        AttributeError on its first line for every input, and the caller's
+        suppress() sent every file to the fallback. asn1crypto is a direct
+        dependency of this fork already (odoo/tools/pdf/signature.py), so this
+        adds nothing to install.
+    """
+    info = cms.ContentInfo.load(content, strict=True)
+    if info['content_type'].native != 'signed_data':
+        raise ValueError(f"Not a PKCS#7 SignedData envelope: {info['content_type'].native}")
 
-    # Read the signed data fron the content
-    out_buffer = ssl_crypto._new_mem_buf()
+    encapsulated = info['content']['encap_content_info']
+    if encapsulated['content_type'].native != 'data':
+        raise ValueError(f"Encapsulated content is {encapsulated['content_type'].native}, not pkcs7-data")
 
-    # This method is deprecated, but there are actually no alternatives
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        loaded_data = ssl_crypto.load_pkcs7_data(ssl_crypto.FILETYPE_ASN1, content)
+    # A detached signature carries no content at all; returning None here would
+    # look like a successful extraction of an empty invoice.
+    if (data := encapsulated['content'].native) is None:
+        raise ValueError("Detached signature: the envelope carries no encapsulated content")
 
-    # Verify the signature
-    if verify(loaded_data._pkcs7, null, null, null, out_buffer, flags) != 1:
-        ssl_crypto._raise_current_error()
-
-    # Get the content as a byte-string
-    return ssl_crypto._bio_to_string(out_buffer)
+    return data
 
 # --------------------------------------------------------------------------------
 # FALLBACK REMOVE SIGNATURE (ASN1 parse)

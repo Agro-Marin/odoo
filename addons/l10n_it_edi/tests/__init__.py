@@ -10,5 +10,6 @@ from . import test_edi_import
 from . import test_edi_pa
 from . import test_edi_reverse_charge
 from . import test_it_document_type
+from . import test_remove_signature
 from . import test_res_partner
 from . import test_withholding

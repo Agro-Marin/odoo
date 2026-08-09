@@ -193,18 +193,18 @@ class TestItEdiImport(TestItEdi):
     def test_receive_wrongly_signed_vendor_bill(self):
         """
             Some of the invoices (i.e. those from Servizio Elettrico Nazionale, the
-            ex-monopoly-of-energy company) have custom signatures that rely on an old
-            OpenSSL implementation that breaks the current one that sees them as malformed,
-            so we cannot read those files. Also, we couldn't find an alternative way to use
-            OpenSSL to just get the same result without getting the error.
+            ex-monopoly-of-energy company) carry envelopes malformed enough that no
+            conforming parser accepts them, so the primary CMS strategy rejects this
+            file outright.
 
-            A new fallback method has been added that reads the ASN1 file structure and
-            takes the encoded pkcs7-data tag content out of it, regardless of the
-            signature.
+            The fallback reads the ASN1 file structure and takes the encoded
+            pkcs7-data tag content out of it, regardless of the signature. It is a
+            best effort on input already known to be broken and can return more than
+            the content, which is why the caller parses with recover=True.
 
-            Being a non-optimized pure Python implementation, it takes about 2x the time
-            than the regular method, so it's better used as a fallback. We didn't use an
-            existing library not to further pollute the dependencies space.
+            Strategy-level coverage — that CMS handles conforming envelopes and that
+            this one really does fall through to the fallback — is in
+            tests/test_remove_signature.py. This test pins the end-to-end import.
 
             task-3502910
         """

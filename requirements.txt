@@ -64,12 +64,11 @@
 #     use_privatekey(). stdlib ssl cannot — load_cert_chain() takes file paths
 #     only, so dropping pyopenssl means writing private keys to disk. Also
 #     reached by auth_passkey's vendored webauthn (chain validation),
-#     certificate/, l10n_it_edi and enterprise l10n_nl_reports.
-#   Broken on every version in range, so not a regression:
-#     l10n_it_edi/tools/remove_signature.py reaches OpenSSL._util.lib for
-#     PKCS7_verify. cryptography no longer compiles the PKCS7_* CFFI bindings
-#     and pyopenssl no longer exports load_pkcs7_data; its suppress(Exception)
-#     hides the AttributeError. Separate defect.
+#     certificate/ and enterprise l10n_nl_reports.
+#   No call site uses pyopenssl's private surface any more.
+#     l10n_it_edi/tools/remove_signature.py used to reach OpenSSL._util.lib for
+#     PKCS7_verify and OpenSSL.crypto.load_pkcs7_data, neither of which still
+#     exists; it now parses the CMS envelope with asn1crypto.
 #
 # reportlab 5.0.0
 #   No advisory against 4.4.10 or 5.0.0.
