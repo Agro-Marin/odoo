@@ -14,7 +14,13 @@ defineCalendarModels();
 preloadFullCalendar();
 
 test("activity menu widget:today meetings", async () => {
-    mockDate(2018, 3, 20, 6, 0, 0);
+    // `mockDate(date, tz)`, not `mockDate(y, m, d, h, m, s)`: the old signature
+    // is silently accepted -- a non-string first argument has no `.year`, so
+    // every field falls back to hoot's default date and the `3` is taken as the
+    // *timezone*. The date this test thought it had pinned was never pinned, so
+    // it passed or failed depending on what the previously-run suite had left
+    // mocked.
+    mockDate("2018-04-20 06:00:00", 0);
     const pyEnv = await startServer();
     const attendeeId = pyEnv["calendar.attendee"].create({ partner_id: serverState.partnerId });
     pyEnv["calendar.event"].create([

@@ -60,5 +60,8 @@ test("list activity widget: reschedule button in dropdown", async () => {
     await contains(".o-mail-ListActivity-summary", { text: "OXP" });
     await click(".o-mail-ActivityButton"); // open the popover
     await contains(".o-mail-ActivityListPopoverItem-editbtn .fa-pencil", { count: 0 });
-    await contains(".o-mail-ActivityListPopoverItem-editbtn .fa-calendar");
+    // `.fa-calendar-days`, not `.fa-calendar`: both are real FontAwesome 7
+    // icons, and the reschedule button in activity_list_popover_item_patch.xml
+    // emits the former, so asserting the latter matched nothing.
+    await contains(".o-mail-ActivityListPopoverItem-editbtn .fa-calendar-days");
 });

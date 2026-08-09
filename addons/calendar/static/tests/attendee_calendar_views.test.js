@@ -13,9 +13,8 @@ import {
 import {
     changeScale,
     clickEvent,
+    clickTimeSlot,
     expandCalendarView,
-    findDateColumn,
-    findTimeRow,
 } from "@web/../tests/views/calendar/calendar_test_helpers";
 
 defineCalendarModels();
@@ -44,21 +43,12 @@ const arch = /*xml*/ `
     </calendar>
 `;
 
-async function selectTimeStart(startDateTime) {
-    const [startDate, startTime] = startDateTime.split(" ");
-    const startCol = findDateColumn(startDate);
-    const startRow = findTimeRow(startTime);
-    await scrollTo(startRow);
-
-    const startColRect = startCol.getBoundingClientRect();
-    const startRowRect = startRow.getBoundingClientRect();
-    await contains(startRow).click({
-        position: {
-            x: startColRect.x + startColRect.width / 2,
-            y: startRowRect.y + 1,
-        },
-    });
-}
+// `selectTimeStart` used to live here: a local copy of what
+// `clickTimeSlot` does, clicking the time *row* at absolute viewport
+// coordinates rather than the day column at coordinates relative to the lane.
+// It stopped selecting anything when the calendar's layout changed, so no quick
+// create opened and this test looked for a dialog that was never there. Use the
+// maintained helper.
 
 beforeEach(async () => {
     mockDate("2016-12-12 08:00:00", 0);
@@ -133,7 +123,7 @@ test("Default duration rendering", async () => {
     await mountView({ type: "calendar", resModel: "calendar.event", arch });
     expandCalendarView();
     await changeScale("week");
-    await selectTimeStart("2016-12-15 15:00:00");
+    await clickTimeSlot("2016-12-15 15:00:00");
     await contains(".o-calendar-quick-create--input").edit("Event with new duration", {
         confirm: false,
     });
