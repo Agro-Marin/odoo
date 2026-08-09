@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 
@@ -100,3 +101,56 @@ class TestSaleOrderStateMachine(SaleCommon):
         self.sale_order.action_confirm()
         self.sale_order.action_lock()  # writing locked=True must not raise
         self.assertTrue(self.sale_order.locked)
+
+
+@tagged("post_install", "-at_install")
+class TestSaleMassCancel(SaleCommon):
+    """The mass-cancel wizard must honour the same guards as action_cancel.
+
+    The wizard used to call ``_action_cancel()`` directly, which skips
+    ``_can_cancel`` and therefore ``_can_cancel_except_locked`` — a locked SO in
+    the selection was cancelled silently from the list view.
+    """
+
+    def _make_so(self, confirm=False):
+        order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": self.product.id, "product_qty": 1.0},
+                    ),
+                ],
+            },
+        )
+        if confirm:
+            order.action_confirm()
+        return order
+
+    def _wizard(self, orders):
+        return self.env["sale.mass.cancel.orders"].create(
+            {"sale_order_ids": [Command.set(orders.ids)]},
+        )
+
+    def test_mass_cancel_drafts(self):
+        """Plain draft quotations cancel cleanly."""
+        orders = self._make_so() | self._make_so()
+        self._wizard(orders).action_mass_cancel()
+        self.assertEqual(set(orders.mapped("state")), {"cancel"})
+
+    def test_mass_cancel_blocks_locked_order(self):
+        """A locked SO in the selection must not be silently cancelled."""
+        locked = self._make_so(confirm=True)
+        locked.action_lock()
+        with self.assertRaises(UserError):
+            self._wizard(locked).action_mass_cancel()
+        self.assertEqual(locked.state, "done", "Locked SO must survive mass-cancel")
+
+    def test_mass_cancel_skips_already_cancelled(self):
+        """A mixed selection cancels the live orders and skips cancelled ones."""
+        live = self._make_so()
+        already = self._make_so()
+        already.action_cancel()
+        self._wizard(live | already).action_mass_cancel()
+        self.assertEqual(live.state, "cancel")
+        self.assertEqual(already.state, "cancel")

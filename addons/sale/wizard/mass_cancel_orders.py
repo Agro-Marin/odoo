@@ -27,7 +27,11 @@ class SaleMassCancelOrders(models.TransientModel):
             )
 
     def action_mass_cancel(self):
-        # Skip orders already cancelled (avoid redundant writes/tracking) and
-        # close the wizard so the originating list refreshes.
-        self.sale_order_ids.filtered(lambda so: so.state != "cancel")._action_cancel()
+        # Skip orders already cancelled (so a mixed selection doesn't abort on
+        # the "already cancelled" guard), but route through the public
+        # action_cancel so the locked-order guard still applies. Calling
+        # _action_cancel() directly would bypass _can_cancel and let a locked SO
+        # be cancelled silently. Closing the wizard refreshes the originating
+        # list.
+        self.sale_order_ids.filtered(lambda so: so.state != "cancel").action_cancel()
         return {"type": "ir.actions.act_window_close"}
