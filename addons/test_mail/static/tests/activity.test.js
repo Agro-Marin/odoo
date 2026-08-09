@@ -457,10 +457,16 @@ test("activity view: batch send mail on activity", async () => {
         res_model: "mail.test.activity",
         views: [[false, "activity"]],
     });
-    await click("[data-bs-toggle=dropdown]", {
+    // `Dropdown` stamps its own classes on the slotted toggle (`o-dropdown`,
+    // `dropdown-toggle`) and renders the menu as `.o-dropdown--menu`. The
+    // Bootstrap-JS spelling this used -- `[data-bs-toggle=dropdown]` and
+    // `.dropdown-menu.show` -- matches nothing since the component stopped
+    // being Bootstrap-driven; it survived only because no CI gate selected
+    // these suites until test_mail/tests/test_js.py wired them in.
+    await click(".dropdown-toggle", {
         parent: [".o_activity_view_table th", { text: "Email" }],
     });
-    await contains(".dropdown-menu.show .o_send_mail_template", { count: 2 });
+    await contains(".o-dropdown--menu .o_send_mail_template", { count: 2 });
     await click(".o_send_mail_template", { text: "Template1" });
     await waitForSteps([
         [[mailTestActivityIds[0], mailTestActivityIds[1]], mailTemplateIds[0]], // template 1 sendt on activity 1 and 2
@@ -803,10 +809,20 @@ test("activity view: 'onClose' of 'openActivityFormView' does not add activity_i
 });
 
 test("activity view: 'onReloadData' does not add activity_ids condition as selectCreateDialog domain", async () => {
+    // Collected rather than stepped: this is the only one of the three
+    // "does not add activity_ids" tests that hooks a *getter* instead of a
+    // method, so one entry lands per render and not per user action. Pinning
+    // the exact list therefore pinned the web model layer's render cadence --
+    // brittle in the way `waitForSteps([[], [], []])` was, which failed on a
+    // fourth, equally empty domain while the property the test is named for
+    // held. Assert that property instead: every domain the renderer is handed
+    // is free of an `activity_ids` condition, however many renders it takes.
+    /** @type {import("@web/core/domain").DomainListRepr[]} */
+    const domains = [];
     patchWithCleanup(ActivityController.prototype, {
         get rendererProps() {
             const rendererProps = { ...super.rendererProps };
-            asyncStep(this.getSearchProps().domain);
+            domains.push(this.getSearchProps().domain);
             return rendererProps;
         },
     });
@@ -826,7 +842,8 @@ test("activity view: 'onReloadData' does not add activity_ids condition as selec
     //schedule another activity on an activity cell with a scheduled activity
     await click(".today .o-mail-ActivityCell-deadline");
     await click(".o-mail-ActivityListPopover button:contains(Schedule an activity)");
-    await waitForSteps([[], [], []]);
+    expect(domains.length).toBeGreaterThan(0);
+    expect(domains.filter((domain) => domain.length)).toEqual([]);
 });
 
 test("Activity view: discard an activity creation dialog", async () => {
