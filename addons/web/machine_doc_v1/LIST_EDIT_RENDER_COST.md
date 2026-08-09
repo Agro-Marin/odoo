@@ -52,6 +52,15 @@ Measured at 200 rows, moving edition between rows:
 | total rebuild time | **0.80 ms** |
 | attributable to the 2 discarded renders | **~0.5 ms** |
 
+And the other per-render work, at 80 rows x 8 columns:
+
+| | |
+|---|---|
+| `processAllColumns` | 3 calls, **0.00 ms** (memoised; the column objects are referentially stable, which is why `_toStableColumns` succeeds) |
+| `getActiveColumns` | 3 calls, **0.50 ms** |
+
+So the whole renderer-side waste of an edit-move is under a millisecond.
+
 **Do not pursue.** The three renders correspond to real model transitions
 published across `await` boundaries — the click, then `leaveEditMode`, then the
 `enterEditMode` tail, each behind `model.mutex`. Collapsing them into one render
@@ -71,6 +80,9 @@ Measured, so it need not be re-derived:
   12-field form.
 - **Control panel.** Focusing the search input, typing into it, and opening the
   filter dropdown each repaint **0** rows and **0** renderers.
+- **Virtualized scrolling.** A 300-row list virtualizes to 27 visible rows; a
+  scroll that grows the window to 36 repaints the **9** rows that entered it and
+  skips the 27 already there.
 
 ## Technique
 
