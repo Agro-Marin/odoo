@@ -54,6 +54,67 @@ def get_video_source_data(video_url):
     return None
 
 
+def _youtube_embed_url(video_id, platform_match, params, *, autoplay, loop,
+                       hide_controls, hide_fullscreen, start_from):
+    """Build the YouTube embed URL, filling ``params`` in place.
+
+    ``params`` is mutated rather than returned because the caller hands the same
+    dict back to the template, and because ``urlencode`` renders it in insertion
+    order -- so the order these keys are set in is part of the output.
+    """
+    params['rel'] = 0
+    params['autoplay'] = (autoplay and 1) or 0
+    if start_from:
+        params["start"] = start_from.rstrip("s")
+    if autoplay:
+        params['mute'] = 1
+        # The youtube js api is needed for autoplay on mobile. Note: this
+        # was added as a fix, old customers may have autoplay videos
+        # without this, which will make their video autoplay on desktop but
+        # not in mobile (so no behavior change was done in stable, this
+        # should not be migrated).
+        params['enablejsapi'] = 1
+    if hide_controls:
+        params['controls'] = 0
+    if loop:
+        params['loop'] = 1
+        params['playlist'] = video_id
+    if hide_fullscreen:
+        params['fs'] = 0
+    yt_extra = platform_match[1] or ''
+    return f"//www.youtube{yt_extra}.com/embed/{video_id}?{urlencode(params)}"
+
+
+def _vimeo_embed_url(video_id, platform_match, params, *, autoplay, loop,
+                     hide_controls, start_from):
+    """Build the Vimeo embed URL, filling ``params`` in place.
+
+    The private-video hash reaches us two ways -- as a named ``hash`` group, or
+    inside the URL's own query string -- and only the first one found is used.
+    """
+    params['autoplay'] = (autoplay and 1) or 0
+    # Always enable "do not track" parameter.
+    params['dnt'] = 1
+    if autoplay:
+        params['muted'] = 1
+        params['autopause'] = 0
+    if hide_controls:
+        params['controls'] = 0
+    if loop:
+        params['loop'] = 1
+    groups = platform_match.groupdict()
+    if groups.get('hash'):
+        params['h'] = groups['hash']
+    elif groups.get('params'):
+        url_params = parse_qs(groups['params'])
+        if 'h' in url_params:
+            params['h'] = url_params['h'][0]
+    embed_url = f"//player.vimeo.com/video/{video_id}?{urlencode(params)}"
+    if start_from:
+        embed_url = f"{embed_url}#t={start_from}"
+    return embed_url
+
+
 def get_video_url_data(video_url, autoplay=False, loop=False,
                        hide_controls=False, hide_fullscreen=False,
                        hide_dm_logo=False, hide_dm_share=False,
@@ -72,48 +133,17 @@ def get_video_url_data(video_url, autoplay=False, loop=False,
     if start_from == "00:00":
         start_from = "0"
     if platform == 'youtube':
-        params['rel'] = 0
-        params['autoplay'] = (autoplay and 1) or 0
-        if start_from:
-            params["start"] = start_from.rstrip("s")
-        if autoplay:
-            params['mute'] = 1
-            # The youtube js api is needed for autoplay on mobile. Note: this
-            # was added as a fix, old customers may have autoplay videos
-            # without this, which will make their video autoplay on desktop but
-            # not in mobile (so no behavior change was done in stable, this
-            # should not be migrated).
-            params['enablejsapi'] = 1
-        if hide_controls:
-            params['controls'] = 0
-        if loop:
-            params['loop'] = 1
-            params['playlist'] = video_id
-        if hide_fullscreen:
-            params['fs'] = 0
-        yt_extra = platform_match[1] or ''
-        embed_url = f"//www.youtube{yt_extra}.com/embed/{video_id}?{urlencode(params)}"
+        embed_url = _youtube_embed_url(
+            video_id, platform_match, params,
+            autoplay=autoplay, loop=loop, hide_controls=hide_controls,
+            hide_fullscreen=hide_fullscreen, start_from=start_from,
+        )
     elif platform == 'vimeo':
-        params['autoplay'] = (autoplay and 1) or 0
-        # Always enable "do not track" parameter.
-        params['dnt'] = 1
-        if autoplay:
-            params['muted'] = 1
-            params['autopause'] = 0
-        if hide_controls:
-            params['controls'] = 0
-        if loop:
-            params['loop'] = 1
-        groups = platform_match.groupdict()
-        if groups.get('hash'):
-            params['h'] = groups['hash']
-        elif groups.get('params'):
-            url_params = parse_qs(groups['params'])
-            if 'h' in url_params:
-                params['h'] = url_params['h'][0]
-        embed_url = f"//player.vimeo.com/video/{video_id}?{urlencode(params)}"
-        if start_from:
-            embed_url = f"{embed_url}#t={start_from}"
+        embed_url = _vimeo_embed_url(
+            video_id, platform_match, params,
+            autoplay=autoplay, loop=loop, hide_controls=hide_controls,
+            start_from=start_from,
+        )
     elif platform == 'dailymotion':
         if start_from:
             params["startTime"] = start_from.rstrip("s")

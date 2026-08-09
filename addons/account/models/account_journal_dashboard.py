@@ -514,7 +514,7 @@ class AccountJournal(models.Model):
         self._fill_bank_cash_dashboard_data(dashboard_data)
         self._fill_sale_purchase_dashboard_data(dashboard_data)
         self._fill_general_dashboard_data(dashboard_data)
-        self._fill_onboarding_data(dashboard_data)
+        self._update_onboarding_data(dashboard_data)
         return dashboard_data
 
     def _fill_dashboard_data_count(self, dashboard_data, model, name, domain):
@@ -844,7 +844,7 @@ class AccountJournal(models.Model):
                 }
             )
 
-    def _fill_onboarding_data(self, dashboard_data):
+    def _update_onboarding_data(self, dashboard_data):
         """Populate journals with onboarding data if they have no entries"""
         journal_onboarding_map = {
             "sale": "account_invoice",

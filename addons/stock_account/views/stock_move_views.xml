@@ -62,10 +62,10 @@
         <field name="name">Adjust Valuation</field>
         <field name="model_id" ref="model_stock_move"/>
         <field name="binding_model_id" ref="model_stock_move"/>
-        <field name="group_ids" eval="[Command.link(ref('stock.group_stock_manager'))]"/>
         <field name="state">code</field>
         <field name="code">
 action = records.action_adjust_valuation()
         </field>
+        <field name="group_ids" eval="[Command.link(ref('stock.group_stock_manager'))]"/>
     </record>
 </odoo>

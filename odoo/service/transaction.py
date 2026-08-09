@@ -78,6 +78,57 @@ def _reset_env_state(env: Environment) -> None:
         env.registry.reset_changes()
 
 
+def _warn_cursor_closed_before_commit(func: Callable[..., object]) -> None:
+    """Warn that ``func`` closed its own cursor, so nothing was committed."""
+    from odoo import http
+
+    # `getattr` rather than attribute access: this runs on the tail of every
+    # served request, and `request` is not always a real `Request` (tests
+    # patch it, `borrow_request` swaps it). Missing the warning on such a
+    # stand-in is a far smaller failure than raising from here.
+    current_request = http.request
+    if current_request and getattr(current_request, "database_detached", False):
+        return
+    _logger.warning(
+        "retrying(): the cursor was closed before commit; %s's work was "
+        "NOT committed and no registry signal was sent. The handler closed "
+        "its own cursor, or something else did.",
+        getattr(func, "__qualname__", func),
+    )
+
+
+def _commit_and_signal(env: Environment) -> None:
+    """Commit the transaction and signal the registry.
+
+    A commit that raises may still have been durable -- the failure can come
+    from the signalling that follows it -- so the two cases are told apart by
+    the cursor's commit counter rather than by the exception alone. When the
+    work did not land, an IntegrityError is translated to the ValidationError a
+    user can act on, exactly as the retry loop does.
+    """
+    commits_before = env.cr.commit_count
+    try:
+        env.cr.commit()
+    except Exception as exc:
+        if env.cr.commit_count > commits_before:
+            with suppress(Exception):
+                env.registry.signal_changes()
+        else:
+            _reset_env_state(env)
+            if not env.cr.closed and isinstance(exc, IntegrityError):
+                translated = None
+                with suppress(Exception):
+                    translated = _integrity_error_to_validation(env, exc)
+                if translated is not None:
+                    raise translated from exc
+        raise
+    if not env.cr.closed:
+        env.registry.signal_changes()
+    elif env.cr.commit_count > commits_before:
+        with suppress(Exception):
+            env.registry.signal_changes()
+
+
 def retrying[T](func: Callable[[], T], env: Environment) -> T:
     from odoo import http
 
@@ -138,44 +189,10 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
         raise
 
     if env.cr.closed:
-        # `getattr` rather than attribute access: this runs on the tail of every
-        # served request, and `request` is not always a real `Request` (tests
-        # patch it, `borrow_request` swaps it). Missing the warning on such a
-        # stand-in is a far smaller failure than raising from here.
-        current_request = http.request
-        if not (
-            current_request and getattr(current_request, "database_detached", False)
-        ):
-            _logger.warning(
-                "retrying(): the cursor was closed before commit; %s's work was "
-                "NOT committed and no registry signal was sent. The handler closed "
-                "its own cursor, or something else did.",
-                getattr(func, "__qualname__", func),
-            )
+        _warn_cursor_closed_before_commit(func)
         return result
 
-    commits_before = env.cr.commit_count
-    try:
-        env.cr.commit()
-    except Exception as exc:
-        durable = env.cr.commit_count > commits_before
-        if durable:
-            with suppress(Exception):
-                env.registry.signal_changes()
-        else:
-            _reset_env_state(env)
-            if not env.cr.closed and isinstance(exc, IntegrityError):
-                translated = None
-                with suppress(Exception):
-                    translated = _integrity_error_to_validation(env, exc)
-                if translated is not None:
-                    raise translated from exc
-        raise
-    if not env.cr.closed:
-        env.registry.signal_changes()
-    elif env.cr.commit_count > commits_before:
-        with suppress(Exception):
-            env.registry.signal_changes()
+    _commit_and_signal(env)
     return result
 
 
