@@ -229,29 +229,44 @@ remains fine on a `SignalStore` getter.
 
 ## Model → renderer subscription: `useReactiveModel`
 
-`model/model.js` gives view models a reactive re-render path that replaces
-the legacy "deep render on every `ModelEvent.UPDATE`" bus listener:
+Reactive subscription is the **default**; the deep render on every
+`ModelEvent.UPDATE` is the exception, and each model that still needs it says so.
 
 - `Model` extends `SignalStore` and owns `_updateEpoch`, a counter bumped by
   every `notify()` (`model.js` — `this._updateEpoch++` right before the bus
-  trigger; the bus event is kept for legacy/cross-addon consumers but is no
-  longer load-bearing for local re-renders).
+  trigger).
 - `useReactiveModel(model)` (exported from `model/model.js`) wraps the model
   in `useState()` and reads `_updateEpoch` in `onWillRender`, so the calling
   component subscribes to the epoch: every `model.notify()` re-renders it
-  directly — no parent deep render required. Use it in renderers that
-  snapshot derived state from the model (e.g. PivotRenderer's `getTable()`).
-- A model class whose whole view tree is on this pattern opts out of the
-  legacy listener with `static reactiveRenderers = true` (checked in
-  `useModelWithSampleData`; pivot and graph are opted out).
+  directly. Use it in renderers that snapshot derived state from the model
+  (e.g. PivotRenderer's `getTable()`). Pivot and graph are on this pattern and
+  carry no flag.
+- `useModelWithSampleData` installs **no** listener of its own. A controller
+  already wraps its model in `useState`, so its own reads subscribe it.
 
-**CAUTION before opting a model out**: the legacy deep-render listener IS
-load-bearing for any renderer that (a) receives the model as a stable prop
-(OWL props-equality skips it on reactive controller renders) and (b)
-snapshots derived state in `onWillUpdateProps` / `useEffect` deps. Still
-depending on it: calendar, plus enterprise `web_map`, `web_cohort`,
-`web_grid`, `web_gantt`, `social`. Audit the full renderer tree against
-(a)+(b) first.
+### `static forceRenderOnUpdate` — the shrinking exception
+
+A model still needing the blanket `component.render(true)` on every `notify()`
+declares `static forceRenderOnUpdate = true`. It is load-bearing for any
+renderer that (a) receives the model inside a props object that keeps its
+identity — OWL props-equality then skips it on a non-forced render — and (b)
+snapshots derived state in `onWillUpdateProps` / `useEffect` deps.
+
+Declaring it today: `CalendarModel`, plus enterprise `GanttModel`, `MapModel`,
+`CohortModel`, `GridModel`. Each carries a MIGRATION DEBT comment naming the
+suite that guards it. Clearing one means subscribing its renderer tree with
+`useReactiveModel` the way pivot and graph already do.
+
+**Why the polarity was inverted.** As a global default the deep render silently
+covered for state nothing subscribed to. Removing it surfaced a real defect in
+the kanban progress bars: `activeBar` was a getter closed over the proxy that
+happened to seed the group, so a component reading `groupInfo.activeBar` during
+render could never subscribe to it — the value changed and nothing re-rendered.
+It is now a plain reactive property kept in step by `_syncActiveBar`, and
+`KanbanRenderer` / `KanbanHeader` re-target the prop with `useState` so their
+reads are tracked. Measured on an 80×8 list, sort, pager, search facet,
+select-all and a single-record edit render identically with and without the
+blanket, so this is a correctness and clarity change, not a performance one.
 
 ## Record State Architecture
 

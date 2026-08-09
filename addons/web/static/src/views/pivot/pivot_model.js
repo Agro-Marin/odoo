@@ -80,8 +80,6 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
 const SUPERSEDED = Symbol("superseded");
 
 export class PivotModel extends Model {
-    static reactiveRenderers = true;
-
     /**
      * @override
      * @param {Object} params

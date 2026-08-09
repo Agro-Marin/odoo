@@ -163,11 +163,15 @@ class ProgressBarState {
             activeBar.aggregates = this._aggregatesByKey.get(key);
         }
 
-        const self = this;
+        // `activeBar` is a PLAIN property, deliberately not a getter closing
+        // over `this`. A closure would always read `activeBars` through the
+        // proxy that happened to seed the group, so a component reading
+        // `groupInfo.activeBar` during render could never subscribe to it --
+        // the value changed and nothing re-rendered. That invisible dependency
+        // used to be masked by a blanket `render(true)` on every model update.
+        // Kept in sync by `_syncActiveBar`, which every mutation funnels through.
         this._groupsInfo[group.id] = {
-            get activeBar() {
-                return self.activeBars[key]?.value || null;
-            },
+            activeBar: this.activeBars[key]?.value || null,
             bars,
             total: 0,
             isReady: true,
@@ -199,6 +203,25 @@ class ProgressBarState {
         if (activeBar) {
             activeBar.count =
                 groupInfo.bars.find((bar) => bar.value === activeBar.value)?.count ?? 0;
+        }
+        this._syncActiveBar(group);
+    }
+
+    /**
+     * Mirror `activeBars[key]` onto the group's rendered info. The two are
+     * separate objects, so nothing keeps them in step implicitly -- every
+     * selection and deselection funnels through here.
+     *
+     * @param {Group} group
+     */
+    _syncActiveBar(group) {
+        const groupInfo = this._groupsInfo[group.id];
+        if (!groupInfo) {
+            return;
+        }
+        const value = this.activeBars[groupKey(group.serverValue)]?.value || null;
+        if (groupInfo.activeBar !== value) {
+            groupInfo.activeBar = value;
         }
     }
 
@@ -263,6 +286,7 @@ class ProgressBarState {
         } else {
             await group.applyFilter(undefined);
             delete this.activeBars[key];
+            this._syncActiveBar(group);
             group.model.notify();
             return;
         }
@@ -286,6 +310,7 @@ class ProgressBarState {
         }
         await Promise.all(proms);
         this.activeBars[key] = nextActiveBar;
+        this._syncActiveBar(group);
         this.updateCounts(group);
     }
 

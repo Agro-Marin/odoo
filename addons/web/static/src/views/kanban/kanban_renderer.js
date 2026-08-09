@@ -105,6 +105,14 @@ export class KanbanRenderer extends Component {
 
     setup() {
         useRenderCounter("kanban.KanbanRenderer");
+        // `progressBarState` arrives as a bare `reactive()` built by the
+        // controller's `useProgressBar`. Reads through the raw prop are not
+        // tracked for THIS component, so re-target it with `useState`: the
+        // renderer then re-renders when a bar is selected or deselected, which
+        // is what the removed blanket `render(true)` used to cover.
+        this.progressBarState = this.props.progressBarState
+            ? useState(this.props.progressBarState)
+            : undefined;
         this.quickCreateState =
             this.props.quickCreateState || useState({ groupId: false });
         this.dialogClose = [];
@@ -361,8 +369,8 @@ export class KanbanRenderer extends Component {
         if (!this.env.isSmall && group.isFolded) {
             classes.push("o_column_folded", "flex-basis-0");
         }
-        if (this.props.progressBarState && !group.isFolded) {
-            const progressBarInfo = this.props.progressBarState.getGroupInfo(group);
+        if (this.progressBarState && !group.isFolded) {
+            const progressBarInfo = this.progressBarState.getGroupInfo(group);
             if (progressBarInfo.activeBar) {
                 const progressBar = progressBarInfo.bars.find(
                     (b) => b.value === progressBarInfo.activeBar,
@@ -380,7 +388,7 @@ export class KanbanRenderer extends Component {
 
     getGroupUnloadedCount(group) {
         const records = group.list.records.filter((r) => !r.isInQuickCreation);
-        const count = this.props.progressBarState?.getGroupCount(group) ?? group.count;
+        const count = this.progressBarState?.getGroupCount(group) ?? group.count;
         return count - records.length;
     }
 
@@ -419,7 +427,7 @@ export class KanbanRenderer extends Component {
         if (mode === "edit") {
             await this.props.openRecord(record);
         } else {
-            this.props.progressBarState?.updateCounts(group);
+            this.progressBarState?.updateCounts(group);
         }
         this.quickCreateState.groupId = mode === "add" ? group.id : false;
     }
@@ -570,7 +578,7 @@ export class KanbanRenderer extends Component {
                 !!targetGroupId &&
                 targetGroupId !== dataGroupId;
             if (isGroupMove) {
-                this.props.progressBarState?.registerRecordMove(
+                this.progressBarState?.registerRecordMove(
                     dataRecordId,
                     dataGroupId,
                     targetGroupId,
@@ -586,7 +594,7 @@ export class KanbanRenderer extends Component {
             } finally {
                 this.toggleProcessing(dataRecordId, false);
                 if (isGroupMove) {
-                    this.props.progressBarState?.cancelRecordMove(dataRecordId);
+                    this.progressBarState?.cancelRecordMove(dataRecordId);
                 }
             }
         }

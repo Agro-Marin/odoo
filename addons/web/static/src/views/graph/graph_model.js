@@ -32,8 +32,6 @@ const SEQUENTIAL_TYPES = ["date", "datetime"];
  */
 
 export class GraphModel extends Model {
-    static reactiveRenderers = true;
-
     /**
      * @override
      */

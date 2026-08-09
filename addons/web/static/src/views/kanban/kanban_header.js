@@ -3,7 +3,7 @@
 
 /** @module @web/views/kanban/kanban_header */
 
-import { Component, useRef } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/translation";
@@ -54,6 +54,13 @@ export class KanbanHeader extends Component {
     popover;
 
     setup() {
+        // Same re-targeting as `KanbanRenderer`: the bare `reactive()` handed
+        // down as a prop only tracks reads made through a proxy owned by the
+        // reading component. Without this the bar counts and the active-bar
+        // highlight stop refreshing once the blanket render is gone.
+        this.progressBarState = this.props.progressBarState
+            ? useState(this.props.progressBarState)
+            : undefined;
         this.dialog = useService("dialog");
         this.orm = useService("orm");
         this.rootRef = useRef("root");
@@ -125,7 +132,7 @@ export class KanbanHeader extends Component {
 
     /** @returns {Object | undefined} */
     get progressBar() {
-        return this.props.progressBarState?.getGroupInfo(this.group);
+        return this.progressBarState?.getGroupInfo(this.group);
     }
 
     get group() {
@@ -134,7 +141,8 @@ export class KanbanHeader extends Component {
 
     /** @returns {{ title: string, value: number }} */
     get groupAggregate() {
-        const { group, progressBarState } = this.props;
+        const group = this.props.group;
+        const progressBarState = this.progressBarState;
         const { sumField } = progressBarState.progressAttributes;
         return progressBarState.getAggregateValue(group, sumField);
     }
@@ -192,7 +200,7 @@ export class KanbanHeader extends Component {
      * @param {*} value
      */
     async onBarClicked(value) {
-        await this.props.progressBarState.selectBar(this.props.group.id, value);
+        await this.progressBarState.selectBar(this.props.group.id, value);
         this.props.scrollTop();
     }
 }

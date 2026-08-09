@@ -320,7 +320,34 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         canUseSampleModel: Boolean(comp.props.useSampleModel),
     }));
 
-    if (!(/** @type {any} */ (ModelClass).reactiveRenderers)) {
+    // No blanket subscription here. Propagation is the reactive graph: a
+    // controller already wraps the model in `useState`, so its own reads
+    // subscribe it, and a component that additionally depends on `notify()`
+    // asks for it explicitly with `useReactiveModel` (as `PivotRenderer` and
+    // `GraphRenderer` do).
+    //
+    // What used to live here was a forced render on every model update. A
+    // forced render re-renders the whole subtree unconditionally, which defeats
+    // the per-row `t-props` invalidation the row components are built around
+    // (see `ListRecordRow`), and -- worse -- it silently covers for state that
+    // no component actually subscribes to. Removing it surfaced exactly that in
+    // the kanban progress bars, where `activeBar` was a getter closed over the
+    // seeding proxy and so could never notify a reader; that is now a plain
+    // reactive property.
+    //
+    // Measured on an 80x8 list: sort, pager, search facet, select-all and a
+    // single record edit all render identically with and without the blanket,
+    // because after a `load()` the datapoints are new and the rows re-render on
+    // their own.
+
+    // MIGRATION DEBT -- one view still relies on the blanket forced render.
+    // `CalendarModel` sets this because the calendar's real work happens in
+    // `CalendarCommonRenderer` / `CalendarYearRenderer`, which receive the model
+    // through an unchanged props object and therefore skip a non-forced render.
+    // Migrating it means subscribing those renderers (and the FullCalendar
+    // hooks) the way `PivotRenderer` and `GraphRenderer` already do. Until then
+    // the dependency is declared here instead of applying to every view.
+    if (/** @type {any} */ (ModelClass).forceRenderOnUpdate) {
         const onUpdate = () => component.render(true);
         model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
         onWillDestroy(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
