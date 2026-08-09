@@ -9,7 +9,7 @@ import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/dom
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
 import { SearchModelEvent } from "@web/core/events";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
 
@@ -96,7 +96,7 @@ export class WithSearch extends Component {
             await this.searchModel.load(config);
         });
 
-        const reloadKeepLast = new KeepLast();
+        const reloadKeepLast = new KeepLast({ rejectSuperseded: true });
 
         onWillUpdateProps(async (nextProps) => {
             /** @type {Record<string, any>} */
@@ -106,7 +106,13 @@ export class WithSearch extends Component {
                     config[key] = nextProps[key];
                 }
             }
-            await reloadKeepLast.add(this.searchModel.reload(config));
+            try {
+                await reloadKeepLast.add(this.searchModel.reload(config));
+            } catch (error) {
+                if (!(error instanceof SupersededError)) {
+                    throw error;
+                }
+            }
         });
     }
 }

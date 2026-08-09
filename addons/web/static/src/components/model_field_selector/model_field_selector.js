@@ -4,7 +4,7 @@
 /** @module @web/components/model_field_selector/model_field_selector */
 
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -64,7 +64,7 @@ export class ModelFieldSelector extends Component {
                 },
             },
         );
-        this.keepLast = new KeepLast();
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.state = useState({ isInvalid: false, displayNames: [] });
         onWillStart(() => this.updateState(this.props));
         onWillUpdateProps((nextProps) => {
@@ -101,9 +101,17 @@ export class ModelFieldSelector extends Component {
 
     async updateState(params) {
         const { resModel, path, allowEmpty } = params;
-        const state = await this.keepLast.add(
-            this.fieldService.loadPathDescription(resModel, path, allowEmpty),
-        );
+        let state;
+        try {
+            state = await this.keepLast.add(
+                this.fieldService.loadPathDescription(resModel, path, allowEmpty),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         Object.assign(this.state, state);
     }
 

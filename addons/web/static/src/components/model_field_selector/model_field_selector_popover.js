@@ -6,7 +6,7 @@
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
@@ -154,7 +154,7 @@ export class ModelFieldSelectorPopover extends Component {
     setup() {
         this.fieldService = useService("field");
         this.state = useState({ page: null });
-        this.keepLast = new KeepLast();
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.popoverId = uniqueId("o_model_field_selector_popover_");
         this.hasPendingSearch = false;
         this.debouncedSearchFields = useDebounced(this.searchFields, 250);
@@ -285,12 +285,20 @@ export class ModelFieldSelectorPopover extends Component {
      */
     async followRelation(fieldDef) {
         this.dropPendingSearch();
-        const { modelsInfo } = await this.keepLast.add(
-            this.fieldService.loadPath(
-                fieldDef.is_property ? fieldDef.relation : this.state.page.resModel,
-                `${fieldDef.name}.*`,
-            ),
-        );
+        let modelsInfo;
+        try {
+            ({ modelsInfo } = await this.keepLast.add(
+                this.fieldService.loadPath(
+                    fieldDef.is_property ? fieldDef.relation : this.state.page.resModel,
+                    `${fieldDef.name}.*`,
+                ),
+            ));
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         this.state.page.selectedName = fieldDef.name;
         const { resModel, fieldDefs } = modelsInfo.at(-1);
         this.openPage(
@@ -314,9 +322,17 @@ export class ModelFieldSelectorPopover extends Component {
      */
     async loadNewPath(path) {
         this.dropPendingSearch();
-        const newPage = await this.keepLast.add(
-            this.loadPages(this.props.resModel, path),
-        );
+        let newPage;
+        try {
+            newPage = await this.keepLast.add(
+                this.loadPages(this.props.resModel, path),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         this.openPage(newPage);
     }
 

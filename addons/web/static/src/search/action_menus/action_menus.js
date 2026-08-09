@@ -10,7 +10,7 @@ import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
 import { _t } from "@web/core/translation";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 
@@ -55,7 +55,7 @@ export class ActionMenus extends Component {
         this.orm = useService("orm");
         this.actionService = useAction();
         this.state = useState({ printItems: [] });
-        this.keepLast = new KeepLast();
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
         onWillStart(async () => {
             this.actionItems = await this.getActionItems(this.props);
         });
@@ -167,12 +167,21 @@ export class ActionMenus extends Component {
         if (!this.props.items.print?.length) {
             return;
         }
-        const [items, extraItems] = await this.keepLast.add(
-            Promise.all([
-                this.loadAvailablePrintItems(),
-                this.props.loadExtraPrintItems(),
-            ]),
-        );
+        let items;
+        let extraItems;
+        try {
+            [items, extraItems] = await this.keepLast.add(
+                Promise.all([
+                    this.loadAvailablePrintItems(),
+                    this.props.loadExtraPrintItems(),
+                ]),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         const allItems = [...extraItems, ...items];
         if (!allItems.length) {
             allItems.push({

@@ -6,7 +6,7 @@
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { _t } from "@web/core/translation";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 export class ModelSelector extends Component {
@@ -30,7 +30,7 @@ export class ModelSelector extends Component {
 
     setup() {
         this.orm = useService("orm");
-        this.keepLast = new KeepLast();
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
 
         onWillStart(() => this.loadModels(this.props));
         onWillUpdateProps((nextProps) => {
@@ -49,11 +49,19 @@ export class ModelSelector extends Component {
     async loadModels(props) {
         // Two prop changes in quick succession race, and the slower one is not
         // necessarily the older one.
-        const records = await this.keepLast.add(
-            props.models
-                ? this.orm.call("ir.model", "display_name_for", [props.models])
-                : this._fetchAvailableModels(),
-        );
+        let records;
+        try {
+            records = await this.keepLast.add(
+                props.models
+                    ? this.orm.call("ir.model", "display_name_for", [props.models])
+                    : this._fetchAvailableModels(),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
 
         this.models = records.map((/** @type {any} */ record) => ({
             cssClass: `o_model_selector_${record.model.replaceAll(".", "_")}`,

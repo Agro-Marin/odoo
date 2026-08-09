@@ -4,7 +4,7 @@
 /** @module @web/components/record_selectors/base_record_selector */
 
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 export class BaseRecordSelector extends Component {
     /** @type {KeepLast<any>} */
@@ -14,7 +14,7 @@ export class BaseRecordSelector extends Component {
 
     setup() {
         this.nameService = useService("name");
-        this.keepLast = new KeepLast();
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
         onWillStart(() => this.computeDerivedParams());
         onWillUpdateProps((nextProps) => this.computeDerivedParams(nextProps));
     }
@@ -33,7 +33,15 @@ export class BaseRecordSelector extends Component {
      * @param {Record<string, any>} [props]
      */
     async computeDerivedParams(props = this.props) {
-        const displayNames = await this.keepLast.add(this.getDisplayNames(props));
+        let displayNames;
+        try {
+            displayNames = await this.keepLast.add(this.getDisplayNames(props));
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         this.applyDisplayNames(props, displayNames);
     }
 

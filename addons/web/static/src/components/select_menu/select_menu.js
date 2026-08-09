@@ -9,7 +9,7 @@ import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { hasTouch } from "@web/core/browser/feature_detection";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
@@ -148,7 +148,7 @@ export class SelectMenu extends Component {
         });
         this.inputRef = useRef("inputRef");
         this.menuRef = useChildRef();
-        this.onInputKeepLast = new KeepLast();
+        this.onInputKeepLast = new KeepLast({ rejectSuperseded: true });
         this.loadMoreSentinel = useRef("loadMoreSentinel");
         /** @type {IntersectionObserver | null} */
         this.loadMoreObserver = null;
@@ -429,9 +429,15 @@ export class SelectMenu extends Component {
         // menu; filtering here too would just do the same work a second time.
         this.state.appliedSearch = searchString;
         if (this.props.onInput) {
-            await this.onInputKeepLast.add(
-                Promise.resolve(this.props.onInput(searchString)),
-            );
+            try {
+                await this.onInputKeepLast.add(
+                    Promise.resolve(this.props.onInput(searchString)),
+                );
+            } catch (error) {
+                if (!(error instanceof SupersededError)) {
+                    throw error;
+                }
+            }
         }
     }
 

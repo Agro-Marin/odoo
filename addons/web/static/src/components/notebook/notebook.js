@@ -11,7 +11,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { KeepLast } from "@web/core/utils/concurrency";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 
 /**
  * @extends Component
@@ -58,7 +58,7 @@ export class Notebook extends Component {
         this.invalidPages = new Set();
         this.state = useState({ currentPage: null });
         this.state.currentPage = this.computeActivePage(this.props.defaultPage, true);
-        this.keepLastPageTransition = new KeepLast();
+        this.keepLastPageTransition = new KeepLast({ rejectSuperseded: true });
         useEffect(
             () => {
                 this.props.onPageUpdate(this.state.currentPage);
@@ -114,9 +114,17 @@ export class Notebook extends Component {
             return;
         }
         const prom = (async () => this.props.onWillActivatePage(pageIndex))();
-        const canProceed = await /** @type {KeepLast} */ (
-            this.keepLastPageTransition
-        ).add(prom);
+        let canProceed;
+        try {
+            canProceed = await /** @type {KeepLast} */ (
+                this.keepLastPageTransition
+            ).add(prom);
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
         if (canProceed !== false) {
             this.state.currentPage = pageIndex;
         }
