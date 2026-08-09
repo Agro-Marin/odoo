@@ -228,10 +228,20 @@ class MailActivity(models.Model):
 
     @api.model
     def _compute_today_for_tz(self, tz=False):
-        """Return today's date for the given timezone."""
-        if not tz:
-            return date.today()
+        """Return today's date for the given timezone, UTC when none is given.
+
+        The no-timezone fallback is stated as UTC rather than written
+        ``date.today()``. The two agree only because ``_monkeypatches`` forces
+        ``TZ=UTC`` on the process at boot, so the old spelling silently depended
+        on a global set far from here -- and read as if it meant the server's
+        local date. ``mail.activity.mixin`` resolves this same "today" in SQL as
+        ``COALESCE(mail_activity.user_tz, 'utc')`` (``_search_activity_state``,
+        ``_read_group_activity_state``); saying UTC here makes the compute and
+        the search agree by construction instead of by coincidence.
+        """
         today_utc = datetime.now(UTC)
+        if not tz:
+            return today_utc.date()
         today_tz = today_utc.astimezone(timezone(tz))
         return date(year=today_tz.year, month=today_tz.month, day=today_tz.day)
 
@@ -814,16 +824,33 @@ class MailActivity(models.Model):
             "views": [(False, "form")],
         }
 
+    def _action_reschedule_from_today(self, offset=None):
+        """Set date_deadline from each assignee's *own* today, plus ``offset``.
+
+        ``_compute_state`` classifies an activity against ``user_id.tz``, so the
+        new deadline has to be built on that same date. Anchoring it on the
+        server's local date instead let "Today" land on a deadline the state
+        compute immediately reads back as "Overdue" (assignee ahead of the
+        server) or "Planned" (assignee behind it).
+        """
+        # grouped() already yields one entry per distinct timezone, so
+        # _compute_today_for_tz is called once per timezone, not once per record.
+        for tz, activities in (
+            self.filtered("active")
+            .grouped(lambda activity: activity.user_id.sudo().tz)
+            .items()
+        ):
+            today = self._compute_today_for_tz(tz)
+            activities.date_deadline = today + offset if offset else today
+
     def action_reschedule_today(self):
-        self.filtered("active").date_deadline = date.today()
+        self._action_reschedule_from_today()
 
     def action_reschedule_tomorrow(self):
-        self.filtered("active").date_deadline = date.today() + timedelta(days=1)
+        self._action_reschedule_from_today(timedelta(days=1))
 
     def action_reschedule_nextweek(self):
-        self.filtered("active").date_deadline = date.today() + relativedelta(
-            weeks=1, weekday=MO(-1)
-        )
+        self._action_reschedule_from_today(relativedelta(weeks=1, weekday=MO(-1)))
 
     def action_cancel(self):
         for activity in self:

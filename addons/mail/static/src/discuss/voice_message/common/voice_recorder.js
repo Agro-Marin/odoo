@@ -2,6 +2,7 @@
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 import { onWillUnmount, status, useComponent, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
@@ -54,9 +55,12 @@ export function useVoiceRecorder() {
     });
 
     function filename() {
+        // The user's date, not UTC's: `toISOString()` names a recording made at
+        // 09:00 in Tokyo after the *previous* day, which is what the person
+        // scrolling their attachments will be looking for it under.
         return (
             "Voice-" +
-            new Date().toISOString().split("T")[0] +
+            DateTime.now().toFormat("yyyy-MM-dd") +
             "-" +
             Math.floor(Math.random() * 100000) +
             ".mp3"
