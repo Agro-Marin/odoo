@@ -89,9 +89,41 @@ import { computeViewClassName } from "./view_utils.js";
 
 const viewRegistry = registry.category("views");
 
+/**
+ * What a view type is, declared.
+ *
+ * Two keys were checked here and the other eleven passed unexamined behind
+ * `"*": true` -- including every one `loadView` dereferences without a guard.
+ * A descriptor that spells `Renderer` as `renderer`, or hands a plain object
+ * where a Component subclass is required, registered silently and failed later
+ * inside a render, with a stack pointing at OWL rather than at the typo.
+ *
+ * `"*": true` stays: `props()` forwards keys this module has never heard of to
+ * the controller, and a downstream view type may legitimately carry its own.
+ * What changes is that the keys `web` itself consumes are no longer among the
+ * unchecked ones. Validation runs in dev mode only, so this costs nothing in
+ * production and fires in every Hoot suite.
+ */
 viewRegistry.addValidation({
     type: { validate: (t) => t in session.view_info },
+
     Controller: { validate: (c) => c.prototype instanceof Component },
+    Renderer: { validate: (c) => c.prototype instanceof Component, optional: true },
+    ControlPanel: { validate: (c) => c.prototype instanceof Component, optional: true },
+    // Not Components: `Model` and `SearchModel` are plain classes, `ArchParser`
+    // and `Compiler` are instantiated with `new` by `props()` and the renderer.
+    Model: { type: Function, optional: true },
+    SearchModel: { type: Function, optional: true },
+    ArchParser: { type: Function, optional: true },
+    Compiler: { type: Function, optional: true },
+
+    props: { type: Function, optional: true },
+    buttonTemplate: { type: String, optional: true },
+    display: { type: Object, optional: true },
+    searchMenuTypes: { type: Array, element: String, optional: true },
+    canOrderByCount: { type: Boolean, optional: true },
+    hideCustomGroupBy: { type: Boolean, optional: true },
+
     "*": true,
 });
 
