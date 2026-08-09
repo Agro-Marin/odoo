@@ -283,6 +283,29 @@ class TestWebBundleSize(TransactionCase):
             )
         actual, inputs_map = self._measure_esm_bundle_bytes(bundle_name)
 
+        # BUDGETS are calibrated at the CI scope
+        # (``--addons-path=odoo/addons,addons``). A workspace that also loads
+        # enterprise/ or a downstream addon repo feeds extra modules into the
+        # same bundle, so `actual` measures a different tree than the budget
+        # describes -- the same scope trap CLAUDE.md flags for the other
+        # ratchets. That is not a size regression, and regenerating the
+        # committed baseline from here would bake the foreign inputs in, so
+        # guard before the update branch too.
+        foreign_inputs = sorted(
+            {
+                path
+                for path in inputs_map
+                if os.path.normpath(path).startswith(os.pardir + os.sep)
+            }
+        )
+        if foreign_inputs:
+            self.skipTest(
+                f"{len(foreign_inputs)} input(s) come from outside this repo, so "
+                f"the CI-scoped budget for {bundle_name!r} does not describe this "
+                f"bundle (e.g. {foreign_inputs[0]}). Measure budgets with "
+                f"--addons-path=odoo/addons,addons."
+            )
+
         if os.environ.get(_UPDATE_ENV_VAR):
             self._save_baseline_entry(bundle_name, actual, inputs_map)
             _logger.info(

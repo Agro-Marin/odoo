@@ -15,7 +15,25 @@ class TestBaseAccount(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.Account = cls.env["account.account"]
+        # These tests own their account codes, but run post_install -- so any
+        # chart of accounts installed alongside (the generic one, a
+        # localization) already occupies codes like 400000/500000 and collides
+        # on create. Account codes are company-scoped, so a dedicated company
+        # with no chart loaded gives the suite the clean slate its docstring
+        # describes, whatever else the database happens to carry.
+        cls.company = cls.env["res.company"].create({"name": "Base Account Test Co"})
+        cls.env.user.company_ids = [Command.link(cls.company.id)]
+        cls.Account = cls.env["account.account"].with_company(cls.company)
+
+        # account/ overrides display_name to hide the code from users without
+        # accounting read access; grant it so the assertion is about the
+        # formatting, not about the ambient user's groups. The group only
+        # exists once account/ is installed on top of this foundation.
+        readonly_group = cls.env.ref(
+            "account.group_account_readonly", raise_if_not_found=False
+        )
+        if readonly_group:
+            cls.env.user.group_ids = [Command.link(readonly_group.id)]
 
     # ------------------------------------------------------------------
     # _split_code_name

@@ -7562,6 +7562,18 @@ class TestViewArchRecovery(ViewCase):
         # view with a real arch_fs to reset FROM, which is why it reaches for a
         # core one.
         view = self.env.ref("base.view_res_partner_filter")
+        # Enforce the precondition above instead of only documenting it: in a
+        # database that carries mail/hr/account, the write below fails on their
+        # inheritance specs rather than on anything this test asserts. Skipping
+        # says that plainly; failing reads as a regression in reset_arch.
+        inheriting = self.env["ir.ui.view"].search_count(
+            [("inherit_id", "=", view.id)]
+        )
+        if inheriting:
+            self.skipTest(
+                f"{inheriting} installed view(s) inherit base.view_res_partner_filter; "
+                "hard-reset validity requires a database where nothing does"
+            )
         original = view.arch_db
         view.write({"arch": '<search><field name="name"/></search>'})
         view.invalidate_recordset()
