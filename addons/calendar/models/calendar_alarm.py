@@ -27,6 +27,15 @@ class CalendarAlarm(models.Model):
         help="Template used to render mail reminder content.")
     body = fields.Text("Additional Message", help="Additional message that would be sent with the notification for the reminder")
     notify_responsible = fields.Boolean("Notify Responsible", default=False)
+    notify_responsible_available = fields.Boolean(
+        compute='_compute_notify_responsible_available',
+        help="Technical: whether this alarm's channel can single out the organizer.")
+
+    @api.depends('alarm_type')
+    def _compute_notify_responsible_available(self):
+        responsible_aware = self._get_responsible_aware_alarm_types()
+        for alarm in self:
+            alarm.notify_responsible_available = alarm.alarm_type in responsible_aware
 
     @api.depends('interval', 'duration')
     def _compute_duration_minutes(self):
@@ -64,9 +73,23 @@ class CalendarAlarm(models.Model):
             '&', ('interval', '=', 'days'), ('duration', operator, value / 60 / 24),
         ]
 
+    @api.model
+    def _get_responsible_aware_alarm_types(self):
+        """Alarm types for which "Notify Responsible" is meaningful.
+
+        Empty in the base module: an email or an in-app notification reaches the
+        organizer through their attendee record like everybody else. The channels
+        that added the flag own the answer -- `calendar_sms` and
+        `whatsapp_calendar` extend `alarm_type` and read `notify_responsible` in
+        their own senders -- so they extend this instead of the base module
+        hardcoding a list of its own two types and negating it, which silently
+        stopped meaning what it says the moment a third type was added.
+        """
+        return set()
+
     @api.onchange('duration', 'interval', 'alarm_type', 'notify_responsible')
     def _onchange_duration_interval(self):
-        if self.notify_responsible and self.alarm_type in ('email', 'notification'):
+        if self.notify_responsible and self.alarm_type not in self._get_responsible_aware_alarm_types():
             self.notify_responsible = False
         display_interval = self._interval_selection.get(self.interval, '')
         display_alarm_type = dict(self._fields['alarm_type']._description_selection(self.env)).get(self.alarm_type, '')

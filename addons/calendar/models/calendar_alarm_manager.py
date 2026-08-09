@@ -209,8 +209,12 @@ class CalendarAlarm_Manager(models.AbstractModel):
                 ON event_alarm_rel.calendar_alarm_id = alarm.id
              WHERE alarm.alarm_type = %s
                AND event.active
-               AND event.start - CAST(alarm.duration || ' ' || alarm.interval AS Interval) >= %s
-               AND event.start - CAST(alarm.duration || ' ' || alarm.interval AS Interval) < %s
+               -- `duration_minutes` is a stored column, and its sibling query
+               -- `_get_next_potential_limit_alarm` already reads it. This used
+               -- to build the same interval by concatenating `duration` and
+               -- `interval` into text and casting it per row.
+               AND event.start - interval '1' minute * alarm.duration_minutes >= %s
+               AND event.start - interval '1' minute * alarm.duration_minutes < %s
                %s
         """,
                 alarm_type,

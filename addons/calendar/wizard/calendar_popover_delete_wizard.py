@@ -18,11 +18,24 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
     )
 
     def close(self):
-        # Return if there are multiple attendees or if the organizer's partner_id differs
-        if self.calendar_event_id.attendees_count != 1 or self.calendar_event_id.user_id.partner_id != self.calendar_event_id.partner_ids:
-            return self.calendar_event_id.action_unlink_event(self.delete)
-        self.calendar_event_id._unlink_by_recurrence_policy(self.delete)
-        return None
+        """Apply the chosen policy, offering to notify the others first.
+
+        Two outcomes, and the condition deciding between them used to be spelled
+        `attendees_count != 1 or user_id.partner_id != partner_ids` -- a
+        many2one compared against a many2many, which only reads as intended if
+        you already know the count is 1. There is nobody to notify when the
+        organizer is the only attendee, so that case deletes straight away;
+        otherwise `action_unlink_event` opens the wizard's other view, which
+        offers to mail the attendees before deleting.
+        """
+        event = self.calendar_event_id
+        organizer_is_sole_attendee = (
+            event.attendees_count == 1 and event.partner_ids == event.user_id.partner_id
+        )
+        if organizer_is_sole_attendee:
+            event._unlink_by_recurrence_policy(self.delete)
+            return None
+        return event.action_unlink_event(self.delete)
 
     @api.depends('calendar_event_id')
     def _compute_recipient_ids(self):

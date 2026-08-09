@@ -4,6 +4,7 @@ import itertools
 import logging
 import math
 import uuid
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from itertools import repeat
 from urllib.parse import urlsplit, urlunsplit
@@ -432,24 +433,21 @@ class CalendarEvent(models.Model):
     @api.depends("attendee_ids", "attendee_ids.state", "partner_ids")
     def _compute_attendees_count(self):
         for event in self:
-            count_event = {}
-            for attendee in event.attendee_ids:
-                count_event[attendee.state] = count_event.get(attendee.state, 0) + 1
-
-            accepted_count = count_event.get("accepted", 0)
-            declined_count = count_event.get("declined", 0)
-            tentative_count = count_event.get("tentative", 0)
-            attendees_count = len(event.partner_ids)
+            count_event = Counter(event.attendee_ids.mapped("state"))
             event.update(
                 {
-                    "accepted_count": accepted_count,
-                    "declined_count": declined_count,
-                    "tentative_count": tentative_count,
-                    "attendees_count": attendees_count,
-                    "awaiting_count": attendees_count
-                    - accepted_count
-                    - declined_count
-                    - tentative_count,
+                    "accepted_count": count_event["accepted"],
+                    "declined_count": count_event["declined"],
+                    "tentative_count": count_event["tentative"],
+                    # The headline count is the guest list; the breakdown is the
+                    # answers. They are counted from different fields, so
+                    # `awaiting` is the number of attendees who have not answered
+                    # rather than the guest count minus the answers -- that
+                    # subtraction went negative whenever `attendee_ids` held more
+                    # rows than `partner_ids`, which is every moment between the
+                    # two writes that keep them in step.
+                    "attendees_count": len(event.partner_ids),
+                    "awaiting_count": count_event["needsAction"],
                 }
             )
 
@@ -1066,7 +1064,7 @@ class CalendarEvent(models.Model):
                 continue
             alarm_events |= event
         recurring_events = alarm_events.filtered("recurrence_id")
-        recurring_events.recurrence_id._setup_alarms()
+        recurring_events.recurrence_id._schedule_next_occurrence_alarm()
         (alarm_events - recurring_events)._setup_alarms()
 
     def _compute_field_value(self, field):
@@ -1236,7 +1234,7 @@ class CalendarEvent(models.Model):
 
     def _write_reschedule_alarms(self):
         """Reschedule the cron triggers after a write that can move a reminder."""
-        self.recurrence_id._setup_alarms(recurrence_update=True)
+        self.recurrence_id._schedule_next_occurrence_alarm(recurrence_update=True)
         if not self.recurrence_id:
             self._setup_alarms()
 
@@ -1678,6 +1676,9 @@ class CalendarEvent(models.Model):
     def _is_event_over(self):
         """Check if the event is over. This method is used to check if the event
         should trigger invitations with Google Calendar.
+
+        Polymorphic with `calendar.recurrence._is_event_over`; see the note there.
+
         :return: True if the event is over, False otherwise
         """
         self.ensure_one()
@@ -1885,7 +1886,7 @@ class CalendarEvent(models.Model):
                 # In cron, setup alarm only when there is a next date on the target. Otherwise the 'now()'
                 # check in the call below can generate undeterministic behavior and setup random alarms.
                 if next_date:
-                    event.recurrence_id.with_context(date=next_date)._setup_alarms()
+                    event.recurrence_id.with_context(date=next_date)._schedule_next_occurrence_alarm()
 
     def _setup_alarms(self):
         """Schedule cron triggers for future events"""

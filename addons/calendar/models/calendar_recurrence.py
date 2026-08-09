@@ -342,9 +342,16 @@ class CalendarRecurrence(models.Model):
         self.env['calendar.event'].with_context(context).create(event_vals)
         return detached_events
 
-    def _setup_alarms(self, recurrence_update=False):
-        """ Schedule cron triggers for future events
-        Create one ir.cron.trigger per recurrence.
+    def _schedule_next_occurrence_alarm(self, recurrence_update=False):
+        """Schedule one cron trigger per recurrence, for its next occurrence.
+
+        Named apart from `calendar.event._setup_alarms`, which it calls: that one
+        schedules a trigger for each event it is given and hands back the ids,
+        while this one picks the single next future occurrence of each recurrence
+        and remembers its trigger on the recurrence. Both used to be spelled
+        `_setup_alarms`, so `self.recurrence_id._setup_alarms()` beside
+        `self._setup_alarms()` read as the same operation on two objects.
+
         :param recurrence_update: boolean: if true, update all recurrences in self, else only the recurrences
                without trigger
         """
@@ -703,6 +710,14 @@ class CalendarRecurrence(models.Model):
 
     def _is_event_over(self):
         """Check if all events in this recurrence are in the past.
+
+        Shares its name with `calendar.event._is_event_over` on purpose, not by
+        accident: `google.calendar.sync` is mixed into both models and
+        `_google_patch` asks `self._is_event_over()` without knowing which one
+        it is holding. Same question, different object -- an event is over when
+        it is past, a recurrence when every event in it is. Do not rename either
+        half without the other and that call site.
+
         :return: True if all events are over, False otherwise
         """
         self.ensure_one()

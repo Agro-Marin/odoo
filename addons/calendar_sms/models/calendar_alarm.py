@@ -15,6 +15,12 @@ class CalendarAlarm(models.Model):
         compute='_compute_sms_template_id', readonly=False, store=True,
         help="Template used to render SMS reminder content.")
 
+    @api.model
+    def _get_responsible_aware_alarm_types(self):
+        # An SMS reminder is sent per phone number, and `calendar_sms` skips the
+        # organizer unless this flag is set -- so the flag is meaningful here.
+        return super()._get_responsible_aware_alarm_types() | {'sms'}
+
     @api.depends('alarm_type', 'sms_template_id')
     def _compute_sms_template_id(self):
         for alarm in self:

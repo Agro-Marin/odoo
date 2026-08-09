@@ -53,7 +53,8 @@
                                 <field name="duration"/>
                                 <field name="interval"/>
                             </div>
-                            <field name="notify_responsible" invisible="alarm_type in ('email', 'notification')"/>
+                            <field name="notify_responsible_available" invisible="1"/>
+                            <field name="notify_responsible" invisible="not notify_responsible_available"/>
                         </group>
                     </group>
                 </sheet>

@@ -402,3 +402,80 @@ class TestCalendarPopoverDeleteWizard(TransactionCase):
         self.assertEqual(remaining_next, 0, "'next' on a daily-from-base recurrence removes all following")
         _, remaining_all = self._delete_with("all")
         self.assertEqual(remaining_all, 0, "'all' must delete the whole recurrence")
+
+
+@tagged("post_install", "-at_install")
+class TestCalendarAttendeeCounts(TransactionCase):
+    """`awaiting_count` used to be a subtraction that could go negative.
+
+    The headline count comes from `partner_ids` and the answered counts from
+    `attendee_ids`. Those are two fields kept in step by two writes, so any
+    moment between them -- and any code path that adds an attendee row without
+    the partner link -- made ``guests - accepted - declined - tentative`` report
+    a negative number of people who have not answered yet.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.organizer = new_test_user(cls.env, "count_organizer", groups="base.group_user")
+        cls.guest = new_test_user(cls.env, "count_guest", groups="base.group_user")
+        cls.event = cls.env["calendar.event"].with_user(cls.organizer).create({
+            "name": "counted",
+            "start": "2035-04-01 10:00:00",
+            "stop": "2035-04-01 11:00:00",
+            "partner_ids": [(6, 0, [cls.organizer.partner_id.id, cls.guest.partner_id.id])],
+        })
+
+    def test_counts_add_up_for_a_normal_event(self):
+        self.assertEqual(self.event.attendees_count, 2)
+        self.assertEqual(self.event.accepted_count, 1, "the organizer is accepted")
+        self.assertEqual(self.event.awaiting_count, 1, "the guest has not answered")
+
+    def test_awaiting_never_goes_negative(self):
+        # More attendee rows than partner links: the state the subtraction could
+        # not survive.
+        extra = new_test_user(self.env, "count_extra", groups="base.group_user")
+        self.env["calendar.attendee"].sudo().create({
+            "event_id": self.event.id,
+            "partner_id": extra.partner_id.id,
+            "state": "accepted",
+        })
+        self.event.invalidate_recordset()
+        self.assertEqual(self.event.attendees_count, 2, "guest list is unchanged")
+        self.assertEqual(self.event.accepted_count, 2)
+        self.assertGreaterEqual(
+            self.event.awaiting_count, 0,
+            "awaiting is a count of unanswered attendees, not a subtraction",
+        )
+        self.assertEqual(self.event.awaiting_count, 1)
+
+
+@tagged("post_install", "-at_install")
+class TestAlarmNotifyResponsible(TransactionCase):
+    """"Notify Responsible" is only meaningful for channels that honour it.
+
+    The base module used to force the flag off for `alarm_type in ('email',
+    'notification')` -- a hardcoded list of its own two types, negated. It read
+    as "not for these two" but meant "for anything that is not these two", so
+    every alarm type added later was opted in by default without anybody
+    deciding so.
+    """
+
+    def test_the_base_channels_never_offer_it(self):
+        # Asserted as an exclusion, not as an empty set: which channels opt in
+        # depends on which of calendar_sms / whatsapp_calendar is installed, and
+        # a test that pinned the whole set would fail on a fuller database
+        # rather than on a regression.
+        responsible_aware = self.env["calendar.alarm"]._get_responsible_aware_alarm_types()
+        self.assertNotIn("email", responsible_aware)
+        self.assertNotIn("notification", responsible_aware)
+
+    def test_the_flag_is_cleared_for_a_channel_that_does_not_honour_it(self):
+        alarm = self.env["calendar.alarm"].new({
+            "name": "a", "alarm_type": "email", "duration": 1, "interval": "hours",
+            "notify_responsible": True,
+        })
+        alarm._onchange_duration_interval()
+        self.assertFalse(alarm.notify_responsible)
+        self.assertFalse(alarm.notify_responsible_available)

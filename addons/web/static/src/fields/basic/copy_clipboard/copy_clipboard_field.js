@@ -68,8 +68,23 @@ export class CopyClipboardButtonField extends CopyClipboardField {
 
 export class CopyClipboardCharField extends CopyClipboardField {
     static components = { Field: CharField, CopyButton };
-    static props = { ...CopyClipboardField.props, ...CharField.props };
-    static defaultProps = { ...CharField.defaultProps };
+    // Getters, not snapshots. An addon may extend the wrapped field's props
+    // after `web` has loaded -- `mail/js/onchange_on_keydown.js` reassigns
+    // `CharField.props` and extends `charField.extractProps` in the same file --
+    // and a `{ ...CharField.props }` evaluated at class-definition time freezes
+    // them as they were before. The wrapper then received props it had never
+    // declared (`onchangeOnKeydown`, `keydownDebounceDelay`) and Owl's prop
+    // validation aborted the whole view: every `widget="CopyClipboardChar"`
+    // raised "Oops! Something went wrong" in debug mode, which is where the
+    // calendar quick-create dialog lives and why three calendar tours could not
+    // get past their first step. Reading through on each validation keeps the
+    // wrapper in step with whatever the wrapped field currently declares.
+    static get props() {
+        return { ...CopyClipboardField.props, ...CharField.props };
+    }
+    static get defaultProps() {
+        return { ...CharField.defaultProps };
+    }
 
     /** @returns {string} */
     get copyButtonIcon() {
@@ -79,8 +94,13 @@ export class CopyClipboardCharField extends CopyClipboardField {
 
 export class CopyClipboardURLField extends CopyClipboardField {
     static components = { Field: UrlField, CopyButton };
-    static props = { ...CopyClipboardField.props, ...UrlField.props };
-    static defaultProps = { ...UrlField.defaultProps };
+    // Getters for the same reason as the char variant above.
+    static get props() {
+        return { ...CopyClipboardField.props, ...UrlField.props };
+    }
+    static get defaultProps() {
+        return { ...UrlField.defaultProps };
+    }
 
     /** @returns {string} */
     get copyButtonIcon() {
