@@ -48,6 +48,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             libs_facade_check py_cycle_check js_layer_check js_cycle_check \
             named_export_coherence js_suite_parity js_layer_cohesion \
             js_import_resolution js_self_bridge js_patch_blind_facade \
+            js_forced_render \
             js_public_surface xml_reference_coherence js_mixin_coupling; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
 done
@@ -99,6 +100,7 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `js_layer_cohesion.py` | each file filed with what it serves, not with what it resembles |
 | `js_import_resolution.py` | every first-party specifier naming a real file |
 | `js_self_bridge.py` | no source module resolving itself through the loader |
+| `js_forced_render.py` | web core not sweeping a subtree with `render(true)` — a forced render hides reads that subscribe to nothing |
 | `js_patch_blind_facade.py` | a service's own callers going through its facade |
 | `js_function_length.py` | the web addon's JS function-length budget |
 | `py_function_length.py` | the core's Python function-length budget — ratchets *excess lines* over 80, not the offender count, because splitting one long function raises the count while lowering the excess |

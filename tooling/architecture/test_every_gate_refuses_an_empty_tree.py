@@ -54,6 +54,7 @@ GATES = {
     "js_import_resolution": ["--check"],
     "js_patch_blind_facade": ["--check"],
     "js_self_bridge": ["--check"],
+    "js_forced_render": ["--check"],
     "js_suite_parity": ["--check"],
     "named_export_coherence": ["--check"],
     "layer_check": ["--check"],
