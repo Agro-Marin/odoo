@@ -32,6 +32,29 @@ export function clickLine(productName, quantity = "1") {
         ...Order.hasLine({ withClass: ".selected", productName, quantity }),
     ].flat();
 }
+/**
+ * Leave the line selected, clicking it only if it is not already.
+ *
+ * `clickLine` requires the line to start unselected, because the order summary
+ * TOGGLES: clicking the selected line deselects it. That makes `clickLine`
+ * unusable right after adding a product, which already leaves its line
+ * selected -- exactly the state a mobile tour is in when it opens the review
+ * panel to reach the numpad.
+ */
+export function ensureLineSelected(productName, quantity = "1") {
+    return [
+        {
+            content: `select orderline ${productName} (${quantity}) unless it already is`,
+            trigger: `.order-container .orderline:has(.product-name:contains("${productName}")):has(.qty:contains("${quantity}"))`,
+            run(helpers) {
+                if (!this.anchor.classList.contains("selected")) {
+                    helpers.click();
+                }
+            },
+        },
+        ...Order.hasLine({ withClass: ".selected", productName, quantity }),
+    ].flat();
+}
 export function clickSelectedLine(productName, quantity = "1") {
     return [
         ...Order.hasLine({

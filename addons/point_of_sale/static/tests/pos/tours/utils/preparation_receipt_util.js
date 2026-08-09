@@ -1,5 +1,6 @@
 /* global posmodel */
 
+import { changesToOrder } from "@point_of_sale/app/models/utils/order_change";
 import { _t } from "@web/core/translation";
 import { renderToElement } from "@web/core/utils/render";
 
@@ -26,11 +27,10 @@ export async function generateReceiptsToPrint(order, orderChange) {
 // Return rendered order change receipts that will be printed when clicking "Order" button
 export async function generatePreparationReceipts() {
     const order = posmodel.getOrder();
-    const orderChange = posmodel.changesToOrder(
-        order,
-        posmodel.config.printerCategories,
-        false,
-    );
+    // The module function, not `posmodel.changesToOrder`: it stopped being a
+    // store method and this helper was never updated, so every tour asserting
+    // on a preparation ticket died on `is not a function` at its first check.
+    const orderChange = changesToOrder(order, posmodel.config.printerCategories, false);
     return await generateReceiptsToPrint(order, orderChange);
 }
 

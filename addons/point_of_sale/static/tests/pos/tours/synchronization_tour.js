@@ -36,5 +36,17 @@ registry.category("web_tour.tours").add("test_sync_from_ui_one_by_one", {
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.clickValidate(),
             ReceiptScreen.isShown(),
+            {
+                trigger: "body",
+                content: "Flush the five orders left pending",
+                // Validating an order syncs exactly that order and no other
+                // (order_payment_validation.js says why), so the queue built
+                // above is still local at this point. Flush it explicitly: what
+                // this test exists to pin is that each order costs its own
+                // sync_from_ui call, not that validation drains the queue.
+                run: async () => {
+                    await posmodel.syncAllOrders();
+                },
+            },
         ].flat(),
 });

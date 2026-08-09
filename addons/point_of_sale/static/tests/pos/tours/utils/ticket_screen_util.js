@@ -162,6 +162,22 @@ export function nthRowContains(n, string, viewMode) {
         },
     ];
 }
+/**
+ * Assert on the row identified by `rowText`, whatever position it is in.
+ *
+ * Prefer this to `nthRowContains` whenever the rows being compared do not all
+ * carry the same clock: an order that has been synced is dated by the server,
+ * one that has not keeps the client's date, and a tour that freezes
+ * `DateTime.now` therefore sorts them by two different notions of "now".
+ */
+export function rowWithContains(rowText, string, viewMode) {
+    return [
+        {
+            isActive: [viewMode ? "mobile" : "desktop"],
+            trigger: `.ticket-screen .orders tbody .order-row:contains("${rowText}"):contains("${string}")`,
+        },
+    ];
+}
 export function nthRowIsHighlighted(n) {
     return [
         {

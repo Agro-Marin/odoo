@@ -1148,10 +1148,14 @@ registry.category("web_tour.tours").add("test_preset_timing_retail", {
             Chrome.createFloatingOrder(),
             ProductScreen.clickDisplayedProduct("Desk Organizer"),
             Chrome.clickOrders(),
-            TicketScreen.nthRowContains(1, "A simple PoS man!"),
-            TicketScreen.nthRowContains(1, "Delivery", false),
-            TicketScreen.nthRowContains(2, "002"),
-            TicketScreen.nthRowContains(2, "Dine in", false),
+            // By row identity, not row position: the first order has been
+            // synced and so is dated by the server, while the floating one
+            // still carries the frozen client date above. Their relative order
+            // therefore depends on where the real clock happens to sit, which
+            // made this pass until the real date overtook the frozen one.
+            TicketScreen.rowWithContains("001", "A simple PoS man!"),
+            TicketScreen.rowWithContains("001", "Delivery", false),
+            TicketScreen.rowWithContains("002", "Dine in", false),
         ].flat(),
 });
 
