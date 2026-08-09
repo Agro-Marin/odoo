@@ -253,10 +253,15 @@ directly), and nothing else.
 Ordered by value ÷ cost. P1–P3 are independent and individually shippable;
 P4–P6 depend on P1 having produced the worklist.
 
-**P1 is implemented** — `tooling/architecture/js_extension_surface.py` +
+**P1 is implemented** (`a131d2e1c6e`) — `js_extension_surface.py` +
 `extension_surface_web.txt`, pinned at 448 points over 1,896 sites, wired into
-all six inventory points and green. See *Implementation notes* below. P2–P6 are
-unstarted.
+all six inventory points and green.
+
+**P5 step 1 is implemented** (`8b4f47004de`) — the `tsconfig.json` alias map
+completed, at a measured cost of zero errors, plus a test that stops it rotting.
+
+P2, P3, P4 and P6 are unstarted. P5 steps 2–3 (turning `@ts-check` on outward,
+then typing the seams) are now unblocked.
 
 ### P1 — Declare and gate the extension surface *(done)*
 
@@ -404,18 +409,41 @@ form, each make `test_a_grandchild_is_attributed_to_the_web_ancestor` and
 `test_a_descriptor_property_base_resolves` fail rather than silently measure
 less.
 
-### P5 step 1 is not free — measured, not landed
+### P5 step 1 — done, and it was free after all
 
-Adding the 152 missing aliases to `tsconfig.json` surfaces roughly ten
-previously-invisible type errors, because imports that resolved to nothing now
-resolve to something checkable. That needs either those errors fixed or a
-deliberate floor bump, and it is a decision rather than a mechanical change.
+**Correction.** An earlier revision of this document said adding the missing
+aliases surfaced "roughly ten" type errors and therefore needed a decision. That
+was wrong, and wrong for a reason worth recording: the two `tsc` runs it compared
+were ten minutes apart on a workspace another session was actively committing
+to, and the *baseline* moved 2,100 → 2,108 between them. The +10 was that drift,
+not the change.
 
-It also could not be measured reliably here: a concurrent session was editing
-`addons/web/static/src/` throughout, and the baseline count moved from 2,100 to
-2,108 *between* the two ten-minute `tsc` runs, which invalidates the diff. Redo
-it on a quiet tree, or in a worktree placed as a sibling of `enterprise/` so the
-`../enterprise` path mappings still resolve.
+Re-measured properly — a worktree placed as a **sibling of `enterprise/`** so
+the `../enterprise` path mappings still resolve, both arms against the one
+frozen commit:
+
+```
+baseline           2105 errors
++ all aliases      2105 errors     identical sets in BOTH directions
+```
+
+Zero. And necessarily so, for the reason F6 already established: the files
+importing those aliases carry no `@ts-check`, so resolving their imports compiles
+nothing new. The map can be completed for free *before* `@ts-check` goes outward,
+rather than being hit as a wall afterwards.
+
+Landed as `8b4f47004de`: 169 aliases added (43 of 214 were mapped), 7 dropped
+that mapped nothing and were imported by nobody. `@test_mail/*` is kept despite
+the same absent directory — nine files reach its helpers through
+`@test_mail/../tests/…`, which resolves textually, and the first version of the
+guard test would have deleted it. `tooling/typecheck/test_tsconfig_paths.py`
+keeps the map honest from here.
+
+**The typecheck scope gates are red at HEAD**, on
+`keep_last_abort.test.js` and `superseded_load.test.js` — another session's
+commits, and unrelated: both import only `@odoo/*` and `@web/*` (neither added
+here), and the errors are `Property 'resolve' does not exist on…`, a type-shape
+issue rather than a resolution one.
 
 ## Reproducing
 
