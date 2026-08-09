@@ -128,6 +128,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_face_boundary"): "ROOT",
         ("architecture", "js_function_length"): "ROOT",
         ("architecture", "js_layer_cohesion"): "ROOT",
+        ("architecture", "js_mixin_coupling"): "ROOT",
         ("architecture", "js_patch_blind_facade"): "ROOT",
         ("architecture", "js_private_access"): "ROOT",
         ("architecture", "js_public_surface"): "ROOT",
