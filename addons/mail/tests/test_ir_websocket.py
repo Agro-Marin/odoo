@@ -60,6 +60,12 @@ class TestIrWebsocket(WebsocketCase):
             self.env["mail.presence"]._update_presence(bob)
             self.trigger_notification_dispatching([(bob.partner_id, "presence")])
             timeout_occurred = False
+            # The dispatch above already ran; nothing more will arrive, so the
+            # connection-wide timeout (10s, see bus WebsocketCase.websocket_connect)
+            # would only be dead waiting here. Asserting the *absence* of a
+            # notification is exactly the case that helper tells callers to
+            # shorten.
+            websocket.settimeout(1)
             # Save point rollback of `assertRaises` can compete with
             # `_on_websocket_closed`, leading to `InvalidSavepointSpecification`
             # errors. We need to avoid it.

@@ -122,18 +122,21 @@ test("should show a button to load more members if they are not all loaded", asy
 test("Load more button should load more members", async () => {
     // Test assumes at most 100 members are loaded at once.
     const pyEnv = await startServer();
-    const channel_member_ids = [];
+    const partnerIds = [];
     for (let i = 0; i < 101; i++) {
-        const partnerId = pyEnv["res.partner"].create({ name: "name" + i });
-        channel_member_ids.push(Command.create({ partner_id: partnerId }));
+        partnerIds.push(pyEnv["res.partner"].create({ name: "name" + i }));
     }
-    const channelId = pyEnv["discuss.channel"].create({
+    // Membership is declared up front, self included. Writing the members after
+    // openDiscuss() instead raced the auto-join that adds the current user's own
+    // member: the list settled at 101 or 102 depending on which landed first,
+    // which is what made this test flaky (~50% locally).
+    const channelId = createChannel(pyEnv, {
         name: "TestChannel",
         channel_type: "channel",
+        members: ["self", ...partnerIds],
     });
     await start();
     await openDiscuss(channelId);
-    pyEnv["discuss.channel"].write([channelId], { channel_member_ids });
     await click(
         ".o-mail-ActionPanel:has(.o-mail-ActionPanel-header:contains('Members')) [title='Load more']",
     );
