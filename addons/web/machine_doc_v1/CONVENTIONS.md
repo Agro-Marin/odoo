@@ -781,6 +781,14 @@ When refactoring a widget:
     releasing it notify nobody, otherwise the bookkeeping costs more renders
     than the round-trip it removes.
 
+    The flags object had **two** such booleans, and fixing one left the other
+    live. `hasEditedRecord` carried the identical round-trip, and the
+    RecordRow template reads it only inside `column.buttons` — so it showed up
+    on any list with a button column and on no other, which is why the first
+    round of measurements missed it. It is now `isEditing`, named for what it
+    means, derived from `list.isEditing` like its sibling. When you fix one
+    member of a fan-out object, audit the rest of it.
+
     Rule: before publishing a derived boolean through `rowFlags` (or any other
     fan-out state), check what it does *during* a transition, not just at the
     endpoints. Endpoint-only tests pass either way — the regression guard in

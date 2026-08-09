@@ -42,15 +42,19 @@ const ARCH = `
  * repaints.
  */
 function instrument() {
-    const s = { rowRenders: 0, /** @type {boolean[]} */ flagPerRender: [] };
+    const s = {
+        rowRenders: 0,
+        /** @type {boolean[]} */ flagPerRender: [],
+        /** @type {boolean[]} */ isEditingPerRender: [],
+    };
     patchWithCleanup(ListRenderer.prototype, {
         setup() {
             super.setup();
-            onWillRender(() =>
-                s.flagPerRender.push(
-                    /** @type {any} */ (this).rowFlags.canSelectRecord,
-                ),
-            );
+            onWillRender(() => {
+                const flags = /** @type {any} */ (this).rowFlags;
+                s.flagPerRender.push(flags.canSelectRecord);
+                s.isEditingPerRender.push(flags.isEditing);
+            });
         },
     });
     patchWithCleanup(ListRecordRow.prototype, {
@@ -88,6 +92,42 @@ test(`moving the edited row does not repaint every row`, async () => {
     });
     expect(s.flagPerRender.some((v) => v === true)).toBe(false, {
         message: "canSelectRecord must not flip back to true mid-handover",
+    });
+});
+
+// The RecordRow template reads `editedRecord` (-> `flags.isEditing`) only
+// inside `column.buttons`, so a button column is what subscribes rows to that
+// second flag. It used to be derived from `editedRecord` too, and carried the
+// identical round-trip: 81 row renders on a 40-row list.
+test(`a button column does not repaint every row on handover`, async () => {
+    const s = instrument();
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list editable="bottom">
+                <field name="foo"/>
+                <field name="int_field"/>
+                <button name="act" type="object" icon="fa-check"/>
+            </list>
+        `,
+    });
+    await animationFrame();
+
+    await contains(`tbody tr:eq(0) td[name=foo]`).click();
+    await animationFrame();
+
+    s.rowRenders = 0;
+    s.isEditingPerRender = [];
+    await contains(`tbody tr:eq(2) td[name=foo]`).click();
+    await animationFrame();
+
+    expect(`tbody tr:eq(2)`).toHaveClass("o_selected_row");
+    expect(s.rowRenders).toBeLessThan(10, {
+        message: `moving edition re-rendered ${s.rowRenders} rows of 20`,
+    });
+    expect(s.isEditingPerRender.some((v) => v === false)).toBe(false, {
+        message: "isEditing must not drop to false mid-handover",
     });
 });
 

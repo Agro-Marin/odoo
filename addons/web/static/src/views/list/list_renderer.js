@@ -118,8 +118,15 @@ import {
  * rows whose output depends on it — unlike a per-row prop, which invalidates
  * every row. Updated in `onWillRender`; a write of an unchanged value
  * notifies nobody.
+ *
+ * Every flag here is read by potentially EVERY row, so none of them may
+ * round-trip within a single interaction: a value that goes `a -> b -> a`
+ * repaints the whole list twice for a state no frame ever shows. In
+ * particular, derive nothing here from `list.editedRecord`, which is
+ * transiently null while edition is handed from one row to the next — use
+ * `list.isEditing`, which spans the handover. See CONVENTIONS.md gotcha 18.
  * @typedef {{
- *  hasEditedRecord: boolean;
+ *  isEditing: boolean;
  *  canSelectRecord: boolean;
  * }} ListRowFlags
  *
@@ -318,7 +325,7 @@ export class ListRenderer extends Component {
         // ListRowFlags / ListRowApi typedefs above). Stable identities keep
         // the rows' `t-props` diff clean; the flags reactive carries the
         // cross-row flips.
-        this.rowFlags = reactive({ hasEditedRecord: false, canSelectRecord: true });
+        this.rowFlags = reactive({ isEditing: false, canSelectRecord: true });
         this.rowApi = this.buildRowApi();
 
         this.sel = useListSelection(this.gridContext, {
@@ -374,7 +381,11 @@ export class ListRenderer extends Component {
             : () => {};
         onWillRender(() => {
             this.editedRecord = this.props.list.editedRecord;
-            this.rowFlags.hasEditedRecord = Boolean(this.editedRecord);
+            // `list.isEditing`, not `Boolean(this.editedRecord)`: see the
+            // ListRowFlags typedef. Rows with a button column subscribe to this
+            // key, and deriving it from `editedRecord` made moving the edited
+            // row repaint every one of them twice.
+            this.rowFlags.isEditing = this.props.list.isEditing;
             this.rowFlags.canSelectRecord = this.canSelectRecord;
             this._readonlyCache = new Map();
             this._renderedRowIds = new Set();

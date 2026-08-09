@@ -147,10 +147,19 @@ export class ListRecordRow extends Component {
         return this.props.flags.canSelectRecord;
     }
 
+    /**
+     * The list's edited record, or null. Gated on `flags.isEditing` so that
+     * reading it subscribes the row to ONE stable key rather than to the
+     * renderer's record: `isEditing` spans the row-to-row handover, where
+     * `editedRecord` is transiently null, so a row that only asks "is this list
+     * in edition" (the tab-order gate on button columns) is not repainted
+     * twice per handover.
+     *
+     * Still returns null during that gap — `getEditedRecord()` reports the
+     * truth — so callers wanting the record itself are unaffected.
+     */
     get editedRecord() {
-        return this.props.flags.hasEditedRecord
-            ? this.props.api.getEditedRecord()
-            : null;
+        return this.props.flags.isEditing ? this.props.api.getEditedRecord() : null;
     }
 
     get gridState() {
