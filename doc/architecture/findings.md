@@ -14,7 +14,7 @@ is a lab notebook, not a blueprint — which is exactly why it is a separate fil
 were measured. Nothing verified the direction *between* the groups. Measured,
 both were already layered — `db/` had 6 connectivity → resilience edges against 1
 the other way (counting imported *symbols*, as `layer_check` does), `http/` 22
-serving → features against 1 (counting import *statements*; by symbol it is 43
+serving → features against 1 (counting import *statements*; by symbol it is 44
 against 2) — and each back-edge was a module filed in the wrong bracket rather
 than a genuine cycle. With `errors`/`dsn`/`utils` moved to `[foundation]` and
 `helpers` to `[serving]`, both directions hold at zero and became contracts.
