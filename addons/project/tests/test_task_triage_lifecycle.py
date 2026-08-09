@@ -3,7 +3,7 @@
 import psycopg
 
 from odoo import Command
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
@@ -106,3 +106,76 @@ class TestTriageClear(TestProjectCommon):
         task.write({"triage_id": False})
         self.env.invalidate_all()
         self.assertFalse(task.triage_id)
+
+    def test_personal_triage_search_accepts_scalar(self) -> None:
+        """Searching personal_triage_id with a scalar value must not raise
+        TypeError ('int' object is not iterable)."""
+        # A non-falsy scalar exercises the scalar-iteration path in the search
+        # method (a falsy value would be short-circuited before it is reached).
+        result = self.env["project.task"].search(
+            [("personal_triage_id", "=", 999999999)]
+        )
+        self.assertEqual(len(result), 0)
+
+    def test_triage_bucket_must_belong_to_user(self) -> None:
+        """A personal triage bucket cannot be assigned to a different user's
+        task-triage entry (only the UI domain guarded this before)."""
+        bucket = self.env["project.triage"].create(
+            {"name": "Inbox", "user_id": self.user_projectuser.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["project.task.triage"].create(
+                {
+                    "task_id": self.task_1.id,
+                    "user_id": self.user_projectmanager.id,  # different user
+                    "triage_id": bucket.id,
+                }
+            )
+
+    def test_triage_user_cannot_edit_another_users_bucket(self) -> None:
+        """Personal triage buckets are per-user: any internal user manages their
+        own, but the own-bucket record rule blocks editing someone else's.
+
+        (project.triage keeps base.group_user CRUD — it is a personal model like
+        vanilla personal stages — and the global rule scopes access to
+        user_id in (False, self).)"""
+        Triage = self.env["project.triage"]
+        own = Triage.with_user(self.user_projectuser).create(
+            {"name": "Mine", "user_id": self.user_projectuser.id}
+        )
+        own.write({"name": "Renamed"})
+        self.assertEqual(own.name, "Renamed")
+        other = Triage.sudo().create(
+            {"name": "Other", "user_id": self.user_projectmanager.id}
+        )
+        with self.assertRaises(AccessError):
+            other.with_user(self.user_projectuser).write({"name": "Hijacked"})
+
+    def test_batch_create_populates_triage_for_all_assignees(self) -> None:
+        """Batch-creating tasks with different assignees must give each
+        (task, user) a triage bucket (batched _populate_missing_triages)."""
+        project = self.env["project.project"].create({"name": "TriageBatch"})
+        tasks = self.env["project.task"].create(
+            [
+                {
+                    "name": "t1",
+                    "project_id": project.id,
+                    "user_ids": [(6, 0, self.user_projectuser.ids)],
+                },
+                {
+                    "name": "t2",
+                    "project_id": project.id,
+                    "user_ids": [(6, 0, self.user_projectmanager.ids)],
+                },
+            ]
+        )
+        rows = (
+            self.env["project.task.triage"]
+            .sudo()
+            .search([("task_id", "in", tasks.ids)])
+        )
+        self.assertEqual(len(rows), 2, "each assignee gets a triage row")
+        self.assertTrue(
+            all(row.triage_id for row in rows),
+            "every triage row must get a default bucket",
+        )

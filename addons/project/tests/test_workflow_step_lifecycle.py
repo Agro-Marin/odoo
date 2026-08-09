@@ -1,6 +1,9 @@
 """Workflow steps: defaults, private tasks, and the periodic rating cron."""
 
-from odoo import Command
+from datetime import timedelta
+from unittest.mock import patch
+
+from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, tagged
 
@@ -120,3 +123,84 @@ class TestQuickCreateSeedsAStep(TestProjectCommon):
         project_id, _name = self.env["project.project"].name_create("On the fly")
         step = self.env["project.project"].browse(project_id).workflow_step_ids
         self.assertEqual(len(step), 1)
+
+    def test_workflow_step_clear_command_creates_an_unattached_step(self) -> None:
+        """A clear/empty project command yields a step with no project.
+
+        This used to assert that such a step became a *personal stage*
+        (``user_id`` set). That field is gone — personal buckets are
+        ``project.triage`` — so what matters now is only that the commands are
+        resolved rather than treated as truthy: [(5,)] and [(6,0,[])] must not
+        be mistaken for a project assignment."""
+        Step = self.env["project.workflow.step"]
+        for command in ([(5,)], [(6, 0, [])]):
+            step = Step.create({"name": "Unattached", "project_ids": command})
+            self.assertFalse(step.project_ids, f"{command}: must have no project")
+        proj_step = Step.create(
+            {"name": "Proj", "project_ids": [(4, self.project_pigs.id)]}
+        )
+        self.assertEqual(proj_step.project_ids, self.project_pigs)
+
+    def test_step_delete_wizard_count_depends_on_steps(self) -> None:
+        """The delete wizard's tasks_count must recompute when step_ids changes
+        (the field it actually reads), not only when project_ids changes."""
+        step = self.env["project.workflow.step"].create(
+            {"name": "Zap", "project_ids": [(4, self.project_pigs.id)]}
+        )
+        self.env["project.task"].create(
+            {"name": "in step", "project_id": self.project_pigs.id, "step_id": step.id}
+        )
+        wizard = self.env["project.workflow.step.delete.wizard"].create(
+            {"step_ids": [(6, 0, step.ids)]}
+        )
+        self.assertEqual(wizard.tasks_count, 1)
+        # Clearing step_ids must recompute the count to 0 (the bug left it stale
+        # because the compute depended on project_ids instead).
+        wizard.step_ids = [(5,)]
+        self.assertEqual(
+            wizard.tasks_count, 0, "tasks_count must react to step_ids changes"
+        )
+
+    def test_rating_deadline_is_seeded_and_stable(self) -> None:
+        """rating_request_deadline is a plain field: seeded on enabling periodic
+        rating and NOT reset to now()+period by an unrelated recompute."""
+        step = self.env["project.workflow.step"].create(
+            {
+                "name": "Periodic",
+                "rating_active": True,
+                "rating_status": "periodic",
+                "rating_status_period": "weekly",
+            }
+        )
+        seeded = step.rating_request_deadline
+        self.assertTrue(seeded, "deadline must be seeded when periodic rating on")
+        step.invalidate_recordset(["rating_request_deadline"])
+        self.assertEqual(
+            step.rating_request_deadline,
+            seeded,
+            "deadline must survive recompute (no now()-based reset)",
+        )
+
+    def test_send_rating_all_advances_deadline(self) -> None:
+        """The rating cron must process an overdue periodic step and push its
+        rating_request_deadline into the future (idempotent per day)."""
+        step = self.env["project.workflow.step"].create(
+            {
+                "name": "Periodic",
+                "project_ids": [(4, self.project_pigs.id)],
+                "rating_active": True,
+                "rating_status": "periodic",
+                "rating_status_period": "weekly",
+            }
+        )
+        # Force the step overdue.
+        step.rating_request_deadline = fields.Datetime.now() - timedelta(days=1)
+        # The cron commits per step for idempotency; neutralise commit inside the
+        # test transaction (commits are forbidden in tests).
+        with patch.object(self.env.cr, "commit", lambda: None):
+            self.env["project.workflow.step"]._send_rating_all()
+        self.assertGreater(
+            step.rating_request_deadline,
+            fields.Datetime.now(),
+            "cron must advance the deadline of an overdue periodic step",
+        )

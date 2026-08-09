@@ -1,7 +1,7 @@
 """Critical-path computation: which fields it owns, and which edges it sees."""
 
 from odoo import Command, fields
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import freeze_time, tagged
 
 from .test_project_base import TestProjectCommon
@@ -321,3 +321,96 @@ class TestDependencyStoresAgree(TestProjectCommon):
             self.env["project.task.dependency"].create(
                 {"task_id": self.a.id, "depends_on_id": self.a.id}
             )
+
+    def test_critical_path_cycle_guard(self) -> None:
+        """A dependency cycle reaching the CPM must raise a clean UserError, not
+        recurse infinitely (RecursionError → HTTP 500).
+
+        Cycles are normally blocked by @api.constrains, so we inject the reverse
+        edge with raw SQL to simulate a constraint-bypassed / drifted graph.
+        """
+        project = self.env["project.project"].create(
+            {
+                "name": "CycleProj",
+                "allow_dependencies": True,
+            }
+        )
+        task_a = self.env["project.task"].create(
+            {"name": "A", "project_id": project.id}
+        )
+        task_b = self.env["project.task"].create(
+            {"name": "B", "project_id": project.id}
+        )
+        # A -> B via the ORM (valid, no cycle yet).
+        self.env["project.task.dependency"].create(
+            {
+                "task_id": task_b.id,
+                "depends_on_id": task_a.id,
+            }
+        )
+        # B -> A injected directly, bypassing the cycle constraint.
+        self.env.cr.execute(
+            """INSERT INTO project_task_dependency
+               (task_id, depends_on_id, dependency_type, lag_hours, project_id)
+               VALUES (%s, %s, 'fs', 0.0, %s)""",
+            (task_a.id, task_b.id, project.id),
+        )
+        self.env.invalidate_all()
+        with self.assertRaises(UserError):
+            project.action_compute_critical_path()
+
+    def test_cpm_float_and_critical_path(self) -> None:
+        """CPM must compute correct float / critical-path on a diamond graph.
+
+        A(8)->B(4)->D(2) and A(8)->C(2)->D(2): path ABD=14 is critical, C has
+        2h of float. Pins the values so the iterative rewrite can't drift.
+        """
+        project = self.env["project.project"].create(
+            {"name": "CPM", "allow_dependencies": True}
+        )
+
+        def mk(name, hours):
+            return self.env["project.task"].create(
+                {
+                    "name": name,
+                    "project_id": project.id,
+                    "allocated_hours": hours,
+                }
+            )
+
+        a, b, c, d = mk("A", 8), mk("B", 4), mk("C", 2), mk("D", 2)
+        b.predecessor_ids = a
+        c.predecessor_ids = a
+        d.predecessor_ids = b + c
+        project.action_compute_critical_path()
+        (a + b + c + d).invalidate_recordset(["total_float", "is_critical_path"])
+        self.assertTrue(
+            a.is_critical_path and b.is_critical_path and d.is_critical_path
+        )
+        self.assertFalse(c.is_critical_path)
+        self.assertAlmostEqual(c.total_float, 2.0, places=2)
+        for t in (a, b, d):
+            self.assertAlmostEqual(t.total_float, 0.0, places=2)
+
+    def test_cpm_long_chain_no_recursion_error(self) -> None:
+        """A dependency chain deeper than the Python recursion limit must not
+        raise RecursionError (the passes are iterative)."""
+        project = self.env["project.project"].create(
+            {"name": "DeepCPM", "allow_dependencies": True}
+        )
+        depth = 1200  # > default recursionlimit (1000)
+        tasks = (
+            self.env["project.task"]
+            .create(
+                [
+                    {"name": f"T{i}", "project_id": project.id, "allocated_hours": 1.0}
+                    for i in range(depth)
+                ]
+            )
+            .sorted("id")
+        )
+        for i in range(1, depth):
+            tasks[i].predecessor_ids = tasks[i - 1]
+        project.action_compute_critical_path()  # must not raise
+        tasks[-1].invalidate_recordset(["is_critical_path"])
+        self.assertTrue(tasks[-1].is_critical_path, "the whole chain is critical")

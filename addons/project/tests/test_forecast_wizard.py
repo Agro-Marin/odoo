@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from odoo import Command, fields
+from odoo.exceptions import AccessError, UserError
 from odoo.tests import tagged
 
 from .test_project_base import TestProjectCommon
@@ -89,3 +90,73 @@ class TestForecastSampling(TestProjectCommon):
             {"project_id": project.id, "weeks_of_history": 8}
         )
         self.assertEqual(sum(wizard._get_weekly_throughput()), 1)
+
+    def test_forecast_wizard_throughput_by_closure(self) -> None:
+        """The forecast wizard's throughput query must run (no INTERVAL syntax
+        error), count non-template tasks, and bucket by date_closed."""
+        project = self.project_pigs
+        now = fields.Datetime.now()
+        for i in range(3):
+            self.env["project.task"].create(
+                {
+                    "name": f"done {i}",
+                    "project_id": project.id,
+                    "state": "done",
+                    "date_closed": now - timedelta(days=3),
+                }
+            )
+        wizard = self.env["project.forecast.wizard"].create(
+            {"project_id": project.id, "weeks_of_history": 8}
+        )
+        throughput = wizard._get_weekly_throughput()  # must not raise
+        self.assertEqual(sum(throughput), 3)
+
+    def test_forecast_wizard_rejects_non_positive_sims(self) -> None:
+        """The Monte Carlo wizard must not IndexError on simulation_count <= 0."""
+        wizard = self.env["project.forecast.wizard"].create(
+            {
+                "project_id": self.project_pigs.id,
+                "simulation_count": 0,
+            }
+        )
+        with self.assertRaises(UserError):
+            wizard.action_run_forecast()
+
+    def test_forecast_throughput_excludes_canceled(self) -> None:
+        """Throughput forecasting must count delivered (done) work only — a
+        canceled task is not delivery."""
+        now = fields.Datetime.now()
+        self.env["project.task"].create(
+            {
+                "name": "done",
+                "project_id": self.project_pigs.id,
+                "state": "done",
+                "date_closed": now - timedelta(days=3),
+            }
+        )
+        self.env["project.task"].create(
+            {
+                "name": "canceled",
+                "project_id": self.project_pigs.id,
+                "state": "canceled",
+                "date_closed": now - timedelta(days=3),
+            }
+        )
+        wizard = self.env["project.forecast.wizard"].create(
+            {"project_id": self.project_pigs.id, "weeks_of_history": 8}
+        )
+        self.assertEqual(
+            sum(wizard._get_weekly_throughput()),
+            1,
+            "only the done task counts toward throughput",
+        )
+
+    def test_forecast_throughput_enforces_read_access(self) -> None:
+        """The raw-SQL throughput query must not leak a project the user cannot
+        read (record rules don't apply to raw SQL — an explicit check does)."""
+        wizard = self.env["project.forecast.wizard"].create(
+            {"project_id": self.project_goats.id, "weeks_of_history": 8}
+        )
+        # project_goats is follower-only; user_projectuser is not a follower.
+        with self.assertRaises(AccessError):
+            wizard.with_user(self.user_projectuser)._get_weekly_throughput()

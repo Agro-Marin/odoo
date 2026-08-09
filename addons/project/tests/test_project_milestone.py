@@ -543,3 +543,81 @@ class TestProjectMilestone(TestProjectCommon):
             self.project_goats.can_mark_milestone_as_done,
             "Expected project_goats to not be able to mark the milestone as done.",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestMilestoneCopyAndCompletion(TestProjectCommon):
+    """Milestones through project duplication, and when one may be marked done."""
+
+    def test_multi_project_copy_isolates_milestones(self) -> None:
+        """Copying several projects at once must give each copy only its own
+        milestones, not the union of every source project's milestones."""
+        project_a = self.env["project.project"].create(
+            {
+                "name": "Alpha",
+                "allow_milestones": True,
+            }
+        )
+        project_b = self.env["project.project"].create(
+            {
+                "name": "Beta",
+                "allow_milestones": True,
+            }
+        )
+        self.env["project.milestone"].create(
+            {
+                "name": "A-M1",
+                "project_id": project_a.id,
+            }
+        )
+        self.env["project.milestone"].create(
+            {
+                "name": "B-M1",
+                "project_id": project_b.id,
+            }
+        )
+        copies = (project_a + project_b).copy()
+        self.assertEqual(len(copies[0].milestone_ids), 1)
+        self.assertEqual(len(copies[1].milestone_ids), 1)
+        self.assertEqual(copies[0].milestone_ids.name, "A-M1")
+        self.assertEqual(copies[1].milestone_ids.name, "B-M1")
+
+    def test_empty_milestone_mark_done_consistent(self) -> None:
+        """M1: an empty milestone must be non-markable in both the saved and
+        the onchange (NewId) computation."""
+        self.project_pigs.allow_milestones = True
+        saved = self.env["project.milestone"].create(
+            {"project_id": self.project_pigs.id, "name": "M"}
+        )
+        saved.invalidate_recordset(["can_be_marked_as_done"])
+        new_rec = self.env["project.milestone"].new(
+            {"project_id": self.project_pigs.id, "name": "Mnew"}
+        )
+        self.assertFalse(saved.can_be_marked_as_done)
+        self.assertEqual(
+            saved.can_be_marked_as_done,
+            new_rec.can_be_marked_as_done,
+            "saved and onchange computation must agree for an empty milestone",
+        )
+
+    def test_milestone_markable_reacts_to_task_state(self) -> None:
+        """can_be_marked_as_done must recompute when a task's state changes.
+
+        Bug: the compute had no @api.depends, so the cached value went stale.
+        """
+        project = self.env["project.project"].create(
+            {"name": "MSReact", "allow_milestones": True}
+        )
+        milestone = self.env["project.milestone"].create(
+            {"name": "M", "project_id": project.id}
+        )
+        task = self.env["project.task"].create(
+            {"name": "mt", "project_id": project.id, "milestone_id": milestone.id}
+        )
+        self.assertFalse(milestone.can_be_marked_as_done, "open task → not markable")
+        task.state = "done"
+        # No manual invalidate: @api.depends must trigger the recompute.
+        self.assertTrue(
+            milestone.can_be_marked_as_done,
+            "closing the only task must make the milestone markable (depends)",
+        )

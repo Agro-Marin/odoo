@@ -229,3 +229,93 @@ class TestReportStateSelection(TestProjectCommon):
             with self.subTest(model=model):
                 got = {v for v, _label in self.env[model]._fields["state"].selection}
                 self.assertEqual(got, expected)
+
+    def test_state_blocked_transition_still_works(self) -> None:
+        """The dependency-driven blocked/unblock transition must be intact."""
+        project = self.env["project.project"].create(
+            {"name": "BlockProj", "allow_dependencies": True}
+        )
+        a = self.env["project.task"].create({"name": "A", "project_id": project.id})
+        b = self.env["project.task"].create({"name": "B", "project_id": project.id})
+        b.write({"predecessor_ids": [(4, a.id)]})
+        self.assertEqual(b.state, "blocked", "open predecessor must block")
+        a.state = "done"
+        self.assertEqual(b.state, "in_progress", "clearing blockers must unblock")
+
+    def test_canceled_task_not_counted_as_throughput(self) -> None:
+        """F1: canceled tasks are not delivered work — excluded from throughput."""
+        task = self.env["project.task"].create(
+            {"name": "X", "project_id": self.project_pigs.id}
+        )
+        task.state = "canceled"
+        task.date_closed = fields.Datetime.now()
+        self.project_pigs.action_refresh_metrics()
+        self.assertEqual(
+            self.project_pigs.throughput_week,
+            0.0,
+            "a canceled task must not count as delivered throughput",
+        )
+
+    def test_deadline_met_tristate(self) -> None:
+        """DM: deadline_met distinguishes 'no deadline / not closed' (empty) from
+        'missed' — a Boolean collapsed both to False."""
+        no_deadline = self.env["project.task"].create(
+            {"name": "no dl", "project_id": self.project_pigs.id}
+        )
+        now = fields.Datetime.now()
+        missed = self.env["project.task"].create(
+            {
+                "name": "missed",
+                "project_id": self.project_pigs.id,
+                "date_end": now - timedelta(days=1),
+                "state": "done",
+                "date_closed": now,
+            }
+        )
+        (no_deadline + missed).invalidate_recordset(["deadline_met"])
+        self.assertFalse(no_deadline.deadline_met, "no deadline → empty")
+        self.assertEqual(missed.deadline_met, "missed", "closed late → 'missed'")
+
+    def test_project_change_reopens_only_open_tasks(self) -> None:
+        """Re-homing drops a task onto the target project's default non-folded
+        step, so an *open* task reopens to in_progress. A closed one does not:
+        closed is sticky, the same contract `_compute_state` enforces, because a
+        bulk project reorganization must not destroy the closure history that
+        lead/cycle/throughput and deadline_met read.
+        """
+        source = self.env["project.project"].create({"name": "Src"})
+        target = self.env["project.project"].create({"name": "Dst"})
+        closed, open_task = self.env["project.task"].create(
+            [
+                {
+                    "name": "was done",
+                    "project_id": source.id,
+                    "state": "done",
+                    "date_closed": fields.Datetime.now(),
+                },
+                {
+                    "name": "still open",
+                    "project_id": source.id,
+                    "state": "changes_requested",
+                },
+            ]
+        )
+        closed_at = closed.date_closed
+        self.assertTrue(closed_at)
+
+        (closed + open_task).write({"project_id": target.id})
+
+        self.assertEqual(
+            closed.state, "done", "a re-homed closed task must keep its state"
+        )
+        self.assertEqual(
+            closed.date_closed, closed_at, "re-homing must not clear the closure date"
+        )
+        self.assertEqual(
+            open_task.state,
+            "in_progress",
+            "a re-homed open task must reopen onto the target's default step",
+        )
+        self.assertNotIn(
+            open_task.step_id.fold, (True,), "must land on a non-folded step"
+        )

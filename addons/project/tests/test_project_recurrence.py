@@ -1,10 +1,13 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import Command, fields
+from odoo.exceptions import ValidationError
 from odoo.tests import Form, TransactionCase, users
+
+from .test_project_base import TestProjectCommon
 
 
 class TestProjectRecurrence(TransactionCase):
@@ -631,7 +634,7 @@ class TestProjectRecurrence(TransactionCase):
         )
 
 
-class TestRecurrenceDefaults(TransactionCase):
+class TestRecurrenceDefaults(TestProjectCommon):
     """Recurrence defaults, and the context keys that set them."""
 
     def test_context_default_repeat_until_wins(self) -> None:
@@ -642,3 +645,60 @@ class TestRecurrenceDefaults(TransactionCase):
             .default_get(["repeat_until"])
         )
         self.assertEqual(str(vals["repeat_until"]), "2030-01-01")
+
+    def test_recurrence_until_requires_valid_future_date(self) -> None:
+        """repeat_type='until' with an empty date must raise a clean
+        ValidationError, not a TypeError (False < date)."""
+        Recurrence = self.env["project.task.recurrence"]
+        with self.assertRaises(ValidationError):
+            Recurrence.create({"repeat_type": "until"})  # no repeat_until
+        today = fields.Date.today()
+        with self.assertRaises(ValidationError):
+            Recurrence.create(
+                {
+                    "repeat_type": "until",
+                    "repeat_until": today - timedelta(days=1),
+                }
+            )
+        # A valid future date must succeed.
+        rec = Recurrence.create(
+            {
+                "repeat_type": "until",
+                "repeat_until": today + timedelta(days=30),
+            }
+        )
+        self.assertTrue(rec)
+
+    def test_recurrence_until_respects_user_timezone(self) -> None:
+        """repeat_until (a naive calendar Date) must be compared in the user's
+        timezone, not UTC — otherwise a boundary occurrence is dropped a day
+        early in a negative-offset tz."""
+        self.env.user.tz = "Etc/GMT+6"  # UTC-6, no DST
+        step = self.env["project.workflow.step"].create(
+            {"name": "S", "project_ids": [(4, self.project_pigs.id)]}
+        )
+        until = fields.Date.today() + timedelta(days=30)
+        rec = self.env["project.task.recurrence"].create(
+            {
+                "repeat_type": "until",
+                "repeat_unit": "day",
+                "repeat_interval": 1,
+                "repeat_until": until,
+            }
+        )
+        # date_end + 1 day = until+1 @ 03:00 UTC = until @ 21:00 local (UTC-6).
+        # UTC .date() would be until+1 → skipped; local date is until → created.
+        task = self.env["project.task"].create(
+            {
+                "name": "Recur",
+                "project_id": self.project_pigs.id,
+                "step_id": step.id,
+                "recurrence_id": rec.id,
+                "date_end": datetime.combine(until, time(3, 0)),
+            }
+        )
+        created = self.env["project.task.recurrence"]._create_next_occurrences(task)
+        self.assertTrue(
+            created,
+            "boundary occurrence must be created (compared in user tz, not UTC)",
+        )

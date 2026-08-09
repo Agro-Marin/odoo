@@ -1,5 +1,4 @@
 from . import test_access_rights
-from . import test_audit_fixes
 from . import test_burndown_chart
 from . import test_js
 from . import test_project_base
@@ -59,3 +58,4 @@ from . import test_sprint_commitment
 from . import test_tag_uniqueness
 from . import test_task_closure
 from . import test_workflow_step_lifecycle
+from . import test_project_duplication

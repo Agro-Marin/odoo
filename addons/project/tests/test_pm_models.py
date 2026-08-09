@@ -470,3 +470,296 @@ class TestRetrospectiveOrdering(TestProjectCommon):
             )
         ordered = Action.search([("retrospective_id", "=", retro.id)]).mapped("state")
         self.assertEqual(ordered, ["open", "in_progress", "done"])
+
+
+@tagged("post_install", "-at_install")
+class TestPmModelBehaviour(TestProjectCommon):
+    """Behaviour of the PM-layer models: benefits, baselines, risks, gates, phases, roles, history."""
+
+    def test_benefit_review_cron_creates_activity_with_deadline(self) -> None:
+        """The benefit-review cron must write ``date_deadline`` on mail.activity
+        (the fork's date_deadline→date_end rename is task-only).
+
+        Bug: it wrote ``date_end`` — a field mail.activity does not have — so the
+        cron raised ValueError on every run and no reminder was ever created.
+        """
+        review = fields.Date.context_today(self.env["project.benefit"]) - timedelta(
+            days=1
+        )
+        benefit = self.env["project.benefit"].create(
+            {
+                "name": "Cut fuel cost",
+                "project_id": self.project_pigs.id,
+                "accountable_id": self.user_projectmanager.id,
+                "review_date": review,
+                "state": "tracking",
+            }
+        )
+        self.env["project.benefit"]._cron_check_review_dates()
+        activity = self.env["mail.activity"].search(
+            [
+                ("res_model", "=", "project.benefit"),
+                ("res_id", "=", benefit.id),
+            ]
+        )
+        self.assertEqual(len(activity), 1, "Cron must schedule exactly one activity")
+        self.assertEqual(activity.date_deadline, review)
+        # Idempotent: a second run must not duplicate the activity.
+        self.env["project.benefit"]._cron_check_review_dates()
+        self.assertEqual(
+            self.env["mail.activity"].search_count(
+                [
+                    ("res_model", "=", "project.benefit"),
+                    ("res_id", "=", benefit.id),
+                ]
+            ),
+            1,
+            "Cron must be idempotent",
+        )
+
+    def test_benefit_cron_does_not_renag_after_completion(self) -> None:
+        """Once a reminder is scheduled for a review_date, the cron must not
+        re-create it on later runs (even after the user completes it). It
+        re-arms only when review_date moves forward."""
+        Benefit = self.env["project.benefit"]
+        today = fields.Date.context_today(Benefit)
+        benefit = Benefit.create(
+            {
+                "name": "Reduce cost",
+                "project_id": self.project_pigs.id,
+                "accountable_id": self.user_projectmanager.id,
+                "review_date": today - timedelta(days=5),
+                "state": "tracking",
+            }
+        )
+        Benefit._cron_check_review_dates()
+        acts = self.env["mail.activity"].search(
+            [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
+        )
+        self.assertEqual(len(acts), 1, "first run schedules one reminder")
+        self.assertEqual(benefit.review_reminder_date, benefit.review_date)
+        # User completes (deletes) the activity, then the cron runs again.
+        acts.unlink()
+        Benefit._cron_check_review_dates()
+        self.assertEqual(
+            self.env["mail.activity"].search_count(
+                [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
+            ),
+            0,
+            "cron must NOT re-nag for the same review_date after completion",
+        )
+        # Moving review_date forward re-arms the reminder.
+        benefit.review_date = today - timedelta(days=1)
+        Benefit._cron_check_review_dates()
+        self.assertEqual(
+            self.env["mail.activity"].search_count(
+                [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
+            ),
+            1,
+            "a new review_date must schedule a fresh reminder",
+        )
+
+    def test_duplicate_current_baseline(self) -> None:
+        """C2: copying the current baseline must not hit the partial unique index."""
+        baseline = self.env["project.baseline"].create(
+            {"project_id": self.project_pigs.id, "name": "B1"}
+        )
+        baseline.action_set_current()
+        baseline.flush_recordset()
+        copy = baseline.copy()  # must not raise IntegrityError
+        copy.flush_recordset()
+        self.assertFalse(copy.is_current, "the copy must not also be current")
+
+    def test_baseline_snapshot_uses_planned_start(self) -> None:
+        """Baseline snapshots must capture planned_date_begin (scheduled start),
+        not date_assign (actual assignment)."""
+        project = self.env["project.project"].create({"name": "BaseProj"})
+        begin = fields.Datetime.now() - timedelta(days=5)
+        task = self.env["project.task"].create(
+            {
+                "name": "planned",
+                "project_id": project.id,
+                "planned_date_begin": begin,
+                "date_end": begin + timedelta(days=1),
+            }
+        )
+        baseline = self.env["project.baseline"].create(
+            {"name": "B1", "project_id": project.id}
+        )
+        baseline.action_capture_snapshot()
+        line = baseline.line_ids.filtered(lambda line: line.task_id == task)
+        self.assertEqual(line.planned_start, begin)
+
+    def test_confidential_child_models_not_leaked(self) -> None:
+        """S1: a plain project user who is not a follower of a follower-only
+        project must not see that project's risks (mirrors the task rule),
+        but must still see risks of an employees-visible project."""
+        Risk = self.env["project.risk"]
+        secret = Risk.create(
+            {
+                "project_id": self.project_goats.id,  # privacy_visibility='followers'
+                "name": "SECRET",
+                "probability": "5",
+                "impact": "5",
+            }
+        )
+        visible = Risk.create(
+            {
+                "project_id": self.project_pigs.id,  # privacy_visibility='employees'
+                "name": "OPEN",
+                "probability": "1",
+                "impact": "1",
+            }
+        )
+        as_user = Risk.with_user(self.user_projectuser)
+        self.assertNotIn(
+            secret,
+            as_user.search([("project_id", "=", self.project_goats.id)]),
+            "follower-only project's risk must be hidden from non-follower user",
+        )
+        self.assertIn(
+            visible,
+            as_user.search([("project_id", "=", self.project_pigs.id)]),
+            "employees-visible project's risk must remain readable",
+        )
+
+    def test_resolved_risk_excluded_from_counts(self) -> None:
+        """H1: a resolved risk no longer counts toward risk_count / health."""
+        risk = self.env["project.risk"].create(
+            {
+                "project_id": self.project_pigs.id,
+                "name": "R",
+                "probability": "5",
+                "impact": "5",
+            }
+        )
+        self.project_pigs.invalidate_recordset(["risk_count"])
+        self.assertEqual(self.project_pigs.risk_count, 1)
+        risk.state = "resolved"
+        self.project_pigs.invalidate_recordset(["risk_count"])
+        self.assertEqual(
+            self.project_pigs.risk_count,
+            0,
+            "resolved risks must be excluded from the open-risk count",
+        )
+
+    def test_retrospective_carry_forward_idempotent(self) -> None:
+        """action_carry_forward run twice must not duplicate carried actions."""
+        project = self.env["project.project"].create({"name": "RetroProj"})
+        prev = self.env["project.retrospective"].create(
+            {"name": "Sprint 1", "project_id": project.id}
+        )
+        self.env["project.retrospective.action"].create(
+            {
+                "name": "Fix CI",
+                "retrospective_id": prev.id,
+                "state": "open",
+                "owner_id": self.user_projectuser.id,
+            }
+        )
+        current = self.env["project.retrospective"].create(
+            {"name": "Sprint 2", "project_id": project.id, "previous_id": prev.id}
+        )
+        current.action_carry_forward()
+        current.action_carry_forward()
+        self.assertEqual(len(current.action_ids), 1, "carry-forward must be idempotent")
+
+    def test_history_duration_uses_completion_not_today(self) -> None:
+        """project.history actual duration must key off real completion (last
+        task closure), not the snapshot date."""
+        start = fields.Date.today() - timedelta(days=100)
+        project = self.env["project.project"].create(
+            # Both dates: a project carries its scheduling pair or neither
+            # (owner-confirmed rule, now enforced on create as well as write).
+            {"name": "HistProj", "date_start": start, "date": fields.Date.today()}
+        )
+        task = self.env["project.task"].create({"name": "T", "project_id": project.id})
+        # Completed 90 days after start (10 days before "today").
+        task.write({"state": "done"})
+        task.date_closed = fields.Datetime.to_datetime(start) + timedelta(days=90)
+        hist = self.env["project.history"].create_from_project(project)
+        self.assertEqual(
+            hist.actual_duration_days,
+            90,
+            "duration must be start→last-closure (90d), not start→today (100d)",
+        )
+        self.assertEqual(hist.date_completed, (start + timedelta(days=90)))
+
+    def test_gate_criterion_counts(self) -> None:
+        """criteria_met_count / criteria_total_count must reflect the criteria
+        and react to a criterion being marked met."""
+        gate = self.env["project.gate"].create(
+            {"name": "G1", "project_id": self.project_pigs.id}
+        )
+        c1 = self.env["project.gate.criterion"].create(
+            {"gate_id": gate.id, "name": "Budget ok"}
+        )
+        self.env["project.gate.criterion"].create(
+            {"gate_id": gate.id, "name": "Scope ok"}
+        )
+        self.assertEqual(gate.criteria_total_count, 2)
+        self.assertEqual(gate.criteria_met_count, 0)
+        c1.met = True
+        self.assertEqual(
+            gate.criteria_met_count, 1, "met count must react to criterion.met"
+        )
+
+    def test_gate_criterion_milestone_cross_project_guard(self) -> None:
+        """A gate's trigger milestone must belong to the gate's project."""
+        self.project_goats.allow_milestones = True
+        other_ms = self.env["project.milestone"].create(
+            {"name": "Other", "project_id": self.project_goats.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["project.gate"].create(
+                {
+                    "name": "BadGate",
+                    "project_id": self.project_pigs.id,
+                    "milestone_id": other_ms.id,
+                }
+            )
+
+    def test_role_defaults_and_task_assignment(self) -> None:
+        """project.role gets a color in range and can be assigned to a task."""
+        role = self.env["project.role"].create({"name": "Reviewer"})
+        self.assertTrue(1 <= role.color <= 11, "default color must be in [1, 11]")
+        self.task_1.role_ids = [(4, role.id)]
+        self.assertIn(role, self.task_1.role_ids)
+        # copy suffix from the shared mixin.
+        self.assertEqual(role.copy().name, "Reviewer (copy)")
+
+    def test_phase_write_company_switch_guard(self) -> None:
+        """Switching a phase's company must raise while a project of a different
+        company is still assigned to it."""
+        company_a = self.env["res.company"].create({"name": "Co A"})
+        company_b = self.env["res.company"].create({"name": "Co B"})
+        phase = self.env["project.phase"].create(
+            {"name": "Planning", "company_id": company_a.id}
+        )
+        self.env["project.project"].create(
+            {
+                "name": "In phase",
+                "phase_id": phase.id,
+                "company_id": company_a.id,
+            }
+        )
+        with self.assertRaises(UserError):
+            phase.company_id = company_b.id
+        # No conflicting project → the switch is allowed.
+        empty_phase = self.env["project.phase"].create(
+            {"name": "Empty", "company_id": company_a.id}
+        )
+        empty_phase.company_id = company_b.id
+        self.assertEqual(empty_phase.company_id, company_b)
+
+    def test_phase_archive_cascades_to_projects(self) -> None:
+        """Archiving a phase archives every project assigned to it."""
+        phase = self.env["project.phase"].create({"name": "Closing"})
+        project = self.env["project.project"].create(
+            {"name": "Cascade", "phase_id": phase.id}
+        )
+        self.assertTrue(project.active)
+        phase.active = False
+        self.assertFalse(
+            project.active, "archiving the phase must archive its projects"
+        )
