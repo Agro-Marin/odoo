@@ -344,13 +344,15 @@ class _EnvModelCollector(ast.NodeVisitor):
         if not node.args:
             return
         func = node.func
-        if (
+        is_container_get = (
             isinstance(func, ast.Attribute)
             and func.attr == "get"
             and _is_model_container(func.value)
-        ):
-            self._add_if_model(node.args[0], node.lineno)
-        elif isinstance(func, ast.Name) and func.id in _COMODEL_CONSTRUCTORS:
+        )
+        is_comodel_arg = (
+            isinstance(func, ast.Name) and func.id in _COMODEL_CONSTRUCTORS
+        )
+        if is_container_get or is_comodel_arg:
             self._add_if_model(node.args[0], node.lineno)
 
     def visit_Compare(self, node: ast.Compare) -> None:
