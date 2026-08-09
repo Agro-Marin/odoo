@@ -131,16 +131,25 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                     )
                     value = value.id
 
+                # A Domain literal: heterogeneous by construction, since the
+                # date branch below prepends the "&" operator to its two terms.
+                additional_domain: list
                 if not value and field.type == "many2many":
                     additional_domain = [(field_name, "not any", [])]
                 else:
                     additional_domain = [(field_name, "=", value)]
 
                 if field.type in ("date", "datetime"):
-                    if value and isinstance(value, (datetime.date, datetime.datetime)):
+                    # datetime is a subclass of date, so this admits both; which
+                    # one arrives is decided by field.type, not by the check.
+                    if value and isinstance(value, datetime.date):
                         range_start = value
                         range_end = value + interval
                         if field.type == "datetime":
+                            # The grouped value of a datetime field is a
+                            # datetime; only that carries tzinfo/astimezone.
+                            assert isinstance(range_start, datetime.datetime)
+                            assert isinstance(range_end, datetime.datetime)
                             tzinfo = None
                             if self.env.context.get("tz") in all_timezones():
                                 tzinfo = get_timezone(self.env.context["tz"])
@@ -170,17 +179,20 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                             )
                             label = f"W{week} {year:04}"
 
-                        range_start = range_start.strftime(fmt)
-                        range_end = range_end.strftime(fmt)
+                        # Distinct names: the bounds are dates above and their
+                        # serialised form below, and reusing one name for both
+                        # is what made this block unreadable to the type checker.
+                        range_start_str = range_start.strftime(fmt)
+                        range_end_str = range_end.strftime(fmt)
                         row[group] = label
                         row.setdefault("__range", {})[group] = {
-                            "from": range_start,
-                            "to": range_end,
+                            "from": range_start_str,
+                            "to": range_end_str,
                         }
                         additional_domain = [
                             "&",
-                            (field_name, ">=", range_start),
-                            (field_name, "<", range_end),
+                            (field_name, ">=", range_start_str),
+                            (field_name, "<", range_end_str),
                         ]
                     elif (
                         value is not None
