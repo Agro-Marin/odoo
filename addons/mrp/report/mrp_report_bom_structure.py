@@ -161,6 +161,113 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         }
 
     @api.model
+    def _get_missing_qty_status(self, missing_qty, route_name):
+        """ "<qty> To <route>" when something is short, empty when it is not."""
+        missing_qty = max(missing_qty, 0)
+        if not missing_qty:
+            return ""
+        return _(
+            "%(qty)s To %(route)s",
+            qty=float_repr(
+                missing_qty,
+                self.env["decimal.precision"].precision_get("Product Unit"),
+            ),
+            route=route_name or _("Order"),
+        )
+
+    @api.model
+    def _get_bom_components_data(
+        self,
+        bom,
+        product,
+        warehouse,
+        current_quantity,
+        level,
+        index,
+        product_info,
+        ignore_stock,
+        simulated_leaves_per_workcenter,
+    ):
+        """One report row per applicable BoM line, sub-assemblies expanded.
+
+        Lines resolving to the same product and unit are merged into one row.
+        """
+        no_bom_lines = self.env["mrp.bom.line"]
+        line_quantities = {}
+        for line in bom.bom_line_ids:
+            if product and line._skip_bom_line(product):
+                continue
+            line_quantity = (
+                current_quantity / (bom.product_qty or 1.0)
+            ) * line.product_qty
+            line_quantities[line.id] = line_quantity
+            if line.child_bom_id:
+                continue
+            no_bom_lines |= line
+            # Update product_info for all the components before computing closest forecasted.
+            self._update_product_info(
+                line.product_id,
+                bom.id,
+                product_info,
+                warehouse,
+                line.product_uom_id._compute_quantity_report(
+                    line_quantity, line.product_id.uom_id
+                ),
+                bom=False,
+                parent_bom=bom,
+                parent_product=product,
+            )
+        components_closest_forecasted = self._get_components_closest_forecasted(
+            no_bom_lines, line_quantities, bom, product_info, product, ignore_stock
+        )
+
+        components = []
+        for component_index, line in enumerate(bom.bom_line_ids):
+            if product and line._skip_bom_line(product):
+                continue
+            new_index = f"{index}{component_index}"
+            line_quantity = line_quantities.get(line.id, 0.0)
+            if line.child_bom_id:
+                component = self._get_bom_data(
+                    line.child_bom_id,
+                    warehouse,
+                    line.product_id,
+                    line_quantity,
+                    bom_line=line,
+                    level=level + 1,
+                    parent_bom=bom,
+                    parent_product=product,
+                    index=new_index,
+                    product_info=product_info,
+                    ignore_stock=ignore_stock,
+                    simulated_leaves_per_workcenter=simulated_leaves_per_workcenter,
+                )
+            else:
+                component = self.with_context(
+                    components_closest_forecasted=components_closest_forecasted,
+                )._get_component_data(
+                    bom,
+                    product,
+                    warehouse,
+                    line,
+                    line_quantity,
+                    level + 1,
+                    new_index,
+                    product_info,
+                    ignore_stock,
+                )
+            for component_bom in components:
+                if (
+                    component["product_id"] == component_bom["product_id"]
+                    and component["uom"].id == component_bom["uom"].id
+                ):
+                    self._merge_components(component_bom, component)
+                    break
+            else:
+                components.append(component)
+        return components
+
+    @api.model
     def _get_components_closest_forecasted(
         self,
         lines,
@@ -375,92 +482,28 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "parent_id": (parent_bom and parent_bom.id) or False,
         }
 
-        components = []
-        no_bom_lines = self.env["mrp.bom.line"]
-        line_quantities = {}
-        for line in bom.bom_line_ids:
-            if product and line._skip_bom_line(product):
-                continue
-            line_quantity = (
-                current_quantity / (bom.product_qty or 1.0)
-            ) * line.product_qty
-            line_quantities[line.id] = line_quantity
-            if not line.child_bom_id:
-                no_bom_lines |= line
-                # Update product_info for all the components before computing closest forecasted.
-                qty_product_uom = line.product_uom_id._compute_quantity_report(
-                    line_quantity, line.product_id.uom_id
-                )
-                self._update_product_info(
-                    line.product_id,
-                    bom.id,
-                    product_info,
-                    warehouse,
-                    qty_product_uom,
-                    bom=False,
-                    parent_bom=bom,
-                    parent_product=product,
-                )
-        components_closest_forecasted = self._get_components_closest_forecasted(
-            no_bom_lines, line_quantities, bom, product_info, product, ignore_stock
+        components = self._get_bom_components_data(
+            bom,
+            product,
+            warehouse,
+            current_quantity,
+            level,
+            index,
+            product_info,
+            ignore_stock,
+            simulated_leaves_per_workcenter,
         )
-        for component_index, line in enumerate(bom.bom_line_ids):
-            new_index = f"{index}{component_index}"
-            if product and line._skip_bom_line(product):
-                continue
-            line_quantity = line_quantities.get(line.id, 0.0)
-            if line.child_bom_id:
-                component = self._get_bom_data(
-                    line.child_bom_id,
-                    warehouse,
-                    line.product_id,
-                    line_quantity,
-                    bom_line=line,
-                    level=level + 1,
-                    parent_bom=bom,
-                    parent_product=product,
-                    index=new_index,
-                    product_info=product_info,
-                    ignore_stock=ignore_stock,
-                    simulated_leaves_per_workcenter=simulated_leaves_per_workcenter,
-                )
-            else:
-                component = self.with_context(
-                    components_closest_forecasted=components_closest_forecasted,
-                )._get_component_data(
-                    bom,
-                    product,
-                    warehouse,
-                    line,
-                    line_quantity,
-                    level + 1,
-                    new_index,
-                    product_info,
-                    ignore_stock,
-                )
-            for component_bom in components:
-                if (
-                    component["product_id"] == component_bom["product_id"]
-                    and component["uom"].id == component_bom["uom"].id
-                ):
-                    self._merge_components(component_bom, component)
-                    break
-            else:
-                components.append(component)
-            bom_report_line["bom_cost"] += component["bom_cost"]
         for component in components:
-            if component["is_storable"]:
-                if missing_qty := max(
-                    component["quantity"] - component["quantity_forecasted"], 0
-                ):
-                    missing_qty = float_repr(
-                        missing_qty,
-                        self.env["decimal.precision"].precision_get("Product Unit"),
-                    )
-                    route_name = component["route_name"] or _("Order")
-                    component["status"] = _(
-                        "%(qty)s To %(route)s", qty=missing_qty, route=route_name
-                    )
+            # Merged rows already carry the sum of what they absorbed, so each
+            # product's cost is counted exactly once.
+            bom_report_line["bom_cost"] += component["bom_cost"]
+            if not component["is_storable"]:
+                continue
+            if status := self._get_missing_qty_status(
+                component["quantity"] - component["quantity_forecasted"],
+                component["route_name"],
+            ):
+                component["status"] = status
         bom_report_line["components"] = components
         bom_report_line["producible_qty"] = self._compute_current_production_capacity(
             bom_report_line
@@ -485,22 +528,16 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         bom_report_line.update(availabilities)
 
         if level == 0:
-            if bom_report_line["producible_qty"] > 0:
-                bom_report_line["status"] = _(
-                    "%(qty)s Ready To Produce", qty=bom_report_line["producible_qty"]
-                )
-            else:
-                bom_report_line["status"] = _("No Ready To Produce")
-        elif missing_qty := max(
-            bom_report_line["quantity"] - bom_report_line["quantity_available"], 0
+            bom_report_line["status"] = (
+                _("%(qty)s Ready To Produce", qty=bom_report_line["producible_qty"])
+                if bom_report_line["producible_qty"] > 0
+                else _("No Ready To Produce")
+            )
+        elif status := self._get_missing_qty_status(
+            bom_report_line["quantity"] - bom_report_line["quantity_available"],
+            bom_report_line["route_name"],
         ):
-            missing_qty = float_repr(
-                missing_qty, self.env["decimal.precision"].precision_get("Product Unit")
-            )
-            route_name = bom_report_line["route_name"] or _("Order")
-            bom_report_line["status"] = _(
-                "%(qty)s To %(route)s", qty=missing_qty, route=route_name
-            )
+            bom_report_line["status"] = status
 
         if not is_minimized:
             operations = self._get_operation_line(
