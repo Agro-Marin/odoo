@@ -47,9 +47,9 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 comp["base_bom_line_qty"]
             ):
                 continue
-            components_qty_to_produce[product.id] += comp["uom"]._compute_quantity_report(
-                comp["base_bom_line_qty"], product.uom_id
-            )
+            components_qty_to_produce[product.id] += comp[
+                "uom"
+            ]._compute_quantity_report(comp["base_bom_line_qty"], product.uom_id)
             components_qty_available[product.id] = product.qty_free
         producibles = [
             float_round(
@@ -1308,11 +1308,9 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return bool(template) and template.id in index["product.template"]
 
     def _merge_components(self, component_1, component_2):
-        component_1["quantity"] = component_1["quantity"] + component_2["quantity"]
-        component_1["base_bom_line_qty"] = (
-            component_1["base_bom_line_qty"] + component_2["base_bom_line_qty"]
-        )
-        component_1["bom_cost"] = component_1["bom_cost"] + component_2["bom_cost"]
+        component_1["quantity"] += component_2["quantity"]
+        component_1["base_bom_line_qty"] += component_2["base_bom_line_qty"]
+        component_1["bom_cost"] += component_2["bom_cost"]
         if component_2.get("availability_delay") is False or component_2.get(
             "availability_delay"
         ) >= component_1.get("availability_delay"):

@@ -509,9 +509,16 @@ class MrpWorkorder(models.Model):
         )
 
         for workorder in self:
-            workorder.blocked_by_workorder_ids.needed_by_workorder_ids = (
-                workorder.needed_by_workorder_ids
-            )
+            # Link, don't assign. Assigning a recordset to an x2many *replaces*
+            # it, so relinking around the work order being deleted overwrote its
+            # predecessors' successor lists with its own: with B blocking both A
+            # and C, deleting A emptied B's successors and left C unblocked.
+            # Linking splices the deleted node out without touching its
+            # siblings' edges.
+            workorder.blocked_by_workorder_ids.needed_by_workorder_ids = [
+                Command.link(needed_by.id)
+                for needed_by in workorder.needed_by_workorder_ids
+            ]
 
         self.end_all()
         res = super().unlink()
@@ -1039,7 +1046,20 @@ class MrpWorkorder(models.Model):
                     "Impossible to plan the workorder. Please check the workcenter availabilities."
                 )
             )
-        # Create reservation on chosen workcenter resource
+        # Create reservation on chosen workcenter resource.
+        #
+        # `soft`, like every other reservation this model creates (`_set_dates`,
+        # `button_start`). `hard` here made a work order's enforcement depend on
+        # which code path had created its reservation, and it contradicts the
+        # rest of the module: `_get_conflicted_workorder_ids` and the
+        # "Planned at the same time as other workorder(s)" popover exist
+        # precisely to *report* overlapping work orders, and `action_replan` to
+        # resolve them -- none of which is reachable if an overlap cannot be
+        # stored. In practice it meant dragging a planned work order onto a busy
+        # slot in the Gantt raised "… is already reserved during this time"
+        # instead of flagging a conflict. The planner itself never needs the
+        # block: `_get_first_available_slot` already excludes occupied
+        # intervals, so it cannot produce an overlap of its own.
         reservation = self.env["resource.reservation"].create(
             {
                 "name": self.display_name,
@@ -1047,7 +1067,7 @@ class MrpWorkorder(models.Model):
                 "date_start": best_date_start,
                 "date_end": best_date_finished,
                 "allocated_percentage": 100.0,
-                "enforcement_mode": "hard",
+                "enforcement_mode": "soft",
                 "res_model": "mrp.workorder",
                 "res_id": self.id,
             }

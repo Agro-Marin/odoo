@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from collections import defaultdict
 from datetime import datetime, time
 
 from odoo import _, api, fields, models
@@ -126,27 +127,53 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.depends("effective_route_id", "bom_id", "rule_ids", "product_id.bom_ids")
     def _compute_bom_id_placeholder(self):
+        default_boms = self._get_default_boms()
         for orderpoint in self:
-            default_bom = orderpoint._get_default_bom()
+            default_bom = default_boms[orderpoint]
             orderpoint.bom_id_placeholder = (
                 default_bom.display_name if default_bom else ""
             )
 
     @api.depends("effective_route_id", "bom_id", "rule_ids", "product_id.bom_ids")
     def _compute_effective_bom_id(self):
+        # Only the orderpoints without a BoM of their own need one resolved.
+        # `.get`, not `[...]`: relying on `or` to short-circuit past a missing
+        # key is the same accident this audit fixed in `_compute_locations`.
+        empty_bom = self.env["mrp.bom"]
+        default_boms = self.filtered(
+            lambda orderpoint: not orderpoint.bom_id
+        )._get_default_boms()
         for orderpoint in self:
-            orderpoint.effective_bom_id = (
-                orderpoint.bom_id or orderpoint._get_default_bom()
+            orderpoint.effective_bom_id = orderpoint.bom_id or default_boms.get(
+                orderpoint, empty_bom
             )
 
     def _search_effective_bom_id(self, operator, value):
-        boms = self.env["mrp.bom"].search([("id", operator, value)])
-        orderpoints = (
-            self.env["stock.warehouse.orderpoint"]
-            .search([])
-            .filtered(lambda orderpoint: orderpoint.effective_bom_id in boms)
+        """Search on the BoM set directly, or the one that would be chosen.
+
+        The first half is a plain column. Only the second -- orderpoints with no
+        BoM of their own, whose effective BoM has to be resolved -- needs any
+        work, and it is restricted to those.
+
+        This used to `search([])` the whole table and then `filtered` it in
+        Python, evaluating `effective_bom_id` (and therefore a `_bom_find`
+        search) once per orderpoint *in the database*, whatever the domain
+        asked for: measured at 202 queries against 1 for the plain column, with
+        only 60 orderpoints present.
+        """
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        boms = self.env["mrp.bom"].search([("id", "in", value)])
+        candidates = self.env["stock.warehouse.orderpoint"].search(
+            [("bom_id", "=", False)]
         )
-        return [("id", "in", orderpoints.ids)]
+        resolved_ids = [
+            orderpoint.id
+            for orderpoint, bom in candidates._get_default_boms().items()
+            if bom in boms
+        ]
+        matching = Domain("bom_id", "in", boms.ids) | Domain("id", "in", resolved_ids)
+        return matching if operator == "in" else ~matching
 
     def _compute_days_to_order(self):
         res = super()._compute_days_to_order()
@@ -182,12 +209,56 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _get_default_bom(self):
         self.ensure_one()
-        if self.show_bom:
-            return self._get_default_rule()._get_matching_bom(
-                self.product_id, self.company_id, {}
+        return self._get_default_boms()[self]
+
+    def _get_default_boms(self):
+        """The BoM each orderpoint would manufacture with, if it manufactures.
+
+        Resolved for the whole set at once. `_get_matching_bom` answers for one
+        product at a time, and `bom_id_placeholder` -- a column of the
+        Replenishment list -- used to call it once per row, so opening that list
+        cost a `_bom_find` search per orderpoint. `_bom_find` already accepts a
+        recordset of products and returns a mapping, so the only thing needed
+        was to group the orderpoints by what actually varies the lookup: the
+        rule that supplies the operation type, and the company.
+
+        :return: {orderpoint: mrp.bom}, empty for those that do not manufacture
+        """
+        Bom = self.env["mrp.bom"]
+        result = dict.fromkeys(self, Bom)
+        by_lookup = defaultdict(lambda: self.env["stock.warehouse.orderpoint"])
+        for orderpoint in self:
+            if orderpoint.show_bom:
+                by_lookup[(orderpoint._get_default_rule(), orderpoint.company_id)] |= (
+                    orderpoint
+                )
+        for (rule, company), orderpoints in by_lookup.items():
+            products = orderpoints.product_id
+            # Same two-step as `_get_matching_bom`: prefer a BoM tied to the
+            # rule's operation type, then fall back to one that names none.
+            boms = Bom._bom_find(
+                products,
+                picking_type=rule.picking_type_id,
+                bom_type="normal",
+                company_id=company.id,
             )
-        else:
-            return self.env["mrp.bom"]
+            unmatched = products.filtered(lambda product, boms=boms: not boms[product])
+            if unmatched:
+                boms.update(
+                    {
+                        product: bom
+                        for product, bom in Bom._bom_find(
+                            unmatched,
+                            picking_type=False,
+                            bom_type="normal",
+                            company_id=company.id,
+                        ).items()
+                        if bom
+                    }
+                )
+            for orderpoint in orderpoints:
+                result[orderpoint] = boms[orderpoint.product_id]
+        return result
 
     def _get_replenishment_multiple_alternative(self, qty_to_order):
         self.ensure_one()
@@ -247,8 +318,10 @@ class StockWarehouseOrderpoint(models.Model):
             # For a kit, the quantity in progress is :
             #  (the quantity if we have received all in-progress components) - (the quantity using only available components)
             product_qty = min(ratios_total or [0]) - min(ratios_qty_available or [0])
-            res[orderpoint.id] = orderpoint.product_id.uom_id._compute_quantity_estimate(
-                product_qty, orderpoint.product_uom_id, round=False
+            res[orderpoint.id] = (
+                orderpoint.product_id.uom_id._compute_quantity_estimate(
+                    product_qty, orderpoint.product_uom_id, round=False
+                )
             )
 
         # add quantities coming from draft MOs. The orderpoint_id link already

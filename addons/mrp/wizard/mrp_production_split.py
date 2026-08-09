@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command, api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.tools import float_round
 
 
@@ -54,6 +55,12 @@ class MrpProductionSplit(models.TransientModel):
                 bom_id.batch_size if bom_id.enable_batch_size else wizard.product_qty
             )
 
+    # A batch size can be typed freely, and the split detail lines are built
+    # one per batch: a small enough value against a large order asks for an
+    # unbounded number of records in a single compute. Refuse instead of
+    # building it.
+    MAX_SPLITS = 1000
+
     @api.depends("max_batch_size")
     def _compute_num_splits(self):
         self.num_splits = 0
@@ -63,6 +70,21 @@ class MrpProductionSplit(models.TransientModel):
                     wizard.product_qty / wizard.max_batch_size,
                     precision_digits=0,
                     rounding_method="UP",
+                )
+
+    @api.constrains("max_batch_size", "num_splits")
+    def _check_num_splits(self):
+        for wizard in self:
+            if wizard.num_splits > wizard.MAX_SPLITS:
+                raise ValidationError(
+                    wizard.env._(
+                        "A batch size of %(size)s would split this order into"
+                        " %(count)s manufacturing orders, more than the"
+                        " %(maximum)s allowed. Use a larger batch size.",
+                        size=wizard.max_batch_size,
+                        count=wizard.num_splits,
+                        maximum=wizard.MAX_SPLITS,
+                    )
                 )
 
     @api.depends("num_splits")
@@ -109,7 +131,7 @@ class MrpProductionSplit(models.TransientModel):
             }
         )
         for production, detail in zip(
-            productions, self.production_detailed_vals_ids, strict=False
+            productions, self.production_detailed_vals_ids, strict=True
         ):
             production.user_id = detail.user_id
             production.date_start = detail.date

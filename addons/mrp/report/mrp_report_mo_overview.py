@@ -130,11 +130,13 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     quantity=production.product_qty,
                     unit=production.product_uom_id,
                 ).cost
-                bom_cost = self.env.company.currency_id.round(cost)
+                # One rounding, in the order's own currency. This rounded first
+                # with `self.env.company.currency_id` -- the *viewing* company's
+                # -- and then again with the order's, so a multi-company report
+                # quantised an operation cost to a currency it is not expressed
+                # in before converting it.
                 initial_bom_cost += currency.round(
-                    bom_cost
-                    * production.product_uom_qty
-                    / production.bom_id.product_qty
+                    cost * production.product_uom_qty / production.bom_id.product_qty
                 )
 
         remaining_cost_share, byproducts = self._get_byproducts_data(
@@ -1183,7 +1185,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         # Avoid creating a "to_order" line to compensate for missing stock (i.e. negative qty_free).
         qty_free = max(
             0,
-            product.uom_id._compute_quantity_report(product.qty_free, move_raw.product_uom_id),
+            product.uom_id._compute_quantity_report(
+                product.qty_free, move_raw.product_uom_id
+            ),
         )
         available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
@@ -1351,9 +1355,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             if production.bom_id
             else False
         )
-        real_cost = product.standard_price * in_transit["uom_id"]._compute_quantity_report(
-            in_transit["quantity"], product.uom_id
-        )
+        real_cost = product.standard_price * in_transit[
+            "uom_id"
+        ]._compute_quantity_report(in_transit["quantity"], product.uom_id)
         if self._is_production_started(production) or not production.bom_id:
             mo_cost_decorator = self._get_comparison_decorator(
                 real_cost, mo_cost, currency.rounding
@@ -1400,7 +1404,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         self, product, quantity, uom_id, currency, move_in=False
     ):
         return currency.round(
-            product.standard_price * uom_id._compute_quantity_report(quantity, product.uom_id)
+            product.standard_price
+            * uom_id._compute_quantity_report(quantity, product.uom_id)
         )
 
     def _is_doc_in_done(self, doc_in):
@@ -1589,8 +1594,10 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 if doc_origin:
                     # Remove 'in_transit' for MTO replenishments
                     line["in_transit"] = False
-                    move_origin_qty = move_origin.product_uom_id._compute_quantity_report(
-                        move_origin.product_uom_qty, line["uom_id"]
+                    move_origin_qty = (
+                        move_origin.product_uom_id._compute_quantity_report(
+                            move_origin.product_uom_qty, line["uom_id"]
+                        )
                     )
                     # Move quantity matches forecast, can add origin to the line
                     if (

@@ -222,17 +222,35 @@ class ProductProduct(models.Model):
     )
 
     def _compute_bom_count(self):
+        # Three grouped queries instead of one `search_count` per variant --
+        # the same treatment `product.template` already had, which this half of
+        # the pair was left out of. A BoM reachable by more than one route
+        # (variant BoM, template BoM, by-product) must still count once, hence
+        # the set union.
+        bom_ids_by_product = collections.defaultdict(set)
+        bom_ids_by_template = collections.defaultdict(set)
+        Bom = self.env["mrp.bom"]
+        for product, bom_ids in Bom._read_group(
+            [("product_id", "in", self.ids)], ["product_id"], ["id:array_agg"]
+        ):
+            bom_ids_by_product[product.id].update(bom_ids)
+        for template, bom_ids in Bom._read_group(
+            [
+                ("product_id", "=", False),
+                ("product_tmpl_id", "in", self.product_tmpl_id.ids),
+            ],
+            ["product_tmpl_id"],
+            ["id:array_agg"],
+        ):
+            bom_ids_by_template[template.id].update(bom_ids)
+        for product, bom_ids in self.env["mrp.bom.byproduct"]._read_group(
+            [("product_id", "in", self.ids)], ["product_id"], ["bom_id:array_agg"]
+        ):
+            bom_ids_by_product[product.id].update(bom_ids)
         for product in self:
-            product.bom_count = self.env["mrp.bom"].search_count(
-                [
-                    "|",
-                    "|",
-                    ("byproduct_ids.product_id", "in", product.ids),
-                    ("product_id", "in", product.ids),
-                    "&",
-                    ("product_id", "=", False),
-                    ("product_tmpl_id", "in", product.product_tmpl_id.ids),
-                ]
+            product.bom_count = len(
+                bom_ids_by_product[product.id]
+                | bom_ids_by_template[product.product_tmpl_id.id]
             )
 
     @api.depends_context("company")
@@ -308,10 +326,18 @@ class ProductProduct(models.Model):
                 product.show_forecasted_qty_status_button = False
 
     def _compute_used_in_bom_count(self):
-        for product in self:
-            product.used_in_bom_count = self.env["mrp.bom"].search_count(
-                [("bom_line_ids.product_id", "in", product.ids)]
+        # One grouped query instead of one `search_count` per variant. Distinct
+        # BoMs, since a BoM may list the same component on several lines.
+        counts = {
+            product.id: count
+            for product, count in self.env["mrp.bom.line"]._read_group(
+                [("product_id", "in", self.ids)],
+                ["product_id"],
+                ["bom_id:count_distinct"],
             )
+        }
+        for product in self:
+            product.used_in_bom_count = counts.get(product.id, 0)
 
     @api.depends_context("order_id")
     def _compute_product_is_in_bom_and_mo(self):
@@ -458,12 +484,12 @@ class ProductProduct(models.Model):
             ratios_outgoing_qty = []
             ratios_free_qty = []
 
-            for component, bom_sub_lines in bom_sub_lines_grouped.items():
+            for component, component_bom_lines in bom_sub_lines_grouped.items():
                 component = component.with_context(
                     mrp_compute_quantities=qties
                 ).with_prefetch(prefetch_component_ids)
                 qty_per_kit = 0
-                for bom_line, bom_line_data in bom_sub_lines:
+                for bom_line, bom_line_data in component_bom_lines:
                     if not component.is_storable or bom_line.product_uom_id.is_zero(
                         bom_line_data["qty"]
                     ):
@@ -652,15 +678,25 @@ class ProductProduct(models.Model):
 
     def _get_phantom_bom_products(self):
         """Products manufactured as a kit (phantom BoM). Their quantity is derived from
-        their components, so quantity searches must consider them explicitly."""
-        kit_boms = self.env["mrp.bom"].search([("type", "=", "phantom")])
-        kit_products = self.env["product.product"]
-        for kit in kit_boms:
-            if kit.product_id:
-                kit_products |= kit.product_id
-            else:
-                kit_products |= kit.product_tmpl_id.product_variant_ids
-        return kit_products
+        their components, so quantity searches must consider them explicitly.
+
+        Scoped to the environment's companies: an unscoped search handed back
+        kits the caller cannot even read, and every one of them costs a full kit
+        explosion downstream in `_search_qty_available_new`.
+        """
+        kit_boms = self.env["mrp.bom"].search(
+            [
+                ("type", "=", "phantom"),
+                ("company_id", "in", [False, *self.env.companies.ids]),
+            ]
+        )
+        # `product_variant_ids` in one prefetch rather than one read per BoM.
+        return (
+            kit_boms.product_id
+            | (
+                kit_boms.filtered(lambda bom: not bom.product_id)
+            ).product_tmpl_id.product_variant_ids
+        )
 
     def _get_quantity_search_candidates(self):
         # Kits can have a non-zero quantity without any quants/moves of their own (it comes
@@ -679,12 +715,23 @@ class ProductProduct(models.Model):
         product_ids = super()._search_qty_available_new(
             operator, value, lot_id, owner_id, package_id
         )
-        for product in self._get_phantom_bom_products():
-            if op(product.qty_available, value):
-                product_ids.append(product.id)
-            elif product.id in product_ids:
-                product_ids.pop(product_ids.index(product.id))
-        return list(set(product_ids))
+        kits = self._get_phantom_bom_products()
+        if not kits:
+            return product_ids
+        # A kit's quantity is derived from its components, so it has to be
+        # evaluated in Python -- but once for the whole set. Reading
+        # `qty_available` off each record in turn made every kit its own
+        # explosion and its own round trip; one `mapped` lets the ORM batch the
+        # component reads behind them.
+        matching, not_matching = set(), set()
+        for product, qty_available in zip(
+            kits, kits.mapped("qty_available"), strict=True
+        ):
+            (matching if op(qty_available, value) else not_matching).add(product.id)
+        # A set from the start: this rebuilt a list with `pop(index(...))`, which
+        # is quadratic, and then `list(set(...))` threw away super()'s ordering
+        # anyway.
+        return list((set(product_ids) - not_matching) | matching)
 
     def action_archive(self):
         filtered_products = (
@@ -716,55 +763,36 @@ class ProductProduct(models.Model):
         ]
 
     def _update_uom(self, to_uom_id):
-        for uom, product_template, boms in self.env["mrp.bom"]._read_group(
-            [("product_tmpl_id", "in", self.product_tmpl_id.ids)],
-            ["product_uom_id", "product_tmpl_id"],
-            ["id:recordset"],
+        # mrp.bom, mrp.bom.line and mrp.production carried three copies of the
+        # same fifteen lines, differing only in the model, what identifies the
+        # product on it, and the domain that selects its rows.
+        for model, product_field, domain in (
+            (
+                "mrp.bom",
+                "product_tmpl_id",
+                [("product_tmpl_id", "in", self.product_tmpl_id.ids)],
+            ),
+            ("mrp.bom.line", "product_id", [("product_id", "in", self.ids)]),
+            ("mrp.production", "product_id", [("product_id", "in", self.ids)]),
         ):
-            if product_template.uom_id != uom:
-                raise UserError(
-                    _(
-                        "As other units of measure (ex : %(problem_uom)s) "
-                        "than %(uom)s have already been used for this product, the change of unit of measure can not be done."
-                        "If you want to change it, please archive the product and create a new one.",
-                        problem_uom=uom.name,
-                        uom=product_template.uom_id.name,
-                    )
+            for uom, product, records in self.env[model]._read_group(
+                domain, ["product_uom_id", product_field], ["id:recordset"]
+            ):
+                template = (
+                    product
+                    if product._name == "product.template"
+                    else product.product_tmpl_id
                 )
-            boms.product_uom_id = to_uom_id
-
-        for uom, product, bom_lines in self.env["mrp.bom.line"]._read_group(
-            [("product_id", "in", self.ids)],
-            ["product_uom_id", "product_id"],
-            ["id:recordset"],
-        ):
-            if product.product_tmpl_id.uom_id != uom:
-                raise UserError(
-                    _(
-                        "As other units of measure (ex : %(problem_uom)s) "
-                        "than %(uom)s have already been used for this product, the change of unit of measure can not be done."
-                        "If you want to change it, please archive the product and create a new one.",
-                        problem_uom=uom.name,
-                        uom=product.product_tmpl_id.uom_id.name,
+                if template.uom_id != uom:
+                    raise UserError(
+                        _(
+                            "As other units of measure (ex : %(problem_uom)s) "
+                            "than %(uom)s have already been used for this product, the change of unit of measure can not be done."
+                            "If you want to change it, please archive the product and create a new one.",
+                            problem_uom=uom.name,
+                            uom=template.uom_id.name,
+                        )
                     )
-                )
-            bom_lines.product_uom_id = to_uom_id
-
-        for uom, product, productions in self.env["mrp.production"]._read_group(
-            [("product_id", "in", self.ids)],
-            ["product_uom_id", "product_id"],
-            ["id:recordset"],
-        ):
-            if product.product_tmpl_id.uom_id != uom:
-                raise UserError(
-                    _(
-                        "As other units of measure (ex : %(problem_uom)s) "
-                        "than %(uom)s have already been used for this product, the change of unit of measure can not be done."
-                        "If you want to change it, please archive the product and create a new one.",
-                        problem_uom=uom.name,
-                        uom=product.product_tmpl_id.uom_id.name,
-                    )
-                )
-            productions.product_uom_id = to_uom_id
+                records.product_uom_id = to_uom_id
 
         return super()._update_uom(to_uom_id)

@@ -65,7 +65,10 @@
             "mrp/static/tests/tours/**/*",
         ],
         "web.assets_unit_tests": [
+            # Not `tests/**/*`: that also swallows `tests/tours/`, which belongs
+            # to `web.assets_tests` and was being loaded into both bundles.
             "mrp/static/tests/**/*",
+            ("remove", "mrp/static/tests/tours/**/*"),
         ],
     },
     "author": "Odoo S.A.",

@@ -416,7 +416,9 @@ class MrpProduction(models.Model):
         required=True,
     )
 
-    qty_produced = fields.Float(compute="_get_produced_qty", string="Quantity Produced")
+    qty_produced = fields.Float(
+        compute="_compute_qty_produced", string="Quantity Produced"
+    )
     reference_ids = fields.Many2many(
         "stock.reference",
         "stock_reference_production_rel",
@@ -582,14 +584,26 @@ class MrpProduction(models.Model):
 
     @api.depends("company_id", "bom_id")
     def _compute_picking_type_id(self):
-        domain = [
-            ("code", "=", "mrp_operation"),
-            ("warehouse_id.company_id", "in", self.company_id.ids),
-        ]
+        # One row *per company*, not one row in total. The map below is keyed by
+        # company, so a `limit=1` search could only ever fill it for one of them
+        # and every other company fell through to `False` -- on a required
+        # field, which a batch create spanning two companies reached as a bare
+        # `NotNullViolation`. `search` ordered by the model's own order gives the
+        # same first-match-per-company as the old query gave for the single
+        # company it happened to return.
         picking_types = self.env["stock.picking.type"].search_read(
-            domain, ["company_id"], load=False, limit=1
+            [
+                ("code", "=", "mrp_operation"),
+                ("warehouse_id.company_id", "in", self.company_id.ids),
+            ],
+            ["company_id"],
+            load=False,
         )
-        picking_type_by_company = {pt["company_id"]: pt["id"] for pt in picking_types}
+        picking_type_by_company = {}
+        for picking_type in picking_types:
+            picking_type_by_company.setdefault(
+                picking_type["company_id"], picking_type["id"]
+            )
         default_picking_type_id = self.env.context.get("default_picking_type_id")
         default_picking_type = default_picking_type_id and self.env[
             "stock.picking.type"
@@ -602,6 +616,9 @@ class MrpProduction(models.Model):
                 .browse(default_warehouse_id)
                 .manu_type_id
             )
+        # The warning below only needs to know *whether* a company has any
+        # warehouse; asking that once per order was a search per record.
+        companies_with_warehouse = None
         for mo in self:
             if (
                 default_picking_type
@@ -615,10 +632,14 @@ class MrpProduction(models.Model):
             if mo.picking_type_id and mo.picking_type_id.company_id == mo.company_id:
                 continue
             mo.picking_type_id = picking_type_by_company.get(mo.company_id.id, False)
-            company_warehouse = self.env["stock.warehouse"].search(
-                [("company_id", "=", mo.company_id.id)], limit=1
-            )
-            if not company_warehouse:
+            if companies_with_warehouse is None:
+                companies_with_warehouse = {
+                    company.id
+                    for [company] in self.env["stock.warehouse"]._read_group(
+                        [("company_id", "in", self.company_id.ids)], ["company_id"]
+                    )
+                }
+            if mo.company_id.id not in companies_with_warehouse:
                 self.env["stock.warehouse"]._warehouse_redirect_warning()
 
     @api.depends("bom_id", "product_id")
@@ -635,30 +656,33 @@ class MrpProduction(models.Model):
 
     @api.depends("picking_type_id")
     def _compute_locations(self):
-        for production in self:
-            if (
-                not production.picking_type_id.default_location_src_id
-                or not production.picking_type_id.default_location_dest_id
-            ):
-                company_id = (
-                    production.company_id.id
-                    if (
-                        production.company_id
-                        and production.company_id in self.env.companies
-                    )
-                    else self.env.company.id
-                )
-                fallback_loc = (
+        # `fallback_loc` used to be bound inside the loop, under the very
+        # condition that decides whether it is read; correct only by
+        # short-circuit accident, and one warehouse search per order. Resolve
+        # every company's fallback once, up front.
+        fallback_loc_by_company = {}
+
+        def fallback_loc(production):
+            company = (
+                production.company_id
+                if production.company_id and production.company_id in self.env.companies
+                else self.env.company
+            )
+            if company.id not in fallback_loc_by_company:
+                fallback_loc_by_company[company.id] = (
                     self.env["stock.warehouse"]
-                    .search([("company_id", "=", company_id)], limit=1)
+                    .search([("company_id", "=", company.id)], limit=1)
                     .lot_stock_id
                 )
+            return fallback_loc_by_company[company.id]
+
+        for production in self:
+            picking_type = production.picking_type_id
             production.location_src_id = (
-                production.picking_type_id.default_location_src_id.id or fallback_loc.id
+                picking_type.default_location_src_id.id or fallback_loc(production).id
             )
             production.location_dest_id = (
-                production.picking_type_id.default_location_dest_id.id
-                or fallback_loc.id
+                picking_type.default_location_dest_id.id or fallback_loc(production).id
             )
 
     @api.model
@@ -951,8 +975,13 @@ class MrpProduction(models.Model):
             production.show_final_lots = production.product_id.tracking != "none"
 
     def _inverse_lines(self):
-        """Little hack to make sure that when you change something on these objects, it gets saved"""
-        pass
+        """Deliberately empty.
+
+        `finished_move_line_ids` is computed from `move_finished_ids.move_line_ids`
+        and edited in place from the form; an inverse is what makes the ORM treat
+        the field as writable and flush those edits back through the lines
+        themselves. There is nothing left for this method to do once it has.
+        """
 
     @api.depends("move_finished_ids.move_line_ids")
     def _compute_lines(self):
@@ -1032,6 +1061,20 @@ class MrpProduction(models.Model):
                 or any(production.move_raw_ids.mapped("picked"))
             ):
                 production.state = "progress"
+            elif production.state != "draft":
+                # Nothing above holds, so nothing has been produced or consumed
+                # and the order is simply waiting. Falling through instead --
+                # which is what this chain used to do -- left the stored value
+                # untouched, so an order that reached `progress` because a
+                # component was ticked as consumed stayed there forever once the
+                # tick was removed, with no way back from the interface.
+                #
+                # `draft` is the one state this compute cannot re-derive: a draft
+                # order and a confirmed order that has done nothing yet are
+                # indistinguishable from the moves, so it is carried over rather
+                # than recomputed. That carry-over is also how `action_confirm`'s
+                # direct write survives the recompute it triggers.
+                production.state = "confirmed"
 
     @api.depends(
         "bom_id",
@@ -1234,18 +1277,16 @@ class MrpProduction(models.Model):
         "move_finished_ids.quantity",
         "move_finished_ids.picked",
     )
-    def _get_produced_qty(self):
+    def _compute_qty_produced(self):
         for production in self:
             done_moves = production.move_finished_ids.filtered(
                 lambda x, production=production: (
                     x.state != "cancel" and x.product_id.id == production.product_id.id
                 )
             )
-            qty_produced = sum(
+            production.qty_produced = sum(
                 done_moves.filtered(lambda m: m.picked).mapped("quantity")
             )
-            production.qty_produced = qty_produced
-        return True
 
     def _compute_scrap_move_count(self):
         data = self.env["stock.scrap"]._read_group(
@@ -1300,14 +1341,23 @@ class MrpProduction(models.Model):
         # done evaluates this for every one of them.
         location_ids_by_warehouse = {}
         for warehouse in self.picking_type_id.warehouse_id:
-            location_ids_by_warehouse[warehouse.id] = self.env["stock.location"]._search(
+            location_ids_by_warehouse[warehouse.id] = self.env[
+                "stock.location"
+            ]._search(
                 [
                     ("id", "child_of", warehouse.view_location_id.id),
                     ("usage", "!=", "supplier"),
                 ]
             )
         for mo in self:
-            if not mo.picking_type_id:
+            # An operation type is not required to name a warehouse, so the
+            # cache above -- keyed by the warehouses that do exist -- has no
+            # entry for one that does not. Reading it unguarded raised
+            # `KeyError: False` out of `web_read`, which is to say the
+            # manufacturing order's form would not open at all for anyone in
+            # `mrp.group_mrp_reception_report`. Without a warehouse there is no
+            # set of locations to allocate from, hence no allocation to show.
+            if not mo.picking_type_id.warehouse_id:
                 continue
             lines = mo.move_finished_ids.filtered(
                 lambda m: m.product_id.is_storable and m.state != "cancel"
@@ -1880,6 +1930,8 @@ class MrpProduction(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        default_picking_type_by_company = {}
+        vals_needing_group = []
         for vals in vals_list:
             # Remove from `move_finished_ids` the by-product moves and then move `move_byproduct_ids`
             # into `move_finished_ids` to avoid duplicate and inconsistency.
@@ -1907,8 +1959,7 @@ class MrpProduction(models.Model):
                     byproduct_product_ids = {
                         command[2].get("product_id")
                         for command in vals["move_byproduct_ids"]
-                        if command[0] == Command.CREATE
-                        and command[2].get("product_id")
+                        if command[0] == Command.CREATE and command[2].get("product_id")
                     }
                     kept = [
                         command
@@ -1921,9 +1972,15 @@ class MrpProduction(models.Model):
             if not vals.get("name", False) or vals["name"] == _("New"):
                 picking_type_id = vals.get("picking_type_id")
                 if not picking_type_id:
-                    picking_type_id = self._get_default_picking_type_id(
-                        vals.get("company_id", self.env.company.id)
-                    )
+                    # Memoised per company: the default is a function of the
+                    # company alone, and this ran a `stock.picking.type` search
+                    # for every single set of values in the batch.
+                    company_id = vals.get("company_id", self.env.company.id)
+                    if company_id not in default_picking_type_by_company:
+                        default_picking_type_by_company[company_id] = (
+                            self._get_default_picking_type_id(company_id)
+                        )
+                    picking_type_id = default_picking_type_by_company[company_id]
                     vals["picking_type_id"] = picking_type_id
                 vals["name"] = (
                     self.env["stock.picking.type"]
@@ -1931,13 +1988,19 @@ class MrpProduction(models.Model):
                     .sequence_id.next_by_id()
                 )
             if not vals.get("production_group_id"):
-                vals["production_group_id"] = (
-                    self.env["mrp.production.group"].create({"name": vals["name"]}).id
-                )
+                # Collected and created in one go below rather than one INSERT
+                # per order.
+                vals_needing_group.append(vals)
+        if vals_needing_group:
+            groups = self.env["mrp.production.group"].create(
+                [{"name": vals["name"]} for vals in vals_needing_group]
+            )
+            for vals, group in zip(vals_needing_group, groups, strict=True):
+                vals["production_group_id"] = group.id
         res = super().create(vals_list)
         # Make sure that the date passed in vals_list are taken into account and not modified by a compute
         reference_vals_list = []
-        for rec, vals in zip(res, vals_list, strict=False):
+        for rec, vals in zip(res, vals_list, strict=True):
             # Make sure that the move_dest_ids of the move_finished_ids are set since
             # the created_production_id is a One2Many field unable to link multiple
             # MO's to a common move_dest_ids
@@ -2007,7 +2070,7 @@ class MrpProduction(models.Model):
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
-        for production, vals in zip(self, vals_list, strict=False):
+        for production, vals in zip(self, vals_list, strict=True):
             # covers at least 2 cases: backorders generation (follow default logic for moves copying)
             # and copying a done MO via the form (i.e. copy only the non-cancelled moves since no backorder = cancelled finished moves)
             if not default or "move_finished_ids" not in default:
@@ -3061,6 +3124,12 @@ class MrpProduction(models.Model):
         return (move_raw_id.move_orig_ids and "move_orig_ids") or False
 
     def _cal_price(self, consumed_moves):
+        """Hook: price the finished products from what the order consumed.
+
+        A no-op without valuation. `mrp_account` overrides it to run the actual
+        cost roll-up, which is why `_post_inventory` calls it per order and with
+        the order's own company.
+        """
         self.ensure_one()
         return True
 
@@ -3360,7 +3429,7 @@ class MrpProduction(models.Model):
                     split_moves.append(move)
 
         backorder_moves = self.env["stock.move"].create(new_moves_vals)
-        for move, backorder_move in zip(split_moves, backorder_moves, strict=False):
+        for move, backorder_move in zip(split_moves, backorder_moves, strict=True):
             move_to_backorder_moves[move] |= backorder_move
         return move_to_backorder_moves, backorder_moves
 
@@ -3592,7 +3661,7 @@ class MrpProduction(models.Model):
         backorders = (
             productions_to_backorder and productions_to_backorder._split_productions()
         )
-        backorders = backorders - productions_to_backorder
+        backorders -= productions_to_backorder
 
         productions_not_to_backorder._post_inventory(cancel_backorder=True)
         productions_to_backorder._post_inventory(cancel_backorder=True)
@@ -4214,10 +4283,13 @@ class MrpProduction(models.Model):
                     workorder.workcenter_id = operation.workcenter_id
                 if workorder.name != operation.name:
                     workorder.name = operation.name
-            elif (
-                workorder.operation_id
-                and workorder.operation_id not in operations_by_id
-            ):
+            elif workorder.operation_id:
+                # The BoM no longer describes this work order's operation, and
+                # no look-alike was found to adopt it. The clause used to also
+                # test `workorder.operation_id not in operations_by_id`, which
+                # compared a recordset against a dict keyed by integer ids and
+                # was therefore always true -- and would have been true anyway,
+                # since that key was popped above.
                 workorders_to_unlink |= workorder
         # A work order for each operation left over.
         self.workorder_ids += self.env["mrp.workorder"].create(
@@ -4597,6 +4669,45 @@ class MrpProduction(models.Model):
 
         self._mark_byproducts_as_produced()
 
+    def _add_report_action(self, report_actions, report_xmlid, docids, **kwargs):
+        """Resolve a report, clean its action and append it. Returns the action.
+
+        Four places repeated the same
+        `ref(...).report_action(...) -> clean_action -> append` triple, twice
+        each because they branched on pdf/zpl first.
+        """
+        action = self.env.ref(report_xmlid).report_action(
+            docids, config=False, **kwargs
+        )
+        clean_action(action, self.env)
+        report_actions.append(action)
+        return action
+
+    # Which report renders a label in each of the two formats the operation
+    # type can ask for. `False` for a type that names no format at all -- the
+    # selection is not required.
+    _LOT_LABEL_REPORTS = {
+        "pdf": "stock.action_report_lot_label",
+        "zpl": "stock.label_lot_template",
+    }
+    _PRODUCT_LABEL_REPORTS = {
+        "pdf": "mrp.action_report_finished_product",
+        "zpl": "mrp.label_manufacture_template",
+    }
+
+    def _autoprint_labels_by_format(
+        self, report_actions, productions, format_field, reports, docids_of
+    ):
+        """One label report per distinct print format across `productions`."""
+        by_format = productions.grouped(lambda p: p.picking_type_id[format_field])
+        for print_format, grouped_productions in by_format.items():
+            report_xmlid = reports.get(print_format)
+            if not report_xmlid:
+                continue
+            self._add_report_action(
+                report_actions, report_xmlid, docids_of(grouped_productions)
+            )
+
     def _get_autoprint_done_report_actions(self):
         """Reports to auto-print when MO is marked as done"""
         report_actions = []
@@ -4604,33 +4715,20 @@ class MrpProduction(models.Model):
             lambda p: p.picking_type_id.auto_print_done_production_order
         )
         if productions_to_print:
-            action = self.env.ref("mrp.action_report_production_order").report_action(
-                productions_to_print.ids, config=False
+            self._add_report_action(
+                report_actions,
+                "mrp.action_report_production_order",
+                productions_to_print.ids,
             )
-            clean_action(action, self.env)
-            report_actions.append(action)
-        productions_to_print = self.filtered(
-            lambda p: p.picking_type_id.auto_print_done_mrp_product_labels
+        self._autoprint_labels_by_format(
+            report_actions,
+            self.filtered(
+                lambda p: p.picking_type_id.auto_print_done_mrp_product_labels
+            ),
+            "mrp_product_label_to_print",
+            self._PRODUCT_LABEL_REPORTS,
+            lambda productions: productions.ids,
         )
-        productions_by_print_formats = productions_to_print.grouped(
-            lambda p: p.picking_type_id.mrp_product_label_to_print
-        )
-        for print_format in productions_to_print.picking_type_id.mapped(
-            "mrp_product_label_to_print"
-        ):
-            labels_to_print = productions_by_print_formats.get(print_format)
-            if print_format == "pdf":
-                action = self.env.ref(
-                    "mrp.action_report_finished_product"
-                ).report_action(labels_to_print.ids, config=False)
-                clean_action(action, self.env)
-                report_actions.append(action)
-            elif print_format == "zpl":
-                action = self.env.ref("mrp.label_manufacture_template").report_action(
-                    labels_to_print.ids, config=False
-                )
-                clean_action(action, self.env)
-                report_actions.append(action)
         if self.env.user.has_group("mrp.group_mrp_reception_report"):
             reception_reports_to_print = self.filtered(
                 lambda p: (
@@ -4640,15 +4738,15 @@ class MrpProduction(models.Model):
                 )
             )
             if reception_reports_to_print:
-                action = self.env.ref(
-                    "stock.stock_reception_report_action"
-                ).report_action(reception_reports_to_print, config=False)
+                action = self._add_report_action(
+                    report_actions,
+                    "stock.stock_reception_report_action",
+                    reception_reports_to_print,
+                )
                 action["context"] = dict(
                     {"default_production_ids": reception_reports_to_print.ids},
                     **self.env.context,
                 )
-                clean_action(action, self.env)
-                report_actions.append(action)
             reception_labels_to_print = self.filtered(
                 lambda p: (
                     p.picking_type_id.auto_print_mrp_reception_report_labels
@@ -4667,87 +4765,50 @@ class MrpProduction(models.Model):
                             lambda m: math.ceil(m.product_uom_qty)
                         )
                     )
-                    data = {
-                        "docids": moves_to_print.ids,
-                        "quantity": quantities,
-                    }
-                    action = self.env.ref("stock.label_picking").report_action(
-                        moves_to_print, data=data, config=False
+                    self._add_report_action(
+                        report_actions,
+                        "stock.label_picking",
+                        moves_to_print,
+                        data={
+                            "docids": moves_to_print.ids,
+                            "quantity": quantities,
+                        },
                     )
-                    clean_action(action, self.env)
-                    report_actions.append(action)
         if self.env.user.has_group("stock.group_production_lot"):
-            productions_to_print = self.filtered(
-                lambda p: (
-                    p.picking_type_id.auto_print_done_mrp_lot
-                    and p.move_finished_ids.move_line_ids.lot_id
-                )
-            )
-            productions_by_print_formats = productions_to_print.grouped(
-                lambda p: p.picking_type_id.done_mrp_lot_label_to_print
-            )
-            for print_format in productions_to_print.picking_type_id.mapped(
-                "done_mrp_lot_label_to_print"
-            ):
-                lots_to_print = productions_by_print_formats.get(print_format)
-                lots_to_print = lots_to_print.move_finished_ids.move_line_ids.mapped(
-                    "lot_id"
-                )
-                if print_format == "pdf":
-                    action = self.env.ref(
-                        "stock.action_report_lot_label"
-                    ).report_action(lots_to_print.ids, config=False)
-                    clean_action(action, self.env)
-                    report_actions.append(action)
-                elif print_format == "zpl":
-                    action = self.env.ref("stock.label_lot_template").report_action(
-                        lots_to_print.ids, config=False
+            self._autoprint_labels_by_format(
+                report_actions,
+                self.filtered(
+                    lambda p: (
+                        p.picking_type_id.auto_print_done_mrp_lot
+                        and p.move_finished_ids.move_line_ids.lot_id
                     )
-                    clean_action(action, self.env)
-                    report_actions.append(action)
+                ),
+                "done_mrp_lot_label_to_print",
+                self._LOT_LABEL_REPORTS,
+                lambda productions: (
+                    productions.move_finished_ids.move_line_ids.lot_id.ids
+                ),
+            )
         return report_actions
 
     def _autoprint_generated_lot(self, lot_id):
         self.ensure_one()
-        if self.picking_type_id.generated_mrp_lot_label_to_print == "pdf":
-            action = self.env.ref("stock.action_report_lot_label").report_action(
-                lot_id.id, config=False
-            )
-            clean_action(action, self.env)
-            return action
-        elif self.picking_type_id.generated_mrp_lot_label_to_print == "zpl":
-            action = self.env.ref("stock.label_lot_template").report_action(
-                lot_id.id, config=False
-            )
-            clean_action(action, self.env)
-            return action
-        return None
+        report_xmlid = self._LOT_LABEL_REPORTS.get(
+            self.picking_type_id.generated_mrp_lot_label_to_print
+        )
+        if not report_xmlid:
+            return None
+        return self._add_report_action([], report_xmlid, lot_id.id)
 
     def _autoprint_mass_generated_lots(self):
         actions = []
-        productions_to_print = self.filtered(
-            lambda p: p.picking_type_id.auto_print_generated_mrp_lot
+        self._autoprint_labels_by_format(
+            actions,
+            self.filtered(lambda p: p.picking_type_id.auto_print_generated_mrp_lot),
+            "generated_mrp_lot_label_to_print",
+            self._LOT_LABEL_REPORTS,
+            lambda productions: productions.lot_producing_ids.ids,
         )
-        productions_by_print_formats = productions_to_print.grouped(
-            lambda p: p.picking_type_id.generated_mrp_lot_label_to_print
-        )
-        for print_format in productions_to_print.picking_type_id.mapped(
-            "generated_mrp_lot_label_to_print"
-        ):
-            # The selection is not required, so an operation type may carry no
-            # format at all; there is nothing to print for it.
-            if print_format not in ("pdf", "zpl"):
-                continue
-            grouped_productions = productions_by_print_formats.get(print_format)
-            lots_to_print = grouped_productions.mapped("lot_producing_ids")
-            report = (
-                "stock.action_report_lot_label"
-                if print_format == "pdf"
-                else "stock.label_lot_template"
-            )
-            action = self.env.ref(report).report_action(lots_to_print.ids, config=False)
-            clean_action(action, self.env)
-            actions.append(action)
         return actions
 
     def _prepare_finished_extra_vals(self):
@@ -4896,7 +4957,7 @@ class MrpProduction(models.Model):
 
     def _post_run_manufacture(self, post_production_values):
         note_subtype_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_note")
-        for production, procurement in zip(self, post_production_values, strict=False):
+        for production, procurement in zip(self, post_production_values, strict=True):
             if group_id := procurement.values.get("production_group_id"):
                 production.production_group_id.parent_ids = [Command.link(group_id)]
             orderpoint = production.orderpoint_id

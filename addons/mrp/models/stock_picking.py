@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from ast import literal_eval
+from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
@@ -111,29 +112,52 @@ class StockPickingType(models.Model):
             remaining.count_mo_late
         ) = False
         remaining.count_mo_in_progress = remaining.count_mo_to_close = False
-        domains = {
-            "count_mo_waiting": [("reservation_state", "=", "waiting")],
-            "count_mo_todo": [("state", "=", "confirmed")],
-            "count_mo_late": [
-                ("date_start", "<", fields.Date.today()),
-                ("state", "=", "confirmed"),
+        if not mrp_picking_types:
+            return
+        # Four of the five counters partition the same rows by `state`, so one
+        # grouped query answers them all; only "late" needs its own, because it
+        # cuts on a date rather than on the grouping key. This ran five
+        # near-identical `_read_group`s over the same table on every render of
+        # the operation-type dashboard.
+        counts_by_state = defaultdict(lambda: defaultdict(int))
+        for picking_type, state, count in self.env["mrp.production"]._read_group(
+            [
+                ("state", "not in", ("done", "cancel")),
+                ("picking_type_id", "in", mrp_picking_types.ids),
             ],
-            "count_mo_in_progress": [("state", "=", "progress")],
-            "count_mo_to_close": [("state", "=", "to_close")],
-        }
-        for key, domain in domains.items():
-            data = self.env["mrp.production"]._read_group(
-                domain
-                + [
+            ["picking_type_id", "state"],
+            ["__count"],
+        ):
+            counts_by_state[picking_type.id][state] = count
+        waiting = dict(
+            self.env["mrp.production"]._read_group(
+                [
                     ("state", "not in", ("done", "cancel")),
+                    ("reservation_state", "=", "waiting"),
                     ("picking_type_id", "in", mrp_picking_types.ids),
                 ],
                 ["picking_type_id"],
                 ["__count"],
             )
-            count = {picking_type.id: count for picking_type, count in data}
-            for record in mrp_picking_types:
-                record[key] = count.get(record.id, 0)
+        )
+        late = dict(
+            self.env["mrp.production"]._read_group(
+                [
+                    ("state", "=", "confirmed"),
+                    ("date_start", "<", fields.Date.today()),
+                    ("picking_type_id", "in", mrp_picking_types.ids),
+                ],
+                ["picking_type_id"],
+                ["__count"],
+            )
+        )
+        for record in mrp_picking_types:
+            by_state = counts_by_state[record.id]
+            record.count_mo_todo = by_state["confirmed"]
+            record.count_mo_in_progress = by_state["progress"]
+            record.count_mo_to_close = by_state["to_close"]
+            record.count_mo_waiting = waiting.get(record, 0)
+            record.count_mo_late = late.get(record, 0)
 
     def get_mrp_stock_picking_action_picking_type(self):
         action = self.env["ir.actions.actions"]._for_xml_id(

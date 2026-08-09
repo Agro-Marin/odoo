@@ -154,26 +154,37 @@ class MrpBom(models.Model):
         for bom in self:
             bom.possible_product_template_attribute_value_ids = bom.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids._only_active()
 
+    def _reset_variant_data(self):
+        """Clear every "Apply on Variants" restriction, warning if any existed.
+
+        Shared by the two onchanges that change which product a BoM describes:
+        the restrictions name attribute values of the *old* product and mean
+        nothing once it changes.
+        """
+        self.ensure_one()
+        had_variant_data = (
+            self.bom_line_ids.bom_product_template_attribute_value_ids
+            or self.operation_ids.bom_product_template_attribute_value_ids
+            or self.byproduct_ids.bom_product_template_attribute_value_ids
+        )
+        self.bom_line_ids.bom_product_template_attribute_value_ids = False
+        self.operation_ids.bom_product_template_attribute_value_ids = False
+        self.byproduct_ids.bom_product_template_attribute_value_ids = False
+        if not had_variant_data:
+            return None
+        return {
+            "warning": {
+                "title": _("Warning"),
+                "message": _(
+                    "Changing the product or variant will permanently reset all previously encoded variant-related data."
+                ),
+            }
+        }
+
     @api.onchange("product_id")
     def _onchange_product_id(self):
         if self.product_id:
-            warning = (
-                self.bom_line_ids.bom_product_template_attribute_value_ids
-                or self.operation_ids.bom_product_template_attribute_value_ids
-                or self.byproduct_ids.bom_product_template_attribute_value_ids
-            ) and {
-                "warning": {
-                    "title": _("Warning"),
-                    "message": _(
-                        "Changing the product or variant will permanently reset all previously encoded variant-related data."
-                    ),
-                }
-            }
-            self.bom_line_ids.bom_product_template_attribute_value_ids = False
-            self.operation_ids.bom_product_template_attribute_value_ids = False
-            self.byproduct_ids.bom_product_template_attribute_value_ids = False
-            if warning:
-                return warning
+            return self._reset_variant_data()
         return None
 
     @api.constrains("product_uom_id", "product_tmpl_id", "product_id")
@@ -358,27 +369,13 @@ class MrpBom(models.Model):
     @api.onchange("product_tmpl_id")
     def onchange_product_tmpl_id(self):
         if self.product_tmpl_id:
-            warning = (
-                self.bom_line_ids.bom_product_template_attribute_value_ids
-                or self.operation_ids.bom_product_template_attribute_value_ids
-                or self.byproduct_ids.bom_product_template_attribute_value_ids
-            ) and {
-                "warning": {
-                    "title": _("Warning"),
-                    "message": _(
-                        "Changing the product or variant will permanently reset all previously encoded variant-related data."
-                    ),
-                }
-            }
             default_uom_id = self.env.context.get("default_product_uom_id")
             # Avoids updating the BoM's UoM in case a specific UoM was passed through as a default value.
             if self.product_uom_id.id != default_uom_id:
                 self.product_uom_id = self.product_tmpl_id.uom_id.id
             if self.product_id.product_tmpl_id != self.product_tmpl_id:
                 self.product_id = False
-            self.bom_line_ids.bom_product_template_attribute_value_ids = False
-            self.operation_ids.bom_product_template_attribute_value_ids = False
-            self.byproduct_ids.bom_product_template_attribute_value_ids = False
+            warning = self._reset_variant_data()
 
             domain = [("product_tmpl_id", "=", self.product_tmpl_id.id)]
             if self.id.origin:
@@ -439,13 +436,13 @@ class MrpBom(models.Model):
 
     def copy(self, default=None):
         new_boms = super().copy(default)
-        for old_bom, new_bom in zip(self, new_boms, strict=False):
+        for old_bom, new_bom in zip(self, new_boms, strict=True):
             if old_bom.operation_ids:
                 operations_mapping = dict(
                     zip(
                         old_bom.operation_ids,
                         new_bom.operation_ids.sorted(),
-                        strict=False,
+                        strict=True,
                     )
                 )
                 for bom_line in new_bom.bom_line_ids:

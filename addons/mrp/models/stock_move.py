@@ -369,7 +369,6 @@ class StockMove(models.Model):
                     vals["manual_consumption"] = True
                 vals["picked"] = True
         mo_id_to_mo = defaultdict(lambda: self.env["mrp.production"])
-        product_id_to_product = defaultdict(lambda: self.env["product.product"])
         for values in vals_list:
             mo_id = values.get("raw_material_production_id", False) or values.get(
                 "production_id", False
@@ -387,10 +386,6 @@ class StockMove(models.Model):
                 values["reference_ids"] = mo.reference_ids.ids
                 values["production_group_id"] = mo.production_group_id.id
                 if values.get("raw_material_production_id", False):
-                    product = product_id_to_product[values["product_id"]]
-                    if not product:
-                        product = product.browse(values["product_id"])
-                    product_id_to_product[values["product_id"]] = product
                     values["location_dest_id"] = mo.production_location_id.id
                     if not values.get("location_id"):
                         values["location_id"] = mo.location_src_id.id
@@ -678,7 +673,11 @@ class StockMove(models.Model):
 
     def _action_cancel(self):
         res = super()._action_cancel()
-        if "skip_mo_check" not in self.env.context:
+        # `.get`, not `not in`: tested for presence, `with_context(skip_mo_check=False)`
+        # skipped the check, which is the opposite of what it says. Every other
+        # skip flag in this module (`skip_activity`, `skip_backorder`,
+        # `skip_consumption`, `skip_confirm`) is read for truth.
+        if not self.env.context.get("skip_mo_check"):
             mo_to_cancel = self.mapped("raw_material_production_id").filtered(
                 lambda p: all(m.state == "cancel" for m in p.move_raw_ids)
             )
@@ -863,7 +862,7 @@ class StockMove(models.Model):
         :return: The quantity delivered or received
         """
         qty_ratios = []
-        kit_qty = kit_qty / kit_bom.product_qty
+        kit_qty /= kit_bom.product_qty
         _boms, bom_sub_lines = kit_bom.explode(product_id, kit_qty)
 
         def get_qty(move):
@@ -969,7 +968,14 @@ class StockMove(models.Model):
 
     @api.model
     def _determine_is_manual_consumption(self, bom_line):
-        return bom_line and bom_line.operation_id
+        """Whether a component is consumed by hand rather than backflushed.
+
+        `bool` on purpose: the value is written into `manual_consumption`, a
+        Boolean field, and the bare `and` chain handed it a `mrp.bom.line()` or
+        an `mrp.routing.workcenter(5,)` instead, leaving the callers to rely on
+        the ORM coercing whatever it got.
+        """
+        return bool(bom_line and bom_line.operation_id)
 
     def _get_relevant_state_among_moves(self):
         res = super()._get_relevant_state_among_moves()

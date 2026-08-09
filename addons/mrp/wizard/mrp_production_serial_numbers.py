@@ -81,7 +81,7 @@ class MrpProductionSerials(models.TransientModel):
 
         split_amounts = {self.production_id: [1] * len(lots)}
         mos = self.production_id._split_productions(amounts=split_amounts)
-        for mo, serial in zip(mos, lots, strict=False):
+        for mo, serial in zip(mos, lots, strict=True):
             mo.lot_producing_ids = [Command.link(serial.id)]
         return self._closing_action(mos)
 

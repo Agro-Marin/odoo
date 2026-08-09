@@ -170,10 +170,20 @@ class MrpWorkcenter(models.Model):
 
     def _compute_kanban_dashboard_graph(self):
         week_range, date_start, date_stop = self._get_week_range_and_first_last_days()
-        load_data = self._get_workcenter_load_per_week(
-            week_range, date_start, date_stop
+        # Asked once and passed down: both callees needed to know whether these
+        # workcenters have any work order at all, and each ran its own
+        # `search_count` for it on every dashboard render.
+        has_workorder = bool(
+            self.env["mrp.workorder"].search_count(
+                [("workcenter_id", "in", self.ids)], limit=1
+            )
         )
-        load_graph_data = self._prepare_graph_data(load_data, week_range)
+        load_data = self._get_workcenter_load_per_week(
+            week_range, date_start, date_stop, has_workorder=has_workorder
+        )
+        load_graph_data = self._prepare_graph_data(
+            load_data, week_range, has_workorder=has_workorder
+        )
         for wc in self:
             wc.kanban_dashboard_graph = json.dumps(load_graph_data[wc.id])
 
@@ -215,12 +225,16 @@ class MrpWorkcenter(models.Model):
         )
         return week_range, date_start, date_stop
 
-    def _get_workcenter_load_per_week(self, week_range, date_start, date_stop):
+    def _get_workcenter_load_per_week(
+        self, week_range, date_start, date_stop, has_workorder=None
+    ):
         load_data = {rec: {} for rec in self}
-        # demo data
-        has_workorder = self.env["mrp.workorder"].search_count(
-            [("workcenter_id", "in", self.ids)], limit=1
-        )
+        if has_workorder is None:
+            has_workorder = bool(
+                self.env["mrp.workorder"].search_count(
+                    [("workcenter_id", "in", self.ids)], limit=1
+                )
+            )
         if not has_workorder:
             for wc in self:
                 load_limit = (
@@ -247,11 +261,14 @@ class MrpWorkcenter(models.Model):
             load_data[r[0]].update({r[1]: load_in_hours})
         return load_data
 
-    def _prepare_graph_data(self, load_data, week_range):
+    def _prepare_graph_data(self, load_data, week_range, has_workorder=None):
         graph_data = {wid: [] for wid in self._ids}
-        has_workorder = self.env["mrp.workorder"].search_count(
-            [("workcenter_id", "in", self.ids)], limit=1
-        )
+        if has_workorder is None:
+            has_workorder = bool(
+                self.env["mrp.workorder"].search_count(
+                    [("workcenter_id", "in", self.ids)], limit=1
+                )
+            )
         for workcenter in self:
             load_limit = sum(
                 workcenter.resource_calendar_id.attendance_ids.mapped("duration_hours")

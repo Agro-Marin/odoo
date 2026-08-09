@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import re
 from datetime import datetime, timedelta
 
 from odoo import Command
@@ -803,3 +804,405 @@ class TestMrpAuditFixes(TestMrpCommon):
         ).action_apply_inventory()
         with self.assertRaises(UserError):
             unbuild.action_validate()
+
+    def test_show_allocation_without_warehouse_on_operation_type(self):
+        """mrp.production._compute_show_allocation
+
+        An operation type is not required to name a warehouse, and the
+        operation-type form lets a user clear it (`force_save="1"`). The compute
+        cached one location set per warehouse and then read that cache with
+        `picking_type_id.warehouse_id.id`, which is `False` for such a type --
+        `KeyError: False`, raised out of the `web_read` that opens the
+        manufacturing order's form, since `show_allocation` is in its arch.
+        """
+        self.env.user.group_ids = [
+            Command.link(self.env.ref("mrp.group_mrp_reception_report").id)
+        ]
+        finished, component = self.env["product.product"].create(
+            [
+                {"name": "Alloc finished", "is_storable": True},
+                {"name": "Alloc component", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+            }
+        )
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        picking_type = warehouse.manu_type_id.copy(
+            {"name": "Manufacturing (no warehouse)", "sequence_code": "MONOWH"}
+        )
+        picking_type.warehouse_id = False
+        self.assertFalse(picking_type.warehouse_id)
+
+        production = self.env["mrp.production"].create(
+            {
+                "product_id": finished.id,
+                "bom_id": bom.id,
+                "product_qty": 1.0,
+                "picking_type_id": picking_type.id,
+            }
+        )
+        self.env.flush_all()
+        production.invalidate_recordset()
+        # The RPC the form issues, not just a Python read.
+        self.assertFalse(
+            production.web_read({"id": {}, "show_allocation": {}})[0]["show_allocation"]
+        )
+
+    def test_production_state_leaves_progress_when_nothing_is_consumed(self):
+        """mrp.production._compute_state
+
+        Ticking a component as consumed moves the order to `progress`. Removing
+        the tick has to move it back: the branch chain used to fall through with
+        nothing assigned, so the stored `progress` survived and the order could
+        never return to `confirmed` from the interface.
+        """
+        production = self.generate_mo()[0]
+        production.action_confirm()
+        self.env.flush_all()
+        self.assertEqual(production.state, "confirmed")
+
+        production.move_raw_ids.picked = True
+        self.env.flush_all()
+        production.invalidate_recordset()
+        self.assertEqual(production.state, "progress")
+
+        production.move_raw_ids.picked = False
+        production.qty_producing = 0
+        self.env.flush_all()
+        production.invalidate_recordset()
+        self.assertEqual(production.state, "confirmed")
+
+    def test_draft_production_is_not_confirmed_by_its_state_compute(self):
+        """mrp.production._compute_state
+
+        Guards the branch added for the test above: `draft` is the one state the
+        compute cannot re-derive from the moves, so it must be carried over
+        rather than turned into `confirmed`.
+        """
+        production = self.env["mrp.production"].create(
+            {"product_id": self.product_4.id, "product_qty": 1.0}
+        )
+        self.env.flush_all()
+        self.assertEqual(production.state, "draft")
+
+        production.invalidate_recordset()
+        self.env.add_to_compute(production._fields["state"], production)
+        self.env.flush_all()
+        self.assertEqual(production.state, "draft")
+
+    def test_picking_type_is_computed_per_company(self):
+        """mrp.production._compute_picking_type_id
+
+        The compute builds a map keyed by company, but filled it from a
+        `limit=1` search -- so it could only ever hold one company and every
+        other order fell through to `False` on a required field. A batch create
+        spanning two companies reached that as a NotNullViolation.
+        """
+        company_a = self.env.company
+        company_b = self.env["res.company"].create({"name": "Audit second company"})
+        self.env["stock.warehouse"].create(
+            {"name": "Audit WH B", "code": "AWB", "company_id": company_b.id}
+        )
+        self.env.user.company_ids = [Command.link(company_b.id)]
+        env = self.env(
+            context=dict(
+                self.env.context, allowed_company_ids=[company_a.id, company_b.id]
+            )
+        )
+        product = env["product.product"].create({"name": "Two-company product"})
+
+        # An explicit name is what makes `create` leave the field to the
+        # precompute instead of filling it itself.
+        productions = env["mrp.production"].create(
+            [
+                {
+                    "name": "AUDIT/0001",
+                    "product_id": product.id,
+                    "product_qty": 1.0,
+                    "company_id": company_a.id,
+                },
+                {
+                    "name": "AUDIT/0002",
+                    "product_id": product.id,
+                    "product_qty": 1.0,
+                    "company_id": company_b.id,
+                },
+            ]
+        )
+        env.flush_all()
+        for production in productions:
+            self.assertTrue(production.picking_type_id)
+            self.assertEqual(
+                production.picking_type_id.warehouse_id.company_id,
+                production.company_id,
+            )
+
+    def test_deleting_a_workorder_keeps_its_predecessors_other_edges(self):
+        """mrp.workorder.unlink
+
+        Splicing the deleted work order out of the dependency graph assigned a
+        recordset to `needed_by_workorder_ids`, which *replaces* it: with B
+        blocking both A and C, deleting A wiped B's successors and left C
+        unblocked. Only work orders without an operation stay damaged -- the
+        others are rebuilt by the `_action_confirm` at the end of `unlink` --
+        which is exactly the case enterprise's "Add Work Order" wizard creates.
+        """
+        # A draft order: confirming one chains its work orders automatically,
+        # and the point here is a graph the user shaped.
+        production = self.env["mrp.production"].create(
+            {"product_id": self.product_4.id, "product_qty": 1.0}
+        )
+        production.allow_workorder_dependencies = True
+        workorder_a, workorder_b, workorder_c = self.env["mrp.workorder"].create(
+            [
+                {
+                    "name": name,
+                    "production_id": production.id,
+                    "workcenter_id": self.workcenter_1.id,
+                }
+                for name in ("Manual A", "Manual B", "Manual C")
+            ]
+        )
+        workorder_a.blocked_by_workorder_ids = [Command.set(workorder_b.ids)]
+        workorder_c.blocked_by_workorder_ids = [Command.set(workorder_b.ids)]
+        self.env.flush_all()
+        self.assertEqual(workorder_b.needed_by_workorder_ids, workorder_a | workorder_c)
+
+        workorder_a.unlink()
+        self.env.flush_all()
+        (workorder_b | workorder_c).invalidate_recordset()
+        self.assertEqual(workorder_b.needed_by_workorder_ids, workorder_c)
+        self.assertEqual(workorder_c.blocked_by_workorder_ids, workorder_b)
+
+    def test_planned_workorders_may_be_rescheduled_onto_each_other(self):
+        """mrp.workorder._plan_workorder
+
+        Planning booked its `resource.reservation` in `hard` enforcement while
+        every other reservation this model creates is `soft`, so moving a
+        planned work order onto an occupied slot raised "already reserved
+        during this time" instead of being reported as a conflict -- which is
+        what `_get_conflicted_workorder_ids` and the work order popover exist
+        to do.
+        """
+        finished, component = self.env["product.product"].create(
+            [
+                {"name": "Replan finished", "is_storable": True},
+                {"name": "Replan component", "is_storable": True},
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "Replan operation",
+                            "workcenter_id": self.workcenter_1.id,
+                            "time_cycle_manual": 60,
+                        }
+                    )
+                ],
+            }
+        )
+        productions = self.env["mrp.production"].create(
+            [
+                {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+                for _ in range(2)
+            ]
+        )
+        productions.button_plan()
+        self.env.flush_all()
+        first, second = productions[0].workorder_ids, productions[1].workorder_ids
+        self.assertEqual(first.reservation_id.enforcement_mode, "soft")
+
+        second.write({"date_start": first.date_start, "date_end": first.date_end})
+        self.env.flush_all()
+        self.assertEqual(second.date_start, first.date_start)
+        # The overlap is reported, not refused.
+        self.assertIn(second.id, first._get_conflicted_workorder_ids()[first.id])
+
+    def test_manual_consumption_flag_is_a_boolean(self):
+        """stock.move._determine_is_manual_consumption
+
+        `bom_line and bom_line.operation_id` yields a recordset, and the value
+        is written into a Boolean field.
+        """
+        Move = self.env["stock.move"]
+        self.assertIs(
+            Move._determine_is_manual_consumption(self.env["mrp.bom.line"]), False
+        )
+        bom = self.bom_1
+        bom.operation_ids = [
+            Command.create({"name": "Flag op", "workcenter_id": self.workcenter_1.id})
+        ]
+        bom.bom_line_ids[0].operation_id = bom.operation_ids[0]
+        self.assertIs(Move._determine_is_manual_consumption(bom.bom_line_ids[0]), True)
+
+    def test_variant_bom_counts_match_their_template_counterparts(self):
+        """product.product._compute_bom_count / _compute_used_in_bom_count
+
+        The `product.template` pair was batched into grouped queries and the
+        `product.product` pair was left running one `search_count` per record.
+        Beyond the query count, the two must agree on what they count.
+        """
+        finished, other, component = self.env["product.product"].create(
+            [
+                {"name": "Variant counts finished", "is_storable": True},
+                {"name": "Variant counts other", "is_storable": True},
+                {"name": "Variant counts component", "is_storable": True},
+            ]
+        )
+        unit = self.env.ref("uom.product_uom_unit")
+        self.env["mrp.bom"].create(
+            [
+                {
+                    "product_tmpl_id": finished.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "bom_line_ids": [
+                        Command.create({"product_id": component.id, "product_qty": 1.0})
+                    ],
+                },
+                {
+                    "product_tmpl_id": finished.product_tmpl_id.id,
+                    "product_id": finished.id,
+                    "product_qty": 2.0,
+                },
+                {
+                    "product_tmpl_id": other.product_tmpl_id.id,
+                    "product_qty": 1.0,
+                    "byproduct_ids": [
+                        Command.create(
+                            {
+                                "product_id": finished.id,
+                                "product_qty": 1.0,
+                                "product_uom_id": unit.id,
+                            }
+                        )
+                    ],
+                    "bom_line_ids": [
+                        Command.create(
+                            {"product_id": component.id, "product_qty": 5.0}
+                        ),
+                        Command.create(
+                            {"product_id": component.id, "product_qty": 7.0}
+                        ),
+                    ],
+                },
+            ]
+        )
+        self.env.invalidate_all()
+        # Template BoM + variant BoM + the by-product BoM, counted once each.
+        self.assertEqual(finished.bom_count, 3)
+        self.assertEqual(finished.product_tmpl_id.bom_count, 3)
+        # Two BoMs use it, one of them on two lines.
+        self.assertEqual(component.used_in_bom_count, 2)
+        self.assertEqual(component.product_tmpl_id.used_in_bom_count, 2)
+        self.assertEqual(component.bom_count, 0)
+
+    def _count_queries(self, callback, pattern):
+        """Run `callback` and count the queries whose SQL matches `pattern`."""
+        cursor = self.env.cr
+        original = cursor.execute
+        matched = []
+
+        def spy(query, *args, **kwargs):
+            if re.search(pattern, str(query), re.IGNORECASE):
+                matched.append(query)
+            return original(query, *args, **kwargs)
+
+        cursor.execute = spy
+        try:
+            callback()
+        finally:
+            cursor.execute = original
+        return len(matched)
+
+    def test_orderpoint_bom_placeholder_does_not_scale_with_the_row_count(self):
+        """stock.warehouse.orderpoint._get_default_boms
+
+        `bom_id_placeholder` is a column of the Replenishment list, and its
+        compute resolved the default BoM one orderpoint at a time -- a
+        `_bom_find` search per row. `_bom_find` takes a recordset, so the whole
+        list needs a bounded number of them.
+        """
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        products = self.env["product.product"].create(
+            [{"name": f"Placeholder {i}", "is_storable": True} for i in range(20)]
+        )
+        self.env["mrp.bom"].create(
+            [
+                {"product_tmpl_id": product.product_tmpl_id.id, "product_qty": 1.0}
+                for product in products
+            ]
+        )
+        orderpoints = self.env["stock.warehouse.orderpoint"].create(
+            [
+                {
+                    "product_id": product.id,
+                    "warehouse_id": warehouse.id,
+                    "location_id": warehouse.lot_stock_id.id,
+                    "product_min_qty": 1.0,
+                    "product_max_qty": 5.0,
+                }
+                for product in products
+            ]
+        )
+        self.env.flush_all()
+
+        def read_placeholders():
+            orderpoints.invalidate_recordset(["bom_id_placeholder"])
+            orderpoints.mapped("bom_id_placeholder")
+
+        queries = self._count_queries(read_placeholders, r"\bmrp_bom\b")
+        self.assertLessEqual(
+            queries,
+            4,
+            "resolving the default BoM of %s orderpoints took %s mrp_bom queries;"
+            " it must not scale with the number of rows" % (len(orderpoints), queries),
+        )
+
+    def test_variant_bom_counters_do_not_scale_with_the_record_count(self):
+        """product.product._compute_bom_count / _compute_used_in_bom_count
+
+        Both ran one `search_count` per record while their `product.template`
+        counterparts were already grouped.
+        """
+        products = self.env["product.product"].create(
+            [{"name": f"Counter {i}", "is_storable": True} for i in range(20)]
+        )
+        self.env["mrp.bom"].create(
+            [
+                {"product_tmpl_id": product.product_tmpl_id.id, "product_qty": 1.0}
+                for product in products
+            ]
+        )
+        self.env.flush_all()
+
+        for field in ("bom_count", "used_in_bom_count"):
+
+            def read_field(field=field):
+                products.invalidate_recordset([field])
+                products.mapped(field)
+
+            queries = self._count_queries(read_field, r"\bmrp_bom")
+            self.assertLessEqual(
+                queries,
+                3,
+                "%s took %s mrp_bom queries for %s products"
+                % (field, queries, len(products)),
+            )

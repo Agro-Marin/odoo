@@ -6,6 +6,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
 from odoo.tools import OrderedSet
 
@@ -132,7 +133,7 @@ class StockRule(models.Model):
 
             mo = self.env["mrp.production"]
             if procurement.origin != "MPS":
-                domain = rule._make_mo_get_domain(procurement, bom)
+                domain = rule._prepare_mo_search_domain(procurement, bom)
                 mo = self.env["mrp.production"].sudo().search(domain, limit=1)
             is_batch_size = bom and bom.enable_batch_size
             if not mo or is_batch_size:
@@ -260,7 +261,7 @@ class StockRule(models.Model):
             product_id, picking_type=False, bom_type="normal", company_id=company_id.id
         )[product_id]
 
-    def _make_mo_get_domain(self, procurement, bom):
+    def _prepare_mo_search_domain(self, procurement, bom):
         domain = (
             ("bom_id", "=", bom.id),
             ("product_id", "=", procurement.product_id.id),
@@ -313,6 +314,23 @@ class StockRule(models.Model):
             days=bom.produce_delay
         )
         picking_type = bom.picking_type_id or self.picking_type_id
+        if not picking_type:
+            # Neither the BoM nor the rule names one, so fall back to the
+            # warehouse's manufacturing type. `values["warehouse_id"]` was read
+            # by key further down, which is a bare KeyError when a procurement
+            # does not carry one -- and the source/destination locations below
+            # would already have written `False` into required fields.
+            warehouse = values.get("warehouse_id") or location_dest_id.warehouse_id
+            picking_type = warehouse.manu_type_id
+            if not picking_type:
+                raise UserError(
+                    _(
+                        "No manufacturing operation type is configured for"
+                        " %(product)s. Set one on the bill of materials, on the"
+                        " manufacturing rule, or on the warehouse.",
+                        product=product_id.display_name,
+                    )
+                )
         mo_values = {
             "origin": origin,
             "product_id": product_id.id,
@@ -341,8 +359,7 @@ class StockRule(models.Model):
             "propagate_cancel": self.propagate_cancel,
             "orderpoint_id": values.get("orderpoint_id", False)
             and values.get("orderpoint_id").id,
-            "picking_type_id": picking_type.id
-            or values["warehouse_id"].manu_type_id.id,
+            "picking_type_id": picking_type.id,
             "company_id": company_id.id,
             "move_dest_ids": (
                 values.get("move_dest_ids")
@@ -359,7 +376,7 @@ class StockRule(models.Model):
         format_date_planned = fields.Datetime.from_string(values["date_planned"])
         date_planned = format_date_planned - relativedelta(days=bom_id.produce_delay)
         if date_planned == format_date_planned:
-            date_planned = date_planned - relativedelta(hours=1)
+            date_planned -= relativedelta(hours=1)
         return date_planned
 
     def _get_lead_days(self, product, **values):

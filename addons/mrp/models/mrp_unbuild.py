@@ -146,15 +146,20 @@ class MrpUnbuild(models.Model):
 
     @api.depends("company_id")
     def _compute_location_id(self):
+        # One warehouse search per company rather than per order.
+        warehouse_by_company = {}
+        for company in self.company_id:
+            warehouse_by_company[company.id] = self.env["stock.warehouse"].search(
+                [("company_id", "=", company.id)], limit=1
+            )
         for order in self:
-            if order.company_id:
-                warehouse = self.env["stock.warehouse"].search(
-                    [("company_id", "=", order.company_id.id)], limit=1
-                )
-                if order.location_id.company_id != order.company_id:
-                    order.location_id = warehouse.lot_stock_id
-                if order.location_dest_id.company_id != order.company_id:
-                    order.location_dest_id = warehouse.lot_stock_id
+            if not order.company_id:
+                continue
+            stock_location = warehouse_by_company[order.company_id.id].lot_stock_id
+            if order.location_id.company_id != order.company_id:
+                order.location_id = stock_location
+            if order.location_dest_id.company_id != order.company_id:
+                order.location_dest_id = stock_location
 
     @api.depends("mo_id", "product_id", "company_id")
     def _compute_bom_id(self):
@@ -315,9 +320,17 @@ class MrpUnbuild(models.Model):
                 < 1
             ):
                 continue
-            original_move = (
-                move in produce_moves and self.mo_id.move_raw_ids
-            ) or self.mo_id.move_finished_ids
+            # An explicit branch, not `(cond and a) or b`: that spelling silently
+            # falls through to `move_finished_ids` whenever `move_raw_ids` is
+            # empty, i.e. it picks the wrong side of the unbuild for a produce
+            # move. It happens to be unreachable today -- `produce_moves` is
+            # derived from `move_raw_ids`, so a non-empty one implies a
+            # non-empty other -- which is exactly the kind of accident a
+            # refactor turns into a bug.
+            if move in produce_moves:
+                original_move = self.mo_id.move_raw_ids
+            else:
+                original_move = self.mo_id.move_finished_ids
             original_move = original_move.filtered(
                 lambda m, move=move: m.product_id == move.product_id
             )
@@ -383,18 +396,33 @@ class MrpUnbuild(models.Model):
             )
         return self.write({"state": "done"})
 
+    def _get_unbuild_factor(self):
+        """How much of what the order produced this unbuild takes apart.
+
+        Against a manufacturing order that is a fraction of what it produced;
+        against a bare bill of materials, a multiple of the BoM quantity. Both
+        `_generate_consume_moves` and `_generate_produce_moves` scale by it, and
+        each carried its own copy of both branches.
+        """
+        self.ensure_one()
+        if self.mo_id:
+            return self.product_qty / self.mo_id.product_uom_id._compute_quantity(
+                self.mo_id.qty_produced, self.product_uom_id
+            )
+        return (
+            self.product_uom_id._compute_quantity(
+                self.product_qty, self.bom_id.product_uom_id
+            )
+            / self.bom_id.product_qty
+        )
+
     def _generate_consume_moves(self):
         moves = self.env["stock.move"]
         for unbuild in self:
+            factor = unbuild._get_unbuild_factor()
             if unbuild.mo_id:
                 finished_moves = unbuild.mo_id.move_finished_ids.filtered(
                     lambda move: move.state == "done"
-                )
-                factor = (
-                    unbuild.product_qty
-                    / unbuild.mo_id.product_uom_id._compute_quantity(
-                        unbuild.mo_id.qty_produced, unbuild.product_uom_id
-                    )
                 )
                 for finished_move in finished_moves:
                     moves += unbuild._generate_move_from_existing_move(
@@ -404,12 +432,6 @@ class MrpUnbuild(models.Model):
                         finished_move.location_id,
                     )
             else:
-                factor = (
-                    unbuild.product_uom_id._compute_quantity(
-                        unbuild.product_qty, unbuild.bom_id.product_uom_id
-                    )
-                    / unbuild.bom_id.product_qty
-                )
                 moves += unbuild._generate_move_from_bom_line(
                     unbuild.product_id, unbuild.product_uom_id, unbuild.product_qty
                 )
@@ -428,15 +450,10 @@ class MrpUnbuild(models.Model):
     def _generate_produce_moves(self):
         moves = self.env["stock.move"]
         for unbuild in self:
+            factor = unbuild._get_unbuild_factor()
             if unbuild.mo_id:
                 raw_moves = unbuild.mo_id.move_raw_ids.filtered(
                     lambda move: move.state == "done"
-                )
-                factor = (
-                    unbuild.product_qty
-                    / unbuild.mo_id.product_uom_id._compute_quantity(
-                        unbuild.mo_id.qty_produced, unbuild.product_uom_id
-                    )
                 )
                 for raw_move in raw_moves:
                     moves += unbuild._generate_move_from_existing_move(
@@ -446,12 +463,6 @@ class MrpUnbuild(models.Model):
                         unbuild.location_dest_id,
                     )
             else:
-                factor = (
-                    unbuild.product_uom_id._compute_quantity(
-                        unbuild.product_qty, unbuild.bom_id.product_uom_id
-                    )
-                    / unbuild.bom_id.product_qty
-                )
                 _boms, lines = unbuild.bom_id.explode(
                     unbuild.product_id,
                     factor,

@@ -406,7 +406,7 @@ class TestTraceability(TestMrpCommon):
         mo_backorder.move_raw_ids.picked = True
         mo_backorder.button_mark_done()
 
-        mo = mo | mo_backorder
+        mo |= mo_backorder
         raw_move_lines = mo.move_raw_ids.mapped("move_line_ids")
         raw_line_raw_1_lot_1 = raw_move_lines.filtered(
             lambda ml: ml.lot_id.name == "Raw_1_lot_1"
