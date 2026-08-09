@@ -17,16 +17,27 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 
 class ProjectCustomerPortal(CustomerPortal):
     def _prepare_home_portal_values(self, counters: list[str]) -> dict[str, Any]:
+        """Badge counts for /my, over exactly what the linked pages list.
+
+        Both counters used to be looser than the page behind them — no template
+        filter at all on projects, and only ``project_id != False`` on tasks —
+        so /my advertised template projects and template tasks that /my/projects
+        and /my/tasks then refuse to show. Reuse the pages' own domains
+        (``_prepare_project_domain`` and ``_prepare_task_domain``) so a badge
+        never promises a row the list cannot produce.
+        """
         values = super()._prepare_home_portal_values(counters)
         if "project_count" in counters:
             values["project_count"] = (
-                request.env["project.project"].search_count([])
+                request.env["project.project"].search_count(
+                    self._prepare_project_domain()
+                )
                 if request.env["project.project"].has_access("read")
                 else 0
             )
         if "task_count" in counters:
             values["task_count"] = (
-                request.env["project.task"].search_count([("project_id", "!=", False)])
+                request.env["project.task"].search_count(self._prepare_task_domain())
                 if request.env["project.task"].has_access("read")
                 else 0
             )
@@ -96,6 +107,14 @@ class ProjectCustomerPortal(CustomerPortal):
 
     def _prepare_project_domain(self) -> list:
         return [("is_template", "=", False)]
+
+    def _prepare_task_domain(self) -> list:
+        """What /my/tasks lists, and therefore what the /my badge must count."""
+        return [
+            ("project_id", "!=", False),
+            ("is_template", "=", False),
+            ("has_template_ancestor", "=", False),
+        ]
 
     def _prepare_searchbar_sortings(self) -> dict[str, dict[str, str]]:
         return {
@@ -889,10 +908,7 @@ class ProjectCustomerPortal(CustomerPortal):
         searchbar_filters = {
             "all": {
                 "label": _("All"),
-                "domain": [
-                    ("project_id", "!=", False),
-                    ("is_template", "=", False),
-                ],
+                "domain": self._prepare_task_domain(),
             },
         }
 

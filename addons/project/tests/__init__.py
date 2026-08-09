@@ -42,3 +42,9 @@ from . import test_project_task_mail_tracking_duration
 from . import test_task_link_preview_name
 from . import test_import_files
 from . import test_task_reservation
+from . import test_digest
+from . import test_planned_hours
+from . import test_project_metrics
+from . import test_resource_levelling
+from . import test_task_archiving
+from . import test_task_triage_lifecycle

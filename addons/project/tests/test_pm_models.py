@@ -289,19 +289,29 @@ class TestPortfolioViews(TestProjectCommon):
         # Raises if any component of the order is a non-stored field.
         self.env["project.project"].search([], order=order, limit=5)
 
-    def test_portfolio_health_fields_stay_unaggregatable(self):
-        """Pin the constraint the views have to respect.
+    def test_portfolio_health_fields_are_aggregatable(self):
+        """The tripwire fired, and this is the revisit it asked for.
 
-        If health_score ever becomes stored this fails, which is the moment to
-        revisit the graph and pivot measures rather than discover it in a view.
+        This used to assert the opposite: that health_score must stay unstored,
+        with the note "if health_score ever becomes stored this fails, which is
+        the moment to revisit the graph and pivot measures rather than discover
+        it in a view". That moment came. Unstored, the fields could not be
+        filtered, grouped or sorted at all — ``Cannot convert
+        project.project.health_status to SQL because it is not stored`` — which
+        is most of what a health indicator is for: "show me every project that
+        is off track" is a search. They are stored snapshots now, refreshed by
+        ``_cron_refresh_metrics``, so aggregating them is legal and the general
+        guard below is what keeps the views honest.
         """
-        health = self.env["project.project"]._fields["health_score"]
-        self.assertFalse(
-            health.store,
-            "health_score became stored; _compute_health_indicators says it "
-            "must not be, and the portfolio graph/pivot measures depend on "
-            "that decision",
-        )
+        Project = self.env["project.project"]
+        for fname in Project._SNAPSHOT_METRIC_FIELDS:
+            self.assertTrue(
+                Project._fields[fname].store,
+                f"{fname} must stay stored: the portfolio views measure it",
+            )
+        # Both directions of the contract: aggregatable, and searchable.
+        Project._read_group([], ["health_status"], ["health_score:avg"])
+        Project.search([], order="health_score desc", limit=5)
 
     def test_reachable_aggregating_views_measure_stored_fields(self):
         """No action may offer a graph/pivot that measures a non-stored field.

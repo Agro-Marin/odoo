@@ -45,7 +45,7 @@ class TestAuditFixes(TestProjectCommon):
                 "date_end": now - timedelta(days=1),
             }
         )
-        project.invalidate_recordset(["deadline_compliance_pct"])
+        project.action_refresh_metrics()
         self.assertEqual(
             project.deadline_compliance_pct,
             50.0,
@@ -79,7 +79,7 @@ class TestAuditFixes(TestProjectCommon):
                 "date_end": now - timedelta(days=1),
             }
         )
-        project.invalidate_recordset(["throughput_week"])
+        project.action_refresh_metrics()
         # Under the old (buggy) code these keyed off date_end (365d ago) → 0.0.
         self.assertEqual(project.throughput_week, 1.0)
 
@@ -378,11 +378,11 @@ class TestAuditFixesBatchB(TestProjectCommon):
         archived = self.env["project.task"].create(
             {"name": "arch", "project_id": project.id, "state": "in_progress"}
         )
-        project.invalidate_recordset(["wip_count"])
+        project.action_refresh_metrics()
         project._compute_flow_metrics()
         self.assertEqual(project.wip_count, 2)
         archived.active = False
-        project.invalidate_recordset(["wip_count"])
+        project.action_refresh_metrics()
         project._compute_flow_metrics()
         self.assertEqual(
             project.wip_count, 1, "archived tasks must be excluded from WIP"
@@ -637,7 +637,7 @@ class TestAuditFixesBatchC(TestProjectCommon):
         )
         task.state = "canceled"
         task.date_closed = fields.Datetime.now()
-        self.project_pigs.invalidate_recordset(["throughput_week"])
+        self.project_pigs.action_refresh_metrics()
         self.assertEqual(
             self.project_pigs.throughput_week,
             0.0,

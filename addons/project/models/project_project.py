@@ -11,6 +11,7 @@ from odoo.fields import Command, Domain
 from odoo.libs.numbers import float_utils
 from odoo.tools import SQL, LazyTranslate, formatLang, get_lang
 from odoo.tools.cache_version import versioned_envelope
+from odoo.tools.date_utils import localized
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
 
@@ -537,6 +538,7 @@ class ProjectProject(models.Model):
     health_score = fields.Integer(
         "Health Score",
         compute="_compute_health_indicators",
+        store=True,
         help="Composite 0-100 score based on deadlines, milestones, risk, and staleness.",
         export_string_translation=False,
     )
@@ -549,6 +551,7 @@ class ProjectProject(models.Model):
         ],
         string="Health",
         compute="_compute_health_indicators",
+        store=True,
         help="Derived from health_score: healthy (80-100), attention (60-79), warning (40-59), critical (0-39).",
         export_string_translation=False,
     )
@@ -576,12 +579,14 @@ class ProjectProject(models.Model):
     wip_count = fields.Integer(
         "WIP Count",
         compute="_compute_flow_metrics",
+        store=True,
         help="Number of open, non-blocked tasks.",
         export_string_translation=False,
     )
     avg_lead_time = fields.Float(
         "Avg Lead Time (hours)",
         compute="_compute_flow_metrics",
+        store=True,
         digits=(16, 1),
         help="Average working hours from creation to closure (last 90 days). "
         "Includes queue wait time.",
@@ -590,6 +595,7 @@ class ProjectProject(models.Model):
     avg_cycle_time = fields.Float(
         "Avg Cycle Time (hours)",
         compute="_compute_flow_metrics",
+        store=True,
         digits=(16, 1),
         help="Average working hours from assignment to closure (last 90 days). "
         "Excludes queue wait time.",
@@ -598,6 +604,7 @@ class ProjectProject(models.Model):
     throughput_week = fields.Float(
         "Throughput / Week",
         compute="_compute_flow_metrics",
+        store=True,
         digits=(16, 1),
         help="Tasks closed per week (rolling 4-week average).",
         export_string_translation=False,
@@ -605,6 +612,7 @@ class ProjectProject(models.Model):
     deadline_compliance_pct = fields.Float(
         "Deadline Compliance %",
         compute="_compute_flow_metrics",
+        store=True,
         digits=(5, 1),
         help="Percentage of closed tasks with deadlines that met their deadline.",
         export_string_translation=False,
@@ -982,18 +990,83 @@ class ProjectProject(models.Model):
         for key, group in tasks_by_vals.items():
             group.write(vals_by_key[key])
 
+    def _levelling_day_capacity(
+        self, calendar: Any, date_start: Any, date_end: Any
+    ) -> dict:
+        """Working hours per calendar day, for the whole levelling window.
+
+        Fetched once per calendar and bucketed by date. A day with no working
+        time simply has no entry, which is what makes weekends and leaves fall
+        out of the arithmetic for free.
+
+        With no calendar at all, fall back to eight hours on every elapsed day —
+        the same assumption the rest of the module makes of a company that has
+        not configured working time.
+        """
+        per_day: dict = defaultdict(float)
+        if calendar:
+            intervals = calendar._work_intervals_batch(
+                localized(date_start), localized(date_end)
+            )[False]
+            for start, stop, _recs in intervals:
+                per_day[start.date()] += (stop - start).total_seconds() / 3600.0
+        else:
+            day = date_start.date()
+            while day <= date_end.date():
+                per_day[day] = 8.0
+                day += timedelta(days=1)
+        return per_day
+
+    @staticmethod
+    def _levelling_spread(slot: tuple, day_capacity: dict) -> dict:
+        """Spread one task's effort across the working days its window covers.
+
+        A task's hours are not spent at an instant — they are spread over the
+        window CPM gave it, in proportion to the working time each day offers.
+        Levelling has to compare like with like: an eight-hour task overlapping
+        a fifteen-minute one does not put eight hours into those fifteen
+        minutes, and treating it as if it did makes *every* overlap look like an
+        overload, which is the failure this method exists to avoid.
+        """
+        start, stop, hours, _task_id = slot
+        days = {
+            day: capacity
+            for day, capacity in day_capacity.items()
+            if start.date() <= day <= stop.date() and capacity
+        }
+        total = sum(days.values())
+        if not total:
+            return {}
+        return {day: hours * capacity / total for day, capacity in days.items()}
+
     def action_level_resources(self) -> None:
-        """Basic resource leveling: shift non-critical tasks to avoid overallocation.
+        """Shift non-critical tasks off an assignee who is genuinely over capacity.
 
         Algorithm:
         1. Run CPM first to establish planned dates.
         2. Build per-user timeline from cpm_date_start/end.
-        3. For each non-critical task (sorted by float descending):
-           if assigned user is overloaded in the planned window,
-           shift cpm_date_start forward to next available slot, but only
-           within the task's float so the project end date is preserved.
+        3. For each non-critical task (most float first): if an assignee's
+           committed hours in the task's window exceed what their working
+           calendar offers over that window, shift cpm_date_start forward to the
+           next available slot, but only within the task's float so the project
+           end date is preserved.
 
-        This is a heuristic, not an optimization solver. Because shifts stay
+        The comparison in step 3 is the point of the exercise, and it used to be
+        missing: the test was ``concurrent > 0``, i.e. *any* overlapping task at
+        all, with the capacity never computed despite a comment claiming
+        "> 8h/day". Measured on three same-window tasks held by one person, the
+        shift applied was identical (4.00 working hours) at 0.75 h/day of load
+        and at 24 h/day — so levelling moved work that was not overloaded, spent
+        the task's whole float doing it, and left a genuine threefold overload
+        exactly as overloaded as it found it.
+
+        Load is per assignee and per PMBOK effort: ``allocated_hours`` when
+        reservations exist, else the ``planned_hours`` estimate, divided across
+        the assignees who share the task. Reading only ``allocated_hours`` meant
+        levelling did nothing at all until reservations existed, which for most
+        projects is never.
+
+        This is a heuristic, not an optimisation solver. Because shifts stay
         within each task's float, successor dates remain valid without an
         explicit re-propagation pass.
         """
@@ -1020,45 +1093,90 @@ class ProjectProject(models.Model):
             key=lambda t: -(t.total_float or 0.0),
         )
 
-        # Build per-user allocation map: user_id -> list of (start, end, hours)
+        def load_per_assignee(task) -> float:
+            hours = task.allocated_hours or task.planned_hours or 0.0
+            return hours / max(len(task.user_ids), 1)
+
+        # Build per-user allocation map: user_id -> list of (start, end, hours, id)
         user_slots: dict[int, list[tuple]] = defaultdict(list)
         for task in tasks:
+            share = load_per_assignee(task)
             for user in task.user_ids:
                 user_slots[user.id].append(
                     (
                         task.cpm_date_start,
                         task.cpm_date_end,
-                        task.allocated_hours or 0.0,
+                        share,
                         task.id,
                     )
                 )
 
-        # Heuristic: check if user has > 8h/day in any overlapping window
+        # One calendar fetch per distinct calendar, covering everything the
+        # levelling pass will look at.
+        window_start = min(tasks.mapped("cpm_date_start"))
+        window_end = max(tasks.mapped("cpm_date_end"))
+        day_capacity_per_calendar: dict = {}
+
+        def day_capacity(user):
+            user_calendar = user.resource_calendar_id or calendar
+            if user_calendar.id not in day_capacity_per_calendar:
+                day_capacity_per_calendar[user_calendar.id] = (
+                    self._levelling_day_capacity(
+                        user_calendar, window_start, window_end
+                    )
+                )
+            return day_capacity_per_calendar[user_calendar.id]
+
         for task in leveling_order:
-            if not task.user_ids or not task.allocated_hours:
+            task_share = load_per_assignee(task)
+            if not task.user_ids or not task_share:
                 continue
             for user in task.user_ids:
                 slots = user_slots[user.id]
-                # Count concurrent hours in task's window
-                concurrent = sum(
-                    s[2]
+                overlapping = [
+                    s
                     for s in slots
                     if s[3] != task.id
                     and s[0] < task.cpm_date_end
                     and s[1] > task.cpm_date_start
-                )
-                if concurrent <= 0:
+                ]
+                if not overlapping:
+                    continue
+                # Genuine overload only, measured the way a person experiences
+                # one: per working day. Spread every commitment this assignee
+                # holds across the days it runs over, then ask whether any day
+                # the candidate touches is asked for more hours than it has.
+                # Comparing raw totals against a window instead made any overlap
+                # an overload, because two tasks sharing an instant always
+                # exceed that instant's capacity.
+                capacity_by_day = day_capacity(user)
+                load_by_day: dict = defaultdict(float)
+                for slot in [
+                    *overlapping,
+                    (task.cpm_date_start, task.cpm_date_end, task_share, task.id),
+                ]:
+                    for day, hours in self._levelling_spread(
+                        slot, capacity_by_day
+                    ).items():
+                        load_by_day[day] += hours
+                candidate_days = [
+                    day
+                    for day in load_by_day
+                    if task.cpm_date_start.date() <= day <= task.cpm_date_end.date()
+                ]
+                if not any(
+                    float_utils.float_compare(
+                        load_by_day[day],
+                        capacity_by_day.get(day, 0.0),
+                        precision_digits=2,
+                    )
+                    > 0
+                    for day in candidate_days
+                ):
                     continue
                 # Find latest end among overlapping tasks
                 latest_end = max(
-                    (
-                        s[1]
-                        for s in slots
-                        if s[3] != task.id
-                        and s[0] < task.cpm_date_end
-                        and s[1] > task.cpm_date_start
-                    ),
-                    default=task.cpm_date_start,
+                    (s[1] for s in overlapping), default=task.cpm_date_start
                 )
                 # Shift task to *start* at the end of the overlap (snapped to the
                 # next working moment), respecting float. NB: plan_hours(h, t)
@@ -1099,7 +1217,7 @@ class ProjectProject(models.Model):
                     )
                     # Update slot tracking
                     user_slots[user.id] = [s for s in slots if s[3] != task.id] + [
-                        (new_start, new_end, task.allocated_hours, task.id)
+                        (new_start, new_end, task_share, task.id)
                     ]
                     task.write(
                         {
@@ -1131,10 +1249,20 @@ class ProjectProject(models.Model):
 
         Intentionally has NO @api.depends: this aggregates across every task,
         milestone and risk of the project, so a reactive recompute would fire a
-        full re-aggregation on any task edit. It is a per-read snapshot
-        (recomputed once per environment / page load) — do not make it stored or
-        add depends. Because it is non-reactive it also cannot be searched or
-        grouped; expose a refresh action instead if live values are needed.
+        full re-aggregation on any task edit. Do not add depends.
+
+        It IS stored, though — a dated snapshot rather than a per-read one.
+        Unstored, the score could not be filtered, grouped or sorted
+        (``ValueError: Cannot convert project.project.health_status to SQL
+        because it is not stored``), which is most of what a health indicator is
+        for: "show me every project that is off track" is a search. It also
+        blocked the trend and staleness work in doc/pm_excellence_investigation.md
+        §14 Gap 5, which needs a value that persists between reads.
+
+        Being stored without depends means it is computed once, at creation, and
+        then only when something asks — ``_cron_refresh_metrics`` nightly, or
+        ``action_refresh_metrics`` on demand. One re-aggregation a day instead of
+        one per page load.
         """
         if not self.ids:
             self.health_score = 100
@@ -1314,8 +1442,9 @@ class ProjectProject(models.Model):
         Uses direct SQL for performance — these are read-heavy analytics fields
         that aggregate across potentially thousands of tasks.
 
-        Intentionally has NO @api.depends (see _compute_health_indicators): a
-        per-read snapshot, not a reactive/stored field. Do not add depends.
+        Intentionally has NO @api.depends (see _compute_health_indicators), but
+        stored, so the metrics can be filtered and grouped and are refreshed by
+        ``_cron_refresh_metrics`` rather than on every read. Do not add depends.
         """
         if not self.ids:
             self.wip_count = 0
@@ -1414,6 +1543,37 @@ class ProjectProject(models.Model):
             project.avg_cycle_time = avg_ct or 0.0
             project.throughput_week = tp or 0.0
             project.deadline_compliance_pct = dcp or 0.0
+
+    _SNAPSHOT_METRIC_FIELDS = (
+        "health_score",
+        "health_status",
+        "wip_count",
+        "avg_lead_time",
+        "avg_cycle_time",
+        "throughput_week",
+        "deadline_compliance_pct",
+    )
+
+    def _refresh_metrics(self) -> None:
+        """Recompute the stored analytics snapshot for these projects.
+
+        The metric fields are stored computes with no ``@api.depends`` on
+        purpose (see ``_compute_health_indicators``), so nothing invalidates
+        them: this is the only thing that does.
+        """
+        for fname in self._SNAPSHOT_METRIC_FIELDS:
+            self.env.add_to_compute(self._fields[fname], self)
+        self.env.flush_all()
+
+    @api.model
+    def _cron_refresh_metrics(self) -> None:
+        """Nightly refresh of every project's analytics snapshot."""
+        self.search([])._refresh_metrics()
+
+    def action_refresh_metrics(self) -> bool:
+        """Refresh this project's analytics snapshot now, without waiting for the cron."""
+        self._refresh_metrics()
+        return True
 
     def _compute_access_url(self) -> None:
         super()._compute_access_url()
@@ -1702,7 +1862,7 @@ class ProjectProject(models.Model):
             "project_id": project.id,
         }
 
-    def map_tasks(self, new_project_id: int) -> Self:
+    def map_tasks(self, new_project_id: int) -> bool:
         """Copy and map tasks from old to new project"""
         project = self.browse(new_project_id)
         # We want to copy archived task, but do not propagate an active_test context key
@@ -1795,7 +1955,7 @@ class ProjectProject(models.Model):
         )
         return new_projects
 
-    def _copy_shared_embedded_actions(self, new_projects: Self) -> None:
+    def _copy_shared_embedded_actions(self, new_projects: Self) -> dict[int, int]:
         shared_embedded_actions_per_record = dict(
             self.env["ir.embedded.actions"]
             .sudo()
@@ -1990,6 +2150,11 @@ class ProjectProject(models.Model):
             self._check_date_pair(vals.get("date_start"), vals.get("date"))
         projects = super().create(vals_list)
         projects._seed_default_workflow_step()
+        # The metric fields are stored computes with no @api.depends, and the
+        # ORM only schedules a compute for fields that declare dependencies — so
+        # without this a new project carries NULL health and NULL flow metrics
+        # until the nightly cron first runs, and shows a health score of 0.
+        projects._refresh_metrics()
         return projects
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -2179,7 +2344,7 @@ class ProjectProject(models.Model):
                 )
         return res
 
-    def message_unsubscribe(self, partner_ids: list[int] | None = None) -> bool:
+    def message_unsubscribe(self, partner_ids: list[int] | None = None) -> None:
         # Remove the follower from ALL tasks, including closed ones — otherwise a
         # partner removed from the project keeps following (and, via the portal,
         # keeps access to) every closed task. Mirrors the privacy-downgrade path.
@@ -2237,7 +2402,9 @@ class ProjectProject(models.Model):
         )
 
     @api.model
-    def _check_project_group_with_field(self, field_name: str, group_name: str) -> None:
+    def _check_project_group_with_field(
+        self, field_name: str, group_name: str
+    ) -> bool | None:
         """Check if the user has the group 'group_name' and if there is a project with the field 'field_name' set to True.
         If not, remove the group 'group_name' from the user base group.
         Otherwise, add the group 'group_name' to the user base group.
@@ -2272,7 +2439,9 @@ class ProjectProject(models.Model):
         }
 
     @api.model
-    def check_features_enabled(self, updated_features: list[str] | None = None) -> None:
+    def check_features_enabled(
+        self, updated_features: list[str] | None = None
+    ) -> dict[str, bool]:
         if not self.env.user.has_group("project.group_project_user"):
             return {}
         if updated_features:
@@ -2576,6 +2745,12 @@ class ProjectProject(models.Model):
         self.ensure_one()
         if not self.env.user.has_group("project.group_project_user"):
             return {}
+        # The metrics are a stored snapshot dated by _cron_refresh_metrics, which
+        # keeps them searchable across the portfolio without re-aggregating on
+        # every read. Opening one project's dashboard is the one moment a user
+        # is entitled to a live number, and it costs the single aggregation the
+        # old per-read compute charged for every project in a list.
+        self._refresh_metrics()
         show_profitability = self._show_profitability()
         panel_data = {
             "user": self._get_user_values(),
@@ -2609,7 +2784,7 @@ class ProjectProject(models.Model):
             panel_data["profitability_labels"] = self._get_profitability_labels()
         return panel_data
 
-    def get_milestones(self) -> list:
+    def get_milestones(self) -> dict:
         if self.env.user.has_group("project.group_project_user"):
             return self._get_milestones()
         return {}
@@ -2652,7 +2827,7 @@ class ProjectProject(models.Model):
             "costs": {"data": [], "total": {"billed": 0.0, "to_bill": 0.0}},
         }
 
-    def _get_milestones(self) -> list:
+    def _get_milestones(self) -> dict:
         self.ensure_one()
         return {
             "data": self.milestone_ids._get_data_list(),
@@ -2728,7 +2903,7 @@ class ProjectProject(models.Model):
             )
         return buttons
 
-    def _get_profitability_values(self) -> tuple:
+    def _get_profitability_values(self) -> tuple[dict, bool]:
         if not self.env.user.has_group("project.group_project_manager"):
             return {}, False
         profitability_items = self._get_profitability_items(False)
@@ -2822,7 +2997,9 @@ class ProjectProject(models.Model):
         return False
 
     @api.model
-    def _get_values_analytic_account_batch(self, project_vals_list: list[dict]) -> dict:
+    def _get_values_analytic_account_batch(
+        self, project_vals_list: list[dict]
+    ) -> list[dict]:
         project_plan, _other_plans = self.env["account.analytic.plan"]._get_all_plans()
         return [
             {
@@ -2899,7 +3076,7 @@ class ProjectProject(models.Model):
     # ---------------------------------------------------
     # Project sharing
     # ---------------------------------------------------
-    def _check_project_sharing_access(self) -> None:
+    def _check_project_sharing_access(self) -> bool:
         self.ensure_one()
         if self.privacy_visibility not in ["invited_users", "portal"]:
             return False
@@ -3003,11 +3180,11 @@ class ProjectProject(models.Model):
 
     def template_to_project_confirmation_callback(
         self, callbacks: dict[str, Any]
-    ) -> dict:
+    ) -> None:
         self.ensure_one()
         pass
 
-    def _get_template_to_project_confirmation_callbacks(self) -> list:
+    def _get_template_to_project_confirmation_callbacks(self) -> dict:
         self.ensure_one()
         return {}
 
@@ -3043,12 +3220,12 @@ class ProjectProject(models.Model):
 
     def create_template_from_project_undo_callback(
         self, callbacks: dict[str, Any]
-    ) -> dict:
+    ) -> None:
         self.ensure_one()
         if callbacks.get("unarchive_project"):
             self.action_unarchive()
 
-    def _get_template_from_project_undo_callbacks(self) -> list:
+    def _get_template_from_project_undo_callbacks(self) -> dict:
         self.ensure_one()
         callbacks = {}
         if self.active:
@@ -3114,14 +3291,14 @@ class ProjectProject(models.Model):
             self.task_ids.role_ids = False
 
     @api.model
-    def _get_template_default_context_whitelist(self) -> set[str]:
+    def _get_template_default_context_whitelist(self) -> list[str]:
         """Whitelist of fields that can be set through the `default_` context keys when creating a project from a template."""
         return [
             "allow_milestones",
         ]
 
     @api.model
-    def _get_template_field_blacklist(self) -> set[str]:
+    def _get_template_field_blacklist(self) -> list[str]:
         """Blacklist of fields to not copy when creating a project from a template."""
         return [
             "partner_id",

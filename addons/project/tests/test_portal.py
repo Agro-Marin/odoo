@@ -255,3 +255,38 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
         self.assertNotIn(task_template.name, project_tasks_response.text)
         self.assertNotIn(task_template.child_ids[0].name, project_tasks_response.text)
         self.assertNotIn(task_template.child_ids[1].name, project_tasks_response.text)
+
+    def test_home_badges_count_what_the_pages_list(self) -> None:
+        """The /my badges were looser than the pages behind them — no template
+        filter at all on projects, and only ``project_id != False`` on tasks —
+        so /my advertised template projects and template tasks that
+        /my/projects and /my/tasks then refuse to show."""
+        from odoo.addons.project.controllers.portal import ProjectCustomerPortal
+
+        portal = ProjectCustomerPortal()
+        Project = self.env["project.project"]
+        Task = self.env["project.task"]
+        template_project = Project.create({"name": "A template", "is_template": True})
+        Task.create(
+            {
+                "name": "A template task",
+                "project_id": template_project.id,
+                "is_template": True,
+            }
+        )
+        self.env.flush_all()
+
+        self.assertEqual(
+            Project.search_count(portal._prepare_project_domain()),
+            Project.search_count([("is_template", "=", False)]),
+        )
+        self.assertNotIn(
+            template_project,
+            Project.search(portal._prepare_project_domain()),
+            "a template project is not listed, so it must not be counted",
+        )
+        counted = Task.search(portal._prepare_task_domain())
+        self.assertFalse(
+            counted.filtered(lambda t: t.is_template or t.has_template_ancestor),
+            "a template task is not listed, so it must not be counted",
+        )

@@ -9,6 +9,19 @@
         <field name="interval_type">days</field>
     </record>
 
+    <!-- The health and flow fields are stored computes with no @api.depends:
+         aggregating them reactively would re-run a full project-wide
+         aggregation on every task edit, so they are a dated snapshot instead.
+         This is what dates them. -->
+    <record id="ir_cron_refresh_project_metrics" model="ir.cron">
+        <field name="name">Project: Refresh health and flow metrics</field>
+        <field name="model_id" ref="project.model_project_project"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_refresh_metrics()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+
     <record id="ir_cron_benefit_review" model="ir.cron">
         <field name="name">Project: Check benefit review dates</field>
         <field name="model_id" ref="project.model_project_benefit"/>

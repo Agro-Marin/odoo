@@ -310,6 +310,32 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]"/>
     </record>
 
+    <!-- project.cfd.report — the burndown chart's twin, built from the same CTE,
+         shipped with an ACL and no rules at all. It does not leak today: its
+         _search feeds the CTE from project.task._search(), which applies that
+         model's rules as the calling user. But the whole protection then rests
+         on one _search override, which is exactly the argument for the burndown
+         carrying its own rules. Mirror them. -->
+    <record model="ir.rule" id="cfd_report_project_user_rule">
+        <field name="name">Cumulative Flow Diagram: project visibility User</field>
+        <field name="model_id" ref="model_project_cfd_report"/>
+        <field name="domain_force">[
+        '|',
+            ('project_id.privacy_visibility', 'in', ['employees', 'portal']),
+            '|',
+                ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
+                ('user_ids', 'in', user.id),
+        ]</field>
+        <field name="groups" eval="[(4,ref('project.group_project_user'))]"/>
+    </record>
+
+    <record model="ir.rule" id="cfd_report_project_manager_rule">
+        <field name="name">Cumulative Flow Diagram: project visibility Manager</field>
+        <field name="model_id" ref="model_project_cfd_report"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4,ref('project.group_project_manager'))]"/>
+    </record>
+
     <record model="ir.rule" id="milestone_comp_rule">
         <field name="name">Project/Milestone: multi-company</field>
         <field name="model_id" ref="model_project_milestone"/>

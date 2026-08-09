@@ -212,6 +212,9 @@ class TestDeliveredVersusClosed(TestProjectCommon):
         )
         on_time.state = "done"
         self.env.invalidate_all()
+        # The project-level metrics are a stored snapshot, dated by the cron or
+        # by this call; the task-level field is reactive.
+        project.action_refresh_metrics()
 
         self.assertFalse(cancelled_late.deadline_met)
         self.assertEqual(on_time.deadline_met, "met")
@@ -288,6 +291,14 @@ class TestPrivateTaskStepMessage(TestProjectCommon):
         with self.assertRaises(UserError) as caught:
             task.write({"step_id": step.id})
         self.assertNotIn("personal stage", str(caught.exception).lower())
+
+    def test_clearing_a_step_a_private_task_never_had_is_allowed(self) -> None:
+        """The guard fired on ``"step_id" in vals`` rather than on a value, so
+        ``write({"step_id": False})`` — a write that asks for exactly what a
+        private task already is — raised."""
+        task = self.env["project.task"].create({"name": "Private"})
+        task.write({"step_id": False})
+        self.assertFalse(task.step_id)
 
 
 @tagged("post_install", "-at_install")
@@ -435,62 +446,6 @@ class TestElapsedBatching(TestProjectCommon):
             len(calls),
             1,
             f"one interval fetch for the whole batch, got {len(calls)}",
-        )
-
-
-@tagged("post_install", "-at_install")
-class TestResourceLevelling(TestProjectCommon):
-    def test_a_shift_that_fits_the_float_is_taken(self) -> None:
-        """The guard compared a wall-clock shift against working-hour float, so
-        any move crossing a night or a weekend was refused — which is every
-        move. Measured before the fix: 15h of float, a move needing ~8 working
-        hours, rejected because those 8 hours spanned 50h of wall clock."""
-        project = self.env["project.project"].create({"name": "Levelling"})
-        project.company_id = self.env.company
-        project.allow_dependencies = True
-        user = self.env["res.users"].create(
-            {"name": "Leveller", "login": "leveller_e", "email": "lev@example.com"}
-        )
-        Task = self.env["project.task"]
-        first = Task.create(
-            {
-                "name": "First",
-                "project_id": project.id,
-                "planned_hours": 8.0,
-                "allocated_hours": 8.0,
-                "user_ids": [Command.link(user.id)],
-            }
-        )
-        Task.create(
-            {
-                "name": "Chained",
-                "project_id": project.id,
-                "planned_hours": 8.0,
-                "predecessor_ids": [Command.link(first.id)],
-            }
-        )
-        movable = Task.create(
-            {
-                "name": "Movable",
-                "project_id": project.id,
-                "planned_hours": 1.0,
-                "allocated_hours": 1.0,
-                "user_ids": [Command.link(user.id)],
-            }
-        )
-        project.action_compute_critical_path()
-        self.env.flush_all()
-        start_before = movable.cpm_date_start
-        self.assertFalse(movable.is_critical_path)
-        self.assertGreater(movable.total_float, 0.0)
-
-        project.action_level_resources()
-        self.env.flush_all()
-
-        self.assertGreater(
-            movable.cpm_date_start,
-            start_before,
-            "a non-critical task overlapping its assignee must be shifted",
         )
 
 
