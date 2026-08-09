@@ -4,6 +4,7 @@ from werkzeug.exceptions import BadRequest
 
 from odoo import models
 from odoo.http import request
+from odoo.tools.translate import _
 
 
 class IrHttp(models.AbstractModel):
@@ -21,12 +22,12 @@ class IrHttp(models.AbstractModel):
         # records up by token again after this method has run.
         token = request.httprequest.args.get('token', '')
         if not token:
-            raise BadRequest("Invalid Invitation Token.")
+            raise BadRequest(_("Invalid Invitation Token."))
 
         attendee = request.env['calendar.attendee'].sudo().search(
             [('access_token', '=', token)], limit=1)
         if not attendee:
-            raise BadRequest("Invalid Invitation Token.")
+            raise BadRequest(_("Invalid Invitation Token."))
 
         if request.session.uid and request.session.login != 'anonymous':
             # A valid token, but presented from somebody else's session: the
@@ -35,9 +36,9 @@ class IrHttp(models.AbstractModel):
             # the token, and the message used to name both mailboxes.
             user = request.env['res.users'].sudo().browse(request.session.uid)
             if attendee.partner_id != user.partner_id:
-                raise BadRequest(
+                raise BadRequest(_(
                     "This invitation belongs to somebody else and cannot be "
                     "forwarded. Please ask the organizer to add you."
-                )
+                ))
 
         cls._auth_method_public()

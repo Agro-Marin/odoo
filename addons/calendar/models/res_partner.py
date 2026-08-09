@@ -44,12 +44,17 @@ class ResPartner(models.Model):
             for p_id, m_id in meeting_data:
                 meetings.setdefault(p_id, set()).add(m_id)
 
-            # Add the events linked to the children of the partner
+            # Roll each partner's meetings up to whichever of its ancestors are
+            # in `self`. `in self` is a scan of the recordset, and it sat inside
+            # a walk up the parent chain of every partner that had a meeting, so
+            # the cost was O(partners x depth x len(self)); the ids are known up
+            # front.
+            wanted_ids = set(self._ids)
             for p in self.browse(meetings.keys()):
                 partner = p
                 while partner.parent_id:
                     partner = partner.parent_id
-                    if partner in self:
+                    if partner.id in wanted_ids:
                         meetings[partner.id] = meetings.get(partner.id, set()) | meetings[p.id]
             return {p_id: list(meetings.get(p_id, set())) for p_id in self.ids}
         return {}
@@ -101,12 +106,15 @@ class ResPartner(models.Model):
 
     def schedule_meeting(self):
         self.ensure_one()
-        partner_ids = self.ids
-        partner_ids.append(self.env.user.partner_id.id)
         action = self.env["ir.actions.actions"]._for_xml_id("calendar.action_calendar_event")
+        # Not `partner_ids = self.ids; partner_ids.append(...)`: that reads as a
+        # mutation of the recordset's own ids and is only safe because `ids`
+        # happens to build a fresh list each time.
         action['context'] = {
-            'default_partner_ids': partner_ids,
+            'default_partner_ids': [*self.ids, self.env.user.partner_id.id],
         }
+        # The first branch carries the meetings of this partner's *children*,
+        # which the second cannot express as a domain.
         action['domain'] = ['|', ('id', 'in', self._compute_meeting()[self.id]), ('partner_ids', 'in', self.ids)]
         return action
 
