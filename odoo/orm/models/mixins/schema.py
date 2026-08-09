@@ -7,7 +7,7 @@ from odoo.db import schema as sql
 from odoo.tools import SQL, format_list, ormcache
 
 from ... import decorators as api
-from ...validation import raise_on_invalid_object_name
+from ...validation import check_object_name
 from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
@@ -93,7 +93,7 @@ class SchemaMixin(_ModelStubs):
         return bool(self.env.cr.rowcount)
 
     def _auto_init(self) -> None:
-        raise_on_invalid_object_name(self._name)
+        check_object_name(self._name)
 
         self = self.with_context(prefetch_fields=False)
 

@@ -30,7 +30,7 @@ from odoo.orm.helpers import (
     to_record_ids,
 )
 from odoo.orm.parsing import fix_import_export_id_paths, parse_read_group_spec
-from odoo.orm.validation import check_object_name, check_pg_name, is_manual_name
+from odoo.orm.validation import check_pg_name, is_manual_name, is_valid_object_name
 
 __all__ = [
     "LOG_ACCESS_COLUMNS",
@@ -52,11 +52,11 @@ __all__ = [
     "add_to_registry",
     "check_companies_domain_parent_of",
     "check_company_domain_parent_of",
-    "check_object_name",
     "check_pg_name",
     "fix_import_export_id_paths",
     "is_manual_name",
     "is_model_definition",
+    "is_valid_object_name",
     "parse_read_group_spec",
     "pop_field",
     "regex_order",

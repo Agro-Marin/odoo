@@ -1,59 +1,59 @@
 from odoo.exceptions import AccessError, ValidationError
 from odoo.orm.validation import (
-    check_method_name,
     check_object_name,
     check_pg_name,
-    raise_on_invalid_object_name,
+    is_valid_object_name,
 )
+from odoo.service.model import get_public_method
 from odoo.tests.common import TransactionCase
 
 
-class TestCheckObjectName(TransactionCase):
+class TestIsValidObjectName(TransactionCase):
     def test_valid_dotted_name(self):
-        self.assertTrue(check_object_name("res.partner"))
+        self.assertTrue(is_valid_object_name("res.partner"))
 
     def test_valid_underscored_name(self):
-        self.assertTrue(check_object_name("my_module.my_model"))
+        self.assertTrue(is_valid_object_name("my_module.my_model"))
 
     def test_valid_with_numbers(self):
-        self.assertTrue(check_object_name("l10n_mx.tax_rate"))
+        self.assertTrue(is_valid_object_name("l10n_mx.tax_rate"))
 
     def test_rejects_uppercase(self):
-        self.assertFalse(check_object_name("Res.Partner"))
+        self.assertFalse(is_valid_object_name("Res.Partner"))
 
     def test_rejects_spaces(self):
-        self.assertFalse(check_object_name("res partner"))
+        self.assertFalse(is_valid_object_name("res partner"))
 
     def test_rejects_hyphens(self):
-        self.assertFalse(check_object_name("res-partner"))
+        self.assertFalse(is_valid_object_name("res-partner"))
 
     def test_rejects_empty(self):
-        self.assertFalse(check_object_name(""))
+        self.assertFalse(is_valid_object_name(""))
 
     def test_rejects_lone_dot(self):
-        self.assertFalse(check_object_name("."))
-        self.assertFalse(check_object_name(".."))
-        self.assertFalse(check_object_name("..."))
+        self.assertFalse(is_valid_object_name("."))
+        self.assertFalse(is_valid_object_name(".."))
+        self.assertFalse(is_valid_object_name("..."))
 
     def test_rejects_leading_dot(self):
-        self.assertFalse(check_object_name(".res"))
-        self.assertFalse(check_object_name(".res.partner"))
+        self.assertFalse(is_valid_object_name(".res"))
+        self.assertFalse(is_valid_object_name(".res.partner"))
 
     def test_rejects_trailing_dot(self):
-        self.assertFalse(check_object_name("res."))
-        self.assertFalse(check_object_name("res.partner."))
+        self.assertFalse(is_valid_object_name("res."))
+        self.assertFalse(is_valid_object_name("res.partner."))
 
     def test_rejects_consecutive_dots(self):
-        self.assertFalse(check_object_name("res..partner"))
-        self.assertFalse(check_object_name("a..b..c"))
+        self.assertFalse(is_valid_object_name("res..partner"))
+        self.assertFalse(is_valid_object_name("a..b..c"))
 
     def test_rejects_leading_digit(self):
-        self.assertFalse(check_object_name("1invalid"))
-        self.assertTrue(check_object_name("res.1invalid"))
+        self.assertFalse(is_valid_object_name("1invalid"))
+        self.assertTrue(is_valid_object_name("res.1invalid"))
 
     def test_accepts_leading_underscore(self):
-        self.assertTrue(check_object_name("_internal"))
-        self.assertTrue(check_object_name("module._internal"))
+        self.assertTrue(is_valid_object_name("_internal"))
+        self.assertTrue(is_valid_object_name("module._internal"))
 
 
 class TestRegistrationValidatorsSurviveOptO(TransactionCase):
@@ -124,13 +124,13 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
             cls._setup_done__ = original_done
 
 
-class TestRaiseOnInvalidObjectName(TransactionCase):
+class TestCheckObjectName(TransactionCase):
     def test_valid_name_no_error(self):
-        raise_on_invalid_object_name("res.partner")
+        check_object_name("res.partner")
 
     def test_invalid_name_raises(self):
-        with self.assertRaises(ValueError):
-            raise_on_invalid_object_name("Invalid Name!")
+        with self.assertRaises(ValidationError):
+            check_object_name("Invalid Name!")
 
 
 class TestCheckPgName(TransactionCase):
@@ -164,25 +164,42 @@ class TestCheckPgName(TransactionCase):
             check_pg_name("camelCase")
 
 
-class TestCheckMethodName(TransactionCase):
+class TestPrivateMethodsAreNotCallableRemotely(TransactionCase):
+    """The RPC gate is ``service.model.get_public_method``, not a name check.
+
+    These assertions used to run against ``orm.validation.check_method_name``,
+    a Layer-0 helper with no production caller that raised the same
+    "cannot be called remotely" AccessError and so read as the authoritative
+    check. It was strictly weaker: it knew nothing of ``@api.private`` or of
+    ``safe_eval``'s unsafe-attribute list, so it ALLOWED ``browse`` -- which
+    the real gate blocks. Deleted 2026-08-09; its coverage lives here, against
+    the code that actually decides.
+    """
+
+    def _method(self, name):
+        return get_public_method(self.env["res.partner"], name)
+
     def test_public_method_allowed(self):
-        check_method_name("read")
+        self._method("read")
 
     def test_private_method_blocked(self):
         with self.assertRaises(AccessError):
-            check_method_name("_private_method")
+            self._method("_private_method_that_does_not_exist")
 
     def test_dunder_method_blocked(self):
         with self.assertRaises(AccessError):
-            check_method_name("__dunder__")
+            self._method("__init__")
 
     def test_init_blocked(self):
+        """``init`` is public by name; ``@api.private`` on ``BaseModel.init``
+        is what blocks it, and the MRO walk covers every addon override."""
         with self.assertRaises(AccessError):
-            check_method_name("init")
+            self._method("init")
 
-    def test_public_with_numbers(self):
-        check_method_name("action_confirm_2")
-
-    def test_private_with_embedded_newline_blocked(self):
+    def test_api_private_method_blocked(self):
         with self.assertRaises(AccessError):
-            check_method_name("_secret\nx")
+            self._method("browse")
+
+    def test_unknown_method_is_an_attribute_error(self):
+        with self.assertRaises(AttributeError):
+            self._method("no_such_method_at_all")

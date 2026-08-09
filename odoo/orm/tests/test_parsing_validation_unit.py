@@ -1,16 +1,16 @@
 import pytest
 
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import ValidationError
 from odoo.orm.parsing import (
     _PARSE_CACHE_MAXSIZE,
     fix_import_export_id_paths,
     parse_field_expr,
 )
 from odoo.orm.validation import (
-    check_method_name,
     check_object_name,
     check_pg_name,
     is_manual_name,
+    is_valid_object_name,
 )
 
 
@@ -111,35 +111,11 @@ class TestCheckPgName:
     def test_trailing_newline_is_rejected(self):
         with pytest.raises(ValidationError, match="Invalid characters"):
             check_pg_name("name\n")
-        assert check_object_name("res.partner\n") is False
+        assert is_valid_object_name("res.partner\n") is False
 
     def test_length_is_checked_after_characters(self):
         with pytest.raises(ValidationError, match="Invalid characters"):
             check_pg_name("A" * 64)
-
-
-class TestCheckMethodName:
-    @pytest.mark.parametrize("name", ["read", "write", "search_read", "create"])
-    def test_public_names_pass(self, name):
-        assert check_method_name(name) is None
-
-    @pytest.mark.parametrize(
-        "name",
-        [
-            "init",
-            "_private",
-            "_",
-            "__init__",
-            "_secret\nx",
-            "_secret\n",
-        ],
-    )
-    def test_private_and_init_rejected(self, name):
-        with pytest.raises(AccessError, match="cannot be called remotely"):
-            check_method_name(name)
-
-    def test_init_only_matches_exactly(self):
-        assert check_method_name("initialize") is None
 
 
 class TestObjectAndManualNames:
@@ -156,8 +132,27 @@ class TestObjectAndManualNames:
             ("res.partner.", False),
         ],
     )
-    def test_check_object_name(self, name, ok):
-        assert check_object_name(name) is ok
+    def test_is_valid_object_name(self, name, ok):
+        assert is_valid_object_name(name) is ok
+
+    @pytest.mark.parametrize(
+        ("name", "ok"),
+        [
+            ("res.partner", True),
+            ("base", True),
+            ("Res.Partner", False),
+            ("res..partner", False),
+        ],
+    )
+    def test_check_object_name_raises_where_the_predicate_is_false(self, name, ok):
+        """The raising half of the pair, and the same ValidationError as
+        ``check_pg_name`` -- it raised ``ValueError`` under its old name
+        ``raise_on_invalid_object_name`` until 2026-08-09."""
+        if ok:
+            assert check_object_name(name) is None
+        else:
+            with pytest.raises(ValidationError, match="is not valid"):
+                check_object_name(name)
 
     def test_is_manual_name(self):
         assert is_manual_name("x_custom_field")

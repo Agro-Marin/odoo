@@ -16,7 +16,7 @@ from werkzeug.exceptions import BadRequest
 
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.models import check_object_name
+from odoo.models import is_valid_object_name
 from odoo.tools.safe_eval import safe_eval
 
 
@@ -100,7 +100,7 @@ def get_default_domain(model, action, context, eval_context):
             for key, value in context.items():
                 if key.startswith("search_default_") and value:
                     filter_name = key[15:]
-                    if not check_object_name(filter_name):
+                    if not is_valid_object_name(filter_name):
                         raise ValueError(
                             model.env._(
                                 "Invalid default search filter name for %s", key
