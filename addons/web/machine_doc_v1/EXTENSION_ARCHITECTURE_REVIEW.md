@@ -266,7 +266,49 @@ ungated module would lock past ~66%, and the ones that matter sit at 24–50%, s
 it is a cleanup effort rather than a switch. The cost is now derivable per
 module instead of guessed.
 
-P2, P3, P4 and P6 are unstarted.
+**P2 is started**: five private override points promoted — three on `GraphModel`
+(hr_holidays, project) and two on `SearchModel` (crm, documents). 28 → 23
+remain. Each was a deliberate `super`-calling override whose underscore said
+"internal" when the usage said "extension point".
+
+P3, P4 and P6 are unstarted.
+
+### What promoting one actually costs — and the two traps
+
+The procedure that made these safe, in order, because two of the steps caught
+something the others would have missed:
+
+1. **Confirm the consumer set from the pin, not from grep.** A bare `_reset(`
+   matches `signature_pad` and `socket_io`; only the resolved walk knows.
+2. **Check for `patch()` on the owner, including from `enterprise`.** A
+   cross-repo break cannot be committed atomically. `SearchModel` is patched by
+   `enterprise/ai` (`validateField`, `applyAISearch`, `load`) and
+   `enterprise/pos_appointment` (`facets`) — neither touching the two renamed.
+3. **Check for a patch *factory*.** `GraphModel._getProcessedDataPoints` looked
+   identical to its three renamed siblings and is the one that must not move:
+   `hr_timesheet` reaches it through
+   `export function patchGraphModel(Model) { patch(Model.prototype, …) }`, where
+   the patched class is the caller's argument. No static analysis sees that, and
+   a rename would break it *silently* — a patch matching nothing is
+   indistinguishable from one that has not run yet.
+4. **Check the name is not shared by another class.** `GraphModel._prepareData`
+   and `PivotModel._prepareData` are different methods; a pattern-wide rename
+   would have hit pivot. Scope the edit per file.
+5. **Check the artifact chain first.** `RelationalModel._updateSimilarRecords`
+   is a legitimate promote and still unstarted, because it touches eight
+   artifacts: definition, two call sites, the contract array *and* its typedef,
+   the consumer, `js_private_access`'s MEASURED block, the `jsprivate.json`
+   ratchet floor, and a hand-written "7 privates over 53 accesses" figure in the
+   contract docstring. For two accesses out of 247 that only pays as a batch.
+6. **Baseline the suite before and after**, and re-run any failure on unmodified
+   HEAD. The `--affected` run for the SearchModel change reported three failures
+   in `search_panel_desktop/concurrency`; the identical suite set on untouched
+   HEAD reported the same three, so they are pre-existing and
+   combination-dependent.
+
+Neither `BurndownChartModel` nor `HrHolidaysGraphModel` has a single JS test
+naming it, so step 6 covers `web`'s side only. F9 is not a survey result; it is
+what these two changes actually ran into.
 
 ### P1 — Declare and gate the extension surface *(done)*
 
