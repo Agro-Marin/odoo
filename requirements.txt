@@ -21,10 +21,74 @@
 #
 # Four pins are deliberately held below their latest release. Each needs work
 # these lines cannot carry on their own, so bump them one at a time, not in a
-# sweep:
-#   cbor2 (6.x)         major; auth_passkey's vendored webauthn decodes with it
-#   cryptography (50.x) four majors across 54 call sites
-#   pyopenssl (26.x)    major. It is load-bearing, not legacy cruft: mail
+# sweep — EXCEPT cryptography and pyopenssl, which cannot move independently at
+# all. pyopenssl's metadata pins the cryptography range hard, so the pair is one
+# decision, not two:
+#
+#     pyopenssl 25.3.0  requires cryptography <47,>=45.0.7   <-- where we are
+#     pyopenssl 26.0.0  requires cryptography <47,>=46.0.0
+#     pyopenssl 26.1.0  requires cryptography <48,>=46.0.0
+#     pyopenssl 26.2.0  requires cryptography <49,>=46.0.0
+#     pyopenssl 26.3.0  requires cryptography <50,>=49.0.0
+#     pyopenssl 26.4.0  requires cryptography <51,>=49.0.0
+#
+# So cryptography 46.x is a CEILING while pyopenssl sits at 25.3.0 — no
+# cryptography advisory fixed in 47.x or later is reachable without moving
+# pyopenssl first, whatever the cryptography note below says a fix version is.
+# Read the ladder before planning either bump.
+#
+# A hold is not a licence to sit on a known vulnerability. Each of the four is
+# therefore pinned to the HIGHEST release inside the major it is held at, and
+# what the remaining hold still costs in unpatched advisories is recorded with
+# it. Re-check that when you revisit one — an advisory landing inside a held
+# major moves the pin, and only leaving the major is a project.
+#   cbor2 (6.x)         major; auth_passkey's vendored webauthn decodes with it.
+#                       Nothing outstanding: 5.9.0 fixes GHSA-3c37-wwvx-h642
+#                       (HIGH, uncontrolled recursion in cbor2.loads), which
+#                       _vendor/webauthn/helpers/parse_cbor.py reaches with
+#                       attacker-supplied bytes from an unauthenticated
+#                       endpoint. 5.8.0 was not a tenable floor for that path.
+#   cryptography (50.x) four majors across 54 call sites. 46.0.7 ends the 46.x
+#                       line and clears three of the seven advisories open
+#                       against 46.0.4: GHSA-r6ph-v2qm-q3c2 (HIGH, missing
+#                       subgroup validation on SECT curves), GHSA-p423-j2cm-9vmq
+#                       (MODERATE, buffer overflow on non-contiguous buffers)
+#                       and GHSA-m959-cc7f-wv43 (LOW, DNS name constraints).
+#                       Four need a major and are the standing cost of the hold:
+#                       GHSA-537c-gmf6-5ccf (HIGH, vulnerable OpenSSL in the
+#                       wheels) at 48.0.1; GHSA-jwv3-5hgf-82ww (HIGH,
+#                       exponential path-building) and GHSA-m2h6-j472-rp4c
+#                       (MODERATE, wildcard escape from permittedSubtrees) at
+#                       49.0.0; GHSA-g6cj-pr64-35w5 (HIGH, Bleichenbacher oracle
+#                       in PKCS#7 EnvelopedData decryption) at 50.0.0. None of
+#                       those four is reachable on its own: pyopenssl 25.3.0
+#                       caps this at <47, so the first of them costs a pyopenssl
+#                       bump too. See the ladder above.
+#   pyopenssl (26.x)    major, and the one hold with no patch available inside
+#                       it: GHSA-5pwr-322w-8jr4 (HIGH, DTLS cookie callback
+#                       buffer overflow) and GHSA-vp96-hxj8-p424 (LOW, TLS
+#                       bypass via an unhandled servername-callback exception)
+#                       are both fixed only in 26.0.0, so 25.3.0 carries them
+#                       until the major lands. Per the ladder above, 26.0.0
+#                       accepts the cryptography 46.0.7 already pinned here, so
+#                       this is the one rung that needs no companion bump — and
+#                       every pyopenssl API this fork uses was probed against
+#                       26.0.0 and is unchanged (OpenSSL.crypto.Error,
+#                       OpenSSL.SSL.Error, VERIFY_PEER,
+#                       VERIFY_FAIL_IF_NO_PEER_CERT, X509, X509Store,
+#                       X509StoreContext, X509StoreContextError,
+#                       urllib3.contrib.pyopenssl's PyOpenSSLContext /
+#                       get_subj_alt_name / inject_into_urllib3, and
+#                       use_certificate() / use_privatekey() on in-memory
+#                       material). The only call site that breaks on 26.0.0 —
+#                       l10n_it_edi/tools/remove_signature.py, which reaches
+#                       into OpenSSL._util.lib for PKCS7_verify — is ALREADY
+#                       broken on 25.3.0: cryptography no longer compiles the
+#                       PKCS7_* CFFI bindings and pyopenssl no longer exports
+#                       load_pkcs7_data, so that strategy raises AttributeError
+#                       either way and its suppress(Exception) hides it. It is
+#                       not a blocker for this bump; it is its own defect.
+#                       pyopenssl is load-bearing, not legacy cruft: mail
 #                       servers store certificate material in the database and
 #                       base/ir_mail_server.py feeds it to a PyOpenSSLContext
 #                       via _ctx.use_certificate()/use_privatekey(), which
@@ -34,7 +98,8 @@
 #                       webauthn (chain validation), certificate/, l10n_it_edi
 #                       (PKCS#7 via private OpenSSL APIs) and enterprise
 #                       l10n_nl_reports. Removing it is a project, not a bump.
-#   reportlab (5.x)     major; PDF output needs visual comparison
+#   reportlab (5.x)     major; PDF output needs visual comparison. No advisory
+#                       open against 4.4.10 — this hold costs nothing today.
 # Looks stale (last release 2022) and looks like it duplicates `cryptography`.
 # It does neither — it is a declarative ASN.1 schema library, which cryptography
 # deliberately is not, and all three consumers need exactly that:
@@ -53,19 +118,50 @@ asn1crypto==1.5.1
 Babel==2.18.0
 beautifulsoup4==4.15.0  # odoo/_monkeypatches/bs4.py, html_editor
 blake3==1.0.9  # content/cache digests (odoo/tools/hashing.py)
-cbor2==5.8.0  # web/auth_passkey. auto_install, and odoo/modules/db.py marks the
+cbor2==5.9.0  # web/auth_passkey. auto_install, and odoo/modules/db.py marks the
               # auto-install closure in raw SQL without consulting
               # external_dependencies — so the manifest declaration alone would
               # not fire, and the pin has to stay global.
-cryptography==46.0.4
+cryptography==46.0.7
+# WeasyPrint installs cssselect2 and fonttools, but base/ir_actions_report.py
+# imports both directly — cssselect2 unguarded at module scope, to bound
+# selector-matching depth by replacing cssselect2.compiler._compile_node — so
+# they are ours to declare, not WeasyPrint's to supply. A transitive dependency
+# is not a contract: a WeasyPrint release that drops or renames either would
+# break `base` at import time with nothing in this file to explain it. Pinning
+# them adds no install weight, since weasyprint above already pulls both.
+cssselect2==0.9.0  # base/ir_actions_report.py imports it unguarded
 docutils==0.23  # base renders module descriptions through it (ir_module)
+# Guarded and function-local at every call site (odoo/tools/pdf/__init__.py warns
+# that output may not be PDF/A compliant without it; ir_actions_report reaches it
+# only on the tolerant-font retry), so this is a *declaration* of a direct import
+# rather than a new requirement — see the cssselect2 note above.
+fonttools==4.63.0  # odoo/tools/pdf/, base/ir_actions_report.py
 geoip2==5.3.0  # odoo/http/geoip.py
 idna==3.18
 lxml==6.1.1
 lxml-html-clean  # (removed from lxml, unpinned for future security patches)
 MarkupSafe==3.0.3
+# geoip.py imports maxminddb directly, in the same try as geoip2, and uses it at
+# module scope: _GEOIP_DB_ERRORS is built from maxminddb.InvalidDatabaseError.
+# It arrives today only because geoip2 declares maxminddb>=3.0.0,<4.0.0 — the
+# same "a transitive dependency is not a contract" case as cssselect2 above, and
+# the pin adds no install weight since geoip2 already pulls it. Guarded, so its
+# absence degrades geoip to the null object rather than failing the import; the
+# pin is here rather than left implicit because geoip2 itself is pinned here on
+# exactly that footing.
+maxminddb==3.1.1  # odoo/http/geoip.py
 num2words==0.5.14  # base/res_currency.py imports it unguarded
 orjson==3.11.9
+# odoo/modules/module.py parses `external_dependencies` version specifiers with
+# it. The import is guarded and the fallback is deliberate and loud — it accepts
+# a bare package name and raises ImportError naming `packaging` for anything
+# carrying a specifier, and no manifest in this fork uses one today — so this
+# pin declares a direct framework import rather than fixing a live defect. It
+# also stops the fallback from being reached by accident: `packaging` currently
+# arrives only as a transitive of pip/setuptools, which a wheel-only deployment
+# need not have.
+packaging==26.3
 Pillow==12.3.0
 polib==1.2.0
 # The <8 cap is preemptive, not a hold: 7.35.1 is the current release and this

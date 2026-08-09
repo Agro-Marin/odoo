@@ -33,18 +33,27 @@ Depends:
  python3-bs4,
  python3-cbor2,
  python3-cryptography,
+ python3-cssselect2,
  python3-dateutil,
  python3-docutils,
+# Both are pulled in by weasyprint below, but base/ir_actions_report.py imports
+# them directly — cssselect2 unguarded — so they are declared here rather than
+# left to another package's dependency tree.
+ python3-fonttools,
  python3-geoip2,
  python3-idna,
  python3-pil,
- python3-jinja2,
 # After lxml 5.2, lxml-html-clean is in a separate package
  python3-lxml-html-clean | python3-lxml,
  python3-magic,
  python3-markupsafe,
+# Pulled in by python3-geoip2, but http/geoip.py imports it directly and builds
+# _GEOIP_DB_ERRORS from maxminddb.InvalidDatabaseError — declared here for the
+# same reason as cssselect2 and fonttools above.
+ python3-maxminddb,
  python3-num2words,
  python3-orjson,
+ python3-packaging,
  python3-polib,
  python3-psutil,
  python3-protobuf,
@@ -89,6 +98,14 @@ Recommends:
  python3-vobject,
  python3-xlrd,
  python3-zeep,
+# `odoo-bin scaffold` is the only consumer of Jinja2, and cli/scaffold.py imports
+# it lazily, so a server never reaches it — it was in Depends until 19.0-marin,
+# which put a developer command's dependency on every .deb install. Suggests
+# rather than Recommends because, unlike the addon dependencies above, nothing an
+# installed server does will ever want it. setup.py offers the same as the
+# `scaffold` extra.
+Suggests:
+ python3-jinja2,
 Description: Open Source Apps To Grow Your Business
  Odoo, formerly known as OpenERP, is a suite of open-source business apps
  written in Python and released under the LGPLv3 license. This suite of

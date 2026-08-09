@@ -52,14 +52,24 @@ setup(
         "blake3",
         "cbor2",
         "cryptography",
+        # Both arrive with weasyprint, but base/ir_actions_report.py imports
+        # them directly — cssselect2 unguarded at module scope. Declared for the
+        # reason recorded in requirements.txt: a transitive dependency is not a
+        # contract.
+        "cssselect2",
         "docutils",
+        "fonttools",
         "geoip2",
         "idna",
         "lxml",  # windows binary http://www.lfd.uci.edu/~gohlke/pythonlibs/
         "lxml_html_clean",
         "MarkupSafe",
+        # http/geoip.py imports it directly, not only through geoip2.
+        "maxminddb",
         "num2words",
         "orjson",
+        # modules/module.py parses external_dependencies specifiers with it.
+        "packaging",
         "pillow",  # windows binary http://www.lfd.uci.edu/~gohlke/pythonlibs/
         "polib",
         # Bounded for the reason recorded in requirements.txt: the vendored SCSS
