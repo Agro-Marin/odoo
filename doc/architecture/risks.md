@@ -13,36 +13,55 @@ Entries are dated because a risk that is never re-checked becomes folklore.
 risk entry, it is a question — those live at the bottom of the view that owns
 the subject, under *what this view does not cover*.
 
-| # | Risk | Severity | Opened |
-|---|---|---|---|
-| R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 |
-| R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 |
-| R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 |
-| R4 | "Enforced" means structural only — 24 gates cannot see behaviour | High | 2026-08-08 |
-| R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 |
-| R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 |
-| R7 | Every measured figure is single-process; contention is unmeasured | Medium | 2026-08-08 |
+| # | Risk | Severity | Opened | Closed |
+|---|---|---|---|---|
+| R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
+| R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
+| R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — 24 gates cannot see behaviour | High | 2026-08-08 | — |
+| R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | — |
+| R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
+| R7 | Every measured figure is single-process; contention is unmeasured | Medium | 2026-08-08 | — |
 
 ---
 
-## R1 — `Registry._relation_reflections` has an undeclared lifetime
+## R1 — `Registry._relation_reflections` has an undeclared lifetime — **CLOSED 2026-08-09**
 
-**What.** The attribute is created inside `init_models`' `try:` and `del`-eted in
-its `finally:`, so it exists *only* for the duration of that call. Layer 1
-(`fields/relational/many2many.py`) mutates it, which works solely because
+**What.** The attribute was created inside `init_models`' `try:` and `del`-eted
+in its `finally:`, so it existed *only* for the duration of that call. Layer 1
+(`fields/relational/many2many.py`) mutated it, which worked solely because
 `update_db` runs inside that window.
 
-**Evidence.** `pool_surface_check.py`; written up in
-[`module.md`](module.md#coupling-the-import-graph-cannot-see).
+**Evidence.** `pool_surface_check.py`, where it was the first pinned violation;
+written up in [`module.md`](module.md#coupling-the-import-graph-cannot-see).
 
-**Cost if it breaks.** Nothing declares the ordering, and nothing but an
-`AttributeError` during module installation would catch a violation — i.e. it
+**Cost if it broke.** Nothing declared the ordering, and nothing but an
+`AttributeError` during module installation would have caught a violation — it
 fails at install time, in the field, not in CI.
 
-**What would close it.** Make the lifetime explicit rather than implicit: pass
-the reflection map through the call chain, or give it a context manager whose
-scope is the guarantee. Either makes the dependency visible to a reader and to a
-type checker.
+**How it was closed.** It was **four** attributes, not one: `_post_init_queue`,
+`_foreign_keys`, `_relation_reflections` and `_is_install` shared the lifetime,
+reached from five Layer-1 sites and the schema mixin, plus four `post_init`
+calls from `addons/base`. All four are now fields of one `InitModelsPhase`
+(`orm/runtime/_init_phase.py`) held as a single nullable `Registry._init_phase`
+and read through the `init_phase` property, which raises a `RuntimeError`
+naming the window and its purpose when the phase is closed. Layer 1's one
+direct write became `pool.add_relation_reflection(...)`.
+
+The strongest evidence that this was a defect and not a style was the
+workaround already in the tree: `orm/runtime/_registry_stubs.py`, a class whose
+entire body is `if TYPE_CHECKING:` declarations, inherited so mypy could see
+attributes with no honest definition site — listing `_foreign_keys` and
+`_is_install` beside genuinely permanent members and erasing the one
+distinction that mattered. Both entries are gone from it.
+
+Pinned by `odoo/orm/tests/test_init_models_phase.py`, which asserts the named
+error on all three entry points outside the window.
+
+**Note on the register.** This is the first risk to close, so it sets the
+convention: the row keeps its number and gains a `Closed` date, and the section
+is rewritten in the past tense with a *How it was closed* paragraph. Risks are
+not deleted — a closed risk is the evidence that the register is read.
 
 ## R2 — The layering is true of imports and false of the runtime graph
 

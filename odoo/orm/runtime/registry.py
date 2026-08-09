@@ -28,6 +28,7 @@ from odoo.tools.misc import Collector, format_frame
 from .. import registration
 from ..components.model_graph import ModelGraph
 from ..primitives import SUPERUSER_ID
+from ._init_phase import InitModelsPhase
 from ._registry_fields import _RegistryFieldsMixin
 from ._registry_schema import _RegistrySchemaMixin
 
@@ -307,6 +308,7 @@ class Registry(
         self._ordinary_tables: dict[str, bool] = {}
         self._constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]] = {}
         self._caches = _RegistryCaches()
+        self._init_phase: InitModelsPhase | None = None
 
         self._reinit_modules: set[str] = set()
 
@@ -607,8 +609,43 @@ class Registry(
             self._ensure_field_triggers()
             env.flush_all()
 
+    @property
+    def init_phase(self) -> InitModelsPhase:
+        """The open :meth:`init_models` window, or a named error.
+
+        Reached from Layer 1 (``fields/base.py``, ``fields/relational/*``) and
+        from ``addons/base``, all of which run *inside* ``init_models`` and
+        none of which says so. Before this existed, calling one of them outside
+        the window raised ``AttributeError: 'Registry' object has no attribute
+        '_post_init_queue'``, which names neither the caller's mistake nor the
+        rule it broke.
+        """
+        if self._init_phase is None:
+            raise RuntimeError(
+                "Registry.init_phase is only available while init_models() is "
+                "running: it holds state for one module-initialisation pass "
+                "(the post-init queue, the foreign keys to reconcile, the "
+                "many2many relations to reflect). A caller reaching it outside "
+                "that window -- typically a field's update_db() run at some "
+                "other time -- is the bug."
+            )
+        return self._init_phase
+
     def post_init(self, func: Callable, *args, **kwargs) -> None:
-        self._post_init_queue.append(partial(func, *args, **kwargs))
+        """Defer *func* until every model's table exists (see :attr:`init_phase`)."""
+        self.init_phase.post_init_queue.append(partial(func, *args, **kwargs))
+
+    def add_relation_reflection(
+        self, model_name: str, relation: str, module: str
+    ) -> None:
+        """Record a many2many relation table for ``ir.model.relation``.
+
+        A method rather than a bare set, so Layer 1 states its intent instead
+        of mutating registry internals: ``fields/relational/many2many.py`` used
+        to do ``model.pool._relation_reflections.add(...)``, the one *direct
+        write* into the phase from outside this module.
+        """
+        self.init_phase.relation_reflections.add((model_name, relation, module))
 
     def init_models(
         self,
@@ -634,12 +671,7 @@ class Registry(
         models = [env[model_name] for model_name in model_names]
 
         try:
-            self._post_init_queue: deque[Callable] = deque()
-            self._foreign_keys: dict[
-                tuple[str, str], tuple[str, str, str, BaseModel, str]
-            ] = {}
-            self._relation_reflections: OrderedSet[tuple[str, str, str]] = OrderedSet()
-            self._is_install: bool = install
+            self._init_phase = InitModelsPhase(install=install)
 
             for model in models:
                 model._auto_init()
@@ -650,13 +682,15 @@ class Registry(
             env["ir.model.fields.selection"]._reflect_selections(model_names)
             env["ir.model.constraint"]._reflect_constraints(model_names)
             env["ir.model.inherit"]._reflect_inherits(model_names)
-            env["ir.model.relation"]._reflect_relations(self._relation_reflections)
+            env["ir.model.relation"]._reflect_relations(
+                self.init_phase.relation_reflections
+            )
 
             self._ordinary_tables = {}
 
-            while self._post_init_queue:
-                func = self._post_init_queue.popleft()
-                func()
+            post_init_queue = self.init_phase.post_init_queue
+            while post_init_queue:
+                post_init_queue.popleft()()
 
             self.check_indexes(cr, model_names)
             self.check_foreign_keys(cr)
@@ -666,10 +700,7 @@ class Registry(
             self.check_tables_exist(cr)
 
         finally:
-            del self._post_init_queue
-            del self._foreign_keys
-            del self._relation_reflections
-            del self._is_install
+            self._init_phase = None
 
     def _clear_cache_group(self, cache_name: str) -> None:
         self._caches.clear_group(cache_name)

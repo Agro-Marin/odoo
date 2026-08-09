@@ -111,7 +111,8 @@ Four of those — `env_surface_check.py`, `pool_surface_check.py`,
 **What they found is architecture and lives in
 [*Coupling the import graph cannot see*](module.md#coupling-the-import-graph-cannot-see):**
 the runtime-channel inversion that makes the layering true of imports and false
-of the runtime graph, the `Registry._relation_reflections` ordering hazard, the
+of the runtime graph, the `init_models` ordering hazard (the
+`Registry._relation_reflections` instance of it is fixed; the shape is not), the
 closed set of addon-owned model names, and the ORM's freedom from cycles. What
 follows here is only how those four are *driven*.
 

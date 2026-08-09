@@ -90,7 +90,12 @@ class TestRegistryMembers(unittest.TestCase):
         # init_models rather than in the class body. Missing them would make the
         # gate report false "does not exist" failures on real code.
         members = psc.registry_members()
-        for name in ("_relation_reflections", "_post_init_queue", "_foreign_keys"):
+        # These were ``_relation_reflections``/``_post_init_queue``/
+        # ``_foreign_keys``, created inside ``init_models`` and deleted in its
+        # ``finally``; they became one ``_init_phase`` object on 2026-08-09, so
+        # the discovery mechanism is exercised through members that still have
+        # that shape.
+        for name in ("_init_phase", "_ordinary_tables", "many2many_relations"):
             self.assertIn(name, members, f"{name} not discovered on Registry")
 
     def test_mapping_interface_is_included(self):

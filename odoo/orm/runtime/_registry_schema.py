@@ -32,7 +32,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
             else:
                 self._constraint_queue[key] = func
         except Exception as e:
-            if self._is_install:
+            if self.init_phase.install:
                 _schema.error("%s", e)
             else:
                 _schema.info("%s", e)
@@ -200,16 +200,18 @@ class _RegistrySchemaMixin(_RegistryStubs):
     ) -> None:
         key = (table1, column1)
         val = (table2, column2, ondelete, model, module)
+        foreign_keys = self.init_phase.foreign_keys
         if force:
-            self._foreign_keys[key] = val
+            foreign_keys[key] = val
         else:
-            self._foreign_keys.setdefault(key, val)
+            foreign_keys.setdefault(key, val)
 
     def check_foreign_keys(self, cr: Cursor) -> None:
-        if not self._foreign_keys:
+        foreign_keys = self.init_phase.foreign_keys
+        if not foreign_keys:
             return
 
-        tablenames = {table for table, column in self._foreign_keys}
+        tablenames = {table for table, column in foreign_keys}
         existing = {
             (table1, column1): (name, table2, column2, deltype)
             for name, table1, column1, table2, column2, deltype in sql.get_fk_constraints_batch(
@@ -217,7 +219,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
             )
         }
 
-        for key, val in self._foreign_keys.items():
+        for key, val in foreign_keys.items():
             table1, column1 = key
             table2, column2, ondelete, model, module = val
             deltype = sql._CONFDELTYPES[ondelete.upper()]

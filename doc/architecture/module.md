@@ -413,14 +413,30 @@ blast radius for a change to `Environment` or `Registry`. Pinned by
 from the shared `tooling/architecture/_orm_layer_scope.py`, so the two cannot
 drift apart.
 
-**One runtime member exists only inside a single call, and Layer 1 mutates
-it.** `Registry._relation_reflections` is created inside `init_models`' `try:`
-and `del`-eted in its `finally:`, so it exists only for the duration of that
-call — and `fields/relational/many2many.py` writes to it from Layer 1, which
-works solely because `update_db` runs inside that window. **Nothing declares
-that ordering**, and nothing but an `AttributeError` during module installation
-would catch its violation. It is the sharpest temporal coupling in the ORM and
-the one least visible to every structural gate in this document.
+**Four runtime members existed only inside a single call, and Layer 1 mutated
+one of them.** Until 2026-08-09 `Registry` created `_post_init_queue`,
+`_foreign_keys`, `_relation_reflections` and `_is_install` inside `init_models`'
+`try:` and `del`-eted them in its `finally:`, so they existed only for the
+duration of that call — and `fields/relational/many2many.py` wrote to the third
+from Layer 1, which worked solely because `update_db` runs inside that window.
+Nothing declared the ordering, and nothing but an `AttributeError` during module
+installation would have caught a violation. This page documented one of the
+four; `pool_surface_check.py` pinned that one as a known violation, and the
+other three were reached only through public methods, which is what made them
+look unremarkable.
+
+They are now one `InitModelsPhase` (`orm/runtime/_init_phase.py`) behind
+`Registry.init_phase`, a property that raises a `RuntimeError` naming the window
+when it is closed, and Layer 1 calls `pool.add_relation_reflection(...)`. The
+lifetime is one nullable attribute that can be declared, so
+`orm/runtime/_registry_stubs.py` — the `if TYPE_CHECKING:`-only class that
+existed partly to give those attributes a definition site — no longer carries
+them. See [`risks.md`](risks.md) R1, the register's first closed entry.
+
+**The temporal-coupling shape itself is not gone**, which is the part worth
+keeping: `registration.py` still reads `Registry._init_modules` for the same
+reason (model setup asking whether an install is in flight), pinned in
+`pool_surface_check.py` with the same remediation — a public predicate.
 
 **The set of addon-owned models the framework may name is closed.** The
 framework's largest real coupling to its consumer produces no import edge

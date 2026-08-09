@@ -42,19 +42,29 @@ WHAT IS ENFORCED
 3. **``components/`` must not touch ``pool`` at all** — the runtime half of the
    purity claim ``orm-components-are-pure-python`` makes about imports.
 
-WHY THE PRIVATE REACH IS WORSE THAN IT LOOKS
---------------------------------------------
+WHY A PRIVATE REACH CAN BE WORSE THAN IT LOOKS
+----------------------------------------------
 
-``Registry._relation_reflections`` is not merely private. It is created inside
-``Registry.init_models``' ``try:`` and ``del``-eted in its ``finally:``, so it
-exists **only for the duration of that call**. ``orm/fields/relational/
-many2many.py`` mutates it from Layer 1, which works solely because
-``update_db`` runs inside that window via ``model._auto_init()``. Nothing
-declares that ordering contract, and nothing would catch its violation except an
-``AttributeError`` during module installation. Three sibling attributes
-(``_post_init_queue``, ``_foreign_keys``, ``_is_install``) share the lifecycle
-but are reached only through public methods (``post_init``, ``add_foreign_key``),
-which is what this one should do too.
+This gate's first pinned violation is worth keeping as the worked example, now
+that it is paid off. ``Registry._relation_reflections`` was not merely private:
+it was created inside ``Registry.init_models``' ``try:`` and ``del``-eted in its
+``finally:``, so it existed **only for the duration of that call**, and
+``orm/fields/relational/many2many.py`` mutated it from Layer 1 -- which worked
+solely because ``update_db`` runs inside that window via
+``model._auto_init()``. Nothing declared the ordering, and nothing would have
+caught a violation except an ``AttributeError`` during module installation.
+
+Three siblings (``_post_init_queue``, ``_foreign_keys``, ``_is_install``)
+shared the lifecycle; two were already reached through public methods
+(``post_init``, ``add_foreign_key``), which is what this entry's remediation
+note asked for.
+
+Fixed 2026-08-09, and more thoroughly than the note proposed: all four became
+one ``InitModelsPhase`` behind ``Registry.init_phase``, which raises a named
+``RuntimeError`` outside the window rather than an ``AttributeError`` naming a
+private attribute, and Layer 1 calls ``pool.add_relation_reflection(...)``. The
+pin is what made that a scheduled fix against a written remediation instead of
+a rediscovery.
 
 WHAT IS NOT ENFORCED
 --------------------
@@ -132,16 +142,6 @@ class Known:
 
 
 KNOWN_VIOLATIONS: tuple[Known, ...] = (
-    Known(
-        "odoo/orm/fields/relational/many2many.py",
-        "_relation_reflections",
-        "Layer 1 mutates a Registry attribute that only EXISTS between the try "
-        "and the finally of Registry.init_models. Many2many.update_db records "
-        "the relation table so ir.model.relation._reflect_relations can persist "
-        "it. Debt with a clear fix: give Registry a public "
-        "`record_relation_reflection(...)` method, as post_init/add_foreign_key "
-        "already do for the sibling lifecycle attributes.",
-    ),
     # The three below were invisible until `orm/registration.py` entered the
     # scope (see _orm_layer_scope). They are the exact hazard this gate was
     # built for: `layer_check`'s
@@ -154,8 +154,9 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
         "_init_modules",
         "Model setup asks whether a module install is in flight before adding "
         "manual (ir.model.fields) fields. Registry.__init__ creates the set and "
-        "the loader fills it, so this is the same lifecycle coupling as "
-        "_relation_reflections: registration runs INSIDE registry setup and "
+        "the loader fills it, so this is the same lifecycle coupling "
+        "_relation_reflections had before it was fixed: registration runs "
+        "INSIDE registry setup and "
         "reads its host's in-progress state. Fix is a public predicate "
         "(`Registry.is_initialising_modules()`), which also documents the "
         "ordering contract that is currently implicit.",
@@ -259,8 +260,8 @@ def registry_members(sources: tuple[Path, ...] | None = None) -> set[str]:
     Class-body names across ``Registry`` and its mixins (annotations,
     assignments, methods, properties) **plus ``self.<name> = ...`` assignments
     inside their methods** — unlike ``Environment``, ``Registry`` creates several
-    members imperatively (``_relation_reflections``, ``_post_init_queue``,
-    ``_ordinary_tables``), and omitting those would report false "does not
+    members imperatively (``_init_phase``, ``_ordinary_tables``,
+    ``many2many_relations``), and omitting those would report false "does not
     exist" failures. ``Mapping`` is included because ``Registry`` subclasses it.
     """
     members: set[str] = set(dir(Mapping))

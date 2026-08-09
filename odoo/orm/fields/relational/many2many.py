@@ -156,8 +156,8 @@ class Many2many(_RelationalMulti):
     ) -> bool:
         cr = model.env.cr
         if not self.manual:
-            model.pool._relation_reflections.add(
-                (model._name, self.relation, self._module)
+            model.pool.add_relation_reflection(
+                model._name, self.relation, self._module
             )
         comodel = model.env[self.comodel_name]
         if not sql.table_exists(cr, self.relation):
