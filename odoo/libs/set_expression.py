@@ -135,16 +135,6 @@ class SetDefinitions:
             }
         )
 
-    def get_disjoint_ids(self, ids: Iterable[int]) -> list[int]:
-        return sorted(
-            {
-                disjoint_id
-                for id_ in ids
-                if id_ in self.__leaves
-                for disjoint_id in self.__leaves[id_].disjoints
-            }
-        )
-
 
 class SetExpression(ABC):
     @abstractmethod

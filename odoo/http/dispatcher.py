@@ -22,6 +22,7 @@ from odoo.exceptions import UserError
 
 from ._params import coerce_params
 from .constants import (
+    CORS_DEFAULT_ALLOWED_METHODS,
     CORS_MAX_AGE,
     DEFAULT_ALLOWED_METHODS,
     MISSING_CSRF_WARNING,
@@ -53,6 +54,30 @@ def infer_dispatcher_for_unmatched(request: Request) -> type[Dispatcher]:
 class Dispatcher(ABC):
     routing_type: str
     mimetypes: collections.abc.Collection[str] = ()
+
+    cors_allowed_methods: collections.abc.Collection[str] | None = None
+    """Methods to advertise in ``Access-Control-Allow-Methods``.
+
+    ``None`` means "whatever the route declares". A dispatcher that accepts one
+    verb regardless of the route says so here.
+
+    Declared because :meth:`pre_dispatch` used to read
+    ``routing["type"] == JsonRPCDispatcher.routing_type`` -- the abstract base
+    naming one of its own concrete subclasses, defined 130 lines below it. That
+    is the wrong direction for every reason: a fourth dispatcher with the same
+    constraint would have had to be added to a condition in its own base class.
+    """
+
+    serializes_errors_in_dev_mode: bool = False
+    """Whether to build a serialised error body even under ``--dev werkzeug``.
+
+    Same inversion, same reason: ``_serve.py::_update_served_exception`` asked
+    ``self.dispatcher.routing_type != JsonRPCDispatcher.routing_type`` to decide
+    whether to let werkzeug's interactive debugger take the exception instead.
+    The question it is actually asking is "does this transport's client need a
+    structured error rather than an HTML traceback?", which is a property of the
+    dispatcher, not a string comparison against a sibling.
+    """
 
     @classmethod
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -106,10 +131,14 @@ class Dispatcher(ABC):
                 set_header("Access-Control-Allow-Origin", allow_origin)
                 set_header(
                     "Access-Control-Allow-Methods",
-                    (
-                        "POST"
-                        if routing["type"] == JsonRPCDispatcher.routing_type
-                        else ", ".join(routing["methods"] or ["GET", "POST"])
+                    # NOT `DEFAULT_ALLOWED_METHODS`, which is the six-verb list
+                    # the OPTIONS handler below advertises. This fallback has
+                    # always been the narrower pair and stays it; the two
+                    # defaults look interchangeable and are not.
+                    ", ".join(
+                        self.cors_allowed_methods
+                        or routing["methods"]
+                        or CORS_DEFAULT_ALLOWED_METHODS
                     ),
                 )
 
@@ -164,8 +193,14 @@ class Dispatcher(ABC):
         return endpoint(**self.request.params)
 
     @abstractmethod
-    def handle_error(self, exc: Exception) -> collections.abc.Callable:
-        pass
+    def handle_error(self, exc: Exception) -> Response | HTTPException:
+        """Turn *exc* into the thing to serve.
+
+        Was annotated ``-> collections.abc.Callable``. True -- a werkzeug
+        response is a WSGI callable -- and useless: it told a caller nothing
+        about what it may do with the value, and admitted anything callable.
+        Both implementors return a ``Response`` or an ``HTTPException``.
+        """
 
 
 class HttpDispatcher(Dispatcher):
@@ -219,7 +254,7 @@ class HttpDispatcher(Dispatcher):
 
         return self._call_endpoint(endpoint)
 
-    def handle_error(self, exc: Exception) -> collections.abc.Callable:
+    def handle_error(self, exc: Exception) -> Response | HTTPException:
         if isinstance(exc, SessionExpiredException):
             session = self.request.session
             was_connected = session.uid is not None
@@ -247,6 +282,8 @@ class HttpDispatcher(Dispatcher):
 class JsonRPCDispatcher(Dispatcher):
     routing_type = "jsonrpc"
     mimetypes = ("application/json", "application/json-rpc")
+    cors_allowed_methods = ("POST",)
+    serializes_errors_in_dev_mode = True
 
     def __init__(self, request: Request) -> None:
         super().__init__(request)
@@ -276,7 +313,7 @@ class JsonRPCDispatcher(Dispatcher):
         result = self._call_endpoint(endpoint)
         return self._response(result)
 
-    def handle_error(self, exc: Exception) -> collections.abc.Callable:
+    def handle_error(self, exc: Exception) -> Response:
         error = {
             "code": 0,
             "message": "Odoo Server Error",
@@ -365,7 +402,7 @@ class Json2Dispatcher(Dispatcher):
             return Response(result)
         return self.request.make_json_response(result)
 
-    def handle_error(self, exc: Exception) -> collections.abc.Callable:
+    def handle_error(self, exc: Exception) -> Response:
         if isinstance(exc, HTTPException) and exc.response:
             return exc.response
 

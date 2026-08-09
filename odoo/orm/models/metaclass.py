@@ -6,6 +6,7 @@ import typing
 from collections import defaultdict
 
 from ..fields.misc import Id
+from ..fields.relational import Many2one
 from ..fields.temporal import Datetime
 
 if typing.TYPE_CHECKING:
@@ -121,8 +122,6 @@ class MetaModel(type):
                 raise TypeError(f"Field {cls.id} is not an instance of fields.Id")
 
             if attrs.get("_log_access", cls._auto):
-                from ..fields.relational import Many2one
-
                 add_default(
                     "create_uid",
                     Many2one("res.users", string="Created by", readonly=True),

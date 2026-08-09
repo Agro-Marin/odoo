@@ -502,33 +502,6 @@ def get_foreign_keys(
     ]
 
 
-def fix_foreign_key(
-    cr: Cursor,
-    tablename1: str,
-    columnname1: str,
-    tablename2: str,
-    columnname2: str,
-    ondelete: str,
-) -> bool:
-    deltype = _CONFDELTYPES.get(ondelete.upper(), "a")
-    found = False
-    for conname, target_table, target_col, del_type in _get_fk_constraints(
-        cr, tablename1, columnname1
-    ):
-        if not found and (target_table, target_col, del_type) == (
-            tablename2,
-            columnname2,
-            deltype,
-        ):
-            found = True
-        else:
-            drop_constraint(cr, tablename1, conname)
-    if found:
-        return False
-    add_foreign_key(cr, tablename1, columnname1, tablename2, columnname2, ondelete)
-    return True
-
-
 def index_exists(cr: Cursor, indexname: str) -> bool:
     cr.execute(
         SQL(

@@ -26,7 +26,6 @@ from ._protocols import RequestState
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
 from .dispatcher import (
     HttpDispatcher,
-    JsonRPCDispatcher,
     _dispatchers,
     infer_dispatcher_for_unmatched,
 )
@@ -258,7 +257,7 @@ class _RequestServeMixin(RequestState):
             return
         if (
             "werkzeug" in config["dev_mode"]
-            and self.dispatcher.routing_type != JsonRPCDispatcher.routing_type
+            and not self.dispatcher.serializes_errors_in_dev_mode
         ):
             return
         if not hasattr(exc, "error_response"):

@@ -184,13 +184,18 @@ class Transaction:
         if env := next(iter(self.envs), None):
             env.cr.cache.clear()
 
-    def _live_recompute_order(self) -> dict[typing.Any, int] | None:
+    def _live_recompute_order(self) -> dict[typing.Any, int]:
+        # No `registry is None` guard and no `getattr(registry, "model_graph")`:
+        # both branches were unreachable. `registry` is a required constructor
+        # argument and `reset()` re-assigns it from `Registry(...)`, which never
+        # returns None; `model_graph` is set unconditionally by `Registry.init`.
+        # A defensive `getattr` on an always-present attribute does not make the
+        # code safer -- it converts a real AttributeError into a silent None,
+        # which here would mean "recompute in arbitrary order" rather than a
+        # traceback naming the registry that failed to initialise.
         registry = self.registry
-        if registry is None:
-            return None
         registry._ensure_field_triggers()
-        model_graph = getattr(registry, "model_graph", None)
-        return model_graph.recompute_order if model_graph is not None else None
+        return registry.model_graph.recompute_order
 
     def reset(self) -> None:
         self.registry = Registry(self.registry.db_name)

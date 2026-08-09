@@ -1,4 +1,4 @@
 {
-  "count": 749,
-  "note": "Deleting odoo/libs/constants.py (-5) and moving odoo/libs/web/import_map.py to odoo/tools/assets/ (-1). D and ANN are enforced only under odoo/libs/ and odoo/orm/components/, so removing two modules from libs/ is the whole of this move: no docstring was written or deleted to reach it, and the two replacement modules (tools/constants.py, tools/assets/constants.py) sit outside the D scope entirely. See the commit for why those constants were never libs material."
+  "count": 748,
+  "note": "Deleting the dead libs/set_expression.py::SetDefinitions.get_disjoint_ids (-1). It had exactly one textual occurrence across odoo/, enterprise/, agromarin/ and design-themes/ -- its own def line -- searching .py/.xml/.csv/.js/.rst/.md/.txt/.yml, so no getattr or string reference existed either. Its D102 is the whole of this move: the D findings were diffed before and after, one disappeared and none appeared."
 }
