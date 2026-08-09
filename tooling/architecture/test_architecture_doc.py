@@ -149,6 +149,8 @@ NUMBER_WORDS = {
     "twenty-four": 24,
     "twenty-five": 25,
     "twenty-six": 26,
+    "twenty-seven": 27,
+    "twenty-eight": 28,
 }
 
 
@@ -1586,7 +1588,8 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         words = {
             12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen",
             22: "twenty-two", 23: "twenty-three", 24: "twenty-four",
-            25: "twenty-five", 26: "twenty-six",
+            25: "twenty-five", 26: "twenty-six", 27: "twenty-seven",
+            28: "twenty-eight",
         }
         count = len(self._workflow_gates())
         self.assertIn(
@@ -1621,6 +1624,7 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
             12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth",
             23: "twenty-third", 24: "twenty-fourth", 25: "twenty-fifth",
             26: "twenty-sixth", 27: "twenty-seventh",
+            28: "twenty-eighth",
         }
         expected = words[len(self._workflow_gates()) + 1]
         self.assertIn(f"is a {expected} checker and the only one outside CI", DOC_FLAT)

@@ -92,7 +92,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 26 are structural and DB-free — and not caught by either DB-free test
+gate — all 27 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **What would close it.** A DB-backed upgrade test on a populated fixture, in the
@@ -100,8 +100,8 @@ integration lane. Nothing cheaper can see it.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 26 boundary checkers read import graphs, call graphs, reached-member
-sets and documents. None executes the framework. A change can satisfy all 26 and
+**What.** The 27 boundary checkers read import graphs, call graphs, reached-member
+sets and documents. None executes the framework. A change can satisfy all 27 and
 both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming

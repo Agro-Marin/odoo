@@ -12,7 +12,7 @@ instead of describing its own compliance.
 
 ## Running the checks
 
-The twenty-six blocking checkers do **not** share one CLI, and a loop that
+The twenty-seven blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on three of them.
 
 **Twenty are contract gates.** Each takes bare for a human-readable report,
@@ -49,7 +49,8 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             named_export_coherence js_suite_parity js_layer_cohesion \
             js_import_resolution js_self_bridge js_patch_blind_facade \
             js_forced_render \
-            js_public_surface xml_reference_coherence js_mixin_coupling; do
+            js_public_surface js_extension_surface \
+            xml_reference_coherence js_mixin_coupling; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
 done
 
@@ -67,8 +68,8 @@ js_forced_render   jsforcedrender
 EOF
 ```
 
-**A local run judges more than CI does.** `js_public_surface` and
-`xml_reference_coherence` are scope-aware: they judge every consumer checkout
+**A local run judges more than CI does.** `js_public_surface`,
+`js_extension_surface` and `xml_reference_coherence` are scope-aware: they judge every consumer checkout
 they can see. GitHub checks out this repo alone, so CI judges only the `odoo`
 scope, while the same command in an assembled workspace also judges
 `enterprise`, `design-themes` and `agromarin` — and can therefore fail on a
@@ -78,7 +79,7 @@ finding that belongs to a sibling repo's own architecture workflow. Read the
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **twenty-six** blocking checkers — it first
+`Architecture Boundaries` workflow runs **twenty-seven** blocking checkers — it first
 runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
@@ -108,6 +109,7 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `js_private_access.py` | the cross-module private-access budget (`_member` reached past a module) |
 | `js_service_shape.py` | a service handing back an instance, not a literal |
 | `js_public_surface.py` | the web addon's published JS surface, as a ratchet |
+| `js_extension_surface.py` | the web addon's inheritance surface — the methods downstream subclasses override, as a ratchet |
 | `naming_vocabulary.py` | the §2.4 method-naming verb vocabulary |
 | `xml_reference_coherence.py` | view-arch strings (`widget=`, `js_class=`, `t-call`) against the JS registries and templates |
 
@@ -185,7 +187,7 @@ those names are backticked like every other path in the tree, so a gate that
 reads a backticked path as an assertion cannot tell a citation from an assertion.
 The only thing that can tell them apart is *where on the page they are*.
 
-(`cross_repo_coherence.py` is a twenty-seventh checker and the only one outside CI: it
+(`cross_repo_coherence.py` is a twenty-eighth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub checks
 out this repo alone and the check needs the sibling checkouts to compare against.
 It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
