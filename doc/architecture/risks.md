@@ -18,7 +18,7 @@ the subject, under *what this view does not cover*.
 | R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
 | R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
 | R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
-| R4 | "Enforced" means structural only — 24 gates cannot see behaviour | High | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — 26 gates cannot see behaviour | High | 2026-08-08 | — |
 | R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | — |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process; contention is unmeasured | Medium | 2026-08-08 | — |
@@ -92,7 +92,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 25 are structural and DB-free — and not caught by either DB-free test
+gate — all 26 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **What would close it.** A DB-backed upgrade test on a populated fixture, in the
@@ -100,8 +100,8 @@ integration lane. Nothing cheaper can see it.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 25 boundary checkers read import graphs, call graphs, reached-member
-sets and documents. None executes the framework. A change can satisfy all 25 and
+**What.** The 26 boundary checkers read import graphs, call graphs, reached-member
+sets and documents. None executes the framework. A change can satisfy all 26 and
 both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming

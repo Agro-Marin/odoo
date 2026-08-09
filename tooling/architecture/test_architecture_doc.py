@@ -987,7 +987,7 @@ class TestReferencedArtifacts(unittest.TestCase):
         match = re.search(
             r"turns (\w+) tool\s+counts into one-way contracts: "
             r"\*\*mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, "
-            r"jsfunclen, jsprivate, jsserviceshape and naming\*\*",
+            r"jsfunclen, pyfunclen, jsprivate, jsserviceshape and naming\*\*",
             DOC,
         )
         self.assertIsNotNone(match, "the ratchet gate list is no longer stated")
@@ -996,7 +996,8 @@ class TestReferencedArtifacts(unittest.TestCase):
         }
         self.assertEqual(
             {"mypy", "ruff", "ruff_docstring", "c901", "c901_addons", "eslint",
-             "tsc", "jsfunclen", "jsprivate", "jsserviceshape", "naming"},
+             "tsc", "jsfunclen", "pyfunclen", "jsprivate", "jsserviceshape",
+             "naming"},
             on_disk,
         )
         # The prose count is now captured too. It read "four" against a list of

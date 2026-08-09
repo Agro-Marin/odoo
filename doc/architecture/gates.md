@@ -12,7 +12,7 @@ instead of describing its own compliance.
 
 ## Running the checks
 
-The twenty-five blocking checkers do **not** share one CLI, and a loop that
+The twenty-six blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on three of them.
 
 **Twenty are contract gates.** Each takes bare for a human-readable report,
@@ -27,7 +27,8 @@ python tooling/architecture/layer_check.py --json     # machine-readable
 python tooling/architecture/subsystem_map_check.py --check   # the subsystem map vs the tree
 ```
 
-**Four are count ratchets** — `js_function_length`, `naming_vocabulary`,
+**Five are count ratchets** — `js_function_length`, `py_function_length`,
+`naming_vocabulary`,
 `js_service_shape` implement no `--check` at all. They print a number under
 `--count` and hand it to `tooling/ratchet/ratchet.py`, which owns the floor;
 `js_private_access` has both, and CI drives it as a ratchet because the pytest
@@ -57,6 +58,7 @@ while read -r gate floor; do
         || echo "FAILED: $gate"
 done <<'EOF'
 js_function_length jsfunclen
+py_function_length pyfunclen
 naming_vocabulary  naming
 js_private_access  jsprivate
 js_service_shape   jsserviceshape
@@ -74,7 +76,7 @@ finding that belongs to a sibling repo's own architecture workflow. Read the
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **twenty-five** blocking checkers — it first
+`Architecture Boundaries` workflow runs **twenty-six** blocking checkers — it first
 runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
@@ -99,6 +101,7 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `js_self_bridge.py` | no source module resolving itself through the loader |
 | `js_patch_blind_facade.py` | a service's own callers going through its facade |
 | `js_function_length.py` | the web addon's JS function-length budget |
+| `py_function_length.py` | the core's Python function-length budget — ratchets *excess lines* over 80, not the offender count, because splitting one long function raises the count while lowering the excess |
 | `js_private_access.py` | the cross-module private-access budget (`_member` reached past a module) |
 | `js_service_shape.py` | a service handing back an instance, not a literal |
 | `js_public_surface.py` | the web addon's published JS surface, as a ratchet |
@@ -179,7 +182,7 @@ those names are backticked like every other path in the tree, so a gate that
 reads a backticked path as an assertion cannot tell a citation from an assertion.
 The only thing that can tell them apart is *where on the page they are*.
 
-(`cross_repo_coherence.py` is a twenty-sixth checker and the only one outside CI: it
+(`cross_repo_coherence.py` is a twenty-seventh checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub checks
 out this repo alone and the check needs the sibling checkouts to compare against.
 It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
@@ -187,8 +190,8 @@ It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
 Two further mechanisms keep the *non-structural* quality signals from
 regressing:
 
-- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns eleven tool
-  counts into one-way contracts: **mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, jsfunclen, jsprivate, jsserviceshape and naming** (floors in
+- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns twelve tool
+  counts into one-way contracts: **mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, jsfunclen, pyfunclen, jsprivate, jsserviceshape and naming** (floors in
   `tooling/ratchet/baselines/`). CI fails on any increase, and — in the default
   `exact` mode — on an *un-committed* decrease too, so every cleanup is locked
   in.
@@ -267,9 +270,9 @@ regressing:
 
 **The integration gate is the only lane that runs addon tests, and that is the
 sharpest limit on the word "enforced" at the top of this page.** Every one of the
-twenty-four boundary checkers is structural and DB-free: they read import graphs,
+twenty-five boundary checkers is structural and DB-free: they read import graphs,
 call graphs, reached-member sets and documents. A change can satisfy all
-twenty-four, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s
+twenty-five, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s
 slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green, because nothing
 those gates read had changed. Read a green boundary job as "the structure holds", never as "the

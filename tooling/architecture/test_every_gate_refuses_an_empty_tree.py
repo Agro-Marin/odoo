@@ -64,6 +64,10 @@ GATES = {
     # of 169 fails there instead. It must still refuse rather than print a
     # number nobody can tell from a real one.
     "js_function_length": ["--count"],
+    # Same reasoning, on the Python side: a ratchet-fed count with no --check.
+    # An empty scan would print an excess of 0, which is indistinguishable from
+    # a tree whose every function is under budget.
+    "py_function_length": ["--count"],
     # Same reasoning as js_function_length: a ratchet-fed count, no --check. An
     # empty scan would print 0 literal-shaped services, which reads exactly like
     # a tree that fixed all 33.

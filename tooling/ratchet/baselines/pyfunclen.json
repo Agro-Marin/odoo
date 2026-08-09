@@ -1,0 +1,4 @@
+{
+  "count": 4867,
+  "note": "New gate. Ratchets EXCESS LINES above an 80-line budget (sum of len-80 over offending functions), not the count of offenders -- see py_function_length.py for why: splitting configmanager._build_cli (1024 lines, 4.6x the next-longest function in the core) into eleven per-option-group methods moved count 121 -> 127 while excess moved 5457 -> 4867 and the longest 1024 -> 294. A count ratchet would have rejected that as a regression. Scope is odoo/ excluding tests, matching ruff and c901. Python had no length gate at all while JS has had jsfunclen since 2026-07, and c901 cannot see a long straight-line function."
+}
