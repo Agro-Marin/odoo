@@ -153,6 +153,58 @@ class TestPricelist(ProductVariantsCommon):
         test_unit_price(2, self.uom_ton.id, tonne_price)
         test_unit_price(3, self.uom_ton.id, tonne_price - 10)
 
+    def test_21_pricelist_min_quantity_near_the_rounding_floor(self):
+        """A quantity converted into the product's UoM only ever feeds the
+        `min_quantity` comparison, so it must not be rounded.
+
+        `_compute_quantity` quantises at 10^-digits of the *destination* unit
+        and rounds UP, so for a Ton-measured product every order below 10 kg
+        arrived as 0.01 Ton -- which is also the smallest threshold
+        `min_quantity` can express, since it is `digits="Product Unit"` too.
+        A 0.5 kg order therefore matched a 10 kg bulk tier and was charged its
+        price. `test_20_pricelist_uom` above exercises the same shape with a
+        3 Ton threshold, three hundred times above the floor, which is why it
+        never caught this.
+        """
+        tonne_price = 1000.0
+        bulk = self.env["product.product"].create(
+            {
+                "name": "1 tonne of bulk",
+                "uom_id": self.uom_ton.id,
+                "uom_ids": [Command.set([self.uom_ton.id, self.uom_kgm.id])],
+                "list_price": tonne_price,
+                "type": "consu",
+            }
+        )
+        self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "applied_on": "0_product_variant",
+                "product_id": bulk.id,
+                "compute_price": "fixed",
+                "fixed_price": tonne_price / 2,
+                "min_quantity": 0.01,  # = 10 kg, the smallest expressible tier
+            }
+        )
+
+        def price_per_kg(qty_kg):
+            return self.pricelist._get_product_price(bulk, qty_kg, uom=self.uom_kgm)
+
+        for qty_kg in (0.5, 1.0, 5.0, 9.9):
+            with self.subTest(qty_kg=qty_kg):
+                self.assertAlmostEqual(
+                    price_per_kg(qty_kg),
+                    tonne_price / 1000.0,
+                    msg="below the tier, the list price applies",
+                )
+        for qty_kg in (10.0, 50.0):
+            with self.subTest(qty_kg=qty_kg):
+                self.assertAlmostEqual(
+                    price_per_kg(qty_kg),
+                    tonne_price / 2 / 1000.0,
+                    msg="at or above the tier, the bulk price applies",
+                )
+
     def test_30_pricelists_order(self):
         # Verify the order of pricelists after creation
 

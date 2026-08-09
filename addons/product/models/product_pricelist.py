@@ -223,8 +223,19 @@ class ProductPricelist(models.Model):
             # Compute quantity in product uom because pricelist rules are specified
             # w.r.t product default UoM (min_quantity, price_surchage, ...)
             if target_uom != product_uom_id:
+                # `round=False` is load-bearing. This quantity is only ever
+                # compared against `min_quantity`; it never reaches a record.
+                # Rounded, it is quantised at 10^-digits of the *product's*
+                # unit and rounded UP, so for a product sold by the Ton every
+                # order below 10 kg arrived as 0.01 Ton -- the smallest
+                # threshold `min_quantity` can even express (it is
+                # `digits="Product Unit"` too). A 0.5 kg order therefore
+                # qualified for a 10 kg bulk tier and was charged its price.
+                # `product/tests/test_pricelist.py` exercises exactly this
+                # shape but with a 3 Ton threshold, 300x above the floor, which
+                # is why nothing caught it.
                 qty_in_product_uom = target_uom._compute_quantity_estimate(
-                    quantity, product_uom_id
+                    quantity, product_uom_id, round=False
                 )
             else:
                 qty_in_product_uom = quantity
