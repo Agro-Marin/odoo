@@ -2408,3 +2408,134 @@ class TestVariantsExclusion(ProductVariantsCommon):
         )
         self.assertEqual(len(product_template.product_variant_ids), 2)
         self.assertFalse(supplierinfo.product_id)
+
+
+@tagged("post_install", "-at_install")
+class TestVariantCombinationIntegrityOnRemoval(ProductVariantsCommon):
+    """Removing an attribute line must never rewrite a surviving variant.
+
+    `product.template.attribute.value.attribute_line_id` is `ondelete="cascade"`.
+    Deleting the line therefore took its values with it at the database level --
+    their `unlink()` override never running -- and the
+    `product_variant_combination` rows went too. Every variant still holding one
+    silently *narrowed*: a red/S variant that could not be deleted started
+    reading as a plain "red" variant, which is exactly the key
+    `_create_variant_ids` matches `existing_variants` on, so the leftover was
+    reactivated as the new red variant instead of a fresh one -- inheriting the
+    stock, barcode and history of a variant describing a configuration that no
+    longer existed.
+
+    Which of the two happened depended only on whether the values were
+    deletable, i.e. on unrelated history: the same removal replaced all four
+    variants on one template and silently reused two on another.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        # Variants that cannot be deleted are the case that matters: a deletable
+        # one is simply gone and can be reused by nobody.
+        def undeletable(records):
+            raise Exception("this variant is referenced elsewhere")
+
+        self.patch(type(self.env["product.product"]), "unlink", undeletable)
+
+    def _template_2color_x_2size(self):
+        return self.env["product.template"].create(
+            {
+                "name": "Integrity check",
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": self.color_attribute.id,
+                            "value_ids": [
+                                Command.set(
+                                    (
+                                        self.color_attribute_red
+                                        | self.color_attribute_blue
+                                    ).ids
+                                )
+                            ],
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "attribute_id": self.size_attribute.id,
+                            "value_ids": [
+                                Command.set(
+                                    (self.size_attribute_s | self.size_attribute_m).ids
+                                )
+                            ],
+                        }
+                    ),
+                ],
+            }
+        )
+
+    @mute_logger("odoo.models.unlink")
+    def test_removing_a_line_does_not_narrow_surviving_variants(self):
+        template = self._template_2color_x_2size()
+        old_variants = template.product_variant_ids
+        self.assertEqual(len(old_variants), 4)
+        combinations_before = {
+            variant: variant.product_template_attribute_value_ids
+            for variant in old_variants
+        }
+
+        size_line = template.attribute_line_ids.filtered(
+            lambda line: line.attribute_id == self.size_attribute
+        )
+        template.write({"attribute_line_ids": [Command.delete(size_line.id)]})
+
+        for variant, combination in combinations_before.items():
+            self.assertEqual(
+                variant.product_template_attribute_value_ids,
+                combination,
+                "A variant that survived the removal must still describe the"
+                " combination it was created for",
+            )
+
+    @mute_logger("odoo.models.unlink")
+    def test_removing_a_line_replaces_variants_rather_than_reusing_them(self):
+        template = self._template_2color_x_2size()
+        old_variants = template.product_variant_ids
+
+        size_line = template.attribute_line_ids.filtered(
+            lambda line: line.attribute_id == self.size_attribute
+        )
+        template.write({"attribute_line_ids": [Command.delete(size_line.id)]})
+
+        new_variants = template.product_variant_ids
+        self.assertEqual(len(new_variants), 2, "One variant per remaining colour")
+        self.assertFalse(
+            new_variants & old_variants,
+            "No old variant may be resurrected to stand for a new combination",
+        )
+        self.assertEqual(
+            template.with_context(active_test=False).product_variant_ids - new_variants,
+            old_variants,
+            "Every old variant is archived, none deleted and none reused",
+        )
+        self.assertFalse(any(old_variants.mapped("active")))
+
+    @mute_logger("odoo.models.unlink")
+    def test_values_still_carried_by_a_variant_are_archived_not_deleted(self):
+        """The values stay as master data, so the archived variants that still
+        reference them remain describable."""
+        template = self._template_2color_x_2size()
+        size_line = template.attribute_line_ids.filtered(
+            lambda line: line.attribute_id == self.size_attribute
+        )
+        size_values = size_line.product_template_value_ids
+
+        template.write({"attribute_line_ids": [Command.delete(size_line.id)]})
+
+        self.assertTrue(size_values.exists(), "Values still in use survive")
+        self.assertFalse(any(size_values.mapped("ptav_active")))
+        self.assertTrue(size_line.exists(), "So does the line that holds them")
+        self.assertFalse(size_line.active)
+        self.assertNotIn(
+            size_line,
+            template.valid_product_template_attribute_line_ids,
+            "...but the template no longer offers it",
+        )

@@ -219,11 +219,32 @@ class ProductTemplateAttributeLine(models.Model):
         self.product_template_value_ids._only_active().unlink()
         # Keep a reference to the related templates before the deletion.
         templates = self.product_tmpl_id
+
+        # A line whose values survived the call above -- archived rather than
+        # deleted, because variants still carry them -- must be archived too,
+        # which is the case this method's docstring describes but never reached.
+        #
+        # `product.template.attribute.value.attribute_line_id` is
+        # `ondelete="cascade"`, so deleting the line takes those values with it
+        # at the database level, without their `unlink()` override ever running.
+        # The `product_variant_combination` rows go too, and the combination of
+        # every variant still holding one silently *narrows*: a red/S variant
+        # that could not be deleted starts reading as a plain "red" variant.
+        # `_create_variant_ids` keys `existing_variants` on that combination, so
+        # the leftover then matches the red variant the template now needs and
+        # is reactivated in its place, carrying the stock, barcode and history
+        # of a variant that described a configuration which no longer exists.
+        #
+        # Deleting the line is therefore only safe once nothing references its
+        # values -- exactly what `unlink_where_possible` would have discovered
+        # for itself if the cascade did not make the DELETE always succeed.
+        self.env.flush_all()
+        still_valued = self.filtered(lambda ptal: ptal.product_template_value_ids)
         # Now delete or archive the lines, attempting the batch as a whole and
         # splitting only on failure (see `unlink_where_possible`) rather than
         # opening a savepoint per line.
-        ptal_to_archive = unlink_where_possible(
-            self, lambda ptals: ptals._unlink_without_fallback()
+        ptal_to_archive = still_valued | unlink_where_possible(
+            self - still_valued, lambda ptals: ptals._unlink_without_fallback()
         )
         ptal_to_archive.action_archive()  # only calls write if there are records
         # For archived lines `_update_product_template_attribute_values` is

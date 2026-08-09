@@ -188,11 +188,36 @@ class ProductTemplateAttributeValue(models.Model):
         # Try to remove the variants before deleting to potentially remove some
         # blocking references.
         self.ptav_product_variant_ids._unlink_or_archive()
-        # Now delete or archive the values, attempting the batch as a whole and
+
+        # A value that a surviving variant still carries is archived, never
+        # deleted -- including when that variant is now archived, hence
+        # `active_test=False`.
+        #
+        # Deleting it drops the `product_variant_combination` rows with it, so
+        # the variant's combination silently *narrows*: a red/S variant that
+        # could not be deleted becomes a variant whose combination reads plain
+        # "red". `_create_variant_ids` keys `existing_variants` on exactly that
+        # combination, so the leftover then matches the new red variant the
+        # template now needs and gets reactivated in its place -- a variant
+        # created for a configuration that no longer exists, resurrected as one
+        # it was never meant to describe, carrying its old stock, barcode and
+        # history with it.
+        #
+        # Which of the two happened depended only on whether the value was
+        # deletable, i.e. on unrelated history: removing the same attribute line
+        # from two identical templates archived four variants and created two on
+        # one, and silently reused two on the other. Keeping the value as
+        # archived master data keeps the leftover variants describable and makes
+        # the outcome the same either way.
+        self.env.flush_all()
+        still_carried = self.filtered(
+            lambda ptav: ptav.with_context(active_test=False).ptav_product_variant_ids
+        )
+        # Delete or archive the rest, attempting the batch as a whole and
         # splitting only on failure (see `unlink_where_possible`) rather than
         # opening a savepoint per value.
-        ptav_to_archive = unlink_where_possible(
-            self, lambda ptavs: ptavs._unlink_without_fallback()
+        ptav_to_archive = still_carried | unlink_where_possible(
+            self - still_carried, lambda ptavs: ptavs._unlink_without_fallback()
         )
         ptav_to_archive.write({"ptav_active": False})
         return True
