@@ -10,13 +10,13 @@ export class ForecastKanbanModel extends CrmKanbanModel {
         this.fillTemporalDomain = null;
     }
 
-    async _webReadGroup(config) {
+    async webReadGroup(config) {
         if (this.isForecastGroupBy(config)) {
             config.context = this.fillTemporalPeriod(config).getContext({
                 context: config.context,
             });
             // Domain leaves added by the fillTemporalPeriod should be replaced
-            // between 2 _webReadGroup calls, not added on top of each other.
+            // between 2 webReadGroup calls, not added on top of each other.
             // Keep track of the modified domain, and if encountered in the
             // future, modify the original domain instead. It is not robust
             // against external modification of `config.domain`, but currently
@@ -30,11 +30,11 @@ export class ForecastKanbanModel extends CrmKanbanModel {
             });
             config.domain = this.fillTemporalDomain;
         }
-        return super._webReadGroup(...arguments);
+        return super.webReadGroup(...arguments);
     }
 
-    async _loadGroupedList(config) {
-        const res = await super._loadGroupedList(...arguments);
+    async loadGroupedList(config) {
+        const res = await super.loadGroupedList(...arguments);
         if (this.isForecastGroupBy(config)) {
             const lastGroup = res.groups.filter((grp) => grp.value).slice(-1)[0];
             if (lastGroup) {

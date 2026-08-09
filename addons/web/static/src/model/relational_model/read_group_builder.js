@@ -43,7 +43,7 @@ function buildOpeningInfo(groups) {
  */
 
 /**
- * `config.groups` is established by `_loadGroupedList` before this runs.
+ * `config.groups` is established by `loadGroupedList` before this runs.
  *
  * @param {RelationalModelConfig} config
  * @param {WebReadGroupBuilderDeps} deps

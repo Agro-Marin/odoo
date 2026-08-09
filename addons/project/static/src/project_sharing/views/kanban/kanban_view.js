@@ -4,12 +4,12 @@ import { ProjectTaskRelationalModel } from "@project/views/project_task_relation
 import { kanbanView } from "@web/views/kanban";
 
 export class ProjectSharingTaskKanbanModel extends ProjectTaskRelationalModel {
-    async _webReadGroup(config) {
+    async webReadGroup(config) {
         config.context = {
             ...config.context,
             project_kanban: true,
         };
-        return super._webReadGroup(...arguments);
+        return super.webReadGroup(...arguments);
     }
 }
 

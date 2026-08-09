@@ -423,13 +423,13 @@ ReferenceField.setup  odoo
 RelationalModel.DEFAULT_LIMIT  odoo
 RelationalModel.Record  odoo enterprise
 RelationalModel._loadData  odoo enterprise
-RelationalModel._loadGroupedList  odoo
 RelationalModel._updateSimilarRecords  odoo
-RelationalModel._webReadGroup  odoo
 RelationalModel.hasData  enterprise
 RelationalModel.load  odoo enterprise agromarin
+RelationalModel.loadGroupedList  odoo
 RelationalModel.services  odoo
 RelationalModel.setup  odoo enterprise agromarin
+RelationalModel.webReadGroup  odoo
 RelationalModel.withCache  odoo enterprise
 RelationalRecord.setup  odoo enterprise
 RemainingDaysField.diffDays  enterprise

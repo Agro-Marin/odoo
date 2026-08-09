@@ -659,7 +659,7 @@ export class RelationalModel extends Model {
             return { records, length: config.resIds.length };
         }
         if (config.groupBy.length) {
-            return this._loadGroupedList(config, cache, signal);
+            return this.loadGroupedList(config, cache, signal);
         }
         Object.assign(config, {
             limit: config.limit || this.initialLimit,
@@ -690,7 +690,7 @@ export class RelationalModel extends Model {
      * @param {Object} [cache]
      * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
      */
-    async _loadGroupedList(config, cache, signal) {
+    async loadGroupedList(config, cache, signal) {
         config.offset = config.offset || 0;
         config.limit = config.limit || this.initialGroupsLimit;
         if (!config.limit) {
@@ -700,7 +700,7 @@ export class RelationalModel extends Model {
         }
         config.groups = config.groups || {};
 
-        const response = await this._webReadGroup(config, cache, signal);
+        const response = await this.webReadGroup(config, cache, signal);
         return this._postprocessReadGroup(config, response);
     }
 
@@ -926,7 +926,7 @@ export class RelationalModel extends Model {
      * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
      * @returns {Promise<{ groups: any[]; length: number }>}
      */
-    async _webReadGroup(config, cache, signal) {
+    async webReadGroup(config, cache, signal) {
         const { aggregates, params } = buildWebReadGroupParams(config, {
             groupByInfo: this.groupByInfo,
             initialLimit: this.initialLimit,

@@ -57,12 +57,12 @@ export class ProjectTaskKanbanModel extends ProjectTaskRelationalModel {
      */
     wipLimits = {};
 
-    async _webReadGroup(config) {
+    async webReadGroup(config) {
         config.context = {
             ...config.context,
             project_kanban: true,
         };
-        const result = await super._webReadGroup(...arguments);
+        const result = await super.webReadGroup(...arguments);
         await this._loadWipLimits(config, result);
         return result;
     }
