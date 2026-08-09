@@ -103,3 +103,15 @@ class HttpExtension(Protocol):
 
     def _auth_method_public(self) -> None:
         pass
+
+    def _apply_max_upload_size(self) -> None:
+        """Clamp ``httprequest.max_content_length`` to the configured ceiling.
+
+        Reached from ``_serve.py``'s not-found fallback and, through
+        ``_pre_dispatch``, from every dispatched request. It was called by the
+        core and undeclared here until 2026-08-09 — the contract test only ever
+        checked *declared -> implemented*, so a member reached from ``http/``
+        and absent from this Protocol had its existence and its signature
+        checked by nothing. ``model_member_surface_check.py`` reads the other
+        direction and is what found it.
+        """

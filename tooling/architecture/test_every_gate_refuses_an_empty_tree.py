@@ -81,6 +81,11 @@ GATES = {
     # the harder of the two shapes.
     "env_surface_check": ["--check"],
     "env_model_surface_check": ["--check"],
+    # Its member-level counterpart. An emptied tree yields zero reaches, which
+    # reads as a framework that calls nothing on an addon-owned model -- a state
+    # that has never held -- so it refuses on the reach count rather than on the
+    # baseline diff, which would also fire but says the wrong thing.
+    "model_member_surface_check": ["--check"],
     "pool_surface_check": ["--check"],
     "worker_thread_surface_check": ["--check"],
     "mixin_coupling_check": ["--check"],
