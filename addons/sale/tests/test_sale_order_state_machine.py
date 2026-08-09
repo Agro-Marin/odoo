@@ -129,7 +129,7 @@ class TestSaleMassCancel(SaleCommon):
 
     def _wizard(self, orders):
         return self.env["sale.mass.cancel.orders"].create(
-            {"sale_order_ids": [Command.set(orders.ids)]},
+            {"order_ids": [Command.set(orders.ids)]},
         )
 
     def test_mass_cancel_drafts(self):

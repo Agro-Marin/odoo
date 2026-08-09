@@ -1,37 +1,14 @@
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class PurchaseMassCancelOrders(models.TransientModel):
     _name = "purchase.mass.cancel.orders"
+    _inherit = "order.mass.cancel.mixin"
     _description = "Cancel multiple RFQs/purchase orders"
 
-    purchase_order_ids = fields.Many2many(
+    order_ids = fields.Many2many(
         comodel_name="purchase.order",
         relation="purchase_order_mass_cancel_wizard_rel",
         string="Purchase orders to cancel",
         default=lambda self: self.env.context.get("active_ids"),
     )
-    purchase_orders_count = fields.Integer(compute="_compute_purchase_orders_count")
-    has_confirmed_order = fields.Boolean(compute="_compute_has_confirmed_order")
-
-    @api.depends("purchase_order_ids")
-    def _compute_purchase_orders_count(self):
-        for wizard in self:
-            wizard.purchase_orders_count = len(wizard.purchase_order_ids)
-
-    @api.depends("purchase_order_ids")
-    def _compute_has_confirmed_order(self):
-        for wizard in self:
-            wizard.has_confirmed_order = bool(
-                wizard.purchase_order_ids.filtered(lambda po: po.state == "done"),
-            )
-
-    def action_mass_cancel(self):
-        # Skip orders already cancelled (so a mixed selection doesn't abort on
-        # the "already cancelled" guard), but route through the public
-        # action_cancel so the locked-order and posted-bill guards still apply.
-        # Calling _action_cancel() directly would bypass _can_cancel and let a
-        # locked or already-invoiced PO be cancelled silently.
-        self.purchase_order_ids.filtered(
-            lambda po: po.state != "cancel",
-        ).action_cancel()

@@ -23,6 +23,7 @@ Mixins:
 * **order.line.invoice.mixin** — invoice tracking (line-level)
 * **order.merge.mixin** — quotation/RFQ merge system
 * **order.report.mixin** — shared analytical-report layer over sql.report.mixin
+* **order.mass.cancel.mixin** — cancel several orders from a list selection
 
 It also carries the shared ``ir.actions.report`` extension that embeds an
 order's EDI XML into its rendered PDF. Concrete modules only declare which of

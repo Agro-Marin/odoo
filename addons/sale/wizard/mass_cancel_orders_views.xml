@@ -6,8 +6,8 @@
         <field name="model">sale.mass.cancel.orders</field>
         <field name="arch" type="xml">
             <form string="Cancel quotations">
-                <field name="sale_order_ids" invisible="1" />
-                <field name="sale_orders_count" invisible="1" />
+                <field name="order_ids" invisible="1" />
+                <field name="orders_count" invisible="1" />
                 <field name="has_confirmed_order" invisible="1" />
                 <div invisible="not has_confirmed_order">
                     <p class="alert alert-warning fw-bold" role="alert">
@@ -15,11 +15,11 @@
                         affected by the cancellation.
                     </p>
                 </div>
-                <div invisible="sale_orders_count &gt; 1">
+                <div invisible="orders_count &gt; 1">
                     Are you sure you want to cancel the selected item?
                 </div>
-                <div invisible="sale_orders_count == 1"> So, are you sure you want to cancel these <field
-                        name="sale_orders_count" /> items? </div>
+                <div invisible="orders_count == 1"> So, are you sure you want to cancel these <field
+                        name="orders_count" /> items? </div>
                 <footer>
                     <button class="btn-primary"
                         name="action_mass_cancel"

@@ -103,7 +103,7 @@ class TestPurchaseMassCancel(AccountTestInvoicingCommon):
 
     def _wizard(self, orders):
         return self.env["purchase.mass.cancel.orders"].create(
-            {"purchase_order_ids": [Command.set(orders.ids)]},
+            {"order_ids": [Command.set(orders.ids)]},
         )
 
     def test_mass_cancel_drafts(self):
