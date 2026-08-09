@@ -41,6 +41,7 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
  *  timeout?: number;
  *  retry?: number | Partial<RetryConfig>;
  *  dedup?: boolean;
+ *  signal?: AbortSignal;
  * }} RpcSettings
  */
 
@@ -108,6 +109,7 @@ const RPC_SETTINGS = new Set([
     "timeout",
     "retry",
     "dedup",
+    "signal",
 ]);
 /**
  * @param {{[key: string]: any}} settings
@@ -119,6 +121,19 @@ function validateRPCSettings(settings) {
         const valid = [...RPC_SETTINGS].map((k) => `"${k}"`).join(", ");
         throw new Error(
             `Invalid RPC setting(s): ${invalid}. Valid settings are: ${valid}`,
+        );
+    }
+    // `dedup` collapses callers onto one in-flight request, and an
+    // `AbortSignal` is per-caller by construction. Sharing a request between a
+    // caller that can cancel it and one that cannot means the second silently
+    // inherits the first's lifetime -- so refuse the combination rather than
+    // pick a winner. `dedupSettingsFingerprint` also cannot tell two signals
+    // apart (`JSON.stringify(signal)` is `{}`), which is how they would end up
+    // sharing a slot in the first place.
+    if (settings.signal && settings.dedup) {
+        throw new Error(
+            `Invalid RPC settings: "signal" cannot be combined with "dedup" -- ` +
+                `a deduplicated request is shared, so one caller's abort would cancel every observer.`,
         );
     }
 }
@@ -674,9 +689,28 @@ function _rpcOnce(url, params, settings) {
     const timeoutSignal = settings.timeout
         ? AbortSignal.timeout(settings.timeout)
         : null;
-    const fetchSignal = timeoutSignal
-        ? AbortSignal.any([controller.signal, timeoutSignal])
+    /**
+     * A caller-owned signal, composed alongside the per-request controller and
+     * the timeout. This is what lets a supersede primitive (`KeepLast`) cancel
+     * the request it is about to discard, instead of only ignoring its result.
+     * @type {AbortSignal | null}
+     */
+    const callerSignal = settings.signal || null;
+    const extraSignals = [timeoutSignal, callerSignal].filter(Boolean);
+    const fetchSignal = extraSignals.length
+        ? AbortSignal.any([
+              controller.signal,
+              .../** @type {AbortSignal[]} */ (extraSignals),
+          ])
         : controller.signal;
+    /**
+     * The bus is an observer channel: `slow_rpc`, `loading_indicator` and
+     * `clickbot` read `settings`, and the last of them serialises it into a
+     * report. A live `AbortSignal` there is useless to a listener and harmful --
+     * it stringifies to `{}` and keeps the caller's controller reachable from
+     * every subscriber. Strip it; every other setting still travels.
+     */
+    const busSettings = callerSignal ? omit(settings, "signal") : settings;
     const { promise, resolve, reject } = Promise.withResolvers();
     let settled = false;
     const settleResolve = (/** @type {any} */ value) => {
@@ -687,7 +721,7 @@ function _rpcOnce(url, params, settings) {
         settled = true;
         reject(error);
     };
-    rpcBus.trigger(RpcEvent.REQUEST, { data, url, settings });
+    rpcBus.trigger(RpcEvent.REQUEST, { data, url, settings: busSettings });
 
     browser
         .fetch(url, {
@@ -702,13 +736,23 @@ function _rpcOnce(url, params, settings) {
             }
             if (response.status >= 502 && response.status <= 504) {
                 const error = new ServerOverloadError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, {
+                    data,
+                    url,
+                    settings: busSettings,
+                    error,
+                });
                 settleReject(error);
                 return;
             }
             if (response.status === 413) {
                 const error = new RequestEntityTooLargeError();
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, {
+                    data,
+                    url,
+                    settings: busSettings,
+                    error,
+                });
                 settleReject(error);
                 return;
             }
@@ -718,7 +762,12 @@ function _rpcOnce(url, params, settings) {
                     response.status >= 500
                         ? new ServerOverloadError(url, response.status)
                         : new InvalidResponseError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, {
+                    data,
+                    url,
+                    settings: busSettings,
+                    error,
+                });
                 settleReject(error);
                 return;
             }
@@ -736,7 +785,12 @@ function _rpcOnce(url, params, settings) {
                     timeoutSignal,
                     response,
                 );
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, {
+                    data,
+                    url,
+                    settings: busSettings,
+                    error,
+                });
                 settleReject(error);
                 return;
             }
@@ -748,7 +802,12 @@ function _rpcOnce(url, params, settings) {
                     response.status >= 500
                         ? new ServerOverloadError(url, response.status)
                         : new InvalidResponseError(url, response.status);
-                rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+                rpcBus.trigger(RpcEvent.RESPONSE, {
+                    data,
+                    url,
+                    settings: busSettings,
+                    error,
+                });
                 settleReject(error);
                 return;
             }
@@ -765,7 +824,7 @@ function _rpcOnce(url, params, settings) {
                 rpcBus.trigger(RpcEvent.RESPONSE, {
                     data,
                     url,
-                    settings,
+                    settings: busSettings,
                     result,
                 });
                 settleResolve(result);
@@ -773,7 +832,12 @@ function _rpcOnce(url, params, settings) {
             }
             const error = makeErrorFromResponse(parsed.error);
             error.model = data.params.model;
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+            rpcBus.trigger(RpcEvent.RESPONSE, {
+                data,
+                url,
+                settings: busSettings,
+                error,
+            });
             settleReject(error);
         })
         .catch((err) => {
@@ -781,7 +845,12 @@ function _rpcOnce(url, params, settings) {
                 return;
             }
             const error = classifyTransportFailure(err, url, settings, timeoutSignal);
-            rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+            rpcBus.trigger(RpcEvent.RESPONSE, {
+                data,
+                url,
+                settings: busSettings,
+                error,
+            });
             settleReject(error);
         });
 
@@ -795,7 +864,12 @@ function _rpcOnce(url, params, settings) {
         aborted = true;
         controller.abort();
         const error = new ConnectionAbortedError("fetch abort");
-        rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings, error });
+        rpcBus.trigger(RpcEvent.RESPONSE, {
+            data,
+            url,
+            settings: busSettings,
+            error,
+        });
         if (rejectError) {
             settleReject(error);
         }

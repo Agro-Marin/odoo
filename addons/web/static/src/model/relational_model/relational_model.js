@@ -8,7 +8,12 @@ import { makeContext } from "@web/core/context";
 import { ModelEvent } from "@web/core/events";
 import { modelLog } from "@web/core/utils/asset_log";
 import { deepCopy } from "@web/core/utils/collections/objects";
-import { Deferred, KeepLast, Mutex } from "@web/core/utils/concurrency";
+import {
+    Deferred,
+    KeepLast,
+    Mutex,
+    SupersededError,
+} from "@web/core/utils/concurrency";
 import { orderByToString } from "@web/core/utils/order_by";
 import { Model } from "@web/model/model";
 
@@ -161,8 +166,13 @@ export class RelationalModel extends Model {
      * @param {Object} _services
      */
     setup(params, _services) {
-        this.keepLast = markRaw(new KeepLast());
-        this.countKeepLast = markRaw(new KeepLast());
+        // `rejectSuperseded` so a dropped load settles its caller instead of
+        // leaving the promise pending forever; `load()` catches
+        // `SupersededError` and resolves, matching the callers that
+        // `await model.load()`. Same contract calendar, graph and pivot already
+        // use.
+        this.keepLast = markRaw(new KeepLast({ rejectSuperseded: true }));
+        this.countKeepLast = markRaw(new KeepLast({ rejectSuperseded: true }));
         this.mutex = markRaw(new Mutex());
 
         /** @type {RelationalModelConfig} */
@@ -290,9 +300,23 @@ export class RelationalModel extends Model {
             performance.mark("model:loadData:start");
         }
         let data;
+        // Cancels the RPCs this load issues if a newer one supersedes it. The
+        // controller reaches them through `_scopedOrm`; `KeepLast` runs the
+        // abort at the moment it stops caring about the result.
+        const loadAbort = new AbortController();
         try {
-            data = await this.keepLast.add(this._loadData(config, cache));
+            data = await this.keepLast.add(
+                this._loadData(config, cache, loadAbort.signal),
+                { abort: () => loadAbort.abort() },
+            );
         } catch (error) {
+            if (error instanceof SupersededError) {
+                // A newer load owns `_rootLoadDef` now -- retiring here would
+                // retire *its* deferred, not ours. Drop this load silently and
+                // resolve, which is what the caller means by "a newer load took
+                // over".
+                return;
+            }
             this._retireRootLoadDef();
             throw error;
         }
@@ -477,6 +501,29 @@ export class RelationalModel extends Model {
         }
     }
 
+    /**
+     * The ORM this load should talk to: cache proxy when the load is cacheable,
+     * signal proxy when it is cancellable, both when it is both.
+     *
+     * Replaces four copies of `cache ? this.orm.cache(cache) : this.orm`, which
+     * is where the signal has to be applied -- every RPC the load path issues
+     * goes through one of them.
+     *
+     * @param {Object} [cache]
+     * @param {AbortSignal} [signal]
+     * @returns {import("@web/core/network/orm_service").ORM}
+     */
+    _scopedOrm(cache, signal) {
+        let orm = this.orm;
+        if (cache) {
+            orm = orm.cache(cache);
+        }
+        if (signal) {
+            orm = orm.withSignal(signal);
+        }
+        return orm;
+    }
+
     _getCacheParams(config, rootLoadDef) {
         if (!this.withCache) {
             return;
@@ -580,15 +627,16 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
+     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
      */
-    async _loadData(config, cache) {
+    async _loadData(config, cache, signal) {
         config.loadId = getId("load");
         if (config.isMonoRecord) {
             const evalContext = getSpecEvalContext(config);
             if (!config.resId) {
-                return this._loadNewRecord(config, { evalContext, cache });
+                return this._loadNewRecord(config, { evalContext, cache, signal });
             }
-            const records = await this._loadRecords(config, evalContext, cache);
+            const records = await this._loadRecords(config, evalContext, cache, signal);
             return records[0];
         }
         if (config.resIds) {
@@ -611,7 +659,7 @@ export class RelationalModel extends Model {
             return { records, length: config.resIds.length };
         }
         if (config.groupBy.length) {
-            return this._loadGroupedList(config, cache);
+            return this._loadGroupedList(config, cache, signal);
         }
         Object.assign(config, {
             limit: config.limit || this.initialLimit,
@@ -625,7 +673,11 @@ export class RelationalModel extends Model {
                 config.offset + config.limit,
             );
         }
-        const { records, length } = await this._loadUngroupedList(config, cache);
+        const { records, length } = await this._loadUngroupedList(
+            config,
+            cache,
+            signal,
+        );
         if (config.offset && !records.length) {
             config.offset = 0;
             return this._loadData(config, cache);
@@ -636,8 +688,9 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
+     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
      */
-    async _loadGroupedList(config, cache) {
+    async _loadGroupedList(config, cache, signal) {
         config.offset = config.offset || 0;
         config.limit = config.limit || this.initialGroupsLimit;
         if (!config.limit) {
@@ -647,7 +700,7 @@ export class RelationalModel extends Model {
         }
         config.groups = config.groups || {};
 
-        const response = await this._webReadGroup(config, cache);
+        const response = await this._webReadGroup(config, cache, signal);
         return this._postprocessReadGroup(config, response);
     }
 
@@ -679,8 +732,14 @@ export class RelationalModel extends Model {
      * @param {RelationalModelConfig} config
      * @param {Context} [evalContext]
      * @param {Object} [cache]
+     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
      */
-    async _loadRecords(config, evalContext = getSpecEvalContext(config), cache) {
+    async _loadRecords(
+        config,
+        evalContext = getSpecEvalContext(config),
+        cache,
+        signal,
+    ) {
         const { resModel, activeFields, fields, context } = config;
         const resIds = config.resId ? [config.resId] : config.resIds;
         if (!resIds.length) {
@@ -692,7 +751,7 @@ export class RelationalModel extends Model {
                 context: { bin_size: true, ...context },
                 specification: fieldSpec,
             };
-            const orm = cache ? this.orm.cache(cache) : this.orm;
+            const orm = this._scopedOrm(cache, signal);
             const records = await orm.webRead(resModel, resIds, kwargs);
             if (!records.length) {
                 throw new FetchRecordError(resIds);
@@ -707,8 +766,10 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
+     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
+     * @returns {Promise<{ records: any[]; length: number }>}
      */
-    async _loadUngroupedList(config, cache) {
+    async _loadUngroupedList(config, cache, signal) {
         const orderBy = config.orderBy.filter((o) => o.name !== "__count");
         let order = orderByToString(orderBy);
         if (config.isGroupList && order && !orderBy.some((o) => o.name === "id")) {
@@ -729,7 +790,7 @@ export class RelationalModel extends Model {
                     ? config.countLimit + 1
                     : undefined,
         };
-        const orm = cache ? this.orm.cache(cache) : this.orm;
+        const orm = this._scopedOrm(cache, signal);
         return orm.webSearchRead(config.resModel, config.domain, kwargs);
     }
 
@@ -746,6 +807,7 @@ export class RelationalModel extends Model {
             evalContext = getSpecEvalContext(config),
             onError,
             cache,
+            signal,
         },
     ) {
         if (!this.isAlive()) {
@@ -763,7 +825,7 @@ export class RelationalModel extends Model {
         const args = [resId ? [resId] : [], changes, fieldNames, spec];
         let response;
         try {
-            const orm = cache ? this.orm.cache(cache) : this.orm;
+            const orm = this._scopedOrm(cache, signal);
             response = await orm.call(resModel, "onchange", args, { context });
         } catch (e) {
             if (onError) {
@@ -861,13 +923,15 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} cache
+     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
+     * @returns {Promise<{ groups: any[]; length: number }>}
      */
-    async _webReadGroup(config, cache) {
+    async _webReadGroup(config, cache, signal) {
         const { aggregates, params } = buildWebReadGroupParams(config, {
             groupByInfo: this.groupByInfo,
             initialLimit: this.initialLimit,
         });
-        const orm = cache ? this.orm.cache(cache) : this.orm;
+        const orm = this._scopedOrm(cache, signal);
         const result = await orm.webReadGroup(
             config.resModel,
             config.domain,

@@ -62,11 +62,30 @@ export class ORM {
         this._cache = false;
         this._retry = false;
         this._dedup = false;
+        /** @type {AbortSignal | false} */
+        this._signal = false;
     }
 
     /** @returns {ORM} */
     get silent() {
         return Object.assign(Object.create(this), { _silent: true });
+    }
+
+    /**
+     * Derives an ORM whose calls are cancelled when `signal` aborts.
+     *
+     * Same proxy pattern as `silent` / `cache()` / `retry()`. Composes with all
+     * of them except `dedup`, which `rpc()` refuses alongside a signal because a
+     * deduplicated request is shared between callers and cancellation is not.
+     *
+     * Only ever apply this to reads: an aborted write has already been sent, and
+     * cancelling the client's interest in the answer does not undo it.
+     *
+     * @param {AbortSignal} signal
+     * @returns {ORM}
+     */
+    withSignal(signal) {
+        return Object.assign(Object.create(this), { _signal: signal });
     }
 
     /**
@@ -121,6 +140,13 @@ export class ORM {
                         `write served from cache without ever reaching the server`,
                 );
             }
+            if (this._signal) {
+                throw new Error(
+                    `orm.withSignal() cannot be applied to mutating method "${method}": ` +
+                        `aborting only drops the client's interest in the response -- ` +
+                        `the write has already reached the server and is not undone`,
+                );
+            }
         }
         const url = `/web/dataset/call_kw/${model}/${method}`;
         const fullContext = { ...user.context, ...(kwargs.context || {}) };
@@ -131,12 +157,17 @@ export class ORM {
             args,
             kwargs: fullKwargs,
         };
-        return this.rpc(url, params, {
+        /** @type {Record<string, any>} */
+        const settings = {
             silent: this._silent,
             cache: this._cache,
             retry: this._retry,
             dedup: this._dedup,
-        });
+        };
+        if (this._signal) {
+            settings.signal = this._signal;
+        }
+        return this.rpc(url, params, settings);
     }
 
     /**
@@ -290,7 +321,7 @@ export class ORM {
      * @param {string[]} groupby
      * @param {string[]} aggregates
      * @param {any} [kwargs={}]
-     * @returns {Promise<any[]>}
+     * @returns {Promise<{ groups: any[]; length: number }>}
      */
     webReadGroup(model, domain, groupby, aggregates, kwargs = {}) {
         validateArray("domain", domain);
@@ -345,7 +376,7 @@ export class ORM {
      * @param {string} model
      * @param {import("@web/core/domain").DomainListRepr} domain
      * @param {any} [kwargs={}]
-     * @returns {Promise<any[]>}
+     * @returns {Promise<{ records: any[]; length: number }>}
      */
     webSearchRead(model, domain, kwargs = {}) {
         validateArray("domain", domain);
