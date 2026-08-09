@@ -6,13 +6,14 @@ from datetime import datetime, timedelta
 from urllib.parse import quote_plus, urlencode
 
 import requests.exceptions
+import zeep
 from psycopg import OperationalError
 
 import odoo.release
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.datetime import timezone
-from odoo.tools import float_repr, float_round, frozendict, zeep
+from odoo.tools import float_repr, float_round, frozendict
 
 from odoo.addons.certificate.tools import CertificateAdapter
 
@@ -48,9 +49,12 @@ def _get_zeep_operation(company, operation):
 
     settings = zeep.Settings(forbid_entities=False, strict=False)
     wsdl = company._l10n_es_edi_verifactu_get_endpoints()['wsdl']
+    # `timeout` bounds WSDL/XSD loading, `operation_timeout` the POST/GET
+    # itself; both belong to the Transport, not to Client, which takes neither
+    # and would raise TypeError on them.
     client = zeep.Client(
-        wsdl['url'], session=session, settings=settings,
-        operation_timeout=20, timeout=20,
+        wsdl['url'], settings=settings,
+        transport=zeep.Transport(session=session, timeout=20, operation_timeout=20),
     )
 
     if operation == 'registration':
@@ -62,11 +66,10 @@ def _get_zeep_operation(company, operation):
         function = service[wsdl[operation]]
     else:
         # operation == 'registration_xml'
-        zeep_client = client._Client__obj  # get the "real" zeep client from the odoo specific wrapper
-        service = zeep_client.bind(wsdl['service'], wsdl['port'])
+        service = client.bind(wsdl['service'], wsdl['port'])
 
         def function(*args, **kwargs):
-            return zeep_client.create_message(service, wsdl['registration'], *args, **kwargs)
+            return client.create_message(service, wsdl['registration'], *args, **kwargs)
 
     return function, info
 

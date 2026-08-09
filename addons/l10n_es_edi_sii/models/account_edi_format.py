@@ -3,9 +3,10 @@ import math
 from collections import defaultdict
 
 import requests
+import zeep
 
 from odoo import _, fields, models
-from odoo.tools import html_escape, zeep
+from odoo.tools import html_escape
 from odoo.libs.numbers import float_round
 
 from odoo.addons.certificate.tools import CertificateAdapter
@@ -442,7 +443,11 @@ class AccountEdiFormat(models.Model):
         session.cert = company.l10n_es_sii_certificate_id
         session.mount('https://', CertificateAdapter(ciphers=EUSKADI_CIPHERS))
 
-        client = zeep.Client(connection_vals['url'], operation_timeout=60, timeout=60, session=session)
+        # `timeout` bounds WSDL/XSD loading, `operation_timeout` the POST/GET
+        # itself; both belong to the Transport, not to Client, which takes
+        # neither and would raise TypeError on them.
+        transport = zeep.Transport(session=session, timeout=60, operation_timeout=60)
+        client = zeep.Client(connection_vals['url'], transport=transport)
 
         if invoices[0].is_sale_document():
             service_name = 'SuministroFactEmitidas'

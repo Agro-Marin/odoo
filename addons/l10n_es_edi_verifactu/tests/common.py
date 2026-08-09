@@ -1,11 +1,12 @@
 import base64
 import json
 import requests
+import zeep
 
 from unittest import mock
 
 from odoo import _, release, Command
-from odoo.tools import file_open, html_sanitize, misc, zeep
+from odoo.tools import file_open, html_sanitize, misc
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
@@ -124,7 +125,10 @@ class TestL10nEsEdiVerifactuCommon(AccountTestInvoicingCommon):
         return mock.patch(request_function_path, mocked_get_zeep_operation)
 
     def _mock_zeep_registration_operation(self, response_file_json, name=""):
-        # Note: The real result is of type 'odoo.tools.zeep.client.SerialProxy'; here it is a dict
+        # Note: the real result is a zeep CompoundValue; here it is a dict. Both
+        # support the attribute and item access the caller uses, so the mock
+        # stands in for it. (It was a SerialProxy while the deleted
+        # `odoo.tools.zeep` wrapper serialized responses.)
         zeep_response_dict = json.loads(self._read_file(response_file_json))
         if name:
             zeep_response_dict['RespuestaLinea'][0]['IDFactura']['NumSerieFactura'] = name
