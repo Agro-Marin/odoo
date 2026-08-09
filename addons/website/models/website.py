@@ -1743,12 +1743,11 @@ class Website(models.Model):
         """
         is_frontend_request = request and getattr(request, "is_frontend", False)
         if request and request.session.get("force_website_id"):
-            website_id = self.browse(request.session["force_website_id"]).exists()
-            if not website_id:
-                # Don't crash is session website got deleted
-                request.session.pop("force_website_id")
-            else:
-                return website_id
+            forced_id = request.session["force_website_id"]
+            if self._is_forced_website_live(forced_id):
+                return self.browse(forced_id)
+            # Don't crash is session website got deleted
+            request.session.pop("force_website_id")
 
         website_id = self.env.context.get("website_id")
         if website_id:
@@ -1779,6 +1778,48 @@ class Website(models.Model):
         )
         website_id = self.sudo()._get_current_website_id(domain_name, fallback=fallback)
         return self.browse(website_id)
+
+    @api.model
+    def _is_forced_website_live(self, website_id):
+        """Whether ``session['force_website_id']`` still designates a live record.
+
+        ``get_current_website()`` has to survive a forced id left in a session by
+        a website that has since gone away, but ``exists()`` deliberately
+        bypasses the ORM cache and issues one SQL round trip *every* time, and
+        ``_url_for`` reaches this once per URL it rewrites.
+
+        Measured on ``render_public_asset("website.snippets")`` with a forced
+        website in session (the render the builder's snippet panel performs):
+        344 website queries cold / 29 hot, of which 329 resp. 28 were this one
+        probe -- 16 / 1 once memoized. Note the cost is bounded to renders that
+        *compile* many URLs: an ordinary page request pays it once either way
+        (measured 1 vs 1, even on a page carrying 300 links), because
+        ``_post_processing_att`` rewrites static attributes at compile time and
+        the compiled template is cached. It is nil for anonymous visitors, whose
+        sessions carry no forced id at all.
+
+        Memoize the answer **on the request**, not in an ormcache. A registry
+        cache would answer across requests and could therefore go stale in the
+        one direction that matters: a website created and then rolled back
+        leaves a cached "yes", after which this returns a dangling recordset and
+        the first field read raises MissingError -- precisely the crash the
+        ``exists()`` call is here to prevent. A request-scoped memo cannot
+        outlive the transaction that created the row, so every new request
+        re-checks against the database exactly as before.
+
+        The cache generation is part of the token so that a *same-request*
+        ``create``/``write``/``unlink`` on ``website`` -- each of which calls
+        ``registry.clear_cache()`` -- also invalidates it.
+        """
+        token = (website_id, self.pool.ormcache_lrus["default"].generation)
+        # ``==`` rather than ``is not None``: under a mocked request an unset
+        # attribute autovivifies to a truthy Mock, which must not read as a hit.
+        if getattr(request, "_website_forced_token", None) == token:
+            return True
+        if not self.browse(website_id).exists():
+            return False
+        request._website_forced_token = token
+        return True
 
     @api.model
     @tools.ormcache("domain_name", "fallback")
@@ -2411,7 +2452,15 @@ class Website(models.Model):
         )
         if snippet_template_html:
             match = re.search(r'<([^>]*class="[^>]*)>', snippet_template_html)
-            snippet_occurences.append(match.group())
+            if match:
+                # A snippet template whose root carries no ``class`` attribute
+                # is unusual but legal, and ``re.search`` then returns None.
+                # Calling ``.group()`` on it raised AttributeError out of
+                # ``_disable_unused_snippets_assets``, which runs on every
+                # module install/upgrade -- taking the whole upgrade down over
+                # one odd template. No match simply means "this definition
+                # proves nothing", which the DB scan below still answers.
+                snippet_occurences.append(match.group())
 
         if self._check_snippet_used(snippet_occurences, asset_type, asset_version):
             return True

@@ -199,13 +199,35 @@ class IrUiView(models.Model):
         langs.add('en_US')
 
         # 2. Set translations
-        new_value = {
-            lang: field_to.translate(lambda term, lang=lang: translation_dictionary.get(term, {}).get(lang), record_to[name_field_to])
-            for lang in langs
-        }
-        record_to.env.cache.update_raw(record_to, field_to, [new_value], dirty=True)
+        # Start from the stored jsonb rather than from an empty dict: it carries
+        # the `_lang` keys that hold *delayed* translations, and rebuilding the
+        # value from `langs` alone silently drops them.
+        stored_translation = field_to._get_stored_translations(record_to) or {}
+        for lang in langs:
+            lang_ = f'_{lang}' if f'_{lang}' in stored_translation else lang
+            stored_translation[lang_] = field_to.translate(
+                lambda term, lang=lang: translation_dictionary.get(term, {}).get(lang),
+                record_to[name_field_to],
+            )
+            if not self.env.context.get('delay_translations') and lang_.startswith('_'):
+                stored_translation[lang] = stored_translation.pop(lang_)
+
+        # `field._update_cache`, NOT `env.cache.update_raw`: a translated field
+        # keeps one cache slot *per language* (`_get_cache_impl` wraps the cache
+        # in a `LangProxyDict` for a callable-`translate` field), so `update_raw`
+        # stored this whole {lang: arch} mapping in the CURRENT language's slot
+        # and flushed it there -- writing `{"_en_US": {"en_US": ..., "fr_FR": ...}}`
+        # into the jsonb column. The record then read a dict back where a string
+        # was expected and every copied translation was lost. `prefetch_langs`
+        # is what makes `_update_cache` treat the value as the full per-language
+        # mapping; this mirrors `TranslationMixin._update_field_translations` and
+        # the warning already written down in `orm/models/mixins/copy.py`.
+        field_to._update_cache(
+            record_to.with_context(prefetch_langs=True), stored_translation, dirty=True
+        )
         # Call `write` to trigger compute etc (`modified()`)
-        record_to.with_context(check_translations=False)[name_field_to] = new_value[lang_env]
+        record_to = record_to.with_context(check_translations=False)
+        record_to[name_field_to] = record_to[name_field_to]
 
     @api.model
     def _save_oe_structure_hook(self):

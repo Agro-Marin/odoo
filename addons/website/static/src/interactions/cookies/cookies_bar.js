@@ -177,11 +177,19 @@ export class CookiesBar extends Popup {
      * Reopens the cookies bar if it was closed.
      */
     onShowCookiesBar() {
+        // A malformed cookie must not throw here: this handler is what reopens
+        // the bar so the visitor can *change* their choice, and a parse error
+        // would leave them with no way to do it. An unreadable value means "no
+        // recorded consent", so the bar should open. Matches the same guard in
+        // `js/http_cookie.js` and in the server's `_is_allowed_cookie`.
         const currCookie = cookie.get(this.el.id);
-        if (
-            (currCookie && JSON.parse(currCookie).optional) ||
-            !this.popupAlreadyShown
-        ) {
+        let optionalAccepted;
+        try {
+            optionalAccepted = !!(currCookie && JSON.parse(currCookie).optional);
+        } catch {
+            optionalAccepted = false;
+        }
+        if (optionalAccepted || !this.popupAlreadyShown) {
             return;
         }
         this.bsModal.show();

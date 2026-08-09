@@ -442,13 +442,29 @@ class WebsitePage(models.Model):
         """Checks if the generated HTML content is eligible for caching. This
         is useful for preventing sensitive or dynamic content from being stored.
         """
+        page_info = self._get_page_info(request) or {}
         return (
             request.httprequest.method == "GET"
             and not request.params  # because the parameters are not part of the cache key
             and request.env.user._is_public()  # only cache for unlogged user
-            and not self._get_page_info(request)[
-                "group_ids"
-            ]  # do not cache elements dependent on security access
+            # Do not cache anything whose visibility depends on who is asking.
+            # ``group_ids`` covers the "restricted group" case; ``visibility``
+            # covers "signed in" and, critically, "with password": the unlock is
+            # remembered per *session* (``ir.ui.view._handle_visibility`` ->
+            # ``session["views_unlock"]``) and is NOT part of ``_get_cache_key``,
+            # so caching a page a visitor has unlocked would hand its content to
+            # every other visitor of that URL. Read the visibility from the
+            # template-info ormcache the render is about to consult anyway
+            # rather than fetching the column here: that keeps this guard free
+            # on the hot path (``_get_page_info``'s own SELECT does not carry
+            # ``ir.ui.view`` columns).
+            and not page_info.get("group_ids")
+            and not (
+                page_info
+                and self.env["ir.ui.view"]
+                ._get_cached_template_info(page_info["view_id"])
+                .get("visibility")
+            )
         )
 
     @api.model

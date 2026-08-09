@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { FloatingBlocks } from "./floating_blocks.js";
+import { FloatingBlocks } from "@website/snippets/s_floating_blocks/floating_blocks";
 
 const FloatingBlocksEdit = (I) =>
     class extends I {

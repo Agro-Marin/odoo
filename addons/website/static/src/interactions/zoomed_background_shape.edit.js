@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { ZoomedBackgroundShape } from "./zoomed_background_shape.js";
+import { ZoomedBackgroundShape } from "@website/interactions/zoomed_background_shape";
 
 const ZoomedBackgroundShapeEdit = (I) =>
     class extends I {

@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { MediaVideo } from "./media_video.js";
+import { MediaVideo } from "@website/interactions/video/media_video";
 
 export const MediaVideoEdit = (I) =>
     class extends I {

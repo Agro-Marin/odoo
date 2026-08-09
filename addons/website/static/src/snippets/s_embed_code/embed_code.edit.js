@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-
-import { EmbedCode } from "./embed_code.js";
+import { EmbedCode } from "@website/snippets/s_embed_code/embed_code";
 
 const EmbedCodeEdit = (I) =>
     class extends I {

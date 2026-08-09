@@ -485,20 +485,47 @@ class IrUiView(models.Model):
 
         visibility = self._get_cached_visibility()
 
+        if visibility:
+            # Whatever the outcome below, the body of a view with a visibility
+            # depends on *who is asking* -- the session's ``views_unlock``, the
+            # user's groups, whether they are signed in. Odoo emits no
+            # ``Cache-Control`` on a rendered page, so a shared proxy or CDN is
+            # free to treat a 200 as heuristically cacheable and hand one
+            # visitor's copy to the next. Say so explicitly. (The in-process
+            # response cache is refused separately, in
+            # ``website.page._allow_to_use_cache``.) Unguarded on purpose:
+            # ``Request.__init__`` always builds a ``future_response``, and this
+            # method already dereferences ``request.env`` below.
+            request.future_response.headers["Cache-Control"] = (
+                "private, no-store, max-age=0"
+            )
+
         if visibility and not request.env.user.has_group(
             "website.group_website_designer"
         ):
             if visibility == "connected" and request.website.is_public_user():
                 error = werkzeug.exceptions.Forbidden()
-            elif visibility == "password" and (
-                request.website.is_public_user()
-                or self.id not in request.session.get("views_unlock", [])
+            elif visibility == "password" and self.id not in request.session.get(
+                "views_unlock", []
             ):
                 pwd = request.params.get("visibility_password")
                 if pwd and self.env.user._crypt_context().verify(
                     pwd, self.visibility_password
                 ):
-                    request.session.setdefault("views_unlock", []).append(self.id)
+                    # Rebind the whole list; do NOT mutate it in place.
+                    # ``session.setdefault(key, [])`` returns the list *the
+                    # caller passed*, while ``Session.__setitem__`` stores a
+                    # JSON-coerced **copy** of it, so appending to the returned
+                    # list wrote to an orphan and the unlock was lost the moment
+                    # the request ended. On later requests the in-place append
+                    # did reach the stored list, but only ``__setitem__`` sets
+                    # ``is_dirty``, so the session was never persisted either.
+                    # Either way the visitor was asked for the password again on
+                    # every single page load.
+                    request.session["views_unlock"] = [
+                        *request.session.get("views_unlock", []),
+                        self.id,
+                    ]
                 else:
                     error = werkzeug.exceptions.Forbidden(
                         "website_visibility_password_required"

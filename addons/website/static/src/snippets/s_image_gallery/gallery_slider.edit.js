@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { GallerySlider } from "./gallery_slider.js";
+import { GallerySlider } from "@website/snippets/s_image_gallery/gallery_slider";
 
 const GallerySliderEdit = (I) =>
     class extends I {

@@ -194,8 +194,24 @@ class IrQweb(models.AbstractModel):
             website.cookies_bar
             and website.block_third_party_domains
             and not self.env.context.get("cookies_allowed")
-            and not request.env.user.has_group(
-                "website.group_website_restricted_editor"
+            # ``website`` may come from the *context* rather than from the
+            # request (a cron, a server action, a multi-website render), and
+            # this used to reach for ``request.env`` unguarded -- "object is not
+            # bound" out of any request-free render of a site that has the
+            # cookies bar and third-party blocking on.
+            #
+            # Guard on ``request`` FIRST and fail CLOSED. Falling back to the
+            # rendering environment's own user would be worse than the crash:
+            # a cron renders as superuser, who is in every group, so the editor
+            # bypass would apply and the third-party ``src`` would be emitted
+            # verbatim. This bypass exists so someone *editing* the site sees
+            # real embeds; a render with no request is never that, and with no
+            # visitor there is no consent to honour.
+            and not (
+                request
+                and request.env.user.has_group(
+                    "website.group_website_restricted_editor"
+                )
             )
         ):
             # If the cookie banner is activated, 3rd-party embedded iframes and

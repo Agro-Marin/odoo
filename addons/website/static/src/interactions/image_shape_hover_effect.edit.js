@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { ImageShapeHoverEffect } from "./image_shape_hover_effect.js";
+import { ImageShapeHoverEffect } from "@website/interactions/image_shape_hover_effect";
 
 const ImageShapeHoverEffectEdit = (I) =>
     class extends I {

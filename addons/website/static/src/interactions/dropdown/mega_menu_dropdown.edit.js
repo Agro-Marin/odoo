@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
-
-import { MegaMenuDropdown } from "./mega_menu_dropdown.js";
+import { MegaMenuDropdown } from "@website/interactions/dropdown/mega_menu_dropdown";
 
 const MegaMenuDropdownEdit = (I) =>
     class extends I {

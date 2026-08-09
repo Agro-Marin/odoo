@@ -4,8 +4,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 import { Interaction } from "@web/public/interaction";
-
-import { Form } from "./form.js";
+import { Form } from "@website/snippets/s_website_form/form";
 
 const { DateTime } = luxon;
 

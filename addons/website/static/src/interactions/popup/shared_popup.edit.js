@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { SharedPopup } from "./shared_popup.js";
+import { SharedPopup } from "@website/interactions/popup/shared_popup";
 
 export const SharedPopupEdit = (I) =>
     class extends I {

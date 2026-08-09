@@ -65,8 +65,8 @@ class IrAsset(models.Model):
         bundle produces exactly that pair across two bundles, and filtering them
         together would drop the generic one from a bundle it still belongs to.
         """
-        return super()._filter_bundle_assets(assets, **params).filter_duplicate(
-            website_id
+        return (
+            super()._filter_bundle_assets(assets, **params).filter_duplicate(website_id)
         )
 
     def _get_active_addons_list(self, *, website_id=None, **params):

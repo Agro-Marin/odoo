@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { Animation } from "./animation.js";
+import { Animation } from "@website/interactions/animation";
 
 const AnimationEdit = (I) =>
     class extends I {

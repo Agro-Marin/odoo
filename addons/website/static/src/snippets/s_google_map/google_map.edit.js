@@ -2,8 +2,7 @@
 /* global google */
 
 import { registry } from "@web/core/registry";
-
-import { GoogleMap } from "./google_map.js";
+import { GoogleMap } from "@website/snippets/s_google_map/google_map";
 
 const GoogleMapEdit = (I) =>
     class extends I {

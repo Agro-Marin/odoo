@@ -240,6 +240,13 @@ class TestQweb(TransactionCaseWithUserDemo):
             )
 
         def check_website(template, name, queries):
+            # +1: ``MockRequest`` puts the website in the session as
+            # ``force_website_id``, and ``get_current_website()`` validates that
+            # id against the database once per request (see
+            # ``_is_forced_website_live``). Each ``check_website`` opens its own
+            # request, so it pays that check exactly once -- unlike a real page
+            # render, which reaches ``get_current_website()`` once per URL it
+            # rewrites and now pays it once in total.
             queries += 1
             init = env.cr.sql_log_count
             with MockRequest(env, website=website) as request:
@@ -416,14 +423,17 @@ class TestQwebProcessAtt(TransactionCase):
         with MockRequest(self.env, website=self.website):
             self._test_att("/", {"href": "/"})
             self._test_att("/en/", {"href": "/"})
-            self._test_att("/fr/", {"href": "/fr/"})
+            # "/fr/" and "/fr" are the same page, and the ladder 301s the former
+            # to the latter (see ``_lang_url_prefix``), so link building emits
+            # the form that does not cost the visitor a redirect.
+            self._test_att("/fr/", {"href": "/fr"})
             self._test_att("/fr", {"href": "/fr"})
 
     def test_process_att_with_request_lang(self):
         with MockRequest(self.env, website=self.website, context={"lang": "fr_FR"}):
             self._test_att("/", {"href": "/fr"})
             self._test_att("/en/", {"href": "/"})
-            self._test_att("/fr/", {"href": "/fr/"})
+            self._test_att("/fr/", {"href": "/fr"})
             self._test_att("/fr", {"href": "/fr"})
 
     def test_process_att_matching_cdn_and_lang(self):

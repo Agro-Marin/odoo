@@ -56,6 +56,25 @@ export class CarouselSlider extends Interaction {
             ];
         }
 
+        // Resolve `options` here rather than in `start()`. DEFENSIVE, not a
+        // fix for an observed failure: Colibri binds the `dynamicContent`
+        // listeners before calling `start()` (`Colibri.startInteraction`), and
+        // `onSlideCarousel`/`onSlidCarousel` read `this.options`, which
+        // `start()` only assigned partway through. Nothing can currently fire
+        // `slide.bs.carousel` in that window -- the two run synchronously and
+        // Bootstrap's autoplay is `setInterval`-driven -- but the window opens
+        // the moment `start()` gains an `await` or an earlier slide call, and
+        // `setup()` is where per-instance state belongs anyway.
+        const itemWidth = getComputedStyle(this.el).getPropertyValue(
+            "--o-carousel-item-width-percentage",
+        );
+        this.options = {
+            scrollMode: this.el.classList.contains("o_carousel_multi_items")
+                ? "single"
+                : "all",
+            itemsPerSlide: itemWidth ? Math.round(100 / parseFloat(itemWidth)) : 1,
+        };
+
         this.hasInterval = ![undefined, "false", "0"].includes(
             this.el.dataset.bsInterval,
         );
@@ -75,17 +94,6 @@ export class CarouselSlider extends Interaction {
         const carouselBS = Carousel.getOrCreateInstance(this.el, this.carouselOptions);
         this.registerCleanup(() => carouselBS.dispose());
 
-        const itemWidth = getComputedStyle(this.el).getPropertyValue(
-            "--o-carousel-item-width-percentage",
-        );
-        const itemsPerSlide = itemWidth ? Math.round(100 / parseFloat(itemWidth)) : 1;
-        this.options = {
-            scrollMode: this.el.classList.contains("o_carousel_multi_items")
-                ? "single"
-                : "all",
-            itemsPerSlide: itemsPerSlide,
-        };
-
         // Preload first items only when carousel is on screen
         const observer = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
@@ -96,7 +104,9 @@ export class CarouselSlider extends Interaction {
             });
         });
         observer.observe(this.el);
-        this.registerCleanup(() => observer.unobserve(this.el));
+        // `disconnect`, not `unobserve`: the observer must stop holding the
+        // element whatever it is currently watching.
+        this.registerCleanup(() => observer.disconnect());
     }
 
     computeMaxHeight() {
@@ -125,6 +135,14 @@ export class CarouselSlider extends Interaction {
      * @param {Event} ev The Bootstrap Carousel slide event.
      */
     onSlideCarousel(ev) {
+        if (!this.carouselInnerEl) {
+            // Defensive, for symmetry with `loadItemsToAppear`, which already
+            // guards the same field: the selector is a bare `.carousel`, so
+            // hand-written markup can match without a `.carousel-inner`.
+            // Bootstrap would not emit a slide event for such an element, so
+            // this is not a reachable crash today.
+            return;
+        }
         const imageEls = [...this.carouselInnerEl.querySelectorAll("img")];
         const isLoading = imageEls.some((el) => el.loading !== "lazy" && !el.complete);
         if (isLoading) {

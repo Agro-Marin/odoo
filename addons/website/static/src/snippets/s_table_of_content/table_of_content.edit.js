@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { isTrackedSnapshot } from "@website/core/website_edit_service";
-
-import { TableOfContent } from "./table_of_content.js";
+import { TableOfContent } from "@website/snippets/s_table_of_content/table_of_content";
 
 export const TableOfContentEdit = (I) =>
     class extends I {

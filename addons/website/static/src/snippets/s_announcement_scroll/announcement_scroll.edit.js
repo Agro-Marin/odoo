@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { AnnouncementScroll } from "./announcement_scroll.js";
+import { AnnouncementScroll } from "@website/snippets/s_announcement_scroll/announcement_scroll";
 
 export const AnnouncementScrollEdit = (I) =>
     class extends I {

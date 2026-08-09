@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-
-import { DynamicSnippet } from "./dynamic_snippet.js";
+import { DynamicSnippet } from "@website/snippets/s_dynamic_snippet/dynamic_snippet";
 
 const DynamicSnippetEdit = (I) =>
     class extends I {

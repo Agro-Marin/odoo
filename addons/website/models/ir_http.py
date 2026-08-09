@@ -311,10 +311,23 @@ class IrHttp(models.AbstractModel):
         super()._frontend_pre_dispatch()
 
         if not request.env.context.get("tz"):
-            with contextlib.suppress(ZoneInfoNotFoundError):
-                request.update_context(
-                    tz=timezone(request.geoip.location.time_zone).key
-                )
+            # ``location.time_zone`` is None whenever GeoIP cannot answer -- and
+            # it *never* answers unless a GeoLite2 **City** database is
+            # configured, which is not the default. Feeding that None to
+            # ``timezone()`` raises TypeError from deep inside ``zoneinfo``
+            # (``os.path.isabs(None)``), and TypeError is not
+            # ZoneInfoNotFoundError, so it escaped this suppress() and turned
+            # *every* frontend request into an HTTP 500 for any visitor whose
+            # context carries no tz -- which is every anonymous visitor of a
+            # site whose public user has no timezone set. The pytz call this
+            # replaced raised UnknownTimeZoneError for None and was therefore
+            # covered; the zoneinfo port lost that. Ask only when there is
+            # something to ask about, and keep suppressing the genuine
+            # "GeoIP named a zone this system does not know" case.
+            geoip_tz = request.geoip.location.time_zone
+            if geoip_tz:
+                with contextlib.suppress(ZoneInfoNotFoundError):
+                    request.update_context(tz=timezone(geoip_tz).key)
 
         website = request.env["website"].get_current_website()
         user = request.env.user
@@ -606,9 +619,19 @@ class IrHttp(models.AbstractModel):
             if not website or not website._get_cached("cookies_bar"):
                 # Cookies bar is disabled on this website
                 return True
-            accepted_cookie_types = json_scriptsafe.loads(
-                request.cookies.get("website_cookies_bar", "{}")
-            )
+            try:
+                accepted_cookie_types = json_scriptsafe.loads(
+                    request.cookies.get("website_cookies_bar", "{}")
+                )
+            except ValueError:
+                # The cookie is client-side state: it can be truncated by a
+                # proxy, mangled by another app sharing the domain, or simply
+                # forged. A JSONDecodeError here escaped as an HTTP 500 on
+                # *every* frontend page for that visitor, with no way out but
+                # clearing cookies by hand. Treat an unreadable value exactly
+                # like the pre-16.0 one below: drop it and ask again.
+                request.future_response.set_cookie("website_cookies_bar", max_age=0)
+                return False
 
             # pre-16.0 compatibility, `website_cookies_bar` was `"true"`.
             # In that case we delete that cookie and let the user choose again.

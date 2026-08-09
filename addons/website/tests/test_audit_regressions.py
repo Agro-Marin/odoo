@@ -11,10 +11,11 @@ from unittest.mock import MagicMock, patch
 import psycopg
 import requests
 import werkzeug
+from lxml import html
 
 from odoo.http import request
 from odoo.tests import tagged
-from odoo.tests.common import TransactionCase, new_test_user
+from odoo.tests.common import HttpCase, TransactionCase, new_test_user
 from odoo.tools import mute_logger
 
 from odoo.addons.http_routing.tests.common import MockRequest
@@ -670,3 +671,292 @@ class TestVisitorUpsertSeam(TransactionCase):
             partner,
             "a non-32-char (partner id) token links the partner",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestProtectedPageUnlock(HttpCase):
+    """``visibility = 'password'`` must stay unlocked for the rest of the session,
+    and must never leak through the shared full-page response cache."""
+
+    URL = "/test-audit-protected"
+    BODY = "AUDITSECRETBODY"
+
+    def setUp(self):
+        super().setUp()
+        page = self.env["website.page"].create(
+            {
+                "name": "Audit Secret",
+                "url": self.URL,
+                "is_published": True,
+                "type": "qweb",
+                "key": "website.test_audit_protected",
+                "arch": '<t t-name="website.test_audit_protected">'
+                '<t t-call="website.layout">%s</t></t>' % self.BODY,
+            }
+        )
+        page.view_id.write({"visibility": "password", "visibility_password": "hunter2"})
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.addCleanup(self.env.registry.clear_cache)
+        self.addCleanup(page.unlink)
+
+    def _get(self, **params):
+        return self.url_open(self.URL, params=params, allow_redirects=False)
+
+    def test_unlock_survives_the_next_request(self):
+        """The whole point of ``session['views_unlock']``.
+
+        ``session.setdefault('views_unlock', []).append(id)`` never reached the
+        session: ``Session.__setitem__`` stores a JSON-coerced *copy* of the
+        list, so the append landed on an orphan; and a later in-place append
+        does not set ``is_dirty`` either, so it is not persisted. The visitor
+        was asked for the password again on every single page load.
+        """
+        denied = self._get()
+        self.assertEqual(denied.status_code, 403)
+        self.assertNotIn(self.BODY, denied.text)
+
+        opened = self._get(visibility_password="hunter2")
+        self.assertEqual(opened.status_code, 200)
+        self.assertIn(self.BODY, opened.text)
+
+        again = self._get()
+        self.assertEqual(
+            again.status_code,
+            200,
+            "the unlock must be remembered for the rest of the session",
+        )
+        self.assertIn(self.BODY, again.text)
+
+    def test_a_protected_page_is_marked_uncacheable(self):
+        """Its body depends on the session, so no shared cache may keep it.
+
+        Odoo emits no ``Cache-Control`` on a rendered page, so a proxy or CDN in
+        front of the site is free to treat the 200 as heuristically cacheable
+        and hand one visitor's unlocked copy to the next. The in-process
+        response cache is refused separately (``_allow_to_use_cache``); this is
+        the same statement made to the network.
+        """
+        self.assertEqual(self._get(visibility_password="hunter2").status_code, 200)
+        opened = self._get()
+        self.assertEqual(opened.status_code, 200)
+        self.assertEqual(
+            opened.headers.get("Cache-Control"), "private, no-store, max-age=0"
+        )
+        # An ordinary public page must keep its (absent) caching policy.
+        plain = self.url_open("/", allow_redirects=False)
+        self.assertEqual(plain.status_code, 200)
+        self.assertIsNone(plain.headers.get("Cache-Control"))
+
+    def test_a_wrong_password_never_unlocks(self):
+        self.assertEqual(self._get(visibility_password="nope").status_code, 403)
+        self.assertEqual(self._get().status_code, 403)
+
+    def test_the_unlock_does_not_leak_through_the_page_cache(self):
+        """Remembering the unlock must not weaken the gate for anyone else.
+
+        The full-page response cache is keyed by (website, lang, path, debug,
+        consent) -- ``views_unlock`` is deliberately NOT in that key. So the
+        plain GET that an unlocked visitor makes must not be cacheable, or its
+        body would be handed to every subsequent visitor of the same URL.
+        """
+        self.assertEqual(self._get(visibility_password="hunter2").status_code, 200)
+        # The cacheable shape: same session, GET, no query parameters. This is
+        # the request that would populate the shared cache.
+        self.assertEqual(self._get().status_code, 200)
+
+        # A different visitor: drop the session cookie (keeping the test-cursor
+        # one, which is harness plumbing, not application state).
+        self.opener.cookies.pop("session_id", None)
+        denied = self._get()
+        self.assertEqual(
+            denied.status_code, 403, "a protected page must not be served from cache"
+        )
+        self.assertNotIn(self.BODY, denied.text)
+
+
+@tagged("post_install", "-at_install")
+class TestFrontendDispatchGeoip(HttpCase):
+    def test_frontend_survives_a_geoip_that_knows_no_timezone(self):
+        """A default install has no GeoLite2 *City* database.
+
+        ``request.geoip.location.time_zone`` is then None, and
+        ``_frontend_pre_dispatch`` fed it straight to ``timezone()``, which
+        raises TypeError from inside ``zoneinfo`` -- not the
+        ZoneInfoNotFoundError the surrounding ``suppress()`` catches. Every
+        anonymous request to a site whose public user has no timezone therefore
+        answered HTTP 500: the whole public website, down out of the box.
+        """
+        website = self.env["website"].search([], limit=1)
+        website.user_id.sudo().tz = False
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+
+        response = self.url_open("/", allow_redirects=False)
+        self.assertEqual(
+            response.status_code,
+            200,
+            "an anonymous frontend request must not depend on a GeoIP city database",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestCookiesBarCookie(HttpCase):
+    def setUp(self):
+        super().setUp()
+        self.website = self.env["website"].search([], limit=1)
+        self.website.write({"cookies_bar": True})
+        self.website.user_id.sudo().tz = False
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.addCleanup(self.env.registry.clear_cache)
+        self.addCleanup(self.website.write, {"cookies_bar": False})
+
+    def test_a_malformed_consent_cookie_does_not_take_the_site_down(self):
+        """``website_cookies_bar`` is client-side state and is parsed as JSON.
+
+        An unparseable value raised JSONDecodeError out of
+        ``ir.http._is_allowed_cookie`` -- which runs on *every* frontend render
+        (it is part of the page cache key) -- so a truncated or forged cookie
+        answered HTTP 500 on every page, with no way out but clearing cookies
+        by hand.
+        """
+        for value in ("garbage", '{"optional":', "[1,2"):
+            response = self.url_open(
+                "/",
+                cookies={"website_cookies_bar": value},
+                allow_redirects=False,
+            )
+            self.assertEqual(
+                response.status_code,
+                200,
+                f"a malformed consent cookie ({value!r}) must not 500 the page",
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestGetCurrentWebsiteCost(TransactionCase):
+    def test_a_forced_website_is_not_re_checked_on_every_call(self):
+        """``get_current_website()`` is reached once per URL ``_url_for`` rewrites.
+
+        It validated ``session['force_website_id']`` with ``exists()``, which
+        deliberately bypasses the ORM cache and issues one SQL round trip every
+        time. Measured on the builder's snippet-panel render
+        (``render_public_asset('website.snippets')``): 329 of 344 website
+        queries cold, 28 of 29 hot. An ordinary page request was unaffected
+        (1 either way) -- the cost lands on renders that compile many URLs.
+        """
+        website = self.env["website"].search([], limit=1)
+        Website = self.env["website"]
+        with MockRequest(self.env, website=website) as req:
+            req.session["force_website_id"] = website.id
+            self.env.registry.clear_cache()
+            Website.get_current_website()  # warms the cache
+            with self.assertQueryCount(0):
+                for _i in range(20):
+                    self.assertEqual(Website.get_current_website(), website)
+
+    def test_a_deleted_forced_website_is_still_dropped_from_the_session(self):
+        """The behaviour the ``exists()`` call was there for must survive."""
+        website = self.env["website"].search([], limit=1)
+        missing_id = max(self.env["website"].search([]).ids) + 1000
+        with MockRequest(self.env, website=website) as req:
+            req.session["force_website_id"] = missing_id
+            self.env.registry.clear_cache()
+            self.assertTrue(self.env["website"].get_current_website())
+            self.assertNotIn(
+                "force_website_id",
+                req.session,
+                "a forced website that no longer exists must be dropped",
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestSnippetAssetPruning(TransactionCase):
+    def test_a_snippet_template_without_a_class_does_not_break_the_upgrade(self):
+        """``_is_snippet_used`` did ``re.search(...).group()`` unconditionally.
+
+        A snippet template whose root carries no ``class`` attribute is unusual
+        but legal, and the search then returns None -- raising AttributeError
+        out of ``_disable_unused_snippets_assets``, which runs on every module
+        install/upgrade.
+        """
+        self.env["ir.ui.view"].create(
+            {
+                "name": "Audit classless snippet",
+                "type": "qweb",
+                "key": "website.audit_classless_snippet",
+                "arch": '<div t-name="website.audit_classless_snippet">x</div>',
+            }
+        )
+        self.env.registry.clear_cache()
+        # Must answer a boolean rather than raising.
+        used = self.env["website"]._is_snippet_used(
+            "website",
+            "audit_classless_snippet",
+            "000",
+            "js",
+            [("ir.ui.view", "arch_db")],
+        )
+        self.assertIn(used, (True, False))
+
+
+@tagged("post_install", "-at_install")
+class TestCookieBarrierWithoutRequest(TransactionCase):
+    """The third-party cookie barrier must survive a render with no request,
+    and must fail CLOSED there."""
+
+    def setUp(self):
+        super().setUp()
+        self.website = self.env["website"].browse(1)
+        self.website.write({"cookies_bar": True, "block_third_party_domains": True})
+        self.env["ir.ui.view"].create(
+            {
+                "name": "audit_norequest",
+                "type": "qweb",
+                "key": "website.audit_norequest",
+                "arch_db": '<t t-name="website.audit_norequest"><div>'
+                '<iframe src="https://www.youtube.com/embed/x"/></div></t>',
+            }
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.addCleanup(self.env.registry.clear_cache)
+
+    def _render_without_request(self):
+        return str(
+            self.env["ir.qweb"]
+            .with_context(website_id=self.website.id)
+            ._render("website.audit_norequest")
+        )
+
+    def test_a_request_free_render_does_not_raise(self):
+        """``_post_processing_att`` read ``request.env`` unguarded.
+
+        The website can come from the *context* instead of the request (a cron,
+        a server action, a multi-website render), and the unguarded read raised
+        ``RuntimeError: object is not bound`` out of every such render once the
+        site had the cookies bar plus third-party blocking on.
+        """
+        self.assertIn("<iframe", self._render_without_request())
+
+    def test_a_request_free_render_still_blocks_third_parties(self):
+        """And it must fail CLOSED.
+
+        Falling back to the *rendering* environment's user would be worse than
+        the crash: a cron renders as superuser, who is in every group, so the
+        website-editor bypass would apply and the tracked ``src`` would go out
+        verbatim. With no request there is no visitor and no consent to honour.
+        """
+        rendered = self._render_without_request()
+        # The barrier neutralises ``src`` and parks the original in
+        # ``data-nocookie-src`` so the client can restore it after consent, so
+        # the URL legitimately still appears in the markup. Read the ``src``
+        # attribute itself rather than substring-matching, which would also
+        # match inside ``data-nocookie-src``.
+        iframe = html.fromstring(rendered).xpath("//iframe")[0]
+        self.assertEqual(iframe.get("src"), "about:blank")
+        self.assertEqual(
+            iframe.get("data-nocookie-src"), "https://www.youtube.com/embed/x"
+        )
+        self.assertEqual(iframe.get("data-need-cookies-approval"), "true")
