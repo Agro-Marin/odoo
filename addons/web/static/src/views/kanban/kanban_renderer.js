@@ -113,8 +113,17 @@ export class KanbanRenderer extends Component {
         this.progressBarState = this.props.progressBarState
             ? useState(this.props.progressBarState)
             : undefined;
-        this.quickCreateState =
-            this.props.quickCreateState || useState({ groupId: false });
+        // `useState` unconditionally, on whichever object we end up with. The
+        // controller hands this down as a bare `reactive()`, and a bare reactive
+        // read through the raw prop registers against OWL's NO_CALLBACK — so the
+        // template's `t-if="group.id === quickCreateState.groupId"` subscribed
+        // nothing, and the quick-create form appeared only because something
+        // else on the same click re-rendered the renderer. Re-targeting makes
+        // that read subscribe THIS component. (Calling the hook on only one
+        // branch also made hook order depend on a prop.)
+        this.quickCreateState = useState(
+            this.props.quickCreateState || { groupId: false },
+        );
         this.dialogClose = [];
         this._onValidateQuickCreate = (...args) => this.props.list.createGroup(...args);
         this.state = useState({
