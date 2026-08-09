@@ -1502,8 +1502,11 @@ class CustomerPortal(Controller):
         """
         values = self._prepare_portal_layout_values()
         values["get_error"] = get_error
-        values["allow_api_keys"] = bool(
-            request.env["ir.config_parameter"].sudo().get_param("portal.allow_api_keys")
+        # str2bool, not bool(): get_param returns a string, and bool("False")
+        # is True -- which surfaced the API-key UI with the toggle turned off.
+        values["allow_api_keys"] = str2bool(
+            request.env["ir.config_parameter"].sudo().get_param("portal.allow_api_keys"),
+            default=False,
         )
         values["open_deactivate_modal"] = False
         return values

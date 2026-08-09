@@ -1,5 +1,6 @@
 from odoo import _, models
 from odoo.exceptions import AccessError
+from odoo.tools.misc import str2bool
 
 
 class ResUsersApikeys(models.Model):
@@ -21,10 +22,14 @@ class ResUsersApikeys(models.Model):
         try:
             return super()._check_generate_access()
         except AccessError:
-            allow_portal = bool(
+            # str2bool, not bool(): get_param returns the *string* the settings
+            # form stored, and bool("False") is True -- which granted portal
+            # users API keys precisely when an admin had turned the toggle off.
+            allow_portal = str2bool(
                 self.env["ir.config_parameter"]
                 .sudo()
-                .get_param("portal.allow_api_keys")
+                .get_param("portal.allow_api_keys"),
+                default=False,
             )
             if not allow_portal:
                 raise
