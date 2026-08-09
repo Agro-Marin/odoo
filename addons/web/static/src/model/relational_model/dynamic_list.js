@@ -167,6 +167,28 @@ export class DynamicList extends DataPoint {
         return Boolean(this._editHandover.record || this.editedRecord);
     }
 
+    /**
+     * Declare that edition is moving to `record`, for a caller that leaves and
+     * enters as two separate steps instead of letting `enterEditMode` do both.
+     *
+     * `enterEditMode` claims the handover itself, so anything routed through it
+     * needs nothing here. `ListRenderer#editNextRecord` (the Enter key) cannot
+     * use it — it needs `leaveEditMode({ validate: true })`, a stricter leave
+     * than `enterEditMode` performs — so it drives the two halves itself, and
+     * without a claim `isEditing` drops to false between them. That cost 61 row
+     * renders on a 30-row list where Tab, which does route through
+     * `enterEditMode`, cost 4.
+     *
+     * @param {import("./record").RelationalRecord} record
+     * @returns {() => void} release, safe to call more than once
+     */
+    beginEditHandover(record) {
+        this._editHandover.record = record;
+        return () => {
+            this._editHandover.record = null;
+        };
+    }
+
     get isRecordCountTrustable() {
         return true;
     }

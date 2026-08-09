@@ -1,6 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { onWillRender } from "@odoo/owl";
 import {
@@ -172,4 +173,43 @@ test(`leaving edition re-enables the selectors`, async () => {
         false,
         { message: "no row in edition: selectors are enabled again" },
     );
+});
+
+// Tab reaches the next row through `list.enterEditMode`, which claims the
+// handover itself. Enter goes through `ListRenderer#editNextRecord`, which
+// cannot -- it needs `leaveEditMode({ validate: true })` -- so it claims the
+// handover explicitly. Both are the same user action ("edit the next line"),
+// and they must cost the same.
+test(`keyboard handover costs the same as the mouse`, async () => {
+    const s = instrument();
+    await mountView({ resModel: "foo", type: "list", arch: ARCH });
+    await animationFrame();
+
+    await contains(`tbody tr:eq(0) td[name=foo]`).click();
+    await animationFrame();
+
+    s.rowRenders = 0;
+    s.isEditingPerRender = [];
+    await press("Tab"); // foo -> int_field, same row
+    await animationFrame();
+    await press("Tab"); // int_field -> next row
+    await animationFrame();
+
+    expect(`tbody tr:eq(1)`).toHaveClass("o_selected_row");
+    expect(s.rowRenders).toBeLessThan(10, {
+        message: `Tab to the next row repainted ${s.rowRenders} rows of 20`,
+    });
+
+    s.rowRenders = 0;
+    s.isEditingPerRender = [];
+    await press("Enter"); // Enter moves edition down a row too
+    await animationFrame();
+
+    expect(`tbody tr:eq(2)`).toHaveClass("o_selected_row");
+    expect(s.rowRenders).toBeLessThan(10, {
+        message: `Enter to the next row repainted ${s.rowRenders} rows of 20`,
+    });
+    expect(s.isEditingPerRender.some((v) => v === false)).toBe(false, {
+        message: "isEditing must span the two-step leave-then-enter",
+    });
 });

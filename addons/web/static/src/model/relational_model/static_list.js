@@ -171,6 +171,21 @@ export class StaticList extends DataPoint {
         return Boolean(this._editHandover.record || this.editedRecord);
     }
 
+    /**
+     * Same contract as `DynamicList#beginEditHandover` — an x2many list is
+     * driven by the same `ListRenderer`, so it needs the same claim for the
+     * Enter key's two-step leave-then-enter.
+     *
+     * @param {RelationalRecord} record
+     * @returns {() => void} release, safe to call more than once
+     */
+    beginEditHandover(record) {
+        this._editHandover.record = record;
+        return () => {
+            this._editHandover.record = null;
+        };
+    }
+
     get evalContext() {
         /** @type {any} */
         const evalContext = getSpecEvalContext(this.config);

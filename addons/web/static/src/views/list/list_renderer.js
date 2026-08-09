@@ -1127,17 +1127,30 @@ export class ListRenderer extends Component {
 
         if (futureRecord) {
             const futureRecordId = futureRecord.id;
-            list.leaveEditMode({ validate: true }).then((canProceed) => {
-                if (canProceed) {
+            // Claimed for the whole leave-then-enter, because this path cannot
+            // delegate to `enterEditMode` (it needs the stricter
+            // `leaveEditMode({ validate: true })`). Without the claim
+            // `isEditing` drops to false between the two halves and every row
+            // repaints twice — the Enter key cost 61 row renders on a 30-row
+            // list where Tab, which does delegate, cost 4.
+            // `enterEditMode` is RETURNED into the chain, not fired and
+            // forgotten: `release` must not run until edition has landed, or
+            // the gap it exists to close reopens just before the end.
+            const release = list.beginEditHandover(futureRecord);
+            list.leaveEditMode({ validate: true })
+                .then((canProceed) => {
+                    if (!canProceed) {
+                        return;
+                    }
                     const target =
                         list.records.find((r) => r.id === futureRecordId) ??
                         list.records[index + 1] ??
                         list.records.at(-1);
                     if (target) {
-                        list.enterEditMode(target);
+                        return list.enterEditMode(target);
                     }
-                }
-            });
+                })
+                .finally(release);
         } else if (
             this.nav.lastIsDirty ||
             !record.canBeAbandoned ||
