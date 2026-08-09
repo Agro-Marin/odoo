@@ -616,19 +616,37 @@ class OrderLineFieldsMixin(models.AbstractModel):
         incompatible-UoM data never blocks. That leniency must not reach a
         financial posting: before the transferred quantity sizes an
         invoice/bill line (``qty_to_invoice``) or an accrual amount, re-run the
-        very same computation under the ``uom_reconcile_strict`` context so an
+        very same conversions under the ``uom_reconcile_strict`` context so an
         impossible conversion raises here — at the deliberate posting action —
         instead of silently posting an unconverted quantity.
 
-        Reusing ``_compute_qty_transferred`` verbatim (rather than duplicating
-        the per-method move/BoM selection) validates stock-move, kit and
-        analytic lines exactly as they are computed.
+        The conversions are re-run through ``_prepare_qty_transferred``, not
+        through ``_compute_qty_transferred``. The two share their move/BoM
+        selection and their ``_compute_quantity_reconcile`` calls, and every
+        module that overrides one overrides the other (purchase_stock,
+        purchase_mrp, sale_stock, sale_mrp, sale_project, sale_timesheet,
+        pos_sale) — but only ``_prepare_qty_transferred`` is *pure*: it returns
+        a dict, where the compute **assigns the field**.
+
+        ``qty_transferred`` is ``store=True, readonly=False`` and its compute
+        opens with "reset manual lines to zero". Calling it by hand outside the
+        ORM's recompute machinery is therefore a real write, so this guard used
+        to destroy the value it was asked to validate: billing a purchase order
+        zeroed the manually-entered received quantity of every service line,
+        the bill line came out at quantity 0, and the order stayed "Nothing to
+        Bill" for good. Restoring the value afterwards would not do either —
+        purchase logs every ``qty_transferred`` change to the chatter, so a
+        snapshot/restore would post two spurious "received quantity changed"
+        messages per bill.
+
+        Coverage is unchanged: ``_get_stock_moves()`` already filters to done
+        moves, so both methods convert exactly the same set. ``repair`` is the
+        one override with no pure twin, and it assigns ``move.quantity``
+        without converting at all, so it has nothing to validate.
         """
         for line in self.filtered(lambda l: l._invoiced_on_transferred()):
             try:
-                line.with_context(
-                    uom_reconcile_strict=True
-                )._compute_qty_transferred()
+                line.with_context(uom_reconcile_strict=True)._prepare_qty_transferred()
             except UserError as error:
                 raise UserError(
                     _(
