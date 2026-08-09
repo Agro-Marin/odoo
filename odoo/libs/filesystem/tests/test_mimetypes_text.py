@@ -1,6 +1,11 @@
 import unittest
 
-from odoo.libs.filesystem.mimetypes import UNKNOWN_MIMETYPE, _odoo_guess_mimetype
+from odoo.libs.filesystem.mimetypes import (
+    MIMETYPE_HEAD_SIZE,
+    UNKNOWN_MIMETYPE,
+    _odoo_guess_mimetype,
+    guess_mimetype,
+)
 
 
 class TestMultibyteAtTheCut(unittest.TestCase):
@@ -78,3 +83,59 @@ class TestNoStateLeakBetweenCalls(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBytearrayMatchesBytes(unittest.TestCase):
+    """A bytearray must classify exactly as the same bytes do.
+
+    guess_mimetype truncated the bytearray branch to MIMETYPE_HEAD_SIZE and
+    rebound the name, so the signature fallback -- which runs on the FULL buffer
+    for a bytes input -- saw only a 2048-byte head. A zip's central directory is
+    at the end of the file, so every OOXML/ODF buffer handed in as a bytearray
+    degraded to application/zip.
+    """
+
+    @staticmethod
+    def _minimal_xlsx() -> bytes:
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("[Content_Types].xml", "<Types/>")
+            z.writestr("xl/workbook.xml", "<workbook/>")
+            # Pad past MIMETYPE_HEAD_SIZE so the truncation is what decides it,
+            # not the file simply being small enough to survive the cut.
+            z.writestr("xl/pad.bin", b"\0" * (MIMETYPE_HEAD_SIZE * 4))
+        return buf.getvalue()
+
+    def test_ooxml_survives_the_bytearray_branch(self):
+        raw = self._minimal_xlsx()
+        self.assertGreater(len(raw), MIMETYPE_HEAD_SIZE)
+        expected = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        self.assertEqual(_odoo_guess_mimetype(raw), expected)
+        self.assertEqual(guess_mimetype(raw), expected)
+        self.assertEqual(guess_mimetype(bytearray(raw)), expected)
+
+    def test_bytes_and_bytearray_agree_across_kinds(self):
+        for name, raw in (
+            ("xlsx", self._minimal_xlsx()),
+            ("png", b"\x89PNG\r\n\x1a\n" + b"\0" * 4000),
+            ("pdf", b"%PDF-1.7\n" + b"x" * 4000),
+            ("text", b"hello world\n" * 400),
+            ("binary", b"\xff\xfe\x00\x01" + b"\xab" * 4000),
+        ):
+            with self.subTest(kind=name):
+                self.assertEqual(
+                    guess_mimetype(bytearray(raw)),
+                    guess_mimetype(raw),
+                    msg=f"{name}: bytearray and bytes must not disagree",
+                )
+
+    def test_rejects_other_types(self):
+        with self.assertRaises(TypeError):
+            # The wrong type is the point of the test; odoo/libs/ is inside the
+            # mypy gate's scope, tests included, so the call needs the waiver.
+            guess_mimetype("not bytes")  # type: ignore[arg-type]

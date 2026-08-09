@@ -197,6 +197,27 @@ def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> st
     return default
 
 
+# libmagic is an ENHANCEMENT over _odoo_guess_mimetype above, not a replacement:
+# guess_mimetype consults it first and falls back to our own signatures only when
+# it answers UNKNOWN_MIMETYPE. That ordering is why a pure-Python detector cannot
+# simply take its place, and puremagic in particular must not -- measured 2026-08
+# over 90 real files from this checkout, on the 2048-byte head this module passes,
+# the two agree on 38. The disagreements are not just coverage:
+#
+#   .xlsx / .ods / .odt  ->  ...wordprocessingml.document   (every OOXML and ODF
+#                                                            container called a
+#                                                            Word document)
+#   .zip                 ->  application/java-archive
+#   .js                  ->  text/x-python
+#
+# Those are CONFIDENT wrong answers, so they never reach the UNKNOWN_MIMETYPE
+# branch and our _check_ooxml/_check_open_container_format discriminants -- which
+# exist precisely to tell the zip-container subtypes apart -- are bypassed.
+# puremagic is better on a few (font/ttf where libmagic says
+# application/SIMH-tape-data, application/json, image/x-icon), and it would drop
+# the libmagic system dependency and the win32 exclusion on the pin. Neither pays
+# for mislabelling every spreadsheet as a text document. Revisit only with a
+# fixture corpus asserting the zip-family subtypes.
 try:
     import magic
 except ImportError:
@@ -205,7 +226,13 @@ except ImportError:
 
 def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE) -> str:
     if isinstance(bin_data, bytearray):
-        bin_data = bytes(bin_data[:MIMETYPE_HEAD_SIZE])
+        # Convert, but do NOT truncate: the fallback below needs the whole
+        # buffer. A zip's central directory sits at the END of the file, so a
+        # 2048-byte head makes _check_ooxml/_check_open_container_format raise
+        # BadZipFile, and every OOXML or ODF buffer passed as a bytearray came
+        # back as the generic application/zip -- with six warning lines logged
+        # per call -- where the same bytes returned the right subtype.
+        bin_data = bytes(bin_data)
     elif not isinstance(bin_data, bytes):
         msg = "`bin_data` must be bytes or bytearray"
         raise TypeError(msg)
