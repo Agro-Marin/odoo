@@ -21,6 +21,7 @@ from .recordset_cache import Cache
 from .registry import Registry
 
 if typing.TYPE_CHECKING:
+    from ..fields.base import Field
     from .environment import Environment
 
 _logger = logging.getLogger("odoo.api")
@@ -96,15 +97,27 @@ class Transaction:
         self.default_env: Environment | None = None
         self._last_env: weakref_ref[Environment] | None = None
 
-        self._cache_store = FieldCache(
+        # `FieldCache`/`ComputeEngine`/`OrmCore` are generic in their key type.
+        # Naming it here is what lets Layer 3 read a field back off the cache:
+        # `recordset_cache.py` asks the returned key for `column_type`,
+        # `company_dependent`, `store`, `translate` and `type`, which no key
+        # protocol carries -- only `Field` does. The unit tests instantiate the
+        # same classes with plain strings, deliberately, because the cache is a
+        # keyed store and nothing more; the generic is what lets both be true
+        # without `Any`.
+        self._cache_store: FieldCache[Field] = FieldCache(
             dirty_factory=OrderedSet, on_detach=self._drop_field_cache_memos
         )
 
-        self._compute_engine = ComputeEngine(pending_factory=OrderedSet)
+        self._compute_engine: ComputeEngine[Field] = ComputeEngine(
+            pending_factory=OrderedSet
+        )
 
-        self.core = OrmCore(cache=self._cache_store, engine=self._compute_engine)
+        self.core: OrmCore[Field] = OrmCore(
+            cache=self._cache_store, engine=self._compute_engine
+        )
 
-        self.unit_of_work = UnitOfWork(
+        self.unit_of_work: UnitOfWork[Field] = UnitOfWork(
             self._cache_store,
             self._compute_engine,
             max_iterations=MAX_FIXPOINT_ITERATIONS,

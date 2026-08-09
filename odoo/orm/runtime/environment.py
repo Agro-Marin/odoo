@@ -194,7 +194,7 @@ class Environment(Mapping[str, "BaseModel"]):
         return self.transaction.cache
 
     @functools.cached_property
-    def _core(self) -> OrmCore:
+    def _core(self) -> OrmCore[Field]:
         return self.transaction.core
 
     @property

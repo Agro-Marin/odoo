@@ -1,4 +1,4 @@
 {
-  "count": 748,
-  "note": "Deleting the dead libs/set_expression.py::SetDefinitions.get_disjoint_ids (-1). It had exactly one textual occurrence across odoo/, enterprise/, agromarin/ and design-themes/ -- its own def line -- searching .py/.xml/.csv/.js/.rst/.md/.txt/.yml, so no getattr or string reference existed either. Its D102 is the whole of this move: the D findings were diffed before and after, one disappeared and none appeared."
+  "count": 746,
+  "note": "Docstrings written while making orm/components generic in its key type: FieldCache.pop_dirty_for_model and UnitOfWork.dirty_models, the two methods that ask a cache key for its model_name and so had to say why they read it through getattr (-2). D and ANN are enforced only under odoo/libs/ and odoo/orm/components/, which is why typing work in that package moves this floor and the same work elsewhere would not. The D findings were diffed before and after: two disappeared, none appeared."
 }

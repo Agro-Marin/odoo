@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from ._protocols import FieldKey
     from .cache import FieldCache
     from .compute import ComputeEngine
 
@@ -36,13 +37,13 @@ class LoopResult:
     stalled_fields: list[str] = field(default_factory=list)
 
 
-class UnitOfWork:
+class UnitOfWork[F: FieldKey = FieldKey]:
     __slots__ = ("_recompute_order", "cache", "engine", "max_iterations")
 
     def __init__(
         self,
-        cache: FieldCache,
-        engine: ComputeEngine,
+        cache: FieldCache[F],
+        engine: ComputeEngine[F],
         max_iterations: int = 1000,
     ) -> None:
         self.cache = cache
@@ -59,10 +60,19 @@ class UnitOfWork:
         self._recompute_order = order
 
     def dirty_models(self) -> list[str]:
+        """Return the models holding dirty fields, in first-seen order.
+
+        Reads ``model_name`` through ``getattr`` for the same reason
+        :meth:`FieldCache.pop_dirty_for_model` does: the key type is
+        :class:`FieldKey`, because the unit tests key this store with plain
+        strings on purpose, and only production keys (``Field``) carry a model.
+        A key without one is skipped rather than crashing the flush loop.
+        """
         seen: dict[str, None] = {}
         for fld in self.cache.iter_dirty_fields():
-            if fld.model_name not in seen:
-                seen[fld.model_name] = None
+            model_name = getattr(fld, "model_name", None)
+            if model_name is not None and model_name not in seen:
+                seen[model_name] = None
         return list(seen)
 
     def _pending_snapshot(self) -> dict[Any, frozenset]:
@@ -78,12 +88,12 @@ class UnitOfWork:
         }
 
     @staticmethod
-    def _field_label(field: Any) -> str:
+    def _field_label(field: F) -> str:
         return f"{getattr(field, 'model_name', '?')}.{getattr(field, 'name', field)}"
 
     def run_recompute_loop(
         self,
-        recompute_fn: Callable[[Any], None],
+        recompute_fn: Callable[[F], None],
     ) -> LoopResult:
         result = LoopResult()
         order = self._recompute_order
@@ -131,7 +141,7 @@ class UnitOfWork:
 
     def run_flush_loop(
         self,
-        recompute_fn: Callable[[Any], None],
+        recompute_fn: Callable[[F], None],
         flush_fn: Callable[[list[str]], None],
     ) -> LoopResult:
         result = LoopResult()

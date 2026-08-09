@@ -2,13 +2,15 @@ from collections import ChainMap, defaultdict
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
+from ._protocols import FieldKey
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Mapping
 
 _MISSING = object()
 
 
-class FieldCache:
+class FieldCache[F: FieldKey = FieldKey]:
     __slots__ = ("_data", "_dirty", "_on_detach", "_patches")
 
     def __init__(
@@ -16,23 +18,23 @@ class FieldCache:
         dirty_factory: type | None = None,
         on_detach: Callable[[], None] | None = None,
     ) -> None:
-        self._data: defaultdict[Any, dict[Any, Any]] = defaultdict(dict)
-        self._dirty: defaultdict[Any, set] = defaultdict(dirty_factory or set)
-        self._patches: defaultdict[Any, defaultdict[Any, list]] = defaultdict(
+        self._data: defaultdict[F, dict[Any, Any]] = defaultdict(dict)
+        self._dirty: defaultdict[F, set[Any]] = defaultdict(dirty_factory or set)
+        self._patches: defaultdict[F, defaultdict[Any, list[Any]]] = defaultdict(
             lambda: defaultdict(list)
         )
         self._on_detach = on_detach
 
-    def get_field_data(self, field: Any) -> dict[Any, Any]:
+    def get_field_data(self, field: F) -> dict[Any, Any]:
         return self._data[field]
 
-    def get_field_data_or_none(self, field: Any) -> dict[Any, Any] | None:
+    def get_field_data_or_none(self, field: F) -> dict[Any, Any] | None:
         return self._data.get(field)
 
-    def set_value(self, field: Any, record_id: Any, value: Any) -> None:
+    def set_value(self, field: F, record_id: Any, value: Any) -> None:
         self._data[field][record_id] = value
 
-    def get_value(self, field: Any, record_id: Any, default: Any = _MISSING) -> Any:
+    def get_value(self, field: F, record_id: Any, default: Any = _MISSING) -> Any:
         field_cache = self._data.get(field)
         if field_cache is not None:
             try:
@@ -43,11 +45,11 @@ class FieldCache:
             raise KeyError(record_id)
         return default
 
-    def has_value(self, field: Any, record_id: Any) -> bool:
+    def has_value(self, field: F, record_id: Any) -> bool:
         field_cache = self._data.get(field)
         return field_cache is not None and record_id in field_cache
 
-    def mark_dirty(self, field: Any, ids: Iterable) -> None:
+    def mark_dirty(self, field: F, ids: Iterable[Any]) -> None:
         existing = self._dirty.get(field)
         if existing is None:
             ids = list(ids)
@@ -56,41 +58,49 @@ class FieldCache:
             existing = self._dirty[field]
         existing.update(ids)
 
-    def get_dirty(self, field: Any) -> set | None:
+    def get_dirty(self, field: F) -> set[Any] | None:
         return self._dirty.get(field)
 
-    def pop_dirty(self, field: Any) -> set | None:
+    def pop_dirty(self, field: F) -> set[Any] | None:
         return self._dirty.pop(field, None)
 
-    def pop_dirty_for_model(self, model_name: str) -> dict[Any, set]:
+    def pop_dirty_for_model(self, model_name: str) -> dict[F, set[Any]]:
+        """Take the dirty ids of every cached field belonging to *model_name*.
+
+        The only method that asks a key for anything. The store is keyed by
+        :class:`FieldKey` because that is what its callers actually pass -- the
+        unit tests use bare strings, deliberately, since the cache is a keyed
+        store and nothing else -- so a key with no ``model_name`` simply never
+        matches here rather than raising. Production keys are always ``Field``.
+        """
         result: dict[Any, set] = {}
         for field in list(self._dirty):
-            if field.model_name == model_name:
+            if getattr(field, "model_name", None) == model_name:
                 result[field] = self._dirty.pop(field)
         return result
 
     def is_any_dirty(self) -> bool:
         return bool(self._dirty)
 
-    def has_dirty_field(self, field: Any) -> bool:
+    def has_dirty_field(self, field: F) -> bool:
         return bool(self._dirty.get(field))
 
-    def iter_dirty_fields(self) -> Iterator[Any]:
+    def iter_dirty_fields(self) -> Iterator[F]:
         return iter(self._dirty)
 
     def dirty_entry_count(self) -> int:
         return sum(len(ids) for ids in self._dirty.values())
 
-    def add_patch(self, field: Any, record_id: Any, new_id: Any) -> None:
+    def add_patch(self, field: F, record_id: Any, new_id: Any) -> None:
         self._patches[field][record_id].append(new_id)
 
-    def get_patches(self, field: Any) -> dict[Any, list] | None:
+    def get_patches(self, field: F) -> dict[Any, list[Any]] | None:
         return self._patches.get(field)
 
     def invalidate(
         self,
-        field: Any,
-        ids: Iterable | None = None,
+        field: F,
+        ids: Iterable[Any] | None = None,
         *,
         context_dependent: bool,
         keep_dirty: bool = False,
@@ -134,9 +144,7 @@ class FieldCache:
                 for id_ in ids:
                     sub_cache.pop(id_, None)
 
-    def all_cached_ids(
-        self, field: Any, *, context_dependent: bool
-    ) -> Mapping[Any, Any]:
+    def all_cached_ids(self, field: F, *, context_dependent: bool) -> Mapping[Any, Any]:
         field_cache = self._data.get(field)
         if not field_cache:
             return {}
@@ -145,7 +153,7 @@ class FieldCache:
             return ChainMap(*subs) if subs else {}
         return field_cache
 
-    def iter_context_caches(self, field: Any) -> Iterator[tuple[tuple, dict]]:
+    def iter_context_caches(self, field: F) -> Iterator[tuple[tuple, dict]]:
         field_cache = self._data.get(field)
         if not field_cache:
             return
@@ -153,7 +161,7 @@ class FieldCache:
             if isinstance(key, tuple):
                 yield key, sub_cache
 
-    def invalidate_field(self, field: Any, ids: Collection | None = None) -> None:
+    def invalidate_field(self, field: F, ids: Collection | None = None) -> None:
         field_cache = self._data.get(field)
         if field_cache is None:
             return
@@ -204,7 +212,7 @@ class FieldCache:
         self._dirty.clear()
         self._patches.clear()
 
-    def iter_field_items(self) -> Iterator[tuple[Any, dict[Any, Any]]]:
+    def iter_field_items(self) -> Iterator[tuple[F, dict[Any, Any]]]:
         return iter(self._data.items())
 
     def __repr__(self) -> str:
