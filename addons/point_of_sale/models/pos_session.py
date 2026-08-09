@@ -1392,95 +1392,23 @@ class PosSession(models.Model):
         pos_receivable_account = (
             self.company_id.account_default_pos_receivable_account_id
         )
-        currency_rounding = self.currency_id.rounding
         closed_orders = self._get_closed_orders()
         for order in closed_orders:
             order_is_invoiced = order.is_invoiced
-            for payment in order.payment_ids:
-                amount = payment.amount
-                if float_is_zero(amount, precision_rounding=currency_rounding):
-                    continue
-                date = payment.payment_date
-                payment_method = payment.payment_method_id
-                is_split_payment = payment.payment_method_id.split_transactions
-                payment_type = payment_method.type
-
-                # If not pay_later, we create the receivable vals for both invoiced and uninvoiced orders.
-                #   Separate the split and aggregated payments.
-                # Moreover, if the order is invoiced, we create the pos receivable vals that will balance the
-                # pos receivable lines from the invoice payments.
-                if payment_type != "pay_later":
-                    if is_split_payment and payment_type == "cash":
-                        split_receivables_cash[payment] = self._update_amounts(
-                            split_receivables_cash[payment], {"amount": amount}, date
-                        )
-                    elif not is_split_payment and payment_type == "cash":
-                        combine_receivables_cash[payment_method] = self._update_amounts(
-                            combine_receivables_cash[payment_method],
-                            {"amount": amount},
-                            date,
-                        )
-                    elif is_split_payment and payment_type == "bank":
-                        split_receivables_bank[payment] = self._update_amounts(
-                            split_receivables_bank[payment], {"amount": amount}, date
-                        )
-                    elif not is_split_payment and payment_type == "bank":
-                        combine_receivables_bank[payment_method] = self._update_amounts(
-                            combine_receivables_bank[payment_method],
-                            {"amount": amount},
-                            date,
-                        )
-
-                    # Create the vals to create the pos receivables that will balance the pos receivables from invoice payment moves.
-                    if order_is_invoiced:
-                        if is_split_payment:
-                            split_inv_payment_receivable_lines[payment] |= (
-                                payment.account_move_id.line_ids.filtered(
-                                    lambda line: (
-                                        line.account_id == pos_receivable_account
-                                    )
-                                )
-                            )
-                            split_invoice_receivables[payment] = self._update_amounts(
-                                split_invoice_receivables[payment],
-                                {"amount": payment.amount},
-                                order.date_order,
-                            )
-                        else:
-                            combine_inv_payment_receivable_lines[payment_method] |= (
-                                payment.account_move_id.line_ids.filtered(
-                                    lambda line: (
-                                        line.account_id == pos_receivable_account
-                                    )
-                                )
-                            )
-                            combine_invoice_receivables[payment_method] = (
-                                self._update_amounts(
-                                    combine_invoice_receivables[payment_method],
-                                    {"amount": payment.amount},
-                                    order.date_order,
-                                )
-                            )
-
-                # If pay_later, we create the receivable lines.
-                #   if split, with partner
-                #   Otherwise, it's aggregated (combined)
-                # But only do if order is *not* invoiced because no account move is created for pay later invoice payments.
-                if payment_type == "pay_later" and not order_is_invoiced:
-                    if is_split_payment:
-                        split_receivables_pay_later[payment] = self._update_amounts(
-                            split_receivables_pay_later[payment],
-                            {"amount": amount},
-                            date,
-                        )
-                    elif not is_split_payment:
-                        combine_receivables_pay_later[payment_method] = (
-                            self._update_amounts(
-                                combine_receivables_pay_later[payment_method],
-                                {"amount": amount},
-                                date,
-                            )
-                        )
+            self._accumulate_order_payments(
+                order,
+                pos_receivable_account,
+                split_receivables_cash,
+                combine_receivables_cash,
+                split_receivables_bank,
+                combine_receivables_bank,
+                split_receivables_pay_later,
+                combine_receivables_pay_later,
+                split_invoice_receivables,
+                combine_invoice_receivables,
+                split_inv_payment_receivable_lines,
+                combine_inv_payment_receivable_lines,
+            )
 
             if not order_is_invoiced:
                 base_lines = order._prepare_tax_base_line_values()
@@ -1538,56 +1466,7 @@ class PosSession(models.Model):
         # amount accumulation — apply them in a dedicated step.
         self._increase_customer_ranks(closed_orders)
 
-        all_picking_ids = (
-            self.order_ids.filtered(
-                lambda p: not p.is_invoiced and not p.shipping_date
-            ).picking_ids.ids
-            + self.picking_ids.filtered(lambda p: not p.pos_order_id).ids
-        )
-        if all_picking_ids:
-            # Combine stock lines
-            stock_move_sudo = self.env["stock.move"].sudo()
-            stock_moves = stock_move_sudo.search(
-                [
-                    ("picking_id", "in", all_picking_ids),
-                    ("product_id.is_storable", "=", True),
-                    ("product_id.valuation", "=", "real_time"),
-                ]
-            )
-            for stock_moves_batch in (
-                stock_moves.browse(b)
-                for b in batched(stock_moves._ids, PREFETCH_MAX, strict=False)
-            ):
-                for move in stock_moves_batch:
-                    product_accounts = move.product_id._get_product_accounts()
-                    exp_key = product_accounts["expense"]
-                    stock_key = product_accounts["stock_valuation"]
-                    signed_product_qty = move.product_uom_id._compute_quantity(
-                        move.quantity, move.product_id.uom_id, round=False
-                    )
-                    if move._is_in():
-                        signed_product_qty *= -1
-                    amount = signed_product_qty * move._get_price_unit()
-                    stock_expense[exp_key] = self._update_amounts(
-                        stock_expense[exp_key],
-                        {"amount": amount},
-                        move.picking_id.date_done,
-                        force_company_currency=True,
-                    )
-                    if move._is_in():
-                        stock_return[stock_key] = self._update_amounts(
-                            stock_return[stock_key],
-                            {"amount": amount},
-                            move.picking_id.date_done,
-                            force_company_currency=True,
-                        )
-                    else:
-                        stock_valuation[stock_key] = self._update_amounts(
-                            stock_valuation[stock_key],
-                            {"amount": amount},
-                            move.picking_id.date_done,
-                            force_company_currency=True,
-                        )
+        self._accumulate_stock_amounts(stock_expense, stock_return, stock_valuation)
 
         MoveLine = self.env["account.move.line"].with_context(
             check_move_validity=False, skip_invoice_sync=True
@@ -1615,6 +1494,175 @@ class PosSession(models.Model):
             }
         )
         return data
+
+    def _accumulate_order_payments(
+        self,
+        order,
+        pos_receivable_account,
+        split_receivables_cash,
+        combine_receivables_cash,
+        split_receivables_bank,
+        combine_receivables_bank,
+        split_receivables_pay_later,
+        combine_receivables_pay_later,
+        split_invoice_receivables,
+        combine_invoice_receivables,
+        split_inv_payment_receivable_lines,
+        combine_inv_payment_receivable_lines,
+    ):
+        """Sort one order's payments into the receivable buckets, in place.
+
+        Three questions decide the bucket, and the accounting differs on
+        each: is the payment split per customer or combined per method, is
+        it cash, bank or pay-later, and was the order invoiced (in which
+        case the closing entry has to balance what the invoice payment
+        already booked).
+        """
+        currency_rounding = self.currency_id.rounding
+        order_is_invoiced = order.is_invoiced
+        for payment in order.payment_ids:
+            amount = payment.amount
+            if float_is_zero(amount, precision_rounding=currency_rounding):
+                continue
+            date = payment.payment_date
+            payment_method = payment.payment_method_id
+            is_split_payment = payment.payment_method_id.split_transactions
+            payment_type = payment_method.type
+
+            # If not pay_later, we create the receivable vals for both invoiced and uninvoiced orders.
+            #   Separate the split and aggregated payments.
+            # Moreover, if the order is invoiced, we create the pos receivable vals that will balance the
+            # pos receivable lines from the invoice payments.
+            if payment_type != "pay_later":
+                if is_split_payment and payment_type == "cash":
+                    split_receivables_cash[payment] = self._update_amounts(
+                        split_receivables_cash[payment], {"amount": amount}, date
+                    )
+                elif not is_split_payment and payment_type == "cash":
+                    combine_receivables_cash[payment_method] = self._update_amounts(
+                        combine_receivables_cash[payment_method],
+                        {"amount": amount},
+                        date,
+                    )
+                elif is_split_payment and payment_type == "bank":
+                    split_receivables_bank[payment] = self._update_amounts(
+                        split_receivables_bank[payment], {"amount": amount}, date
+                    )
+                elif not is_split_payment and payment_type == "bank":
+                    combine_receivables_bank[payment_method] = self._update_amounts(
+                        combine_receivables_bank[payment_method],
+                        {"amount": amount},
+                        date,
+                    )
+
+                # Create the vals to create the pos receivables that will balance the pos receivables from invoice payment moves.
+                if order_is_invoiced:
+                    if is_split_payment:
+                        split_inv_payment_receivable_lines[payment] |= (
+                            payment.account_move_id.line_ids.filtered(
+                                lambda line: (
+                                    line.account_id == pos_receivable_account
+                                )
+                            )
+                        )
+                        split_invoice_receivables[payment] = self._update_amounts(
+                            split_invoice_receivables[payment],
+                            {"amount": payment.amount},
+                            order.date_order,
+                        )
+                    else:
+                        combine_inv_payment_receivable_lines[payment_method] |= (
+                            payment.account_move_id.line_ids.filtered(
+                                lambda line: (
+                                    line.account_id == pos_receivable_account
+                                )
+                            )
+                        )
+                        combine_invoice_receivables[payment_method] = (
+                            self._update_amounts(
+                                combine_invoice_receivables[payment_method],
+                                {"amount": payment.amount},
+                                order.date_order,
+                            )
+                        )
+
+            # If pay_later, we create the receivable lines.
+            #   if split, with partner
+            #   Otherwise, it's aggregated (combined)
+            # But only do if order is *not* invoiced because no account move is created for pay later invoice payments.
+            if payment_type == "pay_later" and not order_is_invoiced:
+                if is_split_payment:
+                    split_receivables_pay_later[payment] = self._update_amounts(
+                        split_receivables_pay_later[payment],
+                        {"amount": amount},
+                        date,
+                    )
+                elif not is_split_payment:
+                    combine_receivables_pay_later[payment_method] = (
+                        self._update_amounts(
+                            combine_receivables_pay_later[payment_method],
+                            {"amount": amount},
+                            date,
+                        )
+                    )
+
+    def _accumulate_stock_amounts(self, stock_expense, stock_return, stock_valuation):
+        """Fold this session's real-time-valued stock moves into the three
+        stock buckets, in place.
+
+        Only the deliveries the closing entry is answerable for: an order that
+        was invoiced, or that ships later, books its own valuation elsewhere.
+        Incoming moves (a return) are signed the other way and land in
+        `stock_return` rather than `stock_valuation`.
+        """
+        all_picking_ids = (
+            self.order_ids.filtered(
+                lambda p: not p.is_invoiced and not p.shipping_date
+            ).picking_ids.ids
+            + self.picking_ids.filtered(lambda p: not p.pos_order_id).ids
+        )
+        if not all_picking_ids:
+            return
+
+        stock_moves = (
+            self.env["stock.move"]
+            .sudo()
+            .search(
+                [
+                    ("picking_id", "in", all_picking_ids),
+                    ("product_id.is_storable", "=", True),
+                    ("product_id.valuation", "=", "real_time"),
+                ]
+            )
+        )
+        for stock_moves_batch in (
+            stock_moves.browse(b)
+            for b in batched(stock_moves._ids, PREFETCH_MAX, strict=False)
+        ):
+            for move in stock_moves_batch:
+                product_accounts = move.product_id._get_product_accounts()
+                exp_key = product_accounts["expense"]
+                stock_key = product_accounts["stock_valuation"]
+                signed_product_qty = move.product_uom_id._compute_quantity(
+                    move.quantity, move.product_id.uom_id, round=False
+                )
+                is_in = move._is_in()
+                if is_in:
+                    signed_product_qty *= -1
+                amount = signed_product_qty * move._get_price_unit()
+                stock_expense[exp_key] = self._update_amounts(
+                    stock_expense[exp_key],
+                    {"amount": amount},
+                    move.picking_id.date_done,
+                    force_company_currency=True,
+                )
+                counterpart = stock_return if is_in else stock_valuation
+                counterpart[stock_key] = self._update_amounts(
+                    counterpart[stock_key],
+                    {"amount": amount},
+                    move.picking_id.date_done,
+                    force_company_currency=True,
+                )
 
     def _increase_customer_ranks(self, closed_orders):
         """Bump ``customer_rank`` once per non-invoiced order for its partner
