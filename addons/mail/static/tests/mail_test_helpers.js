@@ -241,7 +241,18 @@ export async function openView({
     domain,
     ...params
 }) {
-    const [[viewId, type]] = views;
+    // `views[0][0]` carries two different things in mail's suites: a real view
+    // id (a number, or `false` for "the default one"), or a key into the `archs`
+    // registry such as "mail.compose.message,false,form". Only the first is a
+    // view id. Keeping them apart is what the two lines below do, and what the
+    // old `viewId: params?.arch || viewId` did not: that spelling -- a
+    // copy-paste of the `arch:` fallback above it, where falling back like that
+    // IS right -- handed `View` the arch *string* as its `viewId` on every
+    // inline-arch call, and the registry-key form did the same. Harmless while
+    // `View` accepted anything; once it declared `viewId: [Number, Boolean]`
+    // (2873e4befdf) it became "Invalid props for component 'View'".
+    const [[viewRef, type]] = views;
+    const viewId = typeof viewRef === "string" ? false : viewRef;
     const action = {
         context,
         domain,
@@ -255,8 +266,8 @@ export async function openView({
         resModel: res_model,
         resId: res_id,
         arch:
-            params?.arch || archs[viewId || res_model + `,false,` + type] || undefined,
-        viewId: params?.arch || viewId,
+            params?.arch || archs[viewRef || res_model + `,false,` + type] || undefined,
+        viewId,
         ...params,
     });
     await getService("action").doAction(action, { props: options });
