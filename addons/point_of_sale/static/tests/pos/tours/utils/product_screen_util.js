@@ -516,8 +516,13 @@ export function enterLotNumber(number, tracking = "serial", click = false) {
     }
     steps.push(
         {
-            trigger:
-                ".o-autocomplete--dropdown-item a:contains('No existing Lot/Serial number found...')",
+            // That the dropdown is open, not what it happens to hold: this used
+            // to require "No existing Lot/Serial number found...", which is only
+            // what an empty input shows for a product that has no lots yet. Any
+            // tour entering a second number for the same product sees the first
+            // one listed instead, and died here.
+            content: "the lot/serial dropdown is open",
+            trigger: ".o-autocomplete--dropdown-menu",
         },
         {
             content: "enter lot number",

@@ -1764,6 +1764,14 @@ export class PosStore extends WithLazyGetterTrap {
 
                 await this.postSyncAllOrders(newData["pos.order"] ?? []);
                 this.removePendingOrder(order);
+                // The server has it: release the tab-close guard here, which is
+                // the event it was always about ("durable in IndexedDB or
+                // acknowledged by the server"). It used to be released only as
+                // a side effect of the debounced IndexedDB routine, so between
+                // a successful sync and that routine's next run the beforeunload
+                // handler still claimed the order was unsaved -- and silently
+                // cancelled the navigation out of the POS.
+                this.data.localUnsyncedPaidOrderUuids.delete(order.uuid);
                 syncedOrders.push(...(newData["pos.order"] ?? []));
                 newSession = newSession || data["pos.session"]?.length > 0;
             } catch (error) {

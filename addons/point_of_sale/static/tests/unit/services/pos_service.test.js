@@ -114,6 +114,22 @@ describe("pos_store.js", () => {
             expect(store.models["pos.order"].length).toBe(1);
         });
 
+        test("a synced order stops blocking tab close", async () => {
+            // `localUnsyncedPaidOrderUuids` drives the beforeunload guard in
+            // main.js. It used to be cleared only as a side effect of the
+            // debounced IndexedDB routine, so an order the server had already
+            // acknowledged still claimed to be unsaved -- warning the cashier
+            // about data loss that had not happened, and cancelling the
+            // navigation out of the point of sale.
+            const store = await setupPosEnv();
+            const order = await getFilledOrder(store);
+            store.data.localUnsyncedPaidOrderUuids.add(order.uuid);
+
+            await store.syncAllOrders({ orders: [order] });
+
+            expect(store.data.localUnsyncedPaidOrderUuids.has(order.uuid)).toBe(false);
+        });
+
         test("sync specific order", async () => {
             const store = await setupPosEnv();
             const order1 = await getFilledOrder(store);

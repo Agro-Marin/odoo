@@ -2552,11 +2552,18 @@ class TestUi(TestPointOfSaleHttpCommon):
         current_session.post_closing_cash_details(total_cash_payment)
         current_session.close_session_from_ui()
         self.assertEqual(current_session.state, "closed")
-        report_refund_order, report_order = (
+        # Identify the two rows, rather than unpacking the search and trusting
+        # its order: `report.pos.order` is a view with its own `_order`, so
+        # which of the two came first depended on the ids the run happened to
+        # allocate.
+        reports = (
             self.env["report.pos.order"]
             .sudo()
             .search([("order_id", "in", current_session.order_ids.ids)])
         )
+        self.assertEqual(len(reports), 2)
+        report_refund_order = reports.filtered(lambda r: r.order_id.is_refund)
+        report_order = reports - report_refund_order
         self.assertEqual(report_order.margin, 20.0)
         self.assertEqual(report_refund_order.margin, -20.0)
         self.assertEqual(report_order.price_total, 20.0)
