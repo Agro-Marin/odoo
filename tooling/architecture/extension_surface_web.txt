@@ -440,17 +440,17 @@ SearchBar.getPreposition  odoo
 SearchBar.removeFacet  enterprise
 SearchBar.setup  enterprise
 SearchBarMenu.setup  enterprise
-SearchModel._extractSearchDefaultsFromGlobalContext  odoo
 SearchModel._getCategoryDomain  odoo
 SearchModel._getContext  enterprise
 SearchModel._getDomain  odoo enterprise
 SearchModel._getFieldDomain  enterprise
-SearchModel._getSearchItemDomain  odoo
 SearchModel._importState  odoo enterprise
 SearchModel._notify  odoo
 SearchModel._reset  odoo
 SearchModel.exportState  odoo enterprise
+SearchModel.extractSearchDefaultsFromGlobalContext  odoo
 SearchModel.facets  enterprise
+SearchModel.getSearchItemDomain  odoo
 SearchModel.getSearchItems  odoo
 SearchModel.groupBy  odoo
 SearchModel.load  odoo enterprise

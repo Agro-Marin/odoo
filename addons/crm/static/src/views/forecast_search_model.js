@@ -28,8 +28,8 @@ export class ForecastSearchModel extends SearchModel {
     /**
      * @override
      */
-    _getSearchItemDomain(activeItem) {
-        let domain = super._getSearchItemDomain(activeItem);
+    getSearchItemDomain(activeItem) {
+        let domain = super.getSearchItemDomain(activeItem);
         const { searchItemId } = activeItem;
         const searchItem = this.searchItems[searchItemId];
         const context = makeContext([searchItem.context || {}]);

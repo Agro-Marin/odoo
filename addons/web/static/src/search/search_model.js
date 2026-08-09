@@ -214,7 +214,7 @@ export class SearchModel extends SearchQueryMixin(
         }
 
         const { searchDefaults, searchPanelDefaults } =
-            this._extractSearchDefaultsFromGlobalContext();
+            this.extractSearchDefaultsFromGlobalContext();
 
         if (config.state) {
             this._importState(config.state);
@@ -338,7 +338,7 @@ export class SearchModel extends SearchQueryMixin(
         this.globalGroupBy = "groupBy" in config ? groupBy || [] : this.globalGroupBy;
         this.globalOrderBy = "orderBy" in config ? orderBy || [] : this.globalOrderBy;
 
-        this._extractSearchDefaultsFromGlobalContext();
+        this.extractSearchDefaultsFromGlobalContext();
 
         await this._reloadSections();
         await this._drainPendingNotification();
@@ -564,7 +564,7 @@ export class SearchModel extends SearchQueryMixin(
         );
     }
 
-    _extractSearchDefaultsFromGlobalContext() {
+    extractSearchDefaultsFromGlobalContext() {
         return extractSearchDefaults(this.globalContext);
     }
 
@@ -633,7 +633,7 @@ export class SearchModel extends SearchQueryMixin(
             globalDomain: this.globalDomain,
             withGlobal,
             withSearchPanel,
-            getSearchItemDomain: (activeItem) => this._getSearchItemDomain(activeItem),
+            getSearchItemDomain: (activeItem) => this.getSearchItemDomain(activeItem),
             getSearchPanelDomain: () => this._getSearchPanelDomain(),
             domainEvalContext: this.domainEvalContext,
             raw: params.raw,
@@ -644,7 +644,7 @@ export class SearchModel extends SearchQueryMixin(
         return buildFacets({
             groups: this._getGroups(),
             searchItems: this.searchItems,
-            getSearchItemDomain: (activeItem) => this._getSearchItemDomain(activeItem),
+            getSearchItemDomain: (activeItem) => this.getSearchItemDomain(activeItem),
             getDateFilterDomain: (searchItem, generatorIds, key) =>
                 this._getDateFilterDomain(searchItem, generatorIds, key),
             orderByCount: this.orderByCount,
@@ -720,7 +720,7 @@ export class SearchModel extends SearchQueryMixin(
         return computeSearchItemContext(activeItem, this.searchItems);
     }
 
-    _getSearchItemDomain(activeItem) {
+    getSearchItemDomain(activeItem) {
         return computeSearchItemDomain(
             activeItem,
             this.searchItems,
