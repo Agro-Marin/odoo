@@ -1,25 +1,19 @@
 from odoo import api, fields, models
-from odoo.tools import SQL, Query
 
 from odoo.addons.sale import const
 
 
 class SaleReport(models.Model):
     _name = "sale.report"
-    _inherit = "sql.report.mixin"
+    _inherit = "order.report.mixin"
     _description = "Sales Analysis Report"
     _auto = False
-    _rec_name = "date_order"
     _order = "date_order desc"
 
     # ------------------------------------------------------------
     # FIELDS
     # ------------------------------------------------------------
 
-    nbr_lines = fields.Integer(
-        string="# of Lines",
-        readonly=True,
-    )
     order_reference = fields.Reference(
         string="Order",
         selection=[("sale.order", "Sales Order")],
@@ -94,10 +88,6 @@ class SaleReport(models.Model):
         string="Source",
         readonly=True,
     )
-    date_order = fields.Datetime(
-        string="Order Date",
-        readonly=True,
-    )
     name = fields.Char(
         string="Order Reference",
         readonly=True,
@@ -128,22 +118,15 @@ class SaleReport(models.Model):
         string="Product",
         readonly=True,
     )
-    product_category_id = fields.Many2one(
-        comodel_name="product.category",
-        string="Product Category",
-        readonly=True,
-    )
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
         string="Unit",
         readonly=True,
     )
-    product_uom_qty = fields.Float(string="Qty Ordered", readonly=True)
     qty_transferred = fields.Float(string="Qty Delivered", readonly=True)
     qty_to_transfer = fields.Float(string="Qty To Deliver", readonly=True)
     qty_invoiced = fields.Float(string="Qty Invoiced", readonly=True)
     qty_to_invoice = fields.Float(string="Qty To Invoice", readonly=True)
-    price_unit = fields.Float(string="Unit Price", aggregator="avg", readonly=True)
     price_average = fields.Monetary(
         string="Average Price",
         readonly=True,
@@ -152,8 +135,6 @@ class SaleReport(models.Model):
     )
     discount = fields.Float(string="Discount %", readonly=True, aggregator="avg")
     discount_amount = fields.Monetary(string="Discount Amount", readonly=True)
-    price_subtotal = fields.Monetary(string="Untaxed Total", readonly=True)
-    price_total = fields.Monetary(string="Total", readonly=True)
     amount_taxexc_invoiced = fields.Monetary(
         string="Untaxed Amount Invoiced",
         readonly=True,
@@ -162,22 +143,6 @@ class SaleReport(models.Model):
         string="Untaxed Amount To Invoice",
         readonly=True,
     )
-    weight = fields.Float(string="Gross Weight", readonly=True)
-    volume = fields.Float(string="Volume", readonly=True)
-
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
-    @api.readonly
-    def action_view_order(self):
-        self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": self.order_reference._name,
-            "views": [[False, "form"]],
-            "res_id": self.order_reference.id,
-        }
 
     # ------------------------------------------------------------
     # HELPER METHODS
@@ -363,16 +328,6 @@ class SaleReport(models.Model):
             ("uom_uom", "u2", "LEFT JOIN", "t.uom_id=u2.id"),
         ]
 
-    def _get_where_conditions(self) -> list:
-        """Registry of conditions for the WHERE clause.
-
-        :return: SQL condition strings that are AND'ed together
-        :rtype: list
-        """
-        return [
-            "l.display_type IS NULL",
-        ]
-
     def _get_group_by_fields(self) -> list:
         """Registry of fields for the GROUP BY clause.
 
@@ -417,13 +372,3 @@ class SaleReport(models.Model):
         :rtype: dict
         """
         return {}
-
-    def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
-        """Override to correctly calculate the weighted average price of products."""
-        if aggregate_spec != "price_average:avg":
-            return super()._read_group_select(aggregate_spec, query)
-        return SQL(
-            "SUM(%(f_price)s * %(f_qty)s) / NULLIF(SUM(%(f_qty)s), 0.0)",
-            f_qty=self._field_to_sql(self._table, "product_uom_qty", query),
-            f_price=self._field_to_sql(self._table, "price_average", query),
-        )

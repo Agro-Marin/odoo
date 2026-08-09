@@ -22,6 +22,7 @@ Mixins:
 * **order.invoice.mixin** — invoice tracking (order-level)
 * **order.line.invoice.mixin** — invoice tracking (line-level)
 * **order.merge.mixin** — quotation/RFQ merge system
+* **order.report.mixin** — shared analytical-report layer over sql.report.mixin
 
 It also carries the shared ``ir.actions.report`` extension that embeds an
 order's EDI XML into its rendered PDF. Concrete modules only declare which of
@@ -35,6 +36,7 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
         "portal",
         "account",
         "product",
+        "base_sql_report",
     ],
     "author": "Odoo Community",
     "website": "https://www.odoo.com",

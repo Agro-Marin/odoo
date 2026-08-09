@@ -5,4 +5,5 @@ from . import order_line_amount_mixin
 from . import order_invoice_mixin
 from . import account_move_line
 from . import order_merge_mixin
+from . import order_report_mixin
 from . import ir_actions_report
