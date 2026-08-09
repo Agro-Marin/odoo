@@ -28,6 +28,7 @@ import psutil
 import requests
 
 import odoo.tools
+from odoo.logutils import RUNBOT
 from odoo.tools.misc import find_in_path
 
 from .utils import HOST, get_db_name, save_test_file
@@ -704,7 +705,7 @@ which leads to stray network requests and inconsistencies."""
         "info": logging.INFO,
         "warning": logging.WARNING,
         "error": logging.ERROR,
-        "dir": logging.RUNBOT,
+        "dir": RUNBOT,
     }
 
     def take_screenshot(self, prefix="sc_") -> Future[dict]:

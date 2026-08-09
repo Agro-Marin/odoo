@@ -323,6 +323,27 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
     ),
     Contract(
+        name="root-modules-are-foundational",
+        adr="0016",
+        source=("odoo.exceptions", "odoo.release"),
+        forbidden=("odoo",),
+        allow=("odoo.libs",),
+        rationale=(
+            "odoo/exceptions.py and odoo/release.py are imported by everything "
+            "-- exceptions by 179 files across every package including odoo/db "
+            "-- and were constrained by nothing pointing downward: "
+            "core-does-not-depend-on-addons names them as sources, but only "
+            "forbids odoo.addons. Nothing stopped either from importing "
+            "odoo.orm, odoo.http or odoo.service and inverting the whole stack. "
+            "Both hold at zero odoo imports today, so the invariant is free to "
+            "declare; odoo.libs is permitted because it is itself "
+            "dependency-free. NOT odoo/logutils.py: it imports odoo.db, "
+            "odoo.release and odoo.tools at module level and is a consumer of "
+            "the stack, not a foundation of it."
+            ""
+        ),
+    ),
+    Contract(
         name="orm-models-below-runtime",
         adr="0001",
         source=("odoo.orm.models",),

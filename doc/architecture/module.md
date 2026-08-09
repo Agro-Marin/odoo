@@ -220,6 +220,7 @@ definition that actually runs.
 | `db-resilience-below-connectivity` | `db/` `[resilience]` (breaker, lag, budget, leaks, reaper, metrics, stats) must not import `[connectivity]` (pool, cursor, ddl, schema, savepoint, schema_cache, bulk, lifecycle) | ✅ clean |
 | `http-features-below-serving` | `http/` `[features]` (openapi, `_params`, geoip, constants, exceptions, `_protocols`) must not import `[serving]` | ✅ clean |
 | `orm-below-the-serving-tier` | `odoo/orm/**` must not import `odoo.service`, `odoo.http` or `odoo.cli` — the serving tier runs on the ORM, never the reverse | ✅ clean |
+| `root-modules-are-foundational` | `odoo/exceptions.py` & `odoo/release.py` must not import `odoo.*` except `odoo.libs` (ADR-0016). **Not** `logutils.py`, which imports `db`/`tools` and is a consumer of the stack | ✅ clean |
 
 **The eight original boundaries are clean at zero** — no tolerated exceptions.
 The gate is **drift-zero**: any *new* crossing fails CI. A genuinely unavoidable

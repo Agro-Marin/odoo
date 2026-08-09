@@ -41,7 +41,11 @@ _REPO = _LIBS.parents[1]
 #                 whether it meant to or not. Importing one of these is real
 #                 leaf coupling, and it is what the gate exists to stop.
 #
-# The accidental count is 36, measured from DISK. Two earlier versions measured
+# The accidental count is 37, measured from DISK. It was 36 until 2026-08-09,
+# when `colors/terminal.py` was added to hold the ANSI escape codes that had
+# been stranded in `odoo/logutils.py` -- a new leaf in an existing area, which
+# is exactly the kind of growth this bound exists to make visible rather than
+# forbid. Two earlier versions measured
 # it from the areas' runtime attributes and were order-dependent: a submodule
 # binds onto its parent when anything imports it, and a full Tier-1 run also
 # imports odoo/libs/<area>/tests/, binding `tests` onto the area too. Both
@@ -200,8 +204,8 @@ def test_accidental_submodule_surface_is_bounded():
     # Not a prohibition: Python binds a submodule onto its parent on import, so
     # this cannot reach zero without lazy areas. It is a *budget*, so a new leak
     # is visible rather than free.
-    assert total <= 36, (
-        f"accidental submodule surface grew to {total} (was 36). Each one is a "
+    assert total <= 37, (
+        f"accidental submodule surface grew to {total} (was 37). Each one is a "
         f"leaf module importable as `from odoo.libs.<area> import <name>`, "
         f"which libs_facade_check cannot see."
     )

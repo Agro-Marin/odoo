@@ -14,6 +14,7 @@ from typing import IO, TYPE_CHECKING, Final
 import werkzeug.serving
 
 from . import db, release, tools
+from .libs.colors import BLUE, DEFAULT, GREEN, RED, WHITE, YELLOW, colorize
 from .libs.json import dumps as json_dumps
 from .libs.worker_thread import current_worker_thread
 
@@ -112,11 +113,6 @@ class PostgreSQLHandler(logging.Handler):
             )
 
 
-BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, _NOTHING, DEFAULT = range(10)
-RESET_SEQ: Final[str] = "\033[0m"
-COLOR_SEQ: Final[str] = "\033[1;%dm"
-BOLD_SEQ: Final[str] = "\033[1m"
-COLOR_PATTERN: Final[str] = f"{COLOR_SEQ}{COLOR_SEQ}%s{RESET_SEQ}"
 LEVEL_COLOR_MAPPING: Final[dict[int, tuple[int, int]]] = {
     logging.DEBUG: (BLUE, DEFAULT),
     logging.INFO: (GREEN, DEFAULT),
@@ -168,13 +164,9 @@ class ColoredPerfFilter(PerfFilter):
     ) -> tuple[str, str, str]:
         def colorize_time(time, format, low=1, high=5):
             if time > high:
-                return COLOR_PATTERN % (30 + RED, 40 + DEFAULT, format % time)
+                return colorize(format % time, RED)
             if time > low:
-                return COLOR_PATTERN % (
-                    30 + YELLOW,
-                    40 + DEFAULT,
-                    format % time,
-                )
+                return colorize(format % time, YELLOW)
             return format % time
 
         return (
@@ -188,22 +180,29 @@ class ColoredPerfFilter(PerfFilter):
         cursor_mode_color = (
             RED if cursor_mode == "ro->rw" else YELLOW if cursor_mode == "rw" else GREEN
         )
-        return COLOR_PATTERN % (
-            30 + cursor_mode_color,
-            40 + DEFAULT,
-            cursor_mode,
-        )
+        return colorize(cursor_mode, cursor_mode_color)
 
 
 class ColoredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         fg_color, bg_color = LEVEL_COLOR_MAPPING.get(record.levelno, (GREEN, DEFAULT))
-        record.levelname = COLOR_PATTERN % (
-            30 + fg_color,
-            40 + bg_color,
-            record.levelname,
-        )
+        record.levelname = colorize(record.levelname, fg_color, bg_color)
         return super().format(record)
+
+
+def root_handler_uses_colors() -> bool:
+    """Whether the root logger's first handler formats with colour.
+
+    The question "may I emit ANSI codes into a log message?" belongs to the
+    logging configuration, which is this module. It is exposed as a predicate
+    because the caller that needs it -- the ``Html`` field, rendering a
+    sanitisation diff -- is Layer 1 of the ORM, and had been importing
+    :class:`ColoredFormatter` to run the ``isinstance`` check itself. That is a
+    field type reaching into the server's logging setup to ask about the
+    terminal.
+    """
+    handlers = logging.getLogger().handlers
+    return bool(handlers) and isinstance(handlers[0].formatter, ColoredFormatter)
 
 
 class JSONFormatter(logging.Formatter):
@@ -474,8 +473,22 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
     "critical": ["odoo:CRITICAL", "werkzeug:CRITICAL"],
 }
 
-logging.RUNBOT = 25
-logging.addLevelName(logging.RUNBOT, "INFO")
+RUNBOT: Final[int] = 25
+"""Custom level between INFO and WARNING, for runbot-only output.
+
+Also published onto the stdlib module as ``logging.RUNBOT`` below, which is how
+every consumer reached it until 2026-08-09. That worked only while something
+had already imported this module, and what guaranteed it was an accident:
+``orm/fields/textual.py`` imported ``odoo.logutils`` for four ANSI colour
+constants, so importing the ORM registered the level. When those constants
+moved to ``odoo/libs/colors/`` the accidental provider went away and
+``odoo/tests/browser.py`` -- which reads ``logging.RUNBOT`` in a class body --
+raised AttributeError at import. Import this name directly rather than relying
+on the patched attribute being there.
+"""
+
+logging.RUNBOT = RUNBOT
+logging.addLevelName(RUNBOT, "INFO")
 logging._nameToLevel["INFO"] = logging.INFO
 IGNORE: Final[frozenset[str]] = frozenset(
     {
@@ -516,7 +529,7 @@ def showwarning_with_traceback(
 
 
 def runbot(self: logging.Logger, message: str, *args: object, **kws: object) -> None:
-    self.log(logging.RUNBOT, message, *args, **kws)
+    self.log(RUNBOT, message, *args, **kws)
 
 
 logging.Logger.runbot = runbot

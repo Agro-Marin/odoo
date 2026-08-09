@@ -151,6 +151,6 @@ checker that produces it, and one assertion guards the *conclusion* rather than
 the digits, because both sides of a comparison can be re-measured correctly
 while the sentence around them is left claiming the opposite.
 
-See also: `doc/adr/` (architecture decisions, 0001–0015 — 0012/0013 cover
+See also: `doc/adr/` (architecture decisions, 0001–0016 — 0012/0013 cover
 attachment storage and content placement, which sit above this page's scope) and
 the `orm/__init__.py` module docstring.

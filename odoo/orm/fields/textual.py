@@ -1,5 +1,4 @@
 import collections.abc
-import logging
 import typing
 from collections import defaultdict
 from difflib import get_close_matches, unified_diff
@@ -12,12 +11,12 @@ from markupsafe import escape as markup_escape
 
 from odoo.db import schema as sql
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.colors import DEFAULT, GREEN, RED, colorize
 from odoo.libs.sql import (
     pattern_to_translated_trigram_pattern,
     pg_varchar,
     value_to_translated_trigram_pattern,
 )
-from odoo.logutils import COLOR_PATTERN, DEFAULT, GREEN, RED, ColoredFormatter
 from odoo.tools import SQL, html_normalize, html_sanitize
 from odoo.tools.misc import PENDING, SENTINEL, OrderedSet, Sentinel
 from odoo.tools.translate import html_translate
@@ -1029,20 +1028,19 @@ class Html(BaseString):
                     original_value_normalized.splitlines(),
                 )
 
-                root_handlers = logging.getLogger().handlers
-                with_colors = bool(root_handlers) and isinstance(
-                    root_handlers[0].formatter,
-                    ColoredFormatter,
-                )
+                # Deferred on purpose: `odoo.logutils` imports `odoo.db`,
+                # `odoo.release` and `odoo.tools` at module level, and this is
+                # Layer 1. A function-local import is the sanctioned way to
+                # keep a runtime question without taking the import edge --
+                # see "Direction rules are blind to cycles" in module.md.
+                from odoo.logutils import root_handler_uses_colors
+
+                with_colors = root_handler_uses_colors()
                 diff_str = f"The field ({record._description}, {self.string}) will not be editable:\n"
                 for line in list(diff)[2:]:
                     if with_colors:
                         color = {"-": RED, "+": GREEN}.get(line[:1], DEFAULT)
-                        diff_str += COLOR_PATTERN % (
-                            30 + color,
-                            40 + DEFAULT,
-                            line.rstrip() + "\n",
-                        )
+                        diff_str += colorize(line.rstrip() + "\n", color)
                     else:
                         diff_str += line.rstrip() + "\n"
                 _logger.info(diff_str)
