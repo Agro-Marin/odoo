@@ -1,22 +1,23 @@
 import binascii
-from collections import OrderedDict
 
 from odoo import SUPERUSER_ID, _, fields, http
 from odoo.exceptions import AccessError, MissingError, ValidationError
 from odoo.fields import Command
 from odoo.http import request
 
+from odoo.addons.base_order.controllers.portal import OrderPortalMixin
 from odoo.addons.payment.controllers import portal as payment_portal
-from odoo.addons.portal.controllers.portal import pager as portal_pager
 
 
-class CustomerPortal(payment_portal.PaymentPortal):
+class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
     # ------------------------------------------------------------------
-    # Module-prefixed hooks (Phase 1).
-    # Names are sale-scoped to avoid MRO collision with purchase's
-    # CustomerPortal in the combined dispatcher built by
-    # odoo.http.routing.build_controllers.  Phase 2 will move these
-    # to base_order and strip the prefix.
+    # Module-prefixed hooks.
+    # These carry sale's *identity* and must stay prefixed: the combined
+    # dispatcher built by odoo.http.routing.build_controllers fuses sale's and
+    # purchase's CustomerPortal into one MRO, so an unprefixed name here would
+    # silently shadow purchase's. The logic that is identical for both lives in
+    # OrderPortalMixin (base_order), which is not a Controller and therefore
+    # appears only once in that fused MRO.
     # ------------------------------------------------------------------
 
     def _sale_get_order_model(self):
@@ -57,14 +58,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
 
     def _sale_get_order_searchbar_sortings(self):
         """Return the sort options offered on the order list pages."""
-        return {
-            "date": {"label": _("Newest"), "order": "create_date desc, id desc"},
-            "name": {"label": _("Name"), "order": "name asc, id asc"},
-            "amount_total": {
-                "label": _("Total"),
-                "order": "amount_total desc, id desc",
-            },
-        }
+        return self._order_portal_default_sortings()
 
     def _sale_get_order_searchbar_filters(self, page_key):
         """Return the filter options offered on the given list page."""
@@ -110,100 +104,36 @@ class CustomerPortal(payment_portal.PaymentPortal):
 
     def _prepare_home_portal_values(self, counters):
         values = super()._prepare_home_portal_values(counters)
-        Order = request.env[self._sale_get_order_model()]
-        can_read = Order.has_access("read")
-        for counter_key, domain in self._sale_get_portal_counters():
-            if counter_key in counters:
-                values[counter_key] = Order.search_count(domain) if can_read else 0
-        return values
+        return self._order_portal_home_counters(
+            values,
+            counters,
+            self._sale_get_order_model(),
+            self._sale_get_portal_counters(),
+        )
 
     # ------------------------------------------------------------------
     # List page rendering values
     # ------------------------------------------------------------------
 
-    def _sale_prepare_order_portal_rendering_values(
-        self,
-        page_key,
-        page=1,
-        date_begin=None,
-        date_end=None,
-        sortby=None,
-        filterby=None,
-        **kwargs,
-    ):
+    def _sale_prepare_order_portal_rendering_values(self, page_key, **kwargs):
         """Build the QWeb context dict shared by both list pages.
+
+        Only sale's identity is resolved here; the rendering itself lives in
+        ``OrderPortalMixin._order_portal_rendering_values`` (base_order).
 
         :param str page_key: Identifier passed to ``_sale_get_page_config`` and
                              ``_sale_get_page_state_domain``.
         :rtype: dict
         """
-        Order = request.env[self._sale_get_order_model()]
         partner = request.env.user.partner_id
-        cfg = self._sale_get_page_config(page_key)
-        values = self._prepare_portal_layout_values()
-
-        domain = self._sale_prepare_orders_domain(partner, page_key)
-        if date_begin and date_end:
-            domain += [
-                ("create_date", ">", date_begin),
-                ("create_date", "<=", date_end),
-            ]
-
-        searchbar_sortings = self._sale_get_order_searchbar_sortings()
-        # Clamp to the declared vocabulary; an unknown `?sortby=` used to be a
-        # KeyError (HTTP 500). `filterby` below is already membership-tested.
-        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
-        order = searchbar_sortings[sortby]["order"]
-
-        searchbar_filters = self._sale_get_order_searchbar_filters(page_key)
-        if searchbar_filters:
-            if not filterby:
-                filterby = cfg.get("default_filter")
-            if filterby in searchbar_filters:
-                domain += searchbar_filters[filterby]["domain"]
-
-        can_read = Order.has_access("read")
-        total = Order.search_count(domain) if can_read else 0
-        pager = portal_pager(
-            url=cfg["url"],
-            url_args={
-                "date_begin": date_begin,
-                "date_end": date_end,
-                "sortby": sortby,
-                "filterby": filterby,
-            },
-            total=total,
-            page=page,
-            step=self._items_per_page,
+        return self._order_portal_rendering_values(
+            model_name=self._sale_get_order_model(),
+            cfg=self._sale_get_page_config(page_key),
+            base_domain=self._sale_prepare_orders_domain(partner, page_key),
+            searchbar_sortings=self._sale_get_order_searchbar_sortings(),
+            searchbar_filters=self._sale_get_order_searchbar_filters(page_key),
+            **kwargs,
         )
-
-        orders = (
-            Order.search(
-                domain,
-                order=order,
-                limit=self._items_per_page,
-                offset=pager["offset"],
-            )
-            if can_read
-            else Order
-        )
-
-        request.session[cfg["session_key"]] = orders.ids[:100]
-
-        values.update(
-            {
-                "date": date_begin,
-                cfg["values_key"]: orders,
-                "page_name": cfg["page_name"],
-                "pager": pager,
-                "default_url": cfg["url"],
-                "searchbar_sortings": searchbar_sortings,
-                "sortby": sortby,
-                "searchbar_filters": OrderedDict(sorted(searchbar_filters.items())),
-                "filterby": filterby,
-            }
-        )
-        return values
 
     # ------------------------------------------------------------------
     # List routes
@@ -635,26 +565,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
         except AccessError, MissingError:
             return request.redirect("/my")
 
-        builders = order_sudo._get_edi_builders()
-
-        # This handles only one builder for now, more can be added in the future
-        # TODO: add builder choice on modal
-        if len(builders) == 0:
-            return request.redirect("/my")
-        builder = builders[0]
-
-        xml_content = builder._export_order(order_sudo)
-
-        download_name = builder._export_invoice_filename(
-            order_sudo
-        )  # works even if it's a SO or PO
-
-        http_headers = [
-            ("Content-Type", "text/xml"),
-            ("Content-Length", len(xml_content)),
-            ("Content-Disposition", f"attachment; filename={download_name}"),
-        ]
-        return request.make_response(xml_content, headers=http_headers)
+        return self._order_portal_edi_response(order_sudo) or request.redirect("/my")
 
 
 class PaymentPortal(payment_portal.PaymentPortal):
