@@ -60,7 +60,7 @@ test("search emoji from keywords", async () => {
     await start();
     await openDiscuss(channelId);
     await click("button[title='Add Emojis']");
-    await insertText("input[placeholder='Search emoji']", "mexican");
+    await insertText(".o-EmojiPicker-search input", "mexican");
     await contains(".o-Emoji", { text: "🌮" });
     await insertText(".o-EmojiPicker-search input", "9", { replace: true });
     await contains(".o-Emoji:eq(0)", { text: "🕘" });
@@ -74,7 +74,7 @@ test("search emoji from keywords should be case insensitive", async () => {
     await start();
     await openDiscuss(channelId);
     await click("button[title='Add Emojis']");
-    await insertText("input[placeholder='Search emoji']", "ok");
+    await insertText(".o-EmojiPicker-search input", "ok");
     await contains(".o-Emoji", { text: "🆗" }); // all search terms are uppercase OK
 });
 
@@ -84,7 +84,7 @@ test("search emoji from keywords with special regex character", async () => {
     await start();
     await openDiscuss(channelId);
     await click("button[title='Add Emojis']");
-    await insertText("input[placeholder='Search emoji']", "(blood");
+    await insertText(".o-EmojiPicker-search input", "(blood");
     await contains(".o-Emoji", { text: "🆎" });
 });
 
@@ -96,7 +96,13 @@ test("updating search emoji should scroll top", async () => {
     await click("button[title='Add Emojis']");
     await contains(".o-EmojiPicker-content", { scroll: 0 });
     await scroll(".o-EmojiPicker-content", 150);
-    await insertText("input[placeholder='Search emoji']", "m");
+    // Reached structurally, not by placeholder: `EmojiPicker.placeholder` is
+    // `hoveredEmoji?.shortcodes.join(" ") ?? _t("Search emoji")`, so the moment
+    // the pointer rests on an emoji -- which scrolling the grid does -- the
+    // input stops answering to `input[placeholder='Search emoji']`. The tests
+    // that search straight after opening the picker never hovered one and so
+    // never noticed; these two did.
+    await insertText(".o-EmojiPicker-search input", "m");
     await contains(".o-EmojiPicker-content", { scroll: 0 });
 });
 
@@ -174,7 +180,7 @@ test("search emojis prioritize frequently used emojis", async () => {
     await click(".o-EmojiPicker-content .o-Emoji", { text: "🤥" });
     await click("button[title='Add Emojis']");
     await contains(".o-EmojiPicker-navbar [title='Frequently used']");
-    await insertText("input[placeholder='Search emoji']", "lie");
+    await insertText(".o-EmojiPicker-search input", "lie");
     await contains(".o-EmojiPicker-sectionIcon", { count: 0 }); // await search performed
     await contains(".o-EmojiPicker-content .o-Emoji:eq(0)", { text: "🤥" });
 });
