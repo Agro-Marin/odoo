@@ -5,12 +5,31 @@ import re
 import unittest
 from pathlib import Path
 
-from odoo.libs.constants import ODOO_EXTERNAL_LIBS
-from odoo.libs.web.import_map import import_map_for
+from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
+from odoo.tools.assets.import_map import import_map_for
 
 _TAG_BODY = re.compile(r'<script type="importmap">(?P<body>.*?)</script>', re.DOTALL)
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+
+def _find_repo_root() -> Path:
+    """Locate the checkout by its ``odoo-bin`` marker, not by counting parents.
+
+    This was ``parents[4]``, correct while the module lived at
+    ``odoo/libs/web/tests/``. Moving it to ``odoo/tools/tests/`` made it resolve
+    one level too high, every glob below matched nothing, and only the
+    ``assertGreater(checked, 0)`` guard at the end turned that into a failure
+    instead of a suite that silently verified nothing -- exactly what
+    ``tooling/_repo_root.py`` exists to prevent, and the reason
+    ``layer_check.py`` says a counted depth "silently resolves to the wrong tree
+    the moment a script moves".
+    """
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "odoo-bin").exists():
+            return candidate
+    raise RuntimeError("could not locate the repo root above test_import_map.py")
+
+
+_REPO_ROOT = _find_repo_root()
 
 _OVERRIDE_DIRS = (_REPO_ROOT / "addons/web/static/lib/hoot/tests",)
 

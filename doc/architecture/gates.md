@@ -304,8 +304,21 @@ The eight original contracts remain clean at zero; the exceptions surfaced by th
 checker's first run have all been paid down:
 
 - **Asset pipeline** (`esbuild`, `esm_bridges`, `esm_graph`, `esm_registry`)
-  relocated from `libs/` to `odoo/tools/assets/` (ADR-0004). The dependency-free
-  helpers it builds on (`asset_log`, `constants`) remain in `libs/`.
+  relocated from `libs/` to `odoo/tools/assets/` (ADR-0004). `asset_log` remains
+  in `libs/` and is genuinely dependency-free — logging helpers over a
+  logger-name string. `constants` was kept alongside it on the same reasoning
+  and should not have been: it held 24 import-map asset paths (two of them into
+  the optional `spreadsheet` and `survey` addons), the ORM prefetch and vacuum
+  limits, and the `ir.cron`/`ir.job` NOTIFY channel names. Every consumer was in
+  `tools/`, `orm/`, `addons/base` or an addon tree; none was a generic utility.
+  `libs-is-dependency-free` was green throughout, because it is an import rule
+  and a string literal produces no import edge. Split on 2026-08-09 into
+  `tools/assets/constants.py`, `orm/primitives.py` and `tools/constants.py`, and
+  the libs module deleted. The import-map builder, its only reader inside
+  `libs/`, moved to `tools/assets/` with it — it is
+  `tools/assets/import_map.py` now. (Neither old path is written here as a
+  backticked path: in this repo that asserts the file exists, and
+  `test_named_source_paths_exist` checks it.)
 - **`libs/filesystem/osutil.py`** no longer imports `odoo.release`; the Windows
   service name is passed in by the caller (ADR-0004).
 - **Layer-1 → Layer-2 deferred `BaseModel` imports** in `orm/domain/ast.py` and

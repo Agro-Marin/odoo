@@ -8,7 +8,6 @@ from odoo.libs._field_access import batch_cache_filter as _batch_cache_filter
 from odoo.libs._field_access import batch_cache_get as _batch_cache_get
 from odoo.libs._field_access import batch_group_ids as _batch_group_ids
 from odoo.libs._field_access import sort_ids_by_cache as _sort_ids_by_cache
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import SQL
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -17,6 +16,7 @@ from ..._recordset import is_recordset
 from ..._typing import DomainType
 from ...domain import Domain
 from ...parsing import regex_order
+from ...primitives import PREFETCH_MAX
 from ._cache_scan import (
     caches_lang_dicts,
     can_scan_identity,

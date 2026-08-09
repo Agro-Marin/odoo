@@ -1,4 +1,4 @@
-from odoo.libs.constants import ANY_UNIQUE
+from odoo.tools.assets.constants import ANY_UNIQUE
 from odoo.tools.assets.esm_graph import (
     _cached_module_classification,
     _parse_odoo_module_header,

@@ -11,7 +11,7 @@ from odoo import _, api, fields, models
 from odoo.db.schema import create_index
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.libs.constants import PREFETCH_MAX
+from odoo.models import PREFETCH_MAX
 from odoo.tools import float_compare, float_is_zero, frozendict, plaintext2html
 
 _logger = logging.getLogger(__name__)

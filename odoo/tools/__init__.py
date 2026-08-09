@@ -1,4 +1,4 @@
-from odoo.libs import constants
+from . import constants
 from odoo.libs.func import (
     classproperty,
     conditional,

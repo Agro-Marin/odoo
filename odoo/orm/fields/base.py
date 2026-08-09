@@ -18,13 +18,12 @@ from operator import attrgetter
 from odoo.db import schema as sql
 from odoo.exceptions import AccessError, MissingError
 from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import SQL, reset_cached_properties
 from odoo.tools.misc import PENDING, SENTINEL, ReadonlyDict, Sentinel, unique
 
 from .._recordset import base_model, is_model_class, is_recordset
 from ..domain import Domain
-from ..primitives import COLLECTION_TYPES, STATE_FIELD
+from ..primitives import COLLECTION_TYPES, PREFETCH_MAX, STATE_FIELD
 from ._field_convert import _FieldConvertMixin
 from ._field_description import _FieldDescriptionMixin
 from ._field_metadata import _FieldMetadataMixin

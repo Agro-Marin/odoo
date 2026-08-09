@@ -3,7 +3,7 @@ import logging
 
 from odoo import api, fields, models
 from odoo.db import schema as sql
-from odoo.libs.constants import GC_UNLINK_LIMIT
+from odoo.models import GC_UNLINK_LIMIT
 
 _logger = logging.getLogger(__name__)
 

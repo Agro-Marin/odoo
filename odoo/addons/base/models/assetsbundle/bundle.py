@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 from odoo.api import Environment
 from odoo.libs.asset_log import log_event
-from odoo.libs.constants import (
+from odoo.libs.profiling import SourceMapGenerator
+from odoo.tools.assets.constants import (
     ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
     TEMPLATE_EXTENSIONS,
 )
-from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools.assets.esbuild import (
     EXTERNAL_BARE_SPECIFIERS,
     EsbuildCompiler,

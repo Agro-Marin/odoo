@@ -3,8 +3,8 @@ import logging
 import re
 from pathlib import Path
 
-from odoo.libs.constants import ODOO_EXTERNAL_LIBS
 from odoo.modules import Manifest
+from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
 
 from . import lint_case
 from odoo.addons.base.models.ir_qweb_assets import IrQweb

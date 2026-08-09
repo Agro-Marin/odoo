@@ -24,9 +24,10 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.libs import backoff
-from odoo.libs.constants import GC_UNLINK_LIMIT, JOB_QUEUE_CHANNEL
+from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
 from odoo.tools import SQL
+from odoo.tools.constants import JOB_QUEUE_CHANNEL
 
 from .ir_cron import (
     BadModuleStateError,

@@ -16,11 +16,12 @@ from odoo import api, db, fields, models
 from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import LockError, UserError
 from odoo.http import serialize_exception
-from odoo.libs.constants import CRON_TRIGGER_CHANNEL, GC_UNLINK_LIMIT
+from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
 from odoo.tools import SQL, config, str2bool
+from odoo.tools.constants import CRON_TRIGGER_CHANNEL
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable

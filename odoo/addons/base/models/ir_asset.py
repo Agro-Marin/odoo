@@ -11,9 +11,9 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
-from odoo.libs.constants import EXTERNAL_ASSET
 from odoo.modules import Manifest
 from odoo.tools import misc
+from odoo.tools.assets.constants import EXTERNAL_ASSET
 
 from .ir_asset_paths import (
     AFTER_DIRECTIVE,

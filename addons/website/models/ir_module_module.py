@@ -9,7 +9,7 @@ import werkzeug
 from odoo import api, fields, models
 from odoo.exceptions import MissingError
 from odoo.http import request
-from odoo.libs.constants import PREFETCH_MAX
+from odoo.models import PREFETCH_MAX
 from odoo.modules import Manifest
 from odoo.tools import SQL
 

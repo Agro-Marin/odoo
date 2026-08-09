@@ -1327,7 +1327,7 @@ class TestRtlOutputIsActuallyFlipped(TransactionCase):
 
 class TestAssetExtensionTable(TransactionCase):
     def test_extension_tables_match_the_constants(self):
-        from odoo.libs.constants import (
+        from odoo.tools.assets.constants import (
             SCRIPT_EXTENSIONS,
             STYLE_EXTENSIONS,
             TEMPLATE_EXTENSIONS,

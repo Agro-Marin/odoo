@@ -16,8 +16,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo import tools
-from odoo.libs.constants import ODOO_EXTERNAL_LIBS
 from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
 from odoo.tools.assets.esbuild import EsbuildCompiler, _find_esbuild
 from odoo.tools.assets.esm_bridges import BridgeShimManager
 from odoo.tools.assets.esm_registry import esm_registry, validate_esm_config

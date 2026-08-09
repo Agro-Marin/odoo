@@ -1,6 +1,6 @@
 from odoo import Command, models
 from odoo.exceptions import AccessError
-from odoo.libs.constants import PREFETCH_MAX
+from odoo.models import PREFETCH_MAX
 from odoo.tools import lazy, mute_logger, unique
 
 from odoo.addons.base.tests.common import SavepointCaseWithUserDemo

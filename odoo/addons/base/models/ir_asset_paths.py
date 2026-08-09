@@ -6,7 +6,7 @@ from stat import S_ISLNK
 from typing import Any, NamedTuple
 from urllib.parse import urlsplit
 
-from odoo.libs.constants import ASSET_EXTENSIONS, EXTERNAL_ASSET, ExternalAsset
+from odoo.tools.assets.constants import ASSET_EXTENSIONS, EXTERNAL_ASSET, ExternalAsset
 
 _logger = getLogger(__name__)
 

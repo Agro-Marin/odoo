@@ -4,10 +4,8 @@ from typing import TYPE_CHECKING, Any
 
 from odoo import release
 from odoo.api import SUPERUSER_ID, Environment
-from odoo.libs.constants import (
-    ANY_UNIQUE,
-)
 from odoo.tools import SQL
+from odoo.tools.assets.constants import ANY_UNIQUE
 
 if TYPE_CHECKING:
     from odoo.addons.base.models.ir_attachment import IrAttachment

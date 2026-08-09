@@ -13,14 +13,14 @@ from rjsmin import jsmin as _rjsmin
 from odoo import SUPERUSER_ID, api, models, tools
 from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
-from odoo.libs.constants import (
+from odoo.libs.hashing import cache_hash
+from odoo.modules import module as _module
+from odoo.tools.assets.constants import (
     ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
     TEMPLATE_EXTENSIONS,
 )
-from odoo.libs.hashing import cache_hash
-from odoo.modules import module as _module
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,

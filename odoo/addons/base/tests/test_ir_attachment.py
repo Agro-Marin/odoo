@@ -11,8 +11,8 @@ from PIL import Image
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.libs.hashing import ALGO_TAG
+from odoo.models import PREFETCH_MAX
 from odoo.tests.common import TransactionCase, skip_if_dev_mode, tagged
 from odoo.tools import OrderedSet, human_size, mute_logger
 from odoo.tools.image import image_to_base64

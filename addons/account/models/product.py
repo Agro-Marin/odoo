@@ -4,7 +4,7 @@ from itertools import batched
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
-from odoo.libs.constants import PREFETCH_MAX
+from odoo.models import PREFETCH_MAX
 from odoo.tools import format_amount, frozendict
 
 ACCOUNT_DOMAIN = "[('account_type', 'not in', ('asset_receivable','liability_payable','asset_cash','liability_credit_card','off_balance'))]"

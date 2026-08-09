@@ -1,4 +1,4 @@
 {
-  "count": 755,
-  "note": "757 -> 755, both in odoo/orm/components/storage.py where D and ANN are enforced: a module docstring added (-1 D100) and the undocumented search_rows removed (-1 D102). search_rows was a second, ad-hoc implementation of selection with its own operator table, called by nothing outside its own unit tests, and its NULL semantics diverged from both PostgreSQL and the domain layer ('n < 5' raised TypeError on an unset column instead of excluding the row). InMemoryBackend.search already selects through Domain._as_predicate, the parity-tested path. Command: ruff check odoo/ --no-cache --select D --statistics | awk '{s+=$1} END {print s+0}'"
+  "count": 749,
+  "note": "Deleting odoo/libs/constants.py (-5) and moving odoo/libs/web/import_map.py to odoo/tools/assets/ (-1). D and ANN are enforced only under odoo/libs/ and odoo/orm/components/, so removing two modules from libs/ is the whole of this move: no docstring was written or deleted to reach it, and the two replacement modules (tools/constants.py, tools/assets/constants.py) sit outside the D scope entirely. See the commit for why those constants were never libs material."
 }

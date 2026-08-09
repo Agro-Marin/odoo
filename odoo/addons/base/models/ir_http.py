@@ -24,12 +24,12 @@ from odoo.http import (
     request,
     rule_routing_kwargs,
 )
-from odoo.libs.constants import EXTENSION_TO_WEB_MIMETYPES
 from odoo.libs.hashing import cache_hash
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
 from odoo.modules.registry import Registry
 from odoo.service import security
+from odoo.tools.assets.constants import EXTENSION_TO_WEB_MIMETYPES
 from odoo.tools.json import json_default
 from odoo.tools.misc import get_lang, str2bool
 from odoo.tools.translate import code_translations

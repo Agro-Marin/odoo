@@ -613,7 +613,7 @@ class TestResolvedPath:
         assert not ResolvedPath("/web/a.js", None, None).is_external
 
     def test_the_sentinel_marks_an_external_url(self):
-        from odoo.libs.constants import EXTERNAL_ASSET
+        from odoo.tools.assets.constants import EXTERNAL_ASSET
 
         assert ResolvedPath("http://x/a.js", EXTERNAL_ASSET, -1).is_external
 

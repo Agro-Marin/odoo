@@ -23,7 +23,6 @@ from odoo.exceptions import (
 )
 from odoo.fields import COLLECTION_TYPES, Domain
 from odoo.http import Stream, request, root
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.libs.filesystem import (
     MIMETYPE_HEAD_SIZE,
     _olecf_mimetypes,
@@ -37,6 +36,7 @@ from odoo.libs.hashing import (
     content_hash,
     content_hasher,
 )
+from odoo.models import PREFETCH_MAX
 from odoo.tools import (
     OrderedSet,
     config,

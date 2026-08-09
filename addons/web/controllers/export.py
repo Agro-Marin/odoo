@@ -11,10 +11,10 @@ from werkzeug.exceptions import InternalServerError
 from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import Response, content_disposition, request
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
+from odoo.models import PREFETCH_MAX
 
 from .export_writers import (
     ExportXlsxWriter,

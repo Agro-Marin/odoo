@@ -8,7 +8,7 @@ from urllib.parse import quote, urlsplit
 import requests
 
 from odoo import api, models
-from odoo.libs.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
+from odoo.tools.assets.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 from odoo.tools import misc
 
 _logger = logging.getLogger(__name__)

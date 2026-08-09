@@ -30,7 +30,7 @@ from psycopg.errors import ReadOnlySqlTransaction
 import odoo
 from odoo.db import db_connect
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
-from odoo.libs.constants import ODOO_EXTERNAL_LIBS
+from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (

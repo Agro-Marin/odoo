@@ -33,11 +33,11 @@ from psycopg.errors import (
 from odoo import api, models, tools
 from odoo.exceptions import UserError
 from odoo.http import request
-from odoo.libs.constants import SUPPORTED_DEBUGGER
 from odoo.libs.lru import LRU
 from odoo.modules import Manifest
 from odoo.modules.registry import REGISTRY_CACHES
 from odoo.tools import OrderedSet, config, frozendict, json, safe_eval
+from odoo.tools.constants import SUPPORTED_DEBUGGER
 from odoo.tools.image import FILETYPE_BASE64_MAGICWORD, image_data_uri
 from odoo.tools.misc import file_open, file_path
 from odoo.tools.profiler import ExecutionContext, QwebTracker

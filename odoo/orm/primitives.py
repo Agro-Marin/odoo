@@ -277,15 +277,23 @@ its own delete path branches on. ``addons/base`` re-exports it for the
 INSERT_BATCH_SIZE = 100
 UPDATE_BATCH_SIZE = 100
 
+PREFETCH_MAX = 1000
+"""Maximum number of records prefetched in one batch."""
+
+GC_UNLINK_LIMIT = 100_000
+"""Maximum number of records a vacuum job deletes in a single transaction."""
+
 
 __all__ = [
     "COLLECTION_TYPES",
     "CONVENTIONAL_FIELD_NAMES",
+    "GC_UNLINK_LIMIT",
     "INSERT_BATCH_SIZE",
     "LOG_ACCESS_COLUMNS",
     "MAGIC_COLUMNS",
     "MODULE_UNINSTALL_FLAG",
     "NO_ACCESS",
+    "PREFETCH_MAX",
     "SEQUENCE_FIELD",
     "SQL_DEFAULT",
     "SQL_OPERATORS",

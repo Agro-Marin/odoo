@@ -1,9 +1,9 @@
 import datetime
 
-from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.tools import SQL, config, lazy_classproperty
 
 from .. import decorators as api
+from ..primitives import GC_UNLINK_LIMIT
 from .base import Model
 
 _TRANSIENT_VACUUM_MIN_AGE_SECONDS = 300

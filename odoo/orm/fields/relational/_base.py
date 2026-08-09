@@ -12,7 +12,6 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import MissingError
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import PENDING, SENTINEL, unquote
 
@@ -20,7 +19,7 @@ from ..._recordset import is_recordset
 from ...constants import READ_GROUP_NUMBER_GRANULARITY
 from ...domain import Domain
 from ...domain.constants import SUBDOMAIN_OPERATORS
-from ...primitives import COLLECTION_TYPES, Command, NewId
+from ...primitives import COLLECTION_TYPES, PREFETCH_MAX, Command, NewId
 from ..base import Field, _logger
 
 

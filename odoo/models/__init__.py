@@ -4,7 +4,13 @@ from odoo.orm.constants import (
     READ_GROUP_NUMBER_GRANULARITY,
     READ_GROUP_TIME_GRANULARITY,
 )
-from odoo.orm.primitives import LOG_ACCESS_COLUMNS, MAGIC_COLUMNS, ValuesType
+from odoo.orm.primitives import (
+    GC_UNLINK_LIMIT,
+    LOG_ACCESS_COLUMNS,
+    MAGIC_COLUMNS,
+    PREFETCH_MAX,
+    ValuesType,
+)
 from odoo.orm.parsing import regex_order
 
 from odoo.orm.models import (
@@ -33,8 +39,10 @@ from odoo.orm.parsing import fix_import_export_id_paths, parse_read_group_spec
 from odoo.orm.validation import check_pg_name, is_manual_name, is_valid_object_name
 
 __all__ = [
+    "GC_UNLINK_LIMIT",
     "LOG_ACCESS_COLUMNS",
     "MAGIC_COLUMNS",
+    "PREFETCH_MAX",
     "READ_GROUP_AGGREGATE",
     "READ_GROUP_DISPLAY_FORMAT",
     "READ_GROUP_NUMBER_GRANULARITY",

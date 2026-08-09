@@ -3,7 +3,7 @@ import hashlib
 import json
 from typing import NamedTuple
 
-from odoo.libs.constants import ODOO_EXTERNAL_LIBS
+from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
 
 __all__ = ["ImportMap", "import_map_for"]
 
@@ -18,7 +18,7 @@ def import_map_for(*specifiers: str) -> ImportMap:
     if unknown:
         msg = (
             f"unknown external lib specifier(s): {', '.join(unknown)}. "
-            f"Register them in odoo.libs.constants.ODOO_EXTERNAL_LIBS first."
+            f"Register them in odoo.tools.assets.constants.ODOO_EXTERNAL_LIBS first."
         )
         raise KeyError(msg)
 

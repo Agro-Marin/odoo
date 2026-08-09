@@ -10,10 +10,8 @@ from typing import TYPE_CHECKING, Any
 from lxml import etree
 from rjsmin import jsmin as rjsmin
 
-from odoo.libs.constants import (
-    DOTTED_ASSET_EXTENSIONS as EXTENSIONS,
-)
 from odoo.tools import profiler
+from odoo.tools.assets.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 from odoo.tools.assets.esbuild import (
     has_nested_template_literal,
     minify_js,

@@ -1,19 +1,28 @@
+"""Constants owned by the server-side asset pipeline.
+
+These lived in ``odoo/libs/constants.py`` until 2026-08-09 -- inside the
+package whose contract is that it holds **no framework knowledge**
+(``libs-is-dependency-free``). The contract was green the whole time, because
+it is an *import* rule and a string literal produces no import edge:
+``ODOO_EXTERNAL_LIBS`` hardcoded 24 asset paths, two of them into optional
+business addons (``/spreadsheet/static/lib/...``, ``/survey/static/lib/...``),
+and not one consumer of the module was a generic utility.
+
+``tools/`` is the Odoo-coupled layer and ``tools/assets/`` is the pipeline that
+reads these, so this is where they belong.
+"""
+
 from types import MappingProxyType
 
 __all__ = [
     "ANY_UNIQUE",
     "ASSET_EXTENSIONS",
-    "CRON_TRIGGER_CHANNEL",
     "DOTTED_ASSET_EXTENSIONS",
     "EXTENSION_TO_WEB_MIMETYPES",
     "EXTERNAL_ASSET",
-    "GC_UNLINK_LIMIT",
-    "JOB_QUEUE_CHANNEL",
     "ODOO_EXTERNAL_LIBS",
-    "PREFETCH_MAX",
     "SCRIPT_EXTENSIONS",
     "STYLE_EXTENSIONS",
-    "SUPPORTED_DEBUGGER",
     "TEMPLATE_EXTENSIONS",
     "ExternalAsset",
 ]
@@ -22,8 +31,6 @@ SCRIPT_EXTENSIONS = ("js",)
 STYLE_EXTENSIONS = ("css", "scss", "sass")
 TEMPLATE_EXTENSIONS = ("xml",)
 ASSET_EXTENSIONS = SCRIPT_EXTENSIONS + STYLE_EXTENSIONS + TEMPLATE_EXTENSIONS
-
-SUPPORTED_DEBUGGER = {"pdb", "ipdb", "wdb", "pudb"}
 
 
 class ExternalAsset:
@@ -35,18 +42,6 @@ class ExternalAsset:
 
 EXTERNAL_ASSET = ExternalAsset()
 """Marks a resolved asset as an external URL, served as-is instead of bundled."""
-
-PREFETCH_MAX = 1000
-"""Maximum number of prefetched records"""
-
-GC_UNLINK_LIMIT = 100_000
-"""Maximum number of records to clean in a single transaction."""
-
-CRON_TRIGGER_CHANNEL = "cron_trigger"
-"""PostgreSQL NOTIFY channel waking the ``ir.cron`` workers."""
-
-JOB_QUEUE_CHANNEL = "job_queue"
-"""PostgreSQL NOTIFY channel waking the ``ir.job`` workers."""
 
 ANY_UNIQUE = "_" * 7
 """Sentinel placeholder for unique asset hashes in URLs."""
@@ -98,4 +93,11 @@ ODOO_EXTERNAL_LIBS = MappingProxyType(
         ),
     }
 )
-"""Import-map entries for esbuild-externalized libraries (spec -> URL)."""
+"""Import-map entries for esbuild-externalized libraries (spec -> URL).
+
+An addon that ships an externalized JavaScript library adds its entry here.
+That makes this table an extension point implemented as a hardcoded dict, which
+is why two of its rows name addons that the framework does not depend on; see
+``ODOO_EXTERNAL_LIBS`` in the audit notes. Turning it into a real registration
+surface is a separate change -- this one only puts it in the right layer.
+"""

@@ -1351,8 +1351,17 @@ class TestSeams(unittest.TestCase):
                 (ROOT / "odoo" / "tools" / "assets" / f"{module}.py").is_file()
             )
             self.assertFalse((ROOT / "odoo" / "libs" / f"{module}.py").is_file())
-        for kept in ("asset_log", "constants"):
-            self.assertTrue((ROOT / "odoo" / "libs" / f"{kept}.py").is_file())
+        # ``asset_log`` stays: logging helpers over a logger-name string, with
+        # no framework knowledge in them. ``constants`` did NOT stay -- the
+        # 2026-06 relocation left it in ``libs/`` as a "dependency-free helper"
+        # because the import gate said so, and it held 24 asset paths (two into
+        # optional business addons), the ORM prefetch limits and the cron NOTIFY
+        # channels. Split to ``tools/assets/constants.py``, ``orm/primitives.py``
+        # and ``tools/constants.py`` on 2026-08-09.
+        self.assertTrue((ROOT / "odoo" / "libs" / "asset_log.py").is_file())
+        self.assertFalse((ROOT / "odoo" / "libs" / "constants.py").is_file())
+        for relocated in ("tools/assets/constants", "tools/constants"):
+            self.assertTrue((ROOT / "odoo" / f"{relocated}.py").is_file())
 
 
 class TestCronExceptionRationale(unittest.TestCase):

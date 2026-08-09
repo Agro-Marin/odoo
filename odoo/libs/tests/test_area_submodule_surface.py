@@ -50,7 +50,11 @@ _REPO = _LIBS.parents[1]
 #: Submodules an area deliberately publishes in `__all__`.
 DECLARED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
     "filesystem": {"appdirs", "mimetypes", "osutil"},
-    "web": {"import_map", "urls"},
+    # `import_map` left on 2026-08-09 with `libs/constants.py`: it read
+    # ODOO_EXTERNAL_LIBS, a table of Odoo asset paths, so neither it nor the
+    # table was ever libs material. Both are under `tools/assets/` now, and
+    # `web` publishes only the genuinely generic URL helpers.
+    "web": {"urls"},
 }
 
 #: Leaf-module imports spelled `from odoo.libs.<area> import <submodule>` that

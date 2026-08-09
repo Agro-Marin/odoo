@@ -3,8 +3,8 @@ from __future__ import annotations
 import typing
 from collections.abc import Iterator
 
-from odoo.libs.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 from odoo.tools import OrderedSet
+from odoo.tools.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 
 if typing.TYPE_CHECKING:
     import logging

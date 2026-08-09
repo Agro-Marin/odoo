@@ -3,12 +3,12 @@ import warnings
 from itertools import batched
 from typing import Self
 
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import OrderedSet
 from odoo.tools.misc import ReversedIterable
 
 from ... import decorators as api
 from ...helpers import _origin_ids
+from ...primitives import PREFETCH_MAX
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
