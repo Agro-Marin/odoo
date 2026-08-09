@@ -8,8 +8,11 @@
 ruff==0.16.2
 
 # Type checking
-# Likewise pinned — py_typecheck.yml measures the mypy floor with this version.
-mypy==1.19.1
+# Likewise pinned — py_typecheck.yml measures the mypy floor with this version,
+# and the floor is version-specific: 1.19.1 measured 1297 where 2.3.0 measures
+# 1293. Bump the pin and the baseline in the same commit, or the exact-match
+# ratchet fails on the next run.
+mypy==2.3.0
 
 # Build tooling for the odoo_rust native extension (crates/odoo_rust).
 # The upper bound matches what every workflow already installs inline.

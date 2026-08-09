@@ -18,7 +18,7 @@ name: Python Type Check
 # 2026-08-08), so a floor taken there can never be reproduced by the gate
 # enforcing it, and the exact-match ratchet then fails every run.
 #
-#   python3 -m venv /tmp/mypyenv && /tmp/mypyenv/bin/pip install mypy==1.19.1
+#   python3 -m venv /tmp/mypyenv && /tmp/mypyenv/bin/pip install mypy==2.3.0
 #   git worktree add --detach /tmp/clean HEAD   # the shared tree carries other work
 #   cd /tmp/clean && /tmp/mypyenv/bin/mypy --no-incremental --config-file mypy.ini \
 #     -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules \
@@ -26,8 +26,9 @@ name: Python Type Check
 #   N=$(grep -cE ": error:" /tmp/mypy.log)
 #   python tooling/ratchet/ratchet.py mypy --count "$N" --update --note '<what moved and why>'
 #
-# mypy is pinned in requirements-dev.txt (1.19.1). Bumping it moves this floor:
-# 2.3.0 measures 1293 in this environment, mostly the same findings reworded.
+# mypy is pinned in requirements-dev.txt (2.3.0), and THE FLOOR IS VERSION-
+# SPECIFIC: 1.19.1 measured 1297 on the tree where 2.3.0 measures 1293. Move the
+# pin and the baseline in one commit, in both this file and requirements-dev.txt.
 
 on:
   # Mainline re-verification: re-run the ratchet on every push to a protected
@@ -69,7 +70,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install mypy
-        run: pip install "mypy==1.19.1"
+        run: pip install "mypy==2.3.0"
 
       - name: Self-test the ratchet
         # Prove the enforcement tool is sound before trusting its verdict —
