@@ -71,12 +71,21 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
         event = self.calendar_event_id
         deletion_type = self.env.context.get('default_recurrence')
 
-        # Unlink recurrent events.
+        # Unlink recurrent events. Accept both this wizard's own
+        # 'one'/'next'/'all' vocabulary (the simple popover view) and the
+        # recurrence_update vocabulary the calendar form passes through
+        # action_unlink_event as `recurrence` ('self_only'/'future_events'/
+        # 'all_events'). Previously only 'next'/'all' triggered a mass deletion,
+        # so deleting "this and following" or "all events" from the form view
+        # silently deleted nothing. Anything unrecognised falls back to deleting
+        # just this occurrence, never nothing -- the user did confirm a delete.
         if event.recurrency:
-            if deletion_type in ['one', 'self_only']:
+            if deletion_type in ('next', 'future_events'):
+                event.action_mass_deletion('future_events')
+            elif deletion_type in ('all', 'all_events'):
+                event.action_mass_deletion('all_events')
+            else:
                 event.unlink()
-            elif deletion_type in ['next', 'all']:
-                event.action_mass_deletion('future_events' if deletion_type == 'next' else 'all_events')
         else:
             event.unlink()
 

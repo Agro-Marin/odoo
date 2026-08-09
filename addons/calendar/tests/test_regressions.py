@@ -338,3 +338,67 @@ class TestCalendarRangeCalculation(TransactionCase):
             all(occ.start.date() >= event.start.date() for occ in occurrences),
             "no occurrence may fall before the base event",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestCalendarPopoverDeleteWizard(TransactionCase):
+    """The delete wizard's action_delete must honour the recurrence_update
+    vocabulary ('self_only'/'future_events'/'all_events') that the calendar form
+    passes through action_unlink_event, not only the popover's own
+    'one'/'next'/'all'. It used to no-op on the former, so deleting "this and
+    following"/"all events" from the form silently deleted nothing.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = new_test_user(cls.env, login="del_user", groups="base.group_user")
+
+    def _recurrence(self):
+        event = (
+            self.env["calendar.event"]
+            .with_user(self.user)
+            .with_context(no_mail_to_attendees=True)
+            .create({"name": "r", "start": "2027-01-04 10:00:00", "stop": "2027-01-04 11:00:00"})
+        )
+        self.env.flush_all()
+        event.write(
+            {"recurrency": True, "rrule_type": "daily", "end_type": "count", "count": 5}
+        )
+        self.env.flush_all()
+        return event
+
+    def _delete_with(self, deletion_type):
+        event = self._recurrence()
+        recurrence = event.recurrence_id
+        started = len(recurrence.calendar_event_ids)
+        wizard = (
+            self.env["calendar.popover.delete.wizard"]
+            .with_user(self.user)
+            .with_context(default_recurrence=deletion_type)
+            .create({"calendar_event_id": event.id})
+        )
+        wizard.action_delete()
+        self.env.flush_all()
+        remaining = (
+            self.env["calendar.event"]
+            .with_context(active_test=False)
+            .search_count([("recurrence_id", "=", recurrence.id)])
+            if recurrence.exists()
+            else 0
+        )
+        return started, remaining
+
+    def test_future_events_deletes_from_form_vocabulary(self):
+        started, remaining = self._delete_with("future_events")
+        self.assertLess(remaining, started, "'future_events' must delete the current and later occurrences")
+
+    def test_all_events_deletes_from_form_vocabulary(self):
+        _started, remaining = self._delete_with("all_events")
+        self.assertEqual(remaining, 0, "'all_events' must delete the whole recurrence")
+
+    def test_next_and_all_still_work(self):
+        _, remaining_next = self._delete_with("next")
+        self.assertEqual(remaining_next, 0, "'next' on a daily-from-base recurrence removes all following")
+        _, remaining_all = self._delete_with("all")
+        self.assertEqual(remaining_all, 0, "'all' must delete the whole recurrence")
