@@ -518,7 +518,7 @@ new client → fallback path; new server + old client → unknown field ignored.
 
 | Surface | File | Role |
 |---|---|---|
-| Decorator | `odoo/tools/cache_version.py` `versioned` / `versioned_envelope` | Stamps `__version = cache_hash(canonical_json(result))` (sorted keys, compact separators, `default=str`; see `odoo/tools/hashing.py` for the algorithm) on dict returns (`versioned`); or stashes hash on `http.request._response_version` for non-dict returns (`versioned_envelope`). Located under `odoo.tools` so any addon can import without manifest dependency gymnastics. |
+| Decorator | `odoo/tools/cache_version.py` `versioned` / `versioned_envelope` | Stamps `__version = cache_hash(canonical_json(result))` (sorted keys, compact separators, `default=str`; see `odoo/libs/hashing.py` for the algorithm) on dict returns (`versioned`); or stashes hash on `http.request._response_version` for non-dict returns (`versioned_envelope`). Located under `odoo.tools` so any addon can import without manifest dependency gymnastics. |
 | Consumer | `addons/web/static/src/core/network/rpc_cache.js` `payloadChanged` | Replaces direct `jsonEqual(prev, curr)` in the `hasChanged` computation. Prefers `__version === __version` when both sides have it. |
 
 **Currently opted-in endpoints** (Phases 1 + 2 + 3 + 4a):

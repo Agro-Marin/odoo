@@ -80,9 +80,9 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 | `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
 | `static/src/` | 758 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 17 directories (16 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
-| `static/tests/` | 665 `.js` (incl. 608 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
+| `static/tests/` | 671 `.js` (incl. 614 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
 | `tests/` | 58 Python test files (`test_*.py`) | `TEST_TAGS.md` |
-| `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · the maps below · `factcheck.sh` | — |
+| `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 
 The `static/src/` JS layers are summarized in **JavaScript Architecture** below; the full per-directory layer + responsibility map is in `DIRECTORY_MAP.md`.
@@ -378,7 +378,7 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 | Python (models) | 25 (24 model files + `__init__.py`) |
 | Python (tests) | 58 (`test_*.py`; 59 files incl. `__init__.py`) |
 | JavaScript (src) | 758 (756 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
-| JavaScript (tests) | 665 (incl. 608 `*.test.js` Hoot suites) |
+| JavaScript (tests) | 671 (incl. 614 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 92 |
 | SCSS/CSS | 199 (32 in `static/src/scss/` shared base; remaining 167 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 282 (13 views + 4 data + 265 OWL templates) |
