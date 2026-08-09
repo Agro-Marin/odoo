@@ -261,8 +261,12 @@ single-use, 129 owner classes**, covering both `extends` and `patch()`.
 **P5 step 1 is implemented** (`8b4f47004de`) — the `tsconfig.json` alias map
 completed, at a measured cost of zero errors, plus a test that stops it rotting.
 
-P2, P3, P4 and P6 are unstarted. P5 steps 2–3 (turning `@ts-check` on outward,
-then typing the seams) are now unblocked.
+**P5 step 2 is measured and deliberately not landed** (`714bd73a68a`) — no
+ungated module would lock past ~66%, and the ones that matter sit at 24–50%, so
+it is a cleanup effort rather than a switch. The cost is now derivable per
+module instead of guessed.
+
+P2, P3, P4 and P6 are unstarted.
 
 ### P1 — Declare and gate the extension surface *(done)*
 
@@ -473,6 +477,37 @@ keeps the map honest from here.
 commits, and unrelated: both import only `@odoo/*` and `@web/*` (neither added
 here), and the errors are `Property 'resolve' does not exist on…`, a type-shape
 issue rather than a resolution one.
+
+### P5 step 2 is debt paydown, not a switch — measured
+
+Step 2 was written as "turn on `@ts-check` for the addons that subclass web
+most". In this repo's terms that means adding a module to
+`tooling/typecheck/scope_gate.py`'s `SCOPED_MODULES`, which locks every file of
+that module at zero errors except those named in a generated exception list.
+
+`scope_gate.py --candidates` (added in `714bd73a68a`) now derives what that
+would cost, from the log the gate already needs. Ungated modules with ≥ 20
+compiled files, by the share that would lock:
+
+| lane | best candidates |
+|---|---|
+| `strict` | `pos_sale` 66% · `pos_event` 64% · `hr_timesheet` 61% · `sale` 56% |
+| `noImplicitAny` | `hr_timesheet` 61% · `website_event` 56% · `project` 50% · `hr` 49% |
+
+**Nothing would lock past about two thirds**, and the modules with real reach
+into web's extension surface are the worst of all: `project` 50%, `website` 29%,
+`mail` 24%. `scope_gate.py`'s own guidance — *"a gate that has to except most of
+a module teaches people to ignore it"* — therefore stands, and **no module was
+added**.
+
+This is a correction to the proposal, not a deferral of it: step 2 is a
+per-module cleanup effort measured in hundreds of files, and the ordering should
+follow reach into the surface rather than convenience. `project` is the obvious
+first target: 2nd-highest reach after `website`, 154 files, half already clean.
+
+The candidate table that used to sit in `scope_gate.py` was hand-copied from a
+2026-07-29 run, had no assertion behind it, and omitted both of the best
+candidates — the same rot `doc_measured.py` exists to stop. It is now derived.
 
 ## Reproducing
 
