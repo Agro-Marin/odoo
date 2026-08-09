@@ -121,5 +121,13 @@ class TestMessageModelColumn(HttpCase):
                 self.assertFalse(message._is_thread_model())
                 fallback = message._get_thread_model()
                 self.assertEqual(fallback._name, "mail.thread")
-                # The fallback exists so mail.thread class methods stay callable.
-                self.assertTrue(fallback._get_allowed_access_params())
+                # The fallback exists so mail.thread class methods stay
+                # callable: the defect pinned here was an ``AttributeError``
+                # raised on a model that never inherited the mixin, so what
+                # matters is that the call resolves and answers a set. Its
+                # *contents* are not mail's to assert -- ``mail.thread`` allows
+                # no access parameter of its own, and the modules that add one
+                # (``portal``: hash/pid/token) pin their own contribution in
+                # their own suites. Asserting truthiness here would only pass
+                # when such a module happens to be installed alongside mail.
+                self.assertIsInstance(fallback._get_allowed_access_params(), set)

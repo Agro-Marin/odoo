@@ -183,8 +183,16 @@ function useResizable({
      * @returns {number}
      */
     function getLimitWidth() {
+        // The container is measured through its offset parent, and both can be
+        // absent: `onWillUpdateProps` runs whenever the owner re-renders, which
+        // includes renders where this panel is not laid out -- detached, or
+        // `display: none`, both of which null the offset parent, and the ref
+        // itself is null until the first patch. "Cannot measure a parent" and
+        // "cannot measure at all" deserve the same answer, so both fall back to
+        // the viewport rather than throwing; every other accessor here already
+        // tolerates a null ref, and `resize` no-ops on one.
         const offsetParent = /** @type {HTMLElement | null} */ (
-            /** @type {HTMLElement} */ (containerRef.el).offsetParent
+            containerRef.el?.offsetParent ?? null
         );
         return offsetParent ? offsetParent.offsetWidth : window.innerWidth;
     }

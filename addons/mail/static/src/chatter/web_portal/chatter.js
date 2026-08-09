@@ -38,16 +38,29 @@ export class Chatter extends Component {
         onMounted(this._onMounted);
         onWillUpdateProps((nextProps) => {
             this.state.disabled = !nextProps.threadId;
-            if (
+            const threadChanged =
                 this.props.threadId !== nextProps.threadId ||
-                this.props.threadModel !== nextProps.threadModel
-            ) {
+                this.props.threadModel !== nextProps.threadModel;
+            if (threadChanged) {
                 this.changeThread(nextProps.threadModel, nextProps.threadId);
             }
-            if (!this.env.chatter || this.env.chatter?.fetchThreadData) {
-                if (this.env.chatter) {
-                    this.env.chatter.fetchThreadData = false;
-                }
+            // Two independent reasons to fetch, and they must stay independent.
+            // `env.chatter.fetchThreadData` is a *shared* flag the form
+            // controller raises before every root load and the first chatter
+            // render to observe it clears; it covers "same thread, its data may
+            // be stale after a save". It cannot also stand in for "the thread
+            // changed": a render that consumes the flag before the new
+            // `threadId` arrives leaves the switch itself unfetched, which is
+            // how paging to another record showed the previous record's
+            // followers, activities and scheduled messages. A new thread has no
+            // data by construction, so that case answers for itself.
+            const staleDataRequested = this.env.chatter
+                ? this.env.chatter.fetchThreadData
+                : true;
+            if (this.env.chatter) {
+                this.env.chatter.fetchThreadData = false;
+            }
+            if (threadChanged || staleDataRequested) {
                 this.load(this.state.thread, this.requestList);
             }
         });
