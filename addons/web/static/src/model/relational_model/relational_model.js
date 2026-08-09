@@ -401,6 +401,28 @@ export class RelationalModel extends Model {
         return prom;
     }
 
+    /**
+     * A reload replaces every datapoint, so anything a widget is still holding
+     * locally is lost with them. Draining `_askChanges()` first is what makes
+     * "type in a cell, then change the search facet" keep the typed value.
+     *
+     * Guarded on `mutex.locked` because that is the only state in which there
+     * can be an in-flight update to settle; asking unconditionally would add a
+     * bus round trip and a microtask to every idle reload.
+     *
+     * Returns the pending settle, or nothing at all when the mutex is free --
+     * the caller must be able to skip awaiting in the idle case. See the note
+     * on `Model#settleBeforeReload`.
+     *
+     * @override
+     * @returns {Promise<void> | void}
+     */
+    settleBeforeReload() {
+        if (this.mutex.locked) {
+            return this._askChanges();
+        }
+    }
+
     async _askChanges() {
         for (let round = 0; round < ASK_CHANGES_MAX_ROUNDS; round++) {
             const proms = [];

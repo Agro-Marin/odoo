@@ -113,6 +113,39 @@ export class Model extends SignalStore {
     }
 
     /**
+     * Give a subclass holding uncommitted state a chance to settle before the
+     * model is reloaded from new search params. Awaited by both model hooks
+     * immediately before `load()`.
+     *
+     * The base implementation does nothing, and most models need nothing: only
+     * a model whose truth is partly outside itself has anything to settle.
+     * `RelationalModel` is that model -- field widgets keep the value being
+     * typed in closure state and hand it back only when asked -- so it
+     * overrides this to drain `_askChanges()` while its mutex is held.
+     *
+     * Declared here rather than reached for at the call site. Both hooks used
+     * to cast the model to `any`, test `mutex.locked` on it, then call
+     * `_askChanges` through an optional chain -- the base layer reaching into
+     * two private members of one particular subclass, with the cast to get past
+     * the type and the `?.` to survive every other Model not having them.
+     * Neither `mutex` nor `_askChanges` exists on this class, so nothing
+     * declared that contract and nothing would have caught a rename of either.
+     *
+     * Deliberately NOT `async`, and callers must go through
+     * {@link settleThenReload} rather than awaiting it directly. An `async`
+     * method returns a promise even when it does nothing, and `await` on it
+     * costs a microtask; a reload is on the critical path of every search-facet
+     * change, and inserting a tick there reorders the RPCs that follow it. That
+     * is not theoretical -- making this `async` and awaiting it unconditionally
+     * broke 115 list and kanban tests, all of them on step ordering, because
+     * the old code's `if (mutex.locked)` guard meant the idle case never
+     * yielded at all. Returning nothing keeps that path synchronous.
+     *
+     * @returns {Promise<void> | void}
+     */
+    settleBeforeReload() {}
+
+    /**
      * A counter bumped on every `notify()`. Renderers that cache work derived
      * from the model compare it against the value they last built from, so they
      * rebuild when the model changed and not merely when they re-rendered.
@@ -201,6 +234,59 @@ function useModelServices(ModelClass) {
 }
 
 /**
+ * Reload the model from a component's props, letting it settle first.
+ *
+ * The two hooks below reload from three different places between them, and the
+ * settle step was spelled out at each one. Naming it once means a model can
+ * never be reloaded from props without it -- which was a real hazard, since
+ * skipping it silently drops whatever the user was typing.
+ *
+ * @param {Model} model
+ * @param {Record<string, unknown>} props
+ * @returns {Promise<any> | any}
+ */
+function reloadFromProps(model, props) {
+    const load = () => model.load(getSearchParams(props));
+    const settling = model.settleBeforeReload();
+    // Not `await settling` in an async function: awaiting even `undefined`
+    // costs a microtask, and the old code reached `load()` synchronously
+    // whenever there was nothing to settle. See `Model#settleBeforeReload`.
+    return settling ? settling.then(load) : load();
+}
+
+/**
+ * Build the model, wire it to the component's lifetime, and hand it back.
+ *
+ * Shared by both hooks. `isAlive` is passed *into* the constructor rather than
+ * assigned after it, because `setup()` runs inside the constructor and a
+ * subclass reading `this.isAlive` there would otherwise get the default that
+ * answers `true` forever. `useModelWithSampleData` already did it this way;
+ * `useModel` assigned afterwards, and the two had no reason to differ.
+ *
+ * `buildParams` is a callback rather than a plain object so the caller can read
+ * `component.props` while still letting this function own hook order --
+ * `useComponent` and `useModelServices` have to run at the same point in both
+ * hooks, per the note on `useModelServices`.
+ *
+ * @param {typeof Model} ModelClass
+ * @param {(component: import("@odoo/owl").Component) => Object} buildParams
+ * @returns {{ component: import("@odoo/owl").Component, model: Model }}
+ */
+function makeModel(ModelClass, buildParams) {
+    const component = useComponent();
+    const services = useModelServices(ModelClass);
+    const isAlive = () => status(component) !== "destroyed";
+    const params = buildParams(component);
+    const model = new ModelClass(
+        /** @type {any} */ (component.env),
+        { ...params, isAlive: params?.isAlive || isAlive },
+        services,
+    );
+    model.isAlive = isAlive;
+    return { component, model };
+}
+
+/**
  * @param {typeof Model} ModelClass
  * @param {Object} params
  * @param {Object} [options]
@@ -208,21 +294,13 @@ function useModelServices(ModelClass) {
  * @returns {Model}
  */
 export function useModel(ModelClass, params, options = {}) {
-    const component = useComponent();
-    const services = useModelServices(ModelClass);
-    const model = new ModelClass(/** @type {any} */ (component.env), params, services);
-    model.isAlive = () => status(component) !== "destroyed";
+    const { component, model } = makeModel(ModelClass, () => params);
     onWillStart(async () => {
         await options.beforeFirstLoad?.();
         await model.load(getSearchParams(component.props));
         model.whenReady.resolve();
     });
-    onWillUpdateProps(async (nextProps) => {
-        if (/** @type {any} */ (model).mutex?.locked) {
-            await /** @type {any} */ (model)._askChanges?.();
-        }
-        return model.load(getSearchParams(nextProps));
-    });
+    onWillUpdateProps((nextProps) => reloadFromProps(model, nextProps));
     return model;
 }
 
@@ -234,25 +312,13 @@ export function useModel(ModelClass, params, options = {}) {
  * @returns {Model}
  */
 export function useModelWithSampleData(ModelClass, params, options = {}) {
-    const component = useComponent();
     if (!(ModelClass.prototype instanceof Model)) {
         throw new Error(`the model class should extend Model`);
     }
-    const services = useModelServices(ModelClass);
-
-    const modelParams = {
+    const { component, model } = makeModel(ModelClass, (comp) => ({
         ...params,
-        canUseSampleModel: Boolean(component.props.useSampleModel),
-    };
-    if (!("isAlive" in modelParams)) {
-        modelParams.isAlive = () => status(component) !== "destroyed";
-    }
-
-    const model = new ModelClass(
-        /** @type {any} */ (component.env),
-        modelParams,
-        services,
-    );
+        canUseSampleModel: Boolean(comp.props.useSampleModel),
+    }));
 
     if (!(/** @type {any} */ (ModelClass).reactiveRenderers)) {
         const onUpdate = () => component.render(true);
@@ -276,8 +342,9 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
      * @param {Record<string, unknown>} props
      */
     async function _load(props) {
-        if (/** @type {any} */ (model).mutex?.locked) {
-            await /** @type {any} */ (model)._askChanges?.();
+        const settling = model.settleBeforeReload();
+        if (settling) {
+            await settling;
         }
         const searchParams = getSearchParams(props);
         await model.load(searchParams);

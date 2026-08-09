@@ -46,8 +46,21 @@ WARM  Re-sort an already-built list: re-render only, no construction.
 
 Both report median and inter-quartile range over N samples after a warmup, so a
 change has to move the middle of the distribution rather than one lucky frame.
-COLD is the stabler of the two; WARM's tail is dominated by RPC scheduling and
-its IQR is wide -- read its median, distrust its max.
+
+READ COLD, AND READ WARM'S LOWER QUARTILE
+-----------------------------------------
+COLD is unimodal and stable: repeated runs land within a few ms of each other,
+and it is the number to compare across a change.
+
+WARM is BIMODAL, at roughly 80 ms and 300 ms on the reference list. Toggling a
+sort alternates between a re-render the client can do alone and one that goes
+back to the server, so with a small N the median flips between the two modes
+and a run-to-run difference of 3x can appear where nothing changed. Compare
+WARM's `min` or its IQR lower bound -- the fast mode -- and treat a movement in
+its median alone as noise until a larger N says otherwise.
+
+Both are also sensitive to load on the machine: a shard run or several warm
+hoot servers in the background will widen every distribution here.
 
 USAGE
 -----
