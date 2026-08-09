@@ -129,7 +129,84 @@ const CALLBACK_RECORDER_NAMES = [
     "__getOrderBy__",
 ];
 
-const STANDARD_PROPS = [
+/**
+ * Declared types for every prop `View` is known to receive, as an OWL schema.
+ *
+ * `View` cannot use a closed schema: `loadView` deliberately forwards every prop
+ * it does not consume itself to the controller (the `STANDARD_PROPS` filter
+ * below), so third-party callers legitimately pass keys this module has never
+ * heard of. `"*": true` keeps that door open while the declared keys above it
+ * are still checked -- OWL's `validateSchema` honours both in the same schema.
+ *
+ * Validation runs in dev mode only, so this buys nothing at runtime in
+ * production. What it buys is that `web`'s two widest extension seams stop
+ * accepting a misspelled or wrongly-typed prop in silence during development and
+ * in every Hoot suite.
+ *
+ * Contains a superset of `STANDARD_PROPS`: `comparison` and `noBreadcrumbs` are
+ * documented `ViewProps` that are deliberately *not* in that list, because they
+ * are meant to reach the controller. Declaring a type for them here does not
+ * change where they go -- forwarding is decided by `STANDARD_PROPS` alone, which
+ * is left exactly as it was. `view_props.test.js` pins that every
+ * `STANDARD_PROPS` entry carries a declared type, so the two cannot drift apart
+ * silently the way two hand-maintained lists otherwise do.
+ */
+export const viewProps = {
+    // Declared `optional` although both are in fact mandatory: `setup()` already
+    // rejects a missing `resModel` / `type` with a message naming the key, which
+    // is more use than OWL's generic "'type' is missing". Marking them required
+    // here would make the schema throw first and swallow that. Present values
+    // are still type-checked.
+    resModel: { type: String, optional: true },
+    type: { type: String, optional: true },
+    jsClass: { type: String, optional: true },
+
+    arch: { type: String, optional: true },
+    fields: { type: Object, optional: true },
+    relatedModels: { type: Object, optional: true },
+    viewId: { type: [Number, Boolean], optional: true },
+    views: { type: Array, optional: true },
+    actionMenus: { type: Object, optional: true },
+    loadActionMenus: { type: Boolean, optional: true },
+
+    searchViewArch: { type: String, optional: true },
+    searchViewFields: { type: Object, optional: true },
+    searchViewId: { type: [Number, Boolean], optional: true },
+    irFilters: { type: Array, optional: true },
+    loadIrFilters: { type: Boolean, optional: true },
+
+    context: { type: Object, optional: true },
+    domain: { type: Array, optional: true },
+    groupBy: { type: Array, element: String, optional: true },
+    orderBy: { type: Array, optional: true },
+    comparison: { type: Object, optional: true },
+
+    useSampleModel: { type: Boolean, optional: true },
+    noContentHelp: { type: String, optional: true },
+    className: { type: String, optional: true },
+    noBreadcrumbs: { type: Boolean, optional: true },
+
+    display: { type: Object, optional: true },
+    globalState: { type: Object, optional: true },
+
+    activateFavorite: { type: Boolean, optional: true },
+    dynamicFilters: { type: Array, optional: true },
+    hideCustomGroupBy: { type: Boolean, optional: true },
+    searchMenuTypes: { type: Array, element: String, optional: true },
+
+    __beforeLeave__: { type: Object, optional: true },
+    __getGlobalState__: { type: Object, optional: true },
+    __getLocalState__: { type: Object, optional: true },
+    __getContext__: { type: Object, optional: true },
+    __getOrderBy__: { type: Object, optional: true },
+
+    searchPanel: { type: Object, optional: true },
+    searchModel: { type: Object, optional: true },
+
+    "*": true,
+};
+
+export const STANDARD_PROPS = [
     "resModel",
     "type",
     "jsClass",
@@ -198,9 +275,7 @@ export class View extends Component {
         loadIrFilters: false,
         className: "",
     };
-    static props = {
-        "*": true,
-    };
+    static props = viewProps;
 
     /** @type {import("services").ServiceFactories["view"]} */
     viewService;

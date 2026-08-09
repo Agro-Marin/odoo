@@ -13,6 +13,7 @@ import { FIELD_DEPENDENCIES_VALIDATION } from "@web/model/relational_model/field
 import { getFieldContext } from "@web/model/relational_model/utils";
 
 import { getTooltipInfo } from "./field_tooltip.js";
+import { standardFieldProps } from "./standard_field_props.js";
 
 const fieldRegistry = registry.category("fields");
 
@@ -329,9 +330,45 @@ export function getPropertyFieldInfo(propertyField) {
 
     return fieldInfo;
 }
+/**
+ * The props `Field` reads itself, on top of {@link standardFieldProps}.
+ *
+ * Open for the same reason `View`'s schema is: `fieldComponentProps` forwards
+ * everything except {@link FIELD_OWN_PROPS} to the concrete widget, so a caller
+ * passing a widget-specific prop through `Field` is doing the intended thing.
+ * The declared keys are the ones `Field` itself consumes, and getting one of
+ * those wrong used to be silent.
+ */
+/**
+ * `null` is a value the arch parser really produces, and it is not the same as
+ * absence: `field_arch.js` types `widget` as `string | null`, and templates pass
+ * it through positionally (`type="column.widget"`), so a column with no
+ * `widget=` attribute reaches `Field` as an explicit `type: null` rather than as
+ * a missing key. Declaring these `optional` alone rejected it -- OWL's
+ * `optional` covers `undefined`, not `null` -- and that is what turned every
+ * widget-less cell in an editable list into a render error the first time this
+ * schema was switched on.
+ *
+ * Spelling it out rather than widening to `"*"`: the union says exactly which
+ * two shapes arrive and keeps a genuinely wrong value (a number, an object)
+ * failing.
+ */
+const archString = { type: [String, { value: null }], optional: true };
+
+export const fieldProps = {
+    ...standardFieldProps,
+    attrs: { type: Object, optional: true },
+    class: archString,
+    fieldInfo: { type: Object, optional: true },
+    showTooltip: { type: Boolean, optional: true },
+    style: archString,
+    type: archString,
+    "*": true,
+};
+
 export class Field extends Component {
     static template = "web.Field";
-    static props = ["fieldInfo?", "*"];
+    static props = fieldProps;
 
     /**
      * Recomputed on every render, before the first one, so every getter below
