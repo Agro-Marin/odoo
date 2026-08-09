@@ -53,6 +53,13 @@ class StockMove(models.Model):
             }
             valuation_total_qty = self._compute_kit_quantities(related_aml.product_id, order_qty, kit_bom, filters)
             valuation_total_qty = kit_bom.product_uom_id._compute_quantity(valuation_total_qty, related_aml.product_id.uom_id)
-            if related_aml.product_uom_id.rounding or related_aml.product_id.uom_id.is_zero(valuation_total_qty):
+            # The `or` here used to pick a rounding *source*:
+            #   float_is_zero(qty, precision_rounding=aml.product_uom_id.rounding
+            #                                         or aml.product_id.uom_id.rounding)
+            # Hoisting it into the condition (upstream eda6d59b50b) turned it
+            # into "if the line has a unit at all", which is always true, so
+            # every kit bill line raised. `rounding` is a single global value
+            # now, so both operands of that fallback are equal and one is enough.
+            if related_aml.product_id.uom_id.is_zero(valuation_total_qty):
                 raise UserError(_('Odoo is not able to generate the anglo saxon entries. The total valuation of %s is zero.', related_aml.product_id.display_name))
         return valuation_price_unit_total, valuation_total_qty
