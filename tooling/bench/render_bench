@@ -1,0 +1,243 @@
+#!/bin/sh
+''':'
+# Self-locating sh/python trampoline: re-exec this file with the workspace venv
+# interpreter. The logic is shared — see tooling/_trampoline.sh.
+_t="$(dirname "$0")/../_trampoline.sh"
+[ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
+. "$_t"
+'''
+
+# The shell preamble above is the module's FIRST string literal, so Python binds
+# it as ``__doc__``; the real documentation below is an inert expression
+# statement, read by ``--help`` through ``DOC``.
+
+DOC = """Wall-clock benchmark for web-client rendering.
+
+Answers one question: did a change make rendering faster or slower, in
+milliseconds, on a real browser against a real server.
+
+WHY THIS EXISTS
+---------------
+Call counts are not costs, and the gap between them is wide enough to invert a
+conclusion. Measured on an 80-row `res.partner` list (2026-08-08):
+
+    get config .................. 20,467 calls/render ....... 0.7% of wall time
+    evaluateExpr ...................  169 calls/render ....... 0.0% of wall time
+
+Two separate optimisation proposals were written off the call counts alone and
+both were wrong -- the second one after the first had already been retracted for
+exactly that reason. A change to a render path is not "an improvement" until
+this script says the median moved.
+
+The measured breakdown of a 257 ms cold render, for orientation:
+
+    46%  V8 compile + native + gc      (not app code)
+    18%  owl.es.js                     (get 5.4%, reactive 4.4%, set 1.7%)
+    20%  application code              (spread thin, no single hot spot)
+     8%  forced layout                 (deliberate: auto column-width measurement)
+     1%  everything this repo had previously proposed optimising
+
+WHAT IT MEASURES
+----------------
+COLD  Navigate away and back: a fresh model, fresh datapoints for every row,
+      full component construction and first paint. This is the path that
+      dominates perceived navigation cost.
+WARM  Re-sort an already-built list: re-render only, no construction.
+
+Both report median and inter-quartile range over N samples after a warmup, so a
+change has to move the middle of the distribution rather than one lucky frame.
+COLD is the stabler of the two; WARM's tail is dominated by RPC scheduling and
+its IQR is wide -- read its median, distrust its max.
+
+USAGE
+-----
+    # start a server yourself, on a database with enough rows to matter
+    odoo-bin -c <conf> -d <db> -p 8071 --db-filter='^<db>$'
+
+    tooling/bench/render_bench --action 57                  # baseline
+    ... make a change, rebuild assets ...
+    tooling/bench/render_bench --action 57 --label after    # compare medians
+
+    tooling/bench/render_bench --action 57 --attribute      # CPU self-time
+
+The action must resolve to a list view with a full page of records; a list of
+ten rows measures scheduling noise, not rendering. Seed a scratch database
+rather than pointing this at anything shared.
+
+REQUIREMENTS
+------------
+playwright (in the workspace venv) with chromium installed.
+"""
+
+import argparse
+import collections
+import json
+import statistics as st
+import sys
+
+SETTLE_TAIL = """
+  let quiet = 0, last = performance.now();
+  while (quiet < 5 && performance.now() - t0 < 20000) {
+    await new Promise(r => requestAnimationFrame(r));
+    const n = performance.now();
+    if (n - last < 24) quiet++; else quiet = 0;
+    last = n;
+  }
+  return performance.now() - t0;
+"""
+
+# `res.currency` is the detour target: it is present in every database, its list
+# is small, and it is not the model under test -- so the round trip really does
+# tear the measured view down instead of letting the action manager restore it.
+COLD_JS = """
+async () => {
+  const t0 = performance.now();
+  const action = odoo.__WOWL_DEBUG__.root.env.services.action;
+  await action.doAction({type: 'ir.actions.act_window', res_model: 'res.currency',
+                         views: [[false, 'list']]});
+  await action.doAction(%s);
+%s}
+"""
+
+WARM_JS = """
+async () => {
+  const ths = document.querySelectorAll('.o_list_view thead th.o_column_sortable');
+  const th = ths[1] || ths[0];
+  if (!th) { throw new Error('no sortable column: cannot measure a re-render'); }
+  const t0 = performance.now();
+  th.click();
+%s}
+"""
+
+ROW_SELECTOR = ".o_list_view tbody tr.o_data_row"
+
+
+def _summarise(name, xs):
+    xs = sorted(xs)
+    q1, q3 = xs[len(xs) // 4], xs[(3 * len(xs)) // 4]
+    median = st.median(xs)
+    print(
+        f"  {name:<5} median={median:8.1f} ms   IQR={q1:7.1f}-{q3:<7.1f} "
+        f"min={xs[0]:7.1f}  max={xs[-1]:8.1f}  n={len(xs)}"
+    )
+    return median
+
+
+def _self_times(profile):
+    nodes = {n["id"]: n for n in profile["nodes"]}
+    self_us = collections.Counter()
+    deltas = profile.get("timeDeltas") or []
+    for i, sid in enumerate(profile.get("samples") or []):
+        dt = max(deltas[i] if i < len(deltas) else 0, 0)
+        node = nodes.get(sid)
+        if not node:
+            continue
+        frame = node["callFrame"]
+        url = (frame.get("url") or "").rsplit("/", 1)[-1].split("?")[0]
+        self_us[(url, frame.get("functionName") or "(anon)")] += dt
+    return self_us
+
+
+def _login(page, base, login, password):
+    page.goto(f"{base}/web/login", wait_until="domcontentloaded")
+    page.fill("input[name=login]", login)
+    page.fill("input[name=password]", password)
+    page.click("button[type=submit]")
+    page.wait_for_selector(".o_main_navbar", timeout=60000)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="render_bench",
+        description=DOC,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--base", default="http://localhost:8071")
+    parser.add_argument("--action", required=True, help="act_window id or xmlid")
+    parser.add_argument("--login", default="admin")
+    parser.add_argument("--password", default="admin")
+    parser.add_argument("-n", "--samples", type=int, default=15)
+    parser.add_argument("--warmup", type=int, default=3)
+    parser.add_argument("--label", default="run")
+    parser.add_argument("--json", action="store_true", help="emit medians as JSON")
+    parser.add_argument(
+        "--attribute",
+        action="store_true",
+        help="CPU-profile the COLD path and print self time per function",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print(
+            "render_bench: playwright is not installed in this venv "
+            "(pip install playwright && playwright install chromium)",
+            file=sys.stderr,
+        )
+        return 2
+
+    action = json.dumps(args.action) if not str(args.action).isdigit() else args.action
+    cold_js = COLD_JS % (action, SETTLE_TAIL)
+    warm_js = WARM_JS % SETTLE_TAIL
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        ctx = browser.new_context(viewport={"width": 1600, "height": 1200})
+        page = ctx.new_page()
+        cdp = ctx.new_cdp_session(page) if args.attribute else None
+
+        _login(page, args.base, args.login, args.password)
+        page.goto(f"{args.base}/odoo/action-{args.action}", wait_until="domcontentloaded")
+        page.wait_for_selector(ROW_SELECTOR, timeout=60000)
+        page.wait_for_timeout(2000)
+
+        rows = page.locator(ROW_SELECTOR).count()
+        cols = page.locator(".o_list_view thead th").count()
+        print(f"\n### {args.label}   ({rows} rows x {cols} columns in the DOM)")
+        if rows < 40:
+            print(
+                "  ! fewer than 40 rows: this measures scheduling noise, not "
+                "rendering. Seed more records or pick an action without a domain."
+            )
+
+        def cold_once():
+            value = page.evaluate(cold_js)
+            page.wait_for_selector(ROW_SELECTOR, timeout=60000)
+            return value
+
+        for _ in range(args.warmup):
+            page.evaluate(warm_js)
+        warm = [page.evaluate(warm_js) for _ in range(args.samples)]
+
+        for _ in range(args.warmup):
+            cold_once()
+
+        if cdp:
+            cdp.send("Profiler.enable")
+            cdp.send("Profiler.setSamplingInterval", {"interval": 50})
+            cdp.send("Profiler.start")
+        cold = [cold_once() for _ in range(args.samples)]
+        profile = cdp.send("Profiler.stop")["profile"] if cdp else None
+
+        warm_median = _summarise("WARM", warm)
+        cold_median = _summarise("COLD", cold)
+
+        if profile:
+            wall = sum(cold)
+            print(f"\n  self time over {len(cold)} COLD renders ({wall:.0f} ms wall)")
+            for (file, name), us in _self_times(profile).most_common(24):
+                ms = us / 1000
+                if ms < 0.8:
+                    break
+                print(f"  {ms:>8.1f} ms {100 * ms / wall:>6.1f}%  {name:<30} {file}")
+
+        if args.json:
+            print(json.dumps({"label": args.label, "warm_ms": warm_median,
+                              "cold_ms": cold_median, "rows": rows, "cols": cols}))
+        browser.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
