@@ -137,6 +137,72 @@ class TestStoreRelationBatchingV14(MailCommon):
 
 
 @tagged("mail_store", "post_install", "-at_install")
+class TestStorePayloadAlignmentV14(MailCommon):
+    """A record vanishing mid-batch must not corrupt its neighbours' payload.
+
+    ``_read_format`` drops records that no longer exist, so its result is
+    shorter than the recordset it was called on. Zipping the two positionally
+    paired every record after the hole with the *next* record's data, which
+    silently dropped the relational fields from the tail of the batch -- the
+    last message arrived at the client with no author at all, and nothing
+    raised.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.document = cls.env["res.partner"].create({"name": "V14 Alignment"})
+        cls.authors = cls.env["res.partner"].create(
+            [
+                {"name": f"V14 Sender {idx}", "email": f"v14s{idx}@example.com"}
+                for idx in range(4)
+            ]
+        )
+        cls.comment_subtype_id = cls.env.ref("mail.mt_comment").id
+
+    def test_vanished_record_does_not_strip_neighbours(self):
+        messages = self.env["mail.message"].create(
+            [
+                {
+                    "author_id": self.authors[idx].id,
+                    "body": f"<p>align {idx}</p>",
+                    "message_type": "comment",
+                    "model": self.document._name,
+                    "res_id": self.document.id,
+                    "subtype_id": self.comment_subtype_id,
+                }
+                for idx in range(4)
+            ]
+        )
+        self.env.flush_all()
+        expected_author_by_id = {msg.id: msg.author_id.id for msg in messages}
+        vanished_id = messages[0].id
+
+        # Delete the first message the way a concurrent transaction would: the
+        # row is gone, but our recordset still holds all four ids.
+        self.env.cr.execute("DELETE FROM mail_message WHERE id = %s", (vanished_id,))
+        self.env.invalidate_all()
+
+        fields = ["body", Store.One("author_id", ["name"])]
+        result = Store().add(messages, fields).get_result()
+        rows = {row["id"]: row for row in result.get("mail.message", [])}
+
+        self.assertNotIn(
+            vanished_id, rows, "the deleted message must not reach the client"
+        )
+        for message_id in list(expected_author_by_id)[1:]:
+            self.assertIn(
+                message_id, rows, f"message {message_id} vanished from payload"
+            )
+            self.assertEqual(
+                rows[message_id].get("author_id"),
+                expected_author_by_id[message_id],
+                f"message {message_id} lost or mis-attributed its author because a "
+                "sibling record was deleted mid-batch",
+            )
+
+
+@tagged("mail_store", "post_install", "-at_install")
 class TestReactionBatchingV14(MailCommon):
     """Reactions must cost the same whatever the number of distinct reactors.
 

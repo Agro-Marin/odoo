@@ -167,9 +167,7 @@ class Store:
         if not fields:
             return self
         fields = self._format_fields(records, fields)
-        for record, record_data_list in zip(
-            records, self._get_records_data_list(records, fields), strict=False
-        ):
+        for record, record_data_list in self._get_records_data_list(records, fields):
             for record_data in record_data_list:
                 if as_thread:
                     self.add_model_values(
@@ -283,17 +281,32 @@ class Store:
         return list(fields)  # prevent mutation of original list
 
     def _get_records_data_list(self, records, fields):
+        """Return ``[(record, [data dicts]), ...]`` for the records that still exist.
+
+        Pairs by id rather than by position: ``_read_format`` *drops* records
+        that vanished under us (concurrent unlink), so its result is shorter
+        than ``records`` and a positional ``zip`` would pair every record after
+        the hole with its neighbour's data -- silently stripping the relational
+        fields off the tail of the batch, one record per vanished row, with no
+        error raised. Returning the record alongside its own data keeps the
+        caller from re-deriving the pairing too.
+        """
         abstract_fields = [
             field for field in fields if isinstance(field, (dict, Store.Attr))
         ]
-        records_data_list = [
-            [data_dict]
+        data_by_id = {
+            data_dict["id"]: data_dict
             for data_dict in records._read_format(
                 [f for f in fields if f not in abstract_fields],
                 load=False,
             )
-        ]
-        for record, record_data_list in zip(records, records_data_list, strict=False):
+        }
+        records_data_list = []
+        for record in records:
+            data_dict = data_by_id.get(record.id)
+            if data_dict is None:
+                continue  # gone since the recordset was built
+            record_data_list = [data_dict]
             for field in abstract_fields:
                 if isinstance(field, dict):
                     record_data_list.append(field)
@@ -304,6 +317,7 @@ class Store:
                         )
                     except MissingError:
                         break
+            records_data_list.append((record, record_data_list))
         return records_data_list
 
     def _get_record_index(self, model_name, values):
