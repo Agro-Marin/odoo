@@ -137,3 +137,15 @@ def test_empty_tree_scans_nothing(tree):
     """The subprocess-level refusal lives in test_every_gate_refuses_an_empty_tree."""
     findings, scanned, _ = jfr.find_forced_renders(tree.statics(), tree.root)
     assert (findings, scanned) == ([], 0)
+
+
+def test_count_mode_reports_only_outside_web(tree, capsys):
+    """The ratchet floor is everywhere-but-web; web core is drift-zero above."""
+    tree("a.js", "this.render(true);\n", addon="documents")
+    tree("b.js", "this.render(true);\n", addon="web")
+    findings, scanned, elsewhere = jfr.find_forced_renders(
+        tree.statics("web", "documents"), tree.root
+    )
+    assert scanned == 1  # the web file
+    assert [f.file for f in findings] == ["web/static/src/b.js"]
+    assert elsewhere == 1  # the documents one, counted but not faulted

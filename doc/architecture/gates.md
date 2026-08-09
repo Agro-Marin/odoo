@@ -63,6 +63,7 @@ py_function_length pyfunclen
 naming_vocabulary  naming
 js_private_access  jsprivate
 js_service_shape   jsserviceshape
+js_forced_render   jsforcedrender
 EOF
 ```
 
@@ -192,8 +193,8 @@ It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
 Two further mechanisms keep the *non-structural* quality signals from
 regressing:
 
-- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns twelve tool
-  counts into one-way contracts: **mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, jsfunclen, pyfunclen, jsprivate, jsserviceshape and naming** (floors in
+- **Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns thirteen tool
+  counts into one-way contracts: **mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, jsfunclen, pyfunclen, jsprivate, jsserviceshape, jsforcedrender and naming** (floors in
   `tooling/ratchet/baselines/`). CI fails on any increase, and — in the default
   `exact` mode — on an *un-committed* decrease too, so every cleanup is locked
   in.

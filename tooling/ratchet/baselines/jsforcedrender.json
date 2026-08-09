@@ -1,0 +1,4 @@
+{
+  "count": 21,
+  "note": "Seeded 2026-08-09 alongside js_forced_render.py.\n\nWeb core is drift-zero and gated separately (KNOWN_FORCED, one pinned site). This floor covers everywhere ELSE: the forced `component.render(true)` calls still living in other addons, so they can only shrink.\n\nWhy they are not simply banned: several are legitimate. `x2many_dialog.saveAndNew()`-style imperative mutation of a non-reactive instance property, window-resize handlers, and third-party editors (spreadsheet, web_studio) driving their own redraw all have a real reason to sweep a subtree. Converting one is a per-domain judgement that needs that domain's tests, which is exactly what a ratchet is for -- it stops the number growing while the conversions happen at whatever pace each domain can verify.\n\nThe number to beat is a count of `.render(true)` occurrences outside `addons/web/static/src`, excluding tests and vendored `static/lib`."
+}

@@ -500,6 +500,13 @@ jobs:
             | tee /tmp/js_forced_render.log
           python tooling/architecture/js_forced_render.py --check
           rc=$?
+          # Web core is drift-zero above; this floor covers every other addon,
+          # where a forced render is sometimes legitimate and converting one
+          # needs that domain's tests. It stops the number growing meanwhile.
+          python tooling/architecture/js_forced_render.py --count \
+            | xargs python tooling/ratchet/ratchet.py jsforcedrender --count
+          ratchet_rc=$?
+          [ "$rc" -eq 0 ] && rc=$ratchet_rc
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           set -e
           exit $rc

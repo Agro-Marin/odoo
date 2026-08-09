@@ -168,6 +168,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="exit 1 on findings")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--count",
+        action="store_true",
+        help="print the forced-render count OUTSIDE web core, for the ratchet",
+    )
     args = parser.parse_args(argv)
 
     findings, n_files, n_elsewhere = find_forced_renders()
@@ -177,6 +182,12 @@ def main(argv: list[str] | None = None) -> int:
         # nothing and report success.
         print("error: no web/static/src tree found under the checkout", file=sys.stderr)
         return 2
+
+    if args.count:
+        # Web core is drift-zero above; this feeds the ratchet for everywhere
+        # else, so the ~21 forced renders in other addons can only shrink.
+        print(n_elsewhere)
+        return 0
 
     if args.json:
         print(json.dumps([asdict(f) for f in findings], indent=2))
