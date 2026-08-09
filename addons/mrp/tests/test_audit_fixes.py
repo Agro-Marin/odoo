@@ -1304,3 +1304,78 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.env.flush_all()
         workorders.invalidate_recordset()
         self.assertEqual(workorders.mapped("duration_live"), [0.0] * 5)
+
+    def test_mo_overview_rounds_costs_in_the_orders_own_currency(self):
+        """report.mrp.report_mo_overview._get_report_data
+
+        A BoM operation with no work order counts as "missing" and its cost is
+        added to the BoM total. That total belongs to the order's company, but
+        the cost was rounded first with `self.env.company.currency_id` -- the
+        *viewing* company's -- and only then with the order's. A viewer whose
+        currency is coarser than the order's therefore saw the cost quantised
+        to their own precision: a USD order read from a JPY company reported
+        10.00 instead of 10.48.
+        """
+        jpy = (
+            self.env["res.currency"]
+            .with_context(active_test=False)
+            .search([("name", "=", "JPY")], limit=1)
+        )
+        jpy.active = True
+        self.assertLess(
+            jpy.decimal_places,
+            self.env.company.currency_id.decimal_places,
+            "this test needs a viewing currency coarser than the order's",
+        )
+        viewer_company = self.env["res.company"].create(
+            {"name": "Coarse currency viewer", "currency_id": jpy.id}
+        )
+        self.env["stock.warehouse"].create(
+            {"name": "CCV", "code": "CCV", "company_id": viewer_company.id}
+        )
+        self.env.user.company_ids = [Command.link(viewer_company.id)]
+
+        finished, component = self.env["product.product"].create(
+            [
+                {"name": "Currency finished", "is_storable": True},
+                {"name": "Currency component", "is_storable": True},
+            ]
+        )
+        workcenter = self.env["mrp.workcenter"].create(
+            {"name": "Currency workcenter", "costs_hour": 37.0}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1.0})
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "Currency operation",
+                            "workcenter_id": workcenter.id,
+                            # 17 min at 37/h -> 10.4833..., not a whole unit.
+                            "time_cycle_manual": 17,
+                        }
+                    )
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
+        )
+        production.action_confirm()
+        # No work order for the operation: that is the branch under test.
+        production.workorder_ids.unlink()
+        self.env.flush_all()
+
+        report = self.env["report.mrp.report_mo_overview"].with_company(viewer_company)
+        self.assertEqual(report.env.company, viewer_company)
+        bom_cost = report._get_report_data(production.id)["summary"]["bom_cost"]
+
+        order_currency = production.company_id.currency_id
+        self.assertAlmostEqual(bom_cost, order_currency.round(10.4833), places=2)
+        # The value the double rounding produced.
+        self.assertNotAlmostEqual(bom_cost, 10.0, places=2)
