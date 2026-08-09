@@ -11,7 +11,8 @@ used to break:
   ``recurrence_update`` policy;
 - ``end_type='forever'`` must survive being stored;
 - a notification must not copy a template attachment for an attendee it never
-  mails.
+  mails;
+- building a recurrence must not mutate its stored ``count`` column.
 """
 
 from odoo.tests.common import TransactionCase, new_test_user, tagged
@@ -277,4 +278,63 @@ class TestCalendarNotificationAttachments(TransactionCase):
             created - referenced,
             "attachment copies were made for attendees that are never mailed; "
             f"{len(created - referenced)} of {len(created)} copies are orphaned",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestCalendarRangeCalculation(TransactionCase):
+    """`_range_calculation` inflates the occurrence count when start-of-period
+    falls before the base event, but it must do so without mutating the stored
+    `count` column (it used to write an inflated value and write it back).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = new_test_user(cls.env, login="range_user", groups="base.group_user")
+
+    def test_count_preserved_and_future_occurrences_complete(self):
+        # 2026-11-04 is a Wednesday; the weekly rule also fires on Monday, whose
+        # week-start is before the base event, so the naive generation drops the
+        # pre-start occurrence and the inflation path runs.
+        event = (
+            self.env["calendar.event"]
+            .with_user(self.user)
+            .with_context(no_mail_to_attendees=True)
+            .create(
+                {
+                    "name": "mid-week weekly",
+                    "start": "2026-11-04 10:00:00",
+                    "stop": "2026-11-04 11:00:00",
+                }
+            )
+        )
+        self.env.flush_all()
+        event.write(
+            {
+                "recurrency": True,
+                "rrule_type": "weekly",
+                "mon": True,
+                "wed": True,
+                "fri": True,
+                "end_type": "count",
+                "count": 6,
+            }
+        )
+        self.env.flush_all()
+        recurrence = event.recurrence_id
+        occurrences = recurrence.calendar_event_ids
+        self.assertEqual(
+            recurrence.count,
+            6,
+            "_range_calculation must not leave an inflated value in the stored count",
+        )
+        self.assertEqual(
+            len(occurrences),
+            6,
+            "the requested number of future occurrences must be materialised",
+        )
+        self.assertTrue(
+            all(occ.start.date() >= event.start.date() for occ in occurrences),
+            "no occurrence may fall before the base event",
         )

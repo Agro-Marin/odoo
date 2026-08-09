@@ -496,43 +496,54 @@ class CalendarRecurrence(models.Model):
             In that case, we just increase the count value, recompute the ranges and dismiss the useless values
         """
         self.ensure_one()
+
+        def only_future(ranges):
+            return {
+                (start, stop)
+                for start, stop in ranges
+                if start.date() >= event.start.date() and stop.date() >= event.start.date()
+            }
+
+        ranges = only_future(self._get_ranges(event.start, duration))
         original_count = self.end_type == 'count' and self.count
-        ranges = set(self._get_ranges(event.start, duration))
-        future_events = {(x, y) for x, y in ranges if x.date() >= event.start.date() and y.date() >= event.start.date()}
-        if original_count and len(future_events) < original_count:
-            # Rise count number because some past values will be dismissed.
-            self.count = (2*original_count) - len(future_events)
-            ranges = set(self._get_ranges(event.start, duration))
-            # We set back the occurrence number to its original value
-            self.count = original_count
-        # Remove ranges of events occurring in the past
-        return {(x, y) for x, y in ranges if x.date() >= event.start.date() and y.date() >= event.start.date()}
+        if original_count and len(ranges) < original_count:
+            # start-of-period can be in the past for weekly/monthly rules, so
+            # some generated occurrences fall before the base event and are
+            # dropped, leaving fewer than `count` future ones. Ask the generator
+            # for enough extra to make up the shortfall -- passed as an argument,
+            # not by writing an inflated value to the stored `count` column and
+            # writing it back (two DB writes and two rrule recomputes per apply).
+            inflated_count = (2 * original_count) - len(ranges)
+            ranges = only_future(self._get_ranges(event.start, duration, count=inflated_count))
+        return ranges
 
 
-    def _get_ranges(self, start, event_duration):
-        starts = self._get_occurrences(start)
+    def _get_ranges(self, start, event_duration, count=None):
+        starts = self._get_occurrences(start, count=count)
         return ((start, start + event_duration) for start in starts)
 
     def _get_timezone(self):
         return timezone(self.event_tz or self.env.context.get('tz') or 'UTC')
 
-    def _get_occurrences(self, dtstart):
+    def _get_occurrences(self, dtstart, count=None):
         """
         Get ocurrences of the rrule
         :param dtstart: start of the recurrence
+        :param count: optional override of the recurrence's ``count`` (see
+            _range_calculation); leaves the stored value untouched
         :return: iterable of datetimes
         """
         self.ensure_one()
         dtstart = self._get_start_of_period(dtstart)
         if self._is_allday():
-            return self._get_rrule(dtstart=dtstart)
+            return self._get_rrule(dtstart=dtstart, count=count)
 
         tz = self._get_timezone()
         # Localize the starting datetime to avoid missing the first occurrence
         dtstart = dtstart.replace(tzinfo=UTC).astimezone(tz)
         # dtstart is given as a naive datetime, but it actually represents a timezoned datetime
         # (rrule package expects a naive datetime)
-        occurences = self._get_rrule(dtstart=dtstart.replace(tzinfo=None))
+        occurences = self._get_rrule(dtstart=dtstart.replace(tzinfo=None), count=count)
 
         # Special timezoning is needed to handle DST (Daylight Saving Time) changes.
         # Given the following recurrence:
@@ -580,7 +591,7 @@ class CalendarRecurrence(models.Model):
         score = sum(1 if e.allday else -1 for e in self.calendar_event_ids)
         return score >= 0
 
-    def _get_rrule(self, dtstart=None, bounded=True):
+    def _get_rrule(self, dtstart=None, bounded=True, count=None):
         """Build the dateutil rrule for this recurrence.
 
         :param bounded: when True (enumerating occurrences) an unbounded
@@ -591,6 +602,8 @@ class CalendarRecurrence(models.Model):
             re-parsed as ``end_type='count'`` with ``count=MAX_RECURRENT_EVENT``.
             For a real ``count`` the string keeps the user's value while
             enumeration still caps at ``MAX_RECURRENT_EVENT``.
+        :param count: for a ``count`` recurrence, use this instead of the stored
+            ``count`` field (see _range_calculation) without mutating the record.
         """
         self.ensure_one()
         freq = self.rrule_type
@@ -610,7 +623,8 @@ class CalendarRecurrence(models.Model):
             rrule_params['wkst'] = self._get_lang_week_start()
 
         if self.end_type == 'count':  # e.g. stop after X occurence
-            rrule_params['count'] = min(self.count, MAX_RECURRENT_EVENT) if bounded else self.count
+            effective_count = self.count if count is None else count
+            rrule_params['count'] = min(effective_count, MAX_RECURRENT_EVENT) if bounded else effective_count
         elif self.end_type == 'forever' and bounded:
             rrule_params['count'] = MAX_RECURRENT_EVENT
         elif self.end_type == 'end_date':  # e.g. stop after 12/10/2020

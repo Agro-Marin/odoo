@@ -17,72 +17,85 @@ class CalendarAlarm_Manager(models.AbstractModel):
             self.env[model_name].flush_model()
 
         result = {}
-        delta_request = """
-            SELECT
-                rel.calendar_event_id,
-                max(alarm.duration_minutes) AS max_delta,
-                min(alarm.duration_minutes) AS min_delta
-            FROM
-                calendar_alarm_calendar_event_rel AS rel
-            LEFT JOIN calendar_alarm AS alarm ON alarm.id = rel.calendar_alarm_id
-            WHERE alarm.alarm_type = %s
-            GROUP BY rel.calendar_event_id
-        """
-        base_request = """
-            SELECT
-                cal.id,
-                cal.start - interval '1' minute * calcul_delta.max_delta AS first_alarm,
-                cal.stop - interval '1' minute * calcul_delta.min_delta AS last_alarm,
-                cal.start AS first_meeting,
-                cal.stop AS last_meeting,
-                calcul_delta.min_delta,
-                calcul_delta.max_delta
-            FROM
-                calendar_event AS cal
-            INNER JOIN calcul_delta ON calcul_delta.calendar_event_id = cal.id
-            WHERE cal.active = True
-        """
-        filter_user = """
-            INNER JOIN calendar_event_res_partner_rel AS part_rel
-                ON part_rel.calendar_event_id = cal.id
-                AND part_rel.res_partner_id = ANY(%s)
-            WHERE cal.active = True
-        """
+        # Composed with SQL() fragments that each carry their own parameters,
+        # rather than %-formatting three strings together with one flat tuple:
+        # there the parameter order was positional *across* fragments and a
+        # str.replace spliced in the partner filter, so reordering a fragment
+        # silently misbound the parameters. Its sibling _get_events_by_alarm_to_notify
+        # already uses SQL() -- the fork has the right tool.
+        calcul_delta = SQL(
+            """
+            SELECT rel.calendar_event_id,
+                   max(alarm.duration_minutes) AS max_delta,
+                   min(alarm.duration_minutes) AS min_delta
+              FROM calendar_alarm_calendar_event_rel AS rel
+              LEFT JOIN calendar_alarm AS alarm ON alarm.id = rel.calendar_alarm_id
+             WHERE alarm.alarm_type = %s
+             GROUP BY rel.calendar_event_id
+            """,
+            alarm_type,
+        )
 
-        # Add filter on alarm type
-        tuple_params = (alarm_type,)
-
-        # Add filter on partner_id
+        # Optional restriction to events attended by the given partners.
+        partner_join = SQL("")
         if partners:
-            base_request = base_request.replace("WHERE cal.active = True", filter_user)
-            tuple_params += (list(partners.ids),)
+            partner_join = SQL(
+                """INNER JOIN calendar_event_res_partner_rel AS part_rel
+                           ON part_rel.calendar_event_id = cal.id
+                          AND part_rel.res_partner_id = ANY(%s)""",
+                list(partners.ids),
+            )
 
-        # Upper bound on first_alarm of requested events
-        first_alarm_max_value = ""
+        all_events = SQL(
+            """
+            SELECT cal.id,
+                   cal.start - interval '1' minute * calcul_delta.max_delta AS first_alarm,
+                   cal.stop - interval '1' minute * calcul_delta.min_delta AS last_alarm,
+                   cal.start AS first_meeting,
+                   cal.stop AS last_meeting,
+                   calcul_delta.min_delta,
+                   calcul_delta.max_delta
+              FROM calendar_event AS cal
+              INNER JOIN calcul_delta ON calcul_delta.calendar_event_id = cal.id
+              %s
+             WHERE cal.active = True
+            """,
+            partner_join,
+        )
+
+        # Upper bound on the first_alarm of the events we return.
         if seconds is None:
-            # first alarm in the future + 3 minutes if there is one, now otherwise
-            first_alarm_max_value = """
-                COALESCE((SELECT MIN(cal.start - interval '1' minute  * calcul_delta.max_delta)
-                FROM calendar_event cal
-                RIGHT JOIN calcul_delta ON calcul_delta.calendar_event_id = cal.id
-                WHERE cal.start - interval '1' minute  * calcul_delta.max_delta > now() at time zone 'utc'
-            ) + interval '3' minute, now() at time zone 'utc')"""
+            # the next future alarm + 3 minutes if there is one, otherwise now
+            first_alarm_max_value = SQL(
+                """COALESCE(
+                    (SELECT MIN(cal.start - interval '1' minute * calcul_delta.max_delta)
+                       FROM calendar_event cal
+                       RIGHT JOIN calcul_delta ON calcul_delta.calendar_event_id = cal.id
+                      WHERE cal.start - interval '1' minute * calcul_delta.max_delta > now() at time zone 'utc'
+                    ) + interval '3' minute,
+                    now() at time zone 'utc'
+                )"""
+            )
         else:
-            # now + given seconds
-            first_alarm_max_value = "(now() at time zone 'utc' + interval '%s' second )"
-            tuple_params += (seconds,)
+            # now + the given number of seconds
+            first_alarm_max_value = SQL(
+                "now() at time zone 'utc' + %s * interval '1' second", seconds
+            )
 
         self.env.flush_all()
         self.env.cr.execute(
-            """
-            WITH calcul_delta AS (%s)
-            SELECT *
-                FROM ( %s ) AS ALL_EVENTS
-            WHERE ALL_EVENTS.first_alarm < %s
-                AND ALL_EVENTS.last_alarm > (now() at time zone 'utc')
-        """
-            % (delta_request, base_request, first_alarm_max_value),
-            tuple_params,
+            SQL(
+                """
+                WITH calcul_delta AS (%s)
+                SELECT *
+                  FROM (%s) AS all_events
+                 WHERE all_events.first_alarm < %s
+                   AND all_events.last_alarm > (now() at time zone 'utc')
+                """,
+                calcul_delta,
+                all_events,
+                first_alarm_max_value,
+            )
         )
 
         for (
@@ -235,8 +248,8 @@ class CalendarAlarm_Manager(models.AbstractModel):
         alarms = self.env["calendar.alarm"].browse(events_by_alarm.keys())
         for alarm in alarms:
             alarm_attendees = attendees.filtered(
-                lambda attendee: attendee.event_id.id in events_by_alarm[alarm.id]
-            )  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
+                lambda attendee, alarm=alarm: attendee.event_id.id in events_by_alarm[alarm.id]
+            )
             alarm_attendees.with_context(
                 calendar_template_ignore_recurrence=True
             )._notify_attendees(
