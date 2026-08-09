@@ -63,6 +63,29 @@ clean at zero. Correctly so: it imports `odoo.orm.runtime` nowhere. That is
 exactly the channel those gates exist to watch, and it ran through the one file
 neither of them read. Hence `_orm_layer_scope.py` and its completeness test.
 
+**The model-surface gate measured a spelling, not a coupling.** It read
+`env[<literal>]` plus the accessor map and reported the framework's model
+surface as closed. Four other syntaxes name a model and produced no hit:
+`registry[...]`/`pool[...]` (`Registry.__getitem__` returns the model class --
+the same coupling one attribute over, and `http/_serve.py` alone uses it ten
+times for `ir.http`), `env.get("...")` (a `Mapping.get`, so there is no
+`Subscript` node to visit), `"..." in registry` (a membership test names the
+model as surely as a lookup) and a comodel argument, which is how
+`orm/models/metaclass.py` names `res.users` when it builds the
+`create_uid`/`write_uid` magic fields. Measured before the fix, those channels
+carried 31% of all model reaches in the core, and two of the models they
+reached -- `ir.demo_failure` and `res.partner` -- were absent from
+`KNOWN_MODEL_SURFACE`, a set whose entire purpose is to be closed. Neither was
+new coupling; both predate the gate and were simply spelled in a syntax it did
+not read.
+
+Two things generalise. A gate built on one spelling of a coupling is invisible
+from inside its own report -- it says "clean" in exactly the voice it would use
+if it were complete. And the fix is cheap when the mechanism is already trusted:
+extending `_EnvModelCollector` by four visitors and re-baselining by two models
+beat writing a second checker, which is what the first draft of this
+investigation proposed.
+
 **`env_model_surface_check.py`'s subtree pins exist because the flat set is not
 enough.** Appending `env["ir.model"]` to `orm/components/model_graph.py` — a
 package whose entire contract is that it is pure Python — passed `layer_check`,

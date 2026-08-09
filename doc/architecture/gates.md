@@ -84,7 +84,7 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `js_mixin_coupling.py` | the same for JS: the `this`-call graph across `SearchModel`'s mixin chain, which produces no import edge and no cross-module member access, so every other JS gate reads it as empty |
 | `env_surface_check.py` | the Layer→runtime `env` seam, and that every reached `Environment` member exists |
 | `pool_surface_check.py` | the Layer→runtime `pool` seam: private reach, member validity, and `components/` at zero |
-| `env_model_surface_check.py` | the framework's string-keyed dependency on addon-owned models (`env["res.users"]`), which `core-does-not-depend-on-addons` cannot see — *which* models (exact set) **and** which subtrees may reach none |
+| `env_model_surface_check.py` | the framework's string-keyed dependency on addon-owned models (`env["res.users"]`), which `core-does-not-depend-on-addons` cannot see — *which* models (exact set) **and** which subtrees may reach none. Reads six syntaxes, not just the subscript |
 | `worker_thread_surface_check.py` | inline `threading.current_thread().<attr>` reads of per-request bookkeeping (`dbname`, `cursor_mode`, …), which mypy and `layer_check` cannot see |
 | `libs_facade_check.py` | addon code **and every core package** importing `odoo.libs` **areas**, never their leaf modules |
 | `py_cycle_check.py` | Python import cycles in the core — the direction gates cannot see them |
@@ -140,6 +140,16 @@ follows here is only how those four are *driven*.
   already-known model adds nothing. The full (package, model) cross-product
   would fire on every ordinary new reach inside a package that already reaches
   models, which is noise.
+- **A model-surface gate is only as wide as the syntaxes it reads.** Until
+  2026-08-09 this one read `env[...]` and the accessor map, which is most of the
+  surface and not all of it: `registry[...]`/`pool[...]` (the `Registry`
+  subscript hands back the model class), `env.get("...")` (a `Mapping.get`, so
+  no `Subscript` node exists), `"..." in registry` (a membership test still
+  names the model) and a comodel in `Many2one("res.users", ...)` all named
+  models it never saw. Two of them — `ir.demo_failure` and `res.partner` — were
+  absent from a set whose whole purpose is to be closed. The lesson generalises
+  past this gate: a checker built on one spelling of a coupling measures that
+  spelling, not the coupling, and the gap is invisible from inside the report.
 
 `subsystem_map_check.py` and `package_index_check.py` are the two gates aimed at
 the *documentation* rather than the code. The contract table is exact because a

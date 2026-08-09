@@ -9,8 +9,11 @@ this whole surface passes unmeasured — the same class of blind spot
 ``mixin_coupling_check`` and ``env_surface_check`` were built to close for the
 call graph and the ``env`` seam.
 
-This checker inventories every ``env[<model literal>]`` (and ``self.env[...]``)
-access in the framework packages and ratchets the **set of distinct models**
+This checker inventories every model reach in the framework packages -- through
+``env[...]``, the ``env`` accessors, ``registry[...]``/``pool[...]``,
+``.get("...")``, ``in registry`` and relational comodel arguments, the six
+syntaxes the framework actually uses (see ``_EnvModelCollector``) -- and
+ratchets the **set of distinct models**
 exact-mode, like the count ratchets: a *new* model dependency from core fails CI
 (surfacing coupling that would otherwise creep in silently), and a model that is
 no longer referenced also fails (so a genuine decoupling is committed, not
@@ -176,6 +179,15 @@ SUBTREES_WITH_NO_MODEL_REACH: tuple[str, ...] = (
 #: The framework's *acknowledged* model dependency surface. Ratcheted exact:
 #: adding a model here without a reason, or leaving a stale one, both defeat the
 #: point. Regenerate with ``--print-baseline`` after an intentional change.
+#:
+#: ``ir.demo_failure`` and ``res.partner`` joined on 2026-08-09, when the
+#: collector learned the four channels below the original two. Neither is new
+#: coupling -- both predate the gate and were simply spelled in a syntax it did
+#: not read: ``env.get("ir.demo_failure")`` in ``modules/loading.py`` (recording
+#: a demo-data failure, optional by construction) and
+#: ``if "res.partner" in registry:`` in ``orm/model_test_env.py`` (injecting a
+#: fixture row when the model happens to be loaded). They are acknowledged here
+#: rather than removed because both are deliberate optional-model probes.
 KNOWN_MODEL_SURFACE: frozenset[str] = frozenset(
     {
         "base",
@@ -185,6 +197,7 @@ KNOWN_MODEL_SURFACE: frozenset[str] = frozenset(
         "ir.attachment",
         "ir.config_parameter",
         "ir.default",
+        "ir.demo_failure",
         "ir.fields.converter",
         "ir.http",
         "ir.model",
@@ -206,6 +219,7 @@ KNOWN_MODEL_SURFACE: frozenset[str] = frozenset(
         "res.device.log",
         "res.groups",
         "res.lang",
+        "res.partner",
         "res.users",
     }
 )
@@ -249,33 +263,101 @@ def _is_env_expression(node: ast.expr) -> bool:
     )
 
 
-class _EnvModelCollector(ast.NodeVisitor):
-    """Collect model reaches through ``env``.
+#: Names that evaluate to a :class:`Registry`. ``Registry.__getitem__`` hands
+#: back the model *class* -- the same coupling as ``env[...]``, spelled one
+#: attribute over -- and ``pool`` is the ORM's own alias for it.
+_REGISTRY_NAMES = frozenset({"registry", "pool"})
 
-    Two channels, because the framework uses two:
+
+def _is_registry_expression(node: ast.expr) -> bool:
+    """Whether ``node`` evaluates to a ``Registry`` -- ``registry``/``pool``."""
+    return (isinstance(node, ast.Attribute) and node.attr in _REGISTRY_NAMES) or (
+        isinstance(node, ast.Name) and node.id in _REGISTRY_NAMES
+    )
+
+
+def _is_model_container(node: ast.expr) -> bool:
+    """Whether ``node`` is something a model name can be looked up in."""
+    return _is_env_expression(node) or _is_registry_expression(node)
+
+
+#: Relational field constructors whose FIRST positional argument is a comodel
+#: name. ``metaclass.py`` builds the ``create_uid``/``write_uid`` magic fields
+#: as ``Many2one("res.users", ...)``, which is a reach on an addon-owned model
+#: with no subscript anywhere.
+_COMODEL_CONSTRUCTORS = frozenset({"Many2one", "One2many", "Many2many"})
+
+
+class _EnvModelCollector(ast.NodeVisitor):
+    """Collect model reaches, by every syntax the framework uses to spell one.
+
+    Six channels. The first two were the original pair; the other four were
+    added 2026-08-09, after measuring that they carried **31% of all model
+    reaches in the core** while this gate reported on the rest. Two of the
+    models they reach (``ir.demo_failure``, ``res.partner``) were absent from
+    :data:`KNOWN_MODEL_SURFACE` -- a set whose entire purpose is to be closed.
 
     * ``env["literal"]`` / ``<x>.env["literal"]`` -- naming a model outright;
     * ``env.<accessor>`` for the members in :data:`ENV_MODEL_ACCESSORS` --
-      reaching one without naming it.
+      reaching one without naming it;
+    * ``registry["literal"]`` / ``pool["literal"]`` -- ``Registry.__getitem__``
+      returns the model *class*, the same coupling one attribute over;
+    * ``env.get("literal")`` / ``registry.get("literal")`` -- ``Mapping.get``,
+      not ``__getitem__``, so no ``Subscript`` node exists to see;
+    * ``"literal" in registry`` / ``in env`` -- a membership test still names
+      the model, and is how optional models are probed;
+    * ``Many2one("literal", ...)`` and the other relational constructors --
+      a comodel in argument position, which is how ``metaclass.py`` names
+      ``res.users`` for the ``create_uid``/``write_uid`` magic fields.
+
+    Still NOT covered, deliberately: a model name sitting in a plain data
+    structure or passed as a SQL parameter. Catching those needs the set of
+    declared model names as a corpus rather than a syntactic rule, since
+    ``_MODEL_RE`` alone matches any dotted lowercase string. Where they exist
+    they are being removed at the source instead.
     """
 
     def __init__(self) -> None:
         self.hits: list[tuple[str, int]] = []
 
+    def _add_if_model(self, key: ast.expr, lineno: int) -> None:
+        if (
+            isinstance(key, ast.Constant)
+            and isinstance(key.value, str)
+            and _MODEL_RE.match(key.value)
+        ):
+            self.hits.append((key.value, lineno))
+
     def visit_Subscript(self, node: ast.Subscript) -> None:
         self.generic_visit(node)
-        if not _is_env_expression(node.value):
-            return
-        key = node.slice
-        if isinstance(key, ast.Constant) and isinstance(key.value, str):
-            if _MODEL_RE.match(key.value):
-                self.hits.append((key.value, node.lineno))
+        if _is_model_container(node.value):
+            self._add_if_model(node.slice, node.lineno)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         self.generic_visit(node)
         model = ENV_MODEL_ACCESSORS.get(node.attr)
         if model is not None and _is_env_expression(node.value):
             self.hits.append((model, node.lineno))
+
+    def visit_Call(self, node: ast.Call) -> None:
+        self.generic_visit(node)
+        if not node.args:
+            return
+        func = node.func
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "get"
+            and _is_model_container(func.value)
+        ):
+            self._add_if_model(node.args[0], node.lineno)
+        elif isinstance(func, ast.Name) and func.id in _COMODEL_CONSTRUCTORS:
+            self._add_if_model(node.args[0], node.lineno)
+
+    def visit_Compare(self, node: ast.Compare) -> None:
+        self.generic_visit(node)
+        for op, comparator in zip(node.ops, node.comparators, strict=True):
+            if isinstance(op, ast.In | ast.NotIn) and _is_model_container(comparator):
+                self._add_if_model(node.left, node.lineno)
 
 
 def iter_scope_files() -> list[Path]:
