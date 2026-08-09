@@ -12,7 +12,7 @@ import re
 import tarfile
 import typing
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import suppress
 from datetime import UTC, datetime
 from itertools import batched
@@ -582,15 +582,33 @@ def _lang_search_frames(frame: object) -> list[object]:
     return frames
 
 
+def _mapping_lang(candidate: object) -> str:
+    """Read ``candidate["lang"]`` when ``candidate`` really is a mapping.
+
+    Frame locals are matched by *name*, so anything at all may be bound to one
+    called ``context``: ``with assertRaises(...) as context`` binds a
+    ``_AssertRaisesContext``, and ``.get`` on that raises ``AttributeError``
+    rather than simply missing. This is ``_probe``'s rule applied to the other
+    half of the frame -- an arbitrary frame's locals are strangers, and
+    interrogating one must stay free of consequences -- so the name is checked
+    against the shape it is assumed to have before it is used as that shape.
+
+    ``dict`` and ``frozendict`` (a ``dict`` subclass) both satisfy ``Mapping``,
+    which is what a real ``env.context`` ever is. The ``lang`` value is checked
+    too, so this function's return annotation holds for any input.
+    """
+    if not isinstance(candidate, Mapping):
+        return ""
+    lang = candidate.get("lang")
+    return lang if isinstance(lang, str) else ""
+
+
 def _get_frame_context_lang(frame: object) -> str:
-    if local_context := frame.f_locals.get("context"):
-        if lang := local_context.get("lang"):
-            return lang
-    if (local_kwargs := frame.f_locals.get("kwargs")) and (
-        local_context := local_kwargs.get("context")
-    ):
-        if lang := local_context.get("lang"):
-            return lang
+    f_locals = frame.f_locals
+    if lang := _mapping_lang(f_locals.get("context")):
+        return lang
+    if isinstance(local_kwargs := f_locals.get("kwargs"), Mapping):
+        return _mapping_lang(local_kwargs.get("context"))
     return ""
 
 

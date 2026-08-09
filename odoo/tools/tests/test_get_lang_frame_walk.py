@@ -98,6 +98,46 @@ class TestGetLangFrameWalk(unittest.TestCase):
             self.assertEqual(_PlainEngine().build_message(), "")
         self.assertEqual([record.levelno for record in logs.records], [logging.WARNING])
 
+    # A frame local is matched by name, so the walk meets objects that merely
+    # happen to be called `context` or `kwargs`. Interrogating one must not
+    # raise: `.get` on a non-mapping is an AttributeError, which propagated out
+    # of every `_()` call underneath such a frame.
+
+    def test_assert_raises_context_local_is_not_a_context(self):
+        # The shape that broke in practice: `as context` binds an
+        # _AssertRaisesContext, and any _() below it walked through this frame.
+        def inner():
+            with self.assertRaises(ValueError) as context:  # noqa: F841
+                raise ValueError("boom")
+            return _get_lang(inspect.currentframe())
+
+        context = {"lang": "fr_FR"}  # noqa: F841 - reached past the stranger
+        self.assertEqual(inner(), "fr_FR")
+
+    def test_non_mapping_context_local_falls_through(self):
+        context = object()  # noqa: F841 - a stranger sharing the name
+        self.assertEqual(_get_lang(inspect.currentframe()), "")
+
+    def test_non_mapping_kwargs_local_falls_through(self):
+        kwargs = "not a mapping"  # noqa: F841 - read out of the frame under test
+        self.assertEqual(_get_lang(inspect.currentframe()), "")
+
+    def test_non_mapping_context_inside_kwargs_falls_through(self):
+        kwargs = {"context": object()}  # noqa: F841 - read out of the frame
+        self.assertEqual(_get_lang(inspect.currentframe()), "")
+
+    def test_non_string_lang_is_ignored(self):
+        context = {"lang": 5}  # noqa: F841 - read out of the frame under test
+        self.assertEqual(_get_lang(inspect.currentframe()), "")
+
+    def test_stranger_context_does_not_hide_an_outer_one(self):
+        def inner():
+            context = object()  # noqa: F841 - must not shadow the outer context
+            return _get_lang(inspect.currentframe())
+
+        context = {"lang": "fr_FR"}  # noqa: F841 - reached past the stranger
+        self.assertEqual(inner(), "fr_FR")
+
 
 if __name__ == "__main__":
     unittest.main()
