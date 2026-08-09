@@ -393,6 +393,14 @@ export class AutoComplete extends Component {
                                 return;
                             }
                             source.isLoading = false;
+                            // A source that supersedes its own in-flight
+                            // request (`many2x_autocomplete` does) reports the
+                            // abandonment as a rejection. That is not a failure
+                            // to show the user -- a newer request for the same
+                            // source is already running.
+                            if (error instanceof SupersededError) {
+                                return;
+                            }
                             this.reportSourceError(error);
                         },
                     ),

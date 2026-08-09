@@ -155,7 +155,12 @@ export class Many2XAutocomplete extends Component {
         this.autoCompleteContainer = useForwardRefToParent("autocomplete_container");
         const { activeActions, resModel, isToMany, fieldString } = this.props;
 
-        this.keepLast = new KeepLast();
+        // `loadOptionsSource` supersedes its own in-flight suggestion by
+        // adding a resolved promise; rejecting makes that abandonment visible
+        // to the caller instead of leaving the previous `suggest` pending for
+        // the life of the component. AutoComplete ignores a `SupersededError`
+        // from a source rather than reporting it.
+        this.keepLast = new KeepLast({ rejectSuperseded: true });
 
         this.openMany2X =
             this.props.createAction ??
