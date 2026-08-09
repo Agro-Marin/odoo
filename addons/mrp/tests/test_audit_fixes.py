@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from odoo import Command
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 
 from .common import TestMrpCommon
@@ -771,3 +771,35 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(other.product_tmpl_id.bom_count, 1)
         self.assertEqual(component.product_tmpl_id.used_in_bom_count, 3)
         self.assertEqual(component.product_tmpl_id.bom_count, 0)
+
+    def test_unbuild_without_bom_or_mo_is_refused(self):
+        """mrp.unbuild.action_unbuild
+
+        An unbuild order needs either a manufacturing order or a bill of
+        materials to take the product apart into. With neither, the factor the
+        moves are scaled by divided by an empty BoM's quantity and the user got
+        a bare ZeroDivisionError.
+        """
+        product = self.env["product.product"].create(
+            {"name": "Unbuild no BoM", "is_storable": True}
+        )
+        unbuild = self.env["mrp.unbuild"].create(
+            {
+                "product_id": product.id,
+                "product_qty": 1.0,
+                "product_uom_id": product.uom_id.id,
+            }
+        )
+        self.assertFalse(unbuild.bom_id)
+        self.assertFalse(unbuild.mo_id)
+        # Stock it where this order will look, so `action_validate` gets past
+        # its availability check and reaches the step under test.
+        self.env["stock.quant"].create(
+            {
+                "location_id": unbuild.location_id.id,
+                "product_id": product.id,
+                "inventory_quantity": 10,
+            }
+        ).action_apply_inventory()
+        with self.assertRaises(UserError):
+            unbuild.action_validate()

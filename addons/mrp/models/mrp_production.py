@@ -2215,8 +2215,8 @@ class MrpProduction(models.Model):
             ):
                 raise UserError(
                     _(
-                        "You cannot have %s  as the finished product and in the Byproducts",
-                        self.product_id.name,
+                        "You cannot have %s as the finished product and in the Byproducts",
+                        production.product_id.name,
                     )
                 )
             finished_move_values = production._get_move_finished_values(
@@ -2224,7 +2224,10 @@ class MrpProduction(models.Model):
                 production.product_qty,
                 production.product_uom_id.id,
             )
-            finished_move_values["location_final_id"] = self.location_final_id.id
+            # This production's own final location, not the recordset's: read off
+            # `self` it was `Expected singleton` for any caller passing a set,
+            # and the message above raised while building itself.
+            finished_move_values["location_final_id"] = production.location_final_id.id
             moves.append(finished_move_values)
             for byproduct in production.bom_id.byproduct_ids:
                 if byproduct._skip_byproduct_line(

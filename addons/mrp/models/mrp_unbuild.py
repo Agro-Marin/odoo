@@ -236,6 +236,20 @@ class MrpUnbuild(models.Model):
                 _("You cannot unbuild a manufacturing order that produced nothing.")
             )
 
+        if not self.mo_id and not self.bom_id:
+            # Without either, there is nothing to take the order apart into: the
+            # produce moves come from the BoM's lines and the consume moves from
+            # the order's. The factor both are scaled by divides by the BoM's
+            # quantity, so this reached the user as a bare ZeroDivisionError.
+            raise UserError(
+                _(
+                    "%(product)s has no bill of materials, so there is nothing to"
+                    " unbuild it into. Set one on this order, or select the"
+                    " manufacturing order that produced it.",
+                    product=self.product_id.display_name,
+                )
+            )
+
         consume_moves = self._generate_consume_moves()
         consume_moves._action_confirm()
         produce_moves = self._generate_produce_moves()
