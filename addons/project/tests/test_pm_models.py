@@ -443,3 +443,30 @@ class TestProjectActionsOpen(TestProjectCommon):
             "menu actions whose context needs an active record:\n  "
             + "\n  ".join(failures),
         )
+
+
+@tagged("post_install", "-at_install")
+class TestRetrospectiveOrdering(TestProjectCommon):
+    """Retrospective actions surface the open ones first."""
+
+    def test_retrospective_actions_list_open_items_first(self) -> None:
+        """_order sorted on the raw selection keys, putting Done above Open."""
+        retro = self.env["project.retrospective"].create(
+            {"name": "R", "project_id": self.project_pigs.id}
+        )
+        Action = self.env["project.retrospective.action"]
+        for name, state in (
+            ("z-open", "open"),
+            ("a-done", "done"),
+            ("m-inprog", "in_progress"),
+        ):
+            Action.create(
+                {
+                    "name": name,
+                    "retrospective_id": retro.id,
+                    "owner_id": self.env.uid,
+                    "state": state,
+                }
+            )
+        ordered = Action.search([("retrospective_id", "=", retro.id)]).mapped("state")
+        self.assertEqual(ordered, ["open", "in_progress", "done"])

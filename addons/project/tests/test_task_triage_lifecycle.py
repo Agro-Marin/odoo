@@ -88,3 +88,21 @@ class TestTaskTriageLifecycle(TestProjectCommon):
                 other_task.with_user(self.user_projectuser).write(
                     {"triage_ids": [Command.link(bucket.id)]}
                 )
+
+
+@tagged("post_install", "-at_install")
+class TestTriageClear(TestProjectCommon):
+    def test_clearing_the_personal_triage_takes_effect(self) -> None:
+        """``write({"triage_id": False})`` used to delete the key and report
+        success while the task stayed in its bucket."""
+        task = self.env["project.task"].create(
+            {
+                "name": "Triaged",
+                "project_id": self.project_pigs.id,
+                "user_ids": [Command.link(self.env.user.id)],
+            }
+        )
+        self.assertTrue(task.triage_id)
+        task.write({"triage_id": False})
+        self.env.invalidate_all()
+        self.assertFalse(task.triage_id)

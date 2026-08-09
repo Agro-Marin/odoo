@@ -629,3 +629,16 @@ class TestProjectRecurrence(TransactionCase):
             "done",
             "The employee should be able to mark the task as done.",
         )
+
+
+class TestRecurrenceDefaults(TransactionCase):
+    """Recurrence defaults, and the context keys that set them."""
+
+    def test_context_default_repeat_until_wins(self) -> None:
+        """default_get clobbered a context-supplied default_repeat_until."""
+        vals = (
+            self.env["project.task"]
+            .with_context(default_repeat_until="2030-01-01")
+            .default_get(["repeat_until"])
+        )
+        self.assertEqual(str(vals["repeat_until"]), "2030-01-01")

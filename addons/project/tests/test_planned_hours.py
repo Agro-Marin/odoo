@@ -103,3 +103,40 @@ class TestPlannedHours(TestProjectCommon):
         task.write({"planned_hours": 3.0})
         bodies = task.message_ids[: len(task.message_ids) - before].mapped("body")
         self.assertFalse(any("manually overridden" in (body or "") for body in bodies))
+
+    def test_planned_hours_estimate_is_not_a_formula_override(self) -> None:
+        """Creating a task with an estimate posted a bogus 'manually
+        overridden (formula override)' note — on a task with no dates, where
+        the formula has no opinion at all."""
+        task = self.env["project.task"].create(
+            {
+                "name": "estimate",
+                "project_id": self.project_pigs.id,
+                "planned_hours": 5.0,
+            }
+        )
+        self.assertFalse(
+            any("manually overridden" in str(m.body) for m in task.message_ids)
+        )
+
+    def test_planned_hours_override_is_logged_once_per_batch(self) -> None:
+        """A genuine override is still reported, without a message_post per
+        record (a 200-task write cost 810 queries and 200 chatter entries)."""
+        tasks = self.env["project.task"].create(
+            [
+                {
+                    "name": f"t{i}",
+                    "project_id": self.project_pigs.id,
+                    "planned_date_begin": "2026-08-03 08:00:00",
+                    "date_end": "2026-08-04 17:00:00",
+                }
+                for i in range(3)
+            ]
+        )
+        self.env.flush_all()
+        tasks.write({"planned_hours": 999.0})
+        self.env.flush_all()
+        for task in tasks:
+            self.assertTrue(
+                any("manually overridden" in str(m.body) for m in task.message_ids)
+            )
