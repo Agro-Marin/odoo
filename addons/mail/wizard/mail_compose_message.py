@@ -1889,4 +1889,14 @@ class MailComposeMessage(models.TransientModel):
                 )[rendering_res_ids[0]][template_fname]
             else:
                 self[composer_fname] = self.template_id[template_fname]
+        # No else: a template that leaves this field empty deliberately does
+        # NOT clear the composer -- switching to it keeps whatever the previous
+        # template put there. That looks like a leak between templates, and it
+        # is inconsistent with email_from (which _compute_email_from *does*
+        # reset to the current user in the same situation), but it is the
+        # pinned, documented contract: test_mail's
+        # TestComposerForm.test_mail_composer_template_switching asserts
+        # "subject should be kept unchanged". Changing it is a product
+        # decision, not a cleanup -- it also wipes anything the user typed by
+        # hand, which the compute cannot tell apart from a template's value.
         return self[composer_fname]

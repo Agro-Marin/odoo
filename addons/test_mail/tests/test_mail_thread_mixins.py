@@ -224,6 +224,48 @@ class TestMailThreadRottingMixin(MailTrackingDurationMixinCase):
                 'an 8-month-old record is outside the 6-month window',
             )
 
+    def test_resource_rotting_search_window_param_is_mail_owned(self):
+        """The window is configured under a mail key, with the crm one honored.
+
+        ``mail.tracking.duration.mixin`` is generic -- project, helpdesk,
+        hr_recruitment and crm all inherit it -- so its window must not be
+        spelled ``crm.lead.rot.max.months``. The legacy key keeps working so
+        databases that already tuned it are not silently reset to the default.
+        """
+        icp = self.env['ir.config_parameter'].sudo()
+        base = datetime(2025, 1, 1)
+        with self.mock_datetime_and_now(base):
+            rec = self.env['mail.test.rotting.resource'].create({
+                'name': 'window_param',
+                'stage_id': self.stage_new.id,  # rotting_threshold_days = 3
+            })
+            rec.flush_recordset(['date_last_stage_update'])
+
+        def rotting_found():
+            return rec in self.env['mail.test.rotting.resource'].search(
+                [('is_rotting', '=', True)]
+            )
+
+        # 4 months on, the record is rotting by compute in every case below.
+        with self.mock_datetime_and_now(base + relativedelta(months=4)):
+            rec.invalidate_recordset(['is_rotting'])
+            self.assertTrue(rec.is_rotting)
+
+            # legacy key alone still drives the window (backward compatibility)
+            icp.set_param('crm.lead.rot.max.months', 2)
+            self.assertFalse(rotting_found(), 'legacy crm key must still be honored')
+
+            # the mail-owned key takes precedence over the legacy one
+            icp.set_param('mail.rotting.max.months', 6)
+            self.assertTrue(
+                rotting_found(),
+                'mail.rotting.max.months must win over crm.lead.rot.max.months',
+            )
+
+            # and it is a real bound in its own right, not just an override
+            icp.set_param('mail.rotting.max.months', 2)
+            self.assertFalse(rotting_found())
+
 
 @tagged('mail_thread', 'mail_blacklist')
 class TestMailThread(MailCommon, TestRecipients):

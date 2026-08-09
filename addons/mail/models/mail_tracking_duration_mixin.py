@@ -190,10 +190,23 @@ class MailTrackingDurationMixin(models.AbstractModel):
                     ON %(stage_table_alias_name)s.id = %(table)s.%(stage_field)s
             """
 
-        # Records whose last update (_track_duration_last_update_field) is older than
-        # that number of months are not returned by the search.
-        max_rotting_months = self.env["ir.config_parameter"]._get_int_param(
-            "crm.lead.rot.max.months", 12
+        # Records whose last update (_track_duration_last_update_field) is older
+        # than that number of months are not returned by the search.
+        #
+        # Deliberately a *search-only* bound: _compute_rotting applies no such
+        # window, so a record past it still reports is_rotting=True on its own
+        # form while every "Rotting" filter hides it. That divergence is pinned
+        # by test_mail's test_resource_rotting_search_max_months_window; changing
+        # it is a product decision, not a cleanup.
+        #
+        # The key is read from a mail-owned name, falling back to the historical
+        # crm-namespaced one: this mixin is generic (project, helpdesk,
+        # hr_recruitment and crm all inherit it), so tuning a helpdesk ticket's
+        # rotting window should not mean setting a "crm.lead.*" parameter.
+        icp = self.env["ir.config_parameter"]
+        max_rotting_months = icp._get_int_param(
+            "mail.rotting.max.months",
+            icp._get_int_param("crm.lead.rot.max.months", 12),
         )
 
         # We use a F-string so that the from_add_join is added with its %s parameters before the query string is processed
