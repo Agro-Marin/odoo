@@ -7,6 +7,7 @@ import { Component, useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info, Interval, Settings } from "@web/core/l10n/luxon";
+import { useReactiveModel } from "@web/model/model";
 import { formatFcInitialDate } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { makeWeekColumn } from "@web/views/calendar/calendar_common/calendar_common_week_column";
 import { convertRecordToEvent, getColor } from "@web/views/calendar/calendar_utils";
@@ -42,6 +43,10 @@ export class CalendarYearRenderer extends Component {
     rootRef;
 
     setup() {
+        // Subscribe to the model rather than reading it off the raw prop, so a
+        // `notify()` re-renders this component on its own instead of relying on
+        // the controller's blanket deep render.
+        this.model = useReactiveModel(this.props.model);
         this.months = Info.months();
         this.fcs = {};
         for (const month of this.months) {
@@ -79,17 +84,17 @@ export class CalendarYearRenderer extends Component {
             dayHeaderFormat: { weekday: "narrow" },
             dateClick: this.onDateClick,
             dayCellDidMount: this.onDayCellDidMount,
-            initialDate: formatFcInitialDate(this.props.model.date),
+            initialDate: formatFcInitialDate(this.model.date),
             initialView: "dayGridMonth",
             direction: localization.direction,
             droppable: true,
-            editable: this.props.model.canEdit,
-            dayMaxEventRows: this.props.model.eventLimit,
+            editable: this.model.canEdit,
+            dayMaxEventRows: this.model.eventLimit,
             eventDidMount: this.onEventDidMount,
             backgroundEventDidMount: this.onEventDidMount,
             eventResizableFromStart: true,
             events: (_, successCb) => successCb(this.mapRecordsToEvents()),
-            firstDay: this.props.model.firstDayOfWeek,
+            firstDay: this.model.firstDayOfWeek,
             headerToolbar: { start: false, center: "title", end: false },
             height: "auto",
             locale: Settings.defaultLocale,
@@ -99,7 +104,7 @@ export class CalendarYearRenderer extends Component {
             select: this.onSelect,
             selectMinDistance: 5,
             selectMirror: true,
-            selectable: this.props.model.canCreate,
+            selectable: this.model.canCreate,
             showNonCurrentDates: false,
             timeZone: getFullCalendarTimeZone(),
             titleFormat: { month: "long", year: "numeric" },
@@ -142,7 +147,7 @@ export class CalendarYearRenderer extends Component {
     }
 
     mapRecordsToEvents() {
-        return Object.values(this.props.model.records).map((r) =>
+        return Object.values(this.model.records).map((r) =>
             this.convertRecordToEvent(r),
         );
     }
@@ -154,7 +159,7 @@ export class CalendarYearRenderer extends Component {
     }
     getDateWithMonth(month) {
         return formatFcInitialDate(
-            this.props.model.date.set({ month: this.months.indexOf(month) + 1 }),
+            this.model.date.set({ month: this.months.indexOf(month) + 1 }),
         );
     }
     getOptionsForMonth(month) {
@@ -167,7 +172,7 @@ export class CalendarYearRenderer extends Component {
         return {
             date,
             records,
-            model: this.props.model,
+            model: this.model,
             createRecord: this.props.createRecord,
             deleteRecord: this.props.deleteRecord,
             editRecord: this.props.editRecord,
@@ -188,7 +193,7 @@ export class CalendarYearRenderer extends Component {
 
     onDateClick(info) {
         if (this.env.isSmall) {
-            this.props.model.load({
+            this.model.load({
                 date: DateTime.fromISO(info.dateStr),
                 scale: "day",
             });
@@ -196,7 +201,7 @@ export class CalendarYearRenderer extends Component {
         }
 
         const date = DateTime.fromISO(info.dateStr);
-        const records = Object.values(this.props.model.records).filter((r) =>
+        const records = Object.values(this.model.records).filter((r) =>
             Interval.fromDateTimes(r.start.startOf("day"), r.end.endOf("day")).contains(
                 date,
             ),
@@ -206,7 +211,7 @@ export class CalendarYearRenderer extends Component {
         if (records.length) {
             const target = info.dayEl;
             this.openPopover(target, date, records);
-        } else if (this.props.model.canCreate) {
+        } else if (this.model.canCreate) {
             this.props.createRecord({
                 start: DateTime.fromISO(info.dateStr),
                 isAllDay: true,
@@ -220,7 +225,7 @@ export class CalendarYearRenderer extends Component {
     }
     getDayCellClassNames(info) {
         const date = fromFcDate(info.date).toISODate();
-        if (this.props.model.unusualDays.includes(date)) {
+        if (this.model.unusualDays.includes(date)) {
             return ["o_calendar_disabled"];
         }
         return [];
@@ -228,7 +233,7 @@ export class CalendarYearRenderer extends Component {
     eventClassNames({ event }) {
         const classesToAdd = [];
         classesToAdd.push("o_event");
-        const record = this.props.model.records[event.id];
+        const record = this.model.records[event.id];
         if (record) {
             const color = getColor(record.colorIndex);
             if (typeof color === "number") {
@@ -259,7 +264,7 @@ export class CalendarYearRenderer extends Component {
             el.classList.add(...classes);
         }
         el.dataset.eventId = event.id;
-        const record = this.props.model.records[event.id];
+        const record = this.model.records[event.id];
         if (record) {
             const color = getColor(record.colorIndex);
             if (typeof color === "string") {

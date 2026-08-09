@@ -5,7 +5,6 @@
 
 import {
     EventBus,
-    onWillDestroy,
     onWillRender,
     onWillStart,
     onWillUpdateProps,
@@ -339,19 +338,6 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     // single record edit all render identically with and without the blanket,
     // because after a `load()` the datapoints are new and the rows re-render on
     // their own.
-
-    // MIGRATION DEBT -- one view still relies on the blanket forced render.
-    // `CalendarModel` sets this because the calendar's real work happens in
-    // `CalendarCommonRenderer` / `CalendarYearRenderer`, which receive the model
-    // through an unchanged props object and therefore skip a non-forced render.
-    // Migrating it means subscribing those renderers (and the FullCalendar
-    // hooks) the way `PivotRenderer` and `GraphRenderer` already do. Until then
-    // the dependency is declared here instead of applying to every view.
-    if (/** @type {any} */ (ModelClass).forceRenderOnUpdate) {
-        const onUpdate = () => component.render(true);
-        model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
-        onWillDestroy(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
-    }
 
     const globalState = component.props.globalState || {};
     const localState = component.props.state || {};

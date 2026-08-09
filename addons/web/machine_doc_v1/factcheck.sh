@@ -948,14 +948,17 @@ assert_eq "model.js exports useReactiveModel" \
     "$(grep -c 'export function useReactiveModel' "$WEB/static/src/model/model.js")" "1"
 assert_eq "model.js notify() bumps _updateEpoch" \
     "$(grep -c 'this._updateEpoch++' "$WEB/static/src/model/model.js")" "1"
-assert_eq "forceRenderOnUpdate exception is checked in the model hook" \
-    "$(grep -c 'ModelClass).forceRenderOnUpdate' "$WEB/static/src/model/model.js")" "1"
-# The blanket deep render is no longer a default any model opts OUT of: it is an
-# exception each remaining model opts IN to, one declaration per view type.
-assert_eq "calendar declares the forced-render exception" \
-    "$(grep -c 'static forceRenderOnUpdate = true' "$WEB/static/src/views/calendar/calendar_model.js")" "1"
-assert_eq "no model still uses the removed reactiveRenderers flag" \
-    "$(grep -rc 'reactiveRenderers' "$WEB/static/src" | grep -v ':0$' | wc -l)" "0"
+# No model can ask for a forced render: the hook has no such branch, and neither
+# the old `reactiveRenderers` opt-out nor the transitional `forceRenderOnUpdate`
+# opt-in exists anywhere in the tree.
+assert_eq "the model hook has no forced-render branch" \
+    "$(grep -c 'render(true)' "$WEB/static/src/model/model.js")" "0"
+assert_eq "no model uses the removed reactiveRenderers flag" \
+    "$(grep -rl 'reactiveRenderers' "$WEB/static/src" | wc -l)" "0"
+assert_eq "no model uses the removed forceRenderOnUpdate flag" \
+    "$(grep -rl 'forceRenderOnUpdate' "$WEB/static/src" | wc -l)" "0"
+assert_eq "calendar renderers subscribe with useReactiveModel" \
+    "$(grep -rl 'useReactiveModel' "$WEB/static/src/views/calendar" | wc -l)" "3"
 # The pivot and graph RENDERERS subscribe; their models do not.
 assert_eq "pivot renderer uses useReactiveModel" \
     "$(grep -c 'useReactiveModel(this.props.model)' "$WEB/static/src/views/pivot/pivot_renderer.js")" "1"
@@ -963,8 +966,8 @@ assert_eq "graph renderer uses useReactiveModel" \
     "$(grep -c 'useReactiveModel(this.props.model)' "$WEB/static/src/views/graph/graph_renderer.js")" "1"
 assert_eq "STATE_MANAGEMENT documents useReactiveModel" \
     "$(grep -c 'useReactiveModel' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "3"
-assert_eq "STATE_MANAGEMENT documents the forced-render exception" \
-    "$(grep -c 'forceRenderOnUpdate' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "2"
+assert_eq "STATE_MANAGEMENT documents that the escape hatch is gone" \
+    "$(grep -c 'forceRenderOnUpdate' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 
 # 25. _updateConfig is now _patchConfig / _reloadWithConfig.
 assert_eq "no _updateConfig left in model/" \

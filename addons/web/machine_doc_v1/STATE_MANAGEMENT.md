@@ -244,18 +244,28 @@ Reactive subscription is the **default**; the deep render on every
 - `useModelWithSampleData` installs **no** listener of its own. A controller
   already wraps its model in `useState`, so its own reads subscribe it.
 
-### `static forceRenderOnUpdate` — the shrinking exception
+### There is no forced-render escape hatch
 
-A model still needing the blanket `component.render(true)` on every `notify()`
-declares `static forceRenderOnUpdate = true`. It is load-bearing for any
-renderer that (a) receives the model inside a props object that keeps its
-identity — OWL props-equality then skips it on a non-forced render — and (b)
-snapshots derived state in `onWillUpdateProps` / `useEffect` deps.
+`useModelWithSampleData` briefly carried a `static forceRenderOnUpdate` opt-in
+for the five views that still needed the blanket deep render. All five have since
+been migrated and the branch is gone: **no model can ask for a forced render**.
 
-Declaring it today: `CalendarModel`, plus enterprise `GanttModel`, `MapModel`,
-`CohortModel`, `GridModel`. Each carries a MIGRATION DEBT comment naming the
-suite that guards it. Clearing one means subscribing its renderer tree with
-`useReactiveModel` the way pivot and graph already do.
+Migrating a view meant some combination of three fixes, and the third is the one
+worth remembering:
+
+1. The controller wraps its model in `useState` — several did not, so their
+   template reads of `model.hasData()` / `model.useSampleModel` subscribed
+   nothing (`web_cohort`, `web_map`, `web_grid`, `web_gantt`).
+2. The renderer takes `useReactiveModel(this.props.model)` instead of reading
+   the raw prop, which tracks nothing for the reading component.
+3. **Derived state rebuilt from `onWillUpdateProps` needs an epoch check.** A
+   forced render fires `onWillUpdateProps` on children *even when their props
+   are identical*, and that — not any subscription — is what re-ran
+   `GanttRenderer.computeDerivedParams()` on every `notify()`. Without it the
+   renderer rendered fresh output from stale mappings and 50 tests failed with
+   no exception raised. The fix is `Model.updateEpoch`, which exists precisely
+   for this: `computeDerivedParams` stamps the epoch it built from and
+   `onWillRender` rebuilds when the model has moved on.
 
 **Why the polarity was inverted.** As a global default the deep render silently
 covered for state nothing subscribed to. Removing it surfaced a real defect in
@@ -266,7 +276,7 @@ It is now a plain reactive property kept in step by `_syncActiveBar`, and
 `KanbanRenderer` / `KanbanHeader` re-target the prop with `useState` so their
 reads are tracked. Measured on an 80×8 list, sort, pager, search facet,
 select-all and a single-record edit render identically with and without the
-blanket, so this is a correctness and clarity change, not a performance one.
+blanket, so this was a correctness and clarity change, not a performance one.
 
 ## Record State Architecture
 

@@ -5,6 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
+import { useReactiveModel } from "@web/model/model";
 
 import { CalendarCommonRenderer } from "./calendar_common/calendar_common_renderer.js";
 import { CalendarYearRenderer } from "./calendar_year/calendar_year_renderer.js";
@@ -28,13 +29,20 @@ export class CalendarRenderer extends Component {
         onSquareSelection: Function,
         cleanSquareSelection: Function,
     };
+    setup() {
+        // Subscribe to the model rather than reading it off the raw prop, so a
+        // `notify()` re-renders this component on its own instead of relying on
+        // the controller's blanket deep render.
+        this.model = useReactiveModel(this.props.model);
+    }
+
     get concreteRenderer() {
-        return /** @type {any} */ (this.constructor).components[this.props.model.scale];
+        return /** @type {any} */ (this.constructor).components[this.model.scale];
     }
     get concreteRendererProps() {
-        if (this.props.model.scale === "year") {
+        if (this.model.scale === "year") {
             return {
-                model: this.props.model,
+                model: this.model,
                 isWeekendVisible: this.props.isWeekendVisible,
                 createRecord: this.props.createRecord,
                 editRecord: this.props.editRecord,
@@ -44,7 +52,7 @@ export class CalendarRenderer extends Component {
         return this.props;
     }
     get calendarKey() {
-        return this.props.model.scale;
+        return this.model.scale;
     }
     get actionSwiperProps() {
         return {

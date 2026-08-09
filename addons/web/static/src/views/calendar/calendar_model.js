@@ -39,19 +39,6 @@ export class CalendarModel extends Model {
     static services = ["notification"];
 
     /**
-     * MIGRATION DEBT. The only model still asking `useModelWithSampleData` for a
-     * blanket `render(true)` on every `notify()`. The calendar renders through
-     * `CalendarCommonRenderer` / `CalendarYearRenderer`, which receive the model
-     * inside an unchanged props object and so are skipped by a non-forced
-     * render; the FullCalendar hooks then never see the new data. Clearing this
-     * means subscribing those renderers with `useReactiveModel`, the way
-     * `PivotRenderer` and `GraphRenderer` already do. Guarded by
-     * `@web/views/calendar/calendar_view` "calendar renderer is rendered once
-     * after search refresh".
-     */
-    static forceRenderOnUpdate = true;
-
-    /**
      * @param {Object} params
      * @param {{ notification: Object }} services
      */
