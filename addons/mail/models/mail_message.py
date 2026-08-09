@@ -939,9 +939,15 @@ class MailMessage(models.Model):
         # invoked in this branch live on ``mail.thread``.
         if message.res_id and message._is_thread_model():
             thread_su = self.env[message.model].browse(message.res_id).sudo()
+            # ``.get``, not ``[...]``: a document carrying no permission is part
+            # of the contract -- ``_mail_group_by_operation_for_mail_message_operation``
+            # discards those explicitly, and an override may drop the key rather
+            # than map it to None (forum.post filters on ``can_edit``). Indexing
+            # turns that into a KeyError, i.e. an HTTP 500 on the public chatter
+            # routes, where the intended answer is simply "denied".
             access_mode = thread_su._mail_get_operation_for_mail_message_operation(
                 mode
-            )[thread_su]
+            ).get(thread_su)
             if access_mode and self.env[message.model]._get_thread_with_access(
                 message.res_id, mode=access_mode, **kwargs
             ):

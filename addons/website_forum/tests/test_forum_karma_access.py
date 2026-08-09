@@ -473,3 +473,58 @@ class TestForumKarma(TestForumCommon):
         # not enough karma
         with self.assertRaises(AccessError):
             self.post.with_user(self.user_portal).vote(upvote=True)
+
+
+class TestForumMailOperationMap(TestForumCommon):
+    """The karma gate on message write/unlink must survive ``sudo()``.
+
+    ``_mail_get_operation_for_mail_message_operation`` is reached with two
+    environments: ``mail.message._filter_records_for_message_operation`` calls it
+    on a plain recordset, while ``mail.message._get_with_access`` and the
+    chatter's ``_get_thread_with_access_for_post`` call it on a ``sudo()`` one.
+
+    The override used to filter on ``post.can_edit``, which folds in
+    ``env.is_admin() == env.su or user._is_admin()``. Under those sudo callers it
+    read True for everybody, so the karma restriction silently granted every user
+    what it meant to withhold -- while still applying on the batch path. The
+    invariant is that both environments give the same answer.
+    """
+
+    def test_operation_map_is_not_widened_by_sudo(self):
+        self.user_portal.karma = 0
+        post = self.post
+        self.assertGreater(
+            post.karma_edit, 0, "control: editing must cost karma on this post"
+        )
+        for operation in ('write', 'unlink'):
+            with self.subTest(operation=operation):
+                plain = post.with_user(self.user_portal)
+                as_su = post.with_user(self.user_portal).sudo()
+                self.assertEqual(
+                    {record.id: op for record, op
+                     in plain._mail_get_operation_for_mail_message_operation(operation).items()},
+                    {},
+                    "a user below the edit karma must be granted nothing",
+                )
+                self.assertEqual(
+                    {record.id: op for record, op
+                     in as_su._mail_get_operation_for_mail_message_operation(operation).items()},
+                    {},
+                    "sudo() must not widen the karma gate",
+                )
+
+    def test_operation_map_still_grants_above_karma(self):
+        """Control: enough karma still grants the operation, sudo or not."""
+        self.user_portal.karma = 10000
+        post = self.post
+        for operation in ('write', 'unlink'):
+            for label, records in (
+                ('plain', post.with_user(self.user_portal)),
+                ('sudo', post.with_user(self.user_portal).sudo()),
+            ):
+                with self.subTest(operation=operation, env=label):
+                    self.assertEqual(
+                        {record.id: op for record, op
+                         in records._mail_get_operation_for_mail_message_operation(operation).items()},
+                        {post.id: 'write'},
+                    )

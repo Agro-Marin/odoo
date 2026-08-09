@@ -162,6 +162,10 @@ class MailThread(models.AbstractModel):
     _primary_email = "email"  # Must be set for the models that can be created by alias
 
     _CUSTOMER_HEADERS_LIMIT_COUNT = 50
+    # Page size of the chatter's follower / recipient lists. Named because
+    # ``_thread_to_store`` derives the totals from a page that came back short,
+    # which is only sound while it is the same number the page was fetched with.
+    _FOLLOWER_PAGE_LIMIT = 100
 
     _Attachment = namedtuple("Attachment", ("fname", "content", "info"))
 
@@ -4822,13 +4826,23 @@ class MailThread(models.AbstractModel):
                 render_values["subtitles"] = subtitles
 
             for recipients_group in recipients_groups_list:
-                if not render_values["show_unfollow"]:
-                    render_values["show_unfollow"] = any(
-                        r["is_follower"]
-                        for r in recipients_group["recipients_data"]
-                        if r["id"] and r["uid"] and not r["ushare"]
-                    )
-                yield (lang, render_values, recipients_group)
+                # Answer the question per group instead of latching it into the
+                # dict shared by every group of this lang. Written as an
+                # assignment to ``render_values`` it was a one-way switch: the
+                # first group holding an internal-user follower turned it on for
+                # all the groups yielded after it (groups are ordered, "user"
+                # before "customer"), and a consumer that materialised the
+                # generator before rendering would have seen the final value for
+                # all of them. Only the per-recipient strip in
+                # ``MailMail._personalize_outgoing_body`` kept that off the wire.
+                group_render_values = render_values
+                if not render_values["show_unfollow"] and any(
+                    r["is_follower"]
+                    for r in recipients_group["recipients_data"]
+                    if r["id"] and r["uid"] and not r["ushare"]
+                ):
+                    group_render_values = {**render_values, "show_unfollow": True}
+                yield (lang, group_render_values, recipients_group)
 
     def _notify_by_email_prepare_rendering_context(
         self,
@@ -5451,12 +5465,20 @@ class MailThread(models.AbstractModel):
                 skip_author_id = False
 
         # avoid double email notification if already emailed in original email
-        emailed_normalized = list(
+        emailed_normalized = set(
             email_normalize_all(
                 f"{msg_vals.get('incoming_email_to', msg_sudo.incoming_email_to) or ''}, "
                 f"{msg_vals.get('incoming_email_cc', msg_sudo.incoming_email_cc) or ''}"
             )
         )
+        # Addresses already covered by an *email* recipient. The email-only
+        # entries built from 'outgoing_email_to' below used to be appended
+        # unconditionally, so an address that is also a partner recipient -- or
+        # that appears twice in the field, or was already a To/Cc of the incoming
+        # mail -- produced a second mail to the same mailbox. Only the email
+        # channel is deduped: an inbox recipient gets no mail, so an explicit
+        # 'outgoing_email_to' for their address still has to be honoured.
+        emailed_normalized_covered = set(emailed_normalized)
 
         for pid, pdata in res.items():
             if pid and pid == skip_author_id:
@@ -5473,24 +5495,36 @@ class MailThread(models.AbstractModel):
                 # not an inbox needaction — so don't drop those entirely.
                 continue
             recipients_data.append(pdata)
+            if pdata["notif"] == "email" and pdata["email_normalized"]:
+                emailed_normalized_covered.add(pdata["email_normalized"])
 
-        recipients_data += [
-            {
-                "active": True,
-                "email_normalized": email,
-                "id": False,
-                "is_follower": False,
-                "name": name or email,
-                "lang": False,
-                "groups": [],
-                "notif": "email",
-                "share": True,
-                "type": "customer",
-                "uid": False,
-                "ushare": False,
-            }
-            for name, email in outgoing_email_to_lst
-        ]
+        # 'email' would shadow the stdlib module imported at the top of the file
+        # (ruff F402), which the comprehension this replaced hid inside its own
+        # scope.
+        for name, email_address in outgoing_email_to_lst:
+            # ``not email_address`` is belt-and-braces: ``email_split_tuples``
+            # already drops what it cannot parse, but ``_normalize_email`` is
+            # typed to return False and a recipient without an address can only
+            # produce a mail.mail with an empty email_to.
+            if not email_address or email_address in emailed_normalized_covered:
+                continue
+            emailed_normalized_covered.add(email_address)
+            recipients_data.append(
+                {
+                    "active": True,
+                    "email_normalized": email_address,
+                    "id": False,
+                    "is_follower": False,
+                    "name": name or email_address,
+                    "lang": False,
+                    "groups": [],
+                    "notif": "email",
+                    "share": True,
+                    "type": "customer",
+                    "uid": False,
+                    "ushare": False,
+                }
+            )
 
         # avoid double notification (on demand due to additional queries)
         if kwargs.pop("skip_existing", False):
@@ -6618,16 +6652,40 @@ class MailThread(models.AbstractModel):
         return True
 
     @api.readonly
-    def message_get_followers(self, after=None, limit=100, filter_recipients=False):
+    def message_get_followers(self, after=None, limit=None, filter_recipients=False):
+        """Client-callable page of followers. ``limit`` is bounded on purpose.
+
+        Any falsy ``limit`` -- absent, None, or the ``0`` that means *no limit*
+        to ``search()`` -- resolves to ``_FOLLOWER_PAGE_LIMIT``. This is an RPC
+        method, so ``limit=0`` used to let a caller pull every follower row of a
+        record in one request. The JS mock server already coerced it the same way
+        (``limit = kwargs.limit || 100`` in
+        ``static/tests/mock_server/mock_models/mail_thread.js``), so the two
+        halves of the contract now agree as well.
+        """
         self.ensure_one()
         store = Store()
-        self._message_followers_to_store(store, after, limit, filter_recipients)
+        self._message_followers_to_store(
+            store, after, limit or self._FOLLOWER_PAGE_LIMIT, filter_recipients
+        )
         return store.get_result()
 
     def _message_followers_to_store(
-        self, store: Store, after=None, limit=100, filter_recipients=False, reset=False
+        self,
+        store: Store,
+        after=None,
+        limit=None,
+        filter_recipients=False,
+        reset=False,
     ):
+        """Add one page of followers (or of comment recipients) to the store.
+
+        :return: the <mail.followers> page that was added, so a caller that only
+          wants its size does not have to ask the database a second time.
+        :rtype: <mail.followers>
+        """
         self.ensure_one()
+        limit = self._FOLLOWER_PAGE_LIMIT if limit is None else limit
         domain = Domain(
             [
                 ("res_id", "=", self.id),
@@ -6645,18 +6703,20 @@ class MailThread(models.AbstractModel):
             )
         if after:
             domain &= Domain("id", ">", after)
+        followers = self.env["mail.followers"].search(
+            domain, limit=limit, order="id ASC"
+        )
         store.add(
             self,
             {
                 "recipients" if filter_recipients else "followers": Store.Many(
-                    self.env["mail.followers"].search(
-                        domain, limit=limit, order="id ASC"
-                    ),
+                    followers,
                     mode="ADD" if not reset else "REPLACE",
                 ),
             },
             as_thread=True,
         )
+        return followers
 
     def message_change_thread(self, new_thread, new_parent_message=False):
         """
@@ -6849,20 +6909,28 @@ class MailThread(models.AbstractModel):
         is_request = request_list is not None
         request_list = request_list or []
         store.add_records_fields(self, fields, as_thread=True)
+        # Both are loop-invariant. The permission map is keyed by *record*, so
+        # ``.get(self)`` only ever matched while ``self`` happened to be a
+        # singleton -- on a batch it missed every key and reported
+        # canPostOnReadonly=False for all of them. Building it once also drops
+        # the per-thread call, which overrides make arbitrarily expensive
+        # (forum.post recomputes ``can_edit`` on each one).
+        is_own_target = is_request and store.target.is_current_user(self.env)
+        post_operations = (
+            self._mail_get_operation_for_mail_message_operation("create")
+            if is_own_target
+            else {}
+        )
+        is_activity_mixin = isinstance(
+            self.env[self._name], self.env.registry["mail.activity.mixin"]
+        )
         for thread in self:
             res = {}
-            if is_request and store.target.is_current_user(self.env):
+            if is_own_target:
                 res["hasReadAccess"] = thread.sudo(False).has_access("read")
                 res["hasWriteAccess"] = thread.sudo(False).has_access("write")
-                res["canPostOnReadonly"] = (
-                    self._mail_get_operation_for_mail_message_operation("create").get(
-                        self
-                    )
-                    == "read"
-                )
-            if "activities" in request_list and isinstance(
-                self.env[self._name], self.env.registry["mail.activity.mixin"]
-            ):
+                res["canPostOnReadonly"] = post_operations.get(thread) == "read"
+            if "activities" in request_list and is_activity_mixin:
                 res["activities"] = Store.Many(
                     thread.with_context(active_test=True).activity_ids
                 )
@@ -6876,9 +6944,14 @@ class MailThread(models.AbstractModel):
                 res["primary_email_field"] = thread._mail_get_primary_email_field()
                 res["partner_fields"] = thread._mail_get_partner_fields()
             if "followers" in request_list:
-                res["followersCount"] = self.env["mail.followers"].search_count(
-                    [("res_id", "=", thread.id), ("res_model", "=", self._name)]
-                )
+                # Both counts used to be their own search_count over
+                # mail_followers, next to the two searches that fetch the first
+                # page of the very same rows. A page that came back short is
+                # already the whole set, so the count is len(page) and the extra
+                # round trip buys nothing -- and every record with fewer than
+                # ``_FOLLOWER_PAGE_LIMIT`` followers (i.e. essentially all of
+                # them) takes that branch. Only a full page still has to ask.
+                limit = self._FOLLOWER_PAGE_LIMIT
                 self_follower = self.env["mail.followers"].search(
                     [
                         ("res_id", "=", thread.id),
@@ -6887,22 +6960,35 @@ class MailThread(models.AbstractModel):
                     ]
                 )
                 res["selfFollower"] = Store.One(self_follower)
-                thread._message_followers_to_store(store, reset=True)
-                subtype_id = self.env["ir.model.data"]._xmlid_to_res_id(
-                    "mail.mt_comment"
+                followers = thread._message_followers_to_store(
+                    store, limit=limit, reset=True
                 )
-                res["recipientsCount"] = self.env["mail.followers"].search_count(
-                    [
-                        ("res_id", "=", thread.id),
-                        ("res_model", "=", self._name),
-                        ("partner_id", "!=", self.env.user.partner_id.id),
-                        ("subtype_ids", "=", subtype_id),
-                        ("partner_id.active", "=", True),
-                    ]
+                if len(followers) < limit:
+                    # The page excludes self; 'followersCount' does not.
+                    res["followersCount"] = len(followers) + (1 if self_follower else 0)
+                else:
+                    res["followersCount"] = self.env["mail.followers"].search_count(
+                        [("res_id", "=", thread.id), ("res_model", "=", self._name)]
+                    )
+                recipients = thread._message_followers_to_store(
+                    store, limit=limit, filter_recipients=True, reset=True
                 )
-                thread._message_followers_to_store(
-                    store, filter_recipients=True, reset=True
-                )
+                if len(recipients) < limit:
+                    # Same domain as the count below, so the page *is* the count.
+                    res["recipientsCount"] = len(recipients)
+                else:
+                    subtype_id = self.env["ir.model.data"]._xmlid_to_res_id(
+                        "mail.mt_comment"
+                    )
+                    res["recipientsCount"] = self.env["mail.followers"].search_count(
+                        [
+                            ("res_id", "=", thread.id),
+                            ("res_model", "=", self._name),
+                            ("partner_id", "!=", self.env.user.partner_id.id),
+                            ("subtype_ids", "=", subtype_id),
+                            ("partner_id.active", "=", True),
+                        ]
+                    )
             if "display_name" in request_list:
                 res["display_name"] = thread.display_name
             if "scheduledMessages" in request_list:

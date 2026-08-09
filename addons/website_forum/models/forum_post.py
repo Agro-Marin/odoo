@@ -1040,7 +1040,19 @@ class ForumPost(models.Model):
 
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
         if message_operation in ("write", "unlink"):
-            filtered_self = self.filtered(lambda post: post.can_edit)
+            # Not ``post.can_edit``: that field folds in ``self.env.is_admin()``,
+            # which is ``self.su or user._is_admin()`` -- and this method is
+            # called on a ``sudo()`` recordset by ``mail.message._get_with_access``
+            # and by the chatter's ``_get_thread_with_access_for_post``, where
+            # ``su`` is True. The karma gate therefore passed for *every* user on
+            # those paths while working correctly on the batch path
+            # (``_filter_records_for_message_operation``), which does not sudo.
+            # Ask about the user, so the answer is the same in both.
+            user = self.env.user
+            is_admin = user._is_admin()
+            filtered_self = self.filtered(
+                lambda post: is_admin or user.karma >= post.karma_edit
+            )
         else:
             filtered_self = self
         return super(

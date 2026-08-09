@@ -514,6 +514,15 @@ class MailMail(models.Model):
         # which otherwise ran once per recipient even with no marker to rewrite.
         if "mail_unfollow" not in body:
             return body
+        # ``doc_to_followers`` maps (model, res_id) to the recipients of *this*
+        # mail that follow the record -- a list, not a flag. Testing it for
+        # truthiness asked "does anyone on this mail follow the document", which
+        # is true as soon as one recipient does, so every other recipient of the
+        # same mail got an Unfollow link for a document they do not follow. One
+        # mail carries up to ``mail.batch_size`` (50) partners of a recipient
+        # group, and a group mixes followers with partners reached only through
+        # ``partner_ids``, so this fires on an ordinary mention. Ask the
+        # per-partner question instead.
         if (
             partner
             and self.model
@@ -522,7 +531,8 @@ class MailMail(models.Model):
                 getattr(self.env[self.model], "_partner_unfollow_enabled", False)
                 or not partner.partner_share
             )
-            and (doc_to_followers or {}).get((self.model, self.res_id))
+            and partner.id
+            in (doc_to_followers or {}).get((self.model, self.res_id), ())
         ):
             unfollow_url = self.env["mail.thread"]._notify_get_action_link(
                 "unfollow", model=self.model, res_id=self.res_id, pid=partner.id

@@ -56,6 +56,25 @@ def _to_record_ids(values, limit=None):
     return result
 
 
+def _to_thread_model(model_name):
+    """Resolve a client-supplied model name to an empty thread recordset.
+
+    ``mail.message._is_thread_model`` already established that registry
+    membership is the wrong question on these routes: it rules out the
+    uninstalled model (``KeyError``) but not the *installed non-thread* one, and
+    every ``mail.thread`` method the chatter then calls on it -- here
+    ``_get_allowed_access_params`` and ``_get_thread_with_access`` -- is an
+    ``AttributeError``, i.e. an HTTP 500 naming the model back to the caller.
+    404 is the right answer: the thread namespace does not contain that model.
+    """
+    if model_name not in request.env:
+        raise NotFound
+    model = request.env[model_name]
+    if not isinstance(model, request.env.registry["mail.thread"]):
+        raise NotFound
+    return model
+
+
 class ThreadController(http.Controller):
     @classmethod
     def _get_message_with_access(cls, message_id, mode="read", **kwargs):
@@ -89,12 +108,15 @@ class ThreadController(http.Controller):
         access on mail.message, aka rights to post on the document. Default
         behavior is to rely on _mail_post_access but it might be customized.
         See '_mail_get_operation_for_mail_message_operation'."""
-        if thread_model not in request.env:
-            raise NotFound
-        thread_su = request.env[thread_model].sudo().browse(_to_record_id(thread_id))
+        thread_su = (
+            _to_thread_model(thread_model).sudo().browse(_to_record_id(thread_id))
+        )
+        # ``.get``: an override is allowed to grant no permission at all by
+        # omitting the record, which must read as "denied" (the ``if not
+        # access_mode`` below) and not raise a KeyError out of an HTTP route.
         access_mode = thread_su._mail_get_operation_for_mail_message_operation(
             "create"
-        )[thread_su]
+        ).get(thread_su)
         if not access_mode:
             return request.env[
                 thread_model
@@ -107,15 +129,14 @@ class ThreadController(http.Controller):
     def _get_thread_with_access(cls, thread_model, thread_id, mode="read", **kwargs):
         """Simplified getter that filters access params only, making model methods
         using strong parameters."""
-        if thread_model not in request.env:
-            raise NotFound
-        return request.env[thread_model]._get_thread_with_access(
+        model = _to_thread_model(thread_model)
+        return model._get_thread_with_access(
             _to_record_id(thread_id),
             mode=mode,
             **{
                 key: value
                 for key, value in kwargs.items()
-                if key in request.env[thread_model]._get_allowed_access_params()
+                if key in model._get_allowed_access_params()
             },
         )
 
@@ -170,13 +191,17 @@ class ThreadController(http.Controller):
         # Guard the caller-supplied model name like the sibling routes do:
         # otherwise ``request.env[thread_model]`` raises KeyError -> HTTP 500
         # (log spam) on any bogus model instead of a clean 404.
+        #
+        # Deliberately *not* ``_to_thread_model``: both methods below are
+        # defined on ``Base`` (mail/models/base.py), so they answer for any
+        # model. Narrowing this route to threads would reject callers that work
+        # today, which is a behaviour change and not a 500 to fix.
         if thread_model not in request.env:
             raise NotFound
+        model = request.env[thread_model]
         return {
-            "partner_fields": request.env[thread_model]._mail_get_partner_fields(),
-            "primary_email_field": [
-                request.env[thread_model]._mail_get_primary_email_field()
-            ],
+            "partner_fields": model._mail_get_partner_fields(),
+            "primary_email_field": [model._mail_get_primary_email_field()],
         }
 
     @http.route(
@@ -229,9 +254,7 @@ class ThreadController(http.Controller):
         # the caller can read it. An inaccessible record falls back to the generic
         # lookup (_partner_find_from_emails_single supports a void recordset)
         # rather than deriving company/context from an unreachable thread.
-        if thread_model not in request.env:
-            raise NotFound
-        thread = request.env[thread_model]
+        thread = _to_thread_model(thread_model)
         record_id = _to_record_id(thread_id)
         if record_id:
             thread = thread._get_thread_with_access(record_id, mode="read") or thread
@@ -269,6 +292,10 @@ class ThreadController(http.Controller):
         # 'mail.followers.res_model' carries no integrity check by design (see the
         # note on that field), so it can outlive the model it names. Answer 404
         # rather than dereferencing it into a KeyError.
+        #
+        # Registry membership is the right question here, unlike on the routes
+        # guarded by ``_to_thread_model``: ``_mail_get_message_subtypes`` is a
+        # ``Base`` method, so a live non-thread model still answers it.
         if follower.res_model not in request.env:
             raise NotFound
         record = request.env[follower.res_model].browse(follower.res_id)
@@ -467,9 +494,7 @@ class ThreadController(http.Controller):
         "/mail/thread/unsubscribe", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_unsubscribe(self, res_model, res_id, partner_ids):
-        if res_model not in request.env:
-            raise NotFound
-        thread = request.env[res_model].browse(_to_record_id(res_id))
+        thread = _to_thread_model(res_model).browse(_to_record_id(res_id))
         thread.message_unsubscribe(_to_record_ids(partner_ids))
         return (
             Store()
@@ -484,9 +509,7 @@ class ThreadController(http.Controller):
 
     @http.route("/mail/thread/subscribe", methods=["POST"], type="jsonrpc", auth="user")
     def mail_thread_subscribe(self, res_model, res_id, partner_ids):
-        if res_model not in request.env:
-            raise NotFound
-        thread = request.env[res_model].browse(_to_record_id(res_id))
+        thread = _to_thread_model(res_model).browse(_to_record_id(res_id))
         thread.message_subscribe(_to_record_ids(partner_ids))
         return (
             Store()

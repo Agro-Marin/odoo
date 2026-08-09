@@ -50,7 +50,27 @@ class Base(models.AbstractModel):
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
         """Give document permission based on mail.message check permission.
         This is used when no other checks already granted permission (e.g.
-        being notified, being author, ...)."""
+        being notified, being author, ...).
+
+        :return: {record: operation to check on the document}. Omitting a record,
+          or mapping it to a falsy value, grants it nothing -- see
+          ``_mail_group_by_operation_for_mail_message_operation``, which discards
+          those. Callers must therefore read the result with ``.get()``.
+
+        .. warning::
+            **Overrides must decide on ``self.env.user``, never on ``self.env.su``
+            or the things derived from it** (``env.is_admin()``, ``env.is_system()``,
+            and any computed field that folds them in).
+
+            This method is reached with two different environments and has to
+            answer the same in both: ``_filter_records_for_message_operation``
+            calls it on a plain recordset, while ``mail.message._get_with_access``
+            and the chatter's ``_get_thread_with_access_for_post`` call it on a
+            ``sudo()`` one -- they have to, since the whole point is to read the
+            document in order to decide whether the user may reach it. An override
+            that asks ``env.is_admin()`` therefore reads True on those paths and
+            silently grants everyone what it meant to restrict.
+        """
         valid_operations = {"read", "write", "unlink", "create"}
         if message_operation not in valid_operations:
             raise ValueError(
