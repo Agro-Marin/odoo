@@ -426,7 +426,7 @@ indentation — an object literal returned from a patched method has the same
 shape as the patch body, so an indentation scan would invent members out of
 whatever the method returns.
 
-**Aliased imports were silently invisible** (`a3f…`, see git log). `import { A as
+**Aliased imports were silently invisible** (`799bb77f5e2`). `import { A as
 B }` binds `B` locally while the target module exports `A`; following the import
 looked `B` up in the target and resolved nothing — the consumer just vanished
 from the surface rather than erroring. Four points hid behind one file
