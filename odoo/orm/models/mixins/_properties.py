@@ -20,7 +20,7 @@ class _PropertiesMixin(_ModelStubs):
         field = self._fields.get(field_name)
         if not field:
             raise ValueError(f"Invalid field {field_name!r} on model {self._name!r}")
-        if field.type != "properties":
+        if not field.is_properties:
             raise ValueError(
                 f"Field {field_name!r} on model {self._name!r} is not a "
                 f"properties field"
@@ -48,7 +48,7 @@ class _PropertiesMixin(_ModelStubs):
 
     def _clean_properties(self) -> None:
         for fname, field in self._fields.items():
-            if field.type != "properties":
+            if not field.is_properties:
                 continue
             for record in self:
                 old_value = record[fname]._values

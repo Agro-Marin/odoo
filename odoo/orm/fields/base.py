@@ -190,6 +190,16 @@ class Field[T](
     is_temporal: bool = False
     """Whether the field holds a date or a datetime."""
 
+    is_properties: bool = False
+    """Whether the field holds a JSON bag of dynamic, per-record properties.
+
+    ``Properties`` only -- NOT ``PropertiesDefinition``, which is the separate
+    field holding the *schema* those values are validated against. The two were
+    told apart by their type strings (``"properties"`` vs
+    ``"properties_definition"``), which is a distinction that survives only as
+    long as nobody writes ``startswith("properties")``.
+    """
+
     @property
     def is_delegating(self) -> bool:
         """Whether this is a Many2one that sets up ``_inherits`` delegation.

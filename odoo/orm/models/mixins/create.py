@@ -144,9 +144,7 @@ class CreateMixin(_ModelStubs):
             cls,
             "_properties_field_names__",
             lambda: tuple(
-                fname
-                for fname, field in self._fields.items()
-                if field.type == "properties"
+                fname for fname, field in self._fields.items() if field.is_properties
             ),
         )
         for name in properties_names:
@@ -416,7 +414,7 @@ class CreateMixin(_ModelStubs):
                 else:
                     other_fields.add(field)
 
-                if field.type == "properties":
+                if field.is_properties:
                     other_fields.add(field)
 
             ids.extend(

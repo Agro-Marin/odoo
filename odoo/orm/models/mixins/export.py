@@ -252,7 +252,7 @@ class ExportMixin(_ModelStubs):
         records.fetch(fnames)
         for fname in fnames:
             field = records._fields[fname]
-            if field.type == "properties":
+            if field.is_properties:
                 self._export_fill_properties_cache(
                     records, fnames_by_path, fname, cache_properties
                 )
@@ -261,7 +261,7 @@ class ExportMixin(_ModelStubs):
             if "." in fname:
                 fname, prop_name = fname.split(".")
                 field = records._fields[fname]
-                if not (field.type == "properties" and prop_name):
+                if not (field.is_properties and prop_name):
                     raise ValueError(
                         f"export expected a properties subfield, got {field!r}.{prop_name!r}"
                     )

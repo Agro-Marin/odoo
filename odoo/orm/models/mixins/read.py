@@ -178,7 +178,7 @@ class ReadMixin(_ModelStubs):
                 multi_results = field.convert_to_read_multi(
                     values_list,
                     self.browse(records),
-                    use_display_name or field.type == "properties",
+                    use_display_name or field.is_properties,
                 )
                 for (_, vals), convert_result in zip(
                     valid_data, multi_results, strict=True

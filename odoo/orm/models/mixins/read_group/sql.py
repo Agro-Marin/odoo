@@ -117,7 +117,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         field = self._fields[fname]
         self._check_field_access(field, "read")
 
-        if field.type == "properties":
+        if field.is_properties:
             sql_expr = self._read_group_groupby_properties(
                 alias, field, seq_fnames, query
             )
@@ -207,9 +207,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         else:
             sql_expr = self._field_to_sql(alias, fname, query)
 
-        if field.type in ("datetime", "date") or (
-            field.type == "properties" and granularity
-        ):
+        if field.type in ("datetime", "date") or (field.is_properties and granularity):
             sql_expr = self._read_group_groupby_temporal(
                 sql_expr, field, granularity, seq_fnames, groupby_spec, alias, query
             )
@@ -239,7 +237,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 f"Granularity specification isn't correct: {granularity!r}"
             )
 
-        if field.type == "properties":
+        if field.is_properties:
             definition = self.get_property_definition(f"{field.name}.{seq_fnames}")
             prop_type = definition.get("type")
             if prop_type == "datetime":

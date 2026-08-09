@@ -124,9 +124,7 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         first_group = groupby[0]
         field_name = first_group.split(":")[0].split(".")[0]
         field = self._fields[field_name]
-        if not field.is_temporal and not (
-            field.type == "properties" and ":" in first_group
-        ):
+        if not field.is_temporal and not (field.is_properties and ":" in first_group):
             return data
 
         granularity = first_group.split(":")[1] if ":" in first_group else "month"

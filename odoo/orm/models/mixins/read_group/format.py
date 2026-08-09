@@ -118,7 +118,7 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                         else DEFAULT_SERVER_DATE_FORMAT
                     )
                     interval = READ_GROUP_TIME_GRANULARITY[granularity]
-            elif field.type == "properties":
+            elif field.is_properties:
                 self._read_group_format_result_properties(rows_dict, group)
                 continue
 

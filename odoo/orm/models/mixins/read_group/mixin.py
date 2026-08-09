@@ -187,7 +187,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
     def _groupby_spec_might_duplicate_rows(self, model, spec) -> bool:
         fname, property_name, __ = parse_read_group_spec(spec)
         field = model._fields[fname]
-        if field.type == "properties":
+        if field.is_properties:
             definition = self.get_property_definition(f"{fname}.{property_name}")
             property_type = definition.get("type")
             return property_type in ("tags", "many2many")
@@ -368,7 +368,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     model._read_group_groupby(model._table, sub_spec, query)
                     break
                 field = model._fields[fname]
-                if seq_fnames and field.type != "properties":
+                if seq_fnames and not field.is_properties:
                     if field.type != "many2one":
                         raise ValueError(
                             f"Only many2one path is accepted for the {spec!r} groupby spec"
@@ -443,7 +443,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     f"Invalid field {field_name!r} on model {self._name!r}"
                 )
             field = self._fields[field_name]
-            if property_name and field.type != "properties":
+            if property_name and not field.is_properties:
                 raise ValueError(
                     f"Property name {property_name!r} has to be used on a property field."
                 )

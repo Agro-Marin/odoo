@@ -226,8 +226,10 @@ class LoadMixin(_ModelStubs):
         )
 
     @api.model
-    def _invalid_load_paths(self, field_paths: list[tuple[str | None, ...]]) -> list[dict]:
-        """ Report column mappings that descend through something with no
+    def _invalid_load_paths(
+        self, field_paths: list[tuple[str | None, ...]]
+    ) -> list[dict]:
+        """Report column mappings that descend through something with no
         sub-fields, e.g. ``name/foo`` where ``name`` is a Char.
 
         ``load`` validated this asymmetrically: a bad subpath under a relation
@@ -259,20 +261,22 @@ class LoadMixin(_ModelStubs):
                     # message.
                     break
                 if not field.relational:
-                    messages.append({
-                        "type": "error",
-                        "rows": {"from": 0, "to": 0},
-                        "record": 0,
-                        "field": field_path[0],
-                        "field_path": list(field_path),
-                        "message": _(
-                            "Column %(path)s cannot be imported: %(field)s is not a "
-                            "relation on model %(model)s, so it has no sub-fields.",
-                            path="/".join(field_path),
-                            field="/".join(field_path[: index + 1]),
-                            model=model._name,
-                        ),
-                    })
+                    messages.append(
+                        {
+                            "type": "error",
+                            "rows": {"from": 0, "to": 0},
+                            "record": 0,
+                            "field": field_path[0],
+                            "field_path": list(field_path),
+                            "message": _(
+                                "Column %(path)s cannot be imported: %(field)s is not a "
+                                "relation on model %(model)s, so it has no sub-fields.",
+                                path="/".join(field_path),
+                                field="/".join(field_path[: index + 1]),
+                                model=model._name,
+                            ),
+                        }
+                    )
                     break
                 model = self.env[field.comodel_name]
         return messages
@@ -479,7 +483,7 @@ class LoadMixin(_ModelStubs):
 
     def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
         records = self.create(vals_list)
-        if any(field.type == "properties" for field in self._fields.values()):
+        if any(field.is_properties for field in self._fields.values()):
             records._clean_properties()
         return records
 

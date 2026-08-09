@@ -42,6 +42,7 @@ RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
 
 class Properties(Field):
     type = "properties"
+    is_properties = True
     _column_type = ("jsonb", "jsonb")
     copy = False
     prefetch = False
