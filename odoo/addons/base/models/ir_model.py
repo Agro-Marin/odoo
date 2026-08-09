@@ -37,6 +37,7 @@ class Unknown(models.AbstractModel):
 
 class IrModel(models.Model):
     _name = "ir.model"
+    _is_registry_metadata = True
     _description = "Models"
     _order = "model"
     _rec_names_search = ["name", "model"]

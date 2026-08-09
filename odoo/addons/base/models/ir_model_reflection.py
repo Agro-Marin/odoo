@@ -17,6 +17,7 @@ _logger = logging.getLogger(__name__)
 
 class IrModelConstraint(models.Model):
     _name = "ir.model.constraint"
+    _is_registry_metadata = True
     _description = "Model Constraint"
     _allow_sudo_commands = False
 
@@ -304,6 +305,7 @@ class IrModelConstraint(models.Model):
 
 class IrModelRelation(models.Model):
     _name = "ir.model.relation"
+    _is_registry_metadata = True
     _description = "Relation Model"
     _allow_sudo_commands = False
 

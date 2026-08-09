@@ -1,6 +1,5 @@
 from .base import (
     COMPANY_DEPENDENT_FIELDS,
-    IR_MODELS,
     Field,
     determine,
     resolve_mro,
@@ -22,7 +21,6 @@ from .textual import Char, Html, Text
 
 __all__ = [
     "COMPANY_DEPENDENT_FIELDS",
-    "IR_MODELS",
     "Binary",
     "Boolean",
     "Char",

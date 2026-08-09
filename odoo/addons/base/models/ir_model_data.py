@@ -22,6 +22,7 @@ _logger = logging.getLogger(__name__)
 
 class IrModelData(models.Model):
     _name = "ir.model.data"
+    _is_registry_metadata = True
     _description = "Model Data"
     _order = "module, model, name"
     _allow_sudo_commands = False

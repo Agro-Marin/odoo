@@ -77,16 +77,6 @@ def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
     return rs
 
 
-IR_MODELS: tuple[str, ...] = (
-    "ir.model",
-    "ir.model.data",
-    "ir.model.fields",
-    "ir.model.fields.selection",
-    "ir.model.relation",
-    "ir.model.constraint",
-    "ir.module.module",
-)
-
 COMPANY_DEPENDENT_FIELDS: tuple[str, ...] = (
     "char",
     "float",

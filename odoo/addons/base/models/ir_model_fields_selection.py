@@ -23,6 +23,7 @@ _logger = logging.getLogger(__name__)
 
 class IrModelFieldsSelection(models.Model):
     _name = "ir.model.fields.selection"
+    _is_registry_metadata = True
     _order = "sequence, id"
     _description = "Fields Selection"
     _allow_sudo_commands = False

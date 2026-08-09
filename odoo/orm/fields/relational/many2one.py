@@ -12,7 +12,7 @@ from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 from ..._recordset import is_recordset
 from ...domain import Domain
 from ...primitives import Command, NewId
-from ..base import IR_MODELS, Field
+from ..base import Field
 from ._base import _Relational
 
 if typing.TYPE_CHECKING:
@@ -98,7 +98,7 @@ class Many2one(_Relational):
                 f"The m2o field {self.name} of model {model._name} is required but declares its ondelete policy "
                 "as being 'set null'. Only 'restrict' and 'cascade' make sense."
             )
-        if self.ondelete == "restrict" and self.comodel_name in IR_MODELS:
+        if self.ondelete == "restrict" and model.env[self.comodel_name]._is_registry_metadata:
             raise ValueError(
                 f"Field {self.name} of model {model._name} is defined as ondelete='restrict' "
                 f"while having {self.comodel_name} as comodel, the 'restrict' mode is not "

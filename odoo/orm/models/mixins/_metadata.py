@@ -100,6 +100,23 @@ class _ModelMetadataMixin(_ModelStubs):
 
     .. seealso:: :class:`TransientModel`
     """
+    _is_registry_metadata: bool = False
+    """Whether this model's rows describe the registry itself.
+
+    True for the ``ir.model*`` reflection models and ``ir.module.module``:
+    their rows are deleted and rewritten whenever a module is installed,
+    upgraded or removed, so a ``Many2one(..., ondelete="restrict")`` pointing
+    at one would block the very operation that maintains them.
+    :meth:`Many2one.setup_nonrelated` rejects that combination by asking the
+    comodel this question.
+
+    It was a tuple of seven model names, ``IR_MODELS``, in
+    ``orm/fields/base.py`` until 2026-08-09 -- Layer 1 of the ORM holding a
+    hardcoded list of addon-owned models, invisible to `layer_check` (no
+    import), to `core-does-not-depend-on-addons` (no import) and, because it
+    was a bare tuple rather than a lookup, to `env_model_surface_check` too.
+    The property belongs to the models it describes, so they declare it.
+    """
 
     _name: str = None
     _description: str | None = None

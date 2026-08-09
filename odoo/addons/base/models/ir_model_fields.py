@@ -55,6 +55,7 @@ def _check_translate_value(vals: dict[str, Any]) -> None:
 
 class IrModelFields(models.Model):
     _name = "ir.model.fields"
+    _is_registry_metadata = True
     _description = "Fields"
     _order = "name, id"
     _rec_name = "field_description"

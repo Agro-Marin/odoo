@@ -17,6 +17,7 @@ from . import (
     test_json_field,
     test_json_field_operations,
     test_many2many,
+    test_registry_metadata_ondelete,
     test_many2many_operations,
     test_onchange,
     test_one2many,
