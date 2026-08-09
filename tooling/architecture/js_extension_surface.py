@@ -443,6 +443,35 @@ def measure_detailed(
     return found
 
 
+def overriders(point: str, consumer_roots=CONSUMER_ROOTS, web_src=None) -> list[tuple]:
+    """``[(scope, path, subclass), ...]`` for one ``Owner.method`` point.
+
+    The pin says *how many* scopes reach a point; narrowing one needs *which
+    files*, and grepping the method name does not answer that — a bare
+    ``_reset(`` matches ``signature_pad`` and ``socket_io``, neither of which is
+    a ``SearchModel``. Only the resolved walk knows, and it already ran to build
+    the pin. Without this the single-use entries are a number rather than a
+    worklist, which is most of what the pin is *for*.
+    """
+    owner, _, method = point.rpartition(".")
+    index = Index(consumer_roots, web_src)
+    found = []
+    for path, record in index.files.items():
+        if index.is_web_addon(path):
+            continue
+        for name, info in record["classes"].items():
+            if not info["base"] or method not in info["methods"]:
+                continue
+            for module, cls in index.chain(path, name)[1:]:
+                if not index.in_web(module):
+                    continue
+                if method in index.files[module]["classes"][cls]["methods"]:
+                    if cls == owner:
+                        found.append((index.scope_of[path], path, name))
+                    break
+    return sorted(found, key=lambda row: (row[0], str(row[1])))
+
+
 def provenance(detailed) -> dict[str, frozenset[str]]:
     return {point: frozenset(scopes) for point, scopes in detailed.items()}
 
@@ -581,11 +610,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="exit 1 on drift")
     parser.add_argument("--update", action="store_true", help="rewrite the pin")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--explain",
+        metavar="Owner.method",
+        help="list the files overriding one point — the narrowing worklist",
+    )
     doc_measured.main_flags(parser)
     args = parser.parse_args(argv)
 
     if not (WEB / "static" / "src").is_dir():
         parser.error(f"no web addon at {WEB}")
+
+    if args.explain:
+        rows = overriders(args.explain)
+        if not rows:
+            print(f"no subclass overrides {args.explain}")
+            return 1
+        print(f"{args.explain} — {len(rows)} overrider(s)")
+        for scope, path, subclass in rows:
+            try:
+                shown = path.relative_to(ROOT.parent)
+            except ValueError:
+                shown = path
+            print(f"  [{scope}] {subclass}  {shown}")
+        return 0
 
     present = [name for name, _ in _named_roots(CONSUMER_ROOTS)]
     absent = [name for name, _ in CONSUMER_ROOTS if name not in present]

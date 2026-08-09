@@ -374,6 +374,50 @@ def test_a_pin_naming_a_vanished_method_is_reported(tree):
     assert jes.unresolved(["Nonexistent.save"], web_src=web_src) == ["Nonexistent.save"]
 
 
+# --- --explain: the pin is a worklist, not just a count ---
+
+
+def test_explain_names_the_overriding_files(tree):
+    root, web_src = tree
+    _write(
+        web_src, "views/form.js", "export class FormController {\n    save() {}\n}\n"
+    )
+    _write(
+        root,
+        "addons/sale/static/src/x.js",
+        'import { FormController } from "@web/views/form";\n'
+        "export class SaleForm extends FormController {\n    save() {}\n}\n",
+    )
+    rows = jes.overriders("FormController.save", (root,), web_src=web_src)
+    assert [(scope, subclass) for scope, _path, subclass in rows] == [
+        (root.name, "SaleForm")
+    ]
+
+
+def test_explain_does_not_confuse_a_same_named_method_on_another_base(tree):
+    """The reason this exists rather than a grep.
+
+    ``_reset`` is declared by ``signature_pad`` and ``socket_io`` as well as by
+    ``SearchModel``; a textual search answers the wrong question. Only the
+    resolved chain can say which ``_reset`` a subclass overrides.
+    """
+    root, web_src = tree
+    _write(web_src, "search.js", "export class SearchModel {\n    _reset() {}\n}\n")
+    _write(
+        root,
+        "addons/a/static/src/unrelated.js",
+        "export class SignaturePad {\n    _reset() {}\n}\n",
+    )
+    _write(
+        root,
+        "addons/b/static/src/real.js",
+        'import { SearchModel } from "@web/search";\n'
+        "export class RealSearch extends SearchModel {\n    _reset() {}\n}\n",
+    )
+    rows = jes.overriders("SearchModel._reset", (root,), web_src=web_src)
+    assert [subclass for _s, _p, subclass in rows] == ["RealSearch"]
+
+
 # --- the real tree: a measurement gate must find its inputs ---
 
 
