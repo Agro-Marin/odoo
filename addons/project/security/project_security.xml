@@ -316,7 +316,7 @@
          model's rules as the calling user. But the whole protection then rests
          on one _search override, which is exactly the argument for the burndown
          carrying its own rules. Mirror them. -->
-    <record model="ir.rule" id="cfd_report_project_user_rule">
+    <record id="cfd_report_project_user_rule" model="ir.rule">
         <field name="name">Cumulative Flow Diagram: project visibility User</field>
         <field name="model_id" ref="model_project_cfd_report"/>
         <field name="domain_force">[
@@ -329,7 +329,7 @@
         <field name="groups" eval="[(4,ref('project.group_project_user'))]"/>
     </record>
 
-    <record model="ir.rule" id="cfd_report_project_manager_rule">
+    <record id="cfd_report_project_manager_rule" model="ir.rule">
         <field name="name">Cumulative Flow Diagram: project visibility Manager</field>
         <field name="model_id" ref="model_project_cfd_report"/>
         <field name="domain_force">[(1, '=', 1)]</field>

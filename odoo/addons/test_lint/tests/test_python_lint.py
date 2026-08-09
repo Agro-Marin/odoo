@@ -104,7 +104,14 @@ FLOORS = {
     #     reports these two as one).
     # Attribution: 427 on a pristine HEAD worktree and 425 with only addons/mrp
     # replaced.
-    "n-plus-one-query": 425,
+    #
+    # 425 -> 422: three more mrp loops batched without the floor following them.
+    # mrp_production.py and product.py in b18fbcd65f7 ("batch five per-record
+    # query loops"), stock_picking.py in 4a60dfa1f2d. Measured per file against
+    # the revision that set 425: -1 each, and nothing else in the corpus moved.
+    # The gate is exact-mode, so those three commits left 19.0-marin red; this
+    # is the correction, made from the change that tripped over it.
+    "n-plus-one-query": 422,
 }
 
 

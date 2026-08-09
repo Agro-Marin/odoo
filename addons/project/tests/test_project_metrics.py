@@ -4,6 +4,7 @@ fields it aggregates, which had no coverage at all."""
 from datetime import datetime, timedelta
 
 from odoo import Command, fields
+from odoo.fields import Domain
 from odoo.tests import tagged
 
 from .test_project_base import TestProjectCommon
@@ -38,15 +39,22 @@ class TestProjectMetricsAreQueryable(TestProjectCommon):
         self.assertEqual(len(groups), 1)
 
     def test_flow_metrics_are_searchable(self) -> None:
+        # One domain rather than one search per field: every leaf still has to
+        # convert to SQL for the query to run at all, so the assertion is the
+        # same and the loop-with-a-query inside it is not (test_lint counts
+        # those, and it is right to).
         Project = self.env["project.project"]
-        for fname in (
-            "wip_count",
-            "avg_lead_time",
-            "avg_cycle_time",
-            "throughput_week",
-            "deadline_compliance_pct",
-        ):
-            self.assertIsInstance(Project.search_count([(fname, ">=", 0)]), int, fname)
+        domain = Domain.OR(
+            Domain(fname, ">=", 0)
+            for fname in (
+                "wip_count",
+                "avg_lead_time",
+                "avg_cycle_time",
+                "throughput_week",
+                "deadline_compliance_pct",
+            )
+        )
+        self.assertIsInstance(Project.search_count(domain), int)
 
     def test_the_snapshot_is_dated_not_reactive(self) -> None:
         """No ``@api.depends`` on purpose: aggregating reactively would re-run a
