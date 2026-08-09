@@ -119,8 +119,10 @@ class ProjectCFDReport(models.AbstractModel):
         )
         date_groupby = next(g for g in groupby if g.startswith("date"))
 
-        # A bare "date" groupby (no granularity) defaults to month, as elsewhere
-        # in Odoo — without this, date_groupby.split(":")[1] raises IndexError.
+        # Defensive default. A bare "date" groupby never reaches here — the ORM
+        # rejects it upstream ("Granularity not set on a date(time) field") — but
+        # _search also reads this groupby out of the context, where a caller can
+        # put anything, and split(":")[1] on a bare "date" would raise IndexError.
         interval = date_groupby.split(":")[1] if ":" in date_groupby else "month"
         sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
 

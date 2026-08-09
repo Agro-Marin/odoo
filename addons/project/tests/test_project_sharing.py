@@ -373,6 +373,13 @@ class TestProjectSharing(TestProjectSharingCommon):
                 else:
                     index += 1
 
+        # Saving the dialog no longer changes the project: sharing does.
+        self.assertTrue(
+            self.project_portal.collaborator_ids,
+            "the collaborators must survive a dialog that was never shared",
+        )
+        project_share_form.record.action_send_mail()
+
         self.assertFalse(self.project_portal.collaborator_ids)
         self.assertIn(
             self.partner_2,
@@ -423,6 +430,14 @@ class TestProjectSharing(TestProjectSharingCommon):
                         collaborator_form.access_mode = access_updated_per_partner_id[
                             collaborator_form.partner_id.id
                         ]
+
+        # Saving the dialog no longer changes the project: sharing does.
+        self.assertEqual(
+            len(self.project_portal.collaborator_ids),
+            2,
+            "the access change must not land until the dialog is shared",
+        )
+        project_share_form.record.action_send_mail()
 
         self.assertEqual(
             len(self.project_portal.collaborator_ids),
@@ -893,7 +908,7 @@ class TestProjectSharing(TestProjectSharingCommon):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
         self.assertTrue(self.project_cows.collaborator_ids.limited_access)
 
         # Removing the collaborator from the followers prevents him to edit the task
@@ -929,7 +944,7 @@ class TestProjectSharing(TestProjectSharingCommon):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
         # Sanity check: Assert the project sharing record rule is still active
         self.assertTrue(
             self.env.ref("project.project_task_rule_portal_project_sharing").active
@@ -1278,7 +1293,7 @@ class TestProjectSharing(TestProjectSharingCommon):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
         task = project.task_ids[0]
         self.env.invalidate_all()
         task.with_user(portal_user).write({"state": "done"})

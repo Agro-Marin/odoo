@@ -12,6 +12,8 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
+from odoo.addons.project.models.project_task import DELIVERED_STATES
+
 
 class ProjectForecastWizard(models.TransientModel):
     """Run Monte Carlo simulation to forecast project completion dates."""
@@ -188,7 +190,7 @@ class ProjectForecastWizard(models.TransientModel):
                            COUNT(*) AS closed_count
                       FROM project_task
                      WHERE project_id = %(project_id)s
-                       AND state = 'done'
+                       AND state IN %(delivered_states)s
                        AND date_closed >= %(since)s
                        AND is_template IS NOT TRUE
                      GROUP BY DATE_TRUNC('week', date_closed)
@@ -216,6 +218,7 @@ class ProjectForecastWizard(models.TransientModel):
              ORDER BY w.week_start
             """,
                 project_id=self.project_id.id,
+                delivered_states=DELIVERED_STATES,
                 since=since,
                 now=self.env.cr.now(),
                 project_start=self.project_id.create_date or since,

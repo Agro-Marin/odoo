@@ -1,8 +1,7 @@
 import operator
-from typing import Any, Self
+from typing import Any
 
 from odoo import Command, _, api, fields, models
-from odoo.api import ValuesType
 
 
 class ProjectShareWizard(models.TransientModel):
@@ -98,22 +97,20 @@ class ProjectShareWizard(models.TransientModel):
         for wizard in self:
             wizard.existing_partner_ids = wizard.collaborator_ids.partner_id
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        wizards = super().create(vals_list)
-        wizards._apply_collaborators()
-        return wizards
-
     def _apply_collaborators(self) -> None:
         """Push each wizard's collaborator list onto its project.
 
-        KNOWN ISSUE (not fixed here): this runs from ``create()``, i.e. when
-        the dialog is saved, so the access change is already committed by the
-        time ``action_share_record`` offers its "create portal users?"
-        confirmation — cancelling that dialog leaves the collaborators added
-        and removed anyway. Moving the call to the buttons is the fix, but the
-        project-sharing access tests drive the wizard through ``Form(...)``
-        save alone, so it needs those flows reworked with it.
+        Called from ``action_send_mail`` — the single funnel both share paths
+        end in — and NOT from ``create``. It used to run on ``create``, i.e.
+        the moment the dialog was saved, which meant the access change was
+        already committed by the time ``action_share_record`` asked "grant
+        portal access?": discarding that confirmation left the collaborators
+        added and the removed ones removed. A transient's ``create`` is the
+        wrong place for a side effect on another record in any case — the
+        record exists to collect input, and nothing has been confirmed yet.
+
+        Idempotent, because it writes the diff between the wizard's list and
+        the project's: running it twice changes nothing the second time.
         """
         for wizard in self:
             collaborator_ids_to_add = []
@@ -200,8 +197,9 @@ class ProjectShareWizard(models.TransientModel):
     def action_share_record(self) -> dict[str, Any] | None:
         # Confirmation dialog is only opened if new portal user(s) need to be created in a 'on invitation' website
         self.ensure_one()
-        if not self.collaborator_ids:
-            return None
+        # An emptied list is not "nothing to do": it is a request to remove
+        # every collaborator, and it reaches the project through the same
+        # funnel as an addition. Returning early here would silently drop it.
         on_invite = self.env["res.users"]._get_signup_invitation_scope() == "b2b"
         new_portal_user = (
             self.collaborator_ids.filtered(
@@ -228,6 +226,12 @@ class ProjectShareWizard(models.TransientModel):
         }
 
     def action_send_mail(self) -> dict[str, Any]:
+        # Apply first: this is the confirmed action, and it is where the
+        # project's collaborator list is actually changed (see
+        # _apply_collaborators). Both share paths end here — the direct one via
+        # action_share_record, the "Grant Portal Access" button of the
+        # confirmation dialog directly.
+        self._apply_collaborators()
         result = {
             "type": "ir.actions.client",
             "tag": "display_notification",

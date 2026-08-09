@@ -31,7 +31,7 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
 
         Task = cls.env["project.task"]
         readable_fields, writeable_fields = Task._portal_accessible_fields()
