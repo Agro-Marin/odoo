@@ -255,7 +255,7 @@ P4–P6 depend on P1 having produced the worklist.
 
 **P1 is implemented** (`a131d2e1c6e`, extended by `cc67e4cc4b2` and
 `9714f34c846`) — `js_extension_surface.py` + `extension_surface_web.txt`, wired
-into all six inventory points and green. Now **493 points over 1,978 sites, 273
+into all six inventory points and green. Now **496 points over 1,984 sites, 275
 single-use, 129 owner classes**, covering both `extends` and `patch()`.
 
 **P5 step 1 is implemented** (`8b4f47004de`) — the `tsconfig.json` alias map
@@ -412,7 +412,8 @@ identical to one that has not run yet.
 
 Both mechanisms now land on one `(owner, method)` key — the pin answers "is this
 member depended on from outside", not "by which syntax". That moved the
-measurement 448 → 493 points, 112 → 129 owners. **53 points were reachable only
+measurement 448 → 493 points, 112 → 129 owners (496 after a further fix
+below). **53 points were reachable only
 through `patch`**, including `FormController.onWillLoadRoot` (mail),
 `NavBar.systrayItems` (website), `WebClient.setup` and `SearchModel.facets`.
 
@@ -424,6 +425,13 @@ Members are read at brace depth 1 of the patch literal rather than by
 indentation — an object literal returned from a patched method has the same
 shape as the patch body, so an indentation scan would invent members out of
 whatever the method returns.
+
+**Aliased imports were silently invisible** (`a3f…`, see git log). `import { A as
+B }` binds `B` locally while the target module exports `A`; following the import
+looked `B` up in the target and resolved nothing — the consumer just vanished
+from the surface rather than erroring. Four points hid behind one file
+(`enterprise/sign` patches `FileViewer` as `WebFileViewer`). 53 aliased `@web`
+imports exist across the consumer repos, so this was a standing hole. 493 → 496.
 
 **A worklist, not just a count** (`cc67e4cc4b2`): `--explain Owner.method` lists
 the files reaching a point. Grep cannot answer that — a bare `_reset(` matches
