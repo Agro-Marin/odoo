@@ -10,6 +10,7 @@ Authored red-green: every test below failed against the pre-fix code.
 """
 
 import logging
+from unittest.mock import patch
 
 from odoo.exceptions import AccessError
 from odoo.fields import Command
@@ -145,6 +146,100 @@ class TestPosAccessRights(CommonPosTest):
         )
         with self.assertRaises(AccessError):
             template.with_user(self.cashier).set_pos_favorite(True)
+
+    # ------------------------------------------------------------------
+    # Invoicing is a cashier operation, and the records it settles against
+    # are system plumbing the cashier can neither see nor touch: payment
+    # moves carry no `pos_order_ids`, so `rule_invoice_pos_user` hides them.
+    # ------------------------------------------------------------------
+    def _paid_order_payload(self, uuid):
+        product = self.env["product.product"].search(
+            [("available_in_pos", "=", True)], limit=1
+        )
+        payment_method = self.pos_config_usd.payment_method_ids.filtered(
+            lambda pm: not pm.split_transactions
+        )[:1]
+        return {
+            "uuid": uuid,
+            "session_id": self.pos_config_usd.current_session_id.id,
+            "company_id": self.company.id,
+            "partner_id": self.partner_a.id,
+            "state": "paid",
+            "to_invoice": True,
+            "amount_tax": 0,
+            "amount_total": 100,
+            "amount_paid": 100,
+            "amount_return": 0,
+            "lines": [
+                Command.create(
+                    {
+                        "product_id": product.id,
+                        "qty": 1,
+                        "price_unit": 100,
+                        "price_subtotal": 100,
+                        "price_subtotal_incl": 100,
+                        "uuid": f"{uuid}-line",
+                    }
+                )
+            ],
+            "payment_ids": [
+                Command.create(
+                    {
+                        "amount": 100,
+                        "payment_method_id": payment_method.id,
+                        "uuid": f"{uuid}-pay",
+                    }
+                )
+            ],
+        }
+
+    def test_cashier_can_invoice_an_order(self):
+        """`_generate_pos_order_invoice` collected the payment moves into
+        `self.env["account.move"]` -- the *user's* environment -- so the
+        `sudo()` under which `_create_payment_moves` built them was dropped by
+        the union, and `_reconcile_invoice_payments` then read `pos_payment_ids`
+        off them as the cashier. Payment moves carry no `pos_order_ids`, so
+        `rule_invoice_pos_user` hides them and the read raises.
+
+        The cache is invalidated at the moment of the reconcile because that is
+        what decides whether the defect shows: with the moves still in cache
+        from their own creation the read needs no query and no rule is
+        consulted, which is why this only ever failed over HTTP.
+        """
+        self.pos_config_usd.open_ui()
+        PosOrder = type(self.env["pos.order"])
+        original = PosOrder._reconcile_invoice_payments
+
+        def cold_cache(inner_self, invoice, payment_moves):
+            inner_self.env.invalidate_all()
+            return original(inner_self, invoice, payment_moves)
+
+        with patch.object(PosOrder, "_reconcile_invoice_payments", cold_cache):
+            self.env["pos.order"].with_user(self.cashier).sync_from_ui(
+                [self._paid_order_payload("cashier-invoice-0001")]
+            )
+        order = self.env["pos.order"].search([("uuid", "=", "cashier-invoice-0001")])
+        self.assertTrue(order.account_move, "the cashier's order was not invoiced")
+        self.assertEqual(order.state, "done")
+
+    def test_cashier_invoice_still_reconciles(self):
+        """Control: elevating the read must not skip the work it guards."""
+        self.pos_config_usd.open_ui()
+        self.env["pos.order"].with_user(self.cashier).sync_from_ui(
+            [self._paid_order_payload("cashier-invoice-0002")]
+        )
+        order = self.env["pos.order"].search([("uuid", "=", "cashier-invoice-0002")])
+        receivable = (
+            self.env["res.partner"]
+            ._find_accounting_partner(order.account_move.partner_id)
+            .with_company(order.company_id)
+            .property_account_receivable_id
+        )
+        invoice_lines = order.account_move.line_ids.filtered(
+            lambda line: line.account_id == receivable
+        )
+        self.assertTrue(invoice_lines)
+        self.assertTrue(all(invoice_lines.mapped("reconciled")))
 
     def test_favourite_toggle_refuses_a_non_pos_user(self):
         outsider = new_test_user(

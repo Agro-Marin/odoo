@@ -53,6 +53,316 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
         return domain
 
+    def _get_report_currency(self, config_ids, session_ids):
+        """The currency the report is expressed in.
+
+        Only a selection where every point of sale agrees on one currency can
+        be stated in it; otherwise the amounts are comparable only in the
+        company's own. (`mapped` already de-duplicates, so "they all agree" is
+        just "there is one".)
+        """
+        if config_ids:
+            currencies = (
+                self.env["pos.config"]
+                .search([("id", "in", config_ids)])
+                .mapped("currency_id")
+            )
+        else:
+            currencies = (
+                self.env["pos.session"]
+                .search([("id", "in", session_ids)])
+                .mapped("config_id.currency_id")
+            )
+        return currencies if len(currencies) == 1 else self.env.company.currency_id
+
+    def _accumulate_products_and_taxes(self, orders, user_currency):
+        """Fold the orders into the report's running totals.
+
+        :returns: (total, products_sold, taxes, refund_done, refund_taxes)
+        """
+        total = 0.0
+        products_sold = {}
+        taxes = {"base_amount": 0.0, "taxes": {}}
+        refund_done = {}
+        refund_taxes = {"base_amount": 0.0, "taxes": {}}
+        for order in orders:
+            if user_currency != order.pricelist_id.currency_id:
+                total += order.pricelist_id.currency_id._convert(
+                    order.amount_total,
+                    user_currency,
+                    order.company_id,
+                    order.date_order or fields.Date.today(),
+                )
+            else:
+                total += order.amount_total
+            currency = order.session_id.currency_id
+
+            for line in order.lines:
+                if line.order_id.is_refund:
+                    refund_done, refund_taxes = self._get_products_and_taxes_dict(
+                        line, refund_done, refund_taxes, currency
+                    )
+                else:
+                    products_sold, taxes = self._get_products_and_taxes_dict(
+                        line, products_sold, taxes, currency
+                    )
+        return total, products_sold, taxes, refund_done, refund_taxes
+
+    def _serialize_products_by_category(self, products_by_category):
+        """One of the report's `{category: {key: totals}}` maps, as the sorted
+        list of category dictionaries the template renders.
+
+        Called for the sold map and for the refunded one; the two used to carry
+        the same thirty lines twice.
+        """
+        categories = [
+            {
+                "name": category_name,
+                "products": sorted(
+                    [
+                        {
+                            "product_id": product.id,
+                            "product_name": product.display_name,
+                            "barcode": product.barcode,
+                            "quantity": qty,
+                            "price_unit": price_unit,
+                            "discount": discount,
+                            "uom": product.uom_id.name,
+                            "total_paid": product_total,
+                            "base_amount": base_amount,
+                            "combo_products_label": combo_products_label,
+                        }
+                        for (product, price_unit, discount), (
+                            qty,
+                            product_total,
+                            base_amount,
+                            combo_products_label,
+                        ) in product_list.items()
+                    ],
+                    key=lambda line: line["product_name"],
+                ),
+            }
+            for category_name, product_list in products_by_category.items()
+        ]
+        return sorted(categories, key=lambda category: str(category["name"]))
+
+    def _get_report_scope(self, config_ids, session_ids, date_start, date_stop):
+        """The points of sale and the sessions the payment breakdown covers.
+
+        :returns: (configs, sessions). `configs` is a list, as the caller and
+            the template have always treated it.
+        """
+        if not config_ids:
+            sessions = self.env["pos.session"].search([("id", "in", session_ids)])
+            return [session.config_id for session in sessions], sessions
+
+        configs = self.env["pos.config"].search([("id", "in", config_ids)])
+        if session_ids:
+            return configs, self.env["pos.session"].search(
+                [("id", "in", session_ids)]
+            )
+        # Overlap, not containment: orders are selected by `date_order` falling
+        # in the window, so a session merely straddling it (opened before
+        # `date_start`, or still open and hence `stop_at` NULL) also contributes
+        # orders and must appear in the payment breakdown.
+        return configs, self.env["pos.session"].search(
+            [
+                ("config_id", "in", configs.ids),
+                ("start_at", "<=", date_stop),
+                "|",
+                ("stop_at", "=", False),
+                ("stop_at", ">=", date_start),
+            ]
+        )
+
+    def _prepare_uncounted_cash_row(self, session, statement_lines_by_session):
+        """The cash row for a session that took no cash *payment*.
+
+        Its register still exists: the previous session's counted close is this
+        one's opening float, and cash in/out happened against it. Without this
+        row the report would show a session whose drawer moved and say nothing
+        about it.
+        """
+        previous_session = self.env["pos.session"].search(
+            [
+                ("id", "<", session.id),
+                ("state", "=", "closed"),
+                ("config_id", "=", session.config_id.id),
+            ],
+            limit=1,
+        )
+        final_count = (
+            previous_session.cash_register_balance_end_real
+            + session.cash_real_transaction
+        )
+        # `date` is day-granular, so same-day lines tie; `sorted` is stable
+        # and would then preserve the recordset order, which is
+        # `internal_index desc` (newest first). Break the tie on `id` to
+        # actually get chronological order.
+        cash_moves = statement_lines_by_session.get(
+            session.id, self.env["account.bank.statement.line"]
+        ).sorted(lambda line: (line.date, line.id))
+
+        # The closing cash difference is posted as an ordinary statement line
+        # (`_post_statement_difference`), and it must not be listed among the
+        # genuine cash movements. Identify it by its counterpart being the cash
+        # journal's loss/profit account -- not by position, which dropped
+        # whichever line happened to sort last.
+        diff_accounts = (
+            session.cash_journal_id.loss_account_id
+            | session.cash_journal_id.profit_account_id
+        )
+        if diff_accounts:
+            cash_moves = cash_moves.filtered(
+                lambda line, accounts=diff_accounts: (
+                    not (line.move_id.line_ids.account_id & accounts)
+                )
+            )
+
+        cash_in_out_list = []
+        if previous_session.cash_register_balance_end_real > 0:
+            cash_in_out_list.append(
+                {
+                    "name": _("Cash Opening"),
+                    "amount": previous_session.cash_register_balance_end_real,
+                }
+            )
+        cash_in_out_list += [
+            {"name": cash_move.payment_ref, "amount": cash_move.amount}
+            for cash_move in cash_moves
+        ]
+
+        return {
+            "name": _("Cash %(session_name)s", session_name=session.name),
+            "total": 0,
+            "final_count": final_count,
+            "money_counted": session.cash_register_balance_end_real,
+            "money_difference": session.cash_register_balance_end_real - final_count,
+            "cash_moves": cash_in_out_list,
+            "count": True,
+            "session": session.id,
+        }
+
+    def _count_cash_payment(self, payment, session, statement_lines_by_session):
+        """Fill in the cash payment row's counted figures, in place.
+
+        The drawer is counted against what should be in it: the takings, plus
+        the opening float, plus every cash in/out booked during the session.
+        """
+        payment["final_count"] = (
+            payment["total"]
+            + session.cash_register_balance_start
+            + session.cash_real_transaction
+        )
+        payment["money_counted"] = session.cash_register_balance_end_real or 0
+        payment["money_difference"] = (
+            payment["money_counted"] - payment["final_count"]
+        )
+
+        cash_in_out_list = []
+        if session.cash_register_balance_start > 0:
+            cash_in_out_list.append(
+                {
+                    "name": _("Cash Opening"),
+                    "amount": session.cash_register_balance_start,
+                }
+            )
+        # The in/out counters advance over every movement of the session, not
+        # only the ones this journal keeps, so the fallback names stay stable
+        # whichever journal is being reported on.
+        cash_in_count = cash_out_count = 0
+        cash_moves = statement_lines_by_session.get(
+            session.id, self.env["account.bank.statement.line"]
+        )
+        for cash_move in cash_moves:
+            if cash_move.amount > 0:
+                cash_in_count += 1
+                name = f"Cash in {cash_in_count}"
+            else:
+                cash_out_count += 1
+                name = f"Cash out {cash_out_count}"
+            if cash_move.move_id.journal_id.id == payment["journal_id"]:
+                cash_in_out_list.append(
+                    {
+                        "name": cash_move.payment_ref or name,
+                        "amount": cash_move.amount,
+                    }
+                )
+        payment["cash_moves"] = cash_in_out_list
+        payment["count"] = True
+
+    def _count_non_cash_payment(self, payment, diff_move, account_payments):
+        """Fill in one non-cash payment row's counted figures, in place.
+
+        Two ways a difference can have been recorded, and the row is only
+        marked counted if one of them applies: a closing-difference
+        `account.move` posted for this method, or an `account.payment` the
+        method's own journal settled it with.
+        """
+        if diff_move:
+            journal = (
+                self.env["pos.payment.method"].browse(payment["id"]).journal_id
+            )
+            # Kept as `any(... == ...)` rather than a recordset membership test:
+            # an unset loss/profit account is an empty recordset, and `in`
+            # against one does not mean "never matches".
+            is_loss = any(
+                line.account_id == journal.loss_account_id
+                for line in diff_move.line_ids
+            )
+            is_profit = any(
+                line.account_id == journal.profit_account_id
+                for line in diff_move.line_ids
+            )
+            payment["final_count"] = payment["total"]
+            payment["money_difference"] = (
+                -diff_move.amount_total if is_loss else diff_move.amount_total
+            )
+            payment["money_counted"] = (
+                payment["final_count"] + payment["money_difference"]
+            )
+            payment["cash_moves"] = (
+                self._prepare_counting_difference_moves(
+                    payment["money_difference"], is_loss
+                )
+                if (is_profit or is_loss)
+                else []
+            )
+            payment["count"] = True
+            return
+
+        settled_by = account_payments.filtered(
+            lambda p, method_id=payment["id"]: (
+                p.pos_payment_method_id.id == method_id
+            )
+        )
+        if not settled_by:
+            return
+        payment["final_count"] = payment["total"]
+        payment["money_counted"] = sum(settled_by.mapped("amount_signed"))
+        payment["money_difference"] = (
+            payment["money_counted"] - payment["final_count"]
+        )
+        payment["cash_moves"] = self._prepare_counting_difference_moves(
+            payment["money_difference"], payment["money_difference"] < 0
+        )
+        payment["count"] = True
+
+    def _prepare_counting_difference_moves(self, difference, is_loss):
+        """The single-entry `cash_moves` list describing a counting difference.
+
+        Four copies of this used to sit inside the session loop, differing only
+        in how they had already decided profit from loss.
+        """
+        if not is_loss and difference == 0:
+            return []
+        move_name = (
+            "Difference observed during the counting (Loss)"
+            if is_loss
+            else "Difference observed during the counting (Profit)"
+        )
+        return [{"name": move_name, "amount": difference}]
+
     @api.model
     def get_sale_details(
         self,
@@ -79,58 +389,10 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
         orders = self.env["pos.order"].search(domain)
 
-        if config_ids:
-            config_currencies = (
-                self.env["pos.config"]
-                .search([("id", "in", config_ids)])
-                .mapped("currency_id")
-            )
-        else:
-            config_currencies = (
-                self.env["pos.session"]
-                .search([("id", "in", session_ids)])
-                .mapped("config_id.currency_id")
-            )
-        # If all the pos.config have the same currency, we can use it, else we use the company currency
-        if config_currencies and all(
-            i == config_currencies.ids[0] for i in config_currencies.ids
-        ):
-            user_currency = config_currencies[0]
-        else:
-            user_currency = self.env.company.currency_id
-
-        total = 0.0
-        products_sold = {}
-        taxes = {
-            "base_amount": 0.0,
-            "taxes": {},
-        }
-        refund_done = {}
-        refund_taxes = {
-            "base_amount": 0.0,
-            "taxes": {},
-        }
-        for order in orders:
-            if user_currency != order.pricelist_id.currency_id:
-                total += order.pricelist_id.currency_id._convert(
-                    order.amount_total,
-                    user_currency,
-                    order.company_id,
-                    order.date_order or fields.Date.today(),
-                )
-            else:
-                total += order.amount_total
-            currency = order.session_id.currency_id
-
-            for line in order.lines:
-                if not line.order_id.is_refund:
-                    products_sold, taxes = self._get_products_and_taxes_dict(
-                        line, products_sold, taxes, currency
-                    )
-                else:
-                    refund_done, refund_taxes = self._get_products_and_taxes_dict(
-                        line, refund_done, refund_taxes, currency
-                    )
+        user_currency = self._get_report_currency(config_ids, session_ids)
+        total, products_sold, taxes, refund_done, refund_taxes = (
+            self._accumulate_products_and_taxes(orders, user_currency)
+        )
 
         taxes_info = self._get_taxes_info(taxes)
         refund_taxes_info = self._get_taxes_info(refund_taxes)
@@ -162,30 +424,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         else:
             payments = []
 
-        configs = []
-        sessions = []
-        if config_ids:
-            configs = self.env["pos.config"].search([("id", "in", config_ids)])
-            if session_ids:
-                sessions = self.env["pos.session"].search([("id", "in", session_ids)])
-            else:
-                # Overlap, not containment: orders are selected by `date_order`
-                # falling in the window, so a session merely straddling it (opened
-                # before `date_start`, or still open and hence `stop_at` NULL) also
-                # contributes orders and must appear in the payment breakdown.
-                sessions = self.env["pos.session"].search(
-                    [
-                        ("config_id", "in", configs.ids),
-                        ("start_at", "<=", date_stop),
-                        "|",
-                        ("stop_at", "=", False),
-                        ("stop_at", ">=", date_start),
-                    ]
-                )
-        else:
-            sessions = self.env["pos.session"].search([("id", "in", session_ids)])
-            for session in sessions:
-                configs.append(session.config_id)
+        configs, sessions = self._get_report_scope(
+            config_ids, session_ids, date_start, date_stop
+        )
 
         for payment in payments:
             payment["count"] = False
@@ -232,9 +473,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
 
         for session in sessions:
-            cash_counted = 0
-            if session.cash_register_balance_end_real:
-                cash_counted = session.cash_register_balance_end_real
             is_cash_method = False
             account_payments = account_payments_by_session.get(
                 session.id, self.env["account.payment"]
@@ -242,258 +480,28 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             for payment in payments:
                 if payment["session"] == session.id:
                     if not payment["cash"]:
-                        ref_value = diff_ref_by_key.get((session.id, payment["id"]))
-                        account_move = diff_move_by_ref.get(
-                            ref_value, self.env["account.move"]
+                        self._count_non_cash_payment(
+                            payment,
+                            diff_move_by_ref.get(
+                                diff_ref_by_key.get((session.id, payment["id"])),
+                                self.env["account.move"],
+                            ),
+                            account_payments,
                         )
-                        if account_move:
-                            payment_method = self.env["pos.payment.method"].browse(
-                                payment["id"]
-                            )
-                            is_loss = any(
-                                l.account_id
-                                == payment_method.journal_id.loss_account_id
-                                for l in account_move.line_ids
-                            )
-                            is_profit = any(
-                                l.account_id
-                                == payment_method.journal_id.profit_account_id
-                                for l in account_move.line_ids
-                            )
-                            payment["final_count"] = payment["total"]
-                            payment["money_difference"] = (
-                                -account_move.amount_total
-                                if is_loss
-                                else account_move.amount_total
-                            )
-                            payment["money_counted"] = (
-                                payment["final_count"] + payment["money_difference"]
-                            )
-                            payment["cash_moves"] = []
-                            if is_profit:
-                                move_name = (
-                                    "Difference observed during the counting (Profit)"
-                                )
-                                payment["cash_moves"] = [
-                                    {
-                                        "name": move_name,
-                                        "amount": payment["money_difference"],
-                                    }
-                                ]
-                            elif is_loss:
-                                move_name = (
-                                    "Difference observed during the counting (Loss)"
-                                )
-                                payment["cash_moves"] = [
-                                    {
-                                        "name": move_name,
-                                        "amount": payment["money_difference"],
-                                    }
-                                ]
-                            payment["count"] = True
-                        elif payment["id"] in account_payments.mapped(
-                            "pos_payment_method_id.id"
-                        ):
-                            account_payment = account_payments.filtered(
-                                lambda p, method_id=payment["id"]: (
-                                    p.pos_payment_method_id.id == method_id
-                                )
-                            )
-                            payment["final_count"] = payment["total"]
-                            payment["money_counted"] = sum(
-                                account_payment.mapped("amount_signed")
-                            )
-                            payment["money_difference"] = (
-                                payment["money_counted"] - payment["final_count"]
-                            )
-                            payment["cash_moves"] = []
-                            if payment["money_difference"] > 0:
-                                move_name = (
-                                    "Difference observed during the counting (Profit)"
-                                )
-                                payment["cash_moves"] = [
-                                    {
-                                        "name": move_name,
-                                        "amount": payment["money_difference"],
-                                    }
-                                ]
-                            elif payment["money_difference"] < 0:
-                                move_name = (
-                                    "Difference observed during the counting (Loss)"
-                                )
-                                payment["cash_moves"] = [
-                                    {
-                                        "name": move_name,
-                                        "amount": payment["money_difference"],
-                                    }
-                                ]
-                            payment["count"] = True
                     else:
                         is_cash_method = True
-                        payment["final_count"] = (
-                            payment["total"]
-                            + session.cash_register_balance_start
-                            + session.cash_real_transaction
+                        self._count_cash_payment(
+                            payment, session, statement_lines_by_session
                         )
-                        payment["money_counted"] = cash_counted
-                        payment["money_difference"] = (
-                            payment["money_counted"] - payment["final_count"]
-                        )
-                        cash_moves = statement_lines_by_session.get(
-                            session.id, self.env["account.bank.statement.line"]
-                        )
-                        cash_in_out_list = []
-                        cash_in_count = 0
-                        cash_out_count = 0
-                        if session.cash_register_balance_start > 0:
-                            cash_in_out_list.append(
-                                {
-                                    "name": _("Cash Opening"),
-                                    "amount": session.cash_register_balance_start,
-                                }
-                            )
-                        for cash_move in cash_moves:
-                            if cash_move.amount > 0:
-                                cash_in_count += 1
-                                name = f"Cash in {cash_in_count}"
-                            else:
-                                cash_out_count += 1
-                                name = f"Cash out {cash_out_count}"
-                            if cash_move.move_id.journal_id.id == payment["journal_id"]:
-                                cash_in_out_list.append(
-                                    {
-                                        "name": cash_move.payment_ref or name,
-                                        "amount": cash_move.amount,
-                                    }
-                                )
-                        payment["cash_moves"] = cash_in_out_list
-                        payment["count"] = True
             if not is_cash_method:
-                cash_name = _("Cash %(session_name)s", session_name=session.name)
-                previous_session = self.env["pos.session"].search(
-                    [
-                        ("id", "<", session.id),
-                        ("state", "=", "closed"),
-                        ("config_id", "=", session.config_id.id),
-                    ],
-                    limit=1,
-                )
-                final_count = (
-                    previous_session.cash_register_balance_end_real
-                    + session.cash_real_transaction
-                )
-                cash_difference = session.cash_register_balance_end_real - final_count
-                # `date` is day-granular, so same-day lines tie; `sorted` is stable
-                # and would then preserve the recordset order, which is
-                # `internal_index desc` (newest first). Break the tie on `id` to
-                # actually get chronological order.
-                cash_moves = statement_lines_by_session.get(
-                    session.id, self.env["account.bank.statement.line"]
-                ).sorted(lambda line: (line.date, line.id))
-                cash_in_out_list = []
-
-                if previous_session.cash_register_balance_end_real > 0:
-                    cash_in_out_list.append(
-                        {
-                            "name": _("Cash Opening"),
-                            "amount": previous_session.cash_register_balance_end_real,
-                        }
-                    )
-
-                # The closing cash difference is posted as an ordinary statement
-                # line (`_post_statement_difference`), and it must not be listed
-                # among the genuine cash movements. Identify it by its counterpart
-                # being the cash journal's loss/profit account -- not by position,
-                # which dropped whichever line happened to sort last.
-                diff_accounts = (
-                    session.cash_journal_id.loss_account_id
-                    | session.cash_journal_id.profit_account_id
-                )
-                if diff_accounts:
-                    cash_moves = cash_moves.filtered(
-                        lambda line, accounts=diff_accounts: (
-                            not (line.move_id.line_ids.account_id & accounts)
-                        )
-                    )
-
-                for cash_move in cash_moves:
-                    cash_in_out_list.append(
-                        {"name": cash_move.payment_ref, "amount": cash_move.amount}
-                    )
                 payments.insert(
                     0,
-                    {
-                        "name": cash_name,
-                        "total": 0,
-                        "final_count": final_count,
-                        "money_counted": session.cash_register_balance_end_real,
-                        "money_difference": cash_difference,
-                        "cash_moves": cash_in_out_list,
-                        "count": True,
-                        "session": session.id,
-                    },
+                    self._prepare_uncounted_cash_row(
+                        session, statement_lines_by_session
+                    ),
                 )
-        products = []
-        refund_products = []
-        for category_name, product_list in products_sold.items():
-            category_dictionnary = {
-                "name": category_name,
-                "products": sorted(
-                    [
-                        {
-                            "product_id": product.id,
-                            "product_name": product.display_name,
-                            "barcode": product.barcode,
-                            "quantity": qty,
-                            "price_unit": price_unit,
-                            "discount": discount,
-                            "uom": product.uom_id.name,
-                            "total_paid": product_total,
-                            "base_amount": base_amount,
-                            "combo_products_label": combo_products_label,
-                        }
-                        for (product, price_unit, discount), (
-                            qty,
-                            product_total,
-                            base_amount,
-                            combo_products_label,
-                        ) in product_list.items()
-                    ],
-                    key=lambda l: l["product_name"],
-                ),
-            }
-            products.append(category_dictionnary)
-        products = sorted(products, key=lambda l: str(l["name"]))
-
-        for category_name, product_list in refund_done.items():
-            category_dictionnary = {
-                "name": category_name,
-                "products": sorted(
-                    [
-                        {
-                            "product_id": product.id,
-                            "product_name": product.display_name,
-                            "barcode": product.barcode,
-                            "quantity": qty,
-                            "price_unit": price_unit,
-                            "discount": discount,
-                            "uom": product.uom_id.name,
-                            "total_paid": product_total,
-                            "base_amount": base_amount,
-                            "combo_products_label": combo_products_label,
-                        }
-                        for (product, price_unit, discount), (
-                            qty,
-                            product_total,
-                            base_amount,
-                            combo_products_label,
-                        ) in product_list.items()
-                    ],
-                    key=lambda l: l["product_name"],
-                ),
-            }
-            refund_products.append(category_dictionnary)
-        refund_products = sorted(refund_products, key=lambda l: str(l["name"]))
+        products = self._serialize_products_by_category(products_sold)
+        refund_products = self._serialize_products_by_category(refund_done)
 
         products, products_info = self.with_context(
             config_id=configs[0].id if len(configs) > 0 else False

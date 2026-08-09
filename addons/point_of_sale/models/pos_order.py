@@ -1823,7 +1823,16 @@ class PosOrder(models.Model):
 
         # invoice payments
         payment_moves_from_closed_sessions = {}
-        all_payment_moves = self.env["account.move"]
+        # Elevated, and it has to start that way: `_create_payment_moves` builds
+        # these under the `sudo()` of `_get_payments`, but `|=` keeps the LEFT
+        # operand's environment, so seeding the accumulator from `self.env`
+        # quietly demoted every move back to the cashier's rights. They then
+        # reached `_reconcile_invoice_payments`, which reads `pos_payment_ids`
+        # off them -- and a payment move carries no `pos_order_ids`, so
+        # `rule_invoice_pos_user` hides it and a cashier could not invoice at
+        # all. It only surfaced with a cold cache (over HTTP): freshly created
+        # moves answer the read from cache, and no cache read consults a rule.
+        all_payment_moves = self.env["account.move"].sudo()
         for session, orders in self.grouped("session_id").items():
             is_session_closed = session.state == "closed"
             for order in orders:
@@ -1845,6 +1854,15 @@ class PosOrder(models.Model):
         return invoice
 
     def _reconcile_invoice_payments(self, invoice, payment_moves):
+        """Settle the order's payment moves against its invoice.
+
+        Elevated throughout, not just at the `reconcile()` call: the whole body
+        walks accounting records the cashier has no rights on -- the payment
+        moves and their `pos.payment` lines are system plumbing, and the
+        reconciliation is a consequence of validating the order, not an edit
+        the user is making. Sudoing only the last step meant the reads leading
+        to it raised first.
+        """
         receivable_account = (
             self.env["res.partner"]
             ._find_accounting_partner(invoice.partner_id)
@@ -1853,10 +1871,10 @@ class PosOrder(models.Model):
         )
         if not receivable_account.reconcile:
             return
-        payment_receivable_lines = payment_moves.pos_payment_ids._get_receivable_lines_for_invoice_reconciliation(
+        payment_receivable_lines = payment_moves.sudo().pos_payment_ids._get_receivable_lines_for_invoice_reconciliation(
             receivable_account
         )
-        invoice_receivable_lines = invoice.line_ids.filtered(
+        invoice_receivable_lines = invoice.sudo().line_ids.filtered(
             lambda line: line.account_id == receivable_account and not line.reconciled
         )
         (payment_receivable_lines | invoice_receivable_lines).sudo().with_company(

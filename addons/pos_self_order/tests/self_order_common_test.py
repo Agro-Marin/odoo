@@ -269,7 +269,7 @@ class SelfOrderCommonTest(odoo.tests.HttpCase):
 
         # Re-trigger prices computation
         order.lines._onchange_amount_line_all()
-        order._compute_prices()
+        order._recompute_prices()
 
         if data.get('payment_data'):
             payment_context = {"active_ids": order.ids, "active_id": order.id}

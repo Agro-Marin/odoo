@@ -48,7 +48,7 @@ class TestL10nEsEdiVerifactuPosOrder(TestL10nEsEdiVerifactuPosCommon):
             order_data['date_order'] = date_order
         name_patch = nullcontext()
         if name:
-            name_function_path = 'odoo.addons.point_of_sale.models.pos_order.PosOrder._compute_order_name'
+            name_function_path = 'odoo.addons.point_of_sale.models.pos_order.PosOrder._get_order_name'
             name_patch = mock.patch(name_function_path, return_value=name)
 
         # In case the Veri*Factu document is created for the invoice of the pos order:
