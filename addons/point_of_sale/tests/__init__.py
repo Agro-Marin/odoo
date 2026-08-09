@@ -12,6 +12,10 @@ from . import test_pos_controller
 from . import test_pos_invoice_consolidation
 from . import test_pos_cash_rounding
 from . import test_pos_setup
+from . import test_pos_access_rights
+from . import test_pos_cash_in_out
+from . import test_pos_order_lookup
+from . import test_pos_robustness
 from . import test_pos_simple_orders
 from . import test_pos_simple_invoiced_orders
 from . import test_pos_basic_config

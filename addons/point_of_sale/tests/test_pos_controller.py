@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import re
 from datetime import datetime
 
 import odoo
@@ -307,3 +308,97 @@ class TestPoSController(TestPointOfSaleHttpCommon):
         self.assertEqual(self.partner_1.vat, "VAT_TEST_NUMBER_123")
         self.assertEqual(self.partner_1.name, "New Name")
         self.assertEqual(self.partner_1.zip, "12345")
+
+
+@odoo.tests.tagged("post_install", "-at_install")
+class TestPoSControllerInput(TestPointOfSaleHttpCommon):
+    """The two POS-facing routes that accept free-form input.
+
+    `/pos/ticket` is `auth="public"` and `/pos/ui/<config_id>` takes a raw path
+    segment. Both used to hand that input straight to `int()` / `datetime()`,
+    so anything but the happy path was a 500 rather than the error the
+    surrounding code already knows how to render.
+
+    Authored red-green: every test below failed against the pre-fix code.
+    """
+
+    def _post_ticket_form(self, **values):
+        # Read the token off the rendered form: `csrf_token()` wants a live
+        # request, which a test case is not.
+        page = self.url_open("/pos/ticket")
+        token = re.search(r'name="csrf_token"\s+value="([^"]+)"', page.text)
+        self.assertTrue(token, "the ticket form must carry a CSRF token")
+        return self.url_open(
+            "/pos/ticket",
+            data={"csrf_token": token.group(1), **values},
+            allow_redirects=False,
+        )
+
+    def test_ticket_form_rejects_a_malformed_date(self):
+        res = self._post_ticket_form(
+            pos_reference="123456789012",
+            date_order="not-a-date",
+            ticket_code="abcde",
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def test_ticket_form_rejects_a_date_with_too_many_parts(self):
+        res = self._post_ticket_form(
+            pos_reference="123456789012",
+            date_order="2026-1-1-1-1-1-1-1",
+            ticket_code="abcde",
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def test_ticket_form_rejects_an_impossible_date(self):
+        res = self._post_ticket_form(
+            pos_reference="123456789012",
+            date_order="2026-02-31",
+            ticket_code="abcde",
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def test_ticket_form_accepts_a_well_formed_date(self):
+        """Control: a valid form must reach the lookup and report that nothing
+        matched, not the validation error path."""
+        res = self._post_ticket_form(
+            pos_reference="123456789012",
+            date_order="2026-01-15",
+            ticket_code="abcde",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("No sale order found", res.text)
+
+    def test_pos_ui_rejects_a_non_numeric_config_id(self):
+        self.authenticate("admin", "admin")
+        res = self.url_open("/pos/ui/not-a-number", allow_redirects=False)
+        self.assertEqual(res.status_code, 404)
+
+    def test_pos_ui_accepts_a_numeric_config_id(self):
+        """Control: the real route must keep working."""
+        self.authenticate("admin", "admin")
+        res = self.url_open(
+            "/pos/ui/%d" % self.main_pos_config.id, allow_redirects=False
+        )
+        self.assertNotEqual(res.status_code, 404)
+        self.assertNotEqual(res.status_code, 500)
+
+    def test_pos_ui_on_a_foreign_company_redirects(self):
+        """The session's company may be one the requesting user is not allowed
+        in -- the session lookup above runs in sudo, so the route gets that far.
+        Indexing `allowed_companies` with it raised KeyError, i.e. a 500 on a
+        route the user simply has no business on."""
+        elsewhere = self.env["res.company"].create({"name": "Elsewhere Co"})
+        outsider = mail_new_test_user(
+            self.env,
+            login="pos_elsewhere_user",
+            groups="base.group_user,point_of_sale.group_pos_user",
+            company_id=elsewhere.id,
+            company_ids=[odoo.fields.Command.set(elsewhere.ids)],
+        )
+        self.main_pos_config.open_ui()
+        self.authenticate(outsider.login, outsider.login)
+        res = self.url_open(
+            "/pos/ui/%d" % self.main_pos_config.id, allow_redirects=False
+        )
+        self.assertNotEqual(res.status_code, 500)

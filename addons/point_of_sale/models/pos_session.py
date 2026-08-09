@@ -30,6 +30,14 @@ class PosSession(models.Model):
         ("closed", "Closed & Posted"),
     ]
 
+    # States in which the cash drawer is still the session's to move: the
+    # opening float is counted in `opening_control`, everyday movements happen
+    # in `opened`. From `closing_control` on, the counted balance and the
+    # closing entry are being settled, so a new statement line would land
+    # behind them.
+    CASH_MOVE_STATES = ("opening_control", "opened")
+    CASH_MOVE_TYPES = ("in", "out")
+
     company_id = fields.Many2one(
         "res.company", related="config_id.company_id", string="Company", readonly=True
     )
@@ -451,7 +459,7 @@ class PosSession(models.Model):
         failed_map = {session.id: count for session, count in failed_data}
         for session in self:
             session.picking_count = picking_count_map.get(session.id, 0)
-            session.failed_pickings = bool(failed_map.get(session.id, 0))
+            session.failed_pickings = bool(failed_map.get(session.id))
 
     def action_stock_picking(self):
         self.ensure_one()
@@ -583,6 +591,7 @@ class PosSession(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             config_id = vals.get("config_id") or self.env.context.get(
                 "default_config_id"
@@ -606,6 +615,13 @@ class PosSession(models.Model):
                     "update_stock_at_closing": update_stock_at_closing,
                 }
             )
+            # Name it here, not when the cashier confirms opening control: a
+            # session opened from the backend never runs that step, and could
+            # be closed still carrying the "/" placeholder -- which is
+            # interpolated into cash-movement labels and into the ref of the
+            # posted closing-difference move.
+            if vals.get("name", "/") == "/":
+                vals["name"] = pos_config._get_next_session_name()
 
         if self.env.user.has_group("point_of_sale.group_pos_user"):
             sessions = super(PosSession, self.sudo()).create(vals_list)
@@ -764,7 +780,7 @@ class PosSession(models.Model):
                 self._create_picking_at_end_of_session()
                 self._get_closed_orders().filtered(
                     lambda o: not o.is_total_cost_computed
-                )._compute_total_cost_at_session_closing(self.picking_ids.move_ids)
+                )._update_total_cost_at_session_closing(self.picking_ids.move_ids)
             # when the user is POS, update the record in sudo
             data = (
                 record.with_company(record.company_id)
@@ -2559,8 +2575,11 @@ class PosSession(models.Model):
 
     def set_opening_control(self, cashbox_value: int, notes: str):
         """
-        Public method to open the session.
-        This calls the internal logic and, if successful, assigns the sequence name.
+        Public method to open the session: records the counted opening float.
+
+        The session was already named at creation (`pos.config
+        ._get_next_session_name`) -- naming it here left every backend-opened
+        session carrying the "/" placeholder for its whole life.
 
         DO NOT INHERIT THIS METHOD. Inherit _set_opening_control_data instead.
         """
@@ -2568,25 +2587,6 @@ class PosSession(models.Model):
             return
 
         self._set_opening_control_data(cashbox_value, notes)
-
-        sequence = (
-            self.env["ir.sequence"]
-            .with_context(company_id=self.config_id.company_id.id)
-            .search(
-                [
-                    ("code", "=", "pos.session"),
-                    ("company_id", "in", [self.config_id.company_id.id, False]),
-                ],
-                order="company_id",
-                limit=1,
-            )
-        )
-
-        self.name = (
-            (self.config_id.name if sequence.prefix == "/" else "")
-            + sequence.next_by_code("pos.session")
-            + (self.name if self.name != "/" else "")
-        )
 
     def _post_cash_details_message(self, state, expected, difference, notes):
         expected_formatted = self.currency_id.format(expected)
@@ -2667,6 +2667,15 @@ class PosSession(models.Model):
             )
         return True
 
+    def _get_cash_move_label(self, _type):
+        """Name the direction server-side.
+
+        `extras` is client-supplied and used to be spliced straight into the
+        statement line's `payment_ref`, letting the caller choose what the
+        accounting record says about itself.
+        """
+        return _("Cash In") if _type == "in" else _("Cash Out")
+
     def _prepare_account_bank_statement_line_vals(
         self, session, sign, amount, reason, partner_id, extras
     ):
@@ -2675,19 +2684,51 @@ class PosSession(models.Model):
             "journal_id": session.cash_journal_id.id,
             "amount": sign * amount,
             "date": fields.Date.context_today(self),
-            "payment_ref": "-".join([session.name, extras["translatedType"], reason]),
+            "payment_ref": " - ".join(
+                part
+                for part in (
+                    session.name,
+                    session._get_cash_move_label(extras["_type"]),
+                    reason,
+                )
+                if part
+            ),
             "partner_id": partner_id,
         }
 
     def try_cash_in_out(self, _type, amount, reason, partner_id, extras):
+        """Record a cash movement on this session's register.
+
+        Every value the client sends is re-derived or bounded here. `_type`
+        alone decides the sign -- passing a negative `amount` used to turn a
+        "Cash In" into a cash-out still labelled as a cash-in -- and the label
+        comes from `CASH_MOVE_LABELS`, not from `extras`.
+        """
+        if _type not in self.CASH_MOVE_TYPES:
+            raise UserError(_("Unknown cash movement type %(type)s.", type=_type))
         sign = 1 if _type == "in" else -1
+        # The client sends a magnitude; the direction is `_type`'s alone.
+        amount = abs(amount or 0.0)
+
         sessions = self.filtered("cash_journal_id")
         if not sessions:
             raise UserError(_("There is no cash payment method for this PoS Session"))
+        if closed := sessions.filtered(
+            lambda s: s.state not in self.CASH_MOVE_STATES
+        ):
+            raise UserError(
+                _(
+                    "You cannot register a cash movement on a session that is no"
+                    " longer open: %(sessions)s",
+                    sessions=", ".join(closed.mapped("name")),
+                )
+            )
+        if not sessions[0].currency_id.compare_amounts(amount, 0.0):
+            raise UserError(_("A cash movement must have a non-zero amount."))
 
         vals_list = [
-            self._prepare_account_bank_statement_line_vals(
-                session, sign, amount, reason, partner_id, extras
+            session._prepare_account_bank_statement_line_vals(
+                session, sign, amount, reason, partner_id, {**extras, "_type": _type}
             )
             for session in sessions
         ]

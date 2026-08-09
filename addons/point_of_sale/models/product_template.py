@@ -5,7 +5,7 @@ from itertools import groupby
 from operator import itemgetter
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.tools import SQL, is_html_empty
 
@@ -71,6 +71,34 @@ class ProductTemplate(models.Model):
             else:
                 product.color = product.color or 0
 
+    def set_pos_favorite(self, is_favorite):
+        """Flip `is_favorite` from the point of sale's product-info popup.
+
+        `access_product_template_pos_user` is read-only, and the popup offers
+        this control to every cashier (`res.users._load_pos_data_read` only
+        ever assigns the roles "manager" and "cashier"), so the toggle raised
+        AccessError for exactly the group it was drawn for.
+
+        Elevated, but deliberately narrow: one boolean, on one product the
+        point of sale is allowed to sell, for a POS user only. Everything else
+        about the product stays out of reach.
+        """
+        self.ensure_one()
+        if not self.env.user.has_group("point_of_sale.group_pos_user"):
+            raise AccessError(
+                _("Only Point of Sale users can change a POS favourite.")
+            )
+        if not self.available_in_pos:
+            raise AccessError(
+                _(
+                    "%s is not available in the Point of Sale, so it cannot be "
+                    "marked as a favourite there.",
+                    self.display_name,
+                )
+            )
+        self.sudo().is_favorite = bool(is_favorite)
+        return self.is_favorite
+
     def create_product_variant_from_pos(self, attribute_value_ids, config_id):
         """Create a product variant from the POS interface."""
         self.ensure_one()
@@ -108,12 +136,13 @@ class ProductTemplate(models.Model):
             domain, load_archived, offset, limit
         )
 
-        # product.combo and product.combo.item loading
-        for product_tmpl in product_tmpls:
-            if product_tmpl.type == "combo":
-                product_tmpls += (
-                    product_tmpl.combo_ids.combo_item_ids.product_id.product_tmpl_id
-                )
+        # product.combo and product.combo.item loading. One level deep on
+        # purpose: `product.combo.item._check_product_id_no_combo` forbids a
+        # combo inside a combo, so there is no tree to walk. Written as a set
+        # union rather than `+=` inside a `for` over the same name -- that read
+        # as a recursive walk it never was, and left duplicate templates behind.
+        combos = product_tmpls.filtered(lambda tmpl: tmpl.type == "combo")
+        product_tmpls |= combos.combo_ids.combo_item_ids.product_id.product_tmpl_id
 
         combo_domain = Domain("id", "in", product_tmpls.combo_ids.ids)
         combo_records = self.env["product.combo"].search(combo_domain)

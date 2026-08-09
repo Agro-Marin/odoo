@@ -2,26 +2,42 @@
 
 import uuid
 
-from odoo import api, fields, models
+from odoo import fields, models
+
+
+def _new_access_token():
+    # uuid4 is os.urandom-backed. This token is the sole credential for the
+    # public /pos/ticket/validate route and for every bus channel below, so it
+    # must never be derived from anything guessable (nor accepted from a
+    # client -- see PosOrder._process_order).
+    return str(uuid.uuid4())
 
 
 class PosBusMixin(models.AbstractModel):
     _name = "pos.bus.mixin"
     _description = "Bus Mixin"
 
-    access_token = fields.Char("Security Token", copy=False)
+    # Minted by the column default so it lands in the same INSERT. The lazy
+    # `_get_access_token` below stays for rows that predate this default.
+    access_token = fields.Char(
+        "Security Token", copy=False, default=lambda self: _new_access_token()
+    )
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        records = super().create(vals_list)
-        for record in records:
-            record._ensure_access_token()
-        return records
+    def _get_access_token(self):
+        """This record's bus/portal token, minting one on first use.
 
-    def _ensure_access_token(self):
+        Elevated on purpose: the token is infrastructure, not data the caller
+        is editing. A cashier holds read-only access to `pos.config`
+        (`access_pos_config_user`) yet has to open a bus channel on it, so
+        without `sudo()` every notification path would raise AccessError.
+        The write is a keyhole -- one field, on one record, never from client
+        input.
+        """
+        self.ensure_one()
         if self.access_token:
             return self.access_token
-        token = self.access_token = str(uuid.uuid4())
+        token = _new_access_token()
+        self.sudo().access_token = token
         return token
 
     def _notify(self, *notifications, private=True) -> None:
@@ -30,7 +46,7 @@ class PosBusMixin(models.AbstractModel):
         multiple notifications: ``self._notify(('STATUS', {'status': 'closed'}), ('TABLE_ORDER_COUNT', {'count': 2}))``
         """
         self.ensure_one()
-        self._ensure_access_token()
+        token = self._get_access_token()
         if isinstance(notifications[0], str):
             if len(notifications) != 2:
                 raise ValueError(
@@ -39,7 +55,7 @@ class PosBusMixin(models.AbstractModel):
             notifications = [notifications]
         for name, message in notifications:
             self.env["bus.bus"]._sendone(
-                self.access_token,
-                f"{self.access_token}-{name}" if private else name,
+                token,
+                f"{token}-{name}" if private else name,
                 message,
             )

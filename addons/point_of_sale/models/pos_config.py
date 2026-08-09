@@ -4,15 +4,14 @@ from collections import defaultdict
 from datetime import datetime
 from uuid import uuid4
 
-
 from odoo import SUPERUSER_ID, Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
+from odoo.libs.datetime import timezone
 from odoo.service.common import exp_version
 from odoo.tools import SQL, convert
 
 from odoo.addons.point_of_sale.models.pos_printer import format_epson_certified_domain
-from odoo.libs.datetime import timezone
 
 DEFAULT_LIMIT_LOAD_PRODUCT = 5000
 DEFAULT_LIMIT_LOAD_PARTNER = 100
@@ -472,7 +471,11 @@ class PosConfig(models.Model):
                 {
                     "static_records": static_records,
                     "session_id": config.current_session_id.id,
-                    "login_number": 0,
+                    # `devices_synchronisation.js` reads `device_identifier`;
+                    # this used to send `login_number`, the name of a concept
+                    # that was renamed, so the key was simply never read. 0 is
+                    # "not this device", which is what a trusted config is.
+                    "device_identifier": 0,
                     "records": records,
                 },
             )
@@ -486,14 +489,17 @@ class PosConfig(models.Model):
         for model, dom in domain.items():
             ids = record_ids.get(model, [])
             browsed = self.env[model].browse(ids)
+            # `exists()` once for the whole set: `filtered(lambda r: not
+            # r.exists())` ran one query per record the client knows about.
+            existing = browsed.exists()
 
             dynamic_records[model] = self.env[model].search(dom)
-            delete_record_ids[model] = browsed.filtered(lambda r: not r.exists()).ids
+            delete_record_ids[model] = (browsed - existing).ids
             # Cancelled orders must be forced deleted from the user interface.
             if model == "pos.order":
-                delete_record_ids[model] += (
-                    browsed.exists().filtered(lambda r: r.state == "cancel").ids
-                )
+                delete_record_ids[model] += existing.filtered(
+                    lambda r: r.state == "cancel"
+                ).ids
 
         pos_order_data = dynamic_records.get("pos.order") or self.env["pos.order"]
         data = pos_order_data.read_pos_data([], self)
@@ -554,8 +560,12 @@ class PosConfig(models.Model):
 
         if not record["use_pricelist"]:
             record["pricelist_id"] = False
+        # The config's own company, not `env.company`: every other value in
+        # this payload is derived from `config`, and the POS trades in exactly
+        # one company. They agree today only because the controller pins
+        # `allowed_company_ids` to the session's company.
         record["_IS_VAT"] = (
-            self.env.company.country_id.id
+            config.company_id.country_id.id
             in self.env.ref("base.europe").country_ids.ids
         )
         return read_records
@@ -1000,66 +1010,91 @@ class PosConfig(models.Model):
         return pos_configs
 
     def _create_sequences(self):
+        """Give each point of sale its own four counters.
+
+        Their codes are distinct. All four used to be created as "pos.order",
+        which made them indistinguishable to `next_by_code`: it resolves a code
+        to one sequence per company, so four rows shared one lookup and any
+        caller of `next_by_code("pos.order")` drew from whichever came back.
+        """
+        IrSequence = self.env["ir.sequence"].sudo()
         for pos_config in self:
-            sequence_vals = {
-                "padding": 6,
-                "code": "pos.order",
-                "company_id": pos_config.company_id.id,
-                "implementation": "no_gap",
-            }
-
-            # Create sequences for all orders
-            pos_config.order_seq_id = (
-                self.env["ir.sequence"]
-                .sudo()
-                .create(
+            specs = (
+                (
+                    "order_seq_id",
+                    "pos.order",
+                    6,
+                    _("POS order from config #%s", pos_config.id),
+                ),
+                (
+                    "order_backend_seq_id",
+                    "pos.order.backend",
+                    6,
+                    _("POS order backend from config #%s", pos_config.id),
+                ),
+                (
+                    "order_line_seq_id",
+                    "pos.order.line",
+                    6,
+                    _("POS order line from config #%s", pos_config.id),
+                ),
+                (
+                    "device_seq_id",
+                    "pos.device",
+                    0,
+                    _("POS device from config #%s", pos_config.id),
+                ),
+            )
+            for field_name, code, padding, name in specs:
+                pos_config[field_name] = IrSequence.create(
                     {
-                        **sequence_vals,
-                        "name": _("POS order from config #%s", pos_config.id),
+                        "name": name,
+                        "code": code,
+                        "padding": padding,
+                        "company_id": pos_config.company_id.id,
+                        "implementation": "no_gap",
                     }
                 )
-            )
 
-            # Create sequences for order that are created from self ore backend
-            pos_config.order_backend_seq_id = (
-                self.env["ir.sequence"]
-                .sudo()
-                .create(
-                    {
-                        **sequence_vals,
-                        "name": _("POS order backend from config #%s", pos_config.id),
-                    }
-                )
-            )
+    def _get_next_session_name(self):
+        """Draw the next `pos.session` name for this point of sale.
 
-            # Create sequences for all order lines
-            pos_config.order_line_seq_id = (
-                self.env["ir.sequence"]
-                .sudo()
-                .create(
-                    {
-                        **sequence_vals,
-                        "name": _("POS order line from config #%s", pos_config.id),
-                    }
-                )
-            )
+        The default sequence's prefix is the bare "/", which reads as nothing
+        on its own, so the shop's name stands in front of it; a localisation
+        that sets a real prefix speaks for itself and is left alone.
 
-            # Create sequences for devices
-            pos_config.device_seq_id = (
-                self.env["ir.sequence"]
-                .sudo()
-                .create(
-                    {
-                        **sequence_vals,
-                        "name": _("POS device from config #%s", pos_config.id),
-                        "padding": 0,
-                    }
-                )
+        Elevated for the same reason as `register_new_device_identifier`:
+        drawing a number writes `ir.sequence`, which a cashier opening their
+        own session holds no rights on.
+        """
+        self.ensure_one()
+        sequence = (
+            self.env["ir.sequence"]
+            .sudo()
+            .with_context(company_id=self.company_id.id)
+            .search(
+                [
+                    ("code", "=", "pos.session"),
+                    ("company_id", "in", [self.company_id.id, False]),
+                ],
+                order="company_id",
+                limit=1,
             )
+        )
+        if not sequence:
+            return "/"
+        prefix = self.name if sequence.prefix == "/" else ""
+        return f"{prefix}{sequence.next_by_code('pos.session')}"
 
     def register_new_device_identifier(self):
+        """Hand the calling device its identifier from this config's counter.
+
+        Elevated like the bus token: drawing a number mutates `ir.sequence`,
+        which a cashier holds no rights on, and the config itself is read-only
+        for them (`access_pos_config_user`). Nothing here takes client input.
+        """
         self.ensure_one()
-        identifier = self.device_seq_id._next()
+        identifier = self.sudo().device_seq_id._next()
         return {
             "device_identifier": identifier,
         }
@@ -1110,6 +1145,11 @@ class PosConfig(models.Model):
         self.last_data_change = self.env.cr.now()
 
     def write(self, vals):
+        # Never mutate the caller's dict: the three preprocessing steps below
+        # and the `printer_ids` clear all rewrite `vals` in place, so a caller
+        # reusing one dict for two configs had the first config's injected
+        # commands silently applied to the second. Same fix as PosOrder.write.
+        vals = dict(vals)
         self._check_header_footer(vals)
         self._reset_default_on_vals(vals)
         if "is_order_printer" in vals and not vals["is_order_printer"]:
@@ -1180,14 +1220,13 @@ class PosConfig(models.Model):
         # Only ensure one when write is from settings view.
         self.ensure_one()
 
-        fields_to_preprocess = [
-            f["name"]
-            for f in self.fields_get([]).values()
-            if f["type"] in ["many2many", "one2many"]
-        ]
-
-        for x2many_field in fields_to_preprocess:
-            if x2many_field in vals:
+        # Iterate what `vals` actually carries, and read the field's type from
+        # `_fields`. This used to call `fields_get([])`, which builds a full
+        # translated description of every field on the model to answer a
+        # question about the handful being written.
+        for x2many_field in list(vals):
+            field = self._fields.get(x2many_field)
+            if field and field.type in ("many2many", "one2many"):
                 linked_ids = set(self[x2many_field].ids)
 
                 for command in vals[x2many_field]:

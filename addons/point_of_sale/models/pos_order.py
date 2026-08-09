@@ -3,7 +3,7 @@ import base64
 import json
 import logging
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC
 from itertools import groupby
 from pprint import pformat
 from random import randrange
@@ -120,10 +120,10 @@ class PosOrder(models.Model):
                         # `access_token` is the SOLE credential for the public
                         # /pos/ticket/validate route (auth="public"), which
                         # redirects to the customer's portal invoice. It must be
-                        # minted server-side by _ensure_access_token (uuid4 over
+                        # minted server-side by _get_access_token (uuid4 over
                         # os.urandom), never accepted from the client: the UI
                         # generates it with Math.random (utils.js uuidv4), and
-                        # _ensure_access_token keeps any value already set, so a
+                        # _get_access_token keeps any value already set, so a
                         # client-supplied token was persisted verbatim and
                         # silently downgraded the token's entropy. The update
                         # path below already pops it; the create path did not.
@@ -212,7 +212,7 @@ class PosOrder(models.Model):
         if not draft and self.state != "cancel":
             self.action_pos_order_paid()
             self._create_order_picking()
-            self._compute_total_cost_in_real_time()
+            self._update_total_cost_in_real_time()
 
         if self.to_invoice and self.state == "paid":
             if not self.config_id.invoice_journal_id:
@@ -230,25 +230,27 @@ class PosOrder(models.Model):
         self.ensure_one()
         self.payment_ids.unlink()
 
-    def _compute_amount_paid(self):
+    def _get_amount_paid(self):
         return sum(self.payment_ids.mapped("amount"))
 
-    def _process_payment_lines(self, pos_order, order, pos_session, draft):
-        """Create account.bank.statement.lines from the dictionary given to the parent function.
+    def _process_payment_lines(self, order_vals, order, pos_session, draft):
+        """Settle an order's payments against the payload the client sent.
 
-        A payment line that updates an existing one replaces it (the old one is
-        removed first).
-        :param dict pos_order: dictionary representing the order.
-        :param pos.order order: order the payment lines should belong to.
+        The two first parameters used to be named the other way round --
+        `pos_order` for the dict and `order` for the recordset -- which is the
+        opposite of every other method here and of the call site's own names.
+
+        :param dict order_vals: the client's representation of the order.
+        :param pos.order order: the order the payment lines belong to.
         :param pos.session pos_session: session the order was created in.
-        :param bool draft: whether the pos_order is not validated yet.
+        :param bool draft: whether the order is not validated yet.
         """
         prec_acc = order.currency_id.decimal_places
 
         # Recompute amount paid because we don't trust the client
-        order.write({"amount_paid": order._compute_amount_paid()})
+        order.write({"amount_paid": order._get_amount_paid()})
 
-        if not draft and not float_is_zero(pos_order["amount_return"], prec_acc):
+        if not draft and not float_is_zero(order_vals["amount_return"], prec_acc):
             cash_payment_method = pos_session.payment_method_ids.filtered(
                 "is_cash_count"
             )[:1]
@@ -261,13 +263,13 @@ class PosOrder(models.Model):
             return_payment_vals = {
                 "name": _("return"),
                 "pos_order_id": order.id,
-                "amount": pos_order["amount_return"],
+                "amount": order_vals["amount_return"],
                 "payment_date": fields.Datetime.now(),
                 "payment_method_id": cash_payment_method.id,
                 "is_change": True,
             }
             order.add_payment(return_payment_vals)
-            order._compute_prices()
+            order._recompute_prices()
 
     def _prepare_tax_base_line_values(self):
         """Convert pos order lines into dictionaries that would be used to compute taxes later.
@@ -616,41 +618,42 @@ class PosOrder(models.Model):
             "last_order_preparation_change": self.last_order_preparation_change,
         }
 
-    def _ensure_to_keep_last_preparation_change(self, vals):
-        for record in self:
-            if record.last_order_preparation_change:
-                change = json.loads(record.last_order_preparation_change)
-                if not change.get("metadata"):
-                    return
+    def _keep_newest_preparation_change(self, vals):
+        """Let the newer of the stored and incoming preparation changes win.
 
-                local_change = json.loads(
-                    vals.get("last_order_preparation_change", "{}")
-                )
-                if not local_change.get("metadata"):
-                    vals["last_order_preparation_change"] = (
-                        record.last_order_preparation_change
-                    )
-                    return
+        Mutates `vals` in place, which is why this is single-record: it used to
+        loop over `self` while `return`-ing out of two branches, so on a
+        multi-record set every record after the first was skipped -- and even
+        without the early returns, one shared `vals` cannot carry a per-record
+        answer.
+        """
+        self.ensure_one()
+        if not self.last_order_preparation_change:
+            return
+        change = json.loads(self.last_order_preparation_change)
+        if not change.get("metadata"):
+            return
 
-                server_date = fields.Datetime.from_string(
-                    change["metadata"].get("serverDate")
-                )
-                local_date = fields.Datetime.from_string(
-                    local_change["metadata"].get("serverDate")
-                )
+        local_change = json.loads(vals.get("last_order_preparation_change", "{}"))
+        if not local_change.get("metadata"):
+            vals["last_order_preparation_change"] = self.last_order_preparation_change
+            return
 
-                if server_date > local_date:
-                    _logger.warning(
-                        "Preparation changes were outdated, probably linked to a synching issue."
-                    )
-                    vals["last_order_preparation_change"] = (
-                        record.last_order_preparation_change
-                    )
-                else:
-                    local_change["metadata"]["serverDate"] = (
-                        fields.Datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    )
-                    vals["last_order_preparation_change"] = json.dumps(local_change)
+        server_date = fields.Datetime.from_string(change["metadata"].get("serverDate"))
+        local_date = fields.Datetime.from_string(
+            local_change["metadata"].get("serverDate")
+        )
+
+        if server_date > local_date:
+            _logger.warning(
+                "Preparation changes were outdated, probably linked to a synching issue."
+            )
+            vals["last_order_preparation_change"] = self.last_order_preparation_change
+        else:
+            local_change["metadata"]["serverDate"] = fields.Datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            vals["last_order_preparation_change"] = json.dumps(local_change)
 
     @api.depends("account_move")
     def _compute_invoice_state(self):
@@ -727,7 +730,7 @@ class PosOrder(models.Model):
                 number=order.partner_id.phone or "", country=order.partner_id.country_id
             )
 
-    def _compute_total_cost_in_real_time(self):
+    def _update_total_cost_in_real_time(self):
         """Compute the order's total cost when processed by the server. Lines
         whose margin can't yet be computed (session_id.update_stock_at_closing)
         are skipped; their margin is computed when the session closes.
@@ -742,7 +745,7 @@ class PosOrder(models.Model):
             stock_moves = order.picking_ids.move_ids
             lines._compute_total_cost(stock_moves)
 
-    def _compute_total_cost_at_session_closing(self, stock_moves):
+    def _update_total_cost_at_session_closing(self, stock_moves):
         """
         Compute the margin at the end of the session. This method should be called to compute the remaining lines margin
         containing a storable product with a fifo/avco cost method and then compute the order margin
@@ -777,9 +780,9 @@ class PosOrder(models.Model):
 
     @api.onchange("payment_ids", "lines")
     def _onchange_amount_all(self):
-        self._compute_prices()
+        self._recompute_prices()
 
-    def _compute_prices(self):
+    def _recompute_prices(self):
         AccountTax = self.env["account.tax"]
         for order in self:
             if not order.currency_id:
@@ -845,9 +848,20 @@ class PosOrder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # Never mutate the caller's dicts: `_complete_values_from_session`
+        # fills in the reference, the sequence number and the pricelist.
+        vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
+            # An order belongs to a session; without one there is no config, no
+            # company and no currency to derive anything from. Say that,
+            # instead of raising KeyError out of a subscript. (The backend
+            # views are `create="0"`, so this is the RPC/import path.)
+            if not vals.get("session_id"):
+                raise UserError(
+                    _("A point of sale order must belong to a session.")
+                )
             session = self.env["pos.session"].browse(vals["session_id"])
-            vals = self._complete_values_from_session(session, vals)
+            self._complete_values_from_session(session, vals)
         return super().create(vals_list)
 
     def _update_sequence_number(self, session, values):
@@ -895,13 +909,24 @@ class PosOrder(models.Model):
         ):
             return all(order.write(dict(vals)) for order in self)
         for order in self:
+            # A printed receipt is a document the customer already holds, so
+            # its payments are settled. Refuse BEFORE writing: the guard used
+            # to run after `super().write()` and rely on the transaction
+            # rollback to undo what it had just decided was not allowed.
+            if order.nb_print > 0 and any(
+                command[0] in (Command.CREATE, Command.UPDATE)
+                and command[2].get("payment_status")
+                and command[2]["payment_status"] != "cancelled"
+                for command in vals.get("payment_ids") or []
+            ):
+                raise UserError(_("You cannot change the payment of a printed order."))
             if vals.get("state") and vals["state"] == "paid" and order.name == "/":
                 session = (
                     self.env["pos.session"].browse(vals["session_id"])
                     if not order.session_id and vals.get("session_id")
                     else False
                 )
-                vals["name"] = self._compute_order_name(session)
+                vals["name"] = order._get_order_name(session)
             if vals.get("mobile"):
                 vals["mobile"] = order._phone_format(
                     number=vals.get("mobile"),
@@ -925,7 +950,7 @@ class PosOrder(models.Model):
         res = super().write(vals)
         for order in self:
             if vals.get("payment_ids"):
-                order._compute_prices()
+                order._recompute_prices()
                 totally_paid_or_more = order.currency_id.compare_amounts(
                     order.amount_paid, order.amount_total
                 )
@@ -945,15 +970,6 @@ class PosOrder(models.Model):
                                 currency_obj=order.currency_id,
                             ),
                         )
-                    )
-                if order.nb_print > 0 and any(
-                    command[0] in [0, 1]
-                    and command[2].get("payment_status")
-                    and command[2]["payment_status"] != "cancelled"
-                    for command in vals.get("payment_ids")
-                ):
-                    raise UserError(
-                        _("You cannot change the payment of a printed order.")
                     )
 
         if len(list_line) > 0:
@@ -1060,7 +1076,7 @@ class PosOrder(models.Model):
         body += Markup("</ul>")
         return body
 
-    def _compute_order_name(self, session=None):
+    def _get_order_name(self, session=None):
         session = session or self.session_id
         if self.refunded_order_id.exists():
             return _(
@@ -1921,7 +1937,7 @@ class PosOrder(models.Model):
 
             existing_order = self._get_open_order(order)
             if existing_order and existing_order.state == "draft":
-                existing_order._ensure_to_keep_last_preparation_change(order)
+                existing_order._keep_newest_preparation_change(order)
                 order_ids.append(self._process_order(order, existing_order))
                 _logger.info(
                     "PoS synchronisation #%d order %s updated pos.order #%d",
@@ -1940,7 +1956,7 @@ class PosOrder(models.Model):
             else:
                 # In theory, this situation is unintended
                 # In practice it can happen when "Tip later" option is used
-                existing_order._ensure_to_keep_last_preparation_change(order)
+                existing_order._keep_newest_preparation_change(order)
                 order_ids.append(existing_order.id)
                 _logger.info(
                     "PoS synchronisation #%d order %s sync ignored for existing PoS order %s (state: %s)",
@@ -1955,7 +1971,7 @@ class PosOrder(models.Model):
         config = pos_order_ids.config_id[0] if pos_order_ids else False
 
         for order in pos_order_ids:
-            order._ensure_access_token()
+            order._get_access_token()
             if not self.env.context.get("preparation"):
                 order.config_id.notify_synchronisation(
                     order.config_id.current_session_id.id,
@@ -1975,41 +1991,50 @@ class PosOrder(models.Model):
     def read_pos_data_uuid(self, uuid):
         return self.read_pos_orders([("uuid", "=", uuid)])
 
+    # The models `read_pos_data` returns, in the client's load order. Every one
+    # of them is scoped to `self`, so an empty payload is the same shape.
+    _READ_POS_DATA_MODELS = (
+        "pos.order",
+        "pos.session",
+        "pos.payment",
+        "pos.order.line",
+        "pos.pack.operation.lot",
+        "product.attribute.custom.value",
+        "account.move",
+    )
+
     def read_pos_data(self, data, config):
         # If the previous session is closed, the order will get a new session_id due to _get_valid_session in _process_order
+        # Without a config there is nothing to read against: return the shape
+        # once instead of repeating `if config else []` for every model.
+        if not config:
+            # A fresh list per key: `dict.fromkeys(..., [])` would hand every
+            # model the same one for the caller to append to.
+            return {model: [] for model in self._READ_POS_DATA_MODELS}
+        sudo_self = self.sudo()
         account_moves = (
-            self.sudo().account_move
-            | self.sudo().payment_ids.account_move_id
-            | self.sudo().session_move_id
+            sudo_self.account_move
+            | sudo_self.payment_ids.account_move_id
+            | sudo_self.session_move_id
         )
         return {
-            "pos.order": self._load_pos_data_read(self, config) if config else [],
+            "pos.order": self._load_pos_data_read(self, config),
             "pos.session": [],
             "pos.payment": self.env["pos.payment"]._load_pos_data_read(
                 self.payment_ids, config
-            )
-            if config
-            else [],
+            ),
             "pos.order.line": self.env["pos.order.line"]._load_pos_data_read(
                 self.lines, config
-            )
-            if config
-            else [],
+            ),
             "pos.pack.operation.lot": self.env[
                 "pos.pack.operation.lot"
-            ]._load_pos_data_read(self.lines.pack_lot_ids, config)
-            if config
-            else [],
+            ]._load_pos_data_read(self.lines.pack_lot_ids, config),
             "product.attribute.custom.value": self.env[
                 "product.attribute.custom.value"
-            ]._load_pos_data_read(self.lines.custom_attribute_value_ids, config)
-            if config
-            else [],
+            ]._load_pos_data_read(self.lines.custom_attribute_value_ids, config),
             "account.move": self.env["account.move"]
             .sudo()
-            ._load_pos_data_read(account_moves, config)
-            if config
-            else [],
+            ._load_pos_data_read(account_moves, config),
         }
 
     @api.model
@@ -2078,7 +2103,7 @@ class PosOrder(models.Model):
         """Create a new payment for the order"""
         self.ensure_one()
         self.env["pos.payment"].create(data)
-        self.amount_paid = self._compute_amount_paid()
+        self.amount_paid = self._get_amount_paid()
 
     def _prepare_refund_values(self, current_session):
         self.ensure_one()
@@ -2150,7 +2175,7 @@ class PosOrder(models.Model):
                 refund_line._onchange_amount_line_all()
             refund_orders |= refund_order
             refund_order.config_id.notify_synchronisation(current_session.id, 0)
-        refund_orders._compute_prices()
+        refund_orders._recompute_prices()
         return refund_orders
 
     def refund(self):
@@ -2265,23 +2290,37 @@ class PosOrder(models.Model):
 
     @api.model
     def search_paid_order_ids(self, config_id, domain, limit, offset):
-        """Search for 'paid' orders that satisfy the given domain, limit and offset."""
+        """One page of settled orders for the ticket screen.
+
+        Returns ``ordersInfo``, an (id, last-modified) pair per order **in page
+        order**, and ``totalCount`` for the pager. The client renders exactly
+        the ids in ``ordersInfo`` (``syncedPageOrderIds``) and shows
+        ``totalCount`` beside them, so the two have to describe the same set:
+
+        - The pairs are built from the orders themselves, not from their lines.
+          Building them from `pos.order.line` dropped every order that has no
+          line -- counted by the pager, absent from the list it labels.
+        - No post-filtering after `search()`. `limit`/`offset` are applied by
+          the query, so removing rows afterwards silently shortens a page while
+          matching rows remain. (The currency filter that used to sit here was
+          also unreachable: `pos.config._check_trusted_config_ids_currency`
+          already forbids a trusted config with another currency.)
+        - The order is the query's, `create_date desc`, rather than whatever
+          order the lines happened to come back in.
+
+        The stamp is the latest write among the order, its own lines, and any
+        line that refunded one of them: a refund edits the refunded line, and
+        the client uses this to decide what to refetch.
+        """
         pos_config = self.env["pos.config"].browse(config_id)
-        default_domain = (
-            Domain("state", "!=", "draft")
-            & Domain("state", "!=", "cancel")
+        real_domain = Domain(domain) & (
+            Domain("state", "not in", ("draft", "cancel"))
             & Domain("config_id", "in", [config_id] + pos_config.trusted_config_ids.ids)
         )
-        real_domain = Domain(domain) & default_domain
         orders = self.search(
             real_domain, limit=limit, offset=offset, order="create_date desc"
         )
-        # We clean here the orders that does not have the same currency.
-        # As we cannot use currency_id in the domain (because it is not a stored field),
-        # we must do it after the search.
-        orders = orders.filtered(
-            lambda order: order.currency_id == pos_config.currency_id
-        )
+        last_write = {order.id: order.write_date for order in orders}
         orderlines = self.env["pos.order.line"].search(
             [
                 "|",
@@ -2289,21 +2328,22 @@ class PosOrder(models.Model):
                 ("order_id", "in", orders.ids),
             ]
         )
-
-        # Return each order's id and last-modification date so the frontend can
-        # refetch stale ones. That date is the latest write_date among its own
-        # orderlines and any refunded orderline related to it.
-        # naive sentinel: compared against Odoo's naive ORM write_date values below
-        orders_info = defaultdict(lambda: datetime.min)  # noqa: DTZ901
         for orderline in orderlines:
-            key_order = (
-                orderline.order_id.id
-                if orderline.order_id in orders
-                else orderline.refunded_orderline_id.order_id.id
-            )
-            orders_info[key_order] = max(orders_info[key_order], orderline.write_date)
-        totalCount = self.search_count(real_domain)
-        return {"ordersInfo": list(orders_info.items())[::-1], "totalCount": totalCount}
+            # A line can be on this page through either end of a refund, and
+            # both ends may be on it: stamp whichever of them is.
+            for order_id in (
+                orderline.order_id.id,
+                orderline.refunded_orderline_id.order_id.id,
+            ):
+                if order_id in last_write:
+                    last_write[order_id] = max(
+                        last_write[order_id], orderline.write_date
+                    )
+
+        return {
+            "ordersInfo": [(order.id, last_write[order.id]) for order in orders],
+            "totalCount": self.search_count(real_domain),
+        }
 
     def _send_order(self):
         # This function is made to be overriden by pos_self_order_preparation_display
@@ -2500,20 +2540,27 @@ class PosOrderLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
-            order = (
-                self.env["pos.order"].browse(vals["order_id"])
-                if vals.get("order_id")
-                else False
-            )
-            if order and order.exists() and not vals.get("name"):
-                # set name based on the sequence specified on the config
-                config = order.session_id.config_id
-                if config.order_line_seq_id:
-                    vals["name"] = config.order_line_seq_id._next()
-            if not vals.get("name"):
-                # fallback on any pos.order sequence
-                vals["name"] = self.env["ir.sequence"].next_by_code("pos.order.line")
+            if vals.get("name"):
+                continue
+            order = self.env["pos.order"].browse(vals.get("order_id")).exists()
+            sequence = order.session_id.config_id.order_line_seq_id
+            if not sequence:
+                # There is no second counter to fall back on. This used to try
+                # `next_by_code("pos.order.line")`, a code no sequence carried,
+                # so the fallback returned False for a required Char and the
+                # insert died on a NOT NULL violation with nothing naming the
+                # cause. Say what is actually missing.
+                raise UserError(
+                    _(
+                        "The point of sale %(config)s has no order-line"
+                        " sequence, so its order lines cannot be numbered.",
+                        config=order.session_id.config_id.display_name
+                        or order.display_name,
+                    )
+                )
+            vals["name"] = sequence.sudo()._next()
         return super().create(vals_list)
 
     def write(self, vals):
@@ -2525,6 +2572,9 @@ class PosOrderLine(models.Model):
             # Same fix already applied in PosOrder.write.
             digits = self.env["decimal.precision"].precision_get("Product Unit")
             edited = self.browse()
+            # One chatter message per order, not per line: a ten-line edit used
+            # to post ten separate messages (and ten mail.thread writes).
+            bodies_per_order = defaultdict(list)
             for line in self:
                 if not line.order_id.config_id.order_edit_tracking:
                     continue
@@ -2536,8 +2586,14 @@ class PosOrderLine(models.Model):
                     product_name=line.full_product_name,
                     old_qty=line.qty,
                 )
-                body += Markup("&rarr;") + str(new_qty)
-                line.order_id.message_post(body=line.order_id._prepare_pos_log(body))
+                bodies_per_order[line.order_id].append(
+                    body + Markup("&rarr;") + str(new_qty)
+                )
+            for order, bodies in bodies_per_order.items():
+                body = bodies[0] if len(bodies) == 1 else order._markup_list_message(
+                    bodies
+                )
+                order.message_post(body=order._prepare_pos_log(body))
             edited.is_edited = True
         return super().write(vals)
 
@@ -2780,11 +2836,12 @@ class PosOrderLine(models.Model):
             if moves and line._is_product_storable_fifo_avco():
                 product_cost = line._get_product_cost_with_moves(moves)
                 if cost_currency.is_zero(product_cost) and line.order_id.shipping_date:
-                    if line.refunded_orderline_id:
-                        product_cost = (
-                            line.refunded_orderline_id.total_cost
-                            / line.refunded_orderline_id.qty
-                        )
+                    refunded = line.refunded_orderline_id
+                    # `qty` carries no non-zero constraint, and a zero-quantity
+                    # line is a legal (if odd) thing to refund. Fall back to the
+                    # product's own cost rather than dividing by it.
+                    if refunded and refunded.qty:
+                        product_cost = refunded.total_cost / refunded.qty
                     else:
                         product_cost = product.standard_price
             else:
@@ -2879,15 +2936,23 @@ class PosOrderLine(models.Model):
         return [line._prepare_base_line_for_taxes_computation() for line in self]
 
     def unlink(self):
+        # One flag write and one chatter message per order, not per line:
+        # deleting a ten-line order used to post ten messages and write
+        # `has_deleted_line` ten times.
+        bodies_per_order = defaultdict(list)
         for line in self:
             if line.order_id.config_id.order_edit_tracking:
-                line.order_id.has_deleted_line = True
-                body = _(
-                    "%(product_name)s: Deleted line (quantity: %(qty)s)",
-                    product_name=line.full_product_name,
-                    qty=line.qty,
+                bodies_per_order[line.order_id].append(
+                    _(
+                        "%(product_name)s: Deleted line (quantity: %(qty)s)",
+                        product_name=line.full_product_name,
+                        qty=line.qty,
+                    )
                 )
-                line.order_id.message_post(body=line.order_id._prepare_pos_log(body))
+        for order, bodies in bodies_per_order.items():
+            order.has_deleted_line = True
+            body = bodies[0] if len(bodies) == 1 else order._markup_list_message(bodies)
+            order.message_post(body=order._prepare_pos_log(body))
         return super().unlink()
 
     def _get_discount_amount(self):

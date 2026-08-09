@@ -221,8 +221,8 @@ export class PosOrderAccounting extends Base {
         this.amount_paid = this.amountPaid; // Already rounded by the getter
         this.amount_tax = this.amountTaxes; // Already rounded by the getter
         // `totalDue`, not `priceIncl`: Python stores the POST-cash-rounding
-        // total (pos_order.py `_compute_prices` -> total_amount_currency), and
-        // `_compute_prices` is not re-run on the create path unless
+        // total (pos_order.py `_recompute_prices` -> total_amount_currency), and
+        // `_recompute_prices` is not re-run on the create path unless
         // amount_return != 0. Writing the pre-rounding `priceIncl` therefore
         // persisted a total one rounding step below amount_paid on every
         // exactly-paid rounded order, leaving a permanent amount_difference.
@@ -333,7 +333,7 @@ export class PosOrderAccounting extends Base {
         accountTaxHelpers.round_base_lines_tax_details(baseLines, company);
 
         // Cash rounding is added only if the document needs to be globally
-        // rounded (mirrors python _compute_prices: with only_round_cash_method
+        // rounded (mirrors python _recompute_prices: with only_round_cash_method
         // the rounding applies per cash payment, never to the tax summary).
         const cashRounding = this.config.hasGlobalRounding
             ? this.config.rounding_method

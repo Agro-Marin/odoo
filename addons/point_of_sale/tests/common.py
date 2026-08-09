@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from itertools import starmap
 from random import randint
 
 from odoo import fields, tools
@@ -440,7 +441,7 @@ class CommonPosTest(ValuationReconciliationTestCommon):
 
         # Re-trigger prices computation
         order.lines._onchange_amount_line_all()
-        order._compute_prices()
+        order._recompute_prices()
 
         if data.get("payment_data"):
             payment_context = {"active_ids": order.ids, "active_id": order.id}
@@ -1072,7 +1073,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                 )
             payments = [create_payment(default_cash_pm, total_amount_incl)]
         else:
-            payments = [create_payment(pm, amount) for pm, amount in payments]
+            payments = list(starmap(create_payment, payments))
 
         # 3. complete the fields of the order_data
         total_amount_base = sum(line[2]["price_subtotal"] for line in order_lines)

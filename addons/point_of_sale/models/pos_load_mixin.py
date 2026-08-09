@@ -67,15 +67,24 @@ class PosLoadMixin(models.AbstractModel):
         return records or []
 
     def _unrelevant_records(self, config):
-        unrelevant_record_ids = []
-        for record in self:
-            try:
-                if not record.active:
-                    unrelevant_record_ids.append(record.id)
-            except AccessError:
-                # If the user has no read access, consider the record as unrelevant
-                unrelevant_record_ids.append(record.id)
-        return unrelevant_record_ids
+        """Ids the client should drop from its local copy.
+
+        Reached from `pos.session.filter_local_data`, a public RPC whose model
+        list is whatever the caller passes. Two things follow:
+
+        - A model with no `active` field has nothing to be inactive: reading
+          `record.active` there raised AttributeError, which the `except
+          AccessError` below never caught. Ask the model first.
+        - Whole-recordset, not one record at a time: `filtered` reads the
+          column once for all of them.
+        """
+        if "active" not in self._fields:
+            return []
+        try:
+            return (self - self.filtered("active")).ids
+        except AccessError:
+            # No read access at all: none of it is relevant to this client.
+            return self.ids
 
     @api.model
     def _load_pos_data_fields(self, config):

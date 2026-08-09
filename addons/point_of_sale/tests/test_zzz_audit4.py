@@ -34,7 +34,7 @@ class TestAudit4Security(TestPoSCommon):
     def test_create_path_rejects_client_supplied_access_token(self):
         """`access_token` is the sole credential of the public
         /pos/ticket/validate route, which redirects to the customer's portal
-        invoice. `_ensure_access_token` keeps any value already set, so a
+        invoice. `_get_access_token` keeps any value already set, so a
         client-supplied token used to be persisted verbatim — downgrading a
         server-side uuid4 (os.urandom) to the UI's Math.random. The update path
         already popped it; the create path did not."""

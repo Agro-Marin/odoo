@@ -2,9 +2,11 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 
-from odoo import _, http
+from psycopg.errors import LockNotAvailable
+
+from odoo import _, fields, http
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import file_open, format_amount
@@ -57,17 +59,22 @@ class PosController(PortalAccount):
         # silently opening the POS.
         if not request.env.user.has_group("point_of_sale.group_pos_user"):
             return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
+        # `<config_id>` is a free path segment, so it is a string of the user's
+        # choosing. Parse it once, here: three unguarded `int()` calls used to
+        # turn /pos/ui/anything into a 500.
+        if config_id:
+            try:
+                config_id = int(config_id)
+            except (TypeError, ValueError):
+                return request.not_found()
         domain = [
             ("state", "in", ["opening_control", "opened"]),
             ("user_id", "=", request.session.uid),
             ("rescue", "=", False),
         ]
-        if (
-            config_id
-            and request.env["pos.config"].sudo().browse(int(config_id)).exists()
-        ):
-            domain = Domain.AND([domain, [("config_id", "=", int(config_id))]])
-            pos_config = request.env["pos.config"].sudo().browse(int(config_id))
+        if config_id and request.env["pos.config"].sudo().browse(config_id).exists():
+            domain = Domain.AND([domain, [("config_id", "=", config_id)]])
+            pos_config = request.env["pos.config"].sudo().browse(config_id)
         pos_session = request.env["pos.session"].sudo().search(domain, limit=1)
 
         # The same POS session can be opened by a different user => search without restricting to
@@ -77,7 +84,7 @@ class PosController(PortalAccount):
             domain = [
                 ("state", "in", ["opening_control", "opened"]),
                 ("rescue", "=", False),
-                ("config_id", "=", int(config_id)),
+                ("config_id", "=", config_id),
             ]
             pos_session = request.env["pos.session"].sudo().search(domain, limit=1)
 
@@ -91,24 +98,35 @@ class PosController(PortalAccount):
         if not pos_config.has_active_session:
             # Acquire an row-level lock on the pos_config record to prevent race conditions
             # This prevents multiple concurrent processes from creating duplicate POS sessions
-            request.env.cr.execute(
-                "SELECT id FROM pos_config WHERE id = %s FOR UPDATE NOWAIT",
-                (pos_config.id,),
-            )
+            try:
+                request.env.cr.execute(
+                    "SELECT id FROM pos_config WHERE id = %s FOR UPDATE NOWAIT",
+                    (pos_config.id,),
+                )
+            except LockNotAvailable:
+                # Another request is opening this very session right now. That
+                # is a race we lost, not a server fault: send the user back to
+                # the menu instead of a traceback.
+                return request.redirect(
+                    "/odoo/action-point_of_sale.action_client_pos_menu"
+                )
             pos_config.open_ui()
             pos_session = request.env["pos.session"].sudo().search(domain, limit=1)
 
         # The POS only works in one company, so we enforce the one of the session in the context
         company = pos_session.company_id
         session_info = request.env["ir.http"].session_info()
+        allowed_companies = session_info["user_companies"]["allowed_companies"]
+        if company.id not in allowed_companies:
+            # This user is not allowed in the company the session trades for.
+            # Indexing straight into `allowed_companies` raised KeyError here,
+            # i.e. a 500 on a route the user simply has no business on -- send
+            # them back to the menu, like every other refusal above.
+            return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
         session_info["user_context"]["allowed_company_ids"] = company.ids
         session_info["user_companies"] = {
             "current_company": company.id,
-            "allowed_companies": {
-                company.id: session_info["user_companies"]["allowed_companies"][
-                    company.id
-                ]
-            },
+            "allowed_companies": {company.id: allowed_companies[company.id]},
         }
         session_info["nomenclature_id"] = pos_session.company_id.nomenclature_id.id
         session_info["fallback_nomenclature_id"] = (
@@ -119,7 +137,7 @@ class PosController(PortalAccount):
         )
         context = {
             "from_backend": 1 if from_backend else 0,
-            "use_pos_fake_tours": bool(k.get("tours", False)),
+            "use_pos_fake_tours": bool(k.get("tours")),
             "session_info": session_info,
             "pos_session_id": pos_session.id,
             "pos_config_id": pos_session.config_id.id,
@@ -157,6 +175,19 @@ class PosController(PortalAccount):
         ]
         return request.make_response(pdf, headers=pdfhttpheaders)
 
+    @staticmethod
+    def _parse_ticket_date(value):
+        """The ticket form's date, or None if it is not one.
+
+        The field is a plain ``<input type="date">``, so the browser sends
+        ``YYYY-MM-DD`` -- but nothing stops a hand-made request from sending
+        anything at all.
+        """
+        try:
+            return date.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+
     @http.route(
         ["/pos/ticket"], type="http", auth="public", website=True, sitemap=False
     )
@@ -170,6 +201,19 @@ class PosController(PortalAccount):
                 else:
                     form_values[field] = kwargs.get(field)
 
+            # This route is `auth="public"`, so every value here is a string a
+            # stranger chose. The date used to go straight into
+            # `datetime(*[int(i) for i in value.split("-")])`, where anything
+            # but three integers raised out of the handler as a 500 -- while
+            # every other field on the same form already had an error path.
+            date_order = None
+            if not errors:
+                date_order = fields.Datetime.to_datetime(
+                    self._parse_ticket_date(form_values["date_order"])
+                )
+                if not date_order:
+                    errors["date_order"] = " "
+
             if errors:
                 errors["generic"] = _("Please fill all the required fields.")
             elif len(form_values["pos_reference"]) < 12:
@@ -177,9 +221,6 @@ class PosController(PortalAccount):
                     "The Ticket Number should be at least 12 characters long."
                 )
             else:
-                date_order = datetime(
-                    *[int(i) for i in form_values["date_order"].split("-")]
-                )
                 order = (
                     request.env["pos.order"]
                     .sudo()
@@ -255,10 +296,12 @@ class PosController(PortalAccount):
         if not access_token:
             return request.not_found()
         # Get the order using the access token. We can't use the id in the route because we may not have it yet when the QR code is generated.
+        # `limit=1`: `access_token` carries no unique constraint, and every line
+        # below this point treats `pos_order` as a singleton.
         pos_order = (
             request.env["pos.order"]
             .sudo()
-            .search([("access_token", "=", access_token)])
+            .search([("access_token", "=", access_token)], limit=1)
         )
         if not pos_order:
             return request.not_found()

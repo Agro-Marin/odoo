@@ -115,7 +115,7 @@ class AccountMove(models.Model):
         super()._compute_amounts()
         for move in self:
             if move.move_type == "entry" and move.reversed_pos_order_id:
-                move.amount_total_signed = move.amount_total_signed * -1
+                move.amount_total_signed *= -1
 
     def _compute_is_storno(self):
         # EXTENDS 'account'

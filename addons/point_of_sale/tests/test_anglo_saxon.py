@@ -466,13 +466,18 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         aml_valuation = aml.filtered(lambda l: l.account_id.id == valuation_account.id)
         aml_expense = aml.filtered(lambda l: l.account_id.id == expense_account.id)
 
-        # A single COGS entry, posted in the company's stock journal at delivery.
+        # A single COGS entry, posted at delivery in the journal the product's
+        # category names. This class's own setUpClass sets
+        # `category.property_stock_journal`, and `stock.move._get_stock_journal`
+        # honours it -- it used to read the company's journal directly and drop
+        # the category setting, which is what this assertion was written
+        # against.
         self.assertEqual(len(aml_valuation), 1)
         self.assertEqual(len(aml_expense), 1)
         self.assertEqual(
             aml_valuation.move_id.journal_id,
-            self.company.account_stock_journal_id,
-            "The COGS entry is posted in the company stock journal",
+            self.category.property_stock_journal,
+            "The COGS entry is posted in the product category's stock journal",
         )
         self.assertEqual(aml_valuation.move_id, aml_expense.move_id)
         # The PoS closing entry no longer carries any COGS accrual.
@@ -771,11 +776,15 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         # I test that the generated journal entries are correct.
         #
         # As in test_cogs_with_ship_later_no_invoicing, COGS is no longer accrued
-        # in the PoS closing entry: it is posted by the stock move at delivery, in
-        # the company stock journal.
+        # in the PoS closing entry: it is posted by the stock move at delivery,
+        # in the journal the product's category names (see
+        # `stock.move._get_stock_journal`).
         out = self.product_1.categ_id.property_stock_valuation_account_id
         exp = self.product_1._get_product_accounts()["expense"]
-        cogs_journal = self.company.account_stock_journal_id
+        cogs_journal = (
+            self.product_1.categ_id.property_stock_journal
+            or self.company.account_stock_journal_id
+        )
         aml = current_session._get_related_account_moves().line_ids
         aml_output = aml.filtered(
             lambda l: l.account_id.id == out.id and l.journal_id == cogs_journal

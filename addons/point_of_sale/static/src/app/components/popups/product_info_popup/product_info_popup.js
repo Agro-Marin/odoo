@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { _t } from "@web/core/translation";
-import { Dialog } from "@web/ui/dialog";
+import { AlertDialog, Dialog } from "@web/ui/dialog";
 export class ProductInfoPopup extends Component {
     static template = "point_of_sale.ProductInfoPopup";
     static components = { Dialog };
@@ -29,10 +30,34 @@ export class ProductInfoPopup extends Component {
     get allowProductEdition() {
         return true; // Overrided in pos_hr
     }
-    toggleFavorite() {
-        this.pos.data.write("product.template", [this.props.productTemplate.id], {
-            is_favorite: !this.props.productTemplate.is_favorite,
-        });
+    async toggleFavorite() {
+        // Through a dedicated server method, not a plain write: cashiers hold
+        // read-only access to product.template, so the direct write raised
+        // AccessError for the very group this button is drawn for. Awaited and
+        // caught -- it used to be a fire-and-forget promise whose rejection
+        // surfaced as an unhandled error with the star already flipped.
+        const template = this.props.productTemplate;
+        const next = !template.is_favorite;
+        try {
+            const applied = await this.pos.data.call(
+                "product.template",
+                "set_pos_favorite",
+                [[template.id], next],
+            );
+            template.is_favorite = applied;
+        } catch (error) {
+            this.pos.dialog.add(AlertDialog, {
+                title: _t("Favourite not saved"),
+                body: _t("This product could not be marked as a favourite."),
+            });
+            logPosMessage(
+                "ProductInfoPopup",
+                "toggleFavorite",
+                `Could not set is_favorite on product.template ${template.id}`,
+                undefined,
+                [error],
+            );
+        }
     }
     get vatLabel() {
         return _t("VAT:");

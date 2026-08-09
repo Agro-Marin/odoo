@@ -219,6 +219,11 @@ registry.category("web_tour.tours").add("PaymentScreenInvoiceOrder", {
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.clickInvoiceButton(),
             PaymentScreen.clickValidate(),
+            // Wait for the receipt, as every other validating tour in this file
+            // does. Ending on the click alone let the tour report success while
+            // `sync_from_ui` was still in flight, so the Python assertions that
+            // follow raced it and found no order.
+            ReceiptScreen.isShown(),
         ].flat(),
 });
 
