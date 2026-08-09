@@ -632,6 +632,47 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("REGRESSED", out)
         self.assertIn(f"{WEB_SRC}excepted.js", out)
 
+    def test_candidates_ranks_ungated_modules_only(self):
+        """`--candidates` answers "what would gating X cost", so a module
+        already gated is not a candidate — its number is the gate's own output,
+        not an estimate."""
+        for i in range(25):
+            self.touch(f"addons/sale/static/src/f{i}.js")
+        for i in range(25):
+            self.touch(f"{WEB_SRC}w{i}.js")
+        log = self.write_log(err("addons/sale/static/src/f0.js"))
+        code, out, _ = self._run(
+            ["g", "--log", log, "--candidates", "--min-files", "5"]
+        )
+        self.assertEqual(code, EXIT_OK, out)
+        self.assertIn("sale", out)
+        # `web` is in SCOPED_MODULES for these tests and must not be offered.
+        self.assertNotIn("\nweb ", out)
+        self.assertIn("96%", out)  # 24 of 25 would lock
+
+    def test_candidates_ignores_modules_below_the_size_floor(self):
+        """A one-file module locking 100% is arithmetic, not a candidate."""
+        self.touch("addons/tiny/static/src/only.js")
+        for i in range(25):
+            self.touch("addons/sale/static/src/f%d.js" % i)
+        log = self.write_log("")
+        code, out, _ = self._run(
+            ["g", "--log", log, "--candidates", "--min-files", "20"]
+        )
+        self.assertEqual(code, EXIT_OK, out)
+        self.assertIn("sale", out)
+        self.assertNotIn("tiny", out)
+
+    def test_candidates_refuses_a_log_with_no_program_list(self):
+        """Same refusal as the gate: a log with no --listFiles cannot
+        distinguish a clean program from one that never compiled."""
+        self.touch("addons/sale/static/src/a.js")
+        path = self.root / "bare.log"
+        path.write_text("", encoding="utf-8")
+        code, _out, errbuf = self._run(["g", "--log", str(path), "--candidates"])
+        self.assertEqual(code, EXIT_USAGE)
+        self.assertIn("--listFiles", errbuf)
+
     def test_stdin_log_accepted(self):
         self.touch(f"{WEB_SRC}dirty.js")
         log = self.write_log(err(f"{WEB_SRC}dirty.js"))

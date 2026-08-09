@@ -92,18 +92,16 @@ EXCEPTIONS_DIR = HERE / "exceptions"
 #
 # Adding one is a two-step change: append it here, then generate its lists with
 # --update in the same commit. Do NOT add a module without checking what its
-# coverage would be first — measured 2026-07-29 under checkJs, the seven
-# candidates behind web are far from clean, and a gate that has to except most
-# of a module teaches people to ignore it:
+# coverage would be first: a gate that has to except most of a module teaches
+# people to ignore it.
 #
-#     module          files  strict-locked  noImplicitAny-locked
-#     mail              595      169 (28%)             127 (21%)
-#     bus                36       10 (28%)               5 (14%)
-#     html_editor       336       81 (24%)              69 (21%)
-#     html_builder      193       50 (26%)              33 (17%)
-#     website           564      172 (31%)             158 (28%)
-#     point_of_sale     328      162 (49%)              80 (24%)
-#     spreadsheet       144       56 (39%)              15 (10%)
+# `--candidates` answers that, from the same log the gate already needs:
+#
+#     python tooling/typecheck/scope_gate.py strict --log /tmp/strict.log --candidates
+#
+# The table that used to sit here was hand-copied from a 2026-07-29 run and had
+# no assertion behind it — the same shape of rot `doc_measured.py` exists to
+# stop. It also omitted the two best candidates outright. Derive it instead.
 SCOPED_MODULES = ("web",)
 
 # ``static/lib`` is deliberately outside the scope: vendored third-party code
@@ -586,6 +584,67 @@ UPDATE_HEADER = """\
 """
 
 
+def report_candidates(text: str, limit: int, min_files: int = 20) -> int:
+    """Rank ungated modules by how much of each would lock, and print it.
+
+    Answers the one question that must be asked before appending to
+    ``SCOPED_MODULES``, using the same log the gate already needs and the same
+    scope rules it already applies — so the estimate cannot disagree with the
+    verdict it is predicting.
+
+    Files come from ``--listFiles`` rather than a directory walk: only what
+    ``tsc`` actually compiled can be locked, and a walk counts files the program
+    never saw. Modules already gated are excluded — their number is the gate's
+    own output, not an estimate.
+    """
+    errors = parse_log(text)
+    program = parse_program_files(text)
+    if not program:
+        print(
+            "error: no program file list in the log. Run tsc with --listFiles.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    tally: dict[str, list[int]] = {}
+    for path in program:
+        if not path.endswith(CHECKED_SUFFIXES) or path.endswith(".d.ts"):
+            continue
+        match = MODULE_PATH_RE.match(path)
+        if not match or match["module"] in SCOPED_MODULES:
+            continue
+        row = tally.setdefault(match["module"], [0, 0])
+        row[0] += 1
+        if path in errors:
+            row[1] += 1
+
+    # A one-file module locking 100% is arithmetic, not a candidate. The
+    # question is which module of consequence would lock well, so tiny ones are
+    # excluded rather than allowed to fill the table with noise.
+    big = {m: row for m, row in tally.items() if row[0] >= min_files}
+    ranked = sorted(
+        big.items(),
+        key=lambda item: (-(item[1][0] - item[1][1]) / item[1][0], -item[1][0]),
+    )
+    print(
+        f"Ungated modules with >= {min_files} compiled files, ranked by the "
+        f"share that would lock"
+    )
+    print(f"  ({len(big)} of {len(tally)} ungated modules; the rest are smaller)")
+    print(f"{'module':<28}{'files':>7}{'would lock':>13}{'excepted':>10}")
+    for module, (total, dirty) in ranked[:limit]:
+        locked = total - dirty
+        print(
+            f"{module:<28}{total:>7}{locked:>9} ({100 * locked // total:>3}%){dirty:>10}"
+        )
+    print(
+        "\nA module that has to except most of itself teaches people to ignore "
+        "the gate.\nAppend to SCOPED_MODULES only with the ratio in the commit "
+        "message."
+    )
+    return EXIT_OK
+
+
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="scope_gate.py",
@@ -623,6 +682,17 @@ def run(argv: list[str] | None = None) -> int:
         help="rank remaining exceptions by cleanup leverage instead of gating",
     )
     parser.add_argument("--limit", type=int, default=20, help="--report row count")
+    parser.add_argument(
+        "--candidates",
+        action="store_true",
+        help="rank UNGATED modules by how much of each would lock, and exit",
+    )
+    parser.add_argument(
+        "--min-files",
+        type=int,
+        default=20,
+        help="--candidates: ignore modules smaller than this (default 20)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -649,6 +719,9 @@ def run(argv: list[str] | None = None) -> int:
             print(f"error: no such log: {args.log}", file=sys.stderr)
             return EXIT_USAGE
         text = log.read_text(encoding="utf-8", errors="replace")
+
+    if args.candidates:
+        return report_candidates(text, args.limit, args.min_files)
 
     tally = parse_log(text)
     program = parse_program_files(text)
