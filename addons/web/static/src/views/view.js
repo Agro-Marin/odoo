@@ -61,7 +61,7 @@ import { computeViewClassName } from "./view_utils.js";
  * @property {string[]} [groupBy]
  * @property {OrderTerm[]} [orderBy]
  * @property {boolean} [useSampleModel]
- * @property {string} [noContentHelp]
+ * @property {string|false} [noContentHelp]
  * @property {string} [className]
  * @property {string} [jsClass]
  * @property {boolean} [noBreadcrumbs]
@@ -182,7 +182,15 @@ export const viewProps = {
     comparison: { type: Object, optional: true },
 
     useSampleModel: { type: Boolean, optional: true },
-    noContentHelp: { type: String, optional: true },
+    // `false`, not just a string: this is `action.help` forwarded verbatim by
+    // `action_info_builders` (`viewProps.noContentHelp = action.help`), and an
+    // `ir.actions.act_window` with an empty Html `help` serialises it as
+    // `false`. That value is load-bearing rather than incidental --
+    // `PivotController.displayNoContent` branches on
+    // `noContentHelp === false` -- so declaring it `String` rejected an action
+    // the webclient opens routinely, and did so only in dev mode, which is
+    // where the tours run.
+    noContentHelp: { type: [String, Boolean], optional: true },
     className: { type: String, optional: true },
     noBreadcrumbs: { type: Boolean, optional: true },
 
