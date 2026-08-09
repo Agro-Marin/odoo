@@ -48,10 +48,63 @@ import { useRenderCounter } from "@web/core/utils/render_instrumentation";
  * with `t-call` on the RENDERER's context (project's notebook tasks,
  * hr_skills) — bare names resolve on either component.
  */
+/**
+ * The row context {@link ListRenderer#getRowProps} builds, as an OWL schema.
+ *
+ * The contract was already written down — {@link ListRowApi} and
+ * {@link ListRowFlags} above, plus the prose on this class — and none of it was
+ * executable, so `getRowProps` and the row template could drift apart in
+ * silence. The row is instantiated once per record, which is the seam where a
+ * quiet mismatch is most expensive to trace: a `t-props` typo shows up as one
+ * column rendering blank in one view, not as an error.
+ *
+ * `"*": true` is required, not laziness: the documented extension recipe for a
+ * renderer subclass is to add keys in a `getRowProps()` override and read them
+ * as `props.x`, and roughly forty subclasses exist. The declared entries are the
+ * ones the base renderer always supplies.
+ *
+ * `api` and `flags` are checked for shape rather than by key. Their members are
+ * enumerated in the typedefs, but a subclass extends both, and OWL's nested
+ * `shape` is closed — validating them key-by-key would reject exactly the
+ * extension the recipe asks for.
+ */
+export const listRecordRowProps = {
+    // this row's data
+    record: { type: Object },
+    group: { type: [Object, { value: null }, { value: false }], optional: true },
+    groupId: { type: [String, Number, { value: false }], optional: true },
+
+    // the shared row interface
+    api: { type: Object },
+    flags: { type: Object },
+
+    // the list this row belongs to, and how it was configured
+    list: { type: Object },
+    archInfo: { type: Object },
+    columns: { type: Array },
+    activeActions: { type: Object, optional: true },
+    recordRowTemplate: { type: String, optional: true },
+    onOpenFormView: { type: Function, optional: true },
+
+    // per-render invalidation keys: `t-props` diffing skips the row when these
+    // are all identical, so each one is a deliberate re-render trigger
+    readonly: { type: Boolean, optional: true },
+    isEdited: { type: Boolean },
+    canResequence: { type: Boolean },
+    hasSelectors: { type: Boolean },
+    hasOpenFormViewColumn: { type: Boolean },
+    displayOptionalFields: { type: Boolean },
+    isX2Many: { type: Boolean },
+    // undefined while the grid state has not placed the row yet
+    rowIndex: { type: Number, optional: true },
+
+    "*": true,
+};
+
 export class ListRecordRow extends Component {
     static template = "web.ListRecordRow";
     static components = {};
-    static props = ["*"];
+    static props = listRecordRowProps;
 
     setup() {
         useRenderCounter("list.ListRecordRow");

@@ -29,7 +29,25 @@ const ControllerComponentTemplate = xml`<t t-component="Component" t-props="comp
 export function makeControllerComponent(am) {
     return class ControllerComponent extends Component {
         static template = ControllerComponentTemplate;
-        static props = { "*": true };
+        /**
+         * Everything except `_context` is the wrapped component's own prop bag,
+         * forwarded verbatim by `componentProps` — so the schema has to stay
+         * open. `_context` is the one prop this class reads, and it reads it
+         * five times without a guard (`controller`, `action`, `nextStack`,
+         * `commit`, `fail`, `discard`). Declaring it turns "the action manager
+         * forgot to pass its context" from a `TypeError` inside `setup` — which
+         * surfaces as a destroyed root and an empty screen — into a named props
+         * error at the boundary that was actually violated.
+         *
+         * `updateActionState` is declared for the same reason: `componentProps`
+         * wraps it unconditionally, so a controller reaching this class without
+         * one fails on the next render rather than here.
+         */
+        static props = {
+            _context: { type: Object },
+            updateActionState: { type: Function, optional: true },
+            "*": true,
+        };
 
         setup() {
             const { controller, action, nextStack } = this.props._context;
