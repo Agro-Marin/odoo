@@ -6,7 +6,7 @@ import { MrpTimer } from "@mrp/widgets/timer";
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
 describe.current.tags("desktop");
@@ -16,12 +16,73 @@ defineMrpModels();
 // pulls in @mrp/widgets/timer, which performs the registration).
 const formatMinutes = registry.category("formatters").get("mrp_timer");
 
+// A view that loads `duration_live` alongside the bound field, as the work
+// order list does.
+const LIVE_ARCH = /* xml */ `
+    <form>
+        <field name="state" invisible="1"/>
+        <field name="duration_live" invisible="1"/>
+        <field name="duration" widget="mrp_timer" readonly="1"/>
+    </form>`;
+
 test("ensure the rendering is based on minutes and seconds", async () => {
     const pyEnv = await startServer();
     const fakeId = pyEnv["res.fake"].create({ duration: 150.5 });
     await start();
     await openFormView("res.fake", fakeId);
     expect(".o_field_mrp_timer").toHaveText("150:30");
+});
+
+test("mrp_timer shows the live duration from the record, without an RPC", async () => {
+    const pyEnv = await startServer();
+    const fakeId = pyEnv["res.fake"].create({
+        duration: 10,
+        duration_live: 42.5,
+        state: "progress",
+    });
+    onRpc("get_duration", () => {
+        expect.step("get_duration");
+        return 0;
+    });
+    await start();
+    await openFormView("res.fake", fakeId, { arch: LIVE_ARCH });
+    // The running total, taken from the field the read already carried.
+    expect(".o_field_mrp_timer").toHaveText("42:30");
+    // One HTTP round trip per row is exactly what this replaced.
+    expect.verifySteps([]);
+});
+
+test("mrp_timer falls back to the bound field when the record is not in progress", async () => {
+    const pyEnv = await startServer();
+    const fakeId = pyEnv["res.fake"].create({
+        duration: 10,
+        duration_live: 42.5,
+        state: "done",
+    });
+    await start();
+    await openFormView("res.fake", fakeId, { arch: LIVE_ARCH });
+    expect(".o_field_mrp_timer").toHaveText("10:00");
+});
+
+test("mrp_timer falls back to get_duration when the view omits duration_live", async () => {
+    const pyEnv = await startServer();
+    const fakeId = pyEnv["res.fake"].create({ duration: 10, state: "progress" });
+    onRpc("get_duration", () => {
+        expect.step("get_duration");
+        return 42.5;
+    });
+    await start();
+    // The default arch loads neither `state` nor `duration_live`; the shop
+    // floor assembles its own field set the same way.
+    await openFormView("res.fake", fakeId, {
+        arch: /* xml */ `
+            <form>
+                <field name="state" invisible="1"/>
+                <field name="duration" widget="mrp_timer" readonly="1"/>
+            </form>`,
+    });
+    expect(".o_field_mrp_timer").toHaveText("42:30");
+    expect.verifySteps(["get_duration"]);
 });
 
 test("formatMinutes renders mm:ss and carries a rounded-up second into the minutes", () => {

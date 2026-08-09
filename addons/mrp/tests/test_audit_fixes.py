@@ -1206,3 +1206,101 @@ class TestMrpAuditFixes(TestMrpCommon):
                 "%s took %s mrp_bom queries for %s products"
                 % (field, queries, len(products)),
             )
+
+    def test_live_duration_reports_a_running_timer(self):
+        """mrp.workorder.duration_live
+
+        `duration` is stored and only recomputed when a timer row changes, so
+        it is a snapshot: it freezes at the value the last recompute saw and
+        goes stale while a timer keeps running. `duration_live` is the same
+        answer as `get_duration()`, evaluated at read time -- which is what the
+        timer widget needs and what it used to fetch with one RPC per record.
+
+        The clock here is `cr.now()`, fixed for the transaction, so the
+        staleness itself cannot be shown in a single test; what is asserted is
+        the contract the widget relies on.
+        """
+        production = self.generate_mo()[0]
+        workorder = self.env["mrp.workorder"].create(
+            {
+                "name": "Live duration",
+                "production_id": production.id,
+                "workcenter_id": self.workcenter_1.id,
+            }
+        )
+        loss = self.env["mrp.workcenter.productivity.loss"].search(
+            [("loss_type", "=", "productive")], limit=1
+        )
+        self.env["mrp.workcenter.productivity"].create(
+            {
+                "workorder_id": workorder.id,
+                "workcenter_id": self.workcenter_1.id,
+                "loss_id": loss.id,
+                "date_start": self.env.cr.now() - timedelta(minutes=30),
+                # No `date_end`: the timer is still running.
+            }
+        )
+        self.env.flush_all()
+        workorder.invalidate_recordset()
+
+        self.assertAlmostEqual(workorder.duration_live, 30.0, delta=1.0)
+        self.assertAlmostEqual(workorder.duration_live, workorder.get_duration())
+        # The row itself contributes no duration while it is open, which is why
+        # the stored field cannot follow a running timer on its own.
+        self.assertEqual(workorder.time_ids.duration, 0.0)
+
+    def test_live_duration_matches_the_stored_one_when_nothing_runs(self):
+        """mrp.workorder.duration_live
+
+        With every timer closed there is nothing to accrue, so the live value
+        must not drift from the stored one -- the widget shows it in both
+        states.
+        """
+        production = self.generate_mo()[0]
+        workorder = self.env["mrp.workorder"].create(
+            {
+                "name": "Closed timer",
+                "production_id": production.id,
+                "workcenter_id": self.workcenter_1.id,
+            }
+        )
+        loss = self.env["mrp.workcenter.productivity.loss"].search(
+            [("loss_type", "=", "productive")], limit=1
+        )
+        ended = self.env.cr.now()
+        self.env["mrp.workcenter.productivity"].create(
+            {
+                "workorder_id": workorder.id,
+                "workcenter_id": self.workcenter_1.id,
+                "loss_id": loss.id,
+                "date_start": ended - timedelta(minutes=12),
+                "date_end": ended,
+            }
+        )
+        self.env.flush_all()
+        workorder.invalidate_recordset()
+
+        self.assertAlmostEqual(workorder.duration, 12.0, delta=0.1)
+        self.assertAlmostEqual(workorder.duration_live, workorder.duration)
+
+    def test_live_duration_is_computed_for_the_whole_list_at_once(self):
+        """mrp.workorder.duration_live
+
+        The point of the field is that a list of work orders costs one read
+        rather than one round trip per row, so the compute has to answer for a
+        recordset.
+        """
+        production = self.generate_mo()[0]
+        workorders = self.env["mrp.workorder"].create(
+            [
+                {
+                    "name": f"Batch live {index}",
+                    "production_id": production.id,
+                    "workcenter_id": self.workcenter_1.id,
+                }
+                for index in range(5)
+            ]
+        )
+        self.env.flush_all()
+        workorders.invalidate_recordset()
+        self.assertEqual(workorders.mapped("duration_live"), [0.0] * 5)

@@ -81,6 +81,7 @@
                 <field name="date_start" optional="hide" readonly="state in ['progress', 'done', 'cancel']"/>
                 <field name="date_end" optional="hide" readonly="state in ['progress', 'done', 'cancel']"/>
                 <field name="duration_expected" widget="float_time" sum="expected duration" readonly="state in ['cancel', 'done']"/>
+                <field name="duration_live" column_invisible="True"/>
                 <field name="duration" widget="mrp_timer"
                   invisible="production_state == 'draft'"
                   readonly="is_user_working" sum="real duration"/>

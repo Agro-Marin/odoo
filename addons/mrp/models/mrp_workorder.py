@@ -141,6 +141,12 @@ class MrpWorkorder(models.Model):
         store=True,
         copy=False,
     )
+    duration_live = fields.Float(
+        "Live Duration",
+        compute="_compute_duration_live",
+        help="Real duration including the time accrued so far on a running "
+        "timer. Technical: read by the timer widget.",
+    )
     duration_unit = fields.Float(
         "Duration Per Unit",
         compute="_compute_duration",
@@ -584,6 +590,20 @@ class MrpWorkorder(models.Model):
                 )
             else:
                 order.duration_percent = 0
+
+    @api.depends("time_ids.date_start", "time_ids.date_end", "duration")
+    def _compute_duration_live(self):
+        """`duration`, plus whatever a still-running timer has accrued.
+
+        The stored `duration` only moves when a timer row changes, so while one
+        is open it under-reports by however long the work order has been
+        running. The timer widget used to close that gap with a
+        `mrp.workorder.get_duration` RPC *per record*, which on a list of work
+        orders in progress meant one HTTP round trip per row. Reading it as a
+        field folds the same answer into the read the list already performs.
+        """
+        for workorder in self:
+            workorder.duration_live = workorder.get_duration()
 
     def _set_duration(self):
 

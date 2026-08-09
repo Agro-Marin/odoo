@@ -13,6 +13,8 @@ import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
+const LIVE_DURATION_FIELD = "duration_live";
+
 function formatMinutes(value) {
     if (value === false) {
         return "";
@@ -124,17 +126,32 @@ class MrpTimerField extends Component {
         });
 
         useRecordObserver(async (record) => {
-            if (
-                !this.props.record.model.useSampleModel &&
-                record.data.state === "progress"
-            ) {
-                this.duration = await this.orm.call("mrp.workorder", "get_duration", [
-                    this.props.record.resId,
-                ]);
-            } else {
-                this.duration = record.data[this.props.name];
-            }
+            this.duration = await this.getLiveDuration(record);
         });
+    }
+
+    /**
+     * The running total, which the stored duration under-reports while a timer
+     * is open.
+     *
+     * `duration_live` carries it and arrives with the read the view already
+     * performs, so a list of work orders in progress costs nothing extra. This
+     * used to be a `mrp.workorder.get_duration` call *per record* -- one HTTP
+     * round trip per row.
+     *
+     * The call survives as a fallback because the widget is also mounted by
+     * views that assemble their own field set rather than declaring one (the
+     * shop floor), where the field is simply absent. Not in progress, or a
+     * sample record, and the bound field is already the answer.
+     */
+    async getLiveDuration(record) {
+        if (record.model.useSampleModel || record.data.state !== "progress") {
+            return record.data[this.props.name];
+        }
+        if (LIVE_DURATION_FIELD in record.data) {
+            return record.data[LIVE_DURATION_FIELD];
+        }
+        return this.orm.call("mrp.workorder", "get_duration", [record.resId]);
     }
 
     get durationFormatted() {
