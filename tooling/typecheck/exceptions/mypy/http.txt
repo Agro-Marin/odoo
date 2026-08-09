@@ -1,0 +1,27 @@
+# mypy / http: files NOT yet clean under mypy.ini — the
+# EXCEPTIONS to a default-deny gate, so this list may only shrink.
+# Everything else under odoo/http/ is locked at zero, including
+# files added after this list was written. Per-file ceilings for the
+# entries below are in budgets/mypy-http.json.
+#
+odoo/http/_csrf.py
+odoo/http/_response.py
+odoo/http/_serve.py
+odoo/http/application.py
+odoo/http/dispatcher.py
+odoo/http/helpers.py
+odoo/http/request_class.py
+odoo/http/routing.py
+odoo/http/session.py
+odoo/http/stream.py
+odoo/http/tests/test_csrf.py
+odoo/http/tests/test_dispatch_preflight.py
+odoo/http/tests/test_helpers.py
+odoo/http/tests/test_openapi.py
+odoo/http/tests/test_params.py
+odoo/http/tests/test_replay_and_headers.py
+odoo/http/tests/test_routing_merge.py
+odoo/http/tests/test_routing_methods.py
+odoo/http/tests/test_routing_rule.py
+odoo/http/tests/test_session_store.py
+odoo/http/wrappers.py

@@ -1,0 +1,10 @@
+# mypy / modules: files NOT yet clean under mypy.ini — the
+# EXCEPTIONS to a default-deny gate, so this list may only shrink.
+# Everything else under odoo/modules/ is locked at zero, including
+# files added after this list was written. Per-file ceilings for the
+# entries below are in budgets/mypy-modules.json.
+#
+odoo/modules/db.py
+odoo/modules/loading.py
+odoo/modules/module.py
+odoo/modules/module_graph.py

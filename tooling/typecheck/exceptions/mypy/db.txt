@@ -1,0 +1,17 @@
+# mypy / db: files NOT yet clean under mypy.ini — the
+# EXCEPTIONS to a default-deny gate, so this list may only shrink.
+# Everything else under odoo/db/ is locked at zero, including
+# files added after this list was written. Per-file ceilings for the
+# entries below are in budgets/mypy-db.json.
+#
+odoo/db/bulk.py
+odoo/db/cursor.py
+odoo/db/tests/test_bulk.py
+odoo/db/tests/test_cursor.py
+odoo/db/tests/test_errors.py
+odoo/db/tests/test_invariants.py
+odoo/db/tests/test_lag.py
+odoo/db/tests/test_pool.py
+odoo/db/tests/test_resilience_counter_concurrency.py
+odoo/db/tests/test_savepoint.py
+odoo/db/utils.py

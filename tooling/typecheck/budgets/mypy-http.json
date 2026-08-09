@@ -1,0 +1,29 @@
+{
+  "gate": "mypy",
+  "package": "http",
+  "total": 134,
+  "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/http.txt. Harvested with the mypy version pinned in requirements-dev.txt \u2014 a different version reports different counts.",
+  "budgets": {
+    "odoo/http/_csrf.py": 8,
+    "odoo/http/_response.py": 3,
+    "odoo/http/_serve.py": 34,
+    "odoo/http/application.py": 7,
+    "odoo/http/dispatcher.py": 5,
+    "odoo/http/helpers.py": 1,
+    "odoo/http/request_class.py": 8,
+    "odoo/http/routing.py": 12,
+    "odoo/http/session.py": 2,
+    "odoo/http/stream.py": 4,
+    "odoo/http/tests/test_csrf.py": 4,
+    "odoo/http/tests/test_dispatch_preflight.py": 1,
+    "odoo/http/tests/test_helpers.py": 2,
+    "odoo/http/tests/test_openapi.py": 3,
+    "odoo/http/tests/test_params.py": 1,
+    "odoo/http/tests/test_replay_and_headers.py": 21,
+    "odoo/http/tests/test_routing_merge.py": 2,
+    "odoo/http/tests/test_routing_methods.py": 6,
+    "odoo/http/tests/test_routing_rule.py": 2,
+    "odoo/http/tests/test_session_store.py": 2,
+    "odoo/http/wrappers.py": 6
+  }
+}

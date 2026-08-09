@@ -1,0 +1,19 @@
+{
+  "gate": "mypy",
+  "package": "db",
+  "total": 19,
+  "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/db.txt. Harvested with the mypy version pinned in requirements-dev.txt \u2014 a different version reports different counts.",
+  "budgets": {
+    "odoo/db/bulk.py": 2,
+    "odoo/db/cursor.py": 5,
+    "odoo/db/tests/test_bulk.py": 1,
+    "odoo/db/tests/test_cursor.py": 2,
+    "odoo/db/tests/test_errors.py": 1,
+    "odoo/db/tests/test_invariants.py": 1,
+    "odoo/db/tests/test_lag.py": 1,
+    "odoo/db/tests/test_pool.py": 2,
+    "odoo/db/tests/test_resilience_counter_concurrency.py": 2,
+    "odoo/db/tests/test_savepoint.py": 1,
+    "odoo/db/utils.py": 1
+  }
+}

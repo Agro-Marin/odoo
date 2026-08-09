@@ -1,0 +1,28 @@
+{
+  "gate": "mypy",
+  "package": "service",
+  "total": 95,
+  "note": "Per-file ceilings for the files mypy excepts; membership still comes from exceptions/mypy/service.txt. Harvested with the mypy version pinned in requirements-dev.txt \u2014 a different version reports different counts.",
+  "budgets": {
+    "odoo/service/_base_server.py": 2,
+    "odoo/service/_cron.py": 1,
+    "odoo/service/_db_helpers.py": 1,
+    "odoo/service/_dump_scanner.py": 2,
+    "odoo/service/_env.py": 1,
+    "odoo/service/_metrics.py": 6,
+    "odoo/service/_prefork.py": 16,
+    "odoo/service/_threaded.py": 8,
+    "odoo/service/_watcher.py": 5,
+    "odoo/service/_worker.py": 7,
+    "odoo/service/common.py": 2,
+    "odoo/service/db/dump.py": 6,
+    "odoo/service/db/lifecycle.py": 3,
+    "odoo/service/db/listing.py": 3,
+    "odoo/service/db/restore.py": 2,
+    "odoo/service/lifecycle.py": 8,
+    "odoo/service/model.py": 3,
+    "odoo/service/security.py": 9,
+    "odoo/service/transaction.py": 7,
+    "odoo/service/wsgi.py": 3
+  }
+}

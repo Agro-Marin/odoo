@@ -47,6 +47,13 @@ on:
       - 'mypy.ini'
       - 'requirements*.txt'
       - 'tooling/ratchet/**'
+      # The scope gate, its self-test, and the lists it enforces. Without this
+      # a PR that only edits an exception list would not run the gate that
+      # reads it — which is the one edit most likely to be wrong.
+      - 'tooling/typecheck/py_scope_gate.py'
+      - 'tooling/typecheck/test_py_scope_gate.py'
+      - 'tooling/typecheck/exceptions/mypy/**'
+      - 'tooling/typecheck/budgets/mypy-*.json'
       - '.github/workflows/py_typecheck.yml'
 
 permissions:
@@ -72,6 +79,13 @@ jobs:
       - name: Install mypy
         run: pip install "mypy==2.3.0"
 
+      - name: Self-test the scope gate
+        # Same argument as the ratchet self-test below: a checker whose own
+        # logic is broken reports green over code it never read. This one
+        # additionally pins the count-neutral swap that the ratchet cannot see,
+        # which is the reason the scope gate exists.
+        run: python tooling/typecheck/test_py_scope_gate.py
+
       - name: Self-test the ratchet
         # Prove the enforcement tool is sound before trusting its verdict —
         # mirrors how architecture.yml self-tests the layer checker.
@@ -88,9 +102,14 @@ jobs:
           # --no-incremental: the count must be deterministic for an exact-match
           # ratchet. mypy's incremental cache yields slightly different totals
           # depending on cache state; a clean run is stable.
+          # --verbose is required by the scope gate, not by the ratchet: without
+          # the "LOG:  Parsing <file>" lines a file mypy SKIPPED is
+          # indistinguishable from a file mypy found clean, and the gate would
+          # count it as locked while nothing enforces it. It does not perturb
+          # the count -- verified, no verbose line matches ": error:".
           python -m mypy --no-incremental --config-file mypy.ini \
             -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules \
-            2>&1 | tee /tmp/mypy.log
+            --verbose 2>&1 | tee /tmp/mypy.log
           set -e
           # `|| true`, NOT `|| echo 0`: `grep -c` PRINTS "0" and THEN exits 1
           # when it matches nothing, so the `||` branch appends a SECOND "0"
@@ -108,6 +127,16 @@ jobs:
           python tooling/ratchet/ratchet.py mypy \
             --count "${{ steps.mypy.outputs.error_count }}" --json | tee /tmp/verdict.json
           python tooling/ratchet/ratchet.py mypy --count "${{ steps.mypy.outputs.error_count }}"
+
+      - name: Enforce per-file locks
+        id: scope
+        # The ratchet above measures ONE integer over six packages, so a clean
+        # file may regress for free whenever an unrelated file improves by the
+        # same amount. This step locks the 259 files that are already clean and
+        # holds the 189 exceptions to their per-file ceilings. The two are
+        # complementary: the ratchet still catches aggregate drift inside the
+        # exception set, and this catches every movement the total hides.
+        run: python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log --check
 
       - name: Summarise
         if: always()
@@ -133,4 +162,14 @@ jobs:
             fi
             echo ""
             echo "Config: \`mypy.ini\` · Floor: \`tooling/ratchet/baselines/mypy.json\` · Scope: orm, db, libs, http, service, modules"
+            echo ""
+            echo "### Per-file locks"
+            echo ""
+            if [ -f /tmp/mypy.log ]; then
+              python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log --markdown
+            else
+              echo "> Not produced — mypy did not run."
+            fi
+            echo ""
+            echo "Locks: \`tooling/typecheck/exceptions/mypy/\` · Ceilings: \`tooling/typecheck/budgets/\`"
           } >> "$GITHUB_STEP_SUMMARY"

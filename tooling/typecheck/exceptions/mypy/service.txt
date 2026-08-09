@@ -1,0 +1,26 @@
+# mypy / service: files NOT yet clean under mypy.ini — the
+# EXCEPTIONS to a default-deny gate, so this list may only shrink.
+# Everything else under odoo/service/ is locked at zero, including
+# files added after this list was written. Per-file ceilings for the
+# entries below are in budgets/mypy-service.json.
+#
+odoo/service/_base_server.py
+odoo/service/_cron.py
+odoo/service/_db_helpers.py
+odoo/service/_dump_scanner.py
+odoo/service/_env.py
+odoo/service/_metrics.py
+odoo/service/_prefork.py
+odoo/service/_threaded.py
+odoo/service/_watcher.py
+odoo/service/_worker.py
+odoo/service/common.py
+odoo/service/db/dump.py
+odoo/service/db/lifecycle.py
+odoo/service/db/listing.py
+odoo/service/db/restore.py
+odoo/service/lifecycle.py
+odoo/service/model.py
+odoo/service/security.py
+odoo/service/transaction.py
+odoo/service/wsgi.py
