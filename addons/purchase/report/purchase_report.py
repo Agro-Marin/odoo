@@ -19,11 +19,7 @@ class PurchaseReport(models.Model):
         selection=[("purchase.order", "Purchase Order")],
         aggregator="count_distinct",
     )
-    company_id = fields.Many2one(
-        comodel_name="res.company",
-        string="Company",
-        readonly=True,
-    )
+    # company_id is inherited from order.report.mixin.
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         string="Currency",

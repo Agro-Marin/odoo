@@ -20,10 +20,7 @@ class SaleReport(models.Model):
         aggregator="count_distinct",
     )
     # sale.order fields
-    company_id = fields.Many2one(
-        comodel_name="res.company",
-        readonly=True,
-    )
+    # company_id is inherited from order.report.mixin.
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         readonly=True,

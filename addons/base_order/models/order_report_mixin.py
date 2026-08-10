@@ -6,15 +6,36 @@ class OrderReportMixin(models.AbstractModel):
     """Analytical-report layer shared by sale.report and purchase.report.
 
     Sits between ``sql.report.mixin`` (which assembles the SQL from the
-    ``_get_*`` registries) and the concrete order reports, and holds only what
-    is genuinely identical for both: the display fields that carry no
-    order-type wording, the line filter, the weighted-average aggregate and the
-    "open the order" action.
+    ``_get_*`` registries) and the concrete order reports, and holds the line
+    filter, the weighted-average aggregate, the "open the order" action, and
+    the fields whose declarations are worth sharing.
 
-    Everything whose *meaning* differs stays in the concrete report even where
-    the two happened to be spelled the same — ``state`` is the example: both
-    read ``fields.Selection(selection=const.ORDER_STATE, ...)``, but sale's
-    labels are Quotation/Sales Order and purchase's are RFQ/Purchase Order.
+    **Which fields those are.** A field is hoisted when what the two reports
+    say about it *outweighs the one attribute that differs*. On a SQL-view
+    report almost every field is ``comodel_name`` + ``readonly`` + a label, so
+    hoisting one and relabelling it twice is close to a wash, and for the
+    single-line ``Float`` columns (``qty_invoiced`` and friends) it is a net
+    loss — two lines become three. Most of them therefore stay put, and that is
+    a judgement about *field shape*, not about meaning.
+
+    This is why the rule here reads as the opposite of ``order.mixin``'s, where
+    ``partner_id`` and ``user_id`` *are* hoisted and relabelled: there the
+    shared part is ``required``/``check_company``/``index``/``tracking`` on top
+    of the comodel, so hoisting removes real duplication. Same rule, different
+    field shapes, opposite answers. (An earlier version of this docstring said
+    fields whose *meaning* differs must stay; applied to ``order.mixin`` that
+    rule would forbid hoisting ``partner_id``, which is plainly right there.)
+
+    ``state`` and ``order_reference`` are excluded for a third reason: their
+    only substantive attribute is ``selection``, and it is exactly the one that
+    differs (sale's labels are Quotation/Sales Order, purchase's RFQ/Purchase
+    Order). Each report has to state it anyway, so a copy here would remove
+    nothing.
+
+    These are SQL views, so declaring a field here is only half of it — every
+    consumer's ``_get_select_fields`` must also produce the column, which is
+    what ``test_order_report`` checks by reading the hoisted fields back out of
+    the built view rather than off the Python class.
     """
 
     _name = "order.report.mixin"
@@ -33,6 +54,13 @@ class OrderReportMixin(models.AbstractModel):
 
     currency_id = fields.Many2one("res.currency")
 
+    # Both reports declared this identically: purchase spelled out
+    # ``string="Company"``, which is the label Odoo already derives from the
+    # field name, so neither report needs to say anything about it.
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        readonly=True,
+    )
     nbr_lines = fields.Integer(
         string="# of Lines",
         readonly=True,

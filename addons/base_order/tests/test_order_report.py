@@ -12,6 +12,7 @@ from odoo.tests import TransactionCase, tagged
 # asserting they are declared.
 
 HOISTED_FIELDS = [
+    "company_id",
     "nbr_lines",
     "date_order",
     "product_category_id",
@@ -108,6 +109,9 @@ class TestOrderReportMixin(TransactionCase):
                 rows = self._report_rows(report, order).read(HOISTED_FIELDS)
                 self.assertTrue(rows, f"{report}: no row for the confirmed order")
                 row = rows[0]
+                # company_id is declared only on the mixin now, so this also
+                # pins that both reports still SELECT the column for it.
+                self.assertEqual(row["company_id"][0], order.company_id.id)
                 self.assertEqual(row["nbr_lines"], 1)
                 self.assertEqual(row["product_uom_qty"], 4.0)
                 self.assertEqual(row["price_unit"], 25.0)
