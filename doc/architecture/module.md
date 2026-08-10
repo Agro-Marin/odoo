@@ -382,12 +382,124 @@ python tooling/architecture/mixin_coupling_check.py --composition Field \
     --explain _field_convert base.py
 ```
 
-**`BaseModel` is not the only composition, and the gate now measures both.**
+**`BaseModel` is not the only composition, and the gate now measures all five —
+three in the ORM, two outside it.**
 `Field` is `Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`
-over a `_FieldStubs` typing declaration — the same construction, equally
-invisible to `layer_check`, and measured by nothing until 2026-08-08 while being
-1401 lines against 628 in its three mixins, the inverse of the ratio `models/`
-reached. Each composition carries its own floors and a drift in either fails.
+over a `_FieldStubs` typing declaration and `Registry` is
+`Registry(_RegistryFieldsMixin, _RegistrySchemaMixin, …)` over a
+`_RegistryStubs` one — the same construction, equally invisible to
+`layer_check`. `Field` was measured by nothing until 2026-08-08 while being 1401
+lines against 628 in its three mixins, the inverse of the ratio `models/`
+reached; `Registry` until 2026-08-09, at 1018 lines against 461 in its two, a
+worse ratio still. Each composition carries its own floors and a drift in any of
+them fails.
+
+**Each generalisation found the new composition to be the worst of the set.**
+`Field`'s first run found a 2-cycle (below). `Registry`'s first run found a
+**3-unit cycle over 4 edges — every unit in one component**, the only one of the
+three that was not a DAG: `registry.py` reached `_registry_fields`
+(`_ensure_field_triggers`, `field_depends`, `field_depends_context`) and
+`_registry_schema` (`check_foreign_keys`, `check_indexes`, `check_tables_exist`),
+while both reached back into the root for `models`, and `_registry_schema` for
+`init_phase` as well. `scc_without_base` was already 1, which named the cause:
+every back-edge landed on the composition **root**.
+
+It was broken the way its two predecessors were — by moving the clusters the
+mixins reach for off the root onto leaves that reach nothing back.
+`_RegistryModelsMixin` (`orm/runtime/_registry_models.py`) takes the `models`
+container and the `Mapping` protocol over it; `_RegistryInitPhaseMixin`
+(`_registry_init_phase.py`) takes the `init_models()` window accessor.
+`cyclic_edges` 4 → 0, `max_scc` 3 → 1.
+
+**That was half the job, and the first write-up of it was wrong.** `cyclic_edges`
+records an edge only where the reached member is bound in some unit's **class
+body**; state assigned in a constructor and declared only in the typing stub is
+read by everyone, owned by nobody, and produces no edge — the stub is excluded
+from being a unit precisely so it cannot absorb them. Two consequences, both
+measured 2026-08-09:
+
+- **It hid coupling.** Eight `Registry` members were assigned in `Registry.init`
+  and read by `_registry_schema` / `_registry_fields` — `_constraint_queue`,
+  `_ordinary_tables`, `field_setup_dependents`, `has_trigram`, `has_unaccent`,
+  `model_graph`, `not_null_fields`, `unaccent`. Attributed to the unit that
+  *assigns* them, the composition was **still a 3-unit SCC after the extraction
+  above**.
+- **A declaration could switch the gate off.** Deleting the one line
+  `models: dict[str, type[BaseModel]]` from `Registry`'s class body — no
+  behaviour change, the attribute still assigned in `init`, still read by both
+  mixins — took `cyclic_edges` from 4 to 2 on the pre-split tree.
+
+So the gate carries a fourth ratcheted number, `unowned_shared_state`: members
+read by two or more units that no unit owns. The two move in opposite
+directions, so hiding an edge fails the ratchet twice.
+
+**All eight then got real owners.** Each is now declared *and* initialised by the
+mixin whose concern it is, called from `Registry.init` through one
+`_init_*_state()` hook each; the unaccent/trigram cluster went to a new
+`_RegistryCapabilitiesMixin` (`orm/runtime/_registry_capabilities.py`) because a
+database *capability* is not a schema fact — `check_indexes` is one consumer and
+the domain optimiser's `pool.unaccent` is another. Inter-unit edges rose 7 → 9,
+because the coupling became **visible**, and `unowned_shared_state` fell 8 → 0.
+
+**`Registry` is now a DAG under the assignment-site model as well as this gate's**
+— the property the first round claimed and did not have. The other two are
+unchanged and still carry theirs: **BaseModel 4** (`env`, `_ids`,
+`_prefetch_ids`, `_log_access` — the recordset's own identity, assigned by
+`IterationMixin.__init__`) and **Field 1** (`description_attrs`). Read the pair,
+never `cyclic_edges` alone. Under assignment-site ownership `BaseModel` still
+shows a 2-cycle, `_metadata` ⇄ `iteration`; that one is open.
+
+The move that mattered was the *declaration*, not the methods: a unit owns what
+its **class body** binds, so `models` had to leave `Registry`'s body for the
+leaf's. Moving the methods alone left `cyclic_edges` at 6 — worse than the
+original 4, because the new leaf then reached the root for the container it was
+supposed to own.
+
+**The gate has now been blind twice, and that is itself the finding.** Both
+misses were caught by someone recognising the construction by eye, which is not
+a gate. `test_mixin_coupling_check.py` therefore discovers composition roots
+from the tree — a class in `odoo/orm` with two or more `*Mixin` bases whose own
+name does not end in `Mixin` — and fails if one is absent from `COMPOSITIONS`.
+It finds exactly `BaseModel`, `Field` and `Registry`; `ReadGroupMixin` is three
+mixins wide but is a *unit* of `BaseModel`, which is what the name test
+excludes.
+
+**Two more compositions live outside `odoo/orm`, and they are gated now too.**
+`Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin)` over
+`RequestState` (`http/request_class.py`) and `Cursor(_BulkAccessMixin,
+_MetricsMixin, BaseCursor)` (`db/cursor.py`). They were recorded here as
+out-of-scope on the day the gate was generalised to `Registry`, which was the
+wrong call: **`Cursor` had a 2-cycle in it.**
+
+`cursor.py` reached `_MetricsMixin` for `_format` / `_record_metrics` /
+`_record_sql_log` / `print_log`, and the mixin reached back for `sql_from_log`,
+`sql_into_log` and `sql_log_count` — the three counters it exists to maintain,
+declared on `Cursor`. `metrics.py` carried the proof in its own source: a
+`_MetricsHost` Protocol under `TYPE_CHECKING` naming exactly those three. **A
+declaration of what a mixin reaches back for is a declaration that the state has
+no owner** — the same tell `_RegistryStubs` was. The counters moved onto
+`_MetricsMixin` behind an `_init_metrics_state()` hook; `cyclic_edges` 2 → 0,
+and the Protocol is down to `_thread`.
+
+Two filter changes were needed to see it, both neutral for the existing three
+(verified by measuring all of them across the change): `_is_composed_class` now
+also matches a class by its **own** `*Mixin` name, because `db/`'s two mixins
+are bare classes with no stub to inherit; and `collect_units` skips `tests`
+packages, because `db/` and `http/` carry test doubles that inherit the real
+mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`) and would enter the
+graph as units.
+
+`Request` was the only one of the five that was a DAG on first measurement — one
+inter-unit edge, `_serve` → `request_class.py`. Its `unowned_shared_state` is 8
+(`app`, `db`, `dispatcher`, `env`, `httprequest`, `params`, `registry`,
+`session`: the request's identity, declared on `RequestState`), and `Cursor`'s is
+5 (`_cnx`, `_obj`, `_thread`, `_schema_cache`, `_before_statement`).
+
+**The score across five compositions: four were tangled the first time anything
+looked, and each was found by a person, not a gate.** That is what
+`test_mixin_coupling_check`'s discovery test now exists to end — and its own
+scope was `odoo/orm` until `Cursor` showed why a coverage list narrower than the
+thing it guards reproduces the bug it exists to catch.
 
 The first run found what the absence of a gate had allowed: a 2-cycle,
 `_field_convert` ⇄ `base.py`. `base.py` reached conversion from the descriptor

@@ -18,13 +18,39 @@ if TYPE_CHECKING:
     from typing import Protocol
 
     class _MetricsHost(Protocol):
+        """What this mixin needs from its host and does not own.
+
+        It used to list ``sql_from_log`` / ``sql_into_log`` / ``sql_log_count``
+        too — the three counters this mixin maintains, declared on ``Cursor``
+        and reached back for from here. That is a ``_MetricsMixin -> cursor.py``
+        edge, and with ``cursor.py -> _MetricsMixin`` already there it made the
+        ``Cursor`` composition a 2-cycle: found on 2026-08-09, the first time
+        anything measured it (``mixin_coupling_check``'s fourth composition, and
+        the fourth to be worst-in-set when first looked at).
+
+        A Protocol naming what a mixin reaches back for is the same tell as
+        ``_RegistryStubs`` was for ``Registry``: state with no owner. The
+        counters are *metrics*, so they belong here, and now they are here —
+        leaving this Protocol with the one member that genuinely is the host's.
+        """
+
         _thread: threading.Thread
-        sql_from_log: dict[str, tuple[int, float]]
-        sql_into_log: dict[str, tuple[int, float]]
-        sql_log_count: int
 
 
 class _MetricsMixin:
+    """SQL accounting for a cursor: per-table timings and statement counts."""
+
+    #: Owned and initialised here, not by ``Cursor``. See ``_MetricsHost``.
+    sql_from_log: dict[str, tuple[int, float]]
+    sql_into_log: dict[str, tuple[int, float]]
+    sql_log_count: int
+
+    def _init_metrics_state(self) -> None:
+        """Initialise this mixin's own counters. Called by ``Cursor.__init__``."""
+        self.sql_from_log = {}
+        self.sql_into_log = {}
+        self.sql_log_count = 0
+
     def _format(self, query: Any, params: Any = None) -> str:
         if isinstance(query, SQL):
             query, params = query.code, query.params
@@ -59,7 +85,7 @@ class _MetricsMixin:
             hook(self, query, params, start, delay)
 
     def _record_sql_log(
-        self: _MetricsHost, query_type: str, table: str | None, delay: float
+        self, query_type: str, table: str | None, delay: float
     ) -> None:
         if query_type == "into":
             log_target = self.sql_into_log
@@ -70,7 +96,7 @@ class _MetricsMixin:
         stat_count, stat_time = log_target.get(table or "", (0, 0))
         log_target[table or ""] = (stat_count + 1, stat_time + delay * 1e6)
 
-    def print_log(self: _MetricsHost) -> None:
+    def print_log(self) -> None:
         if not _logger.isEnabledFor(logging.DEBUG):
             return
 

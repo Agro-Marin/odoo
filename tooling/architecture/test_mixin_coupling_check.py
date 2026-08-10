@@ -441,7 +441,13 @@ class TestFieldComposition(unittest.TestCase):
         """Two graphs, two baselines -- neither may mask the other."""
         self.assertIsNot(mcc.FIELD_BASELINE, mcc.BASELINE)
         self.assertEqual(
-            {"max_scc", "cyclic_edges", "scc_without_base"}, set(mcc.FIELD_BASELINE)
+            {
+                "max_scc",
+                "cyclic_edges",
+                "scc_without_base",
+                "unowned_shared_state",
+            },
+            set(mcc.FIELD_BASELINE),
         )
 
     def test_the_recordset_view_is_off_for_fields(self):
@@ -457,6 +463,281 @@ class TestFieldComposition(unittest.TestCase):
         self.assertEqual(mcc.BASELINE["max_scc"], model["max_scc"])
         self.assertEqual(mcc.BASELINE["cyclic_edges"], model["cyclic_edges"])
         self.assertEqual(31, len(model["units"]))
+
+
+class TestRegistryComposition(unittest.TestCase):
+    """``Registry`` is the third class built this way, and was the tangled one.
+
+    ``Registry(_RegistryFieldsMixin, _RegistrySchemaMixin, ...)`` over a
+    ``_RegistryStubs`` typing declaration is the same construction as
+    ``BaseModel``/``_ModelStubs`` and ``Field``/``_FieldStubs``. It was measured
+    by nothing until 2026-08-09, and the first run found a **3-unit cycle over 4
+    edges** -- the only one of the three compositions that was not a DAG.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.comp = mcc.REGISTRY_COMPOSITION
+        cls.units = mcc.collect_units(cls.comp)
+        cls.m = mcc.measure(comp=cls.comp)
+
+    def test_it_collects_the_mixin_composition_and_nothing_else(self):
+        """``environment``/``transaction``/``backend`` are collaborators.
+
+        They live in the same flat package and contribute no composed class, so
+        the unit set stays the registry's own fragments.
+        """
+        self.assertEqual(
+            {
+                "registry.py",
+                "_registry_fields",
+                "_registry_schema",
+                "_registry_models",
+                "_registry_init_phase",
+                "_registry_capabilities",
+            },
+            set(self.units),
+        )
+
+    def test_the_composition_is_a_dag(self):
+        """The property the two leaves were extracted to buy.
+
+        Not "the tangle must not grow" -- there must be no tangle at all, the
+        same bar the other two compositions are held to.
+        """
+        self.assertEqual(0, self.m["cyclic_edges"])
+        self.assertEqual(1, self.m["max_scc"])
+        self.assertEqual([], self.m["sccs"])
+
+    def test_the_leaves_have_no_out_edge_into_the_composition(self):
+        """What makes the DAG hold, stated as the rule rather than the result.
+
+        ``_registry_models`` and ``_registry_init_phase`` exist to be depended
+        on. A leaf that reaches nothing back cannot close a cycle -- the design
+        rule under *Coupling the import graph cannot see* in
+        ``doc/architecture/module.md``. If either grows an out-edge, the cycle
+        can come back even while ``cyclic_edges`` is briefly still 0.
+        """
+        edges = self.m["_edges"]
+        for leaf in (
+            "_registry_models",
+            "_registry_init_phase",
+            "_registry_capabilities",
+        ):
+            self.assertEqual(
+                {},
+                edges.get(leaf, {}),
+                f"{leaf} must stay a leaf of the Registry composition",
+            )
+
+    def test_the_two_mixins_reach_the_leaves_and_not_the_root(self):
+        """The back-edges that formed the original cycle, asserted gone.
+
+        ``_registry_fields`` and ``_registry_schema`` reached ``registry.py``
+        for ``models`` (and ``init_phase``); both now land on a leaf.
+        """
+        edges = self.m["_edges"]
+        for mixin in ("_registry_fields", "_registry_schema"):
+            self.assertNotIn(
+                self.comp.root_file,
+                edges.get(mixin, {}),
+                f"{mixin} reaches the composition root again -- that is the "
+                f"edge the leaves were extracted to remove",
+            )
+
+    def test_it_has_its_own_floors(self):
+        """Three graphs, three baselines -- none may mask another."""
+        self.assertIsNot(mcc.REGISTRY_BASELINE, mcc.BASELINE)
+        self.assertIsNot(mcc.REGISTRY_BASELINE, mcc.FIELD_BASELINE)
+        self.assertEqual(
+            {
+                "max_scc",
+                "cyclic_edges",
+                "scc_without_base",
+                "unowned_shared_state",
+            },
+            set(mcc.REGISTRY_BASELINE),
+        )
+
+
+class TestUnownedSharedState(unittest.TestCase):
+    """The metric that says how much ``cyclic_edges`` cannot see.
+
+    Written after ``cyclic_edges`` 0 was claimed for ``Registry`` and turned out
+    to be a claim about *declared* ownership only. Two properties matter: it
+    must find state nobody declares, and it must rise exactly when someone
+    silences an edge by deleting a declaration.
+    """
+
+    def test_state_read_by_two_units_and_declared_by_none_is_reported(self):
+        units = _units_from_source(
+            a="class AMixin(_ModelStubs):\n    def go(self): return self.shared\n",
+            b="class BMixin(_ModelStubs):\n    def go2(self): return self.shared\n",
+        )
+        self.assertEqual({"shared": ["a", "b"]}, mcc.unowned_from_units(units))
+
+    def test_state_declared_by_a_unit_is_an_edge_instead(self):
+        """Give it an owner and it leaves this count for the graph."""
+        units = _units_from_source(
+            a="class AMixin(_ModelStubs):\n    def go(self): return self.shared\n",
+            b="class BMixin(_ModelStubs):\n    shared: dict\n    def go2(self): return self.shared\n",
+        )
+        self.assertEqual({}, mcc.unowned_from_units(units))
+        edges, _ = mcc.build_edges(units)
+        self.assertEqual({"shared"}, edges["a"]["b"])
+
+    def test_read_by_only_one_unit_is_not_shared_state(self):
+        units = _units_from_source(
+            a="class AMixin(_ModelStubs):\n    def go(self): return self.private_thing\n",
+            b="class BMixin(_ModelStubs):\n    def other(self): return 1\n",
+        )
+        self.assertEqual({}, mcc.unowned_from_units(units))
+
+    def test_dunders_are_not_counted(self):
+        units = _units_from_source(
+            a="class AMixin(_ModelStubs):\n    def go(self): return self.__dict__\n",
+            b="class BMixin(_ModelStubs):\n    def go2(self): return self.__dict__\n",
+        )
+        self.assertEqual({}, mcc.unowned_from_units(units))
+
+    def test_deleting_a_declaration_moves_this_count_up_as_it_moves_edges_down(self):
+        """The gaming vector, demonstrated end to end.
+
+        Deleting a class-body declaration removes a measured edge without
+        changing behaviour — that is how ``Registry``'s ``cyclic_edges`` could
+        be taken from 4 to 2 on the pre-split tree. The two numbers must move in
+        opposite directions so the pair cannot be improved by hiding.
+        """
+        declared = _units_from_source(
+            a="class AMixin(_ModelStubs):\n    def go(self): return self.shared\n",
+            b="class BMixin(_ModelStubs):\n    shared: dict\n    def go2(self): return self.shared\n",
+        )
+        silenced = _units_from_source(
+            a="class AMixin(_ModelStubs):\n    def go(self): return self.shared\n",
+            b="class BMixin(_ModelStubs):\n    def go2(self): return self.shared\n",
+        )
+        edges_declared, _ = mcc.build_edges(declared)
+        edges_silenced, _ = mcc.build_edges(silenced)
+
+        self.assertEqual(1, sum(len(t) for t in edges_declared.values()))
+        self.assertEqual(0, sum(len(t) for t in edges_silenced.values()))
+        self.assertEqual(0, len(mcc.unowned_from_units(declared)))
+        self.assertEqual(1, len(mcc.unowned_from_units(silenced)))
+
+    def test_every_composition_ratchets_it(self):
+        """A number reported but not ratcheted would not stop the regression."""
+        for comp in mcc.COMPOSITIONS:
+            self.assertIn("unowned_shared_state", comp.baseline)
+            self.assertEqual(
+                len(mcc.unowned_shared_state(comp)),
+                comp.baseline["unowned_shared_state"],
+                f"{comp.label}'s unowned shared state drifted from its floor",
+            )
+
+    def test_the_registry_composition_has_none_left(self):
+        """The eight that qualified ``cyclic_edges`` 0 all have owners now.
+
+        ``_constraint_queue``, ``_ordinary_tables``, ``field_setup_dependents``,
+        ``has_trigram``, ``has_unaccent``, ``model_graph``, ``not_null_fields``
+        and ``unaccent`` were declared in ``_RegistryStubs`` and assigned in
+        ``Registry.init``. Each is now declared *and* initialised by the mixin
+        whose concern it is, which is what makes this composition a DAG under
+        assignment-site ownership as well as under this gate's model.
+        """
+        self.assertEqual({}, mcc.unowned_shared_state(mcc.REGISTRY_COMPOSITION))
+
+    def test_each_registry_mixin_initialises_its_own_state(self):
+        """The mechanism behind the 0, asserted rather than assumed.
+
+        A declaration alone would satisfy this gate while ``Registry.init`` kept
+        assigning the member — the exact half-measure the first round shipped.
+        """
+        runtime = mcc.ROOT / "odoo" / "orm" / "runtime"
+        for module, hook in (
+            ("_registry_models", "_init_models_container"),
+            ("_registry_init_phase", "_init_phase_state"),
+            ("_registry_fields", "_init_field_state"),
+            ("_registry_schema", "_init_schema_state"),
+            ("_registry_capabilities", "_probe_capabilities"),
+        ):
+            src = (runtime / f"{module}.py").read_text(encoding="utf-8")
+            self.assertIn(f"def {hook}(", src, f"{module} lost its init hook")
+            self.assertIn(
+                f"self.{hook}(" if hook != "_probe_capabilities" else "_probe_capabilities(",
+                (runtime / "registry.py").read_text(encoding="utf-8"),
+                f"Registry.init no longer calls {hook}",
+            )
+
+
+class TestEveryOrmCompositionIsMeasured(unittest.TestCase):
+    """The gate has been blind twice; this is what stops a third time.
+
+    ``Field`` went unmeasured until 2026-08-08, ``Registry`` and ``Cursor``
+    until 2026-08-09, and **each turned out to be the worst of the set when
+    first measured** -- a 2-cycle, a 3-cycle and a 2-cycle respectively. Every
+    one was found by someone noticing the construction by eye, which is not a
+    gate.
+
+    So discover composition roots from the tree instead of trusting
+    :data:`COMPOSITIONS` to be complete: a class in the **core** with two or
+    more ``*Mixin`` bases is one, unless its own name ends in ``Mixin``, in
+    which case it is a *unit* of an outer composition (``ReadGroupMixin`` is
+    three mixins wide and is measured as one unit of ``BaseModel``).
+
+    The scope was ``odoo/orm`` when this test was written, which would have
+    reported clean while ``Cursor`` sat unmeasured in ``odoo/db`` with a cycle
+    in it. A coverage test narrower than the thing it guards reproduces the bug
+    it exists to catch -- the same lesson ``tooling/test_repo_root`` records.
+    """
+
+    @staticmethod
+    def _composition_roots() -> dict[str, Path]:
+        roots: dict[str, Path] = {}
+        core = mcc.ROOT / "odoo"
+        for path in sorted(core.rglob("*.py")):
+            if "tests" in path.parts or "addons" in path.parts:
+                continue
+            if "__pycache__" in path.parts or "tests" in path.parts:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ClassDef) or node.name.endswith("Mixin"):
+                    continue
+                mixin_bases = [
+                    b.id
+                    for b in node.bases
+                    if isinstance(b, ast.Name) and b.id.endswith("Mixin")
+                ]
+                if len(mixin_bases) >= 2:
+                    roots[node.name] = path
+        return roots
+
+    def test_the_discovered_roots_are_the_five_we_know(self):
+        """Pins the discovery itself, so the coverage test below cannot pass
+        vacuously by finding nothing."""
+        self.assertEqual(
+            {"BaseModel", "Field", "Registry", "Request", "Cursor"},
+            set(self._composition_roots()),
+        )
+
+    def test_every_discovered_root_is_in_COMPOSITIONS(self):
+        measured = {c.root_class for c in mcc.COMPOSITIONS}
+        missing = {
+            name: str(path.relative_to(mcc.ROOT))
+            for name, path in self._composition_roots().items()
+            if name not in measured
+        }
+        self.assertFalse(
+            missing,
+            f"class(es) in the core are built as a mixin composition but are "
+            f"measured by no entry in COMPOSITIONS, so a cycle among their "
+            f"mixins would move no gate: {missing}",
+        )
+
+    def test_every_composition_carries_a_distinct_baseline(self):
+        """A shared baseline object would let one graph's floor mask another's."""
+        baselines = [id(c.baseline) for c in mcc.COMPOSITIONS]
+        self.assertEqual(len(baselines), len(set(baselines)))
 
 
 if __name__ == "__main__":

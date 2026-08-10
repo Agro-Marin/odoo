@@ -82,6 +82,23 @@ the fix is documentation plus the two seam gates, both already in place.
 **What would close it.** Nothing, strictly — the seam is the design. It is
 recorded so the diagram is never read alone.
 
+**Widened 2026-08-09: it is not only Layers 1 and 2.** `odoo/tools/files.py`
+reaches `env.transaction.file_open_tmp_paths` — the `file_open()` sandbox
+allowlist — at 4 sites. `tools/` is the one package whose contract names the
+runtime explicitly (`tools-does-not-reach-the-orm-runtime`), and that contract
+is clean, because the reach arrives through `env` and produces no import edge.
+Neither seam gate reports it either: `_orm_layer_scope.py` scopes both
+`env_surface_check` and `pool_surface_check` to `orm/*`, so a reach from
+`tools/` is outside what either measures.
+
+So the gap this entry describes is wider than the two layers it was opened
+against: it covers every package that holds an `Environment`, and the one place
+it is *contractually* forbidden is the one place nothing looks. Two things would
+help, in this order: give `_orm_layer_scope.py` a `tools/` scope so the reach is
+measured, then reconsider the owner — `Transaction` holds the field cache,
+compute engine, unit of work and backend, and a temp-path allowlist is on it
+only because it needs request-scoped lifetime.
+
 ## R3 — Migration stage is unenforced and unrecoverable
 
 **What.** `pre` is the only migration stage that can observe the old schema;

@@ -6,9 +6,10 @@ from collections import defaultdict
 from collections.abc import Callable, Iterator
 
 from odoo.libs.func import locked
+from odoo.tools import OrderedSet
 from odoo.tools.misc import Collector
 
-from ..components.model_graph import TriggerTree
+from ..components.model_graph import ModelGraph, TriggerTree
 from ._registry_stubs import _RegistryStubs
 
 if typing.TYPE_CHECKING:
@@ -20,6 +21,21 @@ _schema = logging.getLogger("odoo.schema")
 
 
 class _RegistryFieldsMixin(_RegistryStubs):
+    #: Owned here rather than declared in ``_RegistryStubs`` and assigned by
+    #: ``Registry.init`` — see the note on ``_RegistrySchemaMixin`` for why that
+    #: combination made these invisible to the coupling gate.
+    model_graph: ModelGraph
+    field_setup_dependents: Collector[Field, Field]
+    many2one_company_dependents: Collector[str, Field]
+    many2many_relations: defaultdict[tuple[str, str, str], OrderedSet]
+
+    def _init_field_state(self) -> None:
+        """Initialise this mixin's own state. Called by ``Registry.init``."""
+        self.model_graph = ModelGraph()
+        self.field_setup_dependents = Collector()
+        self.many2one_company_dependents = Collector()
+        self.many2many_relations = defaultdict(OrderedSet)
+
     def _publish_field_metadata(self) -> tuple:
         return self.field_inverses, self.field_computed
 

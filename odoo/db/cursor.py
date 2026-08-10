@@ -182,10 +182,10 @@ class BaseCursor:
 
 
 class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
-    sql_from_log: dict[str, tuple[int, float]]
-    sql_into_log: dict[str, tuple[int, float]]
-    sql_log_count: int
-
+    # The three SQL counters are declared and initialised by `_MetricsMixin`,
+    # which maintains them. Declaring them here made this class their owner and
+    # every read from the mixin a back-edge into it -- the 2-cycle recorded in
+    # `_MetricsHost`.
     _closed: bool = True
 
     # `False` is the "not captured" sentinel, not a degenerate frame: the
@@ -201,10 +201,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         key: frozenset | None = None,
     ):
         super().__init__()
-        self.sql_from_log = {}
-        self.sql_into_log = {}
-
-        self.sql_log_count = 0
+        self._init_metrics_state()
 
         self._closed: bool = True
 

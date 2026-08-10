@@ -572,6 +572,249 @@ class TestMixinGraphProse(unittest.TestCase):
         )
 
 
+class TestRegistryCompositionProse(unittest.TestCase):
+    """The page's claims about the third composition, re-derived from the gate.
+
+    Every number here is measured rather than restated, per the rule at the foot
+    of ``ARCHITECTURE.md``: the sizes come off disk, the graph off
+    ``mixin_coupling_check``, and the "all three are DAGs" claim off all three
+    measurements rather than the one that motivated the sentence.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import mixin_coupling_check as mcc
+
+        cls.mcc = mcc
+        cls.m = mcc.measure(comp=mcc.REGISTRY_COMPOSITION)
+
+    def test_the_page_says_five_and_the_gate_measures_five(self) -> None:
+        """Three in the ORM, two outside it. The page said "all three" while the
+        gate measured five for as long as it took to write this line, which is
+        the drift this suite exists for."""
+        self.assertIn(
+            "**`BaseModel` is not the only composition, and the gate now "
+            "measures all five — three in the ORM, two outside it.**",
+            DOC_FLAT,
+        )
+        self.assertEqual(5, len(self.mcc.COMPOSITIONS))
+        orm = [
+            c
+            for c in self.mcc.COMPOSITIONS
+            if "orm" in c.root_dir.relative_to(self.mcc.ROOT).parts
+        ]
+        self.assertEqual(3, len(orm))
+
+    def test_the_registry_composition_is_a_dag(self) -> None:
+        """The claim the two leaves were extracted to buy — and only that claim.
+
+        The page must not say "all three are DAGs" flatly: it did, and it was
+        overstated (see :meth:`test_the_page_qualifies_the_dag_claim`).
+        """
+        self.assertIn("**That was half the job, and the first write-up of it "
+                      "was wrong.**", DOC_FLAT)
+        self.assertEqual(0, self.m["cyclic_edges"], "a Registry cycle is back")
+        self.assertEqual(1, self.m["max_scc"])
+        self.assertEqual([], self.m["sccs"])
+        for comp in self.mcc.COMPOSITIONS:
+            measured = self.mcc.measure(comp=comp)
+            self.assertEqual(
+                0, measured["cyclic_edges"], f"{comp.label} is no longer a DAG"
+            )
+
+    def test_the_page_qualifies_the_dag_claim(self) -> None:
+        """The correction, pinned so it cannot be quietly dropped.
+
+        ``cyclic_edges`` counts *declared* ownership. The three figures below
+        are what it cannot see, and the page must carry them beside the claim
+        rather than only the flattering half.
+        """
+        self.assertIn("A declaration could switch the gate off.", DOC_FLAT)
+        expected = {
+            "BaseModel": 4,
+            "Field": 1,
+            "Registry": 0,
+            "Request": 8,
+            "Cursor": 5,
+        }
+        for comp in self.mcc.COMPOSITIONS:
+            live = len(self.mcc.unowned_shared_state(comp))
+            self.assertEqual(
+                expected[comp.label],
+                live,
+                f"{comp.label}'s unowned shared state moved to {live}; the "
+                f"figures in module.md and the baseline must move with it",
+            )
+            self.assertEqual(live, comp.baseline["unowned_shared_state"])
+        self.assertIn("**BaseModel 4**", DOC_FLAT)
+        self.assertIn("**Field 1**", DOC_FLAT)
+        self.assertIn("`unowned_shared_state` fell 8 → 0", DOC_FLAT)
+        self.assertIn(
+            "**`Registry` is now a DAG under the assignment-site model as well "
+            "as this gate's**",
+            DOC_FLAT,
+        )
+
+    def test_the_gaming_demonstration_is_recorded_and_still_true(self) -> None:
+        """The page says deleting one annotation took 4 -> 2. Re-derive it.
+
+        This is the sharpest claim on the page, because it says the gate can be
+        switched off. Asserting it from a live measurement rather than from
+        memory is the only way it stays honest — and it doubles as a regression
+        test on the ownership model itself: if ``_bound_names`` ever stopped
+        treating a bare class-body annotation as a definition, the demonstration
+        would silently stop reproducing.
+        """
+        self.assertIn(
+            "took `cyclic_edges` from 4 to 2 on the pre-split tree", DOC_FLAT
+        )
+        registry_src = (
+            self.mcc.ROOT / "odoo" / "orm" / "runtime" / "_registry_models.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "models: dict[str, type[BaseModel]]",
+            registry_src,
+            "the annotation whose deletion the page demonstrates must exist "
+            "somewhere in the composition, or the demonstration is about code "
+            "that is gone",
+        )
+
+    def test_the_cited_line_counts_are_current(self) -> None:
+        """"1018 lines against 461 in its two" — the pre-split sizes.
+
+        The page cites those because they are what made the composition worth
+        measuring; the working tree now shows the post-split shape, so the two
+        numbers are pinned as text and the *invariant* they rest on is measured.
+
+        Both halves are load-bearing. Without the ``assertIn`` this test passes
+        against a page that says nothing — which is exactly what
+        ``test_architecture_doc_is_not_vacuous`` caught when it was written
+        without one. And the first draft of the sentence said "393", an
+        arithmetic slip that no assertion would have caught either, because
+        nothing read the number. This is the rule at the foot of
+        ``ARCHITECTURE.md`` earning its keep on the page that states it.
+        """
+        self.assertIn("1018 lines against 461 in its two", DOC_FLAT)
+        runtime = self.mcc.ROOT / "odoo" / "orm" / "runtime"
+        root = len((runtime / "registry.py").read_text().splitlines())
+        mixins = sum(
+            len((runtime / f"{name}.py").read_text().splitlines())
+            for name in (
+                "_registry_fields",
+                "_registry_schema",
+                "_registry_models",
+                "_registry_init_phase",
+            )
+        )
+        self.assertGreater(
+            root,
+            mixins,
+            "registry.py no longer dominates its mixins — the ratio the page "
+            "cites as the reason to measure this composition has inverted, so "
+            "the sentence needs rewriting rather than the number bumping",
+        )
+
+    def test_the_leaves_named_by_the_page_exist_and_are_leaves(self) -> None:
+        self.assertIn("`_RegistryModelsMixin`", DOC_FLAT)
+        self.assertIn("`_RegistryInitPhaseMixin`", DOC_FLAT)
+        edges = self.m["_edges"]
+        for leaf in ("_registry_models", "_registry_init_phase"):
+            self.assertIn(leaf, self.m["units"])
+            self.assertEqual({}, edges.get(leaf, {}), f"{leaf} is no longer a leaf")
+
+    def test_the_two_non_orm_compositions_are_measured(self) -> None:
+        """They were recorded as out-of-scope, and that was wrong.
+
+        ``Cursor`` had a 2-cycle. The page now says they are gated; this asserts
+        the gate agrees, and that every one of the five is a DAG.
+        """
+        self.assertIn("`Request(_RequestServeMixin, _RequestResponseMixin,", DOC_FLAT)
+        self.assertIn("`Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor)`", DOC_FLAT)
+        self.assertIn("**`Cursor` had a 2-cycle in it.**", DOC_FLAT)
+        measured = {c.root_class for c in self.mcc.COMPOSITIONS}
+        self.assertIn("Request", measured)
+        self.assertIn("Cursor", measured)
+        self.assertEqual(5, len(self.mcc.COMPOSITIONS))
+        for comp in self.mcc.COMPOSITIONS:
+            self.assertEqual(
+                0,
+                self.mcc.measure(comp=comp)["cyclic_edges"],
+                f"{comp.label} is no longer a DAG",
+            )
+
+    def test_the_counters_the_page_says_moved_are_on_the_metrics_mixin(self) -> None:
+        """The fix, not just the number. ``sql_from_log`` / ``sql_into_log`` /
+        ``sql_log_count`` must be owned by ``_MetricsMixin`` — declared there
+        and initialised there — or the 2-cycle is back whatever the count says.
+        """
+        self.assertIn(
+            "The counters moved onto `_MetricsMixin` behind an "
+            "`_init_metrics_state()` hook; `cyclic_edges` 2 → 0",
+            DOC_FLAT,
+        )
+        db = self.mcc.ROOT / "odoo" / "db"
+        metrics = (db / "metrics.py").read_text(encoding="utf-8")
+        cursor = (db / "cursor.py").read_text(encoding="utf-8")
+        for counter in ("sql_from_log", "sql_into_log", "sql_log_count"):
+            self.assertIn(f"{counter}:", metrics, f"{counter} left _MetricsMixin")
+        self.assertIn("def _init_metrics_state(self)", metrics)
+        self.assertIn("self._init_metrics_state()", cursor)
+        self.assertNotIn(
+            "    sql_from_log: dict[str, tuple[int, float]]\n"
+            "    sql_into_log: dict[str, tuple[int, float]]",
+            cursor,
+            "Cursor declares the counters again — that is the back-edge",
+        )
+
+
+class TestToolsReachesTheRuntime(unittest.TestCase):
+    """R2's 2026-08-09 widening: ``tools/`` reaches the runtime through ``env``.
+
+    The number is re-derived rather than restated, like every other figure in
+    the register. If the allowlist moves to a better owner this fails, which is
+    the point — the paragraph would then be describing a reach that no longer
+    exists.
+    """
+
+    # ``ROOT`` rather than ``parents[N]``: depth-independent, and it raises
+    # instead of guessing if the marker is missing. Counting parents here is
+    # what ``test_repo_root.test_no_tool_counts_parents_to_reach_the_checkout_root``
+    # exists to reject, and it caught this line.
+    SOURCE = ROOT / "odoo" / "tools" / "files.py"
+
+    def test_the_reach_count_is_live(self) -> None:
+        self.assertIn(
+            "reaches `env.transaction.file_open_tmp_paths` — the `file_open()` "
+            "sandbox allowlist — at 4 sites",
+            DOC_FLAT,
+        )
+        sites = self.SOURCE.read_text(encoding="utf-8").count(
+            "transaction.file_open_tmp_paths"
+        )
+        self.assertEqual(
+            4,
+            sites,
+            f"risks.md R2 says 4 tools/ reaches into the transaction; "
+            f"files.py has {sites}",
+        )
+
+    def test_the_import_contract_really_is_clean(self) -> None:
+        """The half that makes it a risk rather than a violation.
+
+        If ``files.py`` ever imports the runtime outright, this stops being an
+        invisible reach and becomes a ``layer_check`` failure — a different and
+        much better problem, but one that makes the paragraph wrong.
+        """
+        self.assertIn(
+            "that contract is clean, because the reach arrives through `env` "
+            "and produces no import edge",
+            DOC_FLAT,
+        )
+        source = self.SOURCE.read_text(encoding="utf-8")
+        for banned in ("from odoo.orm", "import odoo.orm"):
+            self.assertNotIn(banned, source)
+
+
 class TestLayerProse(unittest.TestCase):
     """The per-layer bullets must match what the packages actually import."""
 

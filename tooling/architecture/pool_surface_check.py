@@ -106,12 +106,24 @@ from _repo_root import find_odoo_root
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="pool_surface_check")
 CORE = REPO_ROOT / "odoo"
 
-#: ``Registry`` and the two mixins it is composed from. All three contribute
+#: ``Registry`` and the five mixins it is composed from. All six contribute
 #: members, and ``Registry`` inherits ``Mapping`` (``pool.get``, ``pool.keys``…).
+#:
+#: This list is **coupled to the composition** and must grow with it. When
+#: ``_RegistryModelsMixin`` and ``_RegistryInitPhaseMixin`` were extracted to
+#: break the cycle recorded in :data:`mixin_coupling_check.REGISTRY_BASELINE`,
+#: omitting them here made Rule 2 ("every referenced member must exist") report
+#: six live Layer-1 call sites -- ``pool.post_init``, ``pool.add_relation_reflection``
+#: -- as members no ``Registry`` has. The members had not moved off the class;
+#: only this list had gone stale. A gate that reads a hand-written file list is
+#: exactly as current as that list.
 REGISTRY_SOURCES: tuple[Path, ...] = (
     CORE / "orm" / "runtime" / "registry.py",
     CORE / "orm" / "runtime" / "_registry_fields.py",
     CORE / "orm" / "runtime" / "_registry_schema.py",
+    CORE / "orm" / "runtime" / "_registry_models.py",
+    CORE / "orm" / "runtime" / "_registry_capabilities.py",
+    CORE / "orm" / "runtime" / "_registry_init_phase.py",
     CORE / "orm" / "runtime" / "_registry_stubs.py",
 )
 
@@ -126,7 +138,14 @@ REGISTRY_SOURCES: tuple[Path, ...] = (
 #: nonsense one reported. ``env_surface_check`` never had this hole because it
 #: matches ``node.name == "Environment"``.
 REGISTRY_CLASSES: frozenset[str] = frozenset(
-    {"Registry", "_RegistryFieldsMixin", "_RegistrySchemaMixin"}
+    {
+        "Registry",
+        "_RegistryFieldsMixin",
+        "_RegistrySchemaMixin",
+        "_RegistryModelsMixin",
+        "_RegistryInitPhaseMixin",
+        "_RegistryCapabilitiesMixin",
+    }
 )
 
 #: Re-exported for callers and for the self-test; the scope itself is shared

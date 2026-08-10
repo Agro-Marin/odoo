@@ -1,13 +1,19 @@
 """``Registry.delete`` is a rebuild hook; ``Registry.forget`` is a teardown one.
 
-Three module-level maps in ``orm/runtime/registry.py`` are keyed by database
-name and outlive a :class:`Registry` instance:
+Three module-level maps are keyed by database name and outlive a
+:class:`Registry` instance:
 
 ===========================  =========================================
 ``Registry.registries``      the registries themselves (an ``LRU(42)``)
 ``_UnaccentTables.by_db``    ~1500-entry accent-folding table, ~180 kB
 ``_ASSERTION_REPORTS``       the ``--test-enable`` result per database
 ===========================  =========================================
+
+Two live in ``orm/runtime/registry.py``; the fold table moved to
+``orm/runtime/_registry_capabilities.py`` with the rest of the unaccent/trigram
+cluster, and ``registry.py`` now prunes it through that module's
+``forget_unaccent_table`` / ``forget_all_unaccent_tables`` rather than reaching
+into its private class.
 
 Only the first was bounded.  The other two grew for the life of the process,
 one entry per database ever served, and nothing pruned them --
@@ -24,6 +30,7 @@ codepoints through ``unaccent()`` on every rebuild.
 
 import pytest
 
+from odoo.orm.runtime import _registry_capabilities as cap_mod
 from odoo.orm.runtime import registry as reg_mod
 from odoo.orm.runtime.registry import Registry
 
@@ -33,12 +40,12 @@ DB = "test_registry_forget_db"
 @pytest.fixture
 def seeded():
     """Seed all three per-database maps, and clean up whatever the test leaves."""
-    reg_mod._UnaccentTables.by_db[DB] = {0xE9: "e"}
+    cap_mod._UnaccentTables.by_db[DB] = {0xE9: "e"}
     reg_mod._ASSERTION_REPORTS[DB] = object()
     try:
         yield
     finally:
-        reg_mod._UnaccentTables.by_db.pop(DB, None)
+        cap_mod._UnaccentTables.by_db.pop(DB, None)
         reg_mod._ASSERTION_REPORTS.pop(DB, None)
         Registry.registries.pop(DB, None)
 
@@ -52,7 +59,7 @@ def test_delete_keeps_what_must_survive_a_rebuild(seeded):
         "every failure recorded before it and exit 0 -- the defect "
         "_ASSERTION_REPORTS was introduced to fix."
     )
-    assert DB in reg_mod._UnaccentTables.by_db, (
+    assert DB in cap_mod._UnaccentTables.by_db, (
         "Registry.delete dropped the unaccent fold table. Rebuilding it costs a "
         "12 352-codepoint probe query, paid on every registry rebuild."
     )
@@ -61,7 +68,7 @@ def test_delete_keeps_what_must_survive_a_rebuild(seeded):
 def test_forget_drops_every_per_database_map(seeded):
     Registry.forget(DB)
 
-    assert DB not in reg_mod._UnaccentTables.by_db
+    assert DB not in cap_mod._UnaccentTables.by_db
     assert DB not in reg_mod._ASSERTION_REPORTS
     assert DB not in Registry.registries
 
@@ -74,7 +81,7 @@ def test_forget_is_idempotent(seeded):
 def test_delete_all_clears_the_per_database_maps(seeded):
     Registry.delete_all()
 
-    assert not reg_mod._UnaccentTables.by_db
+    assert not cap_mod._UnaccentTables.by_db
     assert not reg_mod._ASSERTION_REPORTS
     assert not Registry.registries
 

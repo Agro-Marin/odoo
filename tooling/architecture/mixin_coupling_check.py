@@ -11,21 +11,71 @@ dependency on any other mixin, and no gate moves.
 
 This reconstructs that graph from the AST and ratchets it.
 
-TWO COMPOSITIONS
-----------------
+FIVE COMPOSITIONS
+-----------------
 
-``BaseModel`` is not the only class built this way. ``Field`` is
-``Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`` over a
-``_FieldStubs`` typing declaration — the same construction, the same invisibility
-to ``layer_check``, and until 2026-08-08 measured by nothing at all, while being
-1401 lines against 628 in its three mixins (the inverse of the ratio ``models/``
-reached). :class:`Composition` describes one; :data:`COMPOSITIONS` lists both,
-each with its own floors, and a drift in either fails.
+``BaseModel`` is not the only class built this way. Four others use the same
+construction — a root class over ``*Mixin`` bases — and **four of the five were
+tangled the first time anything measured them**:
 
-The first run of the ``Field`` graph found a 2-cycle, ``_field_convert`` <->
-``base.py`` — see :data:`FIELD_BASELINE`. That is what generalising the gate was
-worth: the tangle was there, unmeasured, and nothing could see it. It is fixed,
-and both compositions are DAGs.
+* ``Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`` over
+  ``_FieldStubs``, unmeasured until 2026-08-08, 1401 lines against 628 in its
+  three mixins (the inverse of the ratio ``models/`` reached).
+* ``Registry(_RegistryFieldsMixin, _RegistrySchemaMixin, ...)`` over
+  ``_RegistryStubs``, unmeasured until 2026-08-09, 1018 lines against 461 in its
+  two mixins — a worse ratio than ``Field``'s. A **3-cycle**.
+* ``Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor)`` in ``db/``, unmeasured
+  until 2026-08-09 and recorded as out-of-scope earlier the same day. A
+  **2-cycle** (see :data:`CURSOR_BASELINE`). Its mixins declare no base at all,
+  which is why the bases-only filter could not see them.
+* ``Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin)`` over
+  ``RequestState`` in ``http/`` — the only one that was already a DAG.
+
+:class:`Composition` describes one; :data:`COMPOSITIONS` lists all five, each
+with its own floors, and a drift in any of them fails.
+
+**Both generalisations paid immediately, and the second paid more.** The first
+run of the ``Field`` graph found a 2-cycle, ``_field_convert`` <-> ``base.py``
+(see :data:`FIELD_BASELINE`). The first run of the ``Registry`` graph found a
+**3-cycle over 4 edges — every unit in one component**, the only one of the three
+compositions that was not a DAG (see :data:`REGISTRY_BASELINE`). Both tangles had
+been there for as long as their splits existed, and nothing could see either.
+Both are fixed the same way — moving the cluster the mixins reach for off the
+composition root onto a leaf — and all three compositions are now DAGs.
+
+That is the argument for looking. **Four for five**, every one found by a person
+noticing the construction rather than by a gate — which is why
+``test_mixin_coupling_check`` now discovers composition roots from the tree and
+fails on one that is absent from :data:`COMPOSITIONS`. A composition nothing
+measures is not a composition that happens to be clean.
+
+WHAT ``cyclic_edges 0`` DOES NOT MEAN
+-------------------------------------
+
+An edge is recorded only when the reached member is **bound in some unit's class
+body**. State assigned in a constructor and declared only in the typing stub is
+read by everyone and owned by nobody, so it produces no edge — and the stub is
+excluded from being a unit precisely so that it cannot absorb them.
+
+Two consequences, both demonstrated on 2026-08-09 and both now counted by
+:func:`unowned_shared_state`:
+
+* **It hides coupling.** ``Registry`` had eight ``init``-assigned members
+  (``_constraint_queue``, ``has_unaccent``, ``model_graph``, …) read by its
+  mixins and invisible here. Attributed to the unit that *assigns* them, the
+  composition was **still a 3-unit SCC** after the leaf extraction that took
+  ``cyclic_edges`` to 0. It is 0 for ``Registry`` now because each of the eight
+  was given a real owner, not because the measurement was re-tuned.
+* **It can be silenced.** Deleting the single line
+  ``models: dict[str, type[BaseModel]]`` from ``Registry``'s class body — no
+  behaviour change at all — took ``cyclic_edges`` from 4 to 2 on the pre-split
+  tree. **A declaration could switch this gate off**, and the two numbers now
+  move in opposite directions so that it cannot.
+
+So read ``cyclic_edges`` as *declared* ownership is acyclic, and read
+``unowned_shared_state`` beside it as how much ownership was never declared.
+The honest summary of a composition is the pair, never the first alone —
+``BaseModel`` still carries 4 and ``Field`` 1.
 
 For ``Field`` the units are the mixin composition only. Concrete field types
 (``BaseString(Field[...])``, ``Many2many(_RelationalMulti)``) are *subclasses*;
@@ -213,6 +263,12 @@ BASELINE = {
     "recordset_max_scc": 1,
     "recordset_cyclic_edges": 0,
     "recordset_scc_without_base": 1,
+    #: Members read by 2+ units that no unit owns, so they produce no edge --
+    #: see :func:`unowned_shared_state`. ``env``, ``_ids``, ``_prefetch_ids``
+    #: and ``_log_access``: the recordset's own identity, declared in
+    #: ``_ModelStubs`` and assigned by ``IterationMixin.__init__``. These four
+    #: are the reason ``cyclic_edges`` 0 is a weaker claim than it reads as.
+    "unowned_shared_state": 4,
 }
 
 
@@ -240,6 +296,68 @@ FIELD_BASELINE = {
     "max_scc": 1,
     "cyclic_edges": 0,
     "scc_without_base": 1,
+    #: ``description_attrs`` alone -- the least exposed of the three.
+    "unowned_shared_state": 1,
+}
+
+
+#: Committed floors for the ``Registry`` composition — the **third** class built
+#: this way, and the last one this gate was blind to.
+#:
+#: ``Registry(_RegistryFieldsMixin, _RegistrySchemaMixin, ...)`` over a
+#: ``_RegistryStubs`` typing declaration is the same construction as
+#: ``BaseModel``/``_ModelStubs`` and ``Field``/``_FieldStubs``. It was measured
+#: by neither gate while being 1018 lines against 461 in its two mixins — a
+#: worse ratio than ``Field``'s, which was itself recorded here as the reason to
+#: generalise the gate beyond ``BaseModel``.
+#:
+#: History:
+#:  * first measured 2026-08-09 at ``max_scc`` 3 / ``cyclic_edges`` 4: **all
+#:    three units in one strongly connected component**, the only one of the
+#:    three compositions that was not a DAG. ``registry.py`` reached
+#:    ``_registry_fields`` (``_ensure_field_triggers``, ``field_depends``,
+#:    ``field_depends_context``) and ``_registry_schema`` (``check_foreign_keys``,
+#:    ``check_indexes``, ``check_tables_exist``), while both reached back into
+#:    the root for ``models`` — and ``_registry_schema`` for ``init_phase`` too.
+#:  * ``scc_without_base`` was already 1, which named the cause exactly: every
+#:    back-edge landed on the composition **root**. That is the shape
+#:    ``BaseModel`` had before the 2026-08a metadata split and ``Field`` before
+#:    ``_FieldMetadataMixin``.
+#:  * broken the same way, by moving the two clusters the mixins ask for off the
+#:    root onto leaves with no out-edge into the composition:
+#:    ``_RegistryModelsMixin`` (``orm/runtime/_registry_models.py``) takes the
+#:    ``models`` container and the ``Mapping`` protocol over it, and
+#:    ``_RegistryInitPhaseMixin`` (``_registry_init_phase.py``) takes the
+#:    ``init_models()`` window accessor. ``cyclic_edges`` 4 -> 0, ``max_scc``
+#:    3 -> 1. **All three ORM compositions are now DAGs.**
+#:
+#: The move that mattered was the *declaration*, not the methods: ownership here
+#: is what a class body binds (see :func:`_bound_names`), so ``models`` had to
+#: leave ``Registry``'s body for the leaf's. Moving the methods alone left
+#: ``cyclic_edges`` at 6 — worse than before, because the new leaf reached the
+#: root for the container it was supposed to own.
+REGISTRY_BASELINE = {
+    "max_scc": 1,
+    "cyclic_edges": 0,
+    "scc_without_base": 1,
+    #: **0 since 2026-08-09b, and the number that finished this decomposition.**
+    #: It was first recorded at 8: ``_constraint_queue``, ``_ordinary_tables``,
+    #: ``field_setup_dependents``, ``has_trigram``, ``has_unaccent``,
+    #: ``model_graph``, ``not_null_fields`` and ``unaccent`` were declared in
+    #: ``_RegistryStubs`` and assigned in ``Registry.init``, so they were read
+    #: across the composition while belonging to no unit. That is why this
+    #: composition could show ``cyclic_edges`` 0 and still be a 3-unit SCC when
+    #: each member was attributed to the unit that *assigns* it.
+    #:
+    #: Each now has an owner that declares **and initialises** it --
+    #: ``_RegistryFieldsMixin``, ``_RegistrySchemaMixin`` and the new
+    #: ``_RegistryCapabilitiesMixin`` (the unaccent/trigram cluster, a database
+    #: *capability* rather than a schema fact) -- called from ``Registry.init``
+    #: through one ``_init_*_state()`` hook each. Edges rose 7 -> 9 because the
+    #: coupling became visible, and **the composition is now a DAG under the
+    #: assignment-site model as well as this one**, which is the property the
+    #: first round claimed and did not have.
+    "unowned_shared_state": 0,
 }
 
 
@@ -354,7 +472,101 @@ FIELD_COMPOSITION = Composition(
     recordset_aware=False,
 )
 
-COMPOSITIONS = (MODEL_COMPOSITION, FIELD_COMPOSITION)
+REGISTRY_COMPOSITION = Composition(
+    label="Registry",
+    root_dir=ROOT / "odoo" / "orm" / "runtime",
+    root_file="registry.py",
+    # Flat, and the whole package: the filter in ``_is_composed_class`` keeps
+    # only classes built into this composition, so ``environment.py``,
+    # ``transaction.py``, ``backend.py`` and the rest contribute no unit. They
+    # are collaborators of the registry, not fragments of it.
+    unit_dir=ROOT / "odoo" / "orm" / "runtime",
+    stub_base="_RegistryStubs",
+    root_class="Registry",
+    excluded=frozenset({"_registry_stubs", "__init__"}),
+    baseline=REGISTRY_BASELINE,
+    # ``RECORDSET_PRODUCERS`` are ``BaseModel`` methods and a ``Registry`` holds
+    # no recordset of itself, so — as for ``Field`` — the wide view is the
+    # narrow one.
+    recordset_aware=False,
+)
+
+#: Committed floors for ``Request`` — ``http/request_class.py``, three mixins
+#: over the ``RequestState`` protocol. A DAG on first measurement (2026-08-09),
+#: the only composition of the five that was: one inter-unit edge, ``_serve`` ->
+#: ``request_class.py``.
+#:
+#: Its eight unowned members are the request's own identity (``app``, ``db``,
+#: ``dispatcher``, ``env``, ``httprequest``, ``params``, ``registry``,
+#: ``session``), declared on ``RequestState`` and assigned in ``Request``'s
+#: constructor -- the same shape as ``BaseModel``'s four, and the same open
+#: question about whether a constructor owning the object's identity is a defect
+#: or just what a constructor is.
+REQUEST_BASELINE = {
+    "max_scc": 1,
+    "cyclic_edges": 0,
+    "scc_without_base": 1,
+    "unowned_shared_state": 8,
+}
+
+#: Committed floors for ``Cursor`` — ``db/cursor.py``, two bare mixins over
+#: ``BaseCursor``. **Measured by nothing until 2026-08-09, and a 2-cycle when it
+#: was**: ``cursor.py`` reached ``_MetricsMixin`` for ``_format`` /
+#: ``_record_metrics`` / ``_record_sql_log`` / ``print_log`` while the mixin
+#: reached back for ``sql_from_log`` / ``sql_into_log`` / ``sql_log_count`` --
+#: the three counters it exists to maintain, declared on ``Cursor``.
+#:
+#: ``metrics.py`` carried the proof in its own source: a ``_MetricsHost``
+#: Protocol under ``TYPE_CHECKING`` naming exactly those three, which is the
+#: same tell ``_RegistryStubs`` was for ``Registry`` -- a declaration of what a
+#: mixin reaches back for is a declaration that the state has no owner. The
+#: counters moved onto ``_MetricsMixin`` with an ``_init_metrics_state()`` hook;
+#: ``cyclic_edges`` 2 -> 0, and the Protocol is down to ``_thread``.
+#:
+#: The five that remain unowned are the cursor's connection and identity
+#: (``_cnx``, ``_obj``, ``_thread``, ``_schema_cache``, ``_before_statement``),
+#: assigned in ``Cursor.__init__`` and read by ``_BulkAccessMixin``.
+CURSOR_BASELINE = {
+    "max_scc": 1,
+    "cyclic_edges": 0,
+    "scc_without_base": 1,
+    "unowned_shared_state": 5,
+}
+
+REQUEST_COMPOSITION = Composition(
+    label="Request",
+    root_dir=ROOT / "odoo" / "http",
+    root_file="request_class.py",
+    unit_dir=ROOT / "odoo" / "http",
+    stub_base="RequestState",
+    root_class="Request",
+    excluded=frozenset({"__init__"}),
+    baseline=REQUEST_BASELINE,
+    recordset_aware=False,
+)
+
+CURSOR_COMPOSITION = Composition(
+    label="Cursor",
+    root_dir=ROOT / "odoo" / "db",
+    root_file="cursor.py",
+    unit_dir=ROOT / "odoo" / "db",
+    # ``BaseCursor`` is the shared base rather than a typing stub, and its own
+    # members are the DB-API surface the mixins legitimately call. It is not
+    # excluded: unlike ``_ModelStubs`` it is a real implementation.
+    stub_base="BaseCursor",
+    root_class="Cursor",
+    excluded=frozenset({"__init__"}),
+    baseline=CURSOR_BASELINE,
+    recordset_aware=False,
+)
+
+COMPOSITIONS = (
+    MODEL_COMPOSITION,
+    FIELD_COMPOSITION,
+    REGISTRY_COMPOSITION,
+    REQUEST_COMPOSITION,
+    CURSOR_COMPOSITION,
+)
 
 
 @dataclass
@@ -383,10 +595,18 @@ def _is_composed_class(node: ast.ClassDef, comp: Composition) -> bool:
     """
     if node.name == comp.root_class:
         return True
-    return any(
+    if any(
         isinstance(b, ast.Name) and (b.id == comp.stub_base or b.id.endswith("Mixin"))
         for b in node.bases
-    )
+    ):
+        return True
+    # A mixin need not declare a base at all. ``db/``'s ``_BulkAccessMixin`` and
+    # ``_MetricsMixin`` are bare classes -- there is no ``_CursorStubs`` for them
+    # to inherit -- so a bases-only filter saw no units for the ``Cursor``
+    # composition and it went unmeasured. Matching the class's own name closes
+    # that without touching the other four: every mixin they already collect is
+    # named ``*Mixin`` too, verified by measuring all of them across this change.
+    return node.name.endswith("Mixin")
 
 
 def _bound_names(body: list[ast.stmt]):
@@ -521,7 +741,17 @@ def collect_units(comp: Composition = None) -> dict[str, Unit]:
     """Parse *comp*'s package into units keyed by name."""
     comp = comp if comp is not None else MODEL_COMPOSITION
     units: dict[str, Unit] = {}
-    paths = [p for p in comp.unit_dir.rglob("*.py") if "__pycache__" not in p.parts]
+    # ``tests`` is excluded for the same reason ``layer_check.iter_source_files``
+    # excludes it: test doubles inherit the real mixins (``_FakeRequest``,
+    # ``_FractionOnly``, ``_MetricsCursor``) and would enter the graph as units,
+    # fabricating edges and collisions. ``db/`` and ``http/`` both carry such a
+    # package; the three ORM compositions do not, which is why this was not
+    # needed until they were added.
+    paths = [
+        p
+        for p in comp.unit_dir.rglob("*.py")
+        if "__pycache__" not in p.parts and "tests" not in p.parts
+    ]
     root = comp.root_dir / comp.root_file
     if root not in paths:
         paths.append(root)
@@ -662,9 +892,66 @@ def measure(
         "scc_without_base": max((len(c) for c in without_base), default=1),
         "sccs_without_base": sorted(without_base, key=len, reverse=True),
         "collisions": {k: sorted(v) for k, v in collisions.items()},
+        "unowned_shared_state": len(unowned_shared_state(comp)),
+        "_unowned_shared_state": unowned_shared_state(comp),
         "_edges": edges,
         "_units": units,
     }
+
+
+def unowned_shared_state(comp: Composition) -> dict[str, list[str]]:
+    """Members read by two or more units that **no unit owns**.
+
+    The graph above records an edge only when a reached member is *bound in some
+    unit's class body* (:func:`_bound_names`). State assigned in a constructor
+    and declared only in the typing stub — which the stub is excluded from being
+    a unit precisely to keep out of the graph — is therefore read by everyone
+    and owned by nobody, so it produces **no edge at all**.
+
+    That is a hole in both directions, and both were demonstrated on 2026-08-09:
+
+    * **It hides coupling.** ``Registry``'s ``_constraint_queue``,
+      ``_ordinary_tables``, ``has_trigram``, ``has_unaccent``,
+      ``not_null_fields``, ``unaccent``, ``model_graph`` and
+      ``field_setup_dependents`` are all assigned in ``Registry.init`` and read
+      by ``_registry_schema`` / ``_registry_fields``. Attribute those to the
+      unit that assigns them and the composition is still a 3-unit SCC after the
+      leaf extraction that took ``cyclic_edges`` to 0.
+    * **It can be silenced.** Deleting the one line
+      ``models: dict[str, type[BaseModel]]`` from ``Registry``'s class body —
+      no behaviour change whatsoever, the attribute is still assigned in
+      ``init`` and still read by both mixins — took ``cyclic_edges`` from 4 to 2
+      on the pre-split tree. A gate a declaration can switch off needs a second
+      number watching the declarations.
+
+    So ``cyclic_edges`` is a statement about *declared* ownership, not about
+    coupling, and this count is what says how much of the real thing it cannot
+    see. Ratcheted downward: the fix for an entry is to give the member an
+    owner — a class body on the unit whose concern it is — which converts an
+    invisible coupling into a visible edge, and may well expose a cycle.
+    """
+    return unowned_from_units(collect_units(comp))
+
+
+def unowned_from_units(units: dict[str, Unit]) -> dict[str, list[str]]:
+    """The measurement itself, split out so it can be tested on synthetic units.
+
+    :func:`unowned_shared_state` is the filesystem-walking wrapper; everything
+    interesting happens here.
+    """
+    owner: dict[str, str] = {}
+    for name in sorted(units):
+        for member in sorted(units[name].defines):
+            owner.setdefault(member, name)
+    readers: dict[str, set[str]] = defaultdict(set)
+    for name, unit in units.items():
+        for member in unit.uses:
+            # Dunders are protocol plumbing (``__dict__``, ``__class__``), not
+            # shared state anyone declares.
+            if member.startswith("__") or member in owner:
+                continue
+            readers[member].add(name)
+    return {m: sorted(r) for m, r in sorted(readers.items()) if len(r) > 1}
 
 
 def _verdicts(
@@ -680,6 +967,8 @@ def _verdicts(
         ("cyclic_edges", m["cyclic_edges"]),
         ("scc_without_base", m["scc_without_base"]),
     ]
+    if "unowned_shared_state" in (baseline or {}):
+        pairs.append(("unowned_shared_state", m["unowned_shared_state"]))
     if wide is not None:
         pairs += [
             ("recordset_max_scc", wide["max_scc"]),
@@ -837,7 +1126,10 @@ def main(argv: list[str] | None = None) -> int:
             for label, key, actual, floor, _ in improved:
                 print(f"  {label}.{key}: {floor} -> {actual}", file=sys.stderr)
             return 1
-        print("Mixin coupling within baseline, both compositions. ✓")
+        print(
+            f"Mixin coupling within baseline, all {len(COMPOSITIONS)} "
+            f"compositions. ✓"
+        )
     return 0
 
 

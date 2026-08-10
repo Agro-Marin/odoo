@@ -1,18 +1,13 @@
-import functools
 import inspect
 import logging
 import threading
 import time
 import types
 import typing
-from collections import defaultdict, deque
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from contextlib import ExitStack, closing, nullcontext
-from functools import partial
-from operator import attrgetter
 
 import psycopg
-from psycopg import sql as psycopg_sql
 
 from odoo import db
 from odoo.db import schema as sql
@@ -22,27 +17,31 @@ from odoo.libs import gc
 from odoo.libs.func import locked, reset_cached_properties
 from odoo.libs.lru import LRU
 from odoo.libs.worker_thread import current_worker_thread
-from odoo.tools import SQL, OrderedSet, config
+from odoo.tools import SQL, config
 from odoo.tools.constants import CACHES_BY_KEY, REGISTRY_CACHES
-from odoo.tools.misc import Collector, format_frame
+from odoo.tools.misc import format_frame
 
 from .. import registration
-from ..components.model_graph import ModelGraph
 from ..primitives import SUPERUSER_ID
 from ._init_phase import InitModelsPhase
+from ._registry_capabilities import (
+    _RegistryCapabilitiesMixin,
+    forget_all_unaccent_tables,
+    forget_unaccent_table,
+)
 from ._registry_fields import _RegistryFieldsMixin
+from ._registry_init_phase import _RegistryInitPhaseMixin
+from ._registry_models import _RegistryModelsMixin
 from ._registry_schema import _RegistrySchemaMixin
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor, Connection, Cursor
-    from odoo.fields import Field
     from odoo.models import BaseModel
     from odoo.modules import module_graph
 
 
 _logger = logging.getLogger("odoo.registry")
 _schema = logging.getLogger("odoo.schema")
-
 
 
 _REPLICA_RETRY_TIME = 20 * 60
@@ -102,53 +101,25 @@ class _RegistryCaches:
             lru.clear()
 
 
-def _unaccent(
-    x: SQL | str | psycopg_sql.Composable,
-) -> SQL | str | psycopg_sql.Composed:
-    if isinstance(x, SQL):
-        return SQL("unaccent(%s)", x)
-    if isinstance(x, psycopg_sql.Composable):
-        return psycopg_sql.SQL("unaccent({})").format(x)
-    return f"unaccent({x})"
-
-
-_UNACCENT_PROBE_RANGES = ((0x80, 0x3000), (0xFB00, 0xFB50), (0xFF00, 0xFF70))
-
-
-class _UnaccentTables:
-    by_db: dict[str, dict[int, str]] = {}
-
-
-def _get_unaccent_table(cr: BaseCursor, db_name: str) -> dict[int, str]:
-    table = _UnaccentTables.by_db.get(db_name)
-    if table is None:
-        chars = [chr(c) for lo, hi in _UNACCENT_PROBE_RANGES for c in range(lo, hi)]
-        cr.execute(
-            "SELECT c AS source, unaccent(c) AS folded FROM unnest(%s::text[]) AS c",
-            (chars,),
-        )
-        table = {
-            ord(row["source"]): row["folded"]
-            for row in cr.dictfetchall()
-            if row["folded"] != row["source"]
-        }
-        _UnaccentTables.by_db[db_name] = table
-    return table
-
-
-def _identity(x: typing.Any) -> typing.Any:
-    return x
-
-
-def _unaccent_python(x: str, table: dict[int, str]) -> str:
-    return x.translate(table)
-
-
 class Registry(
     _RegistryFieldsMixin,
     _RegistrySchemaMixin,
+    _RegistryModelsMixin,
+    _RegistryInitPhaseMixin,
+    _RegistryCapabilitiesMixin,
     Mapping[str, type["BaseModel"]],
 ):
+    """The per-database model registry.
+
+    The composition root.  ``_RegistryModelsMixin`` and
+    ``_RegistryInitPhaseMixin`` are leaves with no out-edge into the
+    composition; ``_RegistryFieldsMixin`` and ``_RegistrySchemaMixin`` depend on
+    them and on nothing here, which is what makes the whole a DAG.  Before those
+    two leaves existed, both reached *this class* for ``models`` and
+    ``init_phase`` and the three units formed a cycle --- see
+    :mod:`._registry_models`.
+    """
+
     _lock: threading.RLock | DummyRLock = threading.RLock()
 
     registries = LRU[str, "Registry"](42)
@@ -169,7 +140,12 @@ class Registry(
     _init: bool
     ready: bool
     loaded: bool
-    models: dict[str, type[BaseModel]]
+    # ``models`` is declared by ``_RegistryModelsMixin``, which owns the
+    # container and the Mapping protocol over it. Declaring it here too would
+    # put the name back in this class body, which is what makes a unit the
+    # *owner* of a member for ``mixin_coupling_check.py`` -- and every
+    # ``self.models`` read in the other two mixins a back-edge into the root.
+    # That is exactly the cycle the leaf was extracted to break.
 
     @classmethod
     @locked
@@ -269,14 +245,21 @@ class Registry(
         self.loaded = False
         self.ready = False
 
-        self.models: dict[str, type[BaseModel]] = {}
+        # Each mixin initialises the state it declares. `Registry.init` owns
+        # instance construction, but not the *contents* of every mixin: a
+        # member declared in the typing stub and assigned here is owned by no
+        # unit, which is how eight of them stayed invisible to
+        # `mixin_coupling_check` while genuinely coupling the mixins to this
+        # class. See `unowned_shared_state` and REGISTRY_BASELINE.
+        self._init_models_container()
+        self._init_phase_state()
+        self._init_field_state()
+        self._init_schema_state()
+
         self._database_translated_fields: dict[str, str] = {}
         self._database_company_dependent_fields: set[str] = set()
         self._assertion_report = _get_assertion_report(db_name)
-        self._ordinary_tables: dict[str, bool] = {}
-        self._constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]] = {}
         self._caches = _RegistryCaches()
-        self._init_phase: InitModelsPhase | None = None
 
         self._reinit_modules: set[str] = set()
 
@@ -296,34 +279,16 @@ class Registry(
         ):
             self._db_readonly = db.db_connect(db_name, readonly=True)
 
-        self.many2many_relations: defaultdict[
-            tuple[str, str, str], OrderedSet[tuple[str, str]]
-        ] = defaultdict(OrderedSet)
-
-        self.field_setup_dependents: Collector[Field, Field] = Collector()
-
-        self.many2one_company_dependents: Collector[str, Field] = Collector()
-
-        self.not_null_fields: set[Field] = set()
-
-        self.model_graph = ModelGraph()
-
         self.registry_sequence: int = -1
         self.cache_sequences: dict[str, int] = {}
 
         self._invalidation_flags = threading.local()
 
-        from odoo.modules import db as modules_db
-
+        # The connection is this class's concern, so the cursor is opened here
+        # and handed to the leaf; `_RegistryCapabilitiesMixin` never reaches
+        # back for `self.cursor()`, which is what keeps it a leaf.
         with closing(self.cursor()) as cr:
-            self.has_unaccent = modules_db.has_unaccent(cr)
-            self.has_trigram = modules_db.has_trigram(cr)
-            table = _get_unaccent_table(cr, self.db_name) if self.has_unaccent else None
-
-        self.unaccent = _unaccent if self.has_unaccent else _identity
-        self.unaccent_python = (
-            partial(_unaccent_python, table=table) if table is not None else _identity
-        )
+            self._probe_capabilities(cr, db_name)
 
     @classmethod
     @locked
@@ -361,78 +326,19 @@ class Registry(
         be invalidated per database; neither had anywhere that did it.
         """
         cls.delete(db_name)
-        _UnaccentTables.by_db.pop(db_name, None)
+        forget_unaccent_table(db_name)
         _ASSERTION_REPORTS.pop(db_name, None)
 
     @classmethod
     @locked
     def delete_all(cls):
         cls.registries.clear()
-        _UnaccentTables.by_db.clear()
+        forget_all_unaccent_tables()
         _ASSERTION_REPORTS.clear()
 
     __eq__ = object.__eq__
     __ne__ = object.__ne__
     __hash__ = object.__hash__
-
-    def __len__(self) -> int:
-        return len(self.models)
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self.models)
-
-    def __getitem__(self, model_name: str) -> type[BaseModel]:
-        return self.models[model_name]
-
-    def __setitem__(self, model_name: str, model: type[BaseModel]) -> None:
-        self.models[model_name] = model
-
-    def __delitem__(self, model_name: str) -> None:
-        del self.models[model_name]
-        for Model in self.models.values():
-            Model._inherit_children.discard(model_name)
-
-    @functools.cached_property
-    def models_by_table(self) -> dict[str, type[BaseModel]]:
-        """``{table_name: model_cls}`` — the first model declaring each table.
-
-        "First" reproduces the linear scan this replaces: several models can
-        share a table (``_inherits`` delegation, an explicit ``_table``), and
-        the previous readers took the first match in registry order, so
-        ``setdefault`` over ``self.models.values()`` is the same answer without
-        the scan.
-
-        Invalidated with the other cached properties by
-        ``reset_cached_properties(self)`` in :meth:`load` and
-        :meth:`_setup_models__`, which are the only places ``models`` changes.
-        """
-        by_table: dict[str, type[BaseModel]] = {}
-        for model_cls in self.models.values():
-            if table := getattr(model_cls, "_table", None):
-                by_table.setdefault(table, model_cls)
-        return by_table
-
-    def descendants(
-        self,
-        model_names: Iterable[str],
-        *kinds: typing.Literal["_inherit", "_inherits"],
-    ) -> OrderedSet[str]:
-        if not all(kind in ("_inherit", "_inherits") for kind in kinds):
-            raise ValueError(
-                f"descendants: kinds must be '_inherit'/'_inherits', got {kinds!r}"
-            )
-        funcs = [attrgetter(kind + "_children") for kind in kinds]
-
-        models: OrderedSet[str] = OrderedSet()
-        queue = deque(model_names)
-        while queue:
-            model = self.get(queue.popleft())
-            if model is None or model._name in models:
-                continue
-            models.add(model._name)
-            for func in funcs:
-                queue.extend(func(model))
-        return models
 
     def load(self, module: module_graph.ModuleNode) -> list[str]:
         from .. import models
@@ -577,44 +483,6 @@ class Registry(
             self._ensure_field_triggers()
             env.flush_all()
 
-    @property
-    def init_phase(self) -> InitModelsPhase:
-        """The open :meth:`init_models` window, or a named error.
-
-        Reached from Layer 1 (``fields/base.py``, ``fields/relational/*``) and
-        from ``addons/base``, all of which run *inside* ``init_models`` and
-        none of which says so. Before this existed, calling one of them outside
-        the window raised ``AttributeError: 'Registry' object has no attribute
-        '_post_init_queue'``, which names neither the caller's mistake nor the
-        rule it broke.
-        """
-        if self._init_phase is None:
-            raise RuntimeError(
-                "Registry.init_phase is only available while init_models() is "
-                "running: it holds state for one module-initialisation pass "
-                "(the post-init queue, the foreign keys to reconcile, the "
-                "many2many relations to reflect). A caller reaching it outside "
-                "that window -- typically a field's update_db() run at some "
-                "other time -- is the bug."
-            )
-        return self._init_phase
-
-    def post_init(self, func: Callable, *args, **kwargs) -> None:
-        """Defer *func* until every model's table exists (see :attr:`init_phase`)."""
-        self.init_phase.post_init_queue.append(partial(func, *args, **kwargs))
-
-    def add_relation_reflection(
-        self, model_name: str, relation: str, module: str
-    ) -> None:
-        """Record a many2many relation table for ``ir.model.relation``.
-
-        A method rather than a bare set, so Layer 1 states its intent instead
-        of mutating registry internals: ``fields/relational/many2many.py`` used
-        to do ``model.pool._relation_reflections.add(...)``, the one *direct
-        write* into the phase from outside this module.
-        """
-        self.init_phase.relation_reflections.add((model_name, relation, module))
-
     def init_models(
         self,
         cr: Cursor,
@@ -718,9 +586,7 @@ class Registry(
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
 
-        self._log_invalidation(
-            ("all",), logging.INFO if self.loaded else logging.DEBUG
-        )
+        self._log_invalidation(("all",), logging.INFO if self.loaded else logging.DEBUG)
 
     @property
     def registry_invalidated(self) -> bool:

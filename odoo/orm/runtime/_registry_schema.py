@@ -14,6 +14,7 @@ from ._registry_stubs import _RegistryStubs
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor, Cursor
+    from odoo.fields import Field
     from odoo.models import BaseModel
 
 
@@ -22,6 +23,25 @@ _schema = logging.getLogger("odoo.schema")
 
 
 class _RegistrySchemaMixin(_RegistryStubs):
+    #: Declared here, not in ``_RegistryStubs``, and initialised by
+    #: :meth:`_init_schema_state` rather than by ``Registry.init``.
+    #:
+    #: Both halves are the point. A member declared only in the typing stub is
+    #: owned by no unit, so ``mixin_coupling_check`` records no edge for it and
+    #: the coupling is invisible; a member initialised by the composition root
+    #: is one the root has to know about. These three were both, which is how a
+    #: composition measuring ``cyclic_edges`` 0 could still share eight mutable
+    #: members with its root (see ``REGISTRY_BASELINE``).
+    _ordinary_tables: dict[str, bool]
+    _constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]]
+    not_null_fields: set[Field]
+
+    def _init_schema_state(self) -> None:
+        """Initialise this mixin's own state. Called by ``Registry.init``."""
+        self._ordinary_tables = {}
+        self._constraint_queue = {}
+        self.not_null_fields = set()
+
     def post_constraint(
         self, cr: BaseCursor, func: Callable[[BaseCursor], None], key
     ) -> None:
