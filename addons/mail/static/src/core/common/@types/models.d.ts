@@ -18,6 +18,7 @@ declare module "models" {
     import { Message as MessageClass } from "@mail/core/common/message_model";
     import { MessageLinkPreview as MessageLinkPreviewClass } from "@mail/core/common/message_link_preview_model";
     import { MessageReactions as MessageReactionsClass } from "@mail/core/common/message_reactions_model";
+    import { MessagingMenu as MessagingMenuClass } from "@mail/core/common/messaging_menu_model";
     import { Notification as NotificationClass } from "@mail/core/common/notification_model";
     import { ResCompany as ResCompanyClass } from "@mail/core/common/res_company_model";
     import { ResGroups as ResGroupsClass } from "@mail/core/common/res_groups_model";
@@ -49,6 +50,7 @@ declare module "models" {
     export interface Message extends MessageClass {}
     export interface MessageLinkPreview extends MessageLinkPreviewClass {}
     export interface MessageReactions extends MessageReactionsClass {}
+    export interface MessagingMenu extends MessagingMenuClass {}
     export interface Notification extends NotificationClass {}
     export interface ResCompany extends ResCompanyClass {}
     export interface ResGroups extends ResGroupsClass {}
@@ -81,6 +83,7 @@ declare module "models" {
         "mail.notification": StaticMailRecord<Notification, typeof NotificationClass>;
         "mail.template": StaticMailRecord<MailTemplate, typeof MailTemplateClass>;
         MessageReactions: StaticMailRecord<MessageReactions, typeof MessageReactionsClass>;
+        MessagingMenu: StaticMailRecord<MessagingMenu, typeof MessagingMenuClass>;
         "res.company": StaticMailRecord<ResCompany, typeof ResCompanyClass>;
         "res.country": StaticMailRecord<Country, typeof CountryClass>;
         "res.groups": StaticMailRecord<ResGroups, typeof ResGroupsClass>;
@@ -114,6 +117,7 @@ declare module "models" {
         "mail.notification": Notification;
         "mail.template": MailTemplate;
         MessageReactions: MessageReactions;
+        MessagingMenu: MessagingMenu;
         "res.company": ResCompany;
         "res.country": Country;
         "res.groups": ResGroups;

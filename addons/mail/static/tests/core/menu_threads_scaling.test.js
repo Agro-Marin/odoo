@@ -3,33 +3,33 @@ import { describe, expect, test } from "@odoo/hoot";
 import { getService } from "@web/../tests/web_test_helpers";
 
 /**
- * `Store.menuThreads` used to derive itself by scanning `Thread.records`, which
+ * `MessagingMenu.threads` used to derive itself by scanning `Thread.records`, which
  * made it an observer of the record keys plus `displayToSelf` and
  * `needactionMessages` on *every* thread in the store. Loading threads then
  * cost O(n) per thread: measured at ~1.3ms per recompute with 200 threads
  * loaded, so ~13ms to insert ten more.
  *
  * Eligibility is now maintained per thread
- * (@see Thread.storeAsMenuThreadCandidate), so a thread that cannot appear in
+ * (@see Thread.menuAsThreadCandidate), so a thread that cannot appear in
  * the menu does not disturb it at all. These tests pin the scaling property,
  * not the timing — a rescan would fail them on any machine.
  */
 describe.current.tags("desktop");
 defineMailModels();
 
-/** Count `menuThreads` recomputes while `fn` runs. */
+/** Count `MessagingMenu.threads` recomputes while `fn` runs. */
 async function countRecomputes(store, fn) {
-    const Model = store.Thread._rawStore.Models.Store;
-    const compute = Model._.fieldsCompute.get("menuThreads");
+    const Model = store.Thread._rawStore.Models.MessagingMenu;
+    const compute = Model._.fieldsCompute.get("threads");
     let runs = 0;
-    Model._.fieldsCompute.set("menuThreads", function () {
+    Model._.fieldsCompute.set("threads", function () {
         runs++;
         return compute.call(this);
     });
     try {
         await fn();
     } finally {
-        Model._.fieldsCompute.set("menuThreads", compute);
+        Model._.fieldsCompute.set("threads", compute);
     }
     return runs;
 }
@@ -47,7 +47,7 @@ test("threads that cannot appear in the menu do not recompute it", async () => {
         }
     });
     expect(runs).toBe(0, {
-        message: "inserting non-candidate threads must not touch menuThreads",
+        message: "inserting non-candidate threads must not touch MessagingMenu.threads",
     });
 });
 
@@ -60,13 +60,13 @@ test("a thread becoming eligible enters the menu, and leaving removes it", async
         id: 1,
         name: "chan",
     });
-    expect(thread.notIn(store.menuThreads)).toBe(true);
+    expect(thread.notIn(store.messagingMenu.threads)).toBe(true);
     thread.displayToSelf = true;
-    expect(thread.in(store.menuThreadCandidates)).toBe(true);
-    expect(thread.in(store.menuThreads)).toBe(true);
+    expect(thread.in(store.messagingMenu.threadCandidates)).toBe(true);
+    expect(thread.in(store.messagingMenu.threads)).toBe(true);
     thread.displayToSelf = false;
-    expect(thread.notIn(store.menuThreadCandidates)).toBe(true);
-    expect(thread.notIn(store.menuThreads)).toBe(true);
+    expect(thread.notIn(store.messagingMenu.threadCandidates)).toBe(true);
+    expect(thread.notIn(store.messagingMenu.threads)).toBe(true);
 });
 
 test("the menu search term still filters candidates", async () => {
@@ -87,8 +87,8 @@ test("the menu search term still filters candidates", async () => {
     });
     alpha.displayToSelf = true;
     beta.displayToSelf = true;
-    expect(store.menuThreads).toHaveLength(2);
+    expect(store.messagingMenu.threads).toHaveLength(2);
     store.discuss.searchTerm = "alph";
-    expect(alpha.in(store.menuThreads)).toBe(true);
-    expect(beta.notIn(store.menuThreads)).toBe(true);
+    expect(alpha.in(store.messagingMenu.threads)).toBe(true);
+    expect(beta.notIn(store.messagingMenu.threads)).toBe(true);
 });

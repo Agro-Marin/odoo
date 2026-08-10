@@ -149,7 +149,7 @@ export class MessagingMenu extends Component {
     }
 
     get threads() {
-        return this.store.menuThreads;
+        return this.store.messagingMenu.threads;
     }
 
     get visibleStandaloneMessages() {

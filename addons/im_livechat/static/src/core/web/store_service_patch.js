@@ -68,18 +68,5 @@ const storePatch = {
             },
         ];
     },
-    /**
-     * @override
-     */
-    tabToThreadType(tab) {
-        const threadTypes = super.tabToThreadType(tab);
-        if (tab === "chat" && !this.env.services.ui.isSmall) {
-            threadTypes.push("livechat");
-        }
-        if (tab === "livechat") {
-            threadTypes.push("livechat");
-        }
-        return threadTypes;
-    },
 };
 patch(Store.prototype, storePatch);

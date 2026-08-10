@@ -37,6 +37,7 @@
 @mail/core/common/message  odoo enterprise
 @mail/core/common/message_actions  odoo enterprise
 @mail/core/common/message_model  odoo enterprise
+@mail/core/common/messaging_menu_model  odoo
 @mail/core/common/navigable_list  odoo
 @mail/core/common/notification_model  odoo
 @mail/core/common/partner_compare  odoo

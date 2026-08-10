@@ -17,12 +17,7 @@ import "./_models.js";
 
 import { FETCH_DATA_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, makeStore, Store as BaseStore } from "@mail/core/common/record";
-import { threadCompareRegistry } from "@mail/core/common/thread_compare";
-import {
-    attClassObjectToString,
-    cleanTerm,
-    prettifyMessageText,
-} from "@mail/utils/common/format";
+import { attClassObjectToString, prettifyMessageText } from "@mail/utils/common/format";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { reactive } from "@odoo/owl";
 import { loader } from "@web/components/emoji_picker/emoji_picker";
@@ -116,8 +111,9 @@ export class Store extends BaseStore {
     /** @type {boolean} */
     hasMessageTranslationFeature;
     hasLinkPreviewFeature = true;
-    menu = { counter: 0 };
     chatHub = fields.One("ChatHub", { compute: () => ({}) });
+    /** Derived state of the systray messaging menu. @see MessagingMenu */
+    messagingMenu = fields.One("MessagingMenu", { compute: () => ({}) });
     failures = fields.Many("Failure", {
         /**
          * @param {import("models").Failure} f1
@@ -201,69 +197,6 @@ export class Store extends BaseStore {
      * @type {Map<string, Mutex>}
      */
     messagePostMutexes = new Map();
-
-    /**
-     * Threads eligible for the messaging menu, maintained by each thread
-     * (@see Thread.storeAsMenuThreadCandidate) instead of rescanned here.
-     * Reading `Thread.records` made `menuThreads` an observer of the record
-     * keys plus `displayToSelf` and `needactionMessages` on *every* thread in
-     * the store, so each thread inserted re-ran the whole O(n) scan: measured
-     * at ~1.3ms per recompute with 200 threads loaded, i.e. ~13ms to insert
-     * ten of them.
-     */
-    menuThreadCandidates = fields.Many("Thread", {
-        inverse: "storeAsMenuThreadCandidate",
-    });
-    menuThreads = fields.Many("Thread", {
-        /** @this {import("models").Store} */
-        compute() {
-            // `discuss` and `starred` only exist once the web/public_web
-            // patches are applied: guard so portal/livechat bundles that load
-            // core/common alone don't crash.
-            const searchTerm = cleanTerm(this.discuss?.searchTerm ?? "");
-            // Iterate the maintained candidate list, NOT Thread.records: the
-            // latter re-observes every thread in the store (see
-            // menuThreadCandidates) and, because eligibility now lives in
-            // Thread.storeAsMenuThreadCandidate rather than here, would also
-            // let ineligible threads into the menu.
-            /** @type {import("models").Thread[]} */
-            let threads = this.menuThreadCandidates.filter(
-                // Skip the per-thread cleanTerm(displayName) normalization when
-                // no search is active (the common case): includes("") is always
-                // true, so it only ever cost CPU on every menuThreads recompute.
-                (thread) =>
-                    !searchTerm || cleanTerm(thread.displayName).includes(searchTerm),
-            );
-            const tab = this.discuss?.activeTab;
-            if (tab === "inbox") {
-                threads = threads.filter(({ channel_type }) =>
-                    this.tabToThreadType("mailbox").includes(channel_type),
-                );
-            } else if (tab === "starred") {
-                threads = this.starred ? [this.starred] : [];
-            } else if (tab !== "notification") {
-                threads = threads.filter(({ channel_type }) =>
-                    this.tabToThreadType(tab).includes(channel_type),
-                );
-            }
-            return threads;
-        },
-        /**
-         * @this {import("models").Store}
-         * @param {import("models").Thread} thread1
-         * @param {import("models").Thread} thread2
-         */
-        sort(thread1, thread2) {
-            const compareFunctions = threadCompareRegistry.getAll();
-            for (const fn of compareFunctions) {
-                const result = fn(thread1, thread2);
-                if (result !== undefined) {
-                    return result;
-                }
-            }
-            return thread2.localId > thread1.localId ? 1 : -1;
-        },
-    });
 
     shouldSimulateDarkTheme(ctx) {
         return (
@@ -556,10 +489,6 @@ export class Store extends BaseStore {
      * @param {string} tab
      * @returns Thread types matching the given tab.
      */
-    tabToThreadType(tab) {
-        return tab === "chat" ? ["chat", "group"] : [tab];
-    }
-
     setup() {
         super.setup();
         // Temporary-id state must stay per store: a livechat embed and the

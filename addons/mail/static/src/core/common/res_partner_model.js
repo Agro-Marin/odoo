@@ -105,7 +105,7 @@ export class ResPartner extends Record {
     /**
      * @deprecated
      *
-     * `store.menuThreads` uses this field to filter threads based on search
+     * `MessagingMenu.threads` uses this field to filter threads based on search
      * terms. For each computation, the `menuThread` field is marked as needing a
      * recompute, which can lead to excessive recursion—sometimes even exceeding the
      * call stack size. This computation is simple enough that it doesn’t need a

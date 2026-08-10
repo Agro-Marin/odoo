@@ -30,6 +30,7 @@ import "./mail_guest_model.js";
 import "./mail_message_subtype_model.js";
 import "./mail_template_model.js";
 import "./message_link_preview_model.js";
+import "./messaging_menu_model.js";
 import "./message_model.js";
 import "./message_reactions_model.js";
 import "./notification_model.js";

@@ -105,19 +105,19 @@ export class Thread extends Record {
         },
     });
     /**
-     * Membership of `Store.menuThreadCandidates`: whether this thread can show
-     * up in the messaging menu at all, before the menu's own search and tab
+     * Membership of `MessagingMenu.threadCandidates`: whether this thread can
+     * show up in the messaging menu at all, before the menu's own search and tab
      * filtering. Maintained per thread rather than rescanned, so that
-     * `Store.menuThreads` depends on the candidates alone instead of on
+     * `MessagingMenu.threads` depends on the candidates alone instead of on
      * `Thread.records` and on two fields of every thread in the store.
      */
-    storeAsMenuThreadCandidate = fields.One("Store", {
+    menuAsThreadCandidate = fields.One("MessagingMenu", {
         compute() {
             if (
                 this.displayToSelf ||
                 (this.needactionMessages.length > 0 && !this.isMailbox)
             ) {
-                return this.store;
+                return this.store.messagingMenu;
             }
         },
     });
@@ -548,7 +548,7 @@ export class Thread extends Record {
     newestPersistentOfAllMessage = fields.One("mail.message", {
         compute() {
             // Single O(n) pass, no sort: this recomputes on EVERY message
-            // insert of the thread and feeds the menuThreads ordering.
+            // insert of the thread and feeds the MessagingMenu.threads ordering.
             let newest;
             for (const message of this.allMessages) {
                 if (
