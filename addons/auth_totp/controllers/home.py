@@ -68,10 +68,27 @@ class Home(web_home.Home):
                     self._login_redirect(request.session.uid, redirect=redirect)
                 )
                 if kwargs.get("remember"):
+                    # Both attributes are None for any User-Agent the parser in
+                    # odoo/libs/_vendor/useragents.py does not classify, and
+                    # calling .capitalize() on that turned "remember this
+                    # device" into an HTTP 500 -- after the session was already
+                    # finalized. The Odoo mobile app is one such client
+                    # (`Odoo/x CFNetwork/y Darwin/z` parses a platform but no
+                    # browser), which is the same client the two workarounds
+                    # further down this method exist for.
+                    user_agent = request.httprequest.user_agent
                     name = _(
                         "%(browser)s on %(platform)s",
-                        browser=request.httprequest.user_agent.browser.capitalize(),
-                        platform=request.httprequest.user_agent.platform.capitalize(),
+                        browser=(
+                            user_agent.browser.capitalize()
+                            if user_agent.browser
+                            else _("Unknown browser")
+                        ),
+                        platform=(
+                            user_agent.platform.capitalize()
+                            if user_agent.platform
+                            else _("Unknown platform")
+                        ),
                     )
 
                     if request.geoip.city.name:
