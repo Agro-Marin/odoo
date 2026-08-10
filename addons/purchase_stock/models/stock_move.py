@@ -300,8 +300,8 @@ class StockMove(models.Model):
             return valuation_data
 
         # Remove quantity from prior moves.
-        value = value * ((aml_quantity - other_candidates_qty) / aml_quantity)
-        aml_quantity = aml_quantity - other_candidates_qty
+        value *= (aml_quantity - other_candidates_qty) / aml_quantity
+        aml_quantity -= other_candidates_qty
 
         if quantity >= aml_quantity:
             valuation_data["quantity"] = aml_quantity

@@ -188,7 +188,7 @@ class OrderLineAmountMixin(models.AbstractModel):
         self.ensure_one()
         price_unit = self.price_unit
         if self.discount:
-            price_unit = price_unit * (1 - self.discount / 100)
+            price_unit *= 1 - self.discount / 100
         if self.tax_ids:
             qty = self.product_qty or 1
             price_unit = self.tax_ids.compute_all(
@@ -197,7 +197,7 @@ class OrderLineAmountMixin(models.AbstractModel):
                 quantity=qty,
                 rounding_method="round_globally",
             )["total_void"]
-            price_unit = price_unit / qty
+            price_unit /= qty
         if self.product_uom_id.id != self.product_id.uom_id.id:
             price_unit *= self.product_id.uom_id.factor / self.product_uom_id.factor
         return price_unit

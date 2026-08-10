@@ -157,10 +157,12 @@ class PurchaseOrderLine(models.Model):
             for move in line._get_stock_moves():
                 if move._is_purchase_return():
                     if not move.origin_returned_move_id or move.to_refund:
-                        qty_transferred -= move.product_uom_id._compute_quantity_reconcile(
-                            move.quantity,
-                            line.product_uom_id,
-                            rounding_method="HALF-UP",
+                        qty_transferred -= (
+                            move.product_uom_id._compute_quantity_reconcile(
+                                move.quantity,
+                                line.product_uom_id,
+                                rounding_method="HALF-UP",
+                            )
                         )
                 elif (
                     move.origin_returned_move_id
@@ -316,7 +318,7 @@ class PurchaseOrderLine(models.Model):
                 partner=self.order_id.partner_id,
                 rounding_method="round_globally",
             )["total_void"]
-            price_unit = price_unit / qty
+            price_unit /= qty
 
         if self.product_uom_id.id != self.product_id.uom_id.id:
             price_unit /= self.product_uom_id.factor
@@ -464,18 +466,14 @@ class PurchaseOrderLine(models.Model):
         if line_description and product_id.name != line_description:
             res["name"] = (res["name"] + "\n" + line_description).strip()
 
-        res["date_commitment"] = fields.Datetime.to_datetime(
-            values.get("date_planned")
-        )
+        res["date_commitment"] = fields.Datetime.to_datetime(values.get("date_planned"))
         # The date must be day before or equal at the supplier target day
 
         if po.partner_id.group_rfq == "week" and po.partner_id.group_on != "default":
             delta_days = (
                 7 + int(po.partner_id.group_on) - res["date_commitment"].isoweekday()
             ) % 7
-            res["date_commitment"] = res["date_commitment"] + relativedelta(
-                days=delta_days
-            )
+            res["date_commitment"] += relativedelta(days=delta_days)
 
             if not po.date_commitment or po.date_commitment >= res["date_commitment"]:
                 # date_order was computed from the procurement date_planned. If the PO
@@ -515,10 +513,12 @@ class PurchaseOrderLine(models.Model):
                     if move.state == "done":
                         if move._is_purchase_return():
                             if not move.origin_returned_move_id or move.to_refund:
-                                total -= move.product_uom_id._compute_quantity_reconcile(
-                                    move.quantity,
-                                    line.product_uom_id,
-                                    rounding_method="HALF-UP",
+                                total -= (
+                                    move.product_uom_id._compute_quantity_reconcile(
+                                        move.quantity,
+                                        line.product_uom_id,
+                                        rounding_method="HALF-UP",
+                                    )
                                 )
                         elif (
                             move.origin_returned_move_id

@@ -290,7 +290,7 @@ class TestPriceComputationPerformance(PriceComputationPerformanceBase):
 
         with timing("Update quantity on 50 lines"):
             for line in order.line_ids:
-                line.product_uom_qty = line.product_uom_qty + 5
+                line.product_uom_qty += 5
 
         self.assertTrue(all(line.price_unit > 0 for line in order.line_ids))
 
