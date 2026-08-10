@@ -192,3 +192,98 @@ class TestRatingExternalRoutes(HttpCase):
                 lambda m: m.rating_ids and self.rating in m.rating_ids
             )
         )
+
+
+@tagged("post_install", "-at_install")
+class TestRatingMailMessage(TransactionCase):
+    """Rating fields exposed on mail.message."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.project = cls.env["project.project"].create({"name": "Message project"})
+        cls.task = cls.env["project.task"].create(
+            {"name": "Message task", "project_id": cls.project.id}
+        )
+        cls.partner = cls.env["res.partner"].create({"name": "Message rater"})
+        cls.message = cls.task.message_post(body="Rated message")
+
+    def _rate(self, value, consumed=True, message=None):
+        return self.env["rating.rating"].create(
+            {
+                "res_model_id": self.env["ir.model"]._get_id("project.task"),
+                "res_id": self.task.id,
+                "partner_id": self.partner.id,
+                "rating": value,
+                "consumed": consumed,
+                "message_id": (message or self.message).id,
+            }
+        )
+
+    def test_rating_id_picks_latest_consumed(self):
+        """The message exposes its newest consumed rating."""
+        self._rate(1)
+        latest = self._rate(5)
+        self.message.invalidate_recordset(["rating_id", "rating_value"])
+        self.assertEqual(self.message.rating_id, latest)
+        self.assertEqual(self.message.rating_value, 5)
+
+    def test_unconsumed_rating_is_ignored(self):
+        """A rating still awaiting an answer does not surface (boundary)."""
+        self._rate(5, consumed=False)
+        self.message.invalidate_recordset(["rating_id", "rating_value"])
+        self.assertFalse(self.message.rating_id)
+        self.assertEqual(self.message.rating_value, 0.0)
+
+    def test_search_by_rating_value(self):
+        """Messages are searchable by the rating value they carry."""
+        self._rate(5)
+        Message = self.env["mail.message"]
+        self.assertIn(self.message, Message.search([("rating_value", "=", 5)]))
+        self.assertNotIn(self.message, Message.search([("rating_value", "=", 1)]))
+
+    def test_search_zero_includes_unrated_messages(self):
+        """Searching for zero also returns messages without any rating."""
+        plain = self.task.message_post(body="No rating here")
+        self._rate(5)
+        matches = self.env["mail.message"].search([("rating_value", "in", [0])])
+        self.assertIn(plain, matches)
+        self.assertNotIn(self.message, matches)
+
+    def test_search_negative_operator_unsupported(self):
+        """Negative operators are declined rather than answered wrongly."""
+        self.assertIs(
+            self.env["mail.message"]._search_rating_value("not in", [5]),
+            NotImplemented,
+        )
+
+    def test_rated_message_is_not_empty(self):
+        """A body-less message still counts as content when it carries a rating."""
+        blank = self.task.message_post(body="")
+        self.assertTrue(blank._is_empty())
+        self._rate(5, message=blank)
+        blank.invalidate_recordset(["rating_id"])
+        self.assertFalse(blank._is_empty())
+
+    def test_store_exposes_rating_stats_only_when_allowed(self):
+        """Rating stats reach the store only for publishing models."""
+        from unittest.mock import patch
+
+        from odoo.addons.mail.tools.discuss import Store
+
+        self._rate(5)
+        store = Store()
+        self.message._to_store(store, ["record_rating"])
+        payload = store.get_result()
+        thread = payload["mail.thread"][0]
+        self.assertEqual(thread["rating_avg"], 5)
+        self.assertEqual(thread["rating_count"], 1)
+        self.assertNotIn("rating_stats", thread)
+
+        with patch.object(
+            type(self.task), "_allow_publish_rating_stats", return_value=True
+        ):
+            store_pub = Store()
+            self.message._to_store(store_pub, ["record_rating"])
+            thread_pub = store_pub.get_result()["mail.thread"][0]
+        self.assertEqual(thread_pub["rating_stats"]["total"], 1)
