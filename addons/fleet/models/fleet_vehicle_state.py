@@ -3,6 +3,8 @@
 
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class FleetVehicleState(models.Model):
     _name = 'fleet.vehicle.state'
@@ -13,7 +15,6 @@ class FleetVehicleState(models.Model):
     sequence = fields.Integer()
     fold = fields.Boolean(string='Folded in Kanban')
 
-    _fleet_state_name_unique = models.Constraint(
-        'unique(name)',
-        'State name already exists',
+    _name_src_uniq = name_uniq_index(
+        message='State name already exists',
     )

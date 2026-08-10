@@ -8,6 +8,8 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools.translate import _
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 _logger = logging.getLogger(__name__)
 
 
@@ -98,9 +100,8 @@ class ResCountry(models.Model):
     state_required = fields.Boolean(default=False)
     zip_required = fields.Boolean(default=True)
 
-    _name_uniq = models.Constraint(
-        "unique (name)",
-        "The name of the country must be unique!",
+    _name_src_uniq = name_uniq_index(
+        message="The name of the country must be unique!",
     )
     _code_uniq = models.Constraint(
         "unique (code)",

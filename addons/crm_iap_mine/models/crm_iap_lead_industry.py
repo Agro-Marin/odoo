@@ -3,6 +3,8 @@
 
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class CrmIapLeadIndustry(models.Model):
     """ Industry Tags of Acquisition Rules """
@@ -15,7 +17,6 @@ class CrmIapLeadIndustry(models.Model):
     color = fields.Integer(string='Color Index')
     sequence = fields.Integer('Sequence')
 
-    _name_uniq = models.Constraint(
-        'unique (name)',
-        'Industry name already exists!',
+    _name_src_uniq = name_uniq_index(
+        message='Industry name already exists!',
     )

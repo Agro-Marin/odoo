@@ -3,6 +3,8 @@ from odoo.exceptions import UserError
 from odoo.tools import float_compare
 from odoo.tools.misc import clean_context
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class StockScrap(models.Model):
     _name = "stock.scrap"
@@ -400,7 +402,6 @@ class StockScrapReasonTag(models.Model):
     sequence = fields.Integer(default=10)
     color = fields.Char(string="Color", default="#3C3C3C")
 
-    _name_uniq = models.Constraint(
-        "unique (name)",
-        "Tag name already exists!",
+    _name_src_uniq = name_uniq_index(
+        message="Tag name already exists!",
     )

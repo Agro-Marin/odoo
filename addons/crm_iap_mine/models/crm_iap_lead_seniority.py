@@ -3,6 +3,8 @@
 
 from odoo import api, fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class CrmIapLeadSeniority(models.Model):
     """ Seniority for People Rules """
@@ -12,9 +14,8 @@ class CrmIapLeadSeniority(models.Model):
     name = fields.Char(string='Name', required=True, translate=True)
     reveal_id = fields.Char(required=True)
 
-    _name_uniq = models.Constraint(
-        'unique (name)',
-        'Name already exists!',
+    _name_src_uniq = name_uniq_index(
+        message='Name already exists!',
     )
 
     @api.depends('name')

@@ -3,6 +3,8 @@
 
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class FleetVehicleTag(models.Model):
     _name = 'fleet.vehicle.tag'
@@ -11,7 +13,6 @@ class FleetVehicleTag(models.Model):
     name = fields.Char('Tag Name', required=True, translate=True)
     color = fields.Integer('Color')
 
-    _name_uniq = models.Constraint(
-        'unique (name)',
-        'Tag name already exists!',
+    _name_src_uniq = name_uniq_index(
+        message='Tag name already exists!',
     )

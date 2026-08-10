@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class AccountAccountTag(models.Model):
     """Tag for categorizing accounts, taxes, and products."""
@@ -24,7 +26,9 @@ class AccountAccountTag(models.Model):
         help="Country for which this tag is available, when applied on taxes.",
     )
 
-    _name_uniq = models.Constraint(
-        "unique(name, applicability, country_id)",
-        "A tag with the same name and applicability already exists in this country.",
+    _name_src_uniq = name_uniq_index(
+        "applicability",
+        "country_id",
+        nulls_distinct=True,
+        message="A tag with the same name and applicability already exists in this country.",
     )

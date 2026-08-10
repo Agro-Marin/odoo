@@ -2,6 +2,8 @@ from random import randint
 
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class SurveyCategory(models.Model):
     """Categories for grouping surveys (e.g. Satisfaction, Feedback, Assessment)."""
@@ -18,9 +20,8 @@ class SurveyCategory(models.Model):
     color = fields.Integer("Color", default=_get_default_color)
     survey_count = fields.Integer("Surveys", compute="_compute_survey_count")
 
-    _name_uniq = models.Constraint(
-        "unique (name)",
-        "Category name already exists!",
+    _name_src_uniq = name_uniq_index(
+        message="Category name already exists!",
     )
 
     def _compute_survey_count(self) -> None:

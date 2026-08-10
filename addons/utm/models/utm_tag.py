@@ -4,6 +4,8 @@ from random import randint
 
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class UtmTag(models.Model):
     """Model of categories of utm campaigns, i.e. marketing, newsletter, ..."""
@@ -20,7 +22,6 @@ class UtmTag(models.Model):
         string='Color Index', default=lambda self: self._default_color(),
         help='Tag color. No color means no display in kanban to distinguish internal tags from public categorization tags.')
 
-    _name_uniq = models.Constraint(
-        'unique (name)',
-        'Tag name already exists!',
+    _name_src_uniq = name_uniq_index(
+        message='Tag name already exists!',
     )

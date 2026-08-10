@@ -2,6 +2,8 @@ from random import randint
 
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class SurveyTag(models.Model):
     """Freeform tags for classifying and filtering surveys."""
@@ -16,7 +18,6 @@ class SurveyTag(models.Model):
     name = fields.Char("Tag Name", required=True, translate=True)
     color = fields.Integer("Color", default=_get_default_color)
 
-    _name_uniq = models.Constraint(
-        "unique (name)",
-        "Tag name already exists!",
+    _name_src_uniq = name_uniq_index(
+        message="Tag name already exists!",
     )

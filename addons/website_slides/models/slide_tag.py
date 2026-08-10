@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class SlideTag(models.Model):
     """Tag to search slides across channels."""
@@ -9,7 +11,6 @@ class SlideTag(models.Model):
 
     name = fields.Char("Name", required=True, translate=True)
 
-    _slide_tag_unique = models.Constraint(
-        "UNIQUE(name)",
-        "A tag must be unique!",
+    _name_src_uniq = name_uniq_index(
+        message="A tag must be unique!",
     )

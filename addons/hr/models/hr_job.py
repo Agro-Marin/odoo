@@ -2,6 +2,7 @@
 
 from odoo import api, fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
 from odoo.addons.html_editor.tools import handle_history_divergence
 
 
@@ -70,13 +71,19 @@ class HrJob(models.Model):
         "hr.contract.type", string="Employment Type", tracking=True
     )
 
-    _name_company_uniq = models.Constraint(
-        "unique(name, company_id, department_id)",
-        "The name of the job position must be unique per department in company!",
+    _name_src_uniq = name_uniq_index(
+        "company_id",
+        "department_id",
+        nulls_distinct=True,
+        message="The name of the job position must be unique per department in company!",
     )
-    _name_company_uniq_no_department = models.UniqueIndex(
-        "(name, company_id) WHERE department_id IS NULL",
-        "The name of the job position must be unique per department in company!",
+    # The department-less half of the same rule, which the one above cannot
+    # reach while it keeps UNIQUE's NULL semantics.
+    _name_src_uniq_no_department = name_uniq_index(
+        "company_id",
+        nulls_distinct=True,
+        where="department_id IS NULL",
+        message="The name of the job position must be unique per department in company!",
     )
     _no_of_recruitment_positive = models.Constraint(
         "CHECK(no_of_recruitment >= 0)",

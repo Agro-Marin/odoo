@@ -5,6 +5,8 @@ from dateutil.rrule import DAILY, MONTHLY, WEEKLY, YEARLY
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 _logger = logging.getLogger(__name__)
 
 UNIT_SELECTION = [
@@ -61,9 +63,10 @@ class DateRangeType(models.Model):
     autogeneration_count = fields.Integer()
     autogeneration_unit = fields.Selection(selection=UNIT_SELECTION)
 
-    _date_range_type_uniq = models.Constraint(
-        "UNIQUE(name, company_id)",
-        "A date range type must be unique per Company",
+    _name_src_uniq = name_uniq_index(
+        "company_id",
+        nulls_distinct=True,
+        message="A date range type must be unique per Company",
     )
 
     @api.constrains(

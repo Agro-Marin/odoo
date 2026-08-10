@@ -6,6 +6,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import SetDefinitions
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class ResGroups(models.Model):
     _name = "res.groups"
@@ -86,9 +88,13 @@ class ResGroups(models.Model):
         compute="_compute_view_group_hierarchy",
     )
 
-    _name_uniq = models.Constraint(
-        "UNIQUE (privilege_id, name)",
-        "The name of the group must be unique within a group privilege!",
+    # nulls_distinct preserves what UNIQUE (privilege_id, name) did: groups
+    # with no privilege never collided by name, and base's own
+    # test_ir_embedded_actions creates two called "arbitrary_group".
+    _name_src_uniq = name_uniq_index(
+        "privilege_id",
+        nulls_distinct=True,
+        message="The name of the group must be unique within a group privilege!",
     )
     _check_api_key_duration = models.Constraint(
         "CHECK(api_key_duration >= 0)",

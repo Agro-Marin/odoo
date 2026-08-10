@@ -4,6 +4,8 @@ from collections import defaultdict
 
 from odoo import Command, fields, models
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class Im_LivechatExpertise(models.Model):
     """Expertise of Live Chat users."""
@@ -21,7 +23,9 @@ class Im_LivechatExpertise(models.Model):
         store=False,
     )
 
-    _name_unique = models.UniqueIndex("(name)")
+    _name_src_uniq = name_uniq_index(
+        message="An expertise with this name already exists.",
+    )
 
     def _compute_user_ids(self):
         users_by_expertise = self._get_users_by_expertise()

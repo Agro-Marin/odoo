@@ -8,6 +8,8 @@ from odoo.libs.web import urls
 from odoo.tools import email_normalize, email_normalize_all, groupby
 from odoo.tools.misc import hash_sign
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 # Default code prefix handed out per journal type (see ``_get_next_journal_default_code``).
 JOURNAL_CODE_PREFIXES = {
     "sale": "INV",
@@ -52,9 +54,10 @@ class AccountJournalGroup(models.Model):
     )
     sequence = fields.Integer(default=10)
 
-    _uniq_name = models.Constraint(
-        "unique(company_id, name)",
-        "A Ledger group name must be unique per company.",
+    _name_src_uniq = name_uniq_index(
+        "company_id",
+        nulls_distinct=True,
+        message="A Ledger group name must be unique per company.",
     )
 
 
