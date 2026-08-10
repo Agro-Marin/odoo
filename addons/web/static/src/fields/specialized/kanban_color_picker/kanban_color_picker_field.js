@@ -7,11 +7,17 @@ import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class KanbanColorPickerField extends Component {
     static template = "web.KanbanColorPickerField";
     static props = standardFieldProps;
+
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
 
     /** @returns {number[]} */
     get colors() {
@@ -23,10 +29,7 @@ class KanbanColorPickerField extends Component {
      * @returns {Promise<any>}
      */
     selectColor(colorIndex) {
-        return this.props.record.update(
-            { [this.props.name]: colorIndex },
-            { save: true },
-        );
+        return this.field.update(colorIndex, { save: true });
     }
 }
 

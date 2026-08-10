@@ -12,6 +12,7 @@ import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -267,15 +268,20 @@ export class PropertyTagsField extends Component {
     static components = { PropertyTags };
     static props = { ...standardFieldProps };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     get propertyTagsProps() {
         return {
-            selectedTags: this.props.record.data[this.props.name] || [],
-            tags: this.props.record.fields[this.props.name].tags || [],
+            selectedTags: this.field.value || [],
+            tags: this.field.definition.tags || [],
             deleteAction: "value",
             readonly: this.props.readonly,
             canChangeTags: false,
             onValueChange: (value) => {
-                this.props.record.update({ [this.props.name]: value });
+                this.field.update(value);
             },
         };
     }

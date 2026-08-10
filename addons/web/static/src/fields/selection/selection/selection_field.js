@@ -57,10 +57,7 @@ export class SelectionField extends SelectionLikeField {
         switch (this.type) {
             case "many2one":
                 if (value === null) {
-                    this.props.record.update(
-                        { [this.props.name]: false },
-                        { save: this.props.autosave },
-                    );
+                    this.field.update(false, { save: this.props.autosave });
                 } else {
                     const option = this.options.find((option) => option[0] === value);
                     if (!option) {
@@ -69,22 +66,14 @@ export class SelectionField extends SelectionLikeField {
                         // can name, so writing it would store a blank label.
                         return;
                     }
-                    this.props.record.update(
-                        {
-                            [this.props.name]: {
-                                id: option[0],
-                                display_name: option[1],
-                            },
-                        },
+                    this.field.update(
+                        { id: option[0], display_name: option[1] },
                         { save: this.props.autosave },
                     );
                 }
                 break;
             case "selection":
-                this.props.record.update(
-                    { [this.props.name]: value ?? false },
-                    { save: this.props.autosave },
-                );
+                this.field.update(value ?? false, { save: this.props.autosave });
                 break;
         }
     }

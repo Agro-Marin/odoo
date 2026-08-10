@@ -6,6 +6,7 @@
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { extractAutosave } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useCommand } from "@web/ui/commands/command_hook";
@@ -21,6 +22,11 @@ export class PriorityField extends Component {
         autosave: true,
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @type {{ index: number }} */
     state;
     /** @type {Array<[any, string]>} */
@@ -30,10 +36,10 @@ export class PriorityField extends Component {
         this.state = useState({
             index: -1,
         });
-        this.options = Array.from(this.props.record.fields[this.props.name].selection);
+        this.options = Array.from(this.field.definition.selection);
         onWillRender(() => {
             this._selectedIndex = this.options.findIndex(
-                (o) => o[0] === this.props.record.data[this.props.name],
+                (o) => o[0] === this.field.value,
             );
         });
         if (this.props.withCommand) {
@@ -72,7 +78,7 @@ export class PriorityField extends Component {
     }
 
     get tooltipLabel() {
-        return this.props.record.fields[this.props.name].string;
+        return this.field.definition.string;
     }
     get index() {
         return this.state.index > -1 ? this.state.index : this._selectedIndex;
@@ -88,7 +94,7 @@ export class PriorityField extends Component {
      * @param {string} value
      */
     onStarClicked(value) {
-        if (this.props.record.data[this.props.name] === value) {
+        if (this.field.value === value) {
             this.state.index = -1;
             this.updateRecord(this.options[0][0]);
         } else {

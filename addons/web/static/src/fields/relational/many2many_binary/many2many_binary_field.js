@@ -8,6 +8,7 @@ import { FileInput } from "@web/components/file_input/file_input";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { useX2ManyCrud } from "../x2many_crud.js";
@@ -24,6 +25,11 @@ export class Many2ManyBinaryField extends Component {
         numberOfFiles: { type: Number, optional: true },
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @type {import("services").ServiceFactories["notification"]} */
     notification;
     /** @type {ReturnType<typeof useX2ManyCrud>} */
@@ -32,24 +38,19 @@ export class Many2ManyBinaryField extends Component {
     setup() {
         this.orm = useService("orm");
         this.notification = useService("notification");
-        this.operations = useX2ManyCrud(
-            () => this.props.record.data[this.props.name],
-            true,
-        );
+        this.operations = useX2ManyCrud(() => this.field.value, true);
     }
 
     /** @returns {string} */
     get uploadText() {
-        return this.props.record.fields[this.props.name].string;
+        return this.field.definition.string;
     }
     /** @returns {Array<Object>} */
     get files() {
-        return this.props.record.data[this.props.name].records.map(
-            (/** @type {any} */ record) => ({
-                ...record.data,
-                id: record.resId,
-            }),
-        );
+        return this.field.value.records.map((/** @type {any} */ record) => ({
+            ...record.data,
+            id: record.resId,
+        }));
     }
 
     /**
@@ -104,7 +105,7 @@ export class Many2ManyBinaryField extends Component {
 
     /** @param {number} deleteId */
     async onFileRemove(deleteId) {
-        const record = this.props.record.data[this.props.name].records.find(
+        const record = this.field.value.records.find(
             (/** @type {any} */ record) => record.resId === deleteId,
         );
         if (!record) {

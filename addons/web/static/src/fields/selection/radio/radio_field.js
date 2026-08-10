@@ -64,12 +64,7 @@ export class RadioField extends SelectionLikeField {
                 this.field.update(value[0]);
                 break;
             case "many2one":
-                this.props.record.update({
-                    [this.props.name]: value && {
-                        id: value[0],
-                        display_name: value[1],
-                    },
-                });
+                this.field.update(value && { id: value[0], display_name: value[1] });
                 break;
         }
     }
