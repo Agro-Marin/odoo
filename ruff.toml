@@ -207,10 +207,26 @@ select = [
     # (the two packages with zero Odoo ORM imports). See the `!{...}` negated glob
     # in [lint.per-file-ignores] for how the scoping works.
     # ---------------------------------------------------------------------
-    "D",          # pydocstyle (docstring presence and quality)
+    # pydocstyle (D) is NOT selected, and its absence is a decision rather than an
+    # oversight. eff67f80316 stripped comments and docstrings from odoo/ on
+    # purpose; what that left was 746 missing-docstring findings in the two
+    # packages below, pinned by a `ruff_docstring` ratchet that could only ever be
+    # paid down by re-adding what a commit had just deleted. A floor over a rule
+    # the project does not intend to satisfy measures nothing: it cannot go down
+    # without reversing the strip, and it blocks the strip from continuing. This
+    # is the "honest change" .github/workflows/ruff.yml named while the question
+    # was still open — ignore D outright rather than ratchet it — now taken.
+    #
+    # ANN stays. Annotations and docstrings are not the same bet: a signature is
+    # machine-checked by mypy, cannot go stale without failing a gate, and is what
+    # the two ORM-free packages are being typed for. A docstring is prose, and
+    # prose that drifts is the cost the strip was paying down.
+    #
+    # DOC (pydoclint) below is unaffected and still selected. Those rules fire
+    # only on docstrings that EXIST — an extraneous `:param:`, a documented
+    # exception that cannot be raised — so they police accuracy without requiring
+    # presence, which is the half of the question that survives the strip.
     "ANN",        # flake8-annotations (type signatures)
-    "D420",       # incorrect-section-order (preview)
-    "D421",       # property-docstring-starts-with-verb (preview)
     "ARG",        # flake8-unused-arguments — no ORM override contract to excuse them here
     "FBT003",     # boolean-positional-value-in-call — f(x, True) at the call site
     # FBT001/FBT002 (boolean-trap SIGNATURES) are deliberately excluded, here and
@@ -550,11 +566,10 @@ ignore = [
     # --- FURB adjustments ---
     "FURB118",    # reimplemented-operator (lambdas often more readable than operator.X)
 
-    # --- D (pydocstyle) — conflicting rule pairs and global noise ---
-    # D and ANN are enforced only in odoo/libs/ and odoo/orm/components/ (see the
-    # negated glob in per-file-ignores). These ignores apply even in those packages.
-    "D203",       # one-blank-line-before-class (conflicts with D211 — D211 preferred)
-    "D213",       # multi-line-summary-second-line (conflicts with D212 — D212 preferred)
+    # D203/D213 used to be ignored here to resolve pydocstyle's two self-conflicting
+    # rule pairs. They are gone with the rest of D: an `ignore` entry for a family
+    # that `select` does not name is dead config that reads like a live decision,
+    # and ruff warns about the pair only while D is selected.
 
     # --- ANN (flake8-annotations) — noise reduction even in pure Python ---
     "ANN002",     # missing-type-args (*args: use Unpack[...] when needed — not enforced globally)
@@ -723,7 +738,7 @@ ignore = [
 #
 # (Two dirs, ONE entry: separate `!a/**` and `!b/**` entries would each match the
 # other's files and cancel the rule everywhere. The brace alternation is required.)
-"!{odoo/libs,odoo/orm/components}/**" = ["D", "ANN", "ARG", "FBT003", "RUF012"]
+"!{odoo/libs,odoo/orm/components}/**" = ["ANN", "ARG", "FBT003", "RUF012"]
 
 # Tests inside the strict packages are exempt again, matching the project-wide
 # convention that tests carry neither docstrings nor full annotations. Structural
@@ -732,8 +747,8 @@ ignore = [
 # RUF012 is in this list too: it is kept in the two strict packages as a
 # free-threading guard on SHARED runtime state, and a test class holding a
 # fixture list is neither shared nor runtime.
-"odoo/libs/**/tests/**" = ["D", "ANN", "ARG", "FBT003", "RUF012", "S301"]
-"odoo/orm/components/**/tests/**" = ["D", "ANN", "ARG", "FBT003", "RUF012", "S301"]
+"odoo/libs/**/tests/**" = ["ANN", "ARG", "FBT003", "RUF012", "S301"]
+"odoo/orm/components/**/tests/**" = ["ANN", "ARG", "FBT003", "RUF012", "S301"]
 
 # Test-addon models/ are fixtures too — `odoo/addons/test_*` exists only to be
 # installed by the suites, so its field defaults are test data under a `models/`

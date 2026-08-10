@@ -94,30 +94,32 @@ jobs:
 
       - name: Run ruff
         id: ruff
-        # `--ignore D` is the point of this step, not a detail.
+        # This step is a HARD ZERO: any new lint finding in odoo/ fails CI on its
+        # own and cannot be paid for out of anyone else's debt.
         #
-        # Until 2026-08-08 this counted D with everything else, and D was 758 of
-        # 759 — missing-docstring findings that eff67f80316 created deliberately
-        # by stripping comments and docstrings from odoo/. An exact-match ratchet
+        # It carried `--ignore D` until D was retired from ruff.toml's `select`.
+        # The history is worth keeping because it is what bought the hard zero:
+        # until 2026-08-08 this counted D with everything else, and D was 758 of
+        # 759 — missing-docstring findings eff67f80316 created deliberately by
+        # stripping comments and docstrings from odoo/. An exact-match ratchet
         # over one aggregate integer cannot tell "someone added a docstring" from
         # "someone introduced a real lint defect", so those 758 units were
-        # fungible slack: a commit adding N docstrings bought room for N
-        # unrelated new findings and still totalled 759.
+        # fungible slack: a commit adding N docstrings bought room for N unrelated
+        # new findings and still totalled 759. That is the same argument the C901
+        # step below makes, with 758x the force. D was split to its own floor,
+        # this step went to zero, and the floor has since been retired outright.
         #
-        # This is the same argument the C901 step below already makes ("in one
-        # bucket a complexity fix could be masked by an unrelated new finding"),
-        # and it applied with 758x the force here. D now has its own floor
-        # (ruff_docstring, next step) and this one measures everything else at a
-        # HARD ZERO — so any new lint defect fails CI on its own and cannot be
-        # paid for out of docstring debt.
+        # The flag is dropped rather than kept as a harmless no-op: `--ignore D`
+        # against a config that does not select D would assert a scope this gate
+        # no longer has, and the next reader would look for the D floor it implies.
         run: |
           set +e
           # --no-cache: keep the count deterministic for the exact-match ratchet
           # (a stale/partial ruff cache yields a slightly different total).
-          ruff check odoo/ --no-cache --ignore D --output-format=concise | tee /tmp/ruff.log
+          ruff check odoo/ --no-cache --output-format=concise | tee /tmp/ruff.log
           set -e
           # --statistics gives the authoritative per-rule totals; sum them.
-          ERR_COUNT=$(ruff check odoo/ --no-cache --ignore D --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          ERR_COUNT=$(ruff check odoo/ --no-cache --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
           echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
 
       - name: Enforce ratchet
@@ -125,27 +127,21 @@ jobs:
           python tooling/ratchet/ratchet.py ruff --count "${{ steps.ruff.outputs.error_count }}" --json | tee /tmp/verdict.json
           python tooling/ratchet/ratchet.py ruff --count "${{ steps.ruff.outputs.error_count }}"
 
-      - name: Run ruff (pydocstyle)
-        id: ruff_docstring
-        # The docstring floor, split out of the aggregate above so it cannot mask
-        # anything and nothing can mask it. Note what this floor means: unlike
-        # every other ratchet in this repo it is NOT debt accrued by accident,
-        # it is the measured consequence of a deliberate strip. Driving it to
-        # zero means re-adding ~758 docstrings to files a commit just cleared.
-        # If docstring-free core is the intent, the honest change is to ignore
-        # D1 in ruff.toml rather than ratchet it; until that is decided, this
-        # pins the number so it cannot drift in either direction unnoticed.
-        run: |
-          set +e
-          ruff check odoo/ --no-cache --select D --output-format=concise | tee /tmp/ruff-d.log
-          set -e
-          D_COUNT=$(ruff check odoo/ --no-cache --select D --statistics 2>/dev/null | awk '{s+=$1} END {print s+0}')
-          echo "count=${D_COUNT}" >> "$GITHUB_OUTPUT"
-
-      - name: Enforce pydocstyle ratchet
-        run: |
-          python tooling/ratchet/ratchet.py ruff_docstring --count "${{ steps.ruff_docstring.outputs.count }}" --json | tee /tmp/verdict-ruff-d.json
-          python tooling/ratchet/ratchet.py ruff_docstring --count "${{ steps.ruff_docstring.outputs.count }}"
+      # The pydocstyle steps that stood here — "Run ruff (pydocstyle)" and
+      # "Enforce pydocstyle ratchet" — are gone, and so is the ruff_docstring
+      # floor they enforced. That floor pinned the missing-docstring findings
+      # eff67f80316 created by stripping docstrings from odoo/ on purpose, and it
+      # was never payable: it could only fall by re-adding what the strip removed,
+      # and it blocked the strip from continuing. The comment that used to live
+      # here named the alternative — "if docstring-free core is the intent, the
+      # honest change is to ignore D1 in ruff.toml rather than ratchet it" — and
+      # that is what ruff.toml now does. D is no longer selected, so there is
+      # nothing left to count.
+      #
+      # Do NOT re-add a step that counts with `ruff check odoo/ --select D`: a CLI
+      # --select re-selects rules the config ignores, so such a step reports
+      # findings for a family the linter is not enforcing. That is precisely how
+      # this gate would have gone on measuring a retired rule.
 
       - name: Run C901 (cyclomatic complexity)
         id: c901

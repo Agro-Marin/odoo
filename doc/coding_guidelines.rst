@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.9
+:Version: 5.10
 :Date: 2026-08-08
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -85,12 +85,8 @@ unless the floor moved with it.
      - Scope
      - Workflow
    * - ruff
-     - ``ruff check odoo/ --no-cache --ignore D --statistics``
-     - ``odoo/`` only, docstrings excluded — a **hard zero**
-     - ``.github/workflows/ruff.yml``
-   * - ruff_docstring
-     - ``ruff check odoo/ --no-cache --select D --statistics``
-     - ``odoo/`` only, docstrings alone
+     - ``ruff check odoo/ --no-cache --statistics``
+     - ``odoo/`` only — a **hard zero**
      - ``.github/workflows/ruff.yml``
    * - c901
      - ``ruff check odoo/ --no-cache --select C901 --statistics``
@@ -161,14 +157,17 @@ Five consequences you must internalise:
   is a local discipline enforced by pre-commit and review, not by the ratchet.
 * **A finding on a file you touched may predate you.** Compare against ``git diff``,
   not against a whole-file lint report.
-* **``ruff`` is measured with ``--ignore D``, at a hard zero.** Docstring debt
-  was split into its own ``ruff_docstring`` floor on 2026-08-08 because an
+* **``ruff`` is measured at a hard zero, over the whole selected ruleset.** It
+  once carried ``--ignore D`` against a separate ``ruff_docstring`` floor; both
+  are gone, because pydocstyle is no longer selected at all (§2.5). The episode
+  is kept here for the rule it established, which outlives the gate: an
   exact-match ratchet over one integer cannot tell "someone added a docstring"
-  from "someone introduced a real defect": 758 of the aggregate's 759 findings
-  were D1xx, so every added docstring bought room for an unrelated new finding.
-  One genuine defect had been hiding there for exactly that reason. A gate whose
-  floor is nonzero can always launder a regression against an unrelated
-  improvement — split it before that matters, not after.
+  from "someone introduced a real defect". 758 of the aggregate's 759 findings
+  were D1xx, so every added docstring bought room for an unrelated new finding,
+  and one genuine defect hid there for exactly that reason. **A gate whose floor
+  is nonzero can always launder a regression against an unrelated improvement** —
+  split it before that matters, not after, and retire it if the debt it pins is
+  debt nobody intends to pay.
 * **``ruff`` and ``c901`` are two floors over one command.** ``ruff.toml``
   ignores ``C901`` so it stays out of the aggregate, and the ``c901`` step
   re-selects it on the CLI, which overrides that ignore. Its threshold is
@@ -989,9 +988,30 @@ would honestly need two of them, it is doing two things.
 ---------------------------
 
 Mandatory on models and on non-trivial methods ``[review]``. Simple accessors may
-omit them. ``ruff``'s ``D`` rules are enforced only in ``odoo/libs/`` and
-``odoo/orm/components/`` — the two packages with no ORM imports — and suppressed
-everywhere else, so in addon code this is a review expectation.
+omit them.
+
+**No linter enforces docstring presence anywhere in this repo** ``[review]``.
+``ruff``'s ``D`` rules (pydocstyle) are not selected, and the ``ruff_docstring``
+ratchet that used to floor them is retired. ``eff67f80316`` stripped comments and
+docstrings from ``odoo/`` deliberately; what it left was a floor payable only by
+re-adding what the strip had removed, which made it a gate against its own
+project's intent. Presence is therefore a **review** expectation everywhere —
+core and addons alike — not a mechanical one.
+
+Accuracy is still mechanical, and the distinction is the point. ``DOC``
+(pydoclint) remains selected and fires only on docstrings that *exist*: an
+extraneous ``:param:``, a documented exception that cannot be raised. Nothing
+obliges you to write one; writing a wrong one still fails.
+
+Two bodies of docstrings are load-bearing rather than prose and must not be
+removed. ``odoo/cli/`` docstrings are the CLI's user-facing help text —
+``help.py`` renders ``cmd.__doc__``, ``command.py`` feeds it to argparse, and
+``upgrade_code.py`` calls ``__doc__.replace()``, which raises ``AttributeError``
+the moment it becomes ``None``; eight ``base`` tests gate them. A handful more are
+machine-checked contracts read by ``tooling/architecture/`` and ``tests/service/``
+— ``orm/__init__.py``, ``orm/models/mixins/_metadata.py``, ``service/__init__.py``,
+``service/db.py`` and ``http/tests/test_openapi.py``. Deleting either kind breaks
+a test, not a style gate.
 
 Where a docstring *does* document parameters, its fields must agree with the
 signature ``[test_lint test_docstring]``: a ``:param:`` for an argument that does
@@ -3413,6 +3433,27 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.10
+     - 2026-08-09
+     - **pydocstyle retired: ``D`` is no longer selected, and the
+       ``ruff_docstring`` ratchet is gone.** The floor pinned what
+       ``eff67f80316`` created by stripping docstrings from ``odoo/`` on
+       purpose, so it could only be paid down by reversing that strip — a gate
+       against its own project's intent, and the one floor §2.5 and
+       ``gates.md`` both described as having an open *direction*. Direction
+       settled by retiring it, which is the alternative
+       ``.github/workflows/ruff.yml`` had named in place all along ("the honest
+       change is to ignore D1 in ruff.toml rather than ratchet it"). §2.5
+       rewritten: presence is a **review** expectation everywhere, ``DOC``
+       (pydoclint) still enforces *accuracy* on docstrings that exist, and the
+       two load-bearing bodies — ``odoo/cli/`` help text and the
+       machine-checked contracts — are named so a future strip does not take
+       them. ``ruff``'s command loses ``--ignore D`` (a no-op against a config
+       that does not select D, and a claim to a scope the gate no longer has).
+       A trap recorded with it: a CLI ``--select`` **re-selects rules
+       ``ruff.toml`` ignores**, so a step counting ``--select D`` reports a
+       family the linter does not enforce — measured at 745 against the
+       configured run's 526.
    * - 5.9
      - 2026-08-09
      - **The ratchets table listed nine floors over ten rows against thirteen
