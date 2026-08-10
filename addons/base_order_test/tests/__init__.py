@@ -1,4 +1,5 @@
 from . import test_catalog
+from . import test_confirm_validation
 from . import test_header_misc
 from . import test_invoice
 from . import test_line_fields
