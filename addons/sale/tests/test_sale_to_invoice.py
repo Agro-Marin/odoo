@@ -603,15 +603,24 @@ class TestSaleToInvoice(TestSaleCommon):
         invoice = self.sale_order.invoice_ids[0]
         invoice.action_post()
 
-        # Check discount appeared on both SO lines and invoice lines
-        for line, inv_line in zip(
-            self.sale_order.line_ids, invoice.invoice_line_ids, strict=True
-        ):
-            self.assertEqual(
-                line.discount,
-                inv_line.discount,
-                "Discount on lines of order and invoice should be same",
-            )
+        # Check discount appeared on both SO lines and invoice lines.
+        # Matched through sale_line_ids rather than zipped positionally: with
+        # 'delivered' as the advance payment method only delivered quantities
+        # are invoiced, so an order line with nothing delivered produces no
+        # invoice line and the two recordsets differ in length. strict=True then
+        # raised ValueError -- but only once sale_stock was installed, which is
+        # also what the commented-out amount_taxexc_to_invoice assertion above
+        # is about.
+        compared = 0
+        for inv_line in invoice.invoice_line_ids:
+            for order_line in inv_line.sale_line_ids:
+                self.assertEqual(
+                    order_line.discount,
+                    inv_line.discount,
+                    "Discount on lines of order and invoice should be same",
+                )
+                compared += 1
+        self.assertTrue(compared, "No invoice line was linked back to an order line")
 
     def test_invoice(self):
         """Test create and invoice from the SO, and check qty invoice/to invoice, and the related amounts"""
