@@ -2,6 +2,7 @@ import hashlib
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.iap.tools import iap_tools
@@ -54,18 +55,28 @@ class TestIapAccount(TransactionCase):
             account.write(
                 {
                     "warning_threshold": 10,
-                    "warning_user_ids": [(6, 0, no_mail.ids)],
+                    "warning_user_ids": [Command.set(no_mail.ids)],
                 }
             )
 
     def test_write_warning_fields_notifies_iap(self):
         """Changing alert settings pushes the config to the IAP endpoint."""
         account = self.env["iap.account"].create({"service_id": self.service.id})
+        # The recipient must carry an email of its own: validate_warning_alerts
+        # refuses the write otherwise, and base.user_admin only has one when the
+        # database was built with demo data.
+        recipient = self.env["res.users"].create(
+            {
+                "name": "Alert recipient",
+                "login": "alert_iap",
+                "email": "alert_iap@example.com",
+            }
+        )
         with patch.object(iap_tools, "iap_jsonrpc", return_value=True) as rpc:
             account.write(
                 {
                     "warning_threshold": 25,
-                    "warning_user_ids": [(6, 0, self.env.ref("base.user_admin").ids)],
+                    "warning_user_ids": [Command.set(recipient.ids)],
                 }
             )
         self.assertTrue(rpc.called)
