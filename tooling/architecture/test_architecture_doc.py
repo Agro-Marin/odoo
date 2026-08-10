@@ -3061,10 +3061,10 @@ class TestAddonSuiteFigures(unittest.TestCase):
             self.assertNotIn(f"{lines:,} lines", DOC_FLAT)
 
     def test_the_bundled_module_count_is_measured(self) -> None:
-        """613, and it must mean manifests.
+        """617, and it must mean manifests.
 
-        ``ls -d addons/*/`` answers 615 — ``__pycache__`` and the
-        manifest-less ``cloud_storage_migration`` are not addons. The page
+        ``ls -d addons/*/`` answers one more in any tree that has been run:
+        ``__pycache__`` is a build artifact, not an addon. The page
         argues ``c901_addons``' existence from "where the N bundled modules and
         most business logic live", so N has to be modules.
         """
