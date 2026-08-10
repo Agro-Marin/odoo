@@ -1,0 +1,328 @@
+#!/bin/sh
+''':'
+# Self-locating sh/python trampoline: re-exec this file with the workspace venv
+# interpreter. The logic is shared — see tooling/_trampoline.sh.
+_t="$(dirname "$0")/../_trampoline.sh"
+[ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
+. "$_t"
+'''
+
+# The shell preamble above is the module's FIRST string literal, so Python binds
+# it as ``__doc__``; the real documentation below is an inert expression
+# statement, read by ``--help`` through ``DOC``.
+#
+# Do NOT run ``ruff format`` on this file. It rewrites the ``''':'`` hybrid into
+# ``""":'``, which Python still accepts and ``/bin/sh`` does not -- the script
+# then dies with "Syntax error: Bad function name" before reaching Python at all.
+# CI never touches it: ``ruff check tooling/`` reports "No Python files found"
+# for this directory because these scripts are deliberately extensionless.
+
+DOC = """Wall-clock benchmark for opening a Discuss channel.
+
+Answers one question: did a change make the messaging client faster or slower,
+in milliseconds, on a real browser against a real server.
+
+WHY THIS EXISTS
+---------------
+`render_bench` is bound to list views by selector (`.o_list_view thead th`,
+`.o_list_view tbody tr.o_data_row`), so it cannot see Discuss, the chatter or a
+chat window. Mail is the second-largest JS tree in the repo and had no
+performance harness at all -- which meant every claim about the store's cost was
+argued from call counts.
+
+That is exactly the mistake this repo has already paid for twice: see
+`render_bench`'s own docstring, where two optimisation proposals were written
+off call counts and both were wrong. A change to the store or to a mail
+component is not "an improvement" until this script says the median moved.
+
+WHAT IT MEASURES
+----------------
+COLD    Open a channel that is not yet in the store: the RPC, the
+        `store.insert()` of a page of messages, and the first paint of the
+        thread. This is the path a user waits on when clicking a channel.
+SWITCH  A round trip between two already-loaded channels: re-render only, no
+        fetch and no record construction. It opens both per sample, so compare
+        it against itself across a change rather than against COLD.
+
+COMPUTE is reported alongside both, and is the reason this exists in mail rather
+than being a second mode of `render_bench`. The model layer runs every computed
+and sorted field eagerly at record creation -- a `mail.message` allocates 19
+compute proxies and one sort proxy, a `Thread` 33 and 7 -- so the interesting
+question is not only "how long" but "how much of it was the store". The script
+wraps `RecordInternal.prototype.compute` and reports its share.
+
+READ THE SHARE, NOT ONLY THE TOTAL
+----------------------------------
+The totals move with server latency and with whatever else the machine is doing;
+the compute share is far steadier and is what a model-layer change actually
+moves. Measured on a 30-message channel when this landed: ~182 ms total, ~32 ms
+compute, ~26 computes per message -- a 17% share. In an isolated
+`store.insert()` of 200 messages, with no RPC to dilute it, compute is 41-50%.
+
+Both numbers are real and they answer different questions. Quote the first when
+talking about what a user waits for, the second when talking about the store.
+
+A TRAP THIS SCRIPT AVOIDS FOR YOU
+---------------------------------
+Instrument AFTER the client has booted, and count new records as well as
+computes. A store that already holds the channel's messages reports a handful of
+computes for a channel that renders hundreds of them, and the run looks
+spectacularly fast for entirely the wrong reason. The "new record(s)" figure in
+the output is what tells you the fetch really happened; if it is 0, COLD
+measured nothing and the script says so.
+
+Two ways to get that wrong were hit while writing this, and both are handled
+here: deleting the Thread does NOT drop its messages (they are keyed by their
+own id and survive), and `getOrFetch` + `fetchMoreMessages` loads nothing at all
+on a thread that was never opened -- `open()` is the call that fetches the first
+page, and it is also what a click does.
+
+USAGE
+-----
+    # start a server yourself, on a database with a channel worth opening
+    odoo-bin -c <conf> -d <db> -p 8071 --db-filter='^<db>$'
+
+    tooling/bench/discuss_bench --channel 4                  # baseline
+    ... make a change, rebuild assets ...
+    tooling/bench/discuss_bench --channel 4 --label after    # compare medians
+
+    tooling/bench/discuss_bench --channel 4 --per-field      # slowest computes
+
+Seed a scratch database rather than pointing this at anything shared, and give
+the channel a few hundred messages: a channel with ten measures scheduling
+noise. `--channel` takes a `discuss.channel` id; `--switch-to` takes a second
+one for the SWITCH measurement and defaults to skipping it.
+
+REQUIREMENTS
+------------
+playwright (in the workspace venv) with chromium installed.
+"""
+
+import argparse
+import json
+import statistics as st
+import sys
+
+# Installed after boot, never before: the store service does not exist until the
+# client has started, and patching the prototype earlier would miss it entirely.
+HOOK_JS = """
+() => {
+  const store = odoo.__WOWL_DEBUG__.root.env.services["mail.store"];
+  // A throwaway record is the only way to reach RecordInternal's prototype:
+  // the class is not exported, and `_` is markRaw'd per record.
+  const probe = store["mail.message"].insert({
+    id: -424242, body: "bench", thread: {model: "discuss.channel", id: -424242},
+  });
+  const RI = Object.getPrototypeOf((probe._raw ?? probe)._);
+  const state = {ms: 0, calls: 0, perField: {}, orig: RI.compute, RI};
+  RI.compute = function (record, fieldName) {
+    const t = performance.now();
+    const res = state.orig.call(this, record, fieldName);
+    const dt = performance.now() - t;
+    state.ms += dt;
+    state.calls++;
+    state.perField[fieldName] = (state.perField[fieldName] || 0) + dt;
+    return res;
+  };
+  window.__discussBench = state;
+  return true;
+}
+"""
+
+COLD_JS = """
+async (channelId) => {
+  const env = odoo.__WOWL_DEBUG__.root.env;
+  const store = env.services["mail.store"];
+  const Message = store["mail.message"];
+  const bench = window.__discussBench;
+  // Drop the channel AND its messages so the next open really fetches.
+  // Deleting the Thread alone is not enough: `mail.message` records are keyed
+  // by their own id and survive their thread's removal, so the refetch upserts
+  // them and constructs nothing -- which reads as a suspiciously fast run.
+  // Counting records before/after is what proves the fetch happened.
+  const stale = store.Thread.get({model: "discuss.channel", id: channelId});
+  if (stale) {
+    for (const message of [...stale.messages]) {
+      message.delete();
+    }
+    stale.delete();
+  }
+  const before = {
+    records: Object.keys(Message.records).length, ms: bench.ms, calls: bench.calls,
+  };
+  // `open()`, not `fetchMoreMessages()`: opening is what a click does, and it is
+  // what actually loads the first page. `getOrFetch` alone returns a Thread with
+  // zero messages, and `fetchMoreMessages` on an unopened thread adds none --
+  // both measured, both silently produce a fast, meaningless run.
+  const t0 = performance.now();
+  const thread = await store.Thread.getOrFetch({model: "discuss.channel", id: channelId});
+  await thread.open();
+  const deadline = performance.now() + 20000;
+  while (!thread.messages.length && performance.now() < deadline) {
+    await new Promise((r) => requestAnimationFrame(r));
+  }
+  const total = performance.now() - t0;
+  return {
+    total,
+    computeMs: bench.ms - before.ms,
+    computeCalls: bench.calls - before.calls,
+    newRecords: Object.keys(Message.records).length - before.records,
+    messagesLoaded: thread.messages.length,
+  };
+}
+"""
+
+SWITCH_JS = """
+async (ids) => {
+  const env = odoo.__WOWL_DEBUG__.root.env;
+  const store = env.services["mail.store"];
+  const bench = window.__discussBench;
+  const before = {ms: bench.ms, calls: bench.calls};
+  const t0 = performance.now();
+  for (const id of ids) {
+    const thread = store.Thread.get({model: "discuss.channel", id});
+    await thread.open();
+    await new Promise((r) => requestAnimationFrame(r));
+  }
+  return {
+    total: performance.now() - t0,
+    computeMs: bench.ms - before.ms,
+    computeCalls: bench.calls - before.calls,
+    newRecords: 0,
+  };
+}
+"""
+
+
+def _summarise(name, runs):
+    """Median/IQR over a list of per-run dicts, plus the compute share."""
+    totals = sorted(r["total"] for r in runs)
+    computes = sorted(r["computeMs"] for r in runs)
+    q1, q3 = totals[len(totals) // 4], totals[(3 * len(totals)) // 4]
+    median = st.median(totals)
+    median_compute = st.median(computes)
+    share = (100 * median_compute / median) if median else 0.0
+    calls = st.median([r["computeCalls"] for r in runs])
+    records = st.median([r["newRecords"] for r in runs])
+    print(
+        f"  {name:<7} median={median:8.1f} ms   IQR={q1:7.1f}-{q3:<7.1f} "
+        f"n={len(totals)}"
+    )
+    print(
+        f"          compute={median_compute:7.1f} ms ({share:4.1f}%)   "
+        f"{int(calls)} computes over {int(records)} new record(s)"
+    )
+    if records:
+        print(f"          {calls / records:.1f} computes per record")
+    return {"median": median, "compute": median_compute, "share": share}
+
+
+def _login(page, base, login, password):
+    page.goto(f"{base}/web/login", wait_until="domcontentloaded")
+    page.fill("input[name=login]", login)
+    page.fill("input[name=password]", password)
+    page.click("button[type=submit]")
+    page.wait_for_selector(".o_main_navbar", timeout=60000)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="discuss_bench",
+        description=DOC,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--base", default="http://localhost:8071")
+    parser.add_argument(
+        "--channel", required=True, type=int, help="discuss.channel id to open"
+    )
+    parser.add_argument(
+        "--switch-to",
+        type=int,
+        default=None,
+        help="a second channel id; enables the SWITCH measurement",
+    )
+    parser.add_argument("--login", default="admin")
+    parser.add_argument("--password", default="admin")
+    parser.add_argument("-n", "--samples", type=int, default=9)
+    parser.add_argument("--warmup", type=int, default=2)
+    parser.add_argument("--label", default="run")
+    parser.add_argument("--json", action="store_true", help="emit medians as JSON")
+    parser.add_argument(
+        "--per-field",
+        action="store_true",
+        help="print the slowest computed fields of the last COLD run",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print(
+            "discuss_bench: playwright is not installed in this venv "
+            "(pip install playwright && playwright install chromium)",
+            file=sys.stderr,
+        )
+        return 2
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        ctx = browser.new_context(viewport={"width": 1600, "height": 1200})
+        page = ctx.new_page()
+
+        _login(page, args.base, args.login, args.password)
+        page.evaluate(
+            "() => odoo.__WOWL_DEBUG__.root.env.services.action.doAction('mail.action_discuss')"
+        )
+        page.wait_for_timeout(3000)
+        if not page.evaluate(HOOK_JS):
+            print("discuss_bench: could not install the compute hook", file=sys.stderr)
+            return 2
+
+        print(f"\n### {args.label}   (channel {args.channel})")
+
+        for _ in range(args.warmup):
+            page.evaluate(COLD_JS, args.channel)
+        cold = [page.evaluate(COLD_JS, args.channel) for _ in range(args.samples)]
+
+        if not st.median([r["newRecords"] for r in cold]):
+            print(
+                "  ! zero new records: the channel was already in the store, so "
+                "no fetch was measured. Pick a channel this session has not "
+                "opened, or check that it has messages."
+            )
+
+        out = {"cold": _summarise("COLD", cold)}
+
+        if args.switch_to is not None:
+            ids = [args.channel, args.switch_to]
+            page.evaluate(COLD_JS, args.switch_to)
+            for _ in range(args.warmup):
+                page.evaluate(SWITCH_JS, ids)
+            switch = [page.evaluate(SWITCH_JS, ids) for _ in range(args.samples)]
+            out["switch"] = _summarise("SWITCH", switch)
+
+        if args.per_field:
+            per_field = page.evaluate(
+                "() => Object.fromEntries("
+                "Object.entries(window.__discussBench.perField)"
+                ".sort((a, b) => b[1] - a[1]).slice(0, 12)"
+                ".map(([k, v]) => [k, +v.toFixed(1)]))"
+            )
+            print("\n  slowest computed fields (cumulative ms over the whole run):")
+            for name, ms in per_field.items():
+                print(f"    {ms:7.1f}  {name}")
+
+        # Leave the page as we found it: the hook is a prototype patch and would
+        # otherwise outlive the run in a non-headless session.
+        page.evaluate(
+            "() => { const b = window.__discussBench; b.RI.compute = b.orig; }"
+        )
+        browser.close()
+
+    if args.json:
+        print(json.dumps(out, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
