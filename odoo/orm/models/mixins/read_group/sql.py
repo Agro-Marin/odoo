@@ -123,7 +123,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             )
 
         elif seq_fnames:
-            if field.type != "many2one":
+            if not field.is_many2one:
                 raise ValueError(
                     f"Only many2one path is accepted for the {groupby_spec!r} groupby spec"
                 )
@@ -207,7 +207,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
         else:
             sql_expr = self._field_to_sql(alias, fname, query)
 
-        if field.type in ("datetime", "date") or (field.is_properties and granularity):
+        if field.is_temporal or (field.is_properties and granularity):
             sql_expr = self._read_group_groupby_temporal(
                 sql_expr, field, granularity, seq_fnames, groupby_spec, alias, query
             )
@@ -366,7 +366,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             if (
                 traverse_many2one
                 and field
-                and field.type == "many2one"
+                and field.is_many2one
                 and self.env[field.comodel_name]._order != "id"
             ):
                 query._any_value_orderby = True

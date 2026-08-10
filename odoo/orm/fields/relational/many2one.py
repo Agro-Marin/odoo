@@ -24,6 +24,7 @@ if typing.TYPE_CHECKING:
 
 class Many2one(_Relational):
     type = "many2one"
+    is_many2one = True
     _column_type = ("int4", "int4")
 
     ondelete: OnDelete | None = None

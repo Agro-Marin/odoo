@@ -349,7 +349,7 @@ class TraversalMixin(_ModelStubs):
             field_expr = (
                 f"{field_name}.{property_name}" if property_name else field_name
             )
-            if field.type == "many2one" and (
+            if field.is_many2one and (
                 not property_name or property_name == "id"
             ):
                 seen = _env.context.get("__m2o_order_seen_sorted", ())

@@ -407,7 +407,7 @@ def _build_table_objects(model_cls: type[BaseModel]):
 def _check_inherits(model_cls: type[BaseModel]):
     for comodel_name, field_name in model_cls._inherits.items():
         field = model_cls._fields.get(field_name)
-        if not field or field.type != "many2one":
+        if not field or not field.is_many2one:
             raise TypeError(
                 f"Missing many2one field definition for _inherits reference {field_name!r} in model {model_cls._name!r}. "
                 f"Add a field like: {field_name} = fields.Many2one({comodel_name!r}, required=True, ondelete='cascade')"
@@ -479,7 +479,7 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
                 bad_fields.append(name)
                 continue
             raise
-        if field.type == "many2one" and field.company_dependent:
+        if field.is_many2one and field.company_dependent:
             many2one_company_dependents.add(field.comodel_name, field)
 
     for name in bad_fields:

@@ -103,7 +103,7 @@ class _QueryMixin(_ModelStubs):
             )
             return SQL.EMPTY
 
-        if field.type == "many2one":
+        if field.is_many2one:
             seen = self.env.context.get("__m2o_order_seen", ())
             if field in seen:
                 return SQL.EMPTY
@@ -351,7 +351,7 @@ class _QueryMixin(_ModelStubs):
         *path_fnames, last_fname = field.related.split(".")
         for path_fname in path_fnames:
             path_field = model._fields[path_fname]
-            if path_field.type != "many2one":
+            if not path_field.is_many2one:
                 raise ValueError(
                     f"Cannot convert {field} (related={field.related}) to SQL because {path_fname} is not a Many2one"
                 )

@@ -145,7 +145,7 @@ class One2many(_RelationalMulti):
                 records.env._("Failed to read field %s", self) + "\n" + str(e)
             ) from e
 
-        get_id = (lambda rec: rec.id) if inverse_field.type == "many2one" else int
+        get_id = (lambda rec: rec.id) if inverse_field.is_many2one else int
         group = defaultdict(list)
         for line in lines:
             group[get_id(line[inverse])].append(line.id)

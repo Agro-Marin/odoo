@@ -320,7 +320,7 @@ class LoadMixin(_ModelStubs):
             f_prop_name, sep, property_name = fname.partition(".")
             if not sep:
                 continue
-            if f_prop_name not in fields or fields[f_prop_name].type != "properties":
+            if f_prop_name not in fields or not fields[f_prop_name].is_properties:
                 continue
 
             definition = self.get_property_definition(fname)
@@ -468,7 +468,7 @@ class LoadMixin(_ModelStubs):
         self.ensure_one()
         to_write = {}
         for fname in list(values):
-            if fname not in self._fields or self._fields[fname].type != "properties":
+            if fname not in self._fields or not self._fields[fname].is_properties:
                 continue
             field_converter = self._fields[fname].convert_to_cache
             to_write[fname] = dict(

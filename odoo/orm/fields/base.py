@@ -190,6 +190,20 @@ class Field[T](
     is_temporal: bool = False
     """Whether the field holds a date or a datetime."""
 
+    is_many2one: bool = False
+    """Whether the field is a foreign-key scalar relation.
+
+    ``Many2one`` only. In particular **not** ``Many2oneReference``, which points
+    at one record too but is an ``Integer`` column paired with a model-name
+    field, and so cannot be joined or grouped like an FK. The type strings say
+    that (``"many2one"`` against ``"many2one_reference"``) and a reader has to
+    know it; the predicate states it.
+
+    Safe as a class attribute only because nothing subclasses ``Many2one`` and
+    resets ``type`` -- the leak `fields/_field_sql.py` warns about, checked for
+    every registered field type by ``orm/tests/test_field_predicates.py``.
+    """
+
     is_properties: bool = False
     """Whether the field holds a JSON bag of dynamic, per-record properties.
 
@@ -698,7 +712,7 @@ class Field[T](
         domain = Domain(field_seq[-1].name, operator, value)
         for field in reversed(field_seq[:-1]):
             domain = Domain(field.name, "any!" if self.compute_sudo else "any", domain)
-            if can_be_null and field.type == "many2one" and not field.required:
+            if can_be_null and field.is_many2one and not field.required:
                 domain |= Domain(field.name, "=", False)
         return domain
 
@@ -784,7 +798,7 @@ class Field[T](
                     for inv_field in Model.pool.field_inverses[field]:
                         yield tuple(field_seq) + (inv_field,)
 
-                if check_precompute and field.type == "many2one":
+                if check_precompute and field.is_many2one:
                     check_precompute = False
 
                 model_name = field.comodel_name
@@ -826,7 +840,7 @@ class Field[T](
         ):
             join_field = model._fields[self._related_names[0]]
             if (
-                join_field.type == "many2one"
+                join_field.is_many2one
                 and join_field.store
                 and not join_field.compute
             ):

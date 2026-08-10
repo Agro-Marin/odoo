@@ -28,9 +28,30 @@ The second is the one that catches the hazard before it ships: it fails on a new
 subclass the day it is written, rather than on the SQL it quietly changed.
 """
 
+import ast
 import unittest
+from pathlib import Path
 
 from odoo.orm.fields.base import Field
+
+
+def _string_operands(node: ast.expr) -> set[str]:
+    """The string literals *node* compares against, as a set.
+
+    Handles the constant and the container forms alike, so a reversed tuple is
+    the same fact as an ordered one -- which is precisely what the regex sweep
+    this test replaces could not see.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return {node.value}
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return {
+            e.value
+            for e in node.elts
+            if isinstance(e, ast.Constant) and isinstance(e.value, str)
+        }
+    return set()
+
 
 #: ``predicate -> the type strings it must be true for, and no others``.
 #:
@@ -42,6 +63,22 @@ PREDICATE_TYPES: dict[str, frozenset[str]] = {
     "is_x2many": frozenset({"many2many", "one2many"}),
     "is_temporal": frozenset({"date", "datetime"}),
     "is_properties": frozenset({"properties"}),
+    "is_many2one": frozenset({"many2one"}),
+}
+
+#: Files still comparing `.type` against a migrated set, with the reason.
+#:
+#: A half-migrated cluster is worse than either end state -- two ways to ask one
+#: question, and a reader cannot tell which is current. So the sweep below fails
+#: on any survivor that is not listed here, and the list is the remaining work
+#: rather than a place to put inconvenient sites.
+UNCONVERTED: dict[str, str] = {
+    "odoo/orm/domain/optimizations.py": (
+        "another session holds this file with uncommitted work (2026-08-09); "
+        "converting it there would either conflict with them or sweep their "
+        "changes into an unrelated commit. Five sites: is_many2one x4, "
+        "is_x2many x1."
+    ),
 }
 
 
@@ -80,6 +117,68 @@ class TestPredicatesMatchTheTypeStrings(unittest.TestCase):
                     f"no registered field type answers {predicate} -- either the "
                     f"override was lost or the field module is not imported",
                 )
+
+
+class TestTheMigrationIsComplete(unittest.TestCase):
+    """No `.type` comparison against a migrated set may survive unlisted.
+
+    This exists because a regex sweep silently missed four sites and I reported
+    the clusters as complete on the strength of the sweep rather than by
+    measuring afterwards. Two spellings defeated it: a reversed tuple
+    (``field.type in ("datetime", "date")``) and a subscript receiver
+    (``fields[name].type != "properties"``), neither matched by a pattern
+    written for ``field.type in ("date", "datetime")``.
+
+    An AST walk cannot be fooled that way, and running it as a test means the
+    next cluster is finished or explicitly unfinished, never accidentally
+    half-done.
+    """
+
+    def _survivors(self) -> dict[str, list[str]]:
+        root = Path(__file__).resolve().parents[1]  # odoo/orm
+        repo = root.parents[1]
+        found: dict[str, list[str]] = {}
+        for path in sorted(root.rglob("*.py")):
+            parts = path.parts
+            if "tests" in parts or "__pycache__" in parts:
+                continue
+            rel = path.relative_to(repo).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Compare):
+                    continue
+                left = node.left
+                if not (isinstance(left, ast.Attribute) and left.attr == "type"):
+                    continue
+                for comparator in node.comparators:
+                    values = _string_operands(comparator)
+                    for predicate, want in PREDICATE_TYPES.items():
+                        if values and values == want:
+                            found.setdefault(rel, []).append(
+                                f"line {node.lineno}: {predicate}"
+                            )
+        return found
+
+    def test_no_unlisted_file_still_compares_type_strings(self):
+        survivors = self._survivors()
+        unexpected = {f: v for f, v in survivors.items() if f not in UNCONVERTED}
+        self.assertFalse(
+            unexpected,
+            "these compare `.type` against a set that now has a predicate; "
+            "convert them, or add the file to UNCONVERTED with the reason:\n"
+            + "\n".join(f"  {f}: {v}" for f, v in sorted(unexpected.items())),
+        )
+
+    def test_the_unconverted_list_has_no_stale_entries(self):
+        """A file that has been converted must leave the list."""
+        survivors = self._survivors()
+        stale = sorted(set(UNCONVERTED) - set(survivors))
+        self.assertFalse(
+            stale,
+            f"UNCONVERTED names files with nothing left to convert: {stale}. "
+            f"Remove them -- an exemption nobody needs is an exemption nobody "
+            f"rereads.",
+        )
 
 
 class TestNoFlagLeaksThroughAResetType(unittest.TestCase):

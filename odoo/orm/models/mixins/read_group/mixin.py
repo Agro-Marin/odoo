@@ -193,7 +193,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             return property_type in ("tags", "many2many")
 
         if property_name:
-            if field.type != "many2one":
+            if not field.is_many2one:
                 raise TypeError(
                     f"Field {fname!r} on {model._name!r}: dotted groupby spec "
                     f"only supported for many2one, got {field.type!r}"
@@ -369,7 +369,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     break
                 field = model._fields[fname]
                 if seq_fnames and not field.is_properties:
-                    if field.type != "many2one":
+                    if not field.is_many2one:
                         raise ValueError(
                             f"Only many2one path is accepted for the {spec!r} groupby spec"
                         )

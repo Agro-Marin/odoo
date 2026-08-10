@@ -447,7 +447,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     f"setup: {type(exc).__name__}: {exc}"
                 )
             else:
-                if field.type == "many2one" and field.company_dependent:
+                if field.is_many2one and field.company_dependent:
                     model_cls.pool.many2one_company_dependents.add(
                         field.comodel_name,
                         field,

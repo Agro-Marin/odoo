@@ -17,7 +17,7 @@ class _ReadGroupEmptyMixin(_ModelStubs):
             return []
         field = self._fields[fname]
         if (not func or func == "recordset") and (field.relational or fname == "id"):
-            if chain_fnames and field.type == "many2one":
+            if chain_fnames and field.is_many2one:
                 groupby_seq = f"{chain_fnames}:{func}" if func else chain_fnames
                 model = self.env[field.comodel_name]
                 return model._read_group_empty_value(groupby_seq)
