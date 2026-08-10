@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.10
-:Date: 2026-08-08
+:Version: 5.11
+:Date: 2026-08-10
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -2742,11 +2742,18 @@ A module with JS translations must register itself:
 ----------------------
 
 Keep the template at ``i18n/<module>.pot`` and language files at ``i18n/<lang>.po``.
-Re-export after changing user-facing strings:
+Re-export after changing user-facing strings — **including deleting one**, or the
+template keeps advertising a message that no longer exists:
 
 .. code-block:: bash
 
-   odoo-bin -d <db> --i18n-export=i18n/<module>.pot --modules=<module> --stop-after-init
+   odoo-bin --addons-path=odoo/addons,addons i18n export -d <db> <module>
+
+Export through the **community trees only**. The header records
+``odoo.release.version``, which the enterprise addons path turns into
+``Odoo Server 19.0+e``; exporting a community module through a workspace path that
+carries ``enterprise/`` therefore writes a fact about your checkout into its
+template.
 
 Never hand-edit a ``msgid`` to "fix" the English — change the source string and
 re-export. Duplicate entries in a ``.pot`` are a failure ``[test_lint test_pofile]``.
@@ -3433,6 +3440,21 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.11
+     - 2026-08-10
+     - **§8.3's re-export command no longer parses.** It gave
+       ``odoo-bin -d <db> --i18n-export=... --modules=...``; that option is gone
+       and the entry point is the ``i18n export`` subcommand
+       (``odoo/cli/i18n.py``). Found by following the rule as written while
+       re-exporting ``addons/barcodes`` — a documented command that errors out
+       is worse than no command, since the reader concludes the export is not
+       expected of them. Added the addons-path constraint the same export
+       exposed: the template header records ``odoo.release.version``, which
+       becomes ``Odoo Server 19.0+e`` when the path carries ``enterprise/``, so
+       a community module exported through a full workspace path records a fact
+       about the exporter's checkout (187 of this repo's templates carry that
+       suffix and 360 do not). Also made explicit that *deleting* a
+       user-facing string requires the re-export too.
    * - 5.10
      - 2026-08-09
      - **pydocstyle retired: ``D`` is no longer selected, and the
