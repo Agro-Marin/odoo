@@ -19,6 +19,7 @@ import {
 } from "@web/core/tree/condition_tree";
 import { constructTreeFromDomain } from "@web/core/tree/construct_tree_from_domain";
 import { IN_RANGE_OPTIONS } from "@web/core/tree/in_range_options";
+import { describeInRangeProviderOption } from "@web/core/tree/in_range_providers";
 import { getOperatorLabel } from "@web/core/tree/operator_labels";
 import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { introduceVirtualOperators } from "@web/core/tree/virtual_operators";
@@ -371,7 +372,13 @@ export class TreeProcessorService {
         let { operator, value } = node;
         const isRangeValue =
             operator === "in range" && Array.isArray(value) && value.length === 4;
-        if (isRangeValue && value[1] === "custom range") {
+        // A named period is stored as a `custom range` over its two dates, so
+        // ask the providers whether these bounds have a name before falling
+        // back to spelling the dates out. See `@web/core/tree/in_range_providers`.
+        const periodLabel = isRangeValue
+            ? describeInRangeProviderOption(value[0], value[2], value[3])
+            : null;
+        if (isRangeValue && value[1] === "custom range" && !periodLabel) {
             operator = "between";
             value = value.slice(2);
         }
@@ -420,7 +427,7 @@ export class TreeProcessorService {
         if (isRangeValue && operator === "in range") {
             const valueType = value[1];
             const opt = IN_RANGE_OPTIONS.find(([t]) => t === valueType);
-            values = [opt ? opt[1].toString() : String(valueType)];
+            values = [periodLabel || (opt ? opt[1].toString() : String(valueType))];
         } else {
             const rawValues = Array.isArray(value) ? value : [value];
             const truncated = rawValues.length > limit;

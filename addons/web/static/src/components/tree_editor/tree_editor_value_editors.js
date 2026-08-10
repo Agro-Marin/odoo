@@ -32,6 +32,7 @@ import {
     formatValue,
     isTree,
 } from "@web/core/tree/condition_tree";
+import { getInRangeProviderOptions } from "@web/core/tree/in_range_providers";
 import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { unique } from "@web/core/utils/collections/arrays";
 /**
@@ -140,6 +141,7 @@ function makeSelectEditor(options, params = {}) {
             value,
             update,
             options,
+            optionGroups: params.optionGroups,
             addBlankOption: params.addBlankOption,
             placeholder: placeholderForSelect(displayPlaceholder),
         }),
@@ -250,12 +252,29 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             };
         }
         case "in range": {
+            // Named periods contributed by addons sit in the same select as the
+            // built-in value types, each under its provider's optgroup. They
+            // resolve to a plain `custom range` when picked — see
+            // `@web/core/tree/in_range_providers` for why a period is not a
+            // value type of its own.
+            const providerOptions = getInRangeProviderOptions(fieldDef.type);
+            const optionGroups = {};
+            for (const { id, group } of providerOptions) {
+                optionGroups[JSON.stringify(id)] = group;
+            }
+            const valueTypeOptions = [
+                ...InRange.options,
+                ...providerOptions.map(({ id, label }) => [id, label]),
+            ];
             return {
                 component: InRange,
                 extractProps: ({ value, update }) => ({
                     value,
                     update,
-                    valueTypeEditorInfo: makeSelectEditor(InRange.options, params),
+                    valueTypeEditorInfo: makeSelectEditor(valueTypeOptions, {
+                        ...params,
+                        optionGroups,
+                    }),
                     betweenEditorInfo: getValueEditorInfo(fieldDef, "between", params),
                 }),
                 isSupported: (value) =>

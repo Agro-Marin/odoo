@@ -1,6 +1,6 @@
 {
     "name": "Date Range",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Technical",
     "summary": "Named periods of time, reusable as a filter on any date field",
     "description": """
@@ -66,10 +66,8 @@ model attribute::
     "assets": {
         "web.assets_backend": [
             "date_range/static/src/js/date_range_service.js",
-            "date_range/static/src/js/date_range_virtual_operators.js",
-            "date_range/static/src/js/date_range_tree_processor.js",
+            "date_range/static/src/js/date_range_provider.js",
             "date_range/static/src/js/domain_selector.esm.js",
-            "date_range/static/src/js/tree_editor.esm.js",
         ],
         "web.assets_unit_tests": [
             "date_range/static/tests/**/*",

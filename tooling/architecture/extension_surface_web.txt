@@ -144,7 +144,7 @@ CustomFavoriteItem.saveFavorite  enterprise
 DateTimeField.shouldShowSeparator  enterprise
 Dialog.onEscape  odoo
 Dialog.setup  odoo
-DomainSelector.getOperatorEditorInfo  odoo agromarin
+DomainSelector.getOperatorEditorInfo  agromarin
 DomainSelector.getShowArchivedCheckBox  odoo
 DomainSelector.onPropsUpdated  agromarin
 DomainSelector.setup  odoo
@@ -484,9 +484,6 @@ StatusBarField.selectItem  odoo
 StatusBarField.setup  odoo
 TextField.setup  odoo enterprise
 TextInputFieldBase.onBlur  odoo
-TreeEditor.getOperatorEditorInfo  odoo
-TreeEditor.getValueEditorInfo  odoo
-TreeEditor.updateLeafOperator  odoo
 UrlField.setup  odoo
 UrlField.value  odoo
 UserMenu.setup  odoo

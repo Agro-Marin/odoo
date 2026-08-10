@@ -337,13 +337,13 @@ class DateRangeTest(TransactionCase):
             }
         )
         domain = dr.get_domain("my_field")
-        # Bounds are inclusive; the upper one comes first so the backend domain
-        # editor recognises the pair as a period.
+        # Bounds are inclusive and in the natural order — the one core's
+        # `in range` operator recognises, so the editor offers the period back.
         self.assertEqual(
             domain,
             [
-                ("my_field", "<=", datetime.date(2015, 12, 31)),
                 ("my_field", ">=", datetime.date(2015, 1, 1)),
+                ("my_field", "<=", datetime.date(2015, 12, 31)),
             ],
         )
 

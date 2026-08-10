@@ -1,12 +1,14 @@
-import {describe, expect, test} from "@odoo/hoot";
-import {mockTimeZone} from "@odoo/hoot-mock";
-import {makeMockEnv} from "@web/../tests/web_test_helpers";
-import {condition, connector} from "@web/core/tree";
-import {virtualOperatorFunctions} from "@web/core/tree";
-import {TreeEditor} from "@web/components/tree_editor";
+import { describe, expect, test } from "@odoo/hoot";
+import { mockTimeZone } from "@odoo/hoot-mock";
+import { makeMockEnv } from "@web/../tests/web_test_helpers";
+import {
+    getInRangeProviderOptions,
+    matchInRangeProviderOption,
+    resolveInRangeProviderOption,
+} from "@web/core/tree/in_range_providers";
 
-import "@date_range/js/date_range_tree_processor";
-import "@date_range/js/tree_editor.esm";
+import { setDateRanges } from "@date_range/js/date_range_provider";
+import "@date_range/js/date_range_provider";
 
 describe.current.tags("headless");
 
@@ -27,217 +29,100 @@ const RANGES = [
     },
 ];
 
-const dateOptions = {getFieldDef: () => ({type: "date"})};
-const datetimeOptions = {getFieldDef: () => ({type: "datetime"})};
-
-/** Shorthand description of a tree, for readable assertions. */
-function shape(tree) {
-    if (tree.type === "condition") {
-        return `${tree.operator}(${JSON.stringify(tree.value)})`;
-    }
-    return `${tree.value}[${tree.children.map(shape).join(", ")}]`;
+function withRanges(ranges = RANGES) {
+    setDateRanges(ranges);
 }
 
-/** A stand-in for a mounted TreeEditor: only what updateNode() touches. */
-function makeEditor(fieldType) {
-    const editor = Object.create(TreeEditor.prototype);
-    editor.env = {domain: {dateRanges: RANGES}};
-    editor.getFieldDef = () => ({type: fieldType});
-    editor.prepareInfo = async () => {};
-    editor.render = () => {};
-    editor.notifyChanges = () => {};
-    editor.props = {update: () => {}};
-    return editor;
-}
-
-test("a period is recognised from the <= .. >= pair, not the mirrored one", async () => {
+test("periods are offered, grouped by their type", async () => {
     await makeMockEnv();
-    const pair = (op1, value1, op2, value2) =>
-        connector("&", [condition("d", op1, value1), condition("d", op2, value2)]);
-
-    // The web client's own "in range" operator claims the natural order first,
-    // so a period has to be spelled the other way round or the two would fight
-    // over the same pair. date.range.get_domain() emits this order to match.
-    expect(
-        shape(
-            virtualOperatorFunctions.introduceVirtualOperators(
-                pair("<=", "2030-12-31", ">=", "2030-01-01"),
-                dateOptions
-            )
-        )
-    ).toBe('daterange(["2030-12-31","2030-01-01"])');
-
-    expect(
-        virtualOperatorFunctions.introduceVirtualOperators(
-            pair(">=", "2030-01-01", "<=", "2030-12-31"),
-            dateOptions
-        ).operator
-    ).toBe("in range");
+    withRanges();
+    const options = getInRangeProviderOptions("date");
+    expect(options.map((o) => o.label)).toEqual(["Q1 2030", "H1 2030"]);
+    // The provider's own label heads the group, subdivided by the range type,
+    // so two providers cannot produce colliding headings.
+    expect(options.map((o) => o.group)).toEqual([
+        "Periods / Quarter",
+        "Periods / Half",
+    ]);
 });
 
-test("a period survives the trip to a domain and back", async () => {
+test("a non-date field is offered no periods", async () => {
     await makeMockEnv();
-    const period = condition("d", "daterange", ["2030-12-31", "2030-01-01"]);
-    const eliminated = virtualOperatorFunctions.eliminateVirtualOperators(
-        period,
-        dateOptions
-    );
-    expect(shape(eliminated)).toBe('&[<=("2030-12-31"), >=("2030-01-01")]');
-    expect(
-        shape(
-            virtualOperatorFunctions.introduceVirtualOperators(eliminated, dateOptions)
-        )
-    ).toBe('daterange(["2030-12-31","2030-01-01"])');
+    withRanges();
+    expect(getInRangeProviderOptions("char")).toEqual([]);
+    expect(getInRangeProviderOptions("integer")).toEqual([]);
 });
 
-test("an unrelated <select> on the page cannot change the operator", async () => {
+test("picking a period on a date field yields its plain dates", async () => {
     await makeMockEnv();
-    // The operator used to be read out of document.getElementsByTagName("select")[0],
-    // so any unrelated dropdown that happened to be mounted decided which
-    // date range type a condition belonged to.
-    const select = document.createElement("select");
-    const option = document.createElement("option");
-    option.value = '"daterange_42"';
-    option.selected = true;
-    select.appendChild(option);
-    document.body.appendChild(select);
-    try {
-        const tree = connector("&", [
-            condition("d", "<=", "2030-12-31"),
-            condition("d", ">=", "2030-01-01"),
-        ]);
-        expect(
-            virtualOperatorFunctions.introduceVirtualOperators(tree, dateOptions)
-                .operator
-        ).toBe("daterange");
-    } finally {
-        select.remove();
-    }
+    withRanges();
+    expect(resolveInRangeProviderOption("date_range:7", "date")).toEqual([
+        "2030-01-01",
+        "2030-03-31",
+    ]);
 });
 
-test("a non-string operator does not crash the elimination pass", async () => {
+test("picking a period on a datetime field covers both of its end days", async () => {
     await makeMockEnv();
-    expect(() =>
-        virtualOperatorFunctions.eliminateVirtualOperators(
-            condition("d", 7, 1),
-            dateOptions
-        )
-    ).not.toThrow();
-});
-
-test("picking a period covers both of its end days on a datetime field", async () => {
-    await makeMockEnv();
-    mockTimeZone(-6); // America/Mexico_City, where this fork is deployed
-    const node = {
-        type: "condition",
-        path: "d",
-        operator: "=",
-        value: false,
-        negate: false,
-    };
-    await makeEditor("datetime").updateLeafOperator(node, "daterange", false);
-
-    // value[0] feeds `<=` and value[1] feeds `>=`, so the end date has to be the
-    // last instant of its day and the start the first instant of its. Reversing
-    // them drops the whole first and last day of every period.
-    expect(node.value).toEqual(["2030-04-01 05:59:59", "2030-01-01 06:00:00"]);
-
-    const domain = virtualOperatorFunctions.eliminateVirtualOperators(
-        condition("d", node.operator, node.value),
-        datetimeOptions
-    );
-    expect(shape(domain)).toBe(
-        '&[<=("2030-04-01 05:59:59"), >=("2030-01-01 06:00:00")]'
-    );
+    mockTimeZone(0);
+    withRanges();
+    // Start at the first instant of the start day, end at the last of the end
+    // day. Swapped, the filter silently loses almost two days.
+    expect(resolveInRangeProviderOption("date_range:7", "datetime")).toEqual([
+        "2030-01-01 00:00:00",
+        "2030-03-31 23:59:59",
+    ]);
 });
 
 test("the period's end days follow the user's timezone", async () => {
     await makeMockEnv();
-    // Deliberately not the host's offset: the bounds are computed in the user's
-    // timezone and serialised to UTC, and a test pinned to the machine's own
-    // zone would pass on arithmetic that never converts.
-    mockTimeZone(+5.5);
-    const node = {
-        type: "condition",
-        path: "d",
-        operator: "=",
-        value: false,
-        negate: false,
-    };
-    await makeEditor("datetime").updateLeafOperator(node, "daterange", false);
-    expect(node.value).toEqual(["2030-03-31 18:29:59", "2029-12-31 18:30:00"]);
+    mockTimeZone(2);
+    withRanges();
+    const [start, end] = resolveInRangeProviderOption("date_range:7", "datetime");
+    // Two hours east: local midnight is 22:00 UTC the day before, and the last
+    // local instant of 31 March is 21:59:59 UTC on that same day.
+    expect(start).toBe("2029-12-31 22:00:00");
+    expect(end).toBe("2030-03-31 21:59:59");
+    // And the round trip still names the period it came from -- the bug this
+    // guards is reading the bound back by slicing its first ten characters,
+    // which lands on the wrong day for any user east of Greenwich.
+    expect(matchInRangeProviderOption("datetime", start, end)).toBe("date_range:7");
 });
 
-test("a date field keeps plain dates", async () => {
+test("a stored range whose bounds match a period is offered back as one", async () => {
     await makeMockEnv();
-    mockTimeZone(-6);
-    const node = {
-        type: "condition",
-        path: "d",
-        operator: "=",
-        value: false,
-        negate: false,
-    };
-    await makeEditor("date").updateLeafOperator(node, "daterange", false);
-    expect(node.value).toEqual(["2030-03-31", "2030-01-01"]);
+    withRanges();
+    expect(matchInRangeProviderOption("date", "2030-01-01", "2030-03-31")).toBe(
+        "date_range:7",
+    );
+    expect(matchInRangeProviderOption("date", "2030-01-01", "2030-06-30")).toBe(
+        "date_range:8",
+    );
 });
 
-test("negation given to updateLeafOperator reaches the node", async () => {
+test("bounds naming no period stay a custom range", async () => {
     await makeMockEnv();
-    const node = {
-        type: "condition",
-        path: "d",
-        operator: "=",
-        value: false,
-        negate: false,
-    };
-    await makeEditor("date").updateLeafOperator(node, "daterange", true);
-    expect(node.negate).toBe(true);
+    withRanges();
+    expect(matchInRangeProviderOption("date", "2030-01-02", "2030-03-31")).toBe(null);
+    expect(matchInRangeProviderOption("date", false, false)).toBe(null);
+    // A dynamic bound is an expression object, not a string; it names no period
+    // and must not be compared as one.
+    expect(
+        matchInRangeProviderOption("date", { _expr: "context_today()" }, "2030-03-31"),
+    ).toBe(null);
 });
 
-test("each condition offers the periods of its own type", async () => {
+test("no loaded ranges degrades to the built-in value types", async () => {
     await makeMockEnv();
-    const editor = makeEditor("date");
-    // Touch the other typed condition first: the choice used to be remembered
-    // on the component, so every row showed the last-edited row's type.
-    editor.getValueEditorInfo({
-        type: "condition",
-        path: "d",
-        operator: "daterange_4",
-        value: ["2030-06-30", "2030-01-01"],
-    });
-    const info = editor.getValueEditorInfo({
-        type: "condition",
-        path: "d",
-        operator: "daterange_3",
-        value: ["2030-03-31", "2030-01-01"],
-    });
-    const props = info.extractProps({
-        value: ["2030-03-31", "2030-01-01"],
-        update: () => {},
-    });
-    expect(props.options).toEqual([[7, "Q1 2030"]]);
-    expect(props.value).toBe(7);
+    withRanges([]);
+    expect(getInRangeProviderOptions("date")).toEqual([]);
+    expect(matchInRangeProviderOption("date", "2030-01-01", "2030-03-31")).toBe(null);
+    expect(resolveInRangeProviderOption("date_range:7", "date")).toBe(null);
 });
 
-test("reading the value editor does not rewrite the condition", async () => {
+test("an unknown option id resolves to nothing", async () => {
     await makeMockEnv();
-    const editor = makeEditor("date");
-    const info = editor.getValueEditorInfo({
-        type: "condition",
-        path: "d",
-        operator: "daterange",
-        value: ["1999-01-01", "1999-01-01"],
-    });
-    let updated = false;
-    info.extractProps({
-        value: ["1999-01-01", "1999-01-01"],
-        update: () => {
-            updated = true;
-        },
-    });
-    // A value that matches no known period leaves the condition alone; it used
-    // to be silently overwritten with the first period in the list, during
-    // rendering.
-    expect(updated).toBe(false);
+    withRanges();
+    expect(resolveInRangeProviderOption("date_range:999", "date")).toBe(null);
+    expect(resolveInRangeProviderOption("something_else:7", "date")).toBe(null);
 });

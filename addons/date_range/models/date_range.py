@@ -340,20 +340,22 @@ class DateRange(models.Model):
     def get_domain(self, field_name):
         """Return a domain matching records whose field falls within this range.
 
-        The ``<=`` bound is listed first on purpose: that is the shape the
-        backend domain editor recognises as a period (``daterange``) and
-        renders as a period selector. In the other order the web client's own
-        ``in range`` operator claims the pair first and the period is lost. See
-        ``static/src/js/date_range_virtual_operators.js``.
+        The bounds are in the natural order, which is also the one the web
+        client's ``in range`` operator recognises. Until 19.0.1.1.0 they were
+        mirrored — ``<=`` before ``>=`` — so that this module's own
+        ``daterange`` operator could claim a domain shape core would not. There
+        is no separate operator now: a period is a plain range whose bounds the
+        editor recognises, so it wants core's order. See
+        ``static/src/js/date_range_provider.js``.
 
         :param str field_name: date or datetime field to filter on
-        :return: domain [(field, '<=', end), (field, '>=', start)]
+        :return: domain [(field, '>=', start), (field, '<=', end)]
         :rtype: list
         """
         self.ensure_one()
         return [
-            (field_name, "<=", self.date_end),
             (field_name, ">=", self.date_start),
+            (field_name, "<=", self.date_end),
         ]
 
     @api.model
