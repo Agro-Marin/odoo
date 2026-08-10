@@ -29,3 +29,4 @@ from . import test_taxes_global_discount
 from . import test_taxes_tax_totals_summary
 from . import test_import_files
 from . import test_crm_team_sales
+from . import test_partner_sale_guards
