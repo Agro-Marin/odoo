@@ -167,7 +167,7 @@ current design.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **219 specifiers**
+the surface can only shrink. It stands at **218 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
@@ -182,7 +182,8 @@ mean:
 | after the rewrite | 222 | deep entries removed |
 | re-pinned against real sibling checkouts | 219 | |
 | following `web`'s own module renames | 222 | `web` dissolved `services/` in b6c0619c571, so `@web/services/user` became `@web/core/user` and `browser`/`datetime`/`popover` moved with it; `agromarin` followed in 0aa8c0f5 |
-| removing specifiers backed by no module | **219** | |
+| removing specifiers backed by no module | 219 | |
+| `date_range` entered at the `@web/core/tree` face | **218** | `in_range_providers` was reached directly by the only consumer outside `web`; the face republishes it, so the file stops being surface |
 
 **The 219 → 222 move was not new exposure, and part of it was not exposure at
 all.** The same commit that followed the renames sent

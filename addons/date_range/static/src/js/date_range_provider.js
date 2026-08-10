@@ -7,7 +7,7 @@ import {
     serializeDateTime,
 } from "@web/core/l10n/dates";
 import { _t } from "@web/core/translation";
-import { inRangeProviderRegistry } from "@web/core/tree/in_range_providers";
+import { inRangeProviderRegistry } from "@web/core/tree";
 
 /**
  * The ranges the domain editor may offer, filled by `date_range_service`

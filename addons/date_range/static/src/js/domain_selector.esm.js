@@ -11,7 +11,7 @@ import { setDateRanges } from "./date_range_provider.js";
  * Prime the period provider before the editor renders.
  *
  * This is the module's only patch of the domain editor. The periods themselves
- * are contributed through `@web/core/tree/in_range_providers`, whose contract is
+ * are contributed through `@web/core/tree`, whose contract is
  * synchronous — so something has to have fetched them by the time the value
  * editor is built, and the component that owns the editor is the only place
  * that knows when that is. `date_range_service` caches, so the round trip

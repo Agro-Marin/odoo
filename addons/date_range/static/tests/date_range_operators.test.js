@@ -5,7 +5,7 @@ import {
     getInRangeProviderOptions,
     matchInRangeProviderOption,
     resolveInRangeProviderOption,
-} from "@web/core/tree/in_range_providers";
+} from "@web/core/tree";
 
 import { setDateRanges } from "@date_range/js/date_range_provider";
 import "@date_range/js/date_range_provider";

@@ -7,7 +7,7 @@
  * The tree module's published interface.
  *
  * Everything under `core/tree/` that another addon imports today is re-exported here,
- * and nothing else. The names below are the contract; the 3 files behind them
+ * and nothing else. The names below are the contract; the 4 files behind them
  * are not, and may be renamed, split or moved without touching a
  * consumer OUTSIDE `web`. Inside it they are imported directly and a
  * rename does reach them — the face constrains other addons, which is
@@ -29,5 +29,11 @@ export {
     operate,
     rewriteNConsecutiveChildren,
 } from "./tree/condition_tree.js";
+export {
+    getInRangeProviderOptions,
+    inRangeProviderRegistry,
+    matchInRangeProviderOption,
+    resolveInRangeProviderOption,
+} from "./tree/in_range_providers.js";
 export { getOperatorLabel } from "./tree/operator_labels.js";
 export { virtualOperatorFunctions } from "./tree/virtual_operators.js";

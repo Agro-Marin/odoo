@@ -80,7 +80,6 @@
 @web/core/transition  odoo enterprise
 @web/core/translation  odoo enterprise agromarin design-themes
 @web/core/tree  odoo enterprise agromarin
-@web/core/tree/in_range_providers  odoo
 @web/core/user  odoo enterprise agromarin
 @web/core/utils/collections/arrays  odoo enterprise
 @web/core/utils/collections/cache  odoo enterprise
