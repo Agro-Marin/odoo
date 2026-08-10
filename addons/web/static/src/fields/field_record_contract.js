@@ -57,8 +57,18 @@ export const FIELD_RECORD_SURFACE = [
 ];
 
 /**
- * The narrow surface: everything a widget needs to render its OWN field value
- * and write it back.
+ * The narrow surface: exactly what `fieldHandle` serves.
+ *
+ * Three members, and the boundary is the point. `value` and `type` come out of
+ * `data` and `fields`, and `update` writes back — that is a widget's own field
+ * and nothing else.
+ *
+ * `resId`, `resModel`, `isNew` and `evalContext` were on this list at first and
+ * are deliberately off it. They answer questions about the **record**, not about
+ * the field, and a widget asking them needs the record — putting them behind a
+ * name like `field.resId` would smuggle the whole record back in under a
+ * field-shaped label, which is the thing this file exists to stop. The same
+ * argument keeps `save` and `isInEdition` off it.
  *
  * The measured split, which is the point of separating these two lists:
  *
@@ -87,15 +97,7 @@ export const FIELD_RECORD_SURFACE = [
  *
  * @type {string[]}
  */
-export const FIELD_OWN_VALUE_SURFACE = [
-    "data",
-    "update",
-    "fields",
-    "resId",
-    "resModel",
-    "isNew",
-    "evalContext",
-];
+export const FIELD_OWN_VALUE_SURFACE = ["data", "update", "fields"];
 
 /**
  * The narrow surface as a type, for a widget that only renders its own field.
@@ -104,9 +106,5 @@ export const FIELD_OWN_VALUE_SURFACE = [
  *  data: Record<string, any>,
  *  update: (changes: Record<string, any>, options?: { save?: boolean }) => Promise<void>,
  *  fields: Record<string, any>,
- *  resId: number | false,
- *  resModel: string,
- *  isNew: boolean,
- *  evalContext: Record<string, any>,
  * }} FieldOwnValueContract
  */
