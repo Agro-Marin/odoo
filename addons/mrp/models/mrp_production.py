@@ -2862,20 +2862,15 @@ class MrpProduction(models.Model):
 
         self.with_context(force_date=True).write(
             {
+                # The work orders' own dates, which are now the source of
+                # truth; the ledger mirrors them rather than the other way
+                # round.
                 "date_start": min(
-                    (
-                        wo.reservation_id.date_start
-                        for wo in workorders
-                        if wo.reservation_id
-                    ),
+                    (wo.date_start for wo in workorders if wo.date_start),
                     default=None,
                 ),
                 "date_end": max(
-                    (
-                        wo.reservation_id.date_end
-                        for wo in workorders
-                        if wo.reservation_id
-                    ),
+                    (wo.date_end for wo in workorders if wo.date_end),
                     default=None,
                 ),
             }
@@ -2897,7 +2892,8 @@ class MrpProduction(models.Model):
                 )
             )
 
-        self.workorder_ids.reservation_id.unlink()
+        # Clearing the dates releases the bookings: with no window there is
+        # nothing to project, and the mixin removes the ledger rows.
         self.workorder_ids.write(
             {
                 "date_start": False,

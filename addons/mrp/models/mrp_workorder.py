@@ -16,7 +16,15 @@ from odoo.tools.date_utils import sum_intervals
 class MrpWorkorder(models.Model):
     _name = "mrp.workorder"
     _description = "Work Order"
-    _order = "sequence, reservation_id, date_start, id"
+    # Projection only. A work order declines ``resource.allocation.mixin``:
+    # its time is workcenter capacity in minutes, set by the routing, not a
+    # share of a person's day.
+    _inherit = ["resource.scheduling.mixin"]
+    # ``reservation_id`` used to sit between ``sequence`` and ``date_start``,
+    # ordering planned work by the creation order of its bookings. It is no
+    # longer a column -- the ledger link is the reverse One2many -- and
+    # ``date_start``, already the next key, is the meaningful one anyway.
+    _order = "sequence, date_start, id"
 
     def _default_sequence(self):
         return self.operation_id.sequence or 100
@@ -117,15 +125,16 @@ class MrpWorkorder(models.Model):
     )
     reservation_id = fields.Many2one(
         "resource.reservation",
+        string="Reservation",
+        compute="_compute_reservation_id",
         help="Resource reservation booking this workcenter time slot.",
-        copy=False,
     )
-    date_start = fields.Datetime(
-        "Start", compute="_compute_dates", inverse="_set_dates", store=True, copy=False
-    )
-    date_end = fields.Datetime(
-        "End", compute="_compute_dates", inverse="_set_dates", store=True, copy=False
-    )
+    # Plain columns now: the work order's dates are the source of truth and the
+    # ledger mirrors them. They used to be computed *from* the reservation with
+    # an inverse writing back, which made the booking authoritative and every
+    # planning path responsible for creating one by hand.
+    date_start = fields.Datetime("Start", copy=False)
+    date_end = fields.Datetime("End", copy=False)
     duration_expected = fields.Float(
         "Expected Duration",
         digits=(16, 2),
@@ -435,48 +444,59 @@ class MrpWorkorder(models.Model):
                 - workorder.qty_reported_from_previous_wo
             )
 
-    # Both date fields project from reservation_id.  Using compute+inverse
-    # instead of related= ensures Gantt drag-and-drop writes both dates in
-    # a single reservation.write() call, avoiding mid-way constraint errors.
-    @api.depends(
-        "reservation_id", "reservation_id.date_start", "reservation_id.date_end"
-    )
-    def _compute_dates(self):
-        for workorder in self:
-            workorder.date_start = workorder.reservation_id.date_start
-            workorder.date_end = workorder.reservation_id.date_end
+    @api.depends("reservation_ids")
+    def _compute_reservation_id(self):
+        """The work order's single booking, for readers that want it directly.
 
-    def _set_dates(self):
-        for wo in self.sudo():
-            if wo.reservation_id:
-                if not wo.date_start or not wo.date_end:
-                    raise UserError(
-                        _(
-                            "It is not possible to unplan one single Work Order. "
-                            "You should unplan the Manufacturing Order instead in order to unplan all the linked operations."
-                        )
-                    )
-                wo.reservation_id.write(
-                    {
-                        "date_start": wo.date_start,
-                        "date_end": wo.date_end,
-                    }
-                )
-            elif wo.date_start:
-                if not wo.date_end:
-                    wo.date_end = wo._calculate_date_finished()
-                wo.reservation_id = wo.env["resource.reservation"].create(
-                    {
-                        "name": wo.display_name,
-                        "resource_id": wo.workcenter_id.resource_id.id,
-                        "date_start": wo.date_start,
-                        "date_end": wo.date_end,
-                        "allocated_percentage": 100.0,
-                        "enforcement_mode": "soft",
-                        "res_model": "mrp.workorder",
-                        "res_id": wo.id,
-                    }
-                )
+        A work order books one workcenter for one window, so the ledger's
+        reverse One2many holds at most one row. Kept as a convenience over
+        ``reservation_ids[:1]`` rather than a stored column, so there is only
+        one link to the ledger and it cannot fall out of step with it.
+        """
+        for workorder in self:
+            workorder.reservation_id = workorder.reservation_ids[:1]
+
+    # ------------------------------------------------------------------
+    # Resource reservation integration
+    # ------------------------------------------------------------------
+
+    def _get_reservation_date_fields(self):
+        return ("date_start", "date_end")
+
+    def _get_reservation_vals_list(self):
+        """Mirror the planned window onto the workcenter's resource.
+
+        A cancelled work order books nothing: it has released the workcenter
+        even though its dates are kept for the record. Returning no rows is
+        what makes the mixin delete the booking, which is why
+        ``action_cancel`` no longer unlinks one by hand.
+
+        ``soft`` on every path. ``hard`` would make a work order's enforcement
+        depend on which code created its booking, and it contradicts the rest
+        of the module -- ``_get_conflicted_workorder_ids`` and the "Planned at
+        the same time as other workorder(s)" popover exist to *report* overlaps,
+        and ``action_replan`` to resolve them, none of which is reachable if an
+        overlap cannot be stored.
+        """
+        self.ensure_one()
+        resource = self.workcenter_id.resource_id
+        if not self.date_start or not self.date_end or not resource:
+            return []
+        if self.state == "cancel":
+            return []
+        return [
+            {
+                "name": self.display_name,
+                "date_start": self.date_start,
+                "date_end": self.date_end,
+                "resource_id": resource.id,
+                "allocated_percentage": 100.0,
+                "enforcement_mode": "soft",
+            }
+        ]
+
+    def _get_sync_trigger_fields(self):
+        return super()._get_sync_trigger_fields() | {"workcenter_id", "state"}
 
     @api.constrains("blocked_by_workorder_ids")
     def _check_no_cyclic_dependencies(self):
@@ -503,7 +523,7 @@ class MrpWorkorder(models.Model):
         (self.mapped("move_raw_ids") | self.mapped("move_finished_ids")).write(
             {"workorder_id": False}
         )
-        self.mapped("reservation_id").unlink()
+        # The scheduling mixin's unlink removes the ledger rows.
         mo_dirty = self.production_id.filtered(
             lambda mo: mo.state in ("confirmed", "progress", "to_close")
         )
@@ -902,6 +922,18 @@ class MrpWorkorder(models.Model):
                     date_start=date_start, new_workcenter=new_workcenter
                 )
             }
+        if date_start and not date_end:
+            # A start with no end is not a schedule -- it books nothing, and
+            # the work order shows an open-ended pill. This case used to be
+            # handled by the `date_start` inverse (`_set_dates`), which the
+            # projection contract replaced; deriving it here keeps planning a
+            # work order by its start alone working, which is what a Gantt drop
+            # and a multi-edit of the start date both do.
+            return {
+                "date_end": self._calculate_date_finished(
+                    date_start=date_start, new_workcenter=new_workcenter
+                )
+            }
         if date_start and date_end:
             return {
                 "duration_expected": self._calculate_duration_expected(
@@ -977,6 +1009,14 @@ class MrpWorkorder(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
 
+        # A work order created with a start and no end: the `date_start`
+        # inverse used to fill this in, and inverses run on create too. Done
+        # before anything else below so the ledger row the scheduling mixin
+        # has just written gets the full window, not an open-ended one.
+        for workorder in res:
+            if workorder.date_start and not workorder.date_end:
+                workorder.date_end = workorder._calculate_date_finished()
+
         # resequence the workorders if necessary
         for mo in res.mapped("production_id"):
             if len(set(mo.workorder_ids.mapped("sequence"))) != len(mo.workorder_ids):
@@ -1017,9 +1057,11 @@ class MrpWorkorder(models.Model):
         # Plan only suitable workorders
         if self.state not in ["blocked", "ready"]:
             return
-        if self.reservation_id:
+        if self.date_start:
             if replan:
-                self.reservation_id.unlink()
+                # The new window is written below; the mixin reconciles the
+                # booking to match rather than leaving a stale one behind.
+                pass
             else:
                 return
         # Consider workcenter and alternatives
@@ -1048,7 +1090,8 @@ class MrpWorkorder(models.Model):
             if to_date and (best_date_finished is None or to_date < best_date_finished):
                 best_date_start = from_date
                 best_date_finished = to_date
-                best_workcenter = workcenter
+                # The winning workcenter travels in `vals`; it used to be kept
+                # separately only to build the reservation by hand.
                 vals = {
                     "workcenter_id": workcenter.id,
                     "duration_expected": duration_expected,
@@ -1060,33 +1103,12 @@ class MrpWorkorder(models.Model):
                     "Impossible to plan the workorder. Please check the workcenter availabilities."
                 )
             )
-        # Create reservation on chosen workcenter resource.
-        #
-        # `soft`, like every other reservation this model creates (`_set_dates`,
-        # `button_start`). `hard` here made a work order's enforcement depend on
-        # which code path had created its reservation, and it contradicts the
-        # rest of the module: `_get_conflicted_workorder_ids` and the
-        # "Planned at the same time as other workorder(s)" popover exist
-        # precisely to *report* overlapping work orders, and `action_replan` to
-        # resolve them -- none of which is reachable if an overlap cannot be
-        # stored. In practice it meant dragging a planned work order onto a busy
-        # slot in the Gantt raised "… is already reserved during this time"
-        # instead of flagging a conflict. The planner itself never needs the
-        # block: `_get_first_available_slot` already excludes occupied
-        # intervals, so it cannot produce an overlap of its own.
-        reservation = self.env["resource.reservation"].create(
-            {
-                "name": self.display_name,
-                "resource_id": best_workcenter.resource_id.id,
-                "date_start": best_date_start,
-                "date_end": best_date_finished,
-                "allocated_percentage": 100.0,
-                "enforcement_mode": "soft",
-                "res_model": "mrp.workorder",
-                "res_id": self.id,
-            }
-        )
-        vals["reservation_id"] = reservation.id
+        # Writing the window books it: the scheduling mixin projects these
+        # dates onto the chosen workcenter's resource. `vals` already carries
+        # `workcenter_id` when the planner picked an alternative, and both are
+        # sync triggers, so one write reconciles the ledger.
+        vals["date_start"] = best_date_start
+        vals["date_end"] = best_date_finished
         self.write(vals)
 
     def _cal_cost(self, date=False):
@@ -1152,22 +1174,12 @@ class MrpWorkorder(models.Model):
                 "state": "progress",
                 "date_start": date_start,
             }
-            if not wo.reservation_id:
-                reservation = self.env["resource.reservation"].create(
-                    {
-                        "name": wo.display_name,
-                        "resource_id": wo.workcenter_id.resource_id.id,
-                        "date_start": date_start,
-                        "date_end": date_start
-                        + relativedelta(minutes=wo.duration_expected),
-                        "allocated_percentage": 100.0,
-                        "enforcement_mode": "soft",
-                        "res_model": "mrp.workorder",
-                        "res_id": wo.id,
-                    }
+            if not wo.reservation_ids:
+                # Starting an unplanned work order books it from now for its
+                # expected duration; the mixin creates the ledger row.
+                vals["date_end"] = date_start + relativedelta(
+                    minutes=wo.duration_expected
                 )
-                vals["date_end"] = reservation.date_end
-                vals["reservation_id"] = reservation.id
                 wo.write(vals)
             else:
                 if not wo.date_start or wo.date_start > date_start:
@@ -1245,7 +1257,9 @@ class MrpWorkorder(models.Model):
         return True
 
     def action_cancel(self):
-        self.reservation_id.unlink()
+        # No unlink here: `state` is a sync trigger and
+        # `_get_reservation_vals_list` returns nothing for a cancelled work
+        # order, so writing the state below releases the workcenter.
         self.end_all()
         return self.filtered(lambda wo: wo.state != "cancel").write({"state": "cancel"})
 
