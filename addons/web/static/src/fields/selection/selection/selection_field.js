@@ -7,6 +7,7 @@ import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -28,6 +29,11 @@ export class SelectionField extends SelectionLikeField {
         autosave: false,
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     get choices() {
         return this.options.map(([value, label]) => ({ value, label }));
     }
@@ -39,7 +45,7 @@ export class SelectionField extends SelectionLikeField {
             case "many2one":
                 return this.specialData.data;
             case "selection":
-                return this.props.record.fields[this.props.name].selection.filter(
+                return this.field.definition.selection.filter(
                     (option) => option[1] !== "",
                 );
             default:

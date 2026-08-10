@@ -25,7 +25,8 @@
  * WHAT IS EMITTED, per file:
  *
  *   isWidget    — declares `standardFieldProps` in its `static props`
- *   members     — members reached on the resolved `props.record`
+ *   members     — members reached on the resolved `props.record`, whether by
+ *                 `record.X` or by destructuring `const { X } = record`
  *   ownValue    — `record.data[props.name]`-shaped reads: the widget's OWN field
  *   siblings    — `record.data.someLiteral` reads: ANOTHER field of the record
  *   dynamic     — `record.data[expr]` reads, where the key is not decidable
@@ -98,6 +99,36 @@ function isPropsName(node) {
     );
 }
 
+/**
+ * Members destructured straight off the record: `const { model } = this.props.record`.
+ *
+ * A third under-count, found while converting `ace_field`. The member scan below
+ * only sees `MemberExpression`s, so a destructure reached the record without
+ * registering as a reach at all — 24 files fork-wide do it, and one of them
+ * (`enterprise/mrp_workorder`) takes `_parentRecord`, a **private**. Missing
+ * those made the declared surface look complete when it was not.
+ */
+function destructuredMembers(ast, isRecord) {
+    const names = new Set();
+    walk(ast, (node) => {
+        if (node.type !== "VariableDeclarator" || node.id.type !== "ObjectPattern") {
+            return;
+        }
+        if (!isRecord(node.init)) {
+            return;
+        }
+        for (const prop of node.id.properties) {
+            if (prop.type === "Property" && !prop.computed) {
+                const name = prop.key?.name ?? prop.key?.value;
+                if (typeof name === "string") {
+                    names.add(name);
+                }
+            }
+        }
+    });
+    return names;
+}
+
 /** Local identifiers that provably alias `props.record`. */
 function recordAliases(ast) {
     const aliases = new Set();
@@ -132,7 +163,7 @@ function analyse(source) {
     const isRecord = (node) =>
         isPropsRecord(node) || (node?.type === "Identifier" && aliases.has(node.name));
 
-    const members = new Set();
+    const members = destructuredMembers(ast, isRecord);
     const siblings = new Set();
     let ownValue = 0;
     let dynamic = 0;

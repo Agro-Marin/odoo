@@ -6,6 +6,7 @@
 import { Component, useEffect, useRef } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class IframeWrapperField extends Component {
@@ -13,6 +14,11 @@ export class IframeWrapperField extends Component {
     static props = {
         ...standardFieldProps,
     };
+
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
 
     setup() {
         this.iframeRef = useRef("iframe");
@@ -25,7 +31,7 @@ export class IframeWrapperField extends Component {
                 iframeDoc.write(value || "");
                 iframeDoc.close();
             },
-            () => [this.props.record.data[this.props.name]],
+            () => [this.field.value],
         );
     }
 }

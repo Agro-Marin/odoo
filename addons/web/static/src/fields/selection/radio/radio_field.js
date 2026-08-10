@@ -5,6 +5,7 @@
 
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -32,6 +33,11 @@ export class RadioField extends SelectionLikeField {
         orientation: "vertical",
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     setup() {
         super.setup();
         this.id = `radio_field_${nextId++}`;
@@ -41,7 +47,7 @@ export class RadioField extends SelectionLikeField {
     get items() {
         switch (this.type) {
             case "selection":
-                return this.props.record.fields[this.props.name].selection;
+                return this.field.definition.selection;
             case "many2one":
                 return /** @type {any} */ (this.specialData).data;
             default:
@@ -55,7 +61,7 @@ export class RadioField extends SelectionLikeField {
     onChange(value) {
         switch (this.type) {
             case "selection":
-                this.props.record.update({ [this.props.name]: value[0] });
+                this.field.update(value[0]);
                 break;
             case "many2one":
                 this.props.record.update({

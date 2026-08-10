@@ -5,6 +5,7 @@
 
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -26,12 +27,17 @@ export class BadgeSelectionField extends SelectionLikeField {
         size: "md",
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     get options() {
         switch (this.type) {
             case "many2one":
                 return this.specialData.data;
             case "selection":
-                return this.props.record.fields[this.props.name].selection;
+                return this.field.definition.selection;
             default:
                 return [];
         }
@@ -58,7 +64,7 @@ export class BadgeSelectionField extends SelectionLikeField {
                     return;
                 }
                 if (value === false) {
-                    this.props.record.update({ [this.props.name]: false });
+                    this.field.update(false);
                 } else {
                     const option = this.options.find(
                         (/** @type {any[]} */ option) => option[0] === value,
@@ -67,22 +73,20 @@ export class BadgeSelectionField extends SelectionLikeField {
                         // see SelectionField.onChange
                         return;
                     }
-                    this.props.record.update({
-                        [this.props.name]: {
-                            id: option[0],
-                            display_name: option[1],
-                        },
+                    this.field.update({
+                        id: option[0],
+                        display_name: option[1],
                     });
                 }
                 break;
             case "selection":
                 if (value === this.value) {
-                    const { required } = this.props.record.fields[this.props.name];
+                    const { required } = this.field.definition;
                     if (!required && !this.props.required) {
-                        this.props.record.update({ [this.props.name]: false });
+                        this.field.update(false);
                     }
                 } else {
-                    this.props.record.update({ [this.props.name]: value });
+                    this.field.update(value);
                 }
                 break;
         }

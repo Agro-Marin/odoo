@@ -8,6 +8,7 @@ import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/translation";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -17,6 +18,11 @@ export class BooleanField extends Component {
     static props = {
         ...standardFieldProps,
     };
+
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
 
     /** @type {{ value?: boolean }} */
     state;
@@ -35,9 +41,9 @@ export class BooleanField extends Component {
     async onChange(newValue) {
         this.state.value = newValue;
         try {
-            await this.props.record.update({ [this.props.name]: newValue });
+            await this.field.update(newValue);
         } catch (error) {
-            this.state.value = this.props.record.data[this.props.name];
+            this.state.value = this.field.value;
             throw error;
         }
     }

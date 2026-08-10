@@ -7,6 +7,7 @@ import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { getColor, getCustomColor, hexToRGBA } from "@web/core/colors/colors";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JournalDashboardGraphField extends Component {
@@ -23,6 +24,11 @@ export class JournalDashboardGraphField extends Component {
     static defaultProps = {
         graphType: "bar",
     };
+
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
 
     setup() {
         this.chart = null;
@@ -41,7 +47,7 @@ export class JournalDashboardGraphField extends Component {
                     }
                 };
             },
-            () => [this.props.record.data[this.props.name]],
+            () => [this.field.value],
         );
     }
 
@@ -50,7 +56,7 @@ export class JournalDashboardGraphField extends Component {
             this.chart.destroy();
         }
         try {
-            this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
+            this.data = JSON.parse(this.field.value || "[]");
         } catch (error) {
             console.error(
                 `[dashboard_graph] "${this.props.name}" does not hold valid JSON; ` +

@@ -7,6 +7,7 @@ import { Component } from "@odoo/owl";
 import { formatSelection } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class LabelSelectionField extends Component {
@@ -19,16 +20,19 @@ export class LabelSelectionField extends Component {
         classesObj: {},
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @returns {string} */
     get className() {
-        return (
-            this.props.classesObj[this.props.record.data[this.props.name]] || "primary"
-        );
+        return this.props.classesObj[this.field.value] || "primary";
     }
     /** @returns {string} */
     get string() {
-        return formatSelection(this.props.record.data[this.props.name], {
-            selection: Array.from(this.props.record.fields[this.props.name].selection),
+        return formatSelection(this.field.value, {
+            selection: Array.from(this.field.definition.selection),
         });
     }
 }

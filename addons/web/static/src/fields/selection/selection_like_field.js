@@ -5,15 +5,21 @@
 
 import { Component } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
+import { fieldHandle } from "@web/fields/field_handle";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 
 export class SelectionLikeField extends Component {
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** Only assigned when {@link type} is `"many2one"`. @type {{ data: [number, string][] }} */
     specialData;
 
     setup() {
-        this.type = this.props.record.fields[this.props.name].type;
+        this.type = this.field.type;
         if (this.type === "many2one") {
             this.specialData = useSpecialData((orm, props) => {
                 const { relation } = props.record.fields[props.name];
@@ -34,15 +40,12 @@ export class SelectionLikeField extends Component {
     get string() {
         switch (this.type) {
             case "many2one":
-                return this.props.record.data[this.props.name]
-                    ? this.props.record.data[this.props.name].display_name
-                    : "";
+                return this.field.value ? this.field.value.display_name : "";
             case "selection":
-                return this.props.record.data[this.props.name] !== false
+                return this.field.value !== false
                     ? /** @type {any} */ (
-                          this.props.record.fields[this.props.name].selection.find(
-                              (/** @type {any} */ o) =>
-                                  o[0] === this.props.record.data[this.props.name],
+                          this.field.definition.selection.find(
+                              (/** @type {any} */ o) => o[0] === this.field.value,
                           )?.[1] ?? ""
                       )
                     : "";
@@ -52,7 +55,7 @@ export class SelectionLikeField extends Component {
     }
 
     get value() {
-        const rawValue = this.props.record.data[this.props.name];
+        const rawValue = this.field.value;
         return this.type === "many2one" && rawValue ? rawValue.id : rawValue;
     }
 

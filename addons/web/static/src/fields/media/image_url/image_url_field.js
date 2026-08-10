@@ -7,6 +7,7 @@ import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -21,6 +22,11 @@ export class ImageUrlField extends Component {
 
     static fallbackSrc = "/web/static/img/placeholder.png";
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @type {{ src: any }} */
     state;
 
@@ -28,7 +34,7 @@ export class ImageUrlField extends Component {
         this.notification = useService("notification");
         this.failedSrc = undefined;
         this.state = useState({
-            src: this.props.record.data[this.props.name],
+            src: this.field.value,
         });
 
         useRecordObserver((record) => {
@@ -49,7 +55,7 @@ export class ImageUrlField extends Component {
     }
 
     onLoadFailed() {
-        this.failedSrc = this.props.record.data[this.props.name];
+        this.failedSrc = this.field.value;
         this.state.src = /** @type {any} */ (this.constructor).fallbackSrc;
     }
 }

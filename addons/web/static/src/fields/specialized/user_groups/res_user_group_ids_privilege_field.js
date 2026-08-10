@@ -6,6 +6,7 @@
 import { Component } from "@odoo/owl";
 import { registerField } from "@web/fields/_registry";
 import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
+import { fieldHandle } from "@web/fields/field_handle";
 import { SelectionField } from "@web/fields/selection/selection/selection_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -16,6 +17,11 @@ class ResUserGroupIdsPrivilegeField extends Component {
     static template = "web.ResUserGroupIdsPrivilegeField";
     static components = { BooleanField, SelectionField };
     static props = { ...standardFieldProps };
+
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
 
     /** @type {ReturnType<typeof usePopover>} */
     popover;
@@ -38,7 +44,7 @@ class ResUserGroupIdsPrivilegeField extends Component {
      * @returns {Object | false}
      */
     get group() {
-        const value = this.props.record.data[this.props.name];
+        const value = this.field.value;
         if (!value) {
             return false;
         }
@@ -104,14 +110,14 @@ class ResUserGroupIdsPrivilegeField extends Component {
      * @returns {boolean}
      */
     get isSet() {
-        return !!this.props.record.data[this.props.name];
+        return !!this.field.value;
     }
 
     /**
      * @returns {"selection" | "boolean"}
      */
     get type() {
-        return this.props.record.fields[this.props.name].type;
+        return this.field.type;
     }
 
     /**
@@ -120,7 +126,7 @@ class ResUserGroupIdsPrivilegeField extends Component {
      */
     findGroupId(predicate) {
         if (this.type === "selection") {
-            const options = this.props.record.fields[this.props.name].selection;
+            const options = this.field.definition.selection;
             const option = options.findLast((o) => o[0] && predicate(o[0]));
             return option ? option[0] : false;
         } else {

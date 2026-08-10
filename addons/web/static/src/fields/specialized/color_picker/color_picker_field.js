@@ -6,6 +6,7 @@
 import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ColorPickerField extends Component {
@@ -20,6 +21,11 @@ export class ColorPickerField extends Component {
 
     static RECORD_COLORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @returns {boolean} */
     get isExpanded() {
         return !this.props.canToggle && !this.props.readonly;
@@ -27,7 +33,7 @@ export class ColorPickerField extends Component {
 
     /** @param {number} colorIndex */
     switchColor(colorIndex) {
-        this.props.record.update({ [this.props.name]: colorIndex });
+        this.field.update(colorIndex);
     }
 }
 
