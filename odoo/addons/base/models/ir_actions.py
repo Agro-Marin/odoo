@@ -759,8 +759,24 @@ class IrActionsAct_Window(models.Model):
         "view_id.type",
     )
     def _compute_views(self) -> None:
+        """Compute the ordered ``(view_id, view_mode)`` pairs for this action.
+
+        Re-sorts ``view_ids`` rather than trusting its order: writing a line's
+        ``sequence`` invalidates this compute but not the cached one2many, so
+        the recomputation would otherwise read the pre-write ordering.
+
+        The sort key is the comodel's own ``_order`` (``sequence,id``) and must
+        stay that way. An explicit ``sorted(lambda v: (v.sequence, v.id))``
+        looks equivalent and is not: an unset Integer reads as ``0`` in Python,
+        while the column is NULL and ``ORDER BY sequence`` puts NULL *last*. A
+        binding that omits ``sequence`` therefore jumped to the front and
+        became the action's default view. ``project_sharing_form_action_view``
+        omits it -- as it does upstream, where the o2m order is used directly --
+        so project sharing opened a blank task form instead of the kanban, and
+        every tour through it failed on the missing renderer.
+        """
         for act in self:
-            lines = act.view_ids.sorted(lambda view: (view.sequence, view.id))
+            lines = act.view_ids.sorted()
             views = [(view.view_id.id, view.view_mode) for view in lines]
             got_modes = {view.view_mode for view in lines}
             missing_modes = [
