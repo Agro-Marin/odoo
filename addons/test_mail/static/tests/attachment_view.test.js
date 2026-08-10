@@ -165,7 +165,17 @@ test("Chatter main attachment: can change from non-viewable to viewable", async 
 
     // Add a PDF file
     const pdfFile = new File([new Uint8Array(1)], "text.pdf", { type: "application/pdf" });
+    // Gate on the chatter being ready before dragging onto it: until the
+    // attachment uploader is wired the dragenter registers no dropzone at all,
+    // and the drop below then has nothing to target. Same gate as mail's own
+    // "chatter: drop attachments".
+    await contains("button[aria-label='Attach files']:enabled");
     await dragenterFiles(".o-mail-Chatter", [pdfFile]);
+    // Wait for the dropzone to render before dropping onto it: `dragenterFiles`
+    // does not await the render it triggers, so `dropFiles` raced it and failed
+    // to find `.o-Dropzone` about half the time. Same idiom as mail's own
+    // "chatter: drop attachments".
+    await contains(".o-Dropzone");
     await dropFiles(".o-Dropzone", [pdfFile]);
     await contains(".o_attachment_preview");
     await contains(".o-mail-Attachment > iframe", { count: 0 }); // The viewer tries to display the text file not the PDF

@@ -254,6 +254,7 @@ test("chatter: drop attachments", async () => {
     await contains(".o-mail-AttachmentContainer:not(.o-isUploading)", { count: 2 });
     const extraFiles = [text3];
     await dragenterFiles(".o-mail-Chatter", extraFiles);
+    await contains(".o-Dropzone");
     await dropFiles(".o-Dropzone", extraFiles);
     await contains(".o-mail-AttachmentContainer:not(.o-isUploading)", { count: 3 });
 });
@@ -279,6 +280,9 @@ test("chatter: drop attachment should refresh thread data with hasParentReloadOn
     });
     await contains("button[aria-label='Attach files']:enabled");
     await dragenterFiles(".o-mail-Chatter", [textPdf]);
+    // `dragenterFiles` does not await the render it triggers: wait for the
+    // dropzone rather than racing it (@see "chatter: drop attachments" above)
+    await contains(".o-Dropzone");
     await dropFiles(".o-Dropzone", [textPdf]);
     await contains(".o-mail-Attachment iframe", { count: 1 });
 });
