@@ -30,17 +30,31 @@ function clickOnButton(selector) {
 }
 function updatePager(position) {
     const pager = document.body.querySelector("nav.o_pager");
-    if (!pager || pager.innerText.includes("-")) {
-        // we don't change pages if we are in a multi record view
+    if (!pager) {
         return;
     }
-    let next;
-    if (position === "first") {
-        next = 1;
-    } else {
-        next = parseInt(pager.querySelector(".o_pager_limit").textContent, 10);
+    // Read the two spans rather than slicing the pager's rendered text. The
+    // old form asked `innerText.includes("-")` whether this was a multi-record
+    // view and `innerText.split("/")[0]` for the position, which conflates the
+    // value with the limit and breaks on any change to the pager's markup or
+    // separator. `.o_pager_limit` was also dereferenced without a null check.
+    const valueEl = pager.querySelector(".o_pager_value");
+    const limitEl = pager.querySelector(".o_pager_limit");
+    if (!valueEl || !limitEl) {
+        return;
     }
-    const current = parseInt(pager.innerText.split("/")[0], 10);
+    // A multi-record view shows a span such as "1-80"; there is no single
+    // record to page to, so the command does not apply.
+    const value = valueEl.textContent.trim();
+    if (value.includes("-")) {
+        return;
+    }
+    const current = parseInt(value, 10);
+    const limit = parseInt(limitEl.textContent.trim(), 10);
+    if (!Number.isInteger(current) || !Number.isInteger(limit)) {
+        return;
+    }
+    const next = position === "first" ? 1 : limit;
     if (current === next) {
         return;
     }

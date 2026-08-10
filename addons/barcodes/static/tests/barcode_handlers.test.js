@@ -11,18 +11,21 @@ import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import {
     defineModels,
+    defineWebModels,
     fields,
     mockService,
     models,
     mountView,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { Macro } from "@web/core/utils/macro";
 
 class Product extends models.Model {
     name = fields.Char({ string: "Product name" });
     handler = fields.Char({ string: "Handler" });
     _records = [{ id: 1, name: "Large Cabinet" }];
 }
+defineWebModels();
 defineModels([Product]);
 
 beforeEach(() => {
@@ -131,4 +134,49 @@ test("cleanBarcode no longer rewrites scanned content", async () => {
     for (const barcode of ["ShiftKnob", "ControlValve", "Altima", "ALTIMA", "cobalt"]) {
         expect(barcodeService.cleanBarcode(barcode)).toBe(barcode);
     }
+});
+
+test.tags("desktop");
+test("a pager command does not apply to a multi-record view", async () => {
+    // A list's pager reads "1-2 / 2": there is no single record to page to.
+    // The old check asked `pager.innerText.includes("-")`, which conflates the
+    // value with the limit; the value span is now read on its own.
+    patchWithCleanup(Macro.prototype, {
+        start() {
+            expect.step("macro started");
+            super.start(...arguments);
+        },
+    });
+    const view = await mountView({
+        type: "list",
+        resModel: "product",
+        arch: `<list><field name="name"/></list>`,
+    });
+    expect("nav.o_pager .o_pager_value").toHaveCount(1);
+
+    view.env.services.barcode.scan("OCDPAGERLAST");
+    await animationFrame();
+    view.env.services.barcode.scan("OCDPAGERFIRST");
+    await animationFrame();
+    expect.verifySteps([]);
+});
+
+test.tags("desktop");
+test("a pager command does nothing when already on the target record", async () => {
+    patchWithCleanup(Macro.prototype, {
+        start() {
+            expect.step("macro started");
+            super.start(...arguments);
+        },
+    });
+    const view = await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: `<form><field name="name"/></form>`,
+    });
+
+    view.env.services.barcode.scan("OCDPAGERFIRST");
+    await animationFrame();
+    expect.verifySteps([]);
 });

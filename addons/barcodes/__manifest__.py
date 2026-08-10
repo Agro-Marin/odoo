@@ -19,6 +19,7 @@
             "barcodes/static/tests/*.test.js",
             # Golden vectors shared with tests/test_barcode_conformance.py.
             "barcodes/static/tests/conformance_vectors.js",
+            "barcodes/static/tests/barcode_test_helpers.js",
         ],
     },
     "author": "Odoo S.A.",

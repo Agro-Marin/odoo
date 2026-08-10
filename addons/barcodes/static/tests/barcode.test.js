@@ -1,7 +1,8 @@
 /** @odoo-module native */
 
+import { simulateBarCode } from "@barcodes/../tests/barcode_test_helpers";
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { advanceTime, animationFrame, press } from "@odoo/hoot-dom";
+import { advanceTime, animationFrame } from "@odoo/hoot-dom";
 import {
     contains,
     defineModels,
@@ -13,12 +14,6 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { Macro } from "@web/core/utils/macro";
-
-async function simulateBarCode(chars) {
-    for (const char of chars) {
-        await press(char);
-    }
-}
 
 class Product extends models.Model {
     name = fields.Char({ string: "Product name" });

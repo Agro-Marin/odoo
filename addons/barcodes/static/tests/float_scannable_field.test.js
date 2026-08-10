@@ -1,8 +1,8 @@
 /** @odoo-module native */
 
+import { simulateBarCode } from "@barcodes/../tests/barcode_test_helpers";
 import { barcodeService } from "@barcodes/barcode_service";
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     contains,
@@ -15,11 +15,6 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { FormController } from "@web/views/form";
 
-async function simulateBarCode(chars) {
-    for (const char of chars) {
-        await press(char);
-    }
-}
 class Product extends models.Model {
     name = fields.Char({ string: "Product name" });
     float_field = fields.Float({ string: "Float" });
