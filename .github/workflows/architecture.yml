@@ -696,31 +696,19 @@ jobs:
           set -e
           exit $rc
 
-      - name: Run env.config declared-shape gate
-        id: js_env_config_surface
-        # Blocking, judged per consumer scope, and the third distinct contract
-        # in this family. `js_public_surface` pins the MODULES other addons
-        # import; `js_extension_surface` pins the METHODS they override; this
-        # pins the KEYS they read out of `env.config` — a bag inherited through
-        # the component tree, so it is neither an import nor a class member and
-        # neither of the other two can see it.
-        #
-        # Before it: five writers in `web` alone, and three keys `web` never
-        # writes at all. `enterprise/mrp_mps` keeps its pager offset/limit in
-        # web's bag; `enterprise/web_studio` reaches `onNodeClicked` from eleven
-        # sites, one of them interpolated into generated QWeb source.
-        #
-        # CI checks out this repo alone, so this run judges the `web` and `odoo`
-        # scopes; sibling scopes ride the pin's provenance tags and are judged
-        # where those checkouts exist. --update refuses anything less than the
-        # full workspace.
-        run: |
-          set +e
-          python tooling/architecture/js_env_config_surface.py | tee /tmp/js_env_config.log
-          rc=$?
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
-          set -e
-          exit $rc
+      # REMOVED 2026-08-09: a blocking step invoking
+      # `tooling/architecture/js_env_config_surface.py`, which exists in no
+      # commit on any ref (`git log --all -- <path>` returns 0), is not on disk
+      # anywhere in the workspace, and is not in the pre-rebase stash. Python
+      # exited 2 and the step re-raised, so `Architecture Boundaries` failed on
+      # every push -- and its step id was missing from the `Annotate PR on
+      # failure` condition below, so it failed without posting an annotation.
+      #
+      # The design is not lost: the step's full rationale is quoted verbatim in
+      # the commit that removes it, and 72c0bff4c39 carries the original. To
+      # restore, revert this hunk once the checker lands; it also needs a
+      # `steps.js_env_config_surface.outputs.exit_code` term in the annotate
+      # condition and a row in `gates.md`, neither of which it ever had.
 
       - name: Run XML reference-coherence check
         id: xml_refs
