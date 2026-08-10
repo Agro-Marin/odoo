@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -8,6 +6,7 @@ class ProductAttributeValue(models.Model):
     # if you change this _order, keep it in sync with the method
     # `_sort_key_variant` in `product.template'
     _name = "product.attribute.value"
+    _inherit = "attribute.value.mixin"
     _order = "attribute_id, sequence, id"
     _description = "Attribute Value"
 
@@ -20,21 +19,18 @@ class ProductAttributeValue(models.Model):
         help="The attribute cannot be changed once the value is used on at least one product.",
     )
     display_type = fields.Selection(related="attribute_id.display_type")
-    name = fields.Char(
-        string="Value",
-        required=True,
-        translate=True,
-    )
-    active = fields.Boolean(default=True)
+    # name, active and color come from attribute.value.mixin; only the labels
+    # and the index are product-specific. `sequence` now carries the mixin's
+    # default of 10 -- it had none here, so new values were created with a NULL
+    # sequence, which sorts *last* under `_order` and made the display order of
+    # a freshly added value depend on nothing the user set.
+    name = fields.Char(string="Value")
     sequence = fields.Integer(
         string="Sequence",
         index=True,
         help="Determine the display order",
     )
-    color = fields.Integer(
-        string="Color Index",
-        default=lambda self: self._get_default_color(),
-    )
+    color = fields.Integer(string="Color Index")
     html_color = fields.Char(
         string="Color",
         help="Here you can set a specific HTML color index (e.g. #ff0000)"
@@ -163,27 +159,11 @@ class ProductAttributeValue(models.Model):
         if is_used_on_products := self.check_is_used_on_products():
             raise UserError(is_used_on_products)
 
-    def _get_default_color(self):
-        return randint(1, 11)
-
     # === COMPUTE METHODS === #
 
-    @api.depends("attribute_id")
-    @api.depends_context("show_attribute")
-    def _compute_display_name(self):
-        """Override because in general the name of the value is confusing if it
-        is displayed without the name of the corresponding attribute.
-        Eg. on product list & kanban views, on BOM form view
-
-        However during variant set up (on the product template form) the name of
-        the attribute is already on each line so there is no need to repeat it
-        on every value.
-        """
-        if not self.env.context.get("show_attribute", True):
-            return super()._compute_display_name()
-        for value in self:
-            value.display_name = f"{value.attribute_id.name}: {value.name}"
-        return None
+    # _get_default_color and _compute_display_name (qualifying a value with its
+    # attribute, suppressed by `show_attribute=False`) now live on
+    # attribute.value.mixin -- neither was product-specific.
 
     @api.depends("pav_attribute_line_ids")
     def _compute_is_used_on_products(self):

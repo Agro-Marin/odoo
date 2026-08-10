@@ -24,7 +24,7 @@ Print product labels with barcode.
     """,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["uom", "mail"],
+    "depends": ["uom", "mail", "base_attribute_mixin"],
     "data": [
         "data/product_data.xml",
         "security/product_security.xml",

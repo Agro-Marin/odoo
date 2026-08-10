@@ -1,5 +1,5 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
 
 from .utils import unlink_where_possible
@@ -10,13 +10,16 @@ class ProductTemplateAttributeLine(models.Model):
     Used as a configuration model to generate the appropriate product.template.attribute.value
     """
 
+    # _order, active, sequence and value_count all come from
+    # attribute.line.mixin, which carries the same values this model declared.
     _name = "product.template.attribute.line"
+    _inherit = "attribute.line.mixin"
     _rec_name = "attribute_id"
     _rec_names_search = ["attribute_id", "value_ids"]
     _description = "Product Template Attribute Line"
-    _order = "sequence, attribute_id, id"
+    # A product attribute line IS the offer, so an empty one says nothing.
+    _requires_value = True
 
-    active = fields.Boolean(default=True)
     product_tmpl_id = fields.Many2one(
         comodel_name="product.template",
         string="Product Template",
@@ -24,7 +27,6 @@ class ProductTemplateAttributeLine(models.Model):
         ondelete="cascade",
         index=True,
     )
-    sequence = fields.Integer(string="Sequence", default=10)
     attribute_id = fields.Many2one(
         comodel_name="product.attribute",
         string="Attribute",
@@ -39,7 +41,6 @@ class ProductTemplateAttributeLine(models.Model):
         domain="[('attribute_id', '=', attribute_id)]",
         ondelete="restrict",
     )
-    value_count = fields.Integer(compute="_compute_value_count", store=True)
     product_template_value_ids = fields.One2many(
         comodel_name="product.template.attribute.value",
         inverse_name="attribute_line_id",
@@ -53,10 +54,10 @@ class ProductTemplateAttributeLine(models.Model):
     # and `test_variants.test_dynamic_variants_unarchive` assert that behaviour,
     # so there is intentionally no uniqueness on (product_tmpl_id, attribute_id).
 
-    @api.depends("value_ids")
-    def _compute_value_count(self):
-        for record in self:
-            record.value_count = len(record.value_ids)
+    # _compute_value_count and the coherence constraint (_check_valid_values,
+    # now _check_values) live on attribute.line.mixin. The "at least one value"
+    # half is opt-in there via _requires_value, because a line that is a *slot
+    # awaiting capture* rather than an offer is legitimately empty.
 
     @api.onchange("attribute_id")
     def _onchange_attribute_id(self):
@@ -71,29 +72,9 @@ class ProductTemplateAttributeLine(models.Model):
                 lambda pav: pav.attribute_id == self.attribute_id
             )
 
-    @api.constrains("active", "value_ids", "attribute_id")
-    def _check_valid_values(self):
-        for ptal in self:
-            if ptal.active and not ptal.value_ids:
-                raise ValidationError(
-                    _(
-                        "The attribute %(attribute)s must have at least one value for the product %(product)s.",
-                        attribute=ptal.attribute_id.display_name,
-                        product=ptal.product_tmpl_id.display_name,
-                    )
-                )
-            for pav in ptal.value_ids:
-                if pav.attribute_id != ptal.attribute_id:
-                    raise ValidationError(
-                        _(
-                            "On the product %(product)s you cannot associate the value %(value)s"
-                            " with the attribute %(attribute)s because they do not match.",
-                            product=ptal.product_tmpl_id.display_name,
-                            value=pav.display_name,
-                            attribute=ptal.attribute_id.display_name,
-                        )
-                    )
-        return True
+    def _subject_label(self):
+        """Name the template, so a coherence error points at the product."""
+        return self.product_tmpl_id.display_name
 
     @api.model_create_multi
     def create(self, vals_list):

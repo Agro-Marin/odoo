@@ -4,10 +4,14 @@ from odoo.exceptions import UserError
 
 class ProductAttribute(models.Model):
     _name = "product.attribute"
+    _inherit = "attribute.mixin"
     _description = "Product Attribute"
     # if you change this _order, keep it in sync with the method
-    # `_sort_key_attribute_value` in `product.template`
+    # `_sort_key_attribute_value`, which extends `product.template` from
+    # `website_sale` (not from this module, despite where this comment sat).
     _order = "sequence, id"
+    # Lets attribute.mixin re-validate existing lines when value_type moves.
+    _attribute_line_model = "product.template.attribute.line"
 
     _check_multi_checkbox_no_variant = models.Constraint(
         "CHECK(display_type != 'multi' OR create_variant = 'no_variant')",
@@ -39,18 +43,20 @@ class ProductAttribute(models.Model):
         - Never: Variants are never created for the attribute.
         Note: this cannot be changed once the attribute is used on a product.""",
     )
+    # Selection, required and default all come from attribute.mixin; only the
+    # help is product-specific.
     display_type = fields.Selection(
-        selection=[
-            ("radio", "Radio"),
-            ("pills", "Pills"),
-            ("select", "Select"),
-            ("color", "Color"),
-            ("multi", "Multi-checkbox"),
-            ("image", "Image"),
-        ],
-        required=True,
-        default="radio",
         help="The display type used in the Product Configurator.",
+    )
+    # attribute.mixin defaults this to 'single', which limits a line to one
+    # value. That is the wrong reading for a product: a line holds the *menu*
+    # of values the template offers (Color: red, blue, green) and the choice of
+    # one is made per variant, not on the line. Structurally every product
+    # attribute is therefore 'multi'.
+    value_type = fields.Selection(
+        default="multi",
+        help="How many values a single attribute line may hold. Always 'multi' "
+        "for products: a line carries every value the template offers.",
     )
 
     value_ids = fields.One2many(

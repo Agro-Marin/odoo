@@ -1,4 +1,6 @@
-from odoo import fields, models
+from random import randint
+
+from odoo import api, fields, models
 
 
 class AttributeValueMixin(models.AbstractModel):
@@ -21,8 +23,34 @@ class AttributeValueMixin(models.AbstractModel):
         default=10,
     )
     color = fields.Integer(
-        default=0,
+        default=lambda self: self._get_default_color(),
     )
     active = fields.Boolean(
         default=True,
     )
+
+    def _get_default_color(self):
+        """Spread values over the palette instead of collapsing them onto one.
+
+        A fixed default gives every value of every attribute the same colour,
+        which makes the chips that render them useless as a distinguisher. The
+        palette is 1-11; 0 means "no colour" and is deliberately not drawn.
+        """
+        return randint(1, 11)
+
+    @api.depends("attribute_id")
+    @api.depends_context("show_attribute")
+    def _compute_display_name(self):
+        """Qualify a value with its attribute.
+
+        A bare value name is ambiguous wherever values of different attributes
+        meet -- "Large" or "High" says nothing on its own. The exception is a
+        form that already groups values under their attribute (an attribute's
+        own value list, a line being configured), which passes
+        ``show_attribute=False`` to suppress the repetition.
+        """
+        if not self.env.context.get("show_attribute", True):
+            return super()._compute_display_name()
+        for value in self:
+            value.display_name = f"{value.attribute_id.name}: {value.name}"
+        return None
