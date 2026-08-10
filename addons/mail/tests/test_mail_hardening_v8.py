@@ -18,29 +18,56 @@ from odoo.addons.mail.tools.discuss import Store
 
 @tagged("-at_install", "post_install", "mail_hardening_v8")
 class TestMailHardeningV8(MailCommon):
+    # The two loggers that can speak up while resolving the ICP: parsing lives
+    # in base's helper, the sign check is ours.
+    _ICP_LOGGER = "odoo.addons.base.models.ir_config_parameter"
+    _MIXIN_LOGGER = "odoo.addons.mail.models.mail_render_mixin"
+
     def test_get_mail_batch_size_rejects_negative(self):
         """A negative ICP is as malformed as a garbage/zero one -> default.
 
         A negative value is truthy, so without the guard zeroing it
         ``batch_size or default`` would let it through and ``itertools.batched``
         would then abort every mass-send loop.
+
+        Each case also pins *whether* the fallback is worth a log line and on
+        whose logger: an unparseable or negative value is an operator mistake
+        worth naming, an empty or explicit zero is ordinary. Leaving those
+        warnings to escape the test made every mail run print three warnings a
+        reader has to learn to ignore, which is the noise a real warning then
+        has to compete with.
         """
         template = self.env["mail.template"]
         icp = self.env["ir.config_parameter"].sudo()
-        for raw, expected in [
-            ("-5", 50),
-            ("-1", 50),
-            ("0", 50),
-            ("garbage", 50),
-            ("", 50),
-            ("10", 10),
+        for raw, expected, warns_on in [
+            ("-5", 50, self._MIXIN_LOGGER),
+            ("-1", 50, self._MIXIN_LOGGER),
+            ("0", 50, None),
+            ("garbage", 50, self._ICP_LOGGER),
+            ("", 50, None),
+            ("10", 10, None),
         ]:
-            icp.set_param("mail.batch_size", raw)
-            self.assertEqual(
-                template._get_mail_batch_size(),
-                expected,
-                f"mail.batch_size={raw!r} should resolve to {expected}",
-            )
+            with self.subTest(batch_size=raw):
+                icp.set_param("mail.batch_size", raw)
+                if warns_on:
+                    with self.assertLogs(warns_on, level="WARNING") as capture:
+                        resolved = template._get_mail_batch_size()
+                    self.assertIn(
+                        "mail.batch_size",
+                        "\n".join(capture.output),
+                        "the warning must name the offending key",
+                    )
+                else:
+                    with (
+                        self.assertNoLogs(self._MIXIN_LOGGER, level="WARNING"),
+                        self.assertNoLogs(self._ICP_LOGGER, level="WARNING"),
+                    ):
+                        resolved = template._get_mail_batch_size()
+                self.assertEqual(
+                    resolved,
+                    expected,
+                    f"mail.batch_size={raw!r} should resolve to {expected}",
+                )
 
     def test_tracking_values_no_double_create_on_mixed_commands(self):
         """(0, 0, vals) tracking commands mixed with a (4, id) link must be

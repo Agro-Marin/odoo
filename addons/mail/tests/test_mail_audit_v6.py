@@ -112,8 +112,20 @@ class TestInboundCharsetGuard(MailCommon):
             "hello body\n"
         )
         message = email.message_from_string(raw, policy=email.policy.default)
-        parsed = self.env["mail.thread"].message_parse(message)
+        # Degrading silently would be its own bug: the body is decoded with
+        # replacement characters, so the log line is the only trace that the
+        # stored text is not what the sender wrote. Assert it rather than let
+        # it escape into the suite log.
+        with self.assertLogs(
+            "odoo.addons.mail.models.mail_thread", level="WARNING"
+        ) as capture:
+            parsed = self.env["mail.thread"].message_parse(message)
         self.assertIn("hello body", parsed["body"])
+        self.assertIn(
+            "unknown-8bit",
+            "\n".join(capture.output),
+            "the warning must name the charset it could not resolve",
+        )
 
 
 @tagged("post_install", "-at_install")

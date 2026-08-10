@@ -280,9 +280,20 @@ class TestMailSendPartialFailure(MailCommon):
         with (
             patch.object(IrMailServer, "send_email", fake_send),
             patch.object(IrMailServer, "_disable_send", lambda server: False),
+            # Continuing past the failure is only correct if the failure is
+            # still reported; the per-recipient warning is that report, so it
+            # belongs in the assertions rather than in the suite log.
+            self.assertLogs(
+                "odoo.addons.mail.models.mail_mail", level="WARNING"
+            ) as capture,
         ):
             mail._send(raise_exception=False)
 
+        self.assertIn(
+            "temporary reject",
+            "\n".join(capture.output),
+            "the mid-batch failure must be reported, not silently swallowed",
+        )
         self.assertEqual(
             len(attempted),
             3,
