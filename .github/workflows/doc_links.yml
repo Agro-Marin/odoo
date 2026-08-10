@@ -42,7 +42,12 @@ on:
       # in their YAML comments.
       - '**/*.yml'
       - '**/*.yaml'
-      # The gate script itself, the baseline, or the next-target ranker.
+      # doc_symbol_gate checks documented *exports*, so renaming or deleting
+      # one invalidates a doc claim without touching a single `.md`. That is
+      # the direction the `derived` defect travelled in reverse, and a filter
+      # on markdown alone would never see it.
+      - '**/*.js'
+      # The gate scripts themselves, the baseline, or the next-target ranker.
       - 'tooling/doclinks/**'
 
 permissions:
@@ -106,6 +111,19 @@ jobs:
           # and a green check. The baseline is empty and every reference in the
           # tree resolves, so there is nothing left to tolerate.
           exit "${GATE_EXIT}"
+
+      - name: Run doc_symbol_gate.py
+        # BLOCKING at a hard zero, with no baseline. A documented symbol either
+        # is exported or is not; there is no partial state to ratchet toward,
+        # and the one legitimate shape — a page naming an absent symbol in
+        # order to warn about it — is enumerated in the gate's
+        # DELIBERATE_ABSENCES with its reason.
+        #
+        # Runs as its own step rather than folded into the one above so the
+        # two failures stay distinguishable: a broken `.md` path is a
+        # documentation edit, a missing export is usually a code edit that
+        # left a document behind.
+        run: python tooling/doclinks/doc_symbol_gate.py
 
       - name: Summarise
         if: always()

@@ -14,15 +14,48 @@ Translation between industry vocabulary and the OWL primitives in this codebase:
 | Component-scoped effect | `useEffect` (from `@odoo/owl`) — fires only while owning component is mounted | React `useEffect` / Solid `createEffect` inside a component |
 | Process-scoped effect | `effect(cb, deps)` (from `@web/core/utils/reactive`) — fires until garbage-collected; used by services and record observers | Solid `createEffect` at module scope / Vue 3 `watchEffect` / Svelte 5 `$effect` |
 | Computed / derived value (on a class) | Plain JS getter reading signals (OWL is Proxy-based — getters track automatically) | Solid `createMemo` accessed via class field / Vue `computed` ref on `this` |
-| Computed / derived value (free-standing) | `derived(() => …)` (from `@web/core/utils/reactive`) — read via `.value` | Solid `createMemo` / Vue `computed` / Svelte 5 `$derived` |
+| Computed / derived value (free-standing) | **No OWL equivalent — see below** | Solid `createMemo` / Vue `computed` / Svelte 5 `$derived` |
 
 `useEffect` cleans up on unmount; `effect(cb, deps)` survives as long as the
 captured `deps` proxy does. Not interchangeable.
 
-Use a class getter when the derived value belongs to an instance
-(``record.dirty``, ``coordinator.isSaving``), `derived(fn)` when the computation
-spans sources or is passed around as a value. Neither is memoized; OWL batches
-renders within a tick.
+### There is no free-standing computed, and one cannot be added
+
+Vue, Solid and Svelte can offer a module-scope `computed`/`createMemo`/`$derived`
+because they maintain a global *active effect* stack: whoever is currently
+rendering is ambient, so a value computed anywhere can register the reader that
+pulled on it.
+
+**OWL has no such stack.** A subscription is keyed on the *proxy a read travels
+through*, at the moment of the read (`observeTargetKey`, `static/lib/owl/owl.es.js`),
+and a proxy built with no callback — which is what bare `reactive(obj)` and
+`SignalStore`'s own `this` are — returns early and registers nothing. So a
+helper of the shape
+
+```js
+// cannot work in OWL
+const fullName = derived(() => `${store.first} ${store.last}`);
+```
+
+closes over the store's own callback-less proxy. Every reader gets a correct
+*value* and no *subscription*: the component renders once with the right text
+and never updates. That is the same defect documented under *A bare `reactive()`
+handed down as a prop subscribes NOBODY* below, in a shape that looks like a
+framework primitive.
+
+Both halves are pinned by
+`static/tests/core/utils/reactive.test.js` — "a subscription belongs to the
+proxy the read went through" and its passing counterpart.
+
+**What to use instead:**
+
+| Situation | Form |
+|---|---|
+| Derivation belongs to an instance | Plain getter on the `SignalStore` (``record.dirty``, ``coordinator.isSaving``) |
+| A component derives across several sources | `useState()` each source in `setup`, then a getter on the component — the reads then travel through that component's own proxy |
+| A derivation must be shared between components | Put it on the shared `SignalStore` or the service's `reactive()` as a getter, and let each component `useState()` that object |
+
+Getters are not memoized; OWL batches renders within a tick.
 
 **SignalStore.**  ``SignalStore`` is the canonical class name and the only
 export; there is no `Reactive` alias, so
@@ -56,10 +89,11 @@ Where does this state live?
 │  │     Avoid ``reactive({ get x(){}, set x(v){…mutate other state…} })``
 │  │     with side-effecting setters — that's an effect masquerading
 │  │     as state.  Use useEffect / effect instead.
-│  └─ Derivation spans multiple sources or wants to be passed around?
-│     └─ derived(() => …) from @web/core/utils/reactive — read via
-│        ``.value``. Aligned with Vue 3 ``computed`` / Svelte 5
-│        ``$derived``. Lazy, not memoized.
+│  └─ Derivation spans multiple sources?
+│     └─ useState() each source in setup(), then a getter on the
+│        component. There is NO free-standing computed primitive —
+│        a value derived outside a component subscribes nobody,
+│        see "There is no free-standing computed" above.
 │
 └─ >3 named states with guards?
    └─ State machine (document first, implement only if bug motivates it)
