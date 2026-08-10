@@ -128,7 +128,13 @@ const STRING_EDITOR = {
 };
 
 /**
- * @param {Array<[any, string]>} options
+ * A label is whatever `_t()` returned, so the type has to admit
+ * `TranslatedString` and not just `string`: `IN_RANGE_OPTIONS` and every other
+ * built-in option list is built from `_t()` calls, and narrowing this to
+ * `string` made each of those callers an error rather than the option lists
+ * wrong.
+ *
+ * @param {Array<[any, string | import("@web/core/translation").TranslatedString]>} options
  * @param {Object} [params]
  * @param {boolean} [params.addBlankOption]
  * @param {Object<string, string>} [params.optionGroups] serialized option value
@@ -151,8 +157,12 @@ function makeSelectEditor(options, params = {}) {
         defaultValue: () => options[0]?.[0] ?? false,
         stringify: (value, disambiguate) => {
             const option = getOption(value);
+            // `String()`, because a label is whatever `_t()` returned and this
+            // function's contract is a display string. Resolving it here is
+            // where it should happen: stringify is called to render, so the
+            // lazy TranslatedString has no reason to stay lazy past this point.
             return option
-                ? option[1]
+                ? String(option[1])
                 : disambiguate
                   ? formatValue(value)
                   : String(value);
@@ -264,7 +274,7 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             for (const { id, group } of providerOptions) {
                 optionGroups[JSON.stringify(id)] = group;
             }
-            /** @type {Array<[any, string]>} */
+            /** @type {Array<[any, string | import("@web/core/translation").TranslatedString]>} */
             const valueTypeOptions = [
                 ...InRange.options,
                 ...providerOptions.map(
