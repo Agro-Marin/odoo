@@ -66,3 +66,56 @@ class TestCatalog(BaseOrderTestCase):
 
         self.assertEqual(data["quantity"], 7.0)
         self.assertTrue(data["readOnly"])
+
+    # --- _update_order_line_info: the branches the four cases above skip ---
+
+    def test_update_creates_line_when_absent(self):
+        """Adding a product from the catalog is the primary catalog action and
+        went through an unexercised branch: no line matches, quantity > 0."""
+        order = self._make_order()
+        self.assertFalse(order.line_ids)
+
+        price = order._update_order_line_info(self.product.id, 3.0)
+
+        self.assertEqual(len(order.line_ids), 1)
+        line = order.line_ids
+        self.assertEqual(line.product_id, self.product)
+        self.assertEqual(line.product_qty, 3.0)
+        self.assertEqual(price, line.price_unit)
+
+    def test_update_created_line_gets_a_sequence(self):
+        """The created line takes its sequence from _get_new_line_sequence."""
+        order = self._make_order()
+        first = self._make_line(order=order, product_qty=1.0)
+        other_product = self.env["product.product"].create(
+            {"name": "BO Product 2", "list_price": 50.0},
+        )
+
+        order._update_order_line_info(other_product.id, 2.0)
+
+        created = order.line_ids.filtered(lambda l: l.product_id == other_product)
+        self.assertEqual(len(created), 1)
+        self.assertGreaterEqual(created.sequence, first.sequence)
+
+    def test_update_zero_quantity_on_absent_line_returns_default_price(self):
+        """Quantity 0 for a product that has no line: nothing to remove, so the
+        product's own price comes back rather than a line's."""
+        order = self._make_order()
+
+        price = order._update_order_line_info(self.product.id, 0.0)
+
+        self.assertFalse(order.line_ids)
+        self.assertEqual(price, self.product.list_price)
+
+    def test_update_zero_quantity_keeps_line_when_state_not_editable(self):
+        """Outside the editable states a catalog 0 zeroes the line instead of
+        deleting it — the order is past the point where lines may vanish."""
+        order = self._make_order()
+        line = self._make_line(order=order, product_qty=2.0)
+        order.state = "done"
+        self.assertNotIn(order.state, order._get_catalog_editable_states())
+
+        order._update_order_line_info(self.product.id, 0.0)
+
+        self.assertTrue(line.exists(), "the line must survive outside draft")
+        self.assertEqual(line.product_qty, 0.0)
