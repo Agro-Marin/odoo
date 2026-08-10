@@ -26,47 +26,23 @@ class ResPartner(models.Model):
     # ------------------------------------------------------------
 
     def _compute_sale_order_count(self):
-        self.sale_order_count = 0
-        if not self.env.user.has_group("sales_team.group_sale_salesman"):
-            return
-
-        # retrieve all children partners and prefetch 'parent_id' on them
-        all_partners = self.with_context(active_test=False).search_fetch(
-            [("id", "child_of", self.ids)],
-            ["parent_id"],
+        self._compute_order_count(
+            "sale.order",
+            "sale_order_count",
+            "sales_team.group_sale_salesman",
+            domain=self._get_sale_order_domain_count(),
         )
-        sale_order_groups = self.env["sale.order"]._read_group(
-            domain=Domain.AND(
-                [
-                    self._get_sale_order_domain_count(),
-                    [("partner_id", "in", all_partners.ids)],
-                ],
-            ),
-            groupby=["partner_id"],
-            aggregates=["__count"],
-        )
-        self_ids = set(self._ids)
-
-        for partner, count in sale_order_groups:
-            while partner:
-                if partner.id in self_ids:
-                    partner.sale_order_count += count
-                partner = partner.parent_id
 
     def _compute_application_statistics_hook(self):
         data_list = super()._compute_application_statistics_hook()
-        if not self.env.user.has_group("sales_team.group_sale_salesman"):
-            return data_list
-        for partner in self.filtered("sale_order_count"):
-            data_list[partner.id].append(
-                {
-                    "iconClass": "fa-solid fa-dollar-sign",
-                    "value": partner.sale_order_count,
-                    "label": self.env._("Sale Orders"),
-                    "tagClass": "o_tag_color_2",
-                }
-            )
-        return data_list
+        return self._add_order_statistics(
+            data_list,
+            "sale_order_count",
+            "sales_team.group_sale_salesman",
+            "fa-solid fa-dollar-sign",
+            self.env._("Sale Orders"),
+            "o_tag_color_2",
+        )
 
     def _compute_credit_to_invoice(self):
         # EXTENDS 'account'

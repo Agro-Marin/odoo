@@ -1,5 +1,4 @@
 from odoo import api, fields, models
-from odoo.fields import Domain
 from odoo.tools.translate import _
 
 
@@ -47,46 +46,23 @@ class ResPartner(models.Model):
     # ------------------------------------------------------------
 
     def _compute_purchase_order_count(self):
-        self.purchase_order_count = 0
-        if not self.env.user._has_group("purchase.group_purchase_user"):
-            return
-
-        # retrieve all children partners and prefetch 'parent_id' on them
-        all_partners = self.with_context(active_test=False).search_fetch(
-            [("id", "child_of", self.ids)],
-            ["parent_id"],
+        self._compute_order_count(
+            "purchase.order",
+            "purchase_order_count",
+            "purchase.group_purchase_user",
+            domain=self._get_purchase_order_domain_count(),
         )
-        purchase_order_groups = self.env["purchase.order"]._read_group(
-            domain=Domain.AND(
-                [
-                    self._get_purchase_order_domain_count(),
-                    [("partner_id", "in", all_partners.ids)],
-                ],
-            ),
-            groupby=["partner_id"],
-            aggregates=["__count"],
-        )
-        self_ids = set(self._ids)
-
-        for partner, count in purchase_order_groups:
-            while partner:
-                if partner.id in self_ids:
-                    partner.purchase_order_count += count
-                partner = partner.parent_id
 
     def _compute_application_statistics_hook(self):
         data_list = super()._compute_application_statistics_hook()
-        if not self.env.user.has_group("purchase.group_purchase_user"):
-            return data_list
-        for partner in self.filtered(lambda partner: partner.purchase_order_count):
-            stat_info = {
-                "iconClass": "fa-solid fa-credit-card",
-                "value": partner.purchase_order_count,
-                "label": _("Purchases"),
-                "tagClass": "o_tag_color_5",
-            }
-            data_list[partner.id].append(stat_info)
-        return data_list
+        return self._add_order_statistics(
+            data_list,
+            "purchase_order_count",
+            "purchase.group_purchase_user",
+            "fa-solid fa-credit-card",
+            _("Purchases"),
+            "o_tag_color_5",
+        )
 
     # ------------------------------------------------------------
     # HELPER METHODS

@@ -7,5 +7,6 @@ from . import test_line_pricing
 from . import test_line_write_guards
 from . import test_mail
 from . import test_merge
+from . import test_partner_count
 from . import test_smoke
 from . import test_write_validation

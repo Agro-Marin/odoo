@@ -4,6 +4,7 @@ from . import order_line_mixin
 from . import order_line_amount_mixin
 from . import order_invoice_mixin
 from . import account_move_line
+from . import res_partner
 from . import order_merge_mixin
 from . import order_report_mixin
 from . import order_mass_cancel_mixin
