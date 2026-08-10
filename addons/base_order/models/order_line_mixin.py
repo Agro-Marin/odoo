@@ -393,14 +393,34 @@ class OrderLineFieldsMixin(models.AbstractModel):
             lang = line._get_line_description_lang()
             if lang != self.env.lang:
                 line = line.with_context(lang=lang)
-            line.name = line._get_default_line_description()
+            line.name = line._get_line_description()
+
+    def _get_line_description(self):
+        """Description written into ``name`` by ``_compute_name``.
+
+        The down payment section is described here rather than by the per-model
+        hook: it has no product to describe, and every order type names it the
+        same thing. Without this, ``order.invoice.mixin._get_down_payment_section_line``
+        would create a section with no name at all, which the NOT NULL on
+        ``name`` rejects — a consumer only finds out at the INSERT.
+        """
+        self.ensure_one()
+        if self._is_down_payment_section():
+            return _("Down Payments")
+        return self._get_default_line_description()
+
+    def _is_down_payment_section(self):
+        """Whether this line is the section grouping an order's down payments."""
+        return bool(self.display_type) and self.is_downpayment
 
     def _name_should_be_computed(self):
         """Whether ``name`` is auto-computed for this line.
 
-        Base: product lines only.  Sale also computes for down payments.
+        Base: product lines and the down payment section. Sale and purchase
+        both override ``_compute_name`` outright, so this governs the mixin's
+        own consumers.
         """
-        return bool(self.product_id)
+        return bool(self.product_id) or self._is_down_payment_section()
 
     def _get_line_description_lang(self):
         """Language used to render the line description.

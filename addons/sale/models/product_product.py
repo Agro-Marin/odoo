@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from odoo import _, api, fields, models
 
 
@@ -26,28 +24,13 @@ class ProductProduct(models.Model):
     # ------------------------------------------------------------
 
     def _compute_sales_count(self):
-        self.sales_count = 0.0
-        if not self.env.user.has_group("sales_team.group_sale_salesman"):
-            return
-        date_from = fields.Date.today() - timedelta(days=365)
-        done_states = self.env["sale.report"]._get_done_states()
-        domain = [
-            ("state", "in", done_states),
-            ("product_id", "in", self.ids),
-            ("date_order", ">=", date_from),
-        ]
-        sales_data = {
-            product.id: qty
-            for product, qty in self.env["sale.report"]._read_group(
-                domain,
-                ["product_id"],
-                ["product_uom_qty:sum"],
-            )
-        }
-        for product in self:
-            if not product.id:
-                continue
-            product.sales_count = product.uom_id.round(sales_data.get(product.id, 0))
+        self._compute_ordered_qty(
+            "sales_count",
+            "sale.report",
+            "sales_team.group_sale_salesman",
+            "date_order",
+            [("state", "in", self.env["sale.report"]._get_done_states())],
+        )
 
     @api.depends_context("order_id")
     def _compute_is_in_sale_order(self):

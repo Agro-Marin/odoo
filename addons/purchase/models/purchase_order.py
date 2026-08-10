@@ -726,28 +726,7 @@ class PurchaseOrder(models.Model):
     # ------------------------------------------------------------
 
     def _create_downpayments(self, line_vals):
-        self.ensure_one()
-
-        # create section
-        if not any(line.display_type and line.is_downpayment for line in self.line_ids):
-            section_line = self.line_ids.create(
-                self._prepare_down_payment_line_section_values(),
-            )
-        else:
-            section_line = self.line_ids.filtered(
-                lambda line: line.display_type and line.is_downpayment,
-            )
-        vals = [
-            {
-                **line_val,
-                "sequence": section_line.sequence + i,
-            }
-            for i, line_val in enumerate(line_vals, start=1)
-        ]
-        downpayment_lines = self.env["purchase.order.line"].create(vals)
-        # a simple concatenation would cause all line_ids to recompute, we do not want it to happen
-        self.line_ids = [Command.link(line_id) for line_id in downpayment_lines.ids]
-        return downpayment_lines
+        return self._create_down_payment_lines(line_vals)
 
     def _get_invoiceable_lines(self, final=False):
         """Bills cover every line; sections are filtered while building."""
@@ -1158,16 +1137,12 @@ class PurchaseOrder(models.Model):
         return {"state": "done", "date_confirmed": fields.Datetime.now()}
 
     def _prepare_down_payment_line_section_values(self):
-        """Prepare the values to create a section line for the down payment on the current PO.
-
-        :return: A dictionary to create a new PO section line.
-        """
-        values = super()._prepare_down_payment_line_section_values()
-        values.update(
-            sequence=(self.line_ids[-1:].sequence or 9) + 1,
-            name=_("Down Payments"),
-        )
-        return values
+        """Name the section explicitly: purchase's ``_compute_name`` needs a
+        product, so a display-type line would otherwise come out blank."""
+        return {
+            **super()._prepare_down_payment_line_section_values(),
+            "name": _("Down Payments"),
+        }
 
     def _prepare_grouped_data(self, rfq):
         return (rfq.partner_id.id, rfq.currency_id.id, rfq.dest_address_id.id)

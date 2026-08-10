@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from odoo import _, api, fields, models
 
 
@@ -25,27 +23,13 @@ class ProductProduct(models.Model):
     # ------------------------------------------------------------
 
     def _compute_purchased_product_qty(self):
-        self.purchased_product_qty = 0.0
-        if not self.env.user.has_group("purchase.group_purchase_user"):
-            return
-        date_from = fields.Date.today() - timedelta(days=365)
-        domain = [
-            ("order_id.state", "=", "done"),
-            ("product_id", "in", self.ids),
-            ("date_confirmed", ">=", date_from),
-        ]
-        order_lines = self.env["purchase.order.line"]._read_group(
-            domain,
-            ["product_id"],
-            ["product_uom_qty:sum"],
+        self._compute_ordered_qty(
+            "purchased_product_qty",
+            "purchase.order.line",
+            "purchase.group_purchase_user",
+            "date_confirmed",
+            [("order_id.state", "=", "done")],
         )
-        purchased_data = {product.id: qty for product, qty in order_lines}
-        for product in self:
-            if not product.id:
-                continue
-            product.purchased_product_qty = product.uom_id.round(
-                purchased_data.get(product.id, 0),
-            )
 
     @api.depends_context("order_id")
     def _compute_is_in_purchase_order(self):

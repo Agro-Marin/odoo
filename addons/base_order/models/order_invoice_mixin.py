@@ -477,16 +477,85 @@ class OrderInvoiceMixin(models.AbstractModel):
     def _prepare_down_payment_line_section_values(self):
         """Values for the order-line section grouping down payment lines.
 
-        Common subset of sale and purchase.  Purchase extends with ``name``
-        and a ``sequence`` after the last line; sale's caller supplies the
-        ``sequence`` itself.
+        ``name`` is deliberately absent: purchase supplies a literal, while
+        sale lets ``_compute_name`` derive it so the section reads in the
+        *customer's* language rather than the current user's. Both arrive at
+        "Down Payments"; only sale's is translated for the reader.
         """
         self.ensure_one()
         return {
             "order_id": self.id,
             "display_type": "line_section",
             "is_downpayment": True,
+            "sequence": self._get_next_line_sequence(),
         }
+
+    def _get_next_line_sequence(self):
+        """Sequence placing a new line after every existing one."""
+        self.ensure_one()
+        return max(self.line_ids.mapped("sequence"), default=9) + 1
+
+    def _get_down_payment_section_line(self):
+        """Return this order's down-payment section line, creating it if absent.
+
+        :rtype: recordset of the order line model
+        """
+        self.ensure_one()
+        section = self.line_ids.filtered(
+            lambda line: line.display_type and line.is_downpayment,
+        )[:1]
+        return section or self._create_order_lines(
+            [self._prepare_down_payment_line_section_values()],
+        )
+
+    def _create_down_payment_lines(self, vals_list):
+        """Create down payment lines, sequenced right after their section.
+
+        Sale reached this through two methods a caller had to invoke in order
+        (``_create_down_payment_section_line_if_needed`` then
+        ``_create_down_payment_lines_from_base_lines``) and purchase through
+        one (``_create_downpayments``); the section handling was written twice.
+        Callers keep their own vals preparation — sale converts tax base lines,
+        purchase is handed vals already — and hand the result here.
+
+        :param list vals_list: creation values, without ``sequence``
+        :rtype: recordset of the order line model
+        """
+        self.ensure_one()
+        section = self._get_down_payment_section_line()
+        return self._create_order_lines(
+            [
+                {**vals, "sequence": section.sequence + index}
+                for index, vals in enumerate(vals_list, start=1)
+            ],
+        )
+
+    def _create_order_lines(self, vals_list):
+        """Create order lines without recomputing the whole ``line_ids`` o2m.
+
+        The lines already carry ``order_id``, so linking their ids is enough to
+        attach them; letting the recordset concatenate instead invalidates the
+        one2many and recomputes every line on it.
+
+        ``no_log_for_new_lines`` keeps the chatter quiet: lines created here are
+        a side effect of invoicing, not a user edit.
+
+        ``bypass_locked_check`` because the link re-states an attachment the
+        ``create`` above already made — it adds nothing a user could see, so it
+        must not trip the locked-order guard. Down payments are precisely a flow
+        that runs *after* confirmation, and ``_validate_write_locked_order``
+        rejects every x2many write on a locked order without inspecting it.
+        """
+        self.ensure_one()
+        lines = (
+            self.env[self._get_line_model()]
+            .with_context(no_log_for_new_lines=True)
+            .create(vals_list)
+        )
+        self.with_context(bypass_locked_check=True).line_ids = [
+            Command.link(line_id) for line_id in lines.ids
+        ]
+        return lines
 
     def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
         """Build the ``invoice_line_ids`` commands for one order.

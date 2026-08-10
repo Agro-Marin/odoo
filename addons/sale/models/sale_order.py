@@ -1759,45 +1759,25 @@ class SaleOrder(models.Model):
         :return The newly created SO lines.
         """
         self.ensure_one()
-        sequence = max(self.line_ids.mapped("sequence") or [10]) + 1
-        return (
-            self.env["sale.order.line"]
-            .with_context(no_log_for_new_lines=True)
-            .create(
-                [
-                    {
-                        **self._prepare_down_payment_line_values_from_base_line(
-                            base_line,
-                        ),
-                        "sequence": sequence + index,
-                    }
-                    for index, base_line in enumerate(down_payment_base_lines)
-                ],
-            )
+        return self._create_down_payment_lines(
+            [
+                self._prepare_down_payment_line_values_from_base_line(base_line)
+                for base_line in down_payment_base_lines
+            ],
         )
 
     def _create_down_payment_section_line_if_needed(self):
-        """Add the down section line if not already there on the current SO.
+        """Add the down payment section line if not already there on this SO.
 
-        :return The newly created SO line or None if the section was already there.
+        Kept as a separate entry point because ``sale_make_invoice_advance`` and
+        ``pos_sale`` create the section before they know the down payment lines.
+        ``_create_down_payment_lines`` creates it on demand too, so calling this
+        first is an ordering convenience, not a requirement.
+
+        :return: the section line, whether it already existed or was just created
         """
         self.ensure_one()
-        # If a down payment is already there, then the section is not needed and
-        # has already been created.
-        if any(line.display_type and line.is_downpayment for line in self.line_ids):
-            return None
-
-        sequence = max(self.line_ids.mapped("sequence") or [10]) + 1
-        return (
-            self.env["sale.order.line"]
-            .with_context(no_log_for_new_lines=True)
-            .create(
-                {
-                    **self._prepare_down_payment_line_section_values(),
-                    "sequence": sequence,
-                },
-            )
-        )
+        return self._get_down_payment_section_line()
 
     @api.model
     def _cron_send_pending_emails(self):

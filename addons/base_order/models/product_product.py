@@ -1,6 +1,12 @@
-from odoo import models
+from datetime import timedelta
+
+from odoo import fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 from odoo.tools.translate import _
+
+# How far back the "Sold" / "Purchased" statistics on a product look.
+ORDERED_QTY_WINDOW_DAYS = 365
 
 
 class ProductProduct(models.Model):
@@ -67,6 +73,56 @@ class ProductProduct(models.Model):
             .product_id.ids
         )
         return [("id", "in", product_ids)]
+
+    # ------------------------------------------------------------
+    # ORDERED QUANTITY STATISTICS
+    # ------------------------------------------------------------
+
+    def _compute_ordered_qty(self, field_name, model, group, date_field, domain):
+        """Fill ``field_name`` with the quantity ordered over the last year.
+
+        Sale's "Sold" and purchase's "Purchased" are the same statistic read
+        from different tables: sum ``product_uom_qty`` over confirmed documents
+        inside a rolling window, rounded to the product's own unit. Only the
+        source model, its date field, the gating group and the confirmed-state
+        domain differ, and callers pass those.
+
+        The total is left at 0 for users outside ``group`` rather than computed
+        and hidden — same reasoning as ``res.partner._compute_order_count``.
+
+        :param str field_name: Float field on ``product.product`` to fill
+        :param str model: model to aggregate (``sale.report``, an order line…)
+        :param str group: group the user must hold for a non-zero total
+        :param str date_field: date field on ``model`` bounding the window
+        :param domain: extra domain, typically restricting to confirmed state
+        """
+        self[field_name] = 0.0
+        if not self.env.user.has_group(group):
+            return
+
+        date_from = fields.Date.today() - timedelta(days=ORDERED_QTY_WINDOW_DAYS)
+        quantities = {
+            product.id: qty
+            for product, qty in self.env[model]._read_group(
+                Domain.AND(
+                    [
+                        domain,
+                        [
+                            ("product_id", "in", self.ids),
+                            (date_field, ">=", date_from),
+                        ],
+                    ],
+                ),
+                ["product_id"],
+                ["product_uom_qty:sum"],
+            )
+        }
+        for product in self:
+            # New (unsaved) products have no id to group by and no history.
+            if product.id:
+                product[field_name] = product.uom_id.round(
+                    quantities.get(product.id, 0),
+                )
 
     # ------------------------------------------------------------
     # UNIT OF MEASURE
