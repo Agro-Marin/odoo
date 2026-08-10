@@ -153,6 +153,26 @@ def _init_model_class_attributes(model_cls: type[BaseModel]):
     if not is_model_class(model_cls):
         raise TypeError(f"{model_cls!r} is not a registry model class")
 
+    # A cycle in `_inherit_children` recurses through the loop at the end of
+    # this function until the stack is exhausted: ~1000 identical frames, no
+    # model named, and a half-built database left behind. Reproduced on a real
+    # `-i` install of three ordinary addons.
+    #
+    # Same shape as the `_inherits` guard in `_setup` below -- an in-progress
+    # marker in the class's own `__dict__` (never inherited), removed in a
+    # `finally` -- because it is the same failure one relationship over:
+    # `_inherits` is delegation, `_inherit` is extension, and either can be
+    # made circular by two addons that do not know about each other.
+    if model_cls.__dict__.get("_init_attrs_in_progress__", False):
+        raise TypeError(f"Circular _inherit chain involving model {model_cls._name!r}")
+    model_cls._init_attrs_in_progress__ = True
+    try:
+        _init_model_class_attributes_once(model_cls)
+    finally:
+        del model_cls._init_attrs_in_progress__
+
+
+def _init_model_class_attributes_once(model_cls: type[BaseModel]):
     model_cls._description = model_cls._name
     model_cls._table = model_cls._name.replace(".", "_")
     model_cls._log_access = model_cls._auto
