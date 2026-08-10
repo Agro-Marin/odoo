@@ -1,4 +1,15 @@
-"""Public-surface ratchet for the ``web`` addon's JavaScript.
+"""Public-surface ratchet for a governed addon's JavaScript.
+
+Addon-parameterised via ``--addon``, defaulting to ``web``; each governed addon
+has its own pin file (``public_surface_<addon>.txt``). ``mail`` is the second,
+added because it has the same property and the second-largest JS tree in the
+repo: **93 specifiers reached from outside it, 88 from production code and 88
+three or more segments deep** — two different partitions of the 93 that happen
+to share a number (5 are test-only; a different 5 are shallow, and those five
+are exactly the `model/` and `js/` directories, the two that carry no
+deployment-layer suffix). Everything the rest of this
+docstring says about `web` — no declared boundary, moves priced in downstream
+edits, the pin as the worklist — is true of `mail` verbatim.
 
 `web` has no declared API. Every file under ``static/src`` is reachable as
 ``@web/<path>``, and **327 distinct specifiers are imported from outside the
@@ -88,10 +99,11 @@ documented escape hatch by which other addons reach web's test helpers.
 
 Usage::
 
-    python tooling/architecture/js_public_surface.py            # report
-    python tooling/architecture/js_public_surface.py --check    # CI, exit 1
-    python tooling/architecture/js_public_surface.py --update   # rewrite the pin
+    python tooling/architecture/js_public_surface.py                     # report
+    python tooling/architecture/js_public_surface.py --check             # CI, exit 1
+    python tooling/architecture/js_public_surface.py --update            # rewrite the pin
     python tooling/architecture/js_public_surface.py --json
+    python tooling/architecture/js_public_surface.py --addon mail --check
 
 ``--update`` refuses to run unless every consumer checkout is present: an
 update from a partial checkout could only erase the absent scopes' provenance,
@@ -109,8 +121,40 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_public_surface")
+
+# The gate is addon-parameterised, defaulting to `web` so every existing call
+# site, test and pin file keeps its meaning. `mail` is the second governed
+# addon: 392 files, and the same "every internal path is reachable" property —
+# 93 specifiers, 88 of them reached from production code. Adding a third addon is
+# a `--addon` argument and a harvested pin file, not a code change.
+GOVERNED_ADDONS = ("web", "mail")
+DEFAULT_ADDON = "web"
+
+# `WEB` and `PINNED` stay module-level, and the two resolvers below return them
+# for the default addon rather than re-deriving. That is deliberate, not
+# vestigial: the suite redirects the gate at a synthetic tree by monkeypatching
+# these names, and a resolver that ignored them would silently point every test
+# back at the real checkout. That is not hypothetical — it is what the first
+# draft of this refactor did, and `--update` under test then overwrote the real
+# `public_surface_web.txt` with two-line fixture data.
 WEB = ROOT / "addons" / "web"
-PINNED = Path(__file__).resolve().parent / "public_surface_web.txt"
+
+
+def addon_root(addon: str = DEFAULT_ADDON) -> Path:
+    return WEB if addon == DEFAULT_ADDON else ROOT / "addons" / addon
+
+
+def pin_path(addon: str = DEFAULT_ADDON) -> Path:
+    if addon == DEFAULT_ADDON:
+        return PINNED
+    return Path(__file__).resolve().parent / f"public_surface_{addon}.txt"
+
+
+def specifier_prefix(addon: str = DEFAULT_ADDON) -> str:
+    return f"@{addon}/"
+
+
+PINNED = Path(__file__).resolve().parent / f"public_surface_{DEFAULT_ADDON}.txt"
 
 # Consumer scopes: (name, checkout root). The name is the provenance tag the
 # pin file records, deliberately canonical rather than the on-disk directory
@@ -148,16 +192,27 @@ def _named_roots(consumer_roots) -> list[tuple[str, Path]]:
     return named
 
 
-def _is_web_internal(path: Path) -> bool:
+def _is_addon_internal(path: Path, addon: str = DEFAULT_ADDON) -> bool:
+    """The governed addon's own imports of its own specifiers are not surface.
+
+    A module importing its own addon is an internal edge; counting it would
+    measure the tree's size rather than its exposure.
+    """
     try:
-        path.relative_to(WEB)
+        path.relative_to(addon_root(addon))
     except ValueError:
         return False
     return True
 
 
+def _is_web_internal(path: Path) -> bool:
+    """Back-compatible alias for the `web` default."""
+    return _is_addon_internal(path, "web")
+
+
 def measure_detailed(
     consumer_roots=CONSUMER_ROOTS,
+    addon: str = DEFAULT_ADDON,
 ) -> dict[str, dict[str, tuple[int, int]]]:
     """``{specifier: {scope: (production importers, test importers)}}``.
 
@@ -187,15 +242,16 @@ def measure_detailed(
             text = path.as_posix()
             if "/static/lib/" in text or "/node_modules/" in text:
                 continue
-            if _is_web_internal(path):
+            if _is_addon_internal(path, addon):
                 continue
             try:
                 source = path.read_text(encoding="utf8")
             except UnicodeDecodeError, OSError:
                 continue
             slot = 1 if "/static/tests/" in text else 0
+            prefix = specifier_prefix(addon)
             for spec in imported_specifiers(source):
-                if not spec.startswith("@web/") or spec.startswith("@web/../"):
+                if not spec.startswith(prefix) or spec.startswith(f"{prefix}../"):
                     continue
                 found.setdefault(spec, {}).setdefault(name, [0, 0])[slot] += 1
     return {
@@ -204,7 +260,9 @@ def measure_detailed(
     }
 
 
-def measure_by_scope(consumer_roots=CONSUMER_ROOTS) -> dict[str, tuple[int, int]]:
+def measure_by_scope(
+    consumer_roots=CONSUMER_ROOTS, addon: str = DEFAULT_ADDON
+) -> dict[str, tuple[int, int]]:
     """``{specifier: (production importers, test importers)}`` outside `web`,
     summed over the consumer checkouts present. See :func:`measure_detailed`.
     """
@@ -213,15 +271,17 @@ def measure_by_scope(consumer_roots=CONSUMER_ROOTS) -> dict[str, tuple[int, int]
             sum(prod for prod, _ in scopes.values()),
             sum(test for _, test in scopes.values()),
         )
-        for spec, scopes in measure_detailed(consumer_roots).items()
+        for spec, scopes in measure_detailed(consumer_roots, addon).items()
     }
 
 
-def measure(consumer_roots=CONSUMER_ROOTS) -> dict[str, int]:
+def measure(
+    consumer_roots=CONSUMER_ROOTS, addon: str = DEFAULT_ADDON
+) -> dict[str, int]:
     """``{specifier: importing files}`` over every consumer outside `web`."""
     return {
         spec: prod + test
-        for spec, (prod, test) in measure_by_scope(consumer_roots).items()
+        for spec, (prod, test) in measure_by_scope(consumer_roots, addon).items()
     }
 
 
@@ -232,7 +292,7 @@ def provenance(
     return {spec: frozenset(scopes) for spec, scopes in detailed.items()}
 
 
-def load_pinned() -> dict[str, frozenset[str]]:
+def load_pinned(addon: str = DEFAULT_ADDON) -> dict[str, frozenset[str]]:
     """``{specifier: pinned scopes}``.
 
     A line is ``<specifier>  <scope> <scope>...``. A tagless line — the
@@ -241,9 +301,10 @@ def load_pinned() -> dict[str, frozenset[str]]:
     reading it any narrower would silently drop pins on upgrade.
     """
     pinned: dict[str, frozenset[str]] = {}
-    if not PINNED.is_file():
+    path = pin_path(addon)
+    if not path.is_file():
         return pinned
-    for line in PINNED.read_text(encoding="utf8").splitlines():
+    for line in path.read_text(encoding="utf8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -257,11 +318,14 @@ def _scope_order(scope: str) -> tuple[int, str]:
     return (names.index(scope) if scope in names else len(names), scope)
 
 
-def write_pinned(measured_provenance: dict[str, frozenset[str]]) -> None:
+def write_pinned(
+    measured_provenance: dict[str, frozenset[str]], addon: str = DEFAULT_ADDON
+) -> None:
     """Rewrite the pin from the measured surface, sorted, with provenance."""
     header = (
-        "# The `@web/*` specifiers imported from outside the web addon: web's\n"
-        "# public surface, as it is rather than as anyone designed it. Each\n"
+        f"# The `@{addon}/*` specifiers imported from outside the {addon} addon:\n"
+        f"# {addon}'s public surface, as it is rather than as anyone designed it.\n"
+        "# Each\n"
         "# entry names the consumer checkout(s) importing it — its provenance —\n"
         "# and the gate judges only the scopes present in the environment, so\n"
         "# a repo-alone CI checkout validates the `odoo` scope and the sibling\n"
@@ -275,13 +339,14 @@ def write_pinned(measured_provenance: dict[str, frozenset[str]]) -> None:
         "# Every entry is deliberately unclassified beyond provenance — see the\n"
         "# module docstring on why most of this surface has no defensible tier\n"
         "# yet.\n"
-        "# Generated by tooling/architecture/js_public_surface.py --update.\n"
+        "# Generated by tooling/architecture/js_public_surface.py --update"
+        f"{'' if addon == DEFAULT_ADDON else f' --addon {addon}'}.\n"
     )
     lines = [
         f"{spec}  {' '.join(sorted(scopes, key=_scope_order))}"
         for spec, scopes in sorted(measured_provenance.items())
     ]
-    PINNED.write_text(header + "\n".join(lines) + "\n", encoding="utf8")
+    pin_path(addon).write_text(header + "\n".join(lines) + "\n", encoding="utf8")
 
 
 def drift(
@@ -311,10 +376,10 @@ def drift(
     return new, gone
 
 
-def unresolved(specifiers) -> list[str]:
-    """The specifiers that resolve to no module in ``web``.
+def unresolved(specifiers, addon: str = DEFAULT_ADDON) -> list[str]:
+    """The specifiers that resolve to no module in the governed addon.
 
-    A specifier is a path into ``web/static/src``: ``@web/a/b`` is ``a/b.js``,
+    A specifier is a path into ``<addon>/static/src``: ``@web/a/b`` is ``a/b.js``,
     or ``a/b/index.js`` where the module publishes a face. One matching neither
     is not surface at all — it is an import that cannot load, recorded as
     surface because the harvest measures what consumers *write* rather than
@@ -325,13 +390,14 @@ def unresolved(specifiers) -> list[str]:
     that resolves to no file as evidence the harvest was wrong rather than as
     surface to preserve.
     """
-    src = WEB / "static" / "src"
+    src = addon_root(addon) / "static" / "src"
+    prefix = specifier_prefix(addon)
     return sorted(
         spec
         for spec in specifiers
         if not (
-            (src / f"{spec.removeprefix('@web/')}.js").is_file()
-            or (src / spec.removeprefix("@web/") / "index.js").is_file()
+            (src / f"{spec.removeprefix(prefix)}.js").is_file()
+            or (src / spec.removeprefix(prefix) / "index.js").is_file()
         )
     )
 
@@ -341,12 +407,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="exit 1 on drift")
     parser.add_argument("--update", action="store_true", help="rewrite the pin")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--addon",
+        default=DEFAULT_ADDON,
+        choices=GOVERNED_ADDONS,
+        help="which addon's surface to measure and pin (default: web)",
+    )
     args = parser.parse_args(argv)
+    addon = args.addon
 
-    if not (WEB / "static" / "src").is_dir():
+    if not (addon_root(addon) / "static" / "src").is_dir():
         # A gate that cannot find its inputs must say so rather than scan
         # nothing and report success.
-        parser.error(f"no web addon at {WEB}")
+        parser.error(f"no {addon} addon at {addon_root(addon)}")
 
     present = [name for name, _ in _named_roots(CONSUMER_ROOTS)]
     absent = [name for name, _ in CONSUMER_ROOTS if name not in present]
@@ -360,23 +433,23 @@ def main(argv: list[str] | None = None) -> int:
             + ", ".join(absent)
         )
 
-    detailed = measure_detailed(CONSUMER_ROOTS)
+    detailed = measure_detailed(CONSUMER_ROOTS, addon)
     if not detailed:
         parser.error("measured an empty surface — the scan reached nothing")
     measured_provenance = provenance(detailed)
 
     if args.update:
-        write_pinned(measured_provenance)
-        print(f"wrote {PINNED.name}: {len(measured_provenance)} specifier(s)")
+        write_pinned(measured_provenance, addon)
+        print(f"wrote {pin_path(addon).name}: {len(measured_provenance)} specifier(s)")
         return 0
 
-    pinned = load_pinned()
+    pinned = load_pinned(addon)
     new, gone = drift(measured_provenance, pinned, present)
 
     # Judged against the measurement, not the pin: an import that resolves to
     # nothing is wrong the moment it is written, and waiting for it to be
     # pinned is how the pin came to record three of them.
-    dangling = set(unresolved(measured_provenance))
+    dangling = set(unresolved(measured_provenance, addon))
     unexpected = sorted(dangling - KNOWN_UNRESOLVED)
     resolved = sorted(KNOWN_UNRESOLVED - dangling)
 
@@ -415,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"consumer scopes present: {', '.join(present)}")
     if absent:
         print(f"  absent, validated in their own CI: {', '.join(absent)}")
-    print(f"measured {len(measured)} specifier(s) imported from outside web")
+    print(f"measured {len(measured)} specifier(s) imported from outside {addon}")
     deep = sum(1 for s in measured if s.count("/") >= 3)
     test_only = sum(1 for prod, test in by_scope.values() if prod == 0 and test)
     print(f"  of which {deep} reach three or more segments deep")

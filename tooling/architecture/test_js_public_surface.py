@@ -354,3 +354,85 @@ def test_the_real_surface_carries_no_unaccounted_dangling_specifier():
     assert set(jps.unresolved(measured)) <= jps.KNOWN_UNRESOLVED, (
         "a specifier imported from outside web resolves to no module in it"
     )
+
+
+# --- the second governed addon ---
+
+
+def test_mail_is_governed_and_its_pin_matches_the_measured_surface():
+    """`mail` is the second addon under this ratchet. Same contract, same
+    machinery, its own pin file — so a regression in the parameterisation shows
+    up here rather than as a silently unenforced second gate."""
+    assert "mail" in jps.GOVERNED_ADDONS
+    detailed = jps.measure_detailed(jps.CONSUMER_ROOTS, "mail")
+    assert len(detailed) > 50, "expected the real consumer tree to be found"
+    assert "@mail/core/common/record" in detailed, (
+        "the model layer's entry point is imported from outside mail and must "
+        "be measured"
+    )
+    pinned = jps.load_pinned("mail")
+    assert pinned, "no mail pin file — the ratchet would pass against nothing"
+    present = [name for name, _ in jps._named_roots(jps.CONSUMER_ROOTS)]
+    new, gone = jps.drift(jps.provenance(detailed), pinned, present)
+    assert (new, gone) == ({}, {}), (
+        f"mail surface drift in scopes {sorted(set(new) | set(gone))}: "
+        f"{ {s: v[:5] for s, v in new.items()} } new, "
+        f"{ {s: v[:5] for s, v in gone.items()} } gone"
+    )
+
+
+def test_the_two_addons_do_not_share_a_pin_file():
+    """A parameterisation bug that collapsed both onto one path would make the
+    second addon overwrite the first's pin on `--update`, which is how the real
+    `public_surface_web.txt` was briefly destroyed while this was being written."""
+    assert jps.pin_path("web") != jps.pin_path("mail")
+    assert jps.pin_path("web").name == "public_surface_web.txt"
+    assert jps.pin_path("mail").name == "public_surface_mail.txt"
+
+
+def test_mails_shallow_surface_is_exactly_the_unlayered_directories():
+    """93 specifiers, 88 of them three or more segments deep. The five that are
+    not are worth naming rather than rounding away: `@mail/model/*` (3) and
+    `@mail/js/*` (2) — precisely the two top-level directories that carry no
+    deployment-layer suffix and get their own explicit manifest glob lines.
+
+    Mail's only shallow, layer-edge API is the part of the tree that opted out
+    of the layer scheme. That is a finding, not a rounding error, and folding
+    `js/` into the scheme is expected to move these entries.
+    """
+    measured = jps.measure(jps.CONSUMER_ROOTS, "mail")
+    shallow = sorted(s for s in measured if s.count("/") < 3)
+    assert shallow == [
+        "@mail/js/emojis_mixin",
+        "@mail/js/onchange_on_keydown",
+        "@mail/model/export",
+        "@mail/model/misc",
+        "@mail/model/record",
+    ]
+
+
+def test_mails_deep_and_production_counts_are_different_partitions():
+    """Both are 88 of 93, which invites reading them as one fact. They are not:
+    the 5 shallow specifiers and the 5 test-only ones are different sets."""
+    detailed = jps.measure_detailed(jps.CONSUMER_ROOTS, "mail")
+    deep = {s for s in detailed if s.count("/") >= 3}
+    production = {
+        s for s, scopes in detailed.items() if any(prod for prod, _ in scopes.values())
+    }
+    assert len(deep) == len(production), "the coincidence this test exists to explain"
+    assert deep != production, (
+        "if these ever coincide, the two numbers really are one fact and this "
+        "test should be replaced by a comment saying so"
+    )
+
+
+def test_an_addons_own_imports_are_not_its_surface():
+    """`_is_addon_internal` is what keeps the list tracking exposure rather than
+    tree size. Getting this wrong inflated the first hand-measurement of mail's
+    surface from 88 to 215."""
+    assert jps._is_addon_internal(
+        jps.ROOT / "addons" / "mail" / "static" / "src" / "x.js", "mail"
+    )
+    assert not jps._is_addon_internal(
+        jps.ROOT / "addons" / "web" / "static" / "src" / "x.js", "mail"
+    )
