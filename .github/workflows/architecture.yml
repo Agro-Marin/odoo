@@ -746,6 +746,28 @@ jobs:
           set -e
           exit $rc
 
+      - name: Run archInfo surface gate
+        id: js_arch_info_surface
+        # Blocking. `archInfo` is what an ArchParser returns and what a view's
+        # model, controller, renderer and compiler all read by name. One slice
+        # of it has no static protection anywhere: the compiler does not READ
+        # `archInfo.fieldNodes`, it emits that text into a template it registers
+        # with OWL, so until OWL compiles it the key is a string — invisible to
+        # tsc, to ESLint, and to every import- or member-based gate here.
+        #
+        # Measured: renaming `fieldNodes` in `list_arch_parser.js` alone left
+        # tsc at 2106 errors (its exact floor) and the whole architecture suite
+        # with an identical failure set to pristine HEAD, while breaking 509 of
+        # 577 list-view Hoot tests. This gate exits 1 on it.
+        run: |
+          set +e
+          python tooling/architecture/js_arch_info_surface.py --check \
+            | tee /tmp/js_arch_info.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+          exit "${GATE_EXIT}"
+
       - name: Run XML reference-coherence check
         id: xml_refs
         # Blocking, judged per consumer scope. Half the client's dependency
@@ -903,7 +925,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
-        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.pool_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_deployment_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0' || steps.js_parity.outputs.exit_code != '0' || steps.js_cohesion.outputs.exit_code != '0' || steps.js_resolution.outputs.exit_code != '0' || steps.js_self_bridge.outputs.exit_code != '0' || steps.js_forced_render.outputs.exit_code != '0' || steps.js_patch_blind_facade.outputs.exit_code != '0' || steps.py_funclen.outputs.exit_code != '0' || steps.js_funclen.outputs.exit_code != '0' || steps.naming_vocab.outputs.exit_code != '0' || steps.js_private.outputs.exit_code != '0' || steps.js_serviceshape.outputs.exit_code != '0' || steps.js_surface.outputs.exit_code != '0' || steps.js_surface_mail.outputs.exit_code != '0' || steps.js_extension_surface.outputs.exit_code != '0' || steps.js_env_config_surface.outputs.exit_code != '0' || steps.xml_refs.outputs.exit_code != '0' || steps.js_mixin_coupling.outputs.exit_code != '0')
+        if: always() && (steps.layers.outputs.exit_code != '0' || steps.mixin_coupling.outputs.exit_code != '0' || steps.subsystem_map.outputs.exit_code != '0' || steps.package_index.outputs.exit_code != '0' || steps.env_surface.outputs.exit_code != '0' || steps.pool_surface.outputs.exit_code != '0' || steps.env_model_surface.outputs.exit_code != '0' || steps.worker_thread_surface.outputs.exit_code != '0' || steps.libs_facade.outputs.exit_code != '0' || steps.py_cycles.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_deployment_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0' || steps.named_exports.outputs.exit_code != '0' || steps.js_parity.outputs.exit_code != '0' || steps.js_cohesion.outputs.exit_code != '0' || steps.js_resolution.outputs.exit_code != '0' || steps.js_self_bridge.outputs.exit_code != '0' || steps.js_forced_render.outputs.exit_code != '0' || steps.js_patch_blind_facade.outputs.exit_code != '0' || steps.py_funclen.outputs.exit_code != '0' || steps.js_funclen.outputs.exit_code != '0' || steps.naming_vocab.outputs.exit_code != '0' || steps.js_private.outputs.exit_code != '0' || steps.js_serviceshape.outputs.exit_code != '0' || steps.js_surface.outputs.exit_code != '0' || steps.js_surface_mail.outputs.exit_code != '0' || steps.js_extension_surface.outputs.exit_code != '0' || steps.js_env_config_surface.outputs.exit_code != '0' || steps.js_arch_info_surface.outputs.exit_code != '0' || steps.xml_refs.outputs.exit_code != '0' || steps.js_mixin_coupling.outputs.exit_code != '0')
         uses: actions/github-script@v7
         with:
           script: |
