@@ -1,11 +1,23 @@
 """Resource levelling: when a task is moved off an assignee, and when it is not."""
 
 from odoo import Command
-from odoo.tests import tagged
+from odoo.tests import freeze_time, tagged
 
 from .test_project_base import TestProjectCommon
 
 
+# Every test here starts its schedule at "now", so the answer depends on where
+# in the working day the suite happens to run. `test_a_day_asked_for_more_than
+# _it_holds_is_relieved` asserts that a full 8h anchor leaves no room for an
+# extra quarter-hour -- true when the day starts fresh, false once "now" is
+# already partway through it and the anchor spills into the next day, taking
+# the light task's slot with it. The suite passed after 17:00 Brussels and
+# failed at 14:00 for exactly that reason.
+#
+# 05:00 UTC is 07:00 in the calendar's Europe/Brussels, i.e. just before the
+# 08:00 start, so the schedule always opens on a whole working day. Monday, so
+# the day is not a weekend either.
+@freeze_time("2026-08-10 05:00:00")
 @tagged("post_install", "-at_install")
 class TestResourceLevelling(TestProjectCommon):
     def _project(self, name):
