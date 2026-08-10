@@ -21,9 +21,7 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
             {
                 "partner_id": cls.vendor.id,
                 "line_ids": [
-                    Command.create(
-                        {"product_id": product.id, "product_qty": 5}
-                    )
+                    Command.create({"product_id": product.id, "product_qty": 5})
                 ],
             }
         )
@@ -40,9 +38,7 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
 
     def test_order_page_with_token_renders(self):
         """A valid token shows the vendor the order page."""
-        res = self.url_open(
-            f"/my/purchase/{self.order.id}?access_token={self.token}"
-        )
+        res = self.url_open(f"/my/purchase/{self.order.id}?access_token={self.token}")
         self.assertEqual(res.status_code, 200)
         self.assertIn(self.order.name, res.text)
 
@@ -50,8 +46,7 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
         """Acknowledging marks the order and redirects with the banner."""
         self.assertFalse(self.order.acknowledged)
         res = self.url_open(
-            f"/my/purchase/{self.order.id}"
-            f"?access_token={self.token}&acknowledge=1"
+            f"/my/purchase/{self.order.id}?access_token={self.token}&acknowledge=1"
         )
         self.assertIn("message=ack_ok", res.url)
         self.assertTrue(self.order.acknowledged)
@@ -95,8 +90,7 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
     def test_download_edi_serves_xml(self):
         """With the fork's default builder the EDI download serves XML."""
         res = self.url_open(
-            f"/my/purchase/{self.order.id}/download_edi"
-            f"?access_token={self.token}"
+            f"/my/purchase/{self.order.id}/download_edi?access_token={self.token}"
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.headers.get("Content-Type"), "text/xml")

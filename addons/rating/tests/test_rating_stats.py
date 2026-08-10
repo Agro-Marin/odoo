@@ -98,7 +98,9 @@ class TestRatingStats(TransactionCase):
         # integer field: 200/3 truncates to 66
         self.assertEqual(self.project.rating_percentage_satisfaction, 66)
         self.assertAlmostEqual(
-            self.project.rating_avg_percentage, 11 / 15, places=2,
+            self.project.rating_avg_percentage,
+            11 / 15,
+            places=2,
         )
 
     def test_parent_without_ratings_uses_sentinel(self):
@@ -161,7 +163,9 @@ class TestRatingExternalRoutes(HttpCase):
     def test_foreign_internal_user_gets_invalid_partner_page(self):
         """Another customer's rating never shows the submit form."""
         new_test_user(
-            self.env, login="foreign_rater", groups="base.group_user",
+            self.env,
+            login="foreign_rater",
+            groups="base.group_user",
         )
         self.authenticate("foreign_rater", "foreign_rater")
         res = self.url_open(f"/rate/{self.token}/5")
@@ -183,6 +187,8 @@ class TestRatingExternalRoutes(HttpCase):
         self.assertEqual(self.rating.rating, 5)
         self.assertTrue(self.rating.consumed)
         self.assertIn("Excellent work", self.rating.feedback)
-        self.assertTrue(self.task.message_ids.filtered(
-            lambda m: m.rating_ids and self.rating in m.rating_ids
-        ))
+        self.assertTrue(
+            self.task.message_ids.filtered(
+                lambda m: m.rating_ids and self.rating in m.rating_ids
+            )
+        )
