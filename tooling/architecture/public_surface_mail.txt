@@ -82,7 +82,6 @@
 @mail/discuss/voice_message/common/voice_recorder  enterprise
 @mail/discuss/web/avatar_card/avatar_card_popover  odoo
 @mail/js/emojis_mixin  enterprise
-@mail/js/onchange_on_keydown  odoo
 @mail/js/rotting_mixin/rotting_column_progress  odoo
 @mail/js/rotting_mixin/rotting_kanban_controller  odoo
 @mail/js/rotting_mixin/rotting_kanban_header  odoo enterprise
@@ -108,3 +107,4 @@
 @mail/views/web/fields/kanban_activity/kanban_activity  odoo
 @mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field  odoo enterprise
 @mail/views/web/fields/many2one_avatar_user_field/many2one_avatar_user_field  odoo
+@mail/views/web/fields/onchange_on_keydown  odoo

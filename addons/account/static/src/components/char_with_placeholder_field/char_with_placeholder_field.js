@@ -1,7 +1,7 @@
 /** @odoo-module native */
-// Ensure that in Hoot tests, this module is loaded after `@mail/js/onchange_on_keydown`
+// Ensure that in Hoot tests, this module is loaded after `@mail/views/web/fields/onchange_on_keydown`
 // (needed because that module patches `charField`).
-import "@mail/js/onchange_on_keydown";
+import "@mail/views/web/fields/onchange_on_keydown";
 
 import { registry } from "@web/core/registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";

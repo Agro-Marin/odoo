@@ -8,6 +8,7 @@ declare module "services" {
     import { discussCorePublicWeb } from "@mail/discuss/core/public_web/discuss_core_public_web_service";
     import { discussCoreWeb } from "@mail/discuss/core/web/discuss_core_web_service";
     import { im_status } from "@mail/core/common/im_status_service";
+    import { linkNavigationService } from "@mail/core/common/link_navigation_service";
     import { mailCoreCommon } from "@mail/core/common/mail_core_common_service";
     import { mailCoreWeb } from "@mail/core/web/mail_core_web_service";
     import { mailPopoutService } from "@mail/core/common/mail_popout_service";
@@ -33,6 +34,7 @@ declare module "services" {
         "mail.attachment_upload": typeof attachmentUploadService;
         "mail.core.common": typeof mailCoreCommon;
         "mail.core.web": typeof mailCoreWeb;
+        "mail.link_navigation": typeof linkNavigationService;
         "mail.notification.permission": typeof notificationPermissionService;
         "mail.out_of_focus": typeof outOfFocusService;
         "mail.popout": typeof mailPopoutService;
