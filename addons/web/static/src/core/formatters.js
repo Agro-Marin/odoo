@@ -238,10 +238,16 @@ export function formatInteger(value, options = {}) {
     const grouping = options.grouping || l10n.grouping;
     const thousandsSep =
         "thousandsSep" in options ? options.thousandsSep : l10n.thousandsSep;
-    const digits =
+    let digits =
         Math.abs(value) >= 1e21
             ? BigInt(Math.trunc(value)).toString()
             : value.toFixed(0);
+    if (digits === "-0") {
+        // `toFixed(0)` keeps the sign of anything in (-1, 0), so -0.4 rendered
+        // as "-0". There is no negative zero integer on the server -- Python
+        // prints "0" -- and a field showing "-0" reads as a bug to the user.
+        digits = "0";
+    }
     return insertThousandsSep(digits, thousandsSep, grouping);
 }
 /** @param {FieldInfoNode} node */
