@@ -29,6 +29,7 @@ filter (`-u mail`) alone, not by a topic tag.
 | `mail_hardening_v11` (7) | `test_mail_hardening_v11.py` | Hardening v11: `/mail/data` fetch-param isolation, dynamic-model-name guards, controller id coercion, inbox fan-out cost |
 | `mail_hardening_v12` (2) | `test_mail_hardening_v12.py` | Hardening v12: regex-render root resolution, `_prepare_message_data` `from_create` contract |
 | `mail_hardening_v13` (3) | `test_mail_hardening_v13.py` | Hardening v13: activity reschedule vs assignee timezone, the UTC "today" fallback, batched `_notify_thread_by_email` mail↔notification pairing |
+| `mail_asset_index` (3) | `test_mail_asset_index.py` | `core/common/_models.js` lists exactly the `*_model.js` files beside it. Reads the tree, needs no database or bundle |
 | `mail_controller` (7) | `test_mock_server_contract.py`, `discuss/test_*_controller.py` (message, reaction, binary, message_update, thread, attachment) | HTTP controller ↔ store-payload contract |
 | `mail_store_contract` | `test_mock_server_contract.py` | The JS-store ↔ server payload shape contract |
 | `mail_tools` | `test_mail_tools.py`, `test_res_users.py`, `test_res_partner.py` | Email parsing/normalization helpers |
