@@ -436,7 +436,10 @@ export class WebChatter extends Chatter {
 
     onCloseFullComposerCallback(isDiscard) {
         this.toggleComposer();
-        super.onCloseFullComposerCallback();
+        // forward like every other super call in this file (`load`,
+        // `changeThread`): the base takes no argument today, and an override
+        // inserted between the two must not be the thing that discovers it
+        super.onCloseFullComposerCallback(...arguments);
         if (!isDiscard) {
             this.reloadParentView();
         }

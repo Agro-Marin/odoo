@@ -126,7 +126,9 @@ const suggestionServicePatch = {
     },
     /** @override */
     sortPartnerSuggestionsContext(thread) {
-        return Object.assign(super.sortPartnerSuggestionsContext(), {
+        // forward: dropping the argument here severs the chain, so an override
+        // patched below this one never sees the thread (@see isSuggestionValid)
+        return Object.assign(super.sortPartnerSuggestionsContext(...arguments), {
             recentChatPartnerIds: this.store.getRecentChatPartnerIds(),
             memberPartnerIds: new Set(
                 thread?.channel_member_ids

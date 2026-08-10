@@ -312,7 +312,15 @@ export class SuggestionService {
         return [...specials, ...regular];
     }
 
-    sortPartnerSuggestionsContext() {
+    /**
+     * Per-sort context handed to every partner comparator. Overridable; the
+     * `thread` parameter is part of the contract even though the base makes no
+     * use of it (@see isSuggestionValid, same shape) — declaring it is what
+     * lets an override below `discuss`'s patch in the chain receive it.
+     *
+     * @param {import("models").Thread} [thread]
+     */
+    sortPartnerSuggestionsContext(thread) {
         return {};
     }
 
