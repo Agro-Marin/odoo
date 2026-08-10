@@ -1314,9 +1314,16 @@ class WebsocketRequest:
         self.session = self._get_session()
 
         try:
-            self.registry = Registry(self.db)
+            # `check_signaling()` RETURNS the live registry and may return a
+            # different object than the one it was called on: when another
+            # worker has signalled a change, it rebuilds and publishes a
+            # replacement, and the receiver stays behind as a fully-formed,
+            # `ready` registry with its own model classes. Discarding the return
+            # left `self.registry` holding that superseded object, and
+            # `cookies` below reads `self.registry["ir.http"]._sanitize_cookies`
+            # off it -- the pre-reload class, for the life of the connection.
+            self.registry = Registry(self.db).check_signaling()
             threading.current_thread().dbname = self.registry.db_name
-            self.registry.check_signaling()
         except (
             AttributeError,
             psycopg.OperationalError,

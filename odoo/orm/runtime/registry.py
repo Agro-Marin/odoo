@@ -663,6 +663,39 @@ class Registry(
         return registry_sequence, cache_sequences
 
     def check_signaling(self, cr: BaseCursor | None = None) -> Registry:
+        """Apply pending signals and return **the live registry**.
+
+        ``registry = registry.check_signaling()``. The return value is not
+        optional decoration: when another worker has signalled a registry
+        change, this rebuilds and publishes a replacement and returns *that*.
+        The receiver is left behind as a fully-formed registry -- ``ready`` is
+        still True, its ``models`` still resolve -- so nothing about the stale
+        object announces that it is stale. Verified against a live pair:
+        ``held is not returned``, both ``ready``, and
+        ``held["res.partner"] is not returned["res.partner"]``.
+
+        What saves most callers is that they do not keep it: a fresh
+        ``Environment`` re-resolves through ``Registry(cr.dbname)`` and gets the
+        published one regardless. The ones that bite are those that *hold* the
+        object and read models off it later --
+        ``addons/bus/websocket.py`` did exactly that and served
+        ``ir.http._sanitize_cookies`` from the superseded class for the life of
+        a connection.
+
+        Discarding the result is legitimate in one case, and it is worth
+        stating so the next reader does not "fix" it: ``service/_prefork.py``
+        wants only the cache-invalidation side effect for registries it does not
+        otherwise touch. ``addons/base/models/ir_cron.py`` uses the identity
+        change as a signal (``if self.pool is not self.pool.check_signaling()``)
+        and then resets the transaction, which re-resolves -- also correct.
+
+        The name conflates two jobs and a cleaner shape would separate them --
+        ``apply_signals()`` for the side effect, a lookup for the object. It is
+        not done here because the instance receiver is load-bearing for the
+        tests: ``orm/tests/test_registry_signaling.py`` builds deliberately
+        stale registries and asks *those* to check themselves, which a
+        classmethod keyed by database name could not express.
+        """
         own_cursor = cr is None
         try:
             with (

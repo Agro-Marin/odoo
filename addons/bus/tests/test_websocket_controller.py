@@ -1,3 +1,4 @@
+import contextlib
 import json
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlsplit
@@ -238,6 +239,48 @@ class TestInvalidDatabase(WebsocketCase):
         ):
             ws.send(json.dumps({"event_name": "noop", "data": {}}))
             self.assert_close_with_code(ws, CloseCode.TRY_LATER)
+
+    def test_the_registry_kept_is_the_one_check_signaling_returned(self):
+        """`check_signaling()` may hand back a DIFFERENT registry, and this
+        request has to keep that one.
+
+        When another worker signals a change, the call rebuilds and publishes a
+        replacement and returns it; the receiver is left behind as a
+        fully-formed, `ready` registry with its own model classes, so nothing
+        about it announces that it is stale. `serve_websocket_message` used to
+        write
+
+            self.registry = Registry(self.db)
+            self.registry.check_signaling()          # return discarded
+
+        which held the superseded object for the life of the connection --
+        including for `cookies`, which reads
+        `self.registry["ir.http"]._sanitize_cookies` off it.
+
+        A sentinel stands in for the replacement, because what is being pinned
+        is which object survives the call, not what a reload produces.
+        """
+        req = WebsocketRequest.__new__(WebsocketRequest)
+        req.db = self.env.registry.db_name
+        req.ws = MagicMock()
+        req.ws._session = MagicMock()
+        registry = self.env.registry
+        reloaded = MagicMock(db_name=registry.db_name)
+
+        with (
+            patch.object(WebsocketRequest, "_get_session", return_value=MagicMock()),
+            patch.object(registry, "check_signaling", return_value=reloaded),
+            patch.object(WebsocketRequest, "_serve_ir_websocket", return_value=None),
+            contextlib.suppress(Exception),
+        ):
+            req.serve_websocket_message(json.dumps({"event_name": "noop"}))
+
+        self.assertIs(
+            req.registry,
+            reloaded,
+            "serve_websocket_message kept the registry it called "
+            "check_signaling() ON instead of the one it returned",
+        )
 
     def test_registry_failure_maps_to_invalid_database_error(self):
         """The other half: a broken registry check produces that exception.
