@@ -60,6 +60,28 @@ def name_uniq_index(*scope, message=None):
     )
 
 
+def no_name_uniq_index():
+    """Opt a catalog out of the inherited name-uniqueness rule.
+
+    ``_table_objects`` collects every definition up the MRO and keys them by
+    attribute name, so an inheritor can replace ``_name_src_uniq`` but has no
+    way to remove it. Replacing it with an index whose definition is empty is
+    the removal: ``Index.apply_to_database`` drops whatever index the table
+    already carries under that name and then returns without creating one, so
+    the opt-out also *undoes* the rule on an existing database rather than
+    leaving a stale index enforcing it.
+
+    Reach for this only when duplicate names are a legitimate state rather
+    than an oversight. ``product.attribute`` is the case that motivates it:
+    ``product`` ships eight attributes of its own, and a second "Size" whose
+    values are shoe sizes is a different dimension, not the same one entered
+    twice.
+
+    :rtype: odoo.models.UniqueIndex
+    """
+    return models.UniqueIndex(lambda registry: "")
+
+
 class CatalogMixin(models.AbstractModel):
     """A named, archivable record whose name is unique.
 
@@ -76,10 +98,12 @@ class CatalogMixin(models.AbstractModel):
     unique within a parent redeclares ``_name_src_uniq`` with its own scope,
     and the derived declaration wins.
 
-    Uniqueness is part of the contract, not an option: ``_table_objects``
-    collects every definition up the MRO, so an inheritor can re-scope the rule
-    but cannot drop it. A model that must tolerate duplicate names does not
-    belong on this mixin.
+    Uniqueness is the default rather than an option to switch on: an inheritor
+    that says nothing gets it. One that scopes names to a parent redeclares
+    ``_name_src_uniq`` with that scope, and one for which duplicate names are a
+    legitimate state declares :func:`no_name_uniq_index` -- explicitly, because
+    that is a claim about the data worth making in one line rather than by
+    omission.
 
     Scope is deliberately the whole table, archived records included: an
     archived catalog entry keeps its name reserved.

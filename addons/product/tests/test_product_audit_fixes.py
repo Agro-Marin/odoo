@@ -2,9 +2,12 @@
 
 from types import SimpleNamespace
 
+import psycopg
+
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import new_test_user, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.product.tests.common import ProductCommon
 
@@ -1455,3 +1458,47 @@ class TestProductAuditFixes(ProductCommon):
         self.assertNotEqual(variant.with_context(lang="en_US").name, "Blue Widget")
         self.assertIn("Blue Widget", variant.with_context(lang="en_US").name)
         self.assertIn("Artilugio Azul", variant.with_context(lang="es_MX").name)
+
+
+@tagged("post_install", "-at_install")
+class TestAttributeNameUniqueness(ProductCommon):
+    """What `catalog.mixin` does and does not enforce on the attribute family.
+
+    `attribute.value.mixin` re-scopes the inherited rule to `attribute_id`, and
+    `attribute.mixin` declines it outright. Both halves are asserted here
+    because both are claims about product data rather than about the mixin:
+    values of one attribute are a closed vocabulary, attributes themselves are
+    not.
+    """
+
+    @mute_logger("odoo.sql_db")
+    def test_duplicate_value_in_one_attribute_is_refused(self):
+        attribute = self.env["product.attribute"].create({"name": "Fabric"})
+        self.env["product.attribute.value"].create(
+            {"name": "Denim", "attribute_id": attribute.id}
+        )
+        with self.assertRaises(psycopg.errors.UniqueViolation):
+            with self.cr.savepoint():
+                self.env["product.attribute.value"].create(
+                    {"name": "Denim", "attribute_id": attribute.id}
+                )
+
+    def test_same_value_name_under_two_attributes_is_allowed(self):
+        Attribute = self.env["product.attribute"]
+        first = Attribute.create({"name": "Shirt Size"})
+        second = Attribute.create({"name": "Shoe Size"})
+        self.env["product.attribute.value"].create(
+            [
+                {"name": "Large", "attribute_id": first.id},
+                {"name": "Large", "attribute_id": second.id},
+            ]
+        )
+        self.env.flush_all()
+
+    def test_duplicate_attribute_names_are_allowed(self):
+        """product ships eight attributes; a database may add same-named ones."""
+        Attribute = self.env["product.attribute"]
+        first = Attribute.create({"name": "Diameter"})
+        second = Attribute.create({"name": "Diameter"})
+        self.env.flush_all()
+        self.assertNotEqual(first.id, second.id)

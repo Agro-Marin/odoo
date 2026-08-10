@@ -18,9 +18,10 @@ class ProductAttribute(models.Model):
         "Multi-checkbox display type is not compatible with the creation of variants",
     )
 
-    name = fields.Char(string="Attribute", required=True, translate=True)
+    # name and active come from catalog.mixin through attribute.mixin; only the
+    # labels are product-specific.
+    name = fields.Char(string="Attribute")
     active = fields.Boolean(
-        default=True,
         help="If unchecked, it will allow you to hide the attribute without removing it.",
     )
     sequence = fields.Integer(

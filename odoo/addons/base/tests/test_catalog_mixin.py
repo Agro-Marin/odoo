@@ -3,14 +3,16 @@ import psycopg
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
+from odoo.addons.base.models.catalog_mixin import no_name_uniq_index
+
 
 class TestCatalogMixin(TransactionCase):
     """The mixin's contract, exercised through ``tag.tag``.
 
     ``tag.tag`` is the concrete inheritor that ships with ``base``. It
     re-scopes the uniqueness rule to ``parent_id``, which is what makes it
-    useful here: both halves of the contract -- the fields, and the fact that
-    an inheritor may re-scope but not drop the rule -- are visible on it.
+    useful here: both halves of the contract -- the fields, and a re-scoped
+    rule winning over the inherited one -- are visible on it.
     """
 
     @classmethod
@@ -40,6 +42,17 @@ class TestCatalogMixin(TransactionCase):
         ]
         self.assertEqual(len(rules), 1)
         self.assertIn("parent_id", rules[0].get_definition(self.env.registry))
+
+    def test_opt_out_produces_no_index_and_drops_an_existing_one(self):
+        """The escape hatch is an empty definition, not a missing declaration.
+
+        ``Index.apply_to_database`` drops whatever the table carries under the
+        name before it looks at the new definition, and returns without
+        creating one when that definition is empty -- so declaring the opt-out
+        also removes the rule from a database that already had it.
+        """
+        rule = no_name_uniq_index()
+        self.assertEqual(rule.get_definition(self.env.registry), "")
 
     @mute_logger("odoo.sql_db")
     def test_duplicate_name_under_same_parent_is_refused(self):

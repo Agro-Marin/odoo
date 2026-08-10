@@ -3,31 +3,31 @@ from random import randint
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class AttributeValueMixin(models.AbstractModel):
     """Reusable base for an EAV attribute value."""
 
     # Concrete models add the attribute_id Many2one to their own attribute
-    # model, and scope name uniqueness to it -- as a unique expression index
-    # over the source term, not a plain UNIQUE(attribute_id, name); see
-    # attribute.mixin for why the constraint form does not hold on a
-    # translated name.
+    # model. The name-uniqueness rule catalog.mixin declares is re-scoped to it
+    # below rather than left global: "Large" belongs to Size and to Format
+    # independently, and only a duplicate *within* one attribute is a mistake.
     _name = "attribute.value.mixin"
+    _inherit = ["catalog.mixin"]
     _description = "Attribute Value Mixin"
     _order = "sequence, name"
 
-    name = fields.Char(
-        required=True,
-        translate=True,
-    )
     sequence = fields.Integer(
         default=10,
     )
     color = fields.Integer(
         default=lambda self: self._get_default_color(),
     )
-    active = fields.Boolean(
-        default=True,
+
+    _name_src_uniq = name_uniq_index(
+        "attribute_id",
+        message="A value with this name already exists for this attribute.",
     )
 
     def _get_default_color(self):

@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.base.models.catalog_mixin import no_name_uniq_index
+
 
 class AttributeMixin(models.AbstractModel):
     """Reusable base for an EAV attribute (the dimension being profiled)."""
@@ -9,16 +11,15 @@ class AttributeMixin(models.AbstractModel):
     # pointing to the matching concrete value model. Extend value_type or
     # display_type with selection_add if the subject needs extra modes.
     #
-    # Name uniqueness is NOT declared here, and a concrete model must not
-    # declare it as a plain UNIQUE(name) either. ``name`` is translated, so it
-    # is a jsonb column and a UNIQUE constraint on it compares whole
-    # translation *documents* rather than names -- it silently permits
-    # duplicates as soon as a second language is active, because Odoo writes
-    # the active language alongside the source term on create. The rule has to
-    # compare the *source term*, which means an expression, and PostgreSQL does
-    # not allow expressions in a UNIQUE constraint: declare a
-    # ``models.UniqueIndex`` over ``(name->>'en_US')`` instead.
+    # ``name`` and ``active`` come from ``catalog.mixin``. Its name-uniqueness
+    # rule is declined: an attribute names a dimension in some subject's own
+    # vocabulary, and two of them may legitimately share a name -- a "Size"
+    # holding shoe sizes and a "Size" holding shirt sizes are different
+    # dimensions, and product ships eight attributes that a database is free to
+    # extend with same-named ones. A concrete attribute model whose vocabulary
+    # *is* flat can re-declare ``_name_src_uniq`` with ``name_uniq_index()``.
     _name = "attribute.mixin"
+    _inherit = ["catalog.mixin"]
     _description = "Attribute Mixin"
     _order = "sequence, name"
 
@@ -37,15 +38,10 @@ class AttributeMixin(models.AbstractModel):
     # constraint watches.
     _attribute_line_model = None
 
-    name = fields.Char(
-        required=True,
-        translate=True,
-    )
+    _name_src_uniq = no_name_uniq_index()
+
     sequence = fields.Integer(
         default=10,
-    )
-    active = fields.Boolean(
-        default=True,
     )
     value_type = fields.Selection(
         selection=[
