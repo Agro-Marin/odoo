@@ -1017,6 +1017,12 @@ test("Activity view: apply progressbar filter", async () => {
         parent: [".o_activity_view tbody tr:first-of-type"],
     });
     await contains(".o_activity_view .planned", { count: 2 });
+    // Baseline: with no progress-bar filter active, no row or cell carries a
+    // filter class. `activeFilter.resIds` is the set of rows matching the
+    // ACTIVE filter, so it must be empty here — it used to hold every res id
+    // as a STRING, which only stayed invisible because the template looks it
+    // up with a number.
+    await contains("[class*='o_activity_filter_']", { count: 0 });
     await click(".progress-bar[data-tooltip='1 Planned']", {
         parent: [".o_activity_view_table th", { text: "Email" }],
     });

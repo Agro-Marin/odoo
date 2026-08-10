@@ -38,7 +38,21 @@ export class ActivityRenderer extends Component {
                 active: null,
             },
             activityTypeId: null,
-            resIds: new Set(Object.keys(this.props.groupedActivities)),
+            /**
+             * Res ids matching the ACTIVE column filter — the template only
+             * ever reads it as "is this row highlighted / is this cell hidden",
+             * so with no filter the answer is "none".
+             *
+             * This used to be `new Set(Object.keys(groupedActivities))`, i.e.
+             * every row. It read as "no filter means everything matches", but
+             * behaved as an empty set purely by accident: `Object.keys` yields
+             * STRINGS while `props.activityResIds` (and so the template's
+             * `resIds.has(resId)`) are numbers, so it never matched. Making
+             * the two consistent — the obvious cleanup — would have stamped
+             * `o_activity_filter_null` onto every row and cell. Keep the
+             * intent and the behaviour in agreement instead.
+             */
+            resIds: new Set(),
         });
         onWillUpdateProps((nextProps) => {
             // the renderer instance persists across reloads (mark-as-done from a
@@ -168,9 +182,8 @@ export class ActivityRenderer extends Component {
         if (this.activeFilter.progressValue.active === name) {
             this.activeFilter.progressValue.active = null;
             this.activeFilter.activityTypeId = null;
-            this.activeFilter.resIds = new Set(
-                Object.keys(this.props.groupedActivities),
-            );
+            // no filter active: nothing is highlighted (@see setup)
+            this.activeFilter.resIds = new Set();
         } else {
             this.activeFilter.progressValue.active = name;
             this.activeFilter.activityTypeId = typeId;
