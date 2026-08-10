@@ -2,8 +2,7 @@
     "name": "Attribute Mixins",
     "version": "19.0.1.1.0",
     "category": "Hidden",
-    "summary": "Reusable EAV and classification mixins: attribute, attribute "
-    "value, attribute line and numeric band.",
+    "summary": "Reusable EAV and classification mixins: attribute, attribute value, attribute line and numeric band.",
     "description": """
 Abstract building blocks for an Entity-Attribute-Value family: an attribute
 (the dimension being profiled), its values, and a line binding one attribute
@@ -21,4 +20,5 @@ product templates can carry an attribute set.
     "depends": [
         "base",
     ],
+    "pre_init_hook": "pre_init_hook",
 }
