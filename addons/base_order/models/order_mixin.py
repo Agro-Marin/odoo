@@ -5,7 +5,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.models import MAGIC_COLUMNS
-from odoo.tools import SQL, format_list
+from odoo.tools import SQL, OrderedSet, format_list
 
 
 class OrderMixin(models.AbstractModel):
@@ -1097,6 +1097,66 @@ class OrderMixin(models.AbstractModel):
         return ", ".join(fields_info.mapped("field_description")) or ", ".join(
             sorted(field_names),
         )
+
+    # ------------------------------------------------------------------
+    # INTERNAL WARNINGS
+    # ------------------------------------------------------------------
+
+    def _get_warning_group(self):
+        """Security group gating internal warnings, or False to always show.
+
+        Sale returns ``sale.group_warning_sale``, purchase
+        ``purchase.group_warning_purchase``.
+        """
+        return False
+
+    def _get_partner_warn_field(self):
+        """``res.partner`` field carrying the internal warning, if any.
+
+        Sale returns ``sale_warn_msg``, purchase ``purchase_warn_msg``.
+        """
+        return False
+
+    def _get_line_warn_field(self):
+        """Order-line field carrying the product's internal warning, if any.
+
+        Sale returns ``sale_line_warn_msg``, purchase
+        ``purchase_line_warn_msg``.
+        """
+        return False
+
+    def _compute_warning_text(self, target_field):
+        """Fill ``target_field`` with the partner's and products' warnings.
+
+        The warning is built from three sources, de-duplicated and newline
+        joined: the partner's own message, its commercial parent's, and one
+        per order line whose product carries a message.
+
+        Concrete models keep their own field (``sale_warning_text``,
+        ``purchase_warning_text``) because the label and the ``@api.depends``
+        differ; only the body is shared, via the three hooks above.
+        """
+        group = self._get_warning_group()
+        if group and not self.env.user.has_group(group):
+            setattr(self, target_field, "")
+            return
+
+        partner_field = self._get_partner_warn_field()
+        line_field = self._get_line_warn_field()
+        for order in self:
+            warnings = OrderedSet()
+            if partner_field:
+                partner = order.partner_id
+                for record in (partner, partner.parent_id):
+                    if msg := record[partner_field]:
+                        warnings.add(
+                            (record.name or record.display_name) + " - " + msg,
+                        )
+            if line_field:
+                for line in order.line_ids:
+                    if msg := line[line_field]:
+                        warnings.add(line.product_id.display_name + " - " + msg)
+            setattr(order, target_field, "\n".join(warnings))
 
     # ------------------------------------------------------------------
     # DUPLICATE DETECTION

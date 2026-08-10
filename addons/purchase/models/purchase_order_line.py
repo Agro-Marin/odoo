@@ -35,76 +35,12 @@ class PurchaseOrderLine(models.Model):
     # FIELDS
     # ------------------------------------------------------------
 
-    order_id = fields.Many2one(
-        comodel_name="purchase.order",
-        string="Order Reference",
-        required=True,
-        ondelete="cascade",
-        index=True,
-    )
-    company_id = fields.Many2one(
-        related="order_id.company_id",
-        comodel_name="res.company",
-        string="Company",
-        store=True,
-        precompute=True,
-        readonly=True,
-        index=True,
-    )
-    company_price_include = fields.Selection(
-        related="company_id.account_price_include",
-    )
-    currency_id = fields.Many2one(
-        related="order_id.currency_id",
-        comodel_name="res.currency",
-        string="Currency",
-        store=True,
-        precompute=True,
-        depends=["order_id.currency_id"],
-    )
-    partner_id = fields.Many2one(
-        related="order_id.partner_id",
-        comodel_name="res.partner",
-        string="Vendor",
-        store=True,
-        precompute=True,
-        index="btree_not_null",
-    )
-    user_id = fields.Many2one(
-        related="order_id.user_id",
-        comodel_name="res.users",
-        string="Buyer",
-        store=True,
-        precompute=True,
-        index="btree_not_null",
-    )
-    date_order = fields.Datetime(
-        related="order_id.date_order",
-        string="Order Date",
-        store=True,
-        precompute=True,
-        index=True,
-    )
-    date_confirmed = fields.Datetime(
-        related="order_id.date_confirmed",
-        string="Confirmation Date",
-        store=True,
-        precompute=True,
-        index=True,
-    )
-    state = fields.Selection(
-        related="order_id.state",
-        string="Order Status",
-        store=True,
-        precompute=True,
-    )
-    fiscal_position_id = fields.Many2one(
-        related="order_id.fiscal_position_id",
-        comodel_name="account.fiscal.position",
-    )
-    locked = fields.Boolean(
-        related="order_id.locked",
-    )
+    # Only ``comodel_name`` and the vendor-facing labels differ from
+    # ``order.line.fields.mixin``; the rest of these definitions is inherited.
+    order_id = fields.Many2one(comodel_name="purchase.order")
+    partner_id = fields.Many2one(string="Vendor")
+    user_id = fields.Many2one(string="Buyer")
+
     is_expense = fields.Boolean(
         help="Is true if the sales order line comes from an expense or a vendor bills",
     )
@@ -116,13 +52,6 @@ class PurchaseOrderLine(models.Model):
         compute="_compute_parent_id",
     )
 
-    product_categ_id = fields.Many2one(
-        related="product_id.categ_id",
-    )
-    product_type = fields.Selection(
-        related="product_id.type",
-        depends=["product_id"],
-    )
     purchase_line_warn_msg = fields.Text(
         compute="_compute_purchase_line_warn_msg",
     )
@@ -255,11 +184,13 @@ class PurchaseOrderLine(models.Model):
 
     @api.depends("product_id.purchase_line_warn_msg")
     def _compute_purchase_line_warn_msg(self):
-        has_warning_group = self.env.user.has_group("purchase.group_warning_purchase")
-        for line in self:
-            line.purchase_line_warn_msg = (
-                line.product_id.purchase_line_warn_msg if has_warning_group else ""
-            )
+        self._compute_line_warn_msg("purchase_line_warn_msg")
+
+    def _get_warning_group(self):
+        return "purchase.group_warning_purchase"
+
+    def _get_product_warn_field(self):
+        return "purchase_line_warn_msg"
 
     @api.depends(
         "product_id",
@@ -568,14 +499,6 @@ class PurchaseOrderLine(models.Model):
             qty_to_consider - invoiced["qty"]
         )
         self.qty_to_invoice = qty_to_consider - invoiced["qty"]
-
-    @api.depends_context("accrual_entry_date")
-    @api.depends("price_unit", "qty_invoiced_at_date", "qty_transferred_at_date")
-    def _compute_amount_to_invoice_at_date(self):
-        for line in self:
-            line.amount_to_invoice_at_date = (
-                line.qty_transferred_at_date - line.qty_invoiced_at_date
-            ) * line._get_price_unit_gross()
 
     @api.depends(
         "qty_to_invoice",
@@ -1184,13 +1107,6 @@ class PurchaseOrderLine(models.Model):
     # ------------------------------------------------------------
     # VALIDATIONS
     # ------------------------------------------------------------
-
-    @api.model
-    def _date_in_the_past(self):
-        if "accrual_entry_date" not in self.env.context:
-            return False
-        accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
-        return accrual_date and accrual_date < fields.Date.today()
 
     def _has_discount_differences(self, invoice_lines):
         """Check if any invoice line has a different discount than the PO line."""

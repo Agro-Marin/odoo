@@ -21,14 +21,111 @@ class OrderLineFieldsMixin(models.AbstractModel):
 
     Fields that **must** be defined by concrete models:
 
-    - ``order_id``: Many2one to the parent order
-    - ``company_id``/``currency_id``/``partner_id``/``state``/``locked``:
-      related to the parent order
+    - ``order_id``: re-declared with the concrete ``comodel_name`` (the
+      placeholder below points at the abstract ``order.mixin`` so the bridge
+      fields can resolve their related paths at setup)
     - ``parent_id``: Many2one to self (with ``compute='_compute_parent_id'``)
     """
 
     _name = "order.line.fields.mixin"
     _description = "Common Order Line Fields"
+
+    # ─── Parent Order ──────────────────────────────────────────────
+    # Placeholder. Concrete models re-declare ``order_id`` with their own
+    # comodel (``sale.order``, ``purchase.order``, …); only ``comodel_name``
+    # changes, the rest of the definition is inherited from here.
+    #
+    # It must point at ``order.mixin`` rather than be left undeclared: a
+    # related field is resolved against the model that *declares* it, and this
+    # model is abstract, so ``related="order_id.company_id"`` below is looked
+    # up on ``order.mixin`` at registry setup. Leaving ``order_id`` out — or
+    # pointing it at a model that lacks these fields — fails the whole registry
+    # with ``KeyError: Field ... does not exist``.
+
+    order_id = fields.Many2one(
+        comodel_name="order.mixin",
+        string="Order Reference",
+        required=True,
+        ondelete="cascade",
+        index=True,
+    )
+
+    # ─── Bridge Fields (related to the parent order) ───────────────
+    # Concrete models only override ``string`` where their vocabulary differs
+    # (Customer/Vendor, Salesperson/Buyer).
+
+    company_id = fields.Many2one(
+        related="order_id.company_id",
+        comodel_name="res.company",
+        string="Company",
+        store=True,
+        precompute=True,
+        index=True,
+    )
+    company_price_include = fields.Selection(
+        related="company_id.account_price_include",
+    )
+    currency_id = fields.Many2one(
+        related="order_id.currency_id",
+        comodel_name="res.currency",
+        string="Currency",
+        store=True,
+        precompute=True,
+        depends=["order_id.currency_id"],
+    )
+    partner_id = fields.Many2one(
+        related="order_id.partner_id",
+        comodel_name="res.partner",
+        string="Partner",
+        store=True,
+        precompute=True,
+        index="btree_not_null",
+    )
+    user_id = fields.Many2one(
+        related="order_id.user_id",
+        comodel_name="res.users",
+        string="Responsible",
+        store=True,
+        precompute=True,
+        index="btree_not_null",
+    )
+    date_order = fields.Datetime(
+        related="order_id.date_order",
+        string="Order Date",
+        store=True,
+        precompute=True,
+        index=True,
+    )
+    date_confirmed = fields.Datetime(
+        related="order_id.date_confirmed",
+        string="Confirmation Date",
+        store=True,
+        precompute=True,
+        index=True,
+    )
+    state = fields.Selection(
+        related="order_id.state",
+        string="Order Status",
+        store=True,
+        precompute=True,
+    )
+    fiscal_position_id = fields.Many2one(
+        related="order_id.fiscal_position_id",
+        comodel_name="account.fiscal.position",
+    )
+    locked = fields.Boolean(
+        related="order_id.locked",
+    )
+
+    # ─── Product-derived Fields ────────────────────────────────────
+
+    product_categ_id = fields.Many2one(
+        related="product_id.categ_id",
+    )
+    product_type = fields.Selection(
+        related="product_id.type",
+        depends=["product_id"],
+    )
 
     # ─── Structural Fields ─────────────────────────────────────────
 
@@ -313,6 +410,32 @@ class OrderLineFieldsMixin(models.AbstractModel):
             line.product_name_translated = line.product_id.with_context(
                 lang=line._get_line_description_lang(),
             ).display_name
+
+    def _get_warning_group(self):
+        """Security group gating internal warnings, or False to always show."""
+        return False
+
+    def _get_product_warn_field(self):
+        """``product.product`` field carrying the line warning, if any.
+
+        Sale returns ``sale_line_warn_msg``, purchase
+        ``purchase_line_warn_msg``.
+        """
+        return False
+
+    def _compute_line_warn_msg(self, target_field):
+        """Copy the product's internal warning into ``target_field``.
+
+        Concrete models keep their own field so the ``@api.depends`` can name
+        the product field they read; only the body is shared.
+        """
+        product_field = self._get_product_warn_field()
+        group = self._get_warning_group()
+        if not product_field or (group and not self.env.user.has_group(group)):
+            setattr(self, target_field, "")
+            return
+        for line in self:
+            setattr(line, target_field, line.product_id[product_field])
 
     @api.depends("product_id")
     def _compute_product_is_archived(self):
@@ -673,11 +796,19 @@ class OrderLineFieldsMixin(models.AbstractModel):
 
     @api.model
     def _date_in_the_past(self):
-        """Whether the context accrual date is before today."""
+        """Whether the context accrual date is before today.
+
+        ``accrual_entry_date`` may be present but falsy (``False``, ``''``),
+        in which case ``from_string`` returns ``None`` — comparing that to a
+        date raises TypeError, so the value is tested before comparing.
+        sale.order.line and purchase.order.line both used to carry this same
+        guard as an override; the guard belongs here so every consumer of the
+        mixin gets it.
+        """
         if "accrual_entry_date" not in self.env.context:
             return False
         accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
-        return accrual_date < fields.Date.today()
+        return bool(accrual_date) and accrual_date < fields.Date.today()
 
     # ─── Analytic Validation ───────────────────────────────────────
 

@@ -10,7 +10,6 @@ from odoo.libs.datetime import timezone
 from odoo.libs.numbers import float_repr
 from odoo.tools import (
     SQL,
-    OrderedSet,
     format_amount,
     format_date,
     formatLang,
@@ -320,6 +319,15 @@ class PurchaseOrder(models.Model):
             )
         return suffix
 
+    def _get_warning_group(self):
+        return "purchase.group_warning_purchase"
+
+    def _get_partner_warn_field(self):
+        return "purchase_warn_msg"
+
+    def _get_line_warn_field(self):
+        return "purchase_line_warn_msg"
+
     @api.depends(
         "partner_id.name",
         "partner_id.purchase_warn_msg",
@@ -329,26 +337,7 @@ class PurchaseOrder(models.Model):
         "line_ids.product_id.name",
     )
     def _compute_purchase_warning_text(self):
-        if not self.env.user.has_group("purchase.group_warning_purchase"):
-            self.purchase_warning_text = ""
-            return
-        for order in self:
-            warnings = OrderedSet()
-            if partner_msg := order.partner_id.purchase_warn_msg:
-                warnings.add(
-                    (order.partner_id.name or order.partner_id.display_name)
-                    + " - "
-                    + partner_msg,
-                )
-            if partner_parent_msg := order.partner_id.parent_id.purchase_warn_msg:
-                parent = order.partner_id.parent_id
-                warnings.add(
-                    (parent.name or parent.display_name) + " - " + partner_parent_msg
-                )
-            for line in order.line_ids:
-                if product_msg := line.purchase_line_warn_msg:
-                    warnings.add(line.product_id.display_name + " - " + product_msg)
-            order.purchase_warning_text = "\n".join(warnings)
+        self._compute_warning_text("purchase_warning_text")
 
     # ------------------------------------------------------------
     # SEARCH METHODS

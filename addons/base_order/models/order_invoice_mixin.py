@@ -713,12 +713,28 @@ class OrderLineInvoiceMixin(models.AbstractModel):
             line.qty_invoiced_at_date = invoiced_quantities[line]
 
     @api.depends_context("accrual_entry_date")
-    @api.depends("price_unit", "qty_invoiced_at_date", "qty_transferred_at_date")
+    @api.depends(
+        "price_unit",
+        "discount",
+        "qty_invoiced_at_date",
+        "qty_transferred_at_date",
+        "tax_ids",
+        "product_qty",
+        "product_uom_id",
+    )
     def _compute_amount_to_invoice_at_date(self):
+        """Value still to invoice at the accrual date.
+
+        Uses ``_get_price_unit_gross()`` (order.line.amount.mixin), not the raw
+        ``price_unit``: the accrued amount must net out the discount, strip
+        included taxes and convert to the product's reference UoM. sale and
+        purchase both carried this exact override; the raw ``price_unit`` left
+        here was wrong for any other consumer of the mixin.
+        """
         for line in self:
             line.amount_to_invoice_at_date = (
                 line.qty_transferred_at_date - line.qty_invoiced_at_date
-            ) * line.price_unit
+            ) * line._get_price_unit_gross()
 
     # ─── Compute Stubs (concrete models must override) ─────────────
 

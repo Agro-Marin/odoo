@@ -7,7 +7,6 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.http import request
 from odoo.tools import (
-    OrderedSet,
     float_is_zero,
     format_amount,
     format_list,
@@ -677,32 +676,25 @@ class SaleOrder(models.Model):
             else:
                 order.date_planned = False
 
+    def _get_warning_group(self):
+        return "sale.group_warning_sale"
+
+    def _get_partner_warn_field(self):
+        return "sale_warn_msg"
+
+    def _get_line_warn_field(self):
+        return "sale_line_warn_msg"
+
     @api.depends(
         "partner_id.name",
         "partner_id.sale_warn_msg",
+        "partner_id.parent_id.name",
+        "partner_id.parent_id.sale_warn_msg",
         "line_ids.sale_line_warn_msg",
+        "line_ids.product_id.name",
     )
     def _compute_sale_warning_text(self):
-        if not self.env.user.has_group("sale.group_warning_sale"):
-            self.sale_warning_text = ""
-            return
-        for order in self:
-            warnings = OrderedSet()
-            if partner_msg := order.partner_id.sale_warn_msg:
-                warnings.add(
-                    (order.partner_id.name or order.partner_id.display_name)
-                    + " - "
-                    + partner_msg,
-                )
-            if partner_parent_msg := order.partner_id.parent_id.sale_warn_msg:
-                parent = order.partner_id.parent_id
-                warnings.add(
-                    (parent.name or parent.display_name) + " - " + partner_parent_msg
-                )
-            for line in order.line_ids:
-                if product_msg := line.sale_line_warn_msg:
-                    warnings.add(line.product_id.display_name + " - " + product_msg)
-            order.sale_warning_text = "\n".join(warnings)
+        self._compute_warning_text("sale_warning_text")
 
     def _get_additional_base_lines(self):
         """Inject sale's early-payment-discount lines into the shared tax

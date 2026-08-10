@@ -30,75 +30,12 @@ class SaleOrderLine(models.Model):
     # FIELDS
     # ------------------------------------------------------------
 
-    order_id = fields.Many2one(
-        comodel_name="sale.order",
-        string="Order Reference",
-        required=True,
-        ondelete="cascade",
-        index=True,
-    )
-    company_id = fields.Many2one(
-        related="order_id.company_id",
-        comodel_name="res.company",
-        string="Company",
-        store=True,
-        precompute=True,
-        index=True,
-    )
-    company_price_include = fields.Selection(
-        related="company_id.account_price_include",
-    )
-    currency_id = fields.Many2one(
-        related="order_id.currency_id",
-        comodel_name="res.currency",
-        string="Currency",
-        store=True,
-        precompute=True,
-        depends=["order_id.currency_id"],
-    )
-    partner_id = fields.Many2one(
-        related="order_id.partner_id",
-        comodel_name="res.partner",
-        string="Customer",
-        store=True,
-        precompute=True,
-        index="btree_not_null",
-    )
-    user_id = fields.Many2one(
-        related="order_id.user_id",
-        comodel_name="res.users",
-        string="Salesperson",
-        store=True,
-        precompute=True,
-        index="btree_not_null",
-    )
-    date_order = fields.Datetime(
-        related="order_id.date_order",
-        string="Order Date",
-        store=True,
-        precompute=True,
-        index=True,
-    )
-    date_confirmed = fields.Datetime(
-        related="order_id.date_confirmed",
-        string="Confirmation Date",
-        store=True,
-        precompute=True,
-        index=True,
-    )
-    state = fields.Selection(
-        related="order_id.state",
-        string="Order Status",
-        store=True,
-        precompute=True,
-    )
-    fiscal_position_id = fields.Many2one(
-        related="order_id.fiscal_position_id",
-        comodel_name="account.fiscal.position",
-    )
-    locked = fields.Boolean(
-        related="order_id.locked",
-    )
+    # Only ``comodel_name`` and the customer-facing labels differ from
+    # ``order.line.fields.mixin``; the rest of these definitions is inherited.
+    order_id = fields.Many2one(comodel_name="sale.order")
+    partner_id = fields.Many2one(string="Customer")
+    user_id = fields.Many2one(string="Salesperson")
+
     is_downpayment = fields.Boolean(
         help="Down payments are made when creating invoices from a sales order."
         " They are not copied when duplicating a sales order.",
@@ -140,13 +77,6 @@ class SaleOrderLine(models.Model):
         string="Linked Order Lines",
     )
 
-    product_categ_id = fields.Many2one(
-        related="product_id.categ_id",
-    )
-    product_type = fields.Selection(
-        related="product_id.type",
-        depends=["product_id"],
-    )
     service_tracking = fields.Selection(
         related="product_id.service_tracking",
         depends=["product_id"],
@@ -508,11 +438,13 @@ class SaleOrderLine(models.Model):
 
     @api.depends("product_id.sale_line_warn_msg")
     def _compute_sale_line_warn_msg(self):
-        has_warning_group = self.env.user.has_group("sale.group_warning_sale")
-        for line in self:
-            line.sale_line_warn_msg = (
-                line.product_id.sale_line_warn_msg if has_warning_group else ""
-            )
+        self._compute_line_warn_msg("sale_line_warn_msg")
+
+    def _get_warning_group(self):
+        return "sale.group_warning_sale"
+
+    def _get_product_warn_field(self):
+        return "sale_line_warn_msg"
 
     def _tax_ids_include_product(self, line):
         # Combo products carry no taxes of their own; the shared computation
@@ -1057,22 +989,6 @@ class SaleOrderLine(models.Model):
                 )
             else:
                 combo_line.qty_to_invoice = 0.0
-
-    @api.depends_context("accrual_entry_date")
-    @api.depends(
-        "price_unit",
-        "discount",
-        "qty_invoiced_at_date",
-        "qty_transferred_at_date",
-        "tax_ids",
-        "product_qty",
-        "product_uom_id",
-    )
-    def _compute_amount_to_invoice_at_date(self):
-        for line in self:
-            line.amount_to_invoice_at_date = (
-                line.qty_transferred_at_date - line.qty_invoiced_at_date
-            ) * line._get_price_unit_gross()
 
     @api.depends(
         "qty_invoiced",
@@ -1967,13 +1883,6 @@ class SaleOrderLine(models.Model):
         """
         self.ensure_one()
         return self.product_id.id != self.company_id.sale_discount_product_id.id
-
-    @api.model
-    def _date_in_the_past(self):
-        if "accrual_entry_date" not in self.env.context:
-            return False
-        accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
-        return accrual_date and accrual_date < fields.Date.today()
 
     def _has_taxes(self):
         """Check if a line has taxes or not. For (sub)sections, check if any child line has taxes."""
