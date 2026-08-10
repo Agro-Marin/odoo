@@ -114,7 +114,10 @@ class TestOrderEdiReport(TransactionCase):
         attachments = dict(reader.get_attachments())
         self.assertTrue(attachments, "the PDF must carry at least one attachment")
         self.assertTrue(
-            any(content.lstrip().startswith(b"<?xml") for content in attachments.values()),
+            any(
+                content.lstrip().startswith(b"<?xml")
+                for content in attachments.values()
+            ),
             f"an embedded attachment should be the EDI XML, got {list(attachments)}",
         )
 
