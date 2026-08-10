@@ -24,8 +24,10 @@ class BarcodesBarcode_Events_Mixin(models.AbstractModel):
         return None
 
     def on_barcode_scanned(self, barcode):
+        # Not translated: this fires only when a developer inherits the mixin
+        # without implementing the hook, so it is addressed to them and never
+        # reaches an end user in a language of their own.
         raise NotImplementedError(
-            self.env._(
-                "In order to use barcodes.barcode_events_mixin, method on_barcode_scanned must be implemented"
-            )
+            f"{self._name} inherits barcodes.barcode_events_mixin but does not "
+            f"implement on_barcode_scanned()."
         )

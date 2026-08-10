@@ -27,12 +27,18 @@
                             </p>
                         </div>
                         <field name="rule_ids">
-                            <list string='Tables'>
+                            <list string="Barcode Rules">
                                 <field name="sequence" widget="handle"/>
                                 <field name="name" />
                                 <field name="type" />
-                                <field name="encoding" />
+                                <field name="encoding" invisible="type == 'alias'"/>
                                 <field name="pattern" />
+                                <!-- An alias rule is required to carry an alias, so the
+                                     column has to be reachable here: without it an inline
+                                     alias rule can be neither saved nor corrected. -->
+                                <field name="alias"
+                                       required="type == 'alias'"
+                                       readonly="type != 'alias'"/>
                             </list>
                         </field>
                     </sheet>

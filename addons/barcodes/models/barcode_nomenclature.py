@@ -344,3 +344,27 @@ class BarcodeNomenclature(models.Model):
                     name=default_record.display_name,
                 )
             )
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_used_by_company(self):
+        """Refuse to delete a nomenclature a company is still scanning with.
+
+        `res.company.nomenclature_id` is a plain Many2one, so the default
+        `ondelete="set null"` used to empty it silently. Nothing raised, and
+        nothing pointed at the deletion: every subsequent scan simply parsed
+        against no rules and came back `type: "error"`.
+        """
+        companies = (
+            self.env["res.company"].sudo().search([("nomenclature_id", "in", self.ids)])
+        )
+        if companies:
+            raise UserError(
+                _(
+                    "You cannot delete the barcode nomenclature %(names)s because "
+                    "it is still used by: %(companies)s.",
+                    names=", ".join(
+                        (self & companies.nomenclature_id).mapped("display_name")
+                    ),
+                    companies=", ".join(companies.mapped("display_name")),
+                )
+            )
