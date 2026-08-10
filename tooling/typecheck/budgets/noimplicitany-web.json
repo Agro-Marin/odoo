@@ -1,7 +1,7 @@
 {
   "gate": "noimplicitany",
   "module": "web",
-  "total": 11368,
+  "total": 11052,
   "note": "Seeded 2026-08-02. Per-file ceilings for the files noImplicitAny excepts; membership still comes from exceptions/noimplicitany/web.txt.",
   "budgets": {
     "addons/web/static/src/components/action_swiper/action_swiper.js": 7,
@@ -138,7 +138,7 @@
     "addons/web/static/src/views/calendar/hooks/calendar_popover_hook.js": 7,
     "addons/web/static/src/views/calendar/hooks/full_calendar_hook.js": 27,
     "addons/web/static/src/views/calendar/hooks/square_selection_hook.js": 32,
-    "addons/web/static/src/views/debug_items.js": 43,
+    "addons/web/static/src/views/debug_items.js": 33,
     "addons/web/static/src/views/field_arch.js": 28,
     "addons/web/static/src/views/form/form_arch_parser.js": 7,
     "addons/web/static/src/views/form/form_compiler.js": 19,

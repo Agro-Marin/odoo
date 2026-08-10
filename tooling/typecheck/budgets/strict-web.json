@@ -1,7 +1,7 @@
 {
   "gate": "strict",
   "module": "web",
-  "total": 6050,
+  "total": 5904,
   "note": "Seeded 2026-08-02. Per-file ceilings for the files strict excepts; membership still comes from exceptions/strict/web.txt.",
   "budgets": {
     "addons/web/static/src/components/action_swiper/action_swiper.js": 43,
@@ -24,7 +24,7 @@
     "addons/web/static/src/components/signature/name_and_signature.js": 32,
     "addons/web/static/src/components/time_picker/time_picker.js": 37,
     "addons/web/static/src/components/tree_editor/tree_editor.js": 12,
-    "addons/web/static/src/components/tree_editor/tree_editor_value_editors.js": 6,
+    "addons/web/static/src/components/tree_editor/tree_editor_value_editors.js": 5,
     "addons/web/static/src/components/user_switch/user_switch.js": 9,
     "addons/web/static/src/core/field_service.js": 2,
     "addons/web/static/src/core/file_upload/file_upload_service.js": 8,
@@ -94,7 +94,7 @@
     "addons/web/static/src/views/calendar/calendar_model.js": 9,
     "addons/web/static/src/views/calendar/calendar_year/calendar_year_renderer.js": 3,
     "addons/web/static/src/views/calendar/hooks/square_selection_hook.js": 5,
-    "addons/web/static/src/views/debug_items.js": 17,
+    "addons/web/static/src/views/debug_items.js": 7,
     "addons/web/static/src/views/graph/graph_arch_parser.js": 3,
     "addons/web/static/src/views/graph/graph_model.js": 15,
     "addons/web/static/src/views/graph/graph_renderer.js": 22,

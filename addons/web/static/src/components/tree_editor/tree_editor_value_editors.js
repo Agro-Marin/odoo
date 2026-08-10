@@ -270,6 +270,7 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             // `@web/core/tree/in_range_providers` for why a period is not a
             // value type of its own.
             const providerOptions = getInRangeProviderOptions(fieldDef.type);
+            /** @type {Object<string, string>} */
             const optionGroups = {};
             for (const { id, group } of providerOptions) {
                 optionGroups[JSON.stringify(id)] = group;

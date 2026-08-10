@@ -113,7 +113,27 @@ class GetMetadataDialog extends Component {
     fieldNamesBlackList;
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;
-    /** @type {{} | { fieldToSet: string; condition: string; scope: string }} */
+    /**
+     * What `loadMetadata()` reads out of `get_metadata()`, plus the two user
+     * names and two dates it formats for display. Every field is optional
+     * because the record starts as `useState({})` and is filled on
+     * `onWillStart`, so nothing is present until that first call resolves.
+     *
+     * `xmlid` and `noupdate` describe the *last* external id; `xmlids` is all
+     * of them, which is what the template iterates when there is more than one
+     * (`odoo/orm/models/mixins/read.py::get_metadata`).
+     *
+     * @type {{
+     *     id?: number,
+     *     xmlid?: string | false,
+     *     xmlids?: {xmlid: string, noupdate: boolean}[],
+     *     noupdate?: boolean,
+     *     creator?: string,
+     *     lastModifiedBy?: string,
+     *     createDate?: string,
+     *     writeDate?: string,
+     * }}
+     */
     state;
 
     static template = "web.DebugMenu.GetMetadataDialog";
@@ -127,7 +147,6 @@ class GetMetadataDialog extends Component {
         this.orm = useService("orm");
         this.dialogService = useService("dialog");
         this.title = _t("View Metadata");
-        /** @type {any} */
         this.state = useState({});
         onWillStart(() => this.loadMetadata());
     }
