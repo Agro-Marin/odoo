@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError, ValidationError
 from collections import defaultdict
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 
 
 class PurchaseRequisition(models.Model):
@@ -106,7 +107,7 @@ class PurchaseRequisition(models.Model):
                 raise UserError(_("You cannot change the Agreement Type or Company of a not draft purchase agreement."))
             if requisition.requisition_type == 'purchase_template':
                 requisition.date_start = requisition.date_end = False
-            code = requisition.requisition_type == 'blanket_order' and 'purchase.requisition.blanket.order' or 'purchase.requisition.purchase.template'
+            code = (requisition.requisition_type == 'blanket_order' and 'purchase.requisition.blanket.order') or 'purchase.requisition.purchase.template'
             requisition.name = self.env['ir.sequence'].with_company(requisition.company_id).next_by_code(code)
         return res
 
@@ -186,7 +187,7 @@ class PurchaseRequisitionLine(models.Model):
         for line in self:
             total = 0.0
             for po in line.requisition_id.purchase_ids.filtered(lambda purchase_order: purchase_order.state == 'done'):
-                for po_line in po.line_ids.filtered(lambda order_line: order_line.product_id == line.product_id):
+                for po_line in po.line_ids.filtered(lambda order_line, line=line: order_line.product_id == line.product_id):
                     if po_line.product_uom_id != line.product_uom_id:
                         total += po_line.product_uom_id._compute_quantity(po_line.product_qty, line.product_uom_id)
                     else:
@@ -215,7 +216,7 @@ class PurchaseRequisitionLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         lines = super().create(vals_list)
-        for line, vals in zip(lines, vals_list):
+        for line, vals in zip(lines, vals_list, strict=True):
             if line.requisition_id.requisition_type == 'blanket_order' and line.requisition_id.state not in ['draft', 'done', 'cancel']:
                 if vals['price_unit'] <= 0.0:
                     raise UserError(_("You cannot have a negative or unit price of 0 for an already confirmed blanket order."))

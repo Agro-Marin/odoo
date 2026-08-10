@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-from odoo.addons.purchase_requisition.tests.common import TestPurchaseRequisitionCommon
-from odoo import Command, fields
-from odoo.tests import Form
 
 from datetime import timedelta
 
+from odoo import Command, fields
+from odoo.tests import Form
 from odoo.tests.common import tagged
+
+from odoo.addons.purchase_requisition.tests.common import TestPurchaseRequisitionCommon
 
 
 @tagged('post_install', '-at_install')
@@ -15,7 +14,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestPurchaseRequisition, cls).setUpClass()
+        super().setUpClass()
         cls.env['res.currency.rate'].search([]).unlink()
 
     def test_00_purchase_requisition_users(self):

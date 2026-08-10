@@ -62,7 +62,7 @@ class ProductProduct(models.Model):
         )
         data = {product.id: count for product, count in read_group_data}
         for product in self:
-            product.is_in_purchase_order = bool(data.get(product.id, 0))
+            product.is_in_purchase_order = bool(data.get(product.id))
 
     # ------------------------------------------------------------
     # SEARCH METHODS

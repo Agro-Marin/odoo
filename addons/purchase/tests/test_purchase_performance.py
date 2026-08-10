@@ -58,8 +58,8 @@ def prepare(func, /):
     @functools.wraps(func)
     def wrapper(self):
         # Prefetch common data that might cause query count variations
-        self.env.company.country_id.code  # noqa: B018 (intentional prefetch)
-        self.env.company.currency_id.rate  # noqa: B018 (intentional prefetch)
+        self.env.company.country_id.code
+        self.env.company.currency_id.rate
         return func(self)
 
     return wrapper

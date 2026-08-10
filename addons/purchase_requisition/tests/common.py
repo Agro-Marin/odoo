@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 from odoo.tests import common
 
@@ -7,7 +6,7 @@ class TestPurchaseRequisitionCommon(common.TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestPurchaseRequisitionCommon, cls).setUpClass()
+        super().setUpClass()
 
         cls.env.user.group_ids += cls.env.ref('uom.group_uom')
 

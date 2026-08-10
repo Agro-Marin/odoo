@@ -1,4 +1,4 @@
-from odoo import fields, models, tools
+from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.fields import Domain
 from odoo.tools import SQL

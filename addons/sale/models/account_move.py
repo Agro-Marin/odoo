@@ -244,8 +244,10 @@ class AccountMove(models.Model):
         todo = set()
         for invoice in self.filtered(lambda move: move.is_invoice()):
             for line in invoice.invoice_line_ids:
-                for sale_line in line.sale_line_ids:
-                    todo.add((sale_line.order_id, invoice.name))
+                todo.update(
+                    (sale_line.order_id, invoice.name)
+                    for sale_line in line.sale_line_ids
+                )
         for order, name in todo:
             order.message_post(body=_("Invoice %s paid", name))
         return res
