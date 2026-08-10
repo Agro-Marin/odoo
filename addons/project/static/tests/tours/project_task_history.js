@@ -165,7 +165,11 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
         {
             content:
                 "Verify that the description contains the right text after the restore",
-            trigger: `div.note-editable.odoo-editor-editable`,
+            // The bare editor selector matches the instant the dialog closes,
+            // i.e. before the restored value has been written back into it, so
+            // the assertion below read the pre-restore content. Waiting on the
+            // text makes the step observe the restore instead of racing it.
+            trigger: `div.note-editable.odoo-editor-editable:contains(${baseDescriptionContent} 1)`,
             run: function () {
                 const p = this.anchor?.innerText;
                 const expected = `${baseDescriptionContent} 1`;
@@ -311,6 +315,14 @@ registry.category("web_tour.tours").add("project_task_last_history_steps_tour", 
         {
             trigger: ".modal button.btn-primary:text(Restore)",
             run: "click",
+        },
+        {
+            // Let the restore settle before touching the editor again. The
+            // focus click inside `insertEditorContent` otherwise lands on the
+            // editable the restore is about to replace, so `spellcheck="true"`
+            // -- which the editor only sets on the focused instance -- never
+            // appears on the element that survives.
+            trigger: "body:not(:has(.modal))",
         },
         ...insertEditorContent("2"),
         ...stepUtils.saveForm(),

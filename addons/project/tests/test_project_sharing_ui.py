@@ -90,6 +90,11 @@ class TestProjectSharingUi(HttpCase):
             )
         )
 
+        # ``action_send_mail`` is what actually grants the access: saving the
+        # dialog deliberately grants nothing since ``_apply_collaborators``
+        # moved off ``create`` (see ``test_share_wizard``), so without this the
+        # portal user is not a collaborator and /my/projects lists nothing for
+        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -103,7 +108,7 @@ class TestProjectSharingUi(HttpCase):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
 
         task = (
             self.env["project.task"]
@@ -146,6 +151,11 @@ class TestProjectSharingUi(HttpCase):
         Since a problem to logout Mitchell Admin to log in as Georges user, this test is created
         to launch a tour with portal user.
         """
+        # ``action_send_mail`` is what actually grants the access: saving the
+        # dialog deliberately grants nothing since ``_apply_collaborators``
+        # moved off ``create`` (see ``test_share_wizard``), so without this the
+        # portal user is not a collaborator and /my/projects lists nothing for
+        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -159,7 +169,7 @@ class TestProjectSharingUi(HttpCase):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
 
         self.project_portal.write(
             {
@@ -178,6 +188,11 @@ class TestProjectSharingUi(HttpCase):
         self.start_tour("/my/projects", "portal_project_sharing_tour", login="georges1")
 
     def test_03_project_sharing(self) -> None:
+        # ``action_send_mail`` is what actually grants the access: saving the
+        # dialog deliberately grants nothing since ``_apply_collaborators``
+        # moved off ``create`` (see ``test_share_wizard``), so without this the
+        # portal user is not a collaborator and /my/projects lists nothing for
+        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -191,7 +206,7 @@ class TestProjectSharingUi(HttpCase):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
 
         self.project_portal.write(
             {
@@ -216,6 +231,11 @@ class TestProjectSharingUi(HttpCase):
 
     def test_04_project_sharing_chatter_message_reactions(self) -> None:
         # portal users can load chatter messages containing partner reactions
+        # ``action_send_mail`` is what actually grants the access: saving the
+        # dialog deliberately grants nothing since ``_apply_collaborators``
+        # moved off ``create`` (see ``test_share_wizard``), so without this the
+        # portal user is not a collaborator and /my/projects lists nothing for
+        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -229,7 +249,7 @@ class TestProjectSharingUi(HttpCase):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
         user_john = self.env["res.users"].create(
             {
                 "name": "John",
@@ -275,6 +295,11 @@ class TestProjectSharingUi(HttpCase):
         )
 
     def test_05_project_sharing_chatter_mention_users(self) -> None:
+        # ``action_send_mail`` is what actually grants the access: saving the
+        # dialog deliberately grants nothing since ``_apply_collaborators``
+        # moved off ``create`` (see ``test_share_wizard``), so without this the
+        # portal user is not a collaborator and /my/projects lists nothing for
+        # the tour to click.
         self.env["project.share.wizard"].create(
             {
                 "res_model": "project.project",
@@ -288,7 +313,7 @@ class TestProjectSharingUi(HttpCase):
                     ),
                 ],
             }
-        )
+        ).action_send_mail()
         self.env["project.task"].with_context({"mail_create_nolog": True}).create(
             {
                 "name": "Test Task",

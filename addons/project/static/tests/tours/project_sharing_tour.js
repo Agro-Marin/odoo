@@ -293,7 +293,17 @@ registry
             },
             { trigger: ".o_project_sharing" },
             { trigger: ".o_kanban_record:contains('Test Task')", run: "click" },
-            { trigger: ".o-mail-Composer-input", run: "edit @xxx" },
+            // Type all but the last character, then press it for real.
+            // `edit` assigns the textarea's value and fires `input`, but does
+            // not move the caret the composer tracks in `composer.selection`;
+            // `UseSuggestion.detect()` scans *backwards from that caret* for a
+            // delimiter, so with the caret still at 0 it never sees the "@" and
+            // no suggestion is ever fetched -- no request reached the server at
+            // all. One real keystroke updates the selection and arms the
+            // search. Without it both assertions below pass vacuously: the
+            // "no suggestions" one because nothing is ever fetched.
+            { trigger: ".o-mail-Composer-input", run: "edit @xx" },
+            { trigger: ".o-mail-Composer-input", run: "press x" },
             {
                 trigger: "body:not(:has(.o-mail-Composer-suggestion))",
                 run: async () => {
@@ -303,7 +313,8 @@ registry
                     await delay(delay_fetch);
                 },
             },
-            { trigger: ".o-mail-Composer-input", run: "edit @Georges" },
+            { trigger: ".o-mail-Composer-input", run: "edit @George" },
+            { trigger: ".o-mail-Composer-input", run: "press s" },
             { trigger: ".o-mail-Composer-suggestion:contains('Georges')" },
         ],
     });

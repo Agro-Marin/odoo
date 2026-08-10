@@ -30,6 +30,24 @@ registry.category("web_tour.tours").add("project_update_tour", {
             run: "click .modal:visible .btn.btn-primary",
         },
         {
+            // Wait for the kanban to finish grouping: `isActive` below does not
+            // wait for its own selector, and the quick create is not in the DOM
+            // for the first few seconds after the view opens.
+            trigger: ".o_kanban_project_tasks .o_column_quick_create",
+        },
+        {
+            // A project is created with a default "New" workflow step here, so
+            // the column quick create starts folded -- it unfolds itself only
+            // when the kanban has no column at all. Skipped once unfolded, which
+            // it stays across validate().
+            isActive: [
+                ".o_kanban_project_tasks .o_column_quick_create.o_quick_create_folded",
+            ],
+            trigger:
+                ".o_kanban_project_tasks .o_column_quick_create .o_quick_create_button",
+            run: "click",
+        },
+        {
             trigger:
                 ".o_kanban_project_tasks .o_column_quick_create .input-group input",
             run: "edit New",
@@ -41,6 +59,24 @@ registry.category("web_tour.tours").add("project_update_tour", {
         },
         {
             trigger: ".o_kanban_group",
+        },
+        {
+            // Wait for the kanban to finish grouping: `isActive` below does not
+            // wait for its own selector, and the quick create is not in the DOM
+            // for the first few seconds after the view opens.
+            trigger: ".o_kanban_project_tasks .o_column_quick_create",
+        },
+        {
+            // A project is created with a default "New" workflow step here, so
+            // the column quick create starts folded -- it unfolds itself only
+            // when the kanban has no column at all. Skipped once unfolded, which
+            // it stays across validate().
+            isActive: [
+                ".o_kanban_project_tasks .o_column_quick_create.o_quick_create_folded",
+            ],
+            trigger:
+                ".o_kanban_project_tasks .o_column_quick_create .o_quick_create_button",
+            run: "click",
         },
         {
             trigger:
@@ -74,7 +110,13 @@ registry.category("web_tour.tours").add("project_update_tour", {
             run: "click",
         },
         {
-            trigger: ".o_kanban_group:eq(0)",
+            // Wait for the record itself, not for the column. `.o_kanban_group`
+            // and `.o_kanban_project_tasks` match while the save is still in
+            // flight, so the tour reopened the quick create and tried to type
+            // into an input the pending save had disabled -- "target should be
+            // editable", two milliseconds after a web_save that had in fact
+            // succeeded.
+            trigger: ".o_kanban_record:contains('New task')",
         },
         {
             trigger: ".o-kanban-button-new",
