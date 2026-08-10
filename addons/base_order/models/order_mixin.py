@@ -84,6 +84,24 @@ class OrderMixin(models.AbstractModel):
     # FIELDS
     # ------------------------------------------------------------------
 
+    # Declared here for the same reason as ``date_commitment``: this mixin
+    # already consumes ``line_ids`` throughout — the company constraint, the
+    # archived-product and catalog computes, confirmation validation, copy_data.
+    # Concrete models re-declare it with their own ``comodel_name`` only; the
+    # placeholder comodel is the abstract line mixin, which declares the
+    # matching ``order_id`` inverse.
+    line_ids = fields.One2many(
+        comodel_name="order.line.fields.mixin",
+        inverse_name="order_id",
+        string="Order Lines",
+        copy=True,
+    )
+    product_id = fields.Many2one(
+        related="line_ids.product_id",
+        comodel_name="product.product",
+        string="Product",
+    )
+
     name = fields.Char(
         string="Order Reference",
         required=True,

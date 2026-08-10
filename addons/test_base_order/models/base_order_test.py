@@ -14,12 +14,7 @@ class BaseOrderTest(models.Model):
     # FIELDS
 
     # Order line block
-    line_ids = fields.One2many(
-        comodel_name="base.order.test.line",
-        inverse_name="order_id",
-        string="Order Lines",
-        copy=True,
-    )
+    line_ids = fields.One2many(comodel_name="base.order.test.line")
     # References
     partner_ref = fields.Char(copy=False)
 

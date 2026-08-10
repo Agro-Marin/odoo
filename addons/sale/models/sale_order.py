@@ -222,14 +222,7 @@ class SaleOrder(models.Model):
     # Order line block
     line_ids = fields.One2many(
         comodel_name="sale.order.line",
-        inverse_name="order_id",
-        string="Order Lines",
-        copy=True,
         bypass_search_access=True,
-    )
-    product_id = fields.Many2one(
-        related="line_ids.product_id",
-        string="Product",
     )
     # Only ``tracking`` (the chatter sequence) differs from
     # ``order.amount.mixin``; string/compute/store are inherited.

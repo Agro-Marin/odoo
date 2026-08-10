@@ -111,17 +111,7 @@ class PurchaseOrder(models.Model):
     )
 
     # Order line block
-    line_ids = fields.One2many(
-        comodel_name="purchase.order.line",
-        inverse_name="order_id",
-        string="Order Lines",
-        copy=True,
-    )
-    product_id = fields.Many2one(
-        related="line_ids.product_id",
-        comodel_name="product.product",
-        string="Product",
-    )
+    line_ids = fields.One2many(comodel_name="purchase.order.line")
     date_commitment = fields.Datetime(
         string="Expected Arrival",
         compute="_compute_date_commitment",
