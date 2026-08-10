@@ -31,6 +31,7 @@ pytest; the ``Architecture Boundaries`` workflow runs the whole directory.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import sys
 import unittest
@@ -791,17 +792,35 @@ class TestCompositionDesignRule(unittest.TestCase):
         documented command whose output is the absence of the thing it
         illustrates.
         """
-        example = re.search(r"mixin_coupling_check\.py --explain (\w+) (\w+)", DOC)
-        self.assertIsNotNone(example, "the --explain example is gone")
-        source, target = example.groups()
-        self.assertIn(source, self.units, f"--explain example names unknown {source}")
-        self.assertIn(target, self.units, f"--explain example names unknown {target}")
-        self.assertIn(
-            target,
-            self.edges.get(source, {}),
-            f"the documented example `--explain {source} {target}` has no edge "
-            "to show; pick a pair that does",
+        # EVERY example, not just the first. ``re.search`` matched only the
+        # BaseModel one, so the composition-scoped example beside it went
+        # unchecked and reached the very state this test exists to prevent:
+        # `--composition Field --explain _field_convert base.py` printed "no
+        # edge" and exited 2, illustrating the absence of the thing it was
+        # cited for, because the _FieldMetadataMixin extraction had removed
+        # that edge. Each example is resolved against its own composition.
+        examples = re.findall(
+            r"mixin_coupling_check\.py (?:--composition (\w+) \\?\s*)?"
+            r"--explain (\w+) ([\w.]+)",
+            DOC,
         )
+        self.assertTrue(examples, "the --explain examples are gone")
+        for label, source, target in examples:
+            with self.subTest(composition=label or "BaseModel", edge=(source, target)):
+                if label:
+                    comp = next(c for c in self.mcc.COMPOSITIONS if c.label == label)
+                    measured = self.mcc.measure(comp=comp)
+                    units, edges = measured["_units"], measured["_edges"]
+                else:
+                    units, edges = self.units, self.edges
+                self.assertIn(source, units, f"--explain names unknown {source}")
+                self.assertIn(target, units, f"--explain names unknown {target}")
+                self.assertIn(
+                    target,
+                    edges.get(source, {}),
+                    f"the documented example `--explain {source} {target}` has "
+                    f"no edge to show; pick a pair that does",
+                )
 
     def test_the_cursor_counters_have_an_owner(self) -> None:
         """The fix behind ``Cursor``'s row, not just its number.
@@ -2866,6 +2885,105 @@ class TestEdgeCountConventions(unittest.TestCase):
         )
 
 
+class TestFloorMethodologyExample(unittest.TestCase):
+    """``gates.md``'s clean-worktree worked example, and the budget it quotes.
+
+    The example is dated and one of its two numbers is a snapshot of somebody's
+    dirty tree, which nothing can re-derive — that half is history and stays
+    so. The other half is not: the row asserts, in the present tense and with a
+    tick, that the clean-worktree figure **equals the committed floor**. That
+    is a live claim about ``baselines/pyfunclen.json``, and it goes false the
+    moment the floor moves for any ordinary reason.
+    """
+
+    def test_the_example_does_not_claim_to_be_the_current_floor(self) -> None:
+        """It once did, with a tick, and was stale within the day.
+
+        The example's worth is the *gap* and its cause, not the absolute: a
+        floor that moves whenever anyone shortens a function cannot be restated
+        on a page and stay true. So the page carries it as a dated measurement
+        and points at the tool for today's value — and this asserts it has not
+        drifted back into a present-tense claim, which is the shape that rots.
+        """
+        floor = json.loads(
+            (ROOT / "tooling" / "ratchet" / "baselines" / "pyfunclen.json").read_text(
+                encoding="utf-8"
+            )
+        )["count"]
+        self.assertIn("`pyfunclen` that day", DOC, "the example lost its dating")
+        self.assertIn(
+            "this table is an illustration of the method and is not maintained",
+            DOC_FLAT,
+        )
+        self.assertNotIn(
+            "= the committed floor",
+            DOC,
+            "the worked example claims equality with the committed floor again; "
+            f"it is {floor} today and the claim will rot the next time a "
+            f"function is shortened",
+        )
+
+    def test_the_quoted_budget_is_the_gates_own(self) -> None:
+        """80 is ``MAX_LINES``; the page must not carry a second copy of it."""
+        src = (ROOT / "tooling" / "architecture" / "py_function_length.py").read_text(
+            encoding="utf-8"
+        )
+        match = re.search(r"^MAX_LINES = (\d+)$", src, re.MULTILINE)
+        self.assertIsNotNone(match, "py_function_length.MAX_LINES is gone")
+        self.assertIn(f"*excess lines* over {match.group(1)}", DOC_FLAT)
+
+
+class TestFilestoreLayout(unittest.TestCase):
+    """The filestore table in ``data.md``, against ``libs/hashing.py``.
+
+    Both digest lengths were unpinned, which is how one of them spent a while
+    reading 99: a mutation-testing harness that rewrote the page on disk was
+    killed mid-case and left its mutant behind, and nothing in the suite
+    noticed a filestore path length that no algorithm produces. The lengths are
+    a real interoperability claim — a deployment reading the other tag's paths
+    has to know how long the digest is — so they are derived here from the
+    constant the code indexes rather than restated beside it.
+    """
+
+    @staticmethod
+    def _lengths_by_tag() -> dict[str, int]:
+        src = (ROOT / "odoo" / "libs" / "hashing.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and any(
+                getattr(t, "id", None) == "CONTENT_DIGEST_LEN_BY_TAG"
+                for t in node.targets
+            ):
+                return {
+                    k.value: v.value
+                    for k, v in zip(node.value.keys, node.value.values, strict=True)
+                }
+        raise AssertionError("CONTENT_DIGEST_LEN_BY_TAG is gone from libs/hashing.py")
+
+    def test_each_tag_row_states_its_real_digest_length(self) -> None:
+        lengths = self._lengths_by_tag()
+        self.assertEqual({"s1", "b3"}, set(lengths), "the tag set changed")
+        for tag, length in sorted(lengths.items()):
+            with self.subTest(tag=tag):
+                row = next(
+                    (ln for ln in DOC.splitlines() if ln.startswith(f"| `{tag}` ")),
+                    None,
+                )
+                self.assertIsNotNone(row, f"data.md has no row for tag {tag}")
+                self.assertEqual(
+                    str(length),
+                    row.rsplit("|", 2)[1].strip(),
+                    f"the {tag} row's digest length disagrees with "
+                    f"CONTENT_DIGEST_LEN_BY_TAG",
+                )
+
+    def test_the_tag_is_still_chosen_by_an_optional_dependency(self) -> None:
+        """The page's point is that the layout depends on blake3 being there."""
+        src = (ROOT / "odoo" / "libs" / "hashing.py").read_text(encoding="utf-8")
+        self.assertIn('ALGO_TAG = "b3" if HAS_BLAKE3 else "s1"', src)
+        self.assertIn("depends on an optional dependency", DOC_FLAT)
+
+
 class TestAddonSuiteFigures(unittest.TestCase):
     """Sizes ``gates.md`` quotes to argue what belongs in the integration lane.
 
@@ -3206,6 +3324,26 @@ class TestDeploymentLimits(unittest.TestCase):
         section = re.split(r"^## ", section, maxsplit=1, flags=re.MULTILINE)[0]
         rows = re.findall(r"^\| `(\w+)` \| `?([^|`]+?)`? \|", section, re.MULTILINE)
         return {name: value.strip() for name, value in rows}
+
+    def test_the_soft_hard_gap_is_derived(self) -> None:
+        """512 MB is ``hard - soft``, and the page's point rests on it.
+
+        The paragraph argues that a deployment "sized on the 512 MB between the
+        two" has no hard ceiling at all, so the figure is load-bearing for the
+        warning rather than decorative — and it was the last number in the
+        knob section that no assertion re-derived.
+        """
+        defaults = self._defaults()
+        soft = defaults["limit_memory_soft"]
+        hard = defaults["limit_memory_hard"]
+        self.assertIsInstance(soft, int)
+        self.assertIsInstance(hard, int)
+        gap = (hard - soft) // 1024 // 1024
+        self.assertIn(
+            f"sized on the {gap} MB between the two",
+            DOC_FLAT,
+            f"the stated soft/hard gap disagrees with config.py ({gap} MB)",
+        )
 
     def test_every_stated_default_matches_config(self) -> None:
         defaults = self._defaults()

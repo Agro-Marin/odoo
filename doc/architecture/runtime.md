@@ -29,75 +29,71 @@ odoo-bin
 ```
 
 Before any of that, importing `odoo.orm`, `odoo.modules` or `odoo.cli.command`
-executes **`odoo/init.py`**, the framework bootstrap, in this order: enforce
-`MIN_PY_VERSION`, probe the mandatory `odoo_rust` native extension (a failed
-import here is a hard, explained error, not a fallback), retune the GC
-thresholds, then `_monkeypatches.patch_init()`. Anything that must be patched
-before third-party modules load has to run from there.
+executes **`odoo/init.py`**, the framework bootstrap, in this order:
 
-The other runtime floor is enforced far later and by a different subsystem:
+| # | Step | Fails how |
+|---|---|---|
+| 1 | enforce `MIN_PY_VERSION` | `SystemExit` naming the required version |
+| 2 | import the mandatory `odoo_rust` native extension | a hard, explained error — there is no pure-Python fallback |
+| 3 | compare `odoo_rust.__source_crc__` against the crate on disk | refuses to start when the built extension is **stale**, naming the rebuild command. Skipped when the crate directory is absent (an installed wheel) or `ODOO_SKIP_RUST_FRESHNESS_CHECK` is set |
+| 4 | retune the GC threshold set | — |
+| 5 | `_monkeypatches.patch_init()` | anything that must be patched before third-party modules load has to run from here |
+
+Step 3 is a separate failure from step 2 and the less obvious one: a stale
+extension imports cleanly and then segfaults on a cyclic `fast_clone` and
+mis-orders timezone-aware columns, neither of which names its cause. CI never
+sees it — every lane builds the extension fresh — so it is a long-lived
+virtualenv problem only.
+
+The other runtime floor is enforced later and by a different subsystem:
 `db/pool.py` compares the server against `MIN_PG_VERSION` at connect time and
 raises `PoolError`. Both constants live in `odoo/release.py` and are named here
 rather than restated — a floor written into prose is a second copy that drifts.
 
-Which server object is chosen is set by configuration: `workers = 0` gives
-`ThreadedServer` (debugger-friendly, one process), `workers > 0` gives
-`PreforkServer`, and `odoo.evented` gives `EventServer`. Every one of them ends
-in the same `preload_registries` → `Registry.new` path.
+| Config | Server | Concurrency |
+|---|---|---|
+| `workers = 0` (default) | `ThreadedServer` | Python threads, one process, debugger-friendly |
+| `workers > 0` | `PreforkServer` | forked OS processes, no shared memory |
+| `odoo.evented` | `EventServer` | gevent greenlets, one process |
 
-That reads like a deployment knob, and this page used to say so outright — "a
-deployment decision, not an architectural one". It is not. See the next section:
-a large part of the ORM's runtime design exists *because* `workers > 0` is
-supported, and would not otherwise need to.
+All three end in the same `preload_registries` → `Registry.new` path. The choice
+is not a deployment knob: a large part of the ORM's runtime design exists
+*because* `workers > 0` is supported.
 
 ### Concurrency, and why the process model is architectural
 
 With one process, a registry is an ordinary Python object and invalidating it is
 an attribute write. With `workers > 0` there are N processes that share no
 memory, each holding its own `Registry` per database, and **a model change made
-in worker A is invisible to worker B**. There is no shared-memory channel to fix
-that, and adding one would put a second coordination system beside the one the
-framework already depends on. So the framework coordinates through the database
-it is already connected to.
+in worker A is invisible to worker B**. There is no shared-memory channel, and
+adding one would put a second coordination system beside the one the framework
+already depends on. So the framework coordinates through the database.
 
 `orm/runtime/registry.py` implements it as a sequence protocol over ordinary
 tables (`orm_signaling_registry`, plus one per cache key in `CACHES_BY_KEY`),
 each holding nothing but a `SERIAL` id and a timestamp:
 
-- **Publishing** — `Registry.signal_changes()` `INSERT`s a row and reads back
-  **the id the database generated** (`RETURNING id`), rather than assuming its
-  own `local + 1`. Concurrent inserts are the normal case here, not the edge one:
-  two workers signalling together take ids N+1 and N+2 while both would record
-  `+= 1` locally, and the one that lost the race would then see `db > local` on
-  its next check and pay a full `Registry.new()` — the most expensive operation
-  in the system — to learn about a change it had made itself.
-- **Observing** — `Registry.check_signaling()` reads `max(id)` per table and
-  compares against what this process last saw. A **registry** sequence ahead of
-  the local one means the model classes are stale: the worker adopts an
-  already-published newer registry if one exists, else drains the pool and calls
-  `Registry.new()`. A **cache** sequence ahead clears only the LRUs behind that
-  key, which is why a cache eviction costs far less than a registry rebuild and
-  why the two are signalled on separate tables at all.
-- **Tolerating lag** — a sequence *below* the local one is logged and ignored as
-  stale rather than raising. Signaling may be read through a read-only cursor
-  that lands on a replica, and a replica behind the primary must not thrash every
-  worker's registry.
+| Operation | Mechanism | Why this way |
+|---|---|---|
+| **Publishing** | `Registry.signal_changes()` `INSERT`s a row and reads back **the id the database generated** (`RETURNING id`) | not `local + 1`: concurrent inserts are the normal case, so two workers signalling together take ids N+1 and N+2 while both would record `+= 1` locally, and the loser would see `db > local` and pay a full `Registry.new()` — the most expensive operation in the system — to learn about a change it made itself |
+| **Observing** | `Registry.check_signaling()` reads `max(id)` per table against what this process last saw | a **registry** sequence ahead means the model classes are stale: adopt an already-published newer registry if one exists, else drain the pool and call `Registry.new()`. A **cache** sequence ahead clears only the LRUs behind that key, which is why eviction costs far less than a rebuild and why the two use separate tables |
+| **Tolerating lag** | a sequence *below* the local one is logged and ignored as stale | signaling may be read through a read-only cursor that lands on a replica, and a replica behind the primary must not thrash every worker's registry |
 
-Three consequences for code you write anywhere in the core:
+Three consequences for code anywhere in the core:
 
-- **A registry is per `(process, database)`, never global.** Anything you attach
-  to one is invisible to the other workers until something signals.
-- **A process-lifetime cache must be registered in `CACHES_BY_KEY`**, or it will
-  serve stale values in every worker but the one that changed the data — and no
+- **A registry is per `(process, database)`, never global.** Anything attached to
+  one is invisible to the other workers until something signals.
+- **A process-lifetime cache must be registered in `CACHES_BY_KEY`**, or it
+  serves stale values in every worker but the one that changed the data — and no
   test with `workers = 0` can reproduce it.
 - **`Registry.new()` can run more than once per process**, and not only at boot:
   a signaling check triggers it, and so does `_UninstallRequiresReload` from
-  inside `load_modules` (see *Registry build*). Code that assumes one registry
-  build per process start is wrong.
+  inside `load_modules`. Code that assumes one registry build per process start
+  is wrong.
 
 The cron runner is the same argument in a second place. `service/_threaded.py`
 and `service/_worker.py` reach `IrCron._process_jobs` / `IrJob._process_jobs`
-directly — the two pinned `core-does-not-depend-on-addons` exceptions — precisely
+directly — the two pinned `core-does-not-depend-on-addons` exceptions —
 because a cron thread runs *before* a registry exists for that database and has
 no `env` to route through. The exception is a consequence of the process model,
 not an oversight.
@@ -107,8 +103,8 @@ not an oversight.
 `Registry.new()` is the most expensive operation in the system and the only way
 a database's model classes come into existence. It refuses to run against a
 system or template database, allocates the registry, sets up cross-process
-signalling, and then hands off to `modules.loading.load_modules()`, whose phases
-are methods on `_ModuleLoader`:
+signalling, then hands off to `modules.loading.load_modules()`, whose phases are
+methods on `_ModuleLoader`:
 
 ```
 Registry.new(db)
@@ -134,13 +130,12 @@ enumerate. [`scenarios.md`](scenarios.md#scenario-a--installing-a-module)
 selects thirteen for a different purpose, so the two lists differ — read either
 as an ordering claim, never as the full sequence, which is `loading.py`'s.
 
-Two consequences worth knowing before touching this path:
+Two consequences before touching this path:
 
 - **The graph is iterated by phase, then dependency depth, then name** — never by
   filesystem order. A module's data loads only after every dependency's.
 - **`uninstall_removed_modules()` can raise `_UninstallRequiresReload`**, which
-  makes `load_modules` call `Registry.new()` again from inside itself. Code that
-  assumes one registry build per process start is wrong.
+  makes `load_modules` call `Registry.new()` again from inside itself.
 
 After `load_modules` returns, `Registry.new` marks the registry ready, calls
 `_ensure_field_triggers()`, and `signal_changes()` so other workers reload.
@@ -161,7 +156,7 @@ WSGI  →  Application.__call__  →  Request (_post_init: session + db)
             → cr.close() → response
 ```
 
-Three details the sketch flattens, all of them claims about **order**:
+Three details the sketch flattens, all claims about **order**:
 
 - **`retrying()` lives in `odoo/service/transaction.py`**, not on a model. It
   re-runs the callable on PostgreSQL serialization/deadlock errors, rewinding
@@ -183,18 +178,17 @@ satisfy all of them. The runtime proof is
 `addons/test_http/tests/test_lifecycle_order.py`, which patches
 `Request._save_session` and *both* cursor classes and reads the sequence off the
 serving thread. Observed: `[save_session, commit]` normally, and
-`[save_session, save_session, commit]` on the promoted path — the double-run
-showing up in the same trace as the ordering. (Both cursor classes, because
-under `HttpCase` the request's `env.cr` is a `TestCursor`, which subclasses
-`BaseCursor` rather than `Cursor`; instrumenting `Cursor.commit` alone observes
-nothing and reads as "`retrying()` never commits".)
+`[save_session, save_session, commit]` on the promoted path. (Both cursor
+classes, because under `HttpCase` the request's `env.cr` is a `TestCursor`,
+which subclasses `BaseCursor` rather than `Cursor`; instrumenting `Cursor.commit`
+alone observes nothing and reads as "`retrying()` never commits".)
 
 `Dispatcher` has three subclasses (`HttpDispatcher`, `JsonRPCDispatcher`,
 `Json2Dispatcher`) selected by `routing["type"]`.
 
-The canonical, unflattened call graph — every stage, plus what each one is
-responsible for — is **`odoo/http/README.md`**. That file also carries `http/`'s
-module map, which `package_index_check.py` gates.
+The canonical, unflattened call graph — every stage and what each is responsible
+for — is **`odoo/http/README.md`**, which also carries `http/`'s module map,
+gated by `package_index_check.py`.
 
 ### Transaction, cache and flush
 
@@ -214,12 +208,12 @@ Cursor ──── transaction ────┬─ registry          the model c
 
 `Environment(cr, uid, context, su)` is **interned** per `(cr, uid, su, context)`:
 constructing one with the same key returns the existing object. Environments are
-therefore cheap and identity-comparable, and any per-request state must live on
-the transaction or the request, never on an `Environment` you happen to hold.
+cheap and identity-comparable, and any per-request state must live on the
+transaction or the request, never on an `Environment` you happen to hold.
 
 **Writes do not reach SQL where you write them.** `create()`/`write()` update the
 field cache, mark ids dirty, and schedule dependent computes; the database sees
-nothing until a flush. A flush is a *fixpoint loop*, because recomputing one
+no write until a flush. A flush is a *fixpoint loop*, because recomputing one
 field can dirty another:
 
 ```
@@ -232,17 +226,18 @@ env.flush_all()
 ```
 
 Non-convergence is an error, not a warning: the loop raises unless the context
-carries `tolerant_recompute`, and `UnitOfWork` also carries a stall detector so a
-loop that stops making progress fails in seconds instead of grinding to the
-iteration cap. `flush_model()` / `flush_recordset()` are the scoped versions and
-both short-circuit when nothing is pending or dirty.
+carries `tolerant_recompute`, and `UnitOfWork` carries a stall detector so a loop
+that stops making progress fails in seconds instead of grinding to the cap.
+`flush_model()` / `flush_recordset()` are the scoped versions and both
+short-circuit when nothing is pending or dirty.
 
-Row I/O at the bottom of all of this goes through `env.backend`, the ADR-0011
-port described under **Seams** — which is what lets the whole ORM run against
-`InMemoryBackend` with no database at all. **`backend` is non-optional and has
-two implementors**, which is why the row above names one rather than leaving it
-unset: until 2026-08-08 a null `env.backend` *was* the PostgreSQL
-implementation, an unnamed branch at fifteen sites, and this sketch went on
-teaching that sentinel after `PostgresBackend` had a name. A diagram is where a
-reader learns the shape, so it is the worst place for a retired one to survive.
+The loop still issues *reads*: prefetch `SELECT`s land where the field is first
+touched. Measured, a 10,000-record write loop issues 20 statements before the
+flush and 100 at it ([`qualities.md`](qualities.md#scenario-1--write-throughput)).
 
+Row I/O at the bottom goes through `env.backend`, the ADR-0011 port described
+under **Seams** — which is what lets the whole ORM run against `InMemoryBackend`
+with no database. **`backend` is non-optional and has two implementors**, which
+is why the sketch above names one rather than leaving it unset: until 2026-08-08
+a null `env.backend` *was* the PostgreSQL implementation, an unnamed branch at
+fifteen sites.

@@ -2,8 +2,8 @@
 
 > One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > Each other view is a projection: modules, runtime, data, deployment. A
-> scenario is a **thread that crosses all of them**, which is the only way to
-> see an interaction that no single view contains.
+> scenario is a **thread that crosses all of them**, which is the only way to see
+> an interaction no single view contains.
 
 `runtime.md` already threads two: [process
 boot](runtime.md#process-boot) and the [request
@@ -13,9 +13,8 @@ module, and upgrading a database that already holds data.
 
 ## Scenario A — installing a module
 
-The thread that makes *"the schema is data"* concrete. Entry point is
-`modules/loading.py::load_modules`, whose phases are named methods on
-`_ModuleLoader` and run in this order:
+Entry point is `modules/loading.py::load_modules`, whose phases are named methods
+on `_ModuleLoader` and run in this order:
 
 | # | Phase | Crosses into |
 |---|---|---|
@@ -33,11 +32,15 @@ The thread that makes *"the schema is data"* concrete. Entry point is
 | 12 | `uninstall_removed_modules()` | data + module |
 | 13 | `reinit_models_to_check()` | runtime |
 
-Thirteen of `load_modules`' 22 calls, in call order — the nine left out are
-reporting and bookkeeping (`report_modules_that_never_loaded`,
-`log_assertion_report`, `flag_partially_updated_database` and the rest), which
-cross no view. The numbering is this table's, not the loader's; what is pinned
-is the *order*, by `test_scenario_a_phase_table_is_ordered_and_says_it_is_partial`.
+Thirteen of `load_modules`' 22 calls, in call order. The numbering is this
+table's, not the loader's; what is pinned is the *order*, by
+`test_scenario_a_phase_table_is_ordered_and_says_it_is_partial`. The nine left
+out split two ways, and the second group is not bookkeeping:
+
+| Left out | Why |
+|---|---|
+| `report_modules_that_never_loaded`, `report_pending_module_states`, `log_assertion_report`, `flag_partially_updated_database`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
+| `register_model_hooks`, `check_null_constraints`, `validate_custom_views`, `run_post_update_model_checks` | real work, selected out of *this* thread rather than out of the loader. Three of the four appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose |
 
 Three things this ordering encodes that no other view states:
 
@@ -49,16 +52,16 @@ not from live state.
 
 **Constraints are finalised last (11).** A constraint can reference a column a
 later module in the same run adds, so applying them per module would fail on
-orderings that are otherwise legal. This is the same argument as the flush
-fixpoint, applied to DDL.
+orderings that are otherwise legal. Same argument as the flush fixpoint, applied
+to DDL.
 
 **Uninstalling can force a second full registry build.** Phase 12 may raise
-`_UninstallRequiresReload`, which is caught and answered with a fresh
-`Registry.new(…)` — logged as *"Reloading registry once more after uninstalling
-modules."* Uninstall is therefore the one operation that can pay the cold
-registry cost **twice** in a single command; at the 35.85 s measured in
-[`qualities.md`](qualities.md#scenario-2--registry-build-and-boot), that is
-the difference between a minute and two.
+`_UninstallRequiresReload`, caught and answered with a fresh `Registry.new(…)` —
+logged as *"Reloading registry once more after uninstalling modules."*
+Uninstall is therefore the one operation that can pay the cold registry cost
+**twice** in a single command; at the 35.85 s measured in
+[`qualities.md`](qualities.md#scenario-2--registry-build-and-boot), the
+difference between a minute and two.
 
 Under `workers > 0` the whole thread runs in one worker, and every other worker
 learns about it only through the signalling tables — see
@@ -82,15 +85,16 @@ not by the module's current state.
 
 The architectural consequence: **`pre` is the only stage that can see the old
 shape.** Once the graph converges the columns have already changed, so a
-migration that needs the previous representation and is written as `post` has
-nothing to read. That is not recoverable at run time and not caught by any gate
-in [`gates.md`](gates.md) — every one of them is structural and DB-free.
+migration needing the previous representation and written as `post` has nothing
+to read. Not recoverable at run time, and caught by no gate in
+[`gates.md`](gates.md) — every one is structural and DB-free.
+[`risks.md`](risks.md) R3.
 
-Two further asymmetries against Scenario A:
+Two asymmetries against Scenario A:
 
 - **Cost is not comparable.** Scenario A's measured 35.85 s installs 105 modules
   into an *empty* database. An upgrade additionally rewrites existing rows, and
-  nothing in this document set measures that — it is listed as a gap in
+  nothing in this document set measures that — listed as a gap in
   [`qualities.md`](qualities.md#what-this-page-does-not-measure).
 - **Failure is not symmetric.** A failed install leaves a database nobody was
   using; a failed upgrade leaves one somebody was. The filestore is not

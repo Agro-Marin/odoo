@@ -83,25 +83,43 @@ odoo/
 >
 > **The bracketed tiers carry contracts of their own** —
 > `db-resilience-below-connectivity` and `http-features-below-serving`, both in
-> the table below. Filing a module in the right bracket is therefore a decision,
-> not a caption: `db/errors.py` (with `dsn`/`utils`) imports nothing else in
-> `db/` and is used by both tiers, so it is `[foundation]`, not
-> `[connectivity]`; `http/helpers.py` imports `core` and is imported by
+> the table below. Filing a module in the right bracket is a decision, not a
+> caption: `db/errors.py` (with `dsn`/`utils`) imports nothing else in `db/` and
+> is used by both tiers, so it is `[foundation]`, not `[connectivity]`;
+> `http/helpers.py` imports `core` and is imported by
 > `dispatcher`/`_serve`/`request_class`, so it is `[serving]`, not `[features]`.
->
-**Both tiers were documentation only until they were measured**, and both turned
-out already layered:
+
+Both tiers were documentation only until they were measured, and both turned out
+already layered. Each back-edge was a module filed in the wrong bracket, not a
+genuine cycle. Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to
+`[serving]` took both directions to zero, which is what made them contracts.
 
 | Tier pair | Downward | Back-edges | Convention |
 |---|---:|---:|---|
 | `db/` `[connectivity]` → `[resilience]` | had 6 connectivity → resilience edges | 1 | counting imported *symbols*, as `layer_check` does |
 | `http/` `[serving]` → `[features]` | 22 serving → features | 1 | counting import *statements*; by symbol it is 44 against 2 |
 
-Each back-edge was a module filed in the wrong bracket, not a genuine cycle.
-Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to `[serving]`
-took both directions to zero, which is what made them contracts. **The two
-counting conventions are not interchangeable** — a figure quoted without saying
-which one it uses cannot be reproduced.
+**These are the pre-fix figures**, re-derived by
+`TestEdgeCountConventions`, which holds the *old* bracket assignment
+(`errors`/`dsn`/`utils` in `[connectivity]`) for exactly that reason. Correcting
+its map to match the one above would change all four numbers and measure a
+different claim.
+
+Three things a re-measurement has to hold apart, each of which produces a
+plausible wrong answer on its own:
+
+- **Statements against symbols.** `layer_check` counts symbols; `from .reaper
+  import IdlePoolReaper, note_activity` is one statement and two. Pick the other
+  convention and the two rows read 5 and 44.
+- **`from . import x`.** A relative import with no module names its targets in
+  `node.names`, not in `node.module`. Skip that form and `db/`'s back-edge
+  disappears, leaving the tier looking cleaner than it was.
+- **Runtime against typing.** `http/_protocols.py` is `[features]` and names
+  `Dispatcher`, `Session`, `FutureResponse`, `HTTPRequest` and `Response` from
+  `[serving]` — upward, and legal, because all five are inside
+  `if TYPE_CHECKING:` and never execute. `http-features-below-serving` is
+  correctly clean; a probe that reads import statements without honouring the
+  guard reports five violations against a tier that has none.
 
 ### Ownership and legal direction
 
@@ -121,8 +139,7 @@ contract, the direction is a CI gate rather than a convention.
 | `addons/` | the bundled base addons | `odoo.orm.*` | `facade-boundary` |
 
 `_monkeypatches/` sits outside the direction rules by construction: it runs
-before anything else (see **Process boot**) and patches third-party modules
-only.
+before anything else (see **Process boot**) and patches third-party modules only.
 
 ### `tools/` has a third role: it is the façade for part of `libs/`
 
@@ -143,13 +160,12 @@ supplies it — **58 of the 101 come from `odoo.libs`**, the other 43 arriving
 from `tools`' own modules: 22 imported by `tools/__init__.py` itself and 36
 through submodules that re-export from `libs` in turn. So the erasure covers
 more than half the façade, not a fifth of it, and no reading of
-`tools/__init__.py` alone will show that.
+`tools/__init__.py` alone shows that.
 
-Resolve it by *import*, not by `__module__`: two of the 58 (`html_escape`,
-`single_email_re`) report `markupsafe` and `re` at run time, being a
-re-exported third-party alias and a compiled pattern rather than functions
-`libs` defines. A live-attribute sweep therefore answers 56 and looks
-authoritative doing it.
+**Resolve by *import*, not by `__module__`.** Two of the 58 (`html_escape`,
+`single_email_re`) report `markupsafe` and `re` at run time, being a re-exported
+third-party alias and a compiled pattern rather than functions `libs` defines. A
+live-attribute sweep therefore answers 56 and looks authoritative doing it.
 
 | Caller | Import | Why |
 |---|---|---|
@@ -207,8 +223,8 @@ freely.
 **Layer 0's permissions are wider than its practice**, and the pairing must not
 be read as a dependency claim. It may use `odoo.tools` and `odoo_rust`; it
 exercises only the first — `primitives.py` takes the `SQL` builder from
-`odoo.tools`, and **no Layer-0 module imports `odoo_rust` at all**. The
-extension enters the ORM at `helpers.py`, `models/mixins/read.py` and
+`odoo.tools`, and **no Layer-0 module imports `odoo_rust` at all**. The extension
+enters the ORM at `helpers.py`, `models/mixins/read.py` and
 `runtime/environment.py`.
 
 ### `components/` — the two cache APIs
@@ -277,36 +293,18 @@ it stays visible and cannot multiply.
 
 Three scope caveats the "✅ clean" column does not show, all by design:
 
-- **Every contract is a DIRECT-edge rule, never transitive.**
-  `orm-layer1-below-models-and-runtime` stops `odoo/orm/fields` importing
-  `odoo.orm.runtime`; it says nothing about `odoo/orm/fields` →
-  `odoo.tools.something` → `odoo.orm.runtime`. Transitivity is deliberately not
-  the fix — `tools/` is the Odoo-coupled utility layer, so transitively
-  everything reaches everything through it and the rule would need a large,
-  low-signal baseline. The narrower invariant is the useful one and holds at
-  zero: `tools-does-not-reach-the-orm-runtime`. Add a targeted contract when a
-  conduit matters.
-- **Test files are not scanned — but `odoo/tests/` is not test files.**
-  `layer_check.iter_source_files()` drops any path with a `tests` component,
-  plus `conftest.py` and `test_*.py`. The one carve-out is
-  `_CORE_TEST_FRAMEWORK_PACKAGE = ("odoo", "tests")`, the shipped test
-  *framework*: inside it only its own `test_*.py` and `conftest.py` are dropped,
-  and `case.py`, `common.py`, `http.py` and the rest **are** scanned. The next
-  bullet is the proof — skipped wholesale, its addon-contract exemption would be
-  dead code.
-- **`odoo.tests` is exempt from `core-does-not-depend-on-addons`**
-  (`CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT`): the framework's job is to drive
-  application code, and its one addon reach (`tests/http.py` →
-  `odoo.addons.bus`) is deferred and guarded by
-  `if "bus.bus" in self.env.registry:`. Every other core package is in scope
-  (`test_core_source_covers_every_core_package`).
+| Caveat | Detail |
+|---|---|
+| **Every contract is a DIRECT-edge rule, never transitive** | `orm-layer1-below-models-and-runtime` stops `odoo/orm/fields` importing `odoo.orm.runtime`; it says nothing about `odoo/orm/fields` → `odoo.tools.something` → `odoo.orm.runtime`. Transitivity is deliberately not the fix: `tools/` is the Odoo-coupled utility layer, so transitively everything reaches everything through it and the rule would need a large, low-signal baseline. The narrower invariant holds at zero — `tools-does-not-reach-the-orm-runtime`. Add a targeted contract when a conduit matters |
+| **Test files are not scanned — but `odoo/tests/` is not test files** | `layer_check.iter_source_files()` drops any path with a `tests` component, plus `conftest.py` and `test_*.py`. The one carve-out is `_CORE_TEST_FRAMEWORK_PACKAGE = ("odoo", "tests")`, the shipped test *framework*: inside it only its own `test_*.py` and `conftest.py` are dropped, and `case.py`, `common.py`, `http.py` and the rest **are** scanned |
+| **`odoo.tests` is exempt from `core-does-not-depend-on-addons`** | `CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT`: the framework's job is to drive application code, and its one addon reach (`tests/http.py` → `odoo.addons.bus`) is deferred and guarded by `if "bus.bus" in self.env.registry:`. Every other core package is in scope (`test_core_source_covers_every_core_package`). Were `odoo/tests` skipped wholesale, this exemption would be dead code — which is the proof for the row above |
 
 `core-does-not-depend-on-addons` is the mirror of `facade-boundary`: that one
 stops addons reaching into ORM internals, this one stops the framework depending
 on its own consumer. It ships **two pinned `KNOWN_VIOLATIONS` rules**
 (`odoo.service` → `odoo.addons.base.models.ir_cron` / `…ir_job`), which the
 report expands to **4 tolerated edges**, one per call site. Both intentional;
-reasoning in **Known boundary exceptions** below.
+reasoning in **Known boundary exceptions** in [`gates.md`](gates.md).
 
 ## Coupling the import graph cannot see
 
@@ -325,9 +323,9 @@ tree produce none. Each has its own gate.
 A root class over `__slots__ = ()` mixins collaborating through `self`.
 `BaseModel` is the largest, composed from 26
 `__slots__ = ()` mixins by multiple inheritance — 18 public (`CreateMixin` …
-`AccessMixin`) plus 8 private (`_PropertiesMixin`, `_QueryMixin`,
-`_ConstraintsMixin`, `_DisplayNameMixin`, `_FieldComputeMixin`, `_HooksMixin`,
-`_MagicFieldsMixin`, `_ModelMetadataMixin`).
+`AccessMixin`) plus 8 private
+(`_PropertiesMixin`, `_QueryMixin`, `_ConstraintsMixin`, `_DisplayNameMixin`,
+`_FieldComputeMixin`, `_HooksMixin`, `_MagicFieldsMixin`, `_ModelMetadataMixin`).
 
 `mixin_coupling_check.py` reconstructs the call graph and ratchets it exact-mode,
 per composition. Measured by a live run of that gate:
@@ -344,8 +342,7 @@ The last column is the shape claim, not a line count: a root larger than all its
 leaves put together is a composition that has not actually been decomposed.
 `BaseModel` is the target — its root is a fraction of its leaves — and three of
 the other four still invert it. Line counts are deliberately not tabulated: they
-move on every edit to the file and carry no architectural signal that the
-direction does not.
+move on every edit and carry no architectural signal the direction does not.
 
 **Read `cyclic_edges` and `unowned_shared_state` as a pair, never `cyclic_edges`
 alone.** An edge is recorded only where the reached member is bound in some
@@ -356,13 +353,17 @@ Deleting one line (`models: dict[str, type[BaseModel]]`) from `Registry`'s class
 body, with no behaviour change, once took `cyclic_edges` from 4 to 2. The two
 numbers move in opposite directions, so hiding an edge fails the ratchet twice.
 
-`unowned_shared_state` is what each root still holds without an owner:
-`BaseModel` 4 (`env`, `_ids`, `_prefetch_ids`, `_log_access` — the recordset's
-identity, assigned by `IterationMixin.__init__`), `Field` 1
-(`description_attrs`), `Request` 8 (the request's identity, declared on
-`RequestState`), `Cursor` 5 (`_cnx`, `_obj`, `_thread`, `_schema_cache`,
-`_before_statement`). Under assignment-site ownership `BaseModel` still shows a
-2-cycle, `_metadata` ⇄ `iteration`; that one is open.
+`unowned_shared_state` is what each root holds without an owner:
+
+| Root | n | Members |
+|---|---:|---|
+| `BaseModel` | 4 | `env`, `_ids`, `_prefetch_ids`, `_log_access` — the recordset's identity, assigned by `IterationMixin.__init__` |
+| `Field` | 1 | `description_attrs` |
+| `Request` | 8 | the request's identity, declared on `RequestState` |
+| `Cursor` | 5 | `_cnx`, `_obj`, `_thread`, `_schema_cache`, `_before_statement` |
+
+Under assignment-site ownership `BaseModel` still shows a 2-cycle,
+`_metadata` ⇄ `iteration`; that one is open.
 
 **`BaseModel` is measured on two graphs, not one.** A mixin is a fragment of
 *one class*, so calling a sibling's method on another recordset of the same
@@ -384,7 +385,7 @@ python tooling/architecture/mixin_coupling_check.py            # report
 python tooling/architecture/mixin_coupling_check.py --check    # CI
 python tooling/architecture/mixin_coupling_check.py --explain search read
 python tooling/architecture/mixin_coupling_check.py --composition Field \
-    --explain _field_convert base.py
+    --explain _field_convert _field_metadata
 ```
 
 #### The design rule for a new mixin
@@ -392,21 +393,12 @@ python tooling/architecture/mixin_coupling_check.py --composition Field \
 **A leaf that nothing in the composition depends on cannot close a cycle.** Put
 new behaviour on one.
 
-Every tangle found so far was closed the same way — by moving the cluster the
-mixins reach for off the composition **root** onto such a leaf. What moves the
-graph is the *declaration*, not the methods: a unit owns what its class body
-binds. Moving `Registry`'s methods without the container left `cyclic_edges` at
-6, worse than the original 4, because the new leaf then reached the root for the
-state it was supposed to own.
+| Rule | Evidence |
+|---|---|
+| Move the *declaration*, not just the methods — a unit owns what its class body binds | moving `Registry`'s methods without the container left `cyclic_edges` at 6, worse than the original 4, because the new leaf then reached the root for the state it was supposed to own |
+| The obvious home is often the cycle | `_compute_field_value` belonged on `RecomputeMixin` by name; `traversal` already reaches `recompute` through `flush_model`, so its `self.filtered("id")` would have added `recompute → traversal` and closed a 2-cycle. On its own leaf (`_FieldComputeMixin`) the same three dependencies — `traversal`, `_constraints`, `_metadata` — close nothing. The gate reported it on the first run |
 
-`_FieldComputeMixin` is the worked example of the rule. The obvious home for
-`_compute_field_value` was `RecomputeMixin` — and it is wrong: `traversal`
-already reaches `recompute` through `flush_model`, so the method's
-`self.filtered("id")` would add `recompute → traversal` and make a 2-cycle. The
-gate reported it on the first run. On its own leaf the same three dependencies
-(`traversal`, `_constraints`, `_metadata`) close nothing.
-
-`base.py` is the state that rule is aimed at: **in-degree 0, out-degree 0, in
+`base.py` is the target state that rule aims at: **in-degree 0, out-degree 0, in
 both views.** It holds `__slots__`, `_register`, two setup hooks,
 `get_base_url`, the deprecated `_cr`, and the three registration calls. Five
 units depend on `_query` (`read`, `search`, `recompute`, `read_group/mixin`,
@@ -415,26 +407,23 @@ the root.
 
 #### Discovery is part of the gate
 
-The gate has been blind twice, and both misses were caught by a person
-recognising the construction by eye. `test_mixin_coupling_check.py` therefore
-**discovers composition roots from the tree** — a class with two or more
-`*Mixin` bases whose own name does not end in `Mixin` — and fails if one is
-absent from `COMPOSITIONS`. It finds exactly the five above. `ReadGroupMixin` is
-three mixins wide but is a *unit* of `BaseModel`, which is what the name test
-excludes.
+`test_mixin_coupling_check.py` **discovers composition roots from the tree** — a
+class with two or more `*Mixin` bases whose own name does not end in `Mixin` —
+and fails if one is absent from `COMPOSITIONS`. It finds exactly the five above.
+`ReadGroupMixin` is three mixins wide but is a *unit* of `BaseModel`, which is
+what the name test excludes.
 
-Its scope was `odoo/orm` until `Cursor` showed why a coverage list narrower than
+Its scope was `odoo/orm` until `Cursor` showed that a coverage list narrower than
 the thing it guards reproduces the bug it exists to catch. Two filter changes
 were needed to see `db/`'s pair, both verified neutral for the other four:
 `_is_composed_class` also matches a class by its **own** `*Mixin` name, because
 `db/`'s mixins are bare classes with no stub to inherit; and `collect_units`
-skips `tests` packages, because `db/` and `http/` carry test doubles that
-inherit the real mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`).
+skips `tests` packages, because `db/` and `http/` carry test doubles that inherit
+the real mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`).
 
 For `Field` the units are the mixin composition only. Concrete field types are
 *subclasses* and override base methods freely — `BaseString` overrides 4 of
-`Field`'s 10 cache methods — but that is the override surface, a different
-graph.
+`Field`'s 10 cache methods — but that is the override surface, a different graph.
 
 ### The layering is true of imports and false of the runtime graph
 
@@ -525,7 +514,6 @@ odoo.tests   <-> odoo.tests.common <-> odoo.tests.http
 Function-local imports are deliberately not counted as edges: a deferred import
 is the sanctioned way to break a cycle.
 
-
 ## Seams that keep the layers decoupled
 
 Every downward-only rule has a counterpart seam that lets the lower layer still
@@ -549,8 +537,21 @@ amendment). Production CRUD sniffs the test backend neither via
 sites across nine files, which left the Protocol describing only the test double
 and a differential suite with one object to compare against.
 
-**Three sites still branch**, on declared capabilities rather than a null check,
-because there the two backends run different *algorithms* rather than two
-implementations of one. The sharpest is `Many2many.read`: the SQL path fuses a
-JOIN into the comodel's `Query`, and the port's signature has nowhere to put it.
+**Capabilities: 5 declared, 6 read sites, 3 of them instead of a port call.**
+Two different measurements, both pinned by `test_backend_dispatch_surface.py`,
+and a bare "three sites" states neither:
 
+| Measure | Value | What it counts |
+|---|---:|---|
+| declared capabilities | 5 | `supports_parent_store`, `supports_record_rules`, `supports_joined_m2m_read`, `supports_column_scan`, `supports_translation_terms` (`runtime/backend.py`; both implementors set all five) |
+| capability reads in the ORM | 6 | every `backend.supports_*` in non-test source |
+| dispatch sites that **branch instead of calling the port** | 3 of 15 | `many2many.read`, `reference._reference_exists`, `textual._languages_in_sync_with` |
+
+The other three reads guard a site that *does* dispatch: `create._parent_store_create`
+and `write._parent_store_update_prepare` on `supports_parent_store`, and
+`_query._search` on `supports_record_rules`.
+
+The three that branch are where the two backends run genuinely different
+*algorithms* rather than two implementations of one. The sharpest is
+`Many2many.read`: the SQL path fuses a JOIN into the comodel's `Query`, and the
+port's `read_m2m_pairs` signature has nowhere to put it.

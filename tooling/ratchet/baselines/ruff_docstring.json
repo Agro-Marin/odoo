@@ -1,4 +1,0 @@
-{
-  "count": 746,
-  "note": "Docstrings written while making orm/components generic in its key type: FieldCache.pop_dirty_for_model and UnitOfWork.dirty_models, the two methods that ask a cache key for its model_name and so had to say why they read it through getattr (-2). D and ANN are enforced only under odoo/libs/ and odoo/orm/components/, which is why typing work in that package moves this floor and the same work elsewhere would not. The D findings were diffed before and after: two disappeared, none appeared."
-}

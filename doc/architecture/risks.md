@@ -1,17 +1,17 @@
 # Risks — where the implementation and the design disagree
 
-> Referenced by [`ARCHITECTURE.md`](ARCHITECTURE.md). The views
-> describe the architecture as it is meant to work. This page records the places
-> where it **demonstrably does not**, or where the guarantee is thinner than the
-> word suggests.
+> Referenced by [`ARCHITECTURE.md`](ARCHITECTURE.md). The views describe the
+> architecture as it is meant to work. This page records where it
+> **demonstrably does not**, or where the guarantee is thinner than the word
+> suggests.
 
-A blueprint that only describes the intent is an advertisement. Each entry below
-names what is wrong, the evidence, what it would cost, and what would close it.
-Entries are dated because a risk that is never re-checked becomes folklore.
+Each entry names what is wrong, the evidence, what it would cost, and what would
+close it. Entries are dated because a risk that is never re-checked becomes
+folklore.
 
-**No entry here is speculative.** Anything that would need a "might" is not a
-risk entry, it is a question — those live at the bottom of the view that owns
-the subject, under *what this view does not cover*.
+**No entry here is speculative.** Anything needing a "might" is not a risk, it is
+a question — those live at the bottom of the view that owns the subject, under
+*what this view does not cover*.
 
 | # | Risk | Severity | Opened | Closed |
 |---|---|---|---|---|
@@ -44,24 +44,22 @@ fails at install time, in the field, not in CI.
 reached from five Layer-1 sites and the schema mixin, plus four `post_init`
 calls from `addons/base`. All four are now fields of one `InitModelsPhase`
 (`orm/runtime/_init_phase.py`) held as a single nullable `Registry._init_phase`
-and read through the `init_phase` property, which raises a `RuntimeError`
-naming the window and its purpose when the phase is closed. Layer 1's one
-direct write became `pool.add_relation_reflection(...)`.
+and read through the `init_phase` property, which raises a `RuntimeError` naming
+the window and its purpose when the phase is closed. Layer 1's one direct write
+became `pool.add_relation_reflection(...)`.
 
-The strongest evidence that this was a defect and not a style was the
-workaround already in the tree: `orm/runtime/_registry_stubs.py`, a class whose
-entire body is `if TYPE_CHECKING:` declarations, inherited so mypy could see
-attributes with no honest definition site — listing `_foreign_keys` and
-`_is_install` beside genuinely permanent members and erasing the one
-distinction that mattered. Both entries are gone from it.
+The strongest evidence that this was a defect and not a style was the workaround
+already in the tree: `orm/runtime/_registry_stubs.py`, a class whose entire body
+is `if TYPE_CHECKING:` declarations, inherited so mypy could see attributes with
+no honest definition site — listing `_foreign_keys` and `_is_install` beside
+genuinely permanent members. Both entries are gone from it.
 
 Pinned by `odoo/orm/tests/test_init_models_phase.py`, which asserts the named
 error on all three entry points outside the window.
 
-**Note on the register.** This is the first risk to close, so it sets the
-convention: the row keeps its number and gains a `Closed` date, and the section
-is rewritten in the past tense with a *How it was closed* paragraph. Risks are
-not deleted — a closed risk is the evidence that the register is read.
+**Convention this sets.** A closed risk keeps its number, gains a `Closed` date,
+and is rewritten in the past tense with a *How it was closed* paragraph. Risks
+are not deleted — a closed risk is the evidence that the register is read.
 
 ## R2 — The layering is true of imports and false of the runtime graph
 
@@ -75,9 +73,9 @@ against 28.
 [`module.md`](module.md#coupling-the-import-graph-cannot-see).
 
 **Cost.** A reader who takes the layer diagram as the whole picture predicts the
-wrong blast radius for a change to `Environment` or `Registry`. This is a
-comprehension risk, not a correctness one — which is why it is Medium and why
-the fix is documentation plus the two seam gates, both already in place.
+wrong blast radius for a change to `Environment` or `Registry`. A comprehension
+risk, not a correctness one — which is why it is Medium and why the fix is
+documentation plus the two seam gates, both already in place.
 
 **What would close it.** Nothing, strictly — the seam is the design. It is
 recorded so the diagram is never read alone.
@@ -91,13 +89,13 @@ Neither seam gate reports it either: `_orm_layer_scope.py` scopes both
 `env_surface_check` and `pool_surface_check` to `orm/*`, so a reach from
 `tools/` is outside what either measures.
 
-So the gap this entry describes is wider than the two layers it was opened
-against: it covers every package that holds an `Environment`, and the one place
-it is *contractually* forbidden is the one place nothing looks. Two things would
-help, in this order: give `_orm_layer_scope.py` a `tools/` scope so the reach is
-measured, then reconsider the owner — `Transaction` holds the field cache,
-compute engine, unit of work and backend, and a temp-path allowlist is on it
-only because it needs request-scoped lifetime.
+The gap is therefore wider than the two layers it was opened against: it covers
+every package holding an `Environment`, and the one place it is *contractually*
+forbidden is the one place nothing looks. Two steps, in order: give
+`_orm_layer_scope.py` a `tools/` scope so the reach is measured, then reconsider
+the owner — `Transaction` holds the field cache, compute engine, unit of work
+and backend, and a temp-path allowlist is on it only because it needs
+request-scoped lifetime.
 
 ## R3 — Migration stage is unenforced and unrecoverable
 
@@ -112,8 +110,8 @@ needs the previous representation and is filed as `post-` has nothing to read.
 gate — all 29 are structural and DB-free — and not caught by either DB-free test
 tier.
 
-**Narrowed 2026-08-09: the syntactic half is now caught, the semantic half is
-the risk.** The two were being treated as one. Nothing can know that a script
+**Narrowed 2026-08-09: the syntactic half is caught, the semantic half is the
+risk.** The two were being treated as one. Nothing can know that a script
 reading the old schema was filed as `post-` — that is the entry. But
 `_get_migration_files` selects on `name.startswith(f"{stage}-")`, so a script
 named `pre_01.py` or `Pre-01.py` (the match is case-sensitive) matches no stage
@@ -125,17 +123,17 @@ than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this workspace's five addon trees: 235 scripts (228 in
 `migrations/`, 7 in `upgrades/`), all correctly prefixed, none dropped.
 
-That is the shape worth taking from this entry: a risk stated at the level of
-its hardest half hides the half that is cheap to close.
+A risk stated at the level of its hardest half hides the half that is cheap to
+close.
 
 **What would close it.** A DB-backed upgrade test on a populated fixture, in the
 integration lane. Nothing cheaper can see the semantic half.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 29 boundary checkers read import graphs, call graphs, reached-member
-sets and documents. None executes the framework. A change can satisfy all 29 and
-both DB-free tiers and still be wrong.
+**What.** The 29 boundary checkers read import graphs, call graphs,
+reached-member sets and documents. None executes the framework. A change can
+satisfy all 29 and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed
@@ -154,73 +152,68 @@ adding structural gates cannot reach this class of defect by construction.
 sat at `Accepted` for a week while naming a subsystem that does not exist. Both
 are now `Proposed`, which is the honest status.
 
-**Evidence.** `doc/adr/README.md`, and each record's own Amendments section.
-The existence check (`TestReferencedNamesExist`) is what caught it and now
-exempts `Proposed`.
+**Evidence.** `doc/adr/README.md`, and each record's own Amendments section. The
+existence check (`TestReferencedNamesExist`) caught it and now exempts
+`Proposed`.
 
 **Cost.** Low now that the status is correct — but the two records still
 describe the intended shape of the `ir.attachment` dual-storage seam
-([`data.md`](data.md#the-dual-storage-seam)), so a reader may take
-them as current design.
+([`data.md`](data.md#the-dual-storage-seam)), so a reader may take them as
+current design.
 
 **What would close it.** Build it, or supersede them.
 
 ## R6 — Sibling-repo public-surface exposure is recorded, not paid down
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
-`@web/<path>`. The pin records which specifiers each consumer scope reaches so
-the surface can only shrink. On 2026-08-08 it was regenerated after 32 deep
-imports in `agromarin` were rewritten to enter at their face, which removed the
-deep entries and took it from 235 to 222; re-pinning against the real sibling
-checkouts then took it to 219, and following `web`'s own module renames took it
-to 222. Later the same day, removing three specifiers that resolved to no
-module at all took it to **219 specifiers**. What remains is **recorded**, not
+`@web/<path>`. The pin records which specifiers each consumer scope reaches, so
+the surface can only shrink. It stands at **219 specifiers**
+(`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
-Each of those moves was a separate commit, and one of them left this paragraph
-stating 222 while the file said 219 — the pin and its prose are two copies of
-one number, and only `test_the_public_surface_pin_size_is_measured` reads both.
-Regenerating the pin without editing this line fails that gate; that is the
-gate working.
+**Cost.** Every pinned specifier is a rename `web` cannot perform unilaterally.
+
+**How it got there**, since the path explains what the number does and does not
+mean:
+
+| Move | Size | What it was |
+|---|---:|---|
+| baseline | 235 | before 32 deep imports in `agromarin` were rewritten to enter at their face |
+| after the rewrite | 222 | deep entries removed |
+| re-pinned against real sibling checkouts | 219 | |
+| following `web`'s own module renames | 222 | `web` dissolved `services/` in b6c0619c571, so `@web/services/user` became `@web/core/user` and `browser`/`datetime`/`popover` moved with it; `agromarin` followed in 0aa8c0f5 |
+| removing specifiers backed by no module | **219** | |
 
 **The 219 → 222 move was not new exposure, and part of it was not exposure at
-all.** `web` dissolved `services/` in b6c0619c571, so `@web/services/user`
-became `@web/core/user` and `browser`/`datetime`/`popover` moved with it;
-`agromarin` followed in 0aa8c0f5 and the pin recorded the new names against the
-scopes that reach them. But that same commit sent
+all.** The same commit that followed the renames sent
 `cloud_drive_s3/drive_action.js` to the *dissolved* name, and `--update`
 recorded `@web/services/user` as surface — a specifier `web` has not published
-since the dissolution, backing an import that could not load. It was repointed
-at `@web/core/user` and the entry removed on 2026-08-08. The Trap below had
-named this failure mode before it happened; what was missing was a gate that
-read it.
+since the dissolution, backing an import that could not load.
 
-**Now there is one.** `js_public_surface.py` resolves every measured specifier
-against `web/static/src` — `a/b.js`, or `a/b/index.js` at a face — and fails on
-one that matches neither, judged against the measurement rather than the pin so
-a dead import is caught when it is written rather than after it is recorded.
-It found two more the same day: `@web/legacy/js/core/dom` and
-`@web/legacy/js/public/public_widget`, written by four
-`design-themes/theme_common` files against the publicWidget system `web` has
-not shipped since the native-ESM loader landed.
-
-Those four were **deleted rather than ported**, because nothing loaded them.
-`theme_common` never lists its own `data/ir_asset.xml` in the manifest — its
-siblings `theme_avantgarde` and `theme_graphene` do list theirs — so the
-records were never created; the three naming JS were `active=False` regardless;
-and no other theme references their keys. Three unreachable `theme.ir.asset`
-records went with the files, plus a fourth naming a JS file deleted long before.
-`KNOWN_UNRESOLVED` is therefore empty, which is the state to keep it in.
+**A gate now reads the pin.** `js_public_surface.py` resolves every measured
+specifier against `web/static/src` — `a/b.js`, or `a/b/index.js` at a face — and
+fails on one matching neither, judged against the *measurement* rather than the
+pin, so a dead import is caught when it is written rather than after it is
+recorded. It found two more the same day, `@web/legacy/js/core/dom` and
+`@web/legacy/js/public/public_widget`, in four `design-themes/theme_common`
+files written against the publicWidget system `web` has not shipped since the
+native-ESM loader landed. Those four were **deleted rather than ported**:
+`theme_common` never lists its own `data/ir_asset.xml` in the manifest (its
+siblings `theme_avantgarde` and `theme_graphene` do list theirs), so the records
+were never created; the three naming JS were `active=False` regardless; and no
+other theme references their keys. Four unreachable `theme.ir.asset` records
+went with the files. `KNOWN_UNRESOLVED` is therefore empty, which is the state
+to keep it in.
 
 A count that rises because the *names* moved is not the same as one that rises
-because a consumer reached deeper — but this file cannot tell the two apart,
+because a consumer reached deeper, and this file cannot tell the two apart —
 which is why the shape gate (`js_face_boundary.py`) was added alongside: it
 refuses a specifier that steps over a face regardless of how the count moves.
 
 **Evidence.** `tooling/architecture/public_surface_web.txt`;
-`js_public_surface.py`.
-
-**Cost.** Every pinned specifier is a rename `web` cannot perform unilaterally.
+`js_public_surface.py`. The pin's size and this page are two copies of one
+number, and `test_the_public_surface_pin_size_is_measured` reads both:
+regenerating the pin without editing this entry fails that gate.
 
 **Trap.** `--update` regenerates the pin against whatever the tree currently
 imports, and it is only as honest as that tree. Two ways to get it wrong, both
@@ -235,17 +228,8 @@ hit on 2026-08-08:
   only where the siblings are current — in someone else's workspace. **Confirm
   every sibling is up to date before regenerating**, and treat a pinned
   specifier that resolves to no file as evidence the harvest was wrong rather
-  than as surface to preserve.
-
-  This half is now enforced rather than advised: `unresolved()` resolves each
-  measured specifier against `web/static/src` and fails on one backed by no
-  module, so a dead import can no longer be laundered into the pin by a
-  regeneration. It cannot make a *stale* checkout current — a specifier the
-  siblings no longer import still needs the sibling to be up to date — but it
-  does catch the class of wrong pin that staleness produces.
-
-The 245, the 222 and the 219 are each of their day; the pin's size today is the
-one above.
+  than as surface to preserve. `unresolved()` now enforces this half, but it
+  cannot make a stale checkout current.
 
 ## R7 — Every measured figure is single-process
 

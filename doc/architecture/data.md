@@ -5,10 +5,9 @@
 > one says **what persists** — because the framework's hardest constraints come
 > from state it does not hold in memory.
 
-Four stores hold everything, and they have different owners, different
-lifetimes, and different consequences when they disagree. The single most
-important fact about them: **only one is authoritative for schema, and it is not
-the Python source.**
+Four stores hold everything, with different owners, lifetimes, and consequences
+when they disagree. **Only one is authoritative for schema, and it is not the
+Python source.**
 
 ```
    ┌──────────────────────── PostgreSQL (one database per tenant) ─────────────┐
@@ -34,9 +33,6 @@ the Python source.**
 ```
 
 ## 1. The meta-schema — the schema is data
-
-The claim in the front door that *"the schema is data"* is literal, and this is
-the table it means:
 
 | Model | Holds |
 |---|---|
@@ -75,20 +71,20 @@ Eight tables, one for the registry and one for each key in `CACHES_BY_KEY`
 CREATE TABLE orm_signaling_<name> (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())
 ```
 
-The mechanism is the point: **there is no message and no payload — the row's
-generated `id` *is* the version number.** To invalidate, a worker inserts a row
-and keeps the id PostgreSQL assigned; every other worker compares the table's
-max id against the one it last saw, on its next `check_signaling()`, and rebuilds
-its registry or clears the named caches accordingly.
+**There is no message and no payload — the row's generated `id` *is* the version
+number.** To invalidate, a worker inserts a row and keeps the id PostgreSQL
+assigned; every other worker compares the table's max id against the one it last
+saw, on its next `check_signaling()`, and rebuilds its registry or clears the
+named caches accordingly.
 
 This is why the process model is architectural rather than a deployment knob
 (`workers > 0` means no shared memory), and why any process-lifetime cache must
 be registered in `CACHES_BY_KEY` — an unregistered cache has no table, therefore
 no version, therefore no way to be told it is stale.
 
-`setup_signaling` creates each table **and inserts one row**, because an empty
-table would read back as "no version" and a local sequence starting at `-1`
-would then treat every check as a change.
+`setup_signaling` creates each table **and inserts one row**: an empty table
+would read back as "no version", and a local sequence starting at `-1` would then
+treat every check as a change.
 
 ## 3. The filestore — content-addressed, and its layout is not fixed
 
@@ -100,11 +96,11 @@ digest, sharded on the first two characters:
 | `b3` (blake3 available) | `b3/<first-2>/<digest>` | 64 |
 | `s1` (fallback) | `<first-2>/<digest>` | 40 |
 
-`ALGO_TAG = "b3" if HAS_BLAKE3 else "s1"` (`odoo/libs/hashing.py`). **The
-layout therefore depends on an optional dependency**, and the legacy `s1` form
-has no algorithm prefix, so the two shapes coexist in one filestore rather than
-one superseding the other. A path is not portable between deployments that
-disagree about blake3.
+`ALGO_TAG = "b3" if HAS_BLAKE3 else "s1"` (`odoo/libs/hashing.py`). **The layout
+depends on an optional dependency**, and the legacy `s1` form has no algorithm
+prefix, so the two shapes coexist in one filestore rather than one superseding
+the other. A path is not portable between deployments that disagree about
+blake3.
 
 Content addressing means identical bytes are stored once and **an attachment row
 is not the owner of its bytes** — deleting one row must not delete a file another
@@ -120,8 +116,8 @@ row still references.
 They are alternatives, not layers, and which one is used is a per-attachment
 decision. That is the seam ADR-0012 and ADR-0013 (both `Proposed`) are about.
 **Any backup that captures PostgreSQL without the filestore, or the reverse,
-captures a torn state** — this is the single most common way a restored database
-comes back subtly broken.
+captures a torn state** — the most common way a restored database comes back
+subtly broken.
 
 ## 4. Sessions and downloaded addons
 
@@ -130,9 +126,9 @@ comes back subtly broken.
 | `<data_dir>/sessions/` | HTTP sessions, as files (`FilesystemSessionStore`) | garbage-collected; safe to lose — users re-authenticate |
 | `<data_dir>/addons/` | modules downloaded at run time | rebuildable |
 
-Sessions are the one store here that is **not** partitioned per database by
-directory, and losing the directory is an availability event, not a data-loss
-one. That asymmetry is worth knowing before treating `data_dir` as one unit.
+Sessions are the one store here **not** partitioned per database by directory,
+and losing the directory is an availability event, not a data-loss one. That
+asymmetry is worth knowing before treating `data_dir` as one unit.
 
 ## What is authoritative for what
 
@@ -148,13 +144,12 @@ The question to ask of any change: *if these disagreed, which one wins?*
 
 ## Lifecycle and the operations that cross stores
 
-- **Create** — `_create_empty_database` clones `db_template`
-  (`tpl_p314o19marin` here), so extensions are inherited rather than installed.
-- **Install / upgrade** — mutates business tables, the meta-schema and the
-  filestore in one transaction-per-module, then signals.
-- **Backup / restore** — must move PostgreSQL **and** the filestore together;
-  see the dual-storage seam above.
-- **Drop** — the filestore directory for that database is a separate deletion.
+| Operation | Crosses |
+|---|---|
+| **Create** | `_create_empty_database` clones `db_template`, so extensions are inherited rather than installed |
+| **Install / upgrade** | business tables, the meta-schema and the filestore, one transaction per module, then signals |
+| **Backup / restore** | PostgreSQL **and** the filestore, together — see the dual-storage seam above |
+| **Drop** | the filestore directory for that database is a separate deletion |
 
 ## What this view does not cover
 

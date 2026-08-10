@@ -43,6 +43,7 @@ fails if a listed test does read it.
 from __future__ import annotations
 
 import io
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -123,8 +124,21 @@ def _suite() -> unittest.TestSuite:
     return suite
 
 
+#: The parameter suffix ``unittest`` appends to a ``_SubTest``'s id.
+_SUBTEST_PARAMS = re.compile(r" \(.*\)$")
+
+
 def _short_id(case: unittest.TestCase) -> str:
     return case.id().split(".", 1)[1]
+
+
+def _normalise(test_id: str) -> str:
+    """``Class.test_x (tag='b3')`` -> ``Class.test_x``.
+
+    Strips the ``_SubTest`` parameter suffix so a subtest failure is attributed
+    to the test that owns it. Without this the id matches nothing in ``every``.
+    """
+    return _SUBTEST_PARAMS.sub("", test_id.split(".", 1)[1])
 
 
 def _run_against(text: str) -> tuple[set[str], set[str]]:
@@ -138,8 +152,17 @@ def _run_against(text: str) -> tuple[set[str], set[str]]:
         )
     finally:
         doc_suite.DOC, doc_suite.DOC_FLAT = original_doc, original_flat
-    failed = {c[0].id().split(".", 1)[1] for c in result.failures}
-    failed |= {c[0].id().split(".", 1)[1] for c in result.errors}
+    # A ``_SubTest`` reports its id with the parameters appended --
+    # ``TestFilestoreLayout.test_each_tag_row… (tag='b3')`` -- which matches no
+    # entry in ``every``, so a test that fails ONLY inside ``subTest`` was
+    # subtracted from nothing and read as having passed. That is a blind spot in
+    # exactly this gate's subject: a test whose only page-reading assertions sit
+    # in a ``with self.subTest(...)`` block looked non-vacuous while being
+    # invisible. Found when ``test_each_tag_row_states_its_real_digest_length``
+    # grew a subTest loop -- its assertIsNotNone(row) moved inside the block, so
+    # against an empty page the whole test failed by subtest only.
+    failed = {_normalise(c[0].id()) for c in result.failures}
+    failed |= {_normalise(c[0].id()) for c in result.errors}
     every = {_short_id(case) for case in _suite()}
     return every - failed, every
 
