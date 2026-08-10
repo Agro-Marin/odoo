@@ -67,6 +67,85 @@ function classBodies(ast) {
 }
 
 /**
+ * Object-literal mixins: `export const fooMixin = { … }`, merged onto a
+ * prototype by `Object.assign`.
+ *
+ * The second composition shape in this tree, and invisible to `classBodies`:
+ * `views/list/list_renderer.js` installs `listStylingMixin`,
+ * `listGroupRenderingMixin` and `listSortingMixin` that way, and each is an
+ * `ObjectExpression`, not a class. Running the analyzer over them before this
+ * reported `classes: [], defines: [], uses: []` for all three — so enumerating
+ * the composition in `COMPOSITIONS` would have bought a **vacuous pass**, the
+ * failure `test_architecture_doc_is_not_vacuous.py` exists to prevent
+ * elsewhere. The coupling it could not see: 62 `this.` references over 30
+ * distinct members, including `this.render`, `this.state`, `this.actionService`
+ * and `this._readonlyCache` — a private reached from another module, which
+ * `js_private_access` cannot see either, for the same merge-into-the-prototype
+ * reason.
+ *
+ * Matched by the `Mixin` name suffix rather than by shape. Every object literal
+ * in a module is not a mixin, and the suffix is the convention both this tree's
+ * composition sites use; a shape-based guess would sweep in option bags.
+ */
+function objectMixinBodies(ast) {
+    const found = [];
+    walk(ast, (node) => {
+        if (node.type !== "VariableDeclarator") {
+            return;
+        }
+        if (node.id?.type !== "Identifier" || !/Mixin$/.test(node.id.name)) {
+            return;
+        }
+        if (node.init?.type !== "ObjectExpression") {
+            return;
+        }
+        found.push({ name: node.id.name, node: node.init });
+    });
+    return found;
+}
+
+/** Names an object-literal mixin binds. Computed keys are skipped, as above. */
+function definedNamesFromObject(objectNode) {
+    const names = new Set();
+    for (const prop of objectNode.properties) {
+        if (prop.type !== "Property" || prop.computed || !prop.key) {
+            continue;
+        }
+        const name = prop.key.name ?? prop.key.value;
+        if (typeof name === "string") {
+            names.add(name);
+        }
+    }
+    return names;
+}
+
+/**
+ * `this.X` inside an object-literal mixin's methods.
+ *
+ * Only `FunctionExpression` values are entered — a method shorthand, a
+ * `foo: function () {}`, or a getter/setter. An **arrow** property is skipped
+ * on purpose: its `this` is the enclosing module scope, not the prototype the
+ * mixin is merged onto, so its reads say nothing about the composition.
+ */
+function usedNamesFromObject(objectNode) {
+    const names = new Set();
+    let dynamic = 0;
+    for (const prop of objectNode.properties) {
+        if (prop.type !== "Property" || prop.value?.type !== "FunctionExpression") {
+            continue;
+        }
+        prop.value.__isMethodValue = true;
+        const used = usedNames({ body: { body: [prop] } });
+        delete prop.value.__isMethodValue;
+        for (const name of used.names) {
+            names.add(name);
+        }
+        dynamic += used.dynamic;
+    }
+    return { names, dynamic };
+}
+
+/**
  * Names a class body binds: methods, getters/setters, and fields.
  *
  * Computed keys (`[SYMBOL]() {}`) are skipped — the name is not statically
@@ -165,6 +244,17 @@ for (const file of process.argv.slice(2)) {
             defines.add(d);
         }
         const used = usedNames(node);
+        for (const u of used.names) {
+            uses.add(u);
+        }
+        dynamic += used.dynamic;
+    }
+    for (const { name, node } of objectMixinBodies(ast)) {
+        names.push(name);
+        for (const d of definedNamesFromObject(node)) {
+            defines.add(d);
+        }
+        const used = usedNamesFromObject(node);
         for (const u of used.names) {
             uses.add(u);
         }

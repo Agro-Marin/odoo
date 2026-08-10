@@ -2354,8 +2354,15 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         # `exit "${GATE_EXIT}"` and the `exit $rc` used by the steps that pipe a
         # count into tooling/ratchet. Both are blocking; counting only the first
         # read eleven live gates as unwired.
+        #
+        # Compared against the number of gate-running STEPS, not the number of
+        # distinct gate files. One checker may legitimately run in two steps at
+        # different scopes -- `js_public_surface` runs once for web and once for
+        # mail -- and each of those steps needs its own re-raise. Counting unique
+        # files made the second such step read as an unwired gate.
         reraised = self.yaml.count('exit "${GATE_EXIT}"') + self.yaml.count("exit $rc")
-        self.assertEqual(reraised, len(self._workflow_gates()))
+        steps = len(re.findall(r"^\s+id: \w+$", self.yaml, re.MULTILINE))
+        self.assertEqual(reraised, steps)
 
     def test_annotate_condition_covers_every_step(self) -> None:
         ids = set(re.findall(r"^\s+id: (\w+)$", self.yaml, re.MULTILINE))

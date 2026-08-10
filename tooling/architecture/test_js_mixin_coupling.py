@@ -246,5 +246,97 @@ def test_check_fails_on_an_unlocked_improvement(monkeypatch):
     assert jmc.main(["--check"]) == 1
 
 
+# --- object-literal mixins ------------------------------------------------
+
+
+OBJECT_MIXIN = """
+export const fooMixin = {
+    isNumeric(column) {
+        return this.fields[column].type === "integer";
+    },
+    get rowCount() {
+        return this.props.list.count;
+    },
+    ignored: () => this.notMine,
+};
+"""
+
+
+@needs_node
+def test_an_object_literal_mixin_is_measured(tmp_path):
+    """THE regression: these reported empty, so enumerating the composition
+    they belong to would have pinned a vacuous zero."""
+    out = _analyse(tmp_path, {"m.js": OBJECT_MIXIN})["m.js"]
+    assert out["classes"] == ["fooMixin"]
+    assert set(out["defines"]) == {"isNumeric", "rowCount", "ignored"}
+    assert {"fields", "props"} <= set(out["uses"])
+
+
+@needs_node
+def test_an_arrow_property_this_is_not_the_prototype(tmp_path):
+    """An arrow's `this` is the module scope, not the object it is merged onto,
+    so its reads say nothing about the composition."""
+    out = _analyse(tmp_path, {"m.js": OBJECT_MIXIN})["m.js"]
+    assert "notMine" not in out["uses"]
+
+
+@needs_node
+def test_a_non_mixin_object_literal_is_not_a_unit(tmp_path):
+    """Matched by the `Mixin` suffix; every object literal is not a mixin."""
+    source = "export const options = { a() { return this.b; } };\n"
+    out = _analyse(tmp_path, {"m.js": source})["m.js"]
+    assert out["classes"] == [] and out["defines"] == [] and out["uses"] == []
+
+
+@needs_node
+def test_the_three_list_renderer_mixins_are_all_seen(tmp_path):
+    """Not synthetic: the live modules the composition entry names."""
+    units = jmc.analyse(jmc.modules())
+    for module in jmc.COMPOSITIONS["views/list/list_renderer.js"]:
+        assert units[module].defines, f"{module} contributed no defines"
+        assert units[module].uses, f"{module} contributed no uses"
+
+
+# --- per-composition scoping ----------------------------------------------
+
+
+def test_two_compositions_sharing_a_member_name_get_no_edge():
+    """`fields`, `props` and `state` are defined in both live compositions; a
+    flat pass over every pair invents an edge out of the shared name alone."""
+    units = _units(
+        {
+            "one/base.js": (["fields"], []),
+            "one/mix.js": ([], ["fields"]),
+            "two/base.js": (["fields"], []),
+            "two/mix.js": ([], ["fields"]),
+        }
+    )
+    compositions = {"one/base.js": ["one/mix.js"], "two/base.js": ["two/mix.js"]}
+    assert jmc.build_edges(units, compositions) == {
+        ("one/mix.js", "one/base.js"),
+        ("two/mix.js", "two/base.js"),
+    }
+
+
+def test_a_private_shared_only_by_name_across_compositions_is_not_shared():
+    units = _units(
+        {
+            "one/base.js": (["_seen"], []),
+            "one/mix.js": ([], ["_seen"]),
+            "two/base.js": (["_seen"], []),
+            "two/mix.js": ([], ["_seen"]),
+        }
+    )
+    compositions = {"one/base.js": ["one/mix.js"], "two/base.js": ["two/mix.js"]}
+    # One user per composition, so neither reaches the >=2 threshold.
+    assert jmc.shared_privates(units, compositions) == {}
+
+
+def test_every_declared_composition_module_is_on_disk():
+    for base, mixins in jmc.COMPOSITIONS.items():
+        for module in (base, *mixins):
+            assert (jmc.WEB_SRC / module).is_file(), module
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
