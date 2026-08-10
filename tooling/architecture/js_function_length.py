@@ -60,6 +60,24 @@ from _repo_root import find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_function_length")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
+
+# Addon-parameterised, defaulting to `web` so the existing baseline keeps its
+# meaning. `mail` is the second: 392 files and 54 functions over budget, against
+# web's 148, and until now nothing bounded either of them there.
+GOVERNED_ADDONS = ("web", "mail")
+DEFAULT_ADDON = "web"
+
+
+def addon_src(addon: str = DEFAULT_ADDON):
+    """The `static/src` a run measures. Returns the module-level `WEB_SRC` for
+    the default addon so the suite's monkeypatching of that name still bites."""
+    return (
+        WEB_SRC
+        if addon == DEFAULT_ADDON
+        else ROOT / "addons" / addon / "static" / "src"
+    )
+
+
 ESLINT = ROOT / "node_modules" / ".bin" / "eslint"
 
 # Functions longer than this are counted. Not a hard failure threshold — the
@@ -219,10 +237,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--top", type=int, default=15, help="offenders to list (0 = all)"
     )
+    parser.add_argument(
+        "--addon",
+        default=DEFAULT_ADDON,
+        choices=GOVERNED_ADDONS,
+        help="which addon's static/src to measure (default: web)",
+    )
     args = parser.parse_args(argv)
 
     try:
-        found = measure()
+        found = measure(src=addon_src(args.addon))
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -234,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(f) for f in found], indent=2))
         return 0
 
-    print(f"JS function-length budget (> {MAX_LINES} lines, web/static/src)")
+    print(f"JS function-length budget (> {MAX_LINES} lines, {args.addon}/static/src)")
     print("=" * 72)
     shown = found if args.top == 0 else found[: args.top]
     for item in shown:
@@ -246,8 +270,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n{len(found)} function(s) over {MAX_LINES} lines")
     print(f"  over 150: {over[150]}   over 250: {over[250]}   over 400: {over[400]}")
     print("\nRatchet this number:")
-    print("  python tooling/architecture/js_function_length.py --count \\")
-    print("      | xargs python tooling/ratchet/ratchet.py jsfunclen --count")
+    suffix = "" if args.addon == DEFAULT_ADDON else f" --addon {args.addon}"
+    name = "jsfunclen" if args.addon == DEFAULT_ADDON else f"jsfunclen_{args.addon}"
+    print(f"  python tooling/architecture/js_function_length.py{suffix} --count \\")
+    print(f"      | xargs python tooling/ratchet/ratchet.py {name} --count")
     return 0
 
 

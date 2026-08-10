@@ -1,0 +1,4 @@
+{
+  "count": 54,
+  "note": "Functions over 80 lines in addons/mail/static/src, the second-largest JS tree in the repo and until now unmeasured by this gate (it resolved addons/web/static/src as a constant).\n\n54 against web's 148. The shape of the debt differs: mail's longest are not view machinery but Record setup() bodies and service start()s -- discuss/core/common/thread_model_patch setup at 226 lines, core/common/thread setup at 219, core/common/mail_popout_service start at 267, model/make_store makeStore at 236, model/store MAKE_UPDATE at 215. Three of those are the Thread model assembled across 14 files, which is the concentration problem the architecture review names; shrinking Thread is what moves this number, not a formatting pass.\n\nCommand: python tooling/architecture/js_function_length.py --addon mail --count"
+}

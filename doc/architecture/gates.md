@@ -64,6 +64,13 @@ js_private_access  jsprivate
 js_service_shape   jsserviceshape
 js_forced_render   jsforcedrender
 EOF
+
+# Two gates are addon-scoped and run twice, once per governed addon. The loop
+# above carries no argument column, so mail's scopes are explicit:
+python tooling/architecture/js_function_length.py --addon mail --count \
+    | xargs python tooling/ratchet/ratchet.py jsfunclen_mail --count
+python tooling/architecture/js_service_shape.py --addon mail --count \
+    | xargs python tooling/ratchet/ratchet.py jsserviceshape_mail --count
 ```
 
 **A local run judges more than CI does.** `js_public_surface`,
@@ -197,8 +204,8 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns twelve tool
-counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, pyfunclen, jsprivate, jsserviceshape, jsforcedrender and naming**
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns fourteen tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, jsfunclen_mail, pyfunclen, jsprivate, jsserviceshape, jsserviceshape_mail, jsforcedrender and naming**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.

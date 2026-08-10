@@ -1,0 +1,4 @@
+{
+  "count": 5,
+  "note": "Services in addons/mail/static/src whose start() returns an object literal, so the only seam a downstream addon has is start() as a whole.\n\n5 of 22, against web's 13 of 42 -- better per service, and measured by nothing until now. The five: discuss.ptt_extension (112 lines), im_status (71), mail.fullscreen (68), discuss.pip_service (55), mail.composer (30). Six more are undecidable and deliberately not counted, the same treatment the web scope gives them.\n\nThe budget is the literal TOTAL, not the oversized ones: a count of long literals falls when someone extracts a helper, which moves the number without adding a seam. mail.link_navigation, added when navigation was moved off the Store, is instance-shaped and is the pattern to copy.\n\nCommand: python tooling/architecture/js_service_shape.py --addon mail --count"
+}

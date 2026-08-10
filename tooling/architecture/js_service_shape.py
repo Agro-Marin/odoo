@@ -81,6 +81,24 @@ from _repo_root import find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_service_shape")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
+
+# Addon-parameterised, defaulting to `web` so the existing baseline keeps its
+# meaning. `mail` is the second: 5 of its 22 services return a literal, against
+# web's 13 of 42 -- better per service, and until now measured by nothing.
+GOVERNED_ADDONS = ("web", "mail")
+DEFAULT_ADDON = "web"
+
+
+def addon_src(addon: str = DEFAULT_ADDON):
+    """The `static/src` a run scans. Returns the module-level `WEB_SRC` for the
+    default addon so the suite's monkeypatching of that name still bites."""
+    return (
+        WEB_SRC
+        if addon == DEFAULT_ADDON
+        else ROOT / "addons" / addon / "static" / "src"
+    )
+
+
 ANALYZER = Path(__file__).with_suffix(".mjs")
 
 # Ordering hint only — see the docstring for why this is not the budget.
@@ -157,13 +175,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--count", action="store_true", help="print the budget only")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument(
+        "--addon",
+        default=DEFAULT_ADDON,
+        choices=GOVERNED_ADDONS,
+        help="which addon's static/src to scan (default: web)",
+    )
     args = parser.parse_args(argv)
 
-    files = iter_service_files()
+    src = addon_src(args.addon)
+    files = iter_service_files(src)
     if not files:
-        parser.error(
-            f"no service registrations under {WEB_SRC} — the scan reached nothing"
-        )
+        parser.error(f"no service registrations under {src} — the scan reached nothing")
 
     services = analyse(files)
     if not services:
@@ -213,8 +236,14 @@ def main(argv: list[str] | None = None) -> int:
     print("-" * 72)
     print(f"\n{len(lit)} of {len(services)} services return an object literal")
     print("\nRatchet this number:")
-    print("  python tooling/architecture/js_service_shape.py --count \\")
-    print("      | xargs python tooling/ratchet/ratchet.py jsserviceshape --count")
+    suffix = "" if args.addon == DEFAULT_ADDON else f" --addon {args.addon}"
+    name = (
+        "jsserviceshape"
+        if args.addon == DEFAULT_ADDON
+        else f"jsserviceshape_{args.addon}"
+    )
+    print(f"  python tooling/architecture/js_service_shape.py{suffix} --count \\")
+    print(f"      | xargs python tooling/ratchet/ratchet.py {name} --count")
 
     return 0
 
