@@ -166,6 +166,11 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Context} [additionalContext]
  * @property {boolean} [clearBreadcrumbs]
  * @property {CallableFunction} [onClose]
+ * @property {boolean} [onCloseIsSpeculative] Set by callers that attach
+ *           `onClose` before knowing whether the action opens a dialog (button
+ *           dispatches resolve their action server-side). Suppresses the debug
+ *           warning for a dropped `onClose`; the callback itself is handled the
+ *           same either way.
  * @property {Object} [props]
  * @property {ViewType} [viewType]
  * @property {"replaceCurrentAction" | "replacePreviousAction"} [stackPosition]
@@ -674,11 +679,16 @@ export class ActionManager {
      * `onClose` only fires for dialog dispatches; callers passing it to an
      * inline one usually expected a dialog — say so in debug.
      *
+     * Silent when the caller flagged the callback speculative: a button
+     * dispatch attaches its reload callback before the RPC that decides
+     * whether the action is a dialog at all, so it cannot have "expected"
+     * either shape and there is no mistake to report.
+     *
      * @param {any} action
      * @param {Object} options
      */
     _warnDroppedOnClose(action, options) {
-        if (odoo.debug && options.onClose) {
+        if (odoo.debug && options.onClose && !options.onCloseIsSpeculative) {
             console.warn(
                 `[action] "onClose" is ignored for inline dispatches: ` +
                     `action "${action.id || action.tag || action.type}" ` +

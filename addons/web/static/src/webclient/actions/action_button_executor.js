@@ -192,6 +192,10 @@ export async function executeActionButton(
         await am.doAction(action, {
             newWindow,
             onClose,
+            // The button handed us this callback before `action` existed: the
+            // server decides here whether it is a dialog. Dropping it on an
+            // inline dispatch is the contract, not a caller mistake.
+            onCloseIsSpeculative: true,
             stackPosition,
             viewType,
         });

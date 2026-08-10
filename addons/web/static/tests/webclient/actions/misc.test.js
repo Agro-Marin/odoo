@@ -902,6 +902,36 @@ test("an onClose dropped by an inline dispatch is reported in debug", async () =
     expect.verifySteps([]);
 });
 
+test("a button's onClose is not reported when the action turns out to be inline", async () => {
+    // Every `<button type="object">` attaches a reload callback through
+    // `view_button_hook` BEFORE the RPC that decides whether the action is a
+    // dialog. Warning there blamed the caller for a choice the server makes,
+    // and fired on the most ordinary case there is: a settings button whose
+    // method returns a `target: current` act_window (mail's
+    // `open_mail_templates` is one).
+    patchWithCleanup(odoo, { debug: "1" });
+    patchWithCleanup(console, {
+        warn: (message) => expect.step(message),
+    });
+    onRpc("/web/dataset/call_button/partner/open_something", () => ({
+        type: "ir.actions.act_window",
+        id: 1,
+        res_model: "partner",
+        views: [[1, "kanban"]],
+        target: "current",
+    }));
+    await mountWithCleanup(WebClient);
+    await getService("action").doActionButton({
+        type: "object",
+        name: "open_something",
+        resModel: "partner",
+        resId: 1,
+        onClose: () => {},
+    });
+    expect(".o_kanban_view").toHaveCount(1);
+    expect.verifySteps([]);
+});
+
 test("ACTION_MANAGER:SETTLED fires for an action that changes nothing on screen", async () => {
     // The signal exists for exactly this case: a server action returning
     // nothing pushes no UI update, so anything waiting on the visible effect
