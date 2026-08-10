@@ -29,6 +29,7 @@
  *                 `record.X` or by destructuring `const { X } = record`
  *   ownValue    — `record.data[props.name]`-shaped reads: the widget's OWN field
  *   siblings    — `record.data.someLiteral` reads: ANOTHER field of the record
+ *   propSiblings— `record.data[props.someField]`: another field, named by an option
  *   dynamic     — `record.data[expr]` reads, where the key is not decidable
  *   unresolved  — reads on a bare `record` that could not be tied to props
  *
@@ -85,6 +86,23 @@ function isPropsRecord(node) {
         node?.type === "MemberExpression" &&
         !node.computed &&
         node.property?.name === "record" &&
+        isPropsObject(node.object)
+    );
+}
+
+/**
+ * `this.props.X` / `props.X` for any X — the widget's own props, whatever key.
+ *
+ * Used to recognise `data[this.props.colorField]`: a read of another field whose
+ * NAME arrives as an option. It is a sibling read in every sense that matters
+ * here, and the field it names is not knowable statically, which is exactly why
+ * such a widget cannot take a handle to its own field and be done.
+ */
+function isPropsMember(node) {
+    return (
+        node?.type === "MemberExpression" &&
+        !node.computed &&
+        node.property?.type === "Identifier" &&
         isPropsObject(node.object)
     );
 }
@@ -165,6 +183,7 @@ function analyse(source) {
 
     const members = destructuredMembers(ast, isRecord);
     const siblings = new Set();
+    const propSiblings = new Set();
     let ownValue = 0;
     let dynamic = 0;
     let unresolved = 0;
@@ -212,6 +231,12 @@ function analyse(source) {
             ownValue += 1;
         } else if (key.type === "Literal" && typeof key.value === "string") {
             siblings.add(key.value);
+        } else if (isPropsMember(key)) {
+            // `data[this.props.colorField]` — ANOTHER field, named by an option
+            // rather than written out. Counting these as merely `dynamic` made
+            // `monetary`, `gauge` and `stat_info` look convertible when a handle
+            // to the widget's own field can never reach the field they want.
+            propSiblings.add(key.property.name);
         } else {
             dynamic += 1;
         }
@@ -221,6 +246,7 @@ function analyse(source) {
         isWidget,
         members: [...members].sort(),
         siblings: [...siblings].sort(),
+        propSiblings: [...propSiblings].sort(),
         ownValue,
         dynamic,
         unresolved,

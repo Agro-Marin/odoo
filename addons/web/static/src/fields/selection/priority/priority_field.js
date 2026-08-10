@@ -104,10 +104,7 @@ export class PriorityField extends Component {
 
     /** @param {any} value */
     async updateRecord(value) {
-        await this.props.record.update(
-            { [this.props.name]: value },
-            { save: this.props.autosave },
-        );
+        await this.field.update(value, { save: this.props.autosave });
     }
 }
 

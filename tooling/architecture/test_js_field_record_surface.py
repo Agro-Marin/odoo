@@ -108,6 +108,29 @@ class TestBindingResolution:
         assert _analyse(tmp_path, "import { standardFieldProps } from 'x';")["isWidget"]
         assert not _analyse(tmp_path, "const props = {};")["isWidget"]
 
+    def test_a_prop_named_sibling_is_a_sibling(self, tmp_path):
+        """THE regression: `data[this.props.colorField]` is another field, named
+        by an option. Counted as merely `dynamic`, it made `monetary`, `gauge`
+        and `stat_info` look convertible when they never were."""
+        out = _analyse(
+            tmp_path, "const x = this.props.record.data[this.props.colorField];"
+        )
+        assert out["propSiblings"] == ["colorField"]
+        assert out["dynamic"] == 0
+
+    def test_props_name_is_still_the_own_field(self, tmp_path):
+        """`props.name` is the widget's OWN field and must not be swept in."""
+        out = _analyse(tmp_path, "const x = this.props.record.data[this.props.name];")
+        assert out["propSiblings"] == [] and out["ownValue"] == 1
+
+    def test_a_local_key_stays_undecidable(self, tmp_path):
+        """`monetary` resolves `currencyField` from an option or a field attribute
+        at runtime; this pass cannot decide it and must not guess."""
+        out = _analyse(tmp_path, "const x = this.props.record.data[currencyField];")
+        assert (
+            out["dynamic"] == 1 and out["propSiblings"] == [] and out["siblings"] == []
+        )
+
 
 @needs_node
 class TestLiveTree:
@@ -129,6 +152,13 @@ class TestLiveTree:
         metrics = gate.measure()["metrics"]
         assert metrics["narrow"] > 0 and metrics["needs_record"] > 0
         assert metrics["narrow"] + metrics["needs_record"] <= metrics["widgets"]
+
+    def test_the_three_buckets_do_not_overlap(self):
+        """`undecidable` exists so a widget is never claimed as convertible on a
+        key this pass could not read."""
+        m = gate.measure()["metrics"]
+        assert m["narrow"] + m["needs_record"] + m["undecidable"] <= m["widgets"]
+        assert m["undecidable"] > 0, "the bucket is empty — monetary should be in it"
 
     def test_check_passes_on_the_live_tree(self):
         assert gate.main(["--check"]) == 0

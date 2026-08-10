@@ -64,8 +64,9 @@ export const FIELD_RECORD_SURFACE = [
  *
  * | widgets | reach |
  * |---|---|
- * | 101 | this list only, and never a sibling field |
- * | 38 | name another field of the record by literal, or reach `record.model` |
+ * | `narrow` | this list only, and never another field |
+ * | `needs_record` | name another field — by literal (`data.company_id`) or by option (`data[props.colorField]`) — or reach `record.model` |
+ * | `undecidable` | read `data[expr]` on a key the analysis cannot resolve |
  *
  * So a narrower `FieldHandle` prop — value, setter, type, modifiers — would
  * serve about two thirds of the widgets in the fork outright, and the remaining
