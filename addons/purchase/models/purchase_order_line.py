@@ -619,7 +619,7 @@ class PurchaseOrderLine(models.Model):
         catalog_info = self.order_id._get_product_price_and_data(self.product_id)
         catalog_info.update(
             quantity=self.product_qty,
-            price=self.price_unit * (1 - self.discount / 100),
+            price=self._get_price_discounted(),
             readOnly=self.order_id._is_readonly(),
         )
         if self.product_id.uom_id != self.product_uom_id:

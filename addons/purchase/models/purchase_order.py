@@ -473,10 +473,10 @@ class PurchaseOrder(models.Model):
         target._merge_alternative_po(sources)
 
     def action_print_quotation(self):
-        self.filtered(lambda order: order.state == "draft").write(
-            {"printed_before": True},
-        )
-        return self.env.ref("purchase.report_purchase_quotation").report_action(self)
+        return self.action_print_order()
+
+    def _get_print_report_xmlid(self):
+        return "purchase.report_purchase_quotation"
 
     def action_purchase_comparison(self):
         self.ensure_one()
@@ -488,41 +488,28 @@ class PurchaseOrder(models.Model):
         return action
 
     def action_send_rfq(self):
-        """
-        This function opens a window to compose an email, with the edi purchase template message loaded by default
-        """
+        """Open the mail composer preloaded with the RFQ / PO template."""
         self.ensure_one()
-        ctx = dict(self.env.context or {})
-        ctx.update(
-            {
-                "default_model": "purchase.order",
-                "default_res_ids": self.ids,
-                "default_composition_mode": "comment",
-                "default_email_layout_xmlid": "mail.mail_notification_layout_with_responsible_signature",
-                "email_notification_allow_footer": True,
-                "force_email": True,
-                "hide_mail_template_management_options": True,
-                "mark_rfq_as_sent": True,
-                "model_description": self.type_name,
-            },
-        )
-        mail_template = self._get_mail_template()
-        if mail_template:
-            ctx.update({"default_template_id": mail_template.id})
-        # In the case of a RFQ or a PO, we want the "View..." button in line with the state of the
-        # object. Therefore, we pass the model description in the context, in the language in which
-        # the template is rendered.
-        self = self.with_context(lang=self._get_mail_composer_lang(ctx))
-        compose_form_id = self._get_mail_compose_form()
+        return self._action_send_by_email()
+
+    def _get_mail_composer_action_name(self):
+        return _("Compose Email")
+
+    def _get_mail_composer_context(self):
+        """Seed the composer from the caller's context, then the shared keys.
+
+        Purchase's composers are opened from actions that already carry
+        ``default_*`` keys the wizard needs (the reminder mail, the RFQ button),
+        so the caller's context is kept underneath rather than discarded.
+        """
+        return {**self.env.context, **super()._get_mail_composer_context()}
+
+    def _get_mail_composer_lang_context(self):
+        # The "View..." button in the notification must name the document as it
+        # stands (RFQ vs Purchase Order), in the template's own language.
         return {
-            "name": _("Compose Email"),
-            "type": "ir.actions.act_window",
-            "res_model": "mail.compose.message",
-            "view_mode": "form",
-            "views": [(compose_form_id, "form")],
-            "view_id": compose_form_id,
-            "target": "new",
-            "context": ctx,
+            **super()._get_mail_composer_lang_context(),
+            "model_description": self.type_name,
         }
 
     def action_view_invoice(self, invoices=False):
@@ -931,20 +918,7 @@ class PurchaseOrder(models.Model):
         return date_commitment.astimezone(tz)
 
     def _get_mail_template(self):
-        """Return the mail template used when sending this order.
-
-        RFQs get the request template, confirmed orders the order template.
-
-        Returns a **record**, not an id: ``account.move._get_mail_template``,
-        ``sale.order._get_mail_template`` and l10n_co_dian's override all
-        return one, and ``account.move.send`` calls the method generically
-        through ``_get_default_mail_template_id``. Purchase was the sole
-        outlier, returning ``_xmlid_lookup(...)[1]``, so its own caller had to
-        browse the id back into a record.
-
-        :return: the mail template, or an empty recordset if it is missing
-        :rtype: recordset of `mail.template`
-        """
+        """RFQs get the request template, confirmed orders the order template."""
         self.ensure_one()
         xmlid = (
             "purchase.email_template_edi_purchase"
@@ -955,27 +929,7 @@ class PurchaseOrder(models.Model):
             self.env.ref(xmlid, raise_if_not_found=False) or self.env["mail.template"]
         )
 
-    def _get_mail_composer_lang(self, ctx):
-        """Return the language the mail composer should open in.
-
-        The template's own language wins when it defines one, so the "View..."
-        button and ``model_description`` reach the vendor in the language the
-        template renders.
-
-        The guard tests ``default_res_ids``: ``mail.compose.message`` carries
-        ``res_ids``, and these composers set ``default_res_ids`` accordingly —
-        but the test named the singular ``default_res_id``, so it never matched
-        and the template language was silently never applied.
-        """
-        lang = self.env.context.get("lang")
-        required = {"default_template_id", "default_model", "default_res_ids"}
-        if not required <= ctx.keys():
-            return lang
-        res_ids = ctx["default_res_ids"]
-        template = self.env["mail.template"].browse(ctx["default_template_id"])
-        if res_ids and template.lang:
-            lang = template._render_lang(res_ids)[res_ids[0]]
-        return lang
+    # _get_mail_composer_lang is inherited from order.mixin (base_order).
 
     @api.model
     def _get_orders_to_remind(self):

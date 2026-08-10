@@ -441,9 +441,9 @@
                         invisible="not has_authorized_transaction_ids" />
                     <!-- 6. Print -->
                     <button
-                        name="sale.action_report_saleorder"
+                        name="action_print_order"
                         string="Print"
-                        type="action"
+                        type="object"
                         groups="base.group_user"
                         data-hotkey="k" />
                     <!-- 7. Preview -->

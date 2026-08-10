@@ -1384,9 +1384,7 @@ class SaleOrderLine(models.Model):
         commercial_partner = self.sudo().partner_id.commercial_partner_id
         return f"({commercial_partner.ref or commercial_partner.name})"
 
-    def _get_price_discounted(self):
-        self.ensure_one()
-        return self.price_unit * (1 - (self.discount or 0.0) / 100.0)
+    # _get_price_discounted is inherited from order.line.amount.mixin (base_order).
 
     def _get_price_display(self):
         """Compute the displayed unit price for a given line.

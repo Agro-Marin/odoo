@@ -1,6 +1,6 @@
 {
     "name": "Base Order Management",
-    "version": "19.0.3.1.0",
+    "version": "19.0.3.2.0",
     "category": "Hidden",
     "summary": "Foundation mixins for sale and purchase order types",
     "description": """
@@ -28,6 +28,13 @@ Mixins:
 It also carries the shared ``ir.actions.report`` extension that embeds an
 order's EDI XML into its rendered PDF. Concrete modules only declare which of
 their reports participate, via ``_get_order_edi_report_map``.
+
+Two non-order models carry order-shaped helpers that both concrete modules
+call, rather than each writing its own copy:
+
+* **res.partner** — order counts and the application-statistics tile
+* **product.product** — the catalog "already on this order" flag (compute and
+  search), and the order-line side of a unit-of-measure change
 
 Field names match actual sale/purchase conventions (product_qty, qty_invoiced,
 amount_taxexc_invoiced, etc.) for drop-in adoption.

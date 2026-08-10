@@ -343,15 +343,28 @@ class OrderLineAmountMixin(models.AbstractModel):
         compute="_compute_price_unit_discounted_taxinc",
     )
 
+    def _get_price_discounted(self):
+        """Unit price net of the line discount, tax excluded.
+
+        The formula had three copies: this mixin's own stored compute, sale's
+        ``_get_price_discounted``, and an inline expression in purchase's
+        catalog payload. They agreed, which is exactly why the next change to
+        one of them would not have.
+
+        Kept as a method next to the ``price_unit_discounted_taxexc`` field it
+        computes: callers that want the *current* value mid-onchange, before
+        the stored compute has run, need the plain arithmetic.
+        """
+        self.ensure_one()
+        return self.price_unit * (1 - (self.discount or 0.0) / 100.0)
+
     @api.depends("price_unit", "discount")
     def _compute_price_unit_discounted_taxexc(self):
         for line in self:
             if line.display_type:
                 line.price_unit_discounted_taxexc = False
                 continue
-            line.price_unit_discounted_taxexc = line.price_unit * (
-                1 - (line.discount or 0.0) / 100.0
-            )
+            line.price_unit_discounted_taxexc = line._get_price_discounted()
 
     @api.depends("product_qty", "price_total")
     def _compute_price_unit_discounted_taxinc(self):

@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
 
 
 class ProductProduct(models.Model):
@@ -50,19 +49,7 @@ class ProductProduct(models.Model):
 
     @api.depends_context("order_id")
     def _compute_is_in_purchase_order(self):
-        order_id = self.env.context.get("order_id")
-        if not order_id:
-            self.is_in_purchase_order = False
-            return
-
-        read_group_data = self.env["purchase.order.line"]._read_group(
-            domain=[("order_id", "=", order_id)],
-            groupby=["product_id"],
-            aggregates=["__count"],
-        )
-        data = {product.id: count for product, count in read_group_data}
-        for product in self:
-            product.is_in_purchase_order = bool(data.get(product.id))
+        self._compute_is_in_order("purchase.order.line", "is_in_purchase_order")
 
     # ------------------------------------------------------------
     # SEARCH METHODS
@@ -71,17 +58,7 @@ class ProductProduct(models.Model):
     def _search_is_in_purchase_order(self, operator, value):
         if operator != "in":
             return NotImplemented
-        order_id = self.env.context.get("order_id")
-        if not order_id:
-            # No order in context: match nothing rather than building a
-            # malformed ("order_id", "in", [""]) domain.
-            return [("id", "in", [])]
-        product_ids = (
-            self.env["purchase.order.line"]
-            .search_fetch([("order_id", "=", order_id)], ["product_id"])
-            .product_id.ids
-        )
-        return [("id", "in", product_ids)]
+        return self._search_is_in_order("purchase.order.line")
 
     # ------------------------------------------------------------
     # ONCHANGE METHODS
@@ -129,30 +106,8 @@ class ProductProduct(models.Model):
         res = super()._trigger_uom_warning()
         if res:
             return res
-        po_lines = (
-            self.env["purchase.order.line"]
-            .sudo()
-            .search_count([("product_id", "in", self.ids)], limit=1)
-        )
-        return bool(po_lines)
+        return self._has_order_lines("purchase.order.line")
 
     def _update_uom(self, to_uom_id):
-        for uom, product, po_lines in self.env["purchase.order.line"]._read_group(
-            [("product_id", "in", self.ids)],
-            ["product_uom_id", "product_id"],
-            ["id:recordset"],
-        ):
-            if uom != product.product_tmpl_id.uom_id:
-                raise UserError(
-                    _(
-                        "Other units of measure (e.g., %(problem_uom)s) have already been used "
-                        "for this product. The unit of measure cannot be changed from %(uom)s. "
-                        "If you want to change it, please archive the product and create a new one.",
-                        problem_uom=uom.display_name,
-                        uom=product.product_tmpl_id.uom_id.display_name,
-                    ),
-                )
-            po_lines.product_uom_id = to_uom_id
-            po_lines.flush_recordset()
-
+        self._update_uom_on_order_lines("purchase.order.line", to_uom_id)
         return super()._update_uom(to_uom_id)

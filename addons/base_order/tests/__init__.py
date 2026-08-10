@@ -4,3 +4,4 @@ from . import test_order_merge
 from . import test_order_edi_report
 from . import test_order_portal
 from . import test_order_report
+from . import test_order_shared_features

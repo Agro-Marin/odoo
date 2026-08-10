@@ -965,6 +965,38 @@ class OrderMixin(models.AbstractModel):
         """Mark the orders as acknowledged by the partner."""
         self.write({"acknowledged": True})
 
+    def action_print_order(self):
+        """Render the order's PDF and record the print.
+
+        Both order types declare ``printed_before`` and ``count_print``, but
+        only purchase ever wrote the first and nobody wrote the second: sale's
+        Print button was wired straight to ``ir.actions.report``, so its own
+        ``printed_before`` field could never become true. Routing both buttons
+        through here is what makes the two fields mean the same thing on both
+        models.
+        """
+        self._mark_as_printed()
+        return self.env.ref(self._get_print_report_xmlid()).report_action(self)
+
+    def _get_print_report_xmlid(self):
+        """XML id of the report rendered by the Print button."""
+        raise NotImplementedError(
+            f"{self._name} must implement _get_print_report_xmlid()"
+        )
+
+    def _mark_as_printed(self):
+        """Count a print, and flag draft orders as printed before.
+
+        ``printed_before`` stays draft-only, matching the behaviour purchase
+        already had: it answers "did this go out before it was confirmed".
+        ``count_print`` counts every print.
+        """
+        for order in self:
+            vals = {"count_print": order.count_print + 1}
+            if order.state == "draft":
+                vals["printed_before"] = True
+            order.write(vals)
+
     def action_view_business_doc(self):
         self.ensure_one()
         return {
@@ -1268,8 +1300,25 @@ class OrderMixin(models.AbstractModel):
         return f"mark_{prefix}_as_sent"
 
     def _mark_as_sent(self):
-        """Flag orders as sent.  Sale overrides to disable tracking."""
-        self.write({"sent": True})
+        """Flag orders as sent, and count the send.
+
+        ``count_sent`` was declared on this mixin and written by nobody. The
+        counter belongs next to the flag: ``sent`` only records that a send ever
+        happened, and both order types re-send routinely (a revised quotation, a
+        chased RFQ).
+        """
+        for order in self:
+            order.with_context(**order._get_mark_as_sent_context()).write(
+                {"sent": True, "count_sent": order.count_sent + 1},
+            )
+
+    def _get_mark_as_sent_context(self):
+        """Extra context for the "mark as sent" write.
+
+        Sale disables tracking here: its flow posts the outgoing mail to the
+        chatter itself, so a tracked ``sent`` transition would double-log it.
+        """
+        return {}
 
     def message_post(self, **kwargs):
         """Mark draft orders as sent when the relevant context key is set."""
@@ -1289,6 +1338,134 @@ class OrderMixin(models.AbstractModel):
         except ValueError:
             compose_form_id = False
         return compose_form_id
+
+    def _action_send_by_email(self):
+        """Open the mail composer preloaded with this order's mail template.
+
+        Sale's "Send" button and purchase's "Send RFQ" button opened the same
+        wizard through two independently written actions. Everything that
+        differed between them is a hook: the dialog title
+        (``_get_mail_composer_action_name``), the composer context
+        (``_get_mail_composer_context``) and the template
+        (``_get_mail_template``).
+
+        The window is opened in the language the template renders in, so the
+        composer's "View..." button and ``model_description`` reach the partner
+        translated. Sale never did this and silently ignored a template's own
+        ``lang``; purchase did switch, but only *after* it had already read
+        ``model_description`` off the untranslated recordset, so the one string
+        the switch existed for was still built in the user's language. The
+        language is resolved first here, and the strings that depend on it come
+        from ``_get_mail_composer_lang_context`` on the switched recordset.
+
+        :rtype: dict
+        """
+        ctx = self._get_mail_composer_context()
+        lang = self._get_mail_composer_lang(ctx)
+        # Only switch to a language we actually resolved: ``with_context(lang=None)``
+        # would not restore the user's language, it would drop translations
+        # entirely and render the strings below in the source language.
+        order = self.with_context(lang=lang) if lang else self
+        ctx.update(order._get_mail_composer_lang_context())
+        if lang:
+            ctx["lang"] = lang
+        compose_form_id = self._get_mail_compose_form()
+        return {
+            "name": self._get_mail_composer_action_name(),
+            "type": "ir.actions.act_window",
+            "res_model": "mail.compose.message",
+            "view_mode": "form",
+            "views": [(compose_form_id, "form")],
+            "view_id": compose_form_id,
+            "target": "new",
+            "context": ctx,
+        }
+
+    def _get_mail_composer_lang_context(self):
+        """Composer context keys whose value is a string rendered for the partner.
+
+        Called on a recordset already switched to the template's language, so
+        anything built here is translated. Base adds nothing; purchase supplies
+        ``model_description``.
+        """
+        return {}
+
+    def _get_mail_composer_action_name(self):
+        """Title of the mail composer dialog."""
+        return _("Send")
+
+    def _get_mail_composer_context(self):
+        """Context the mail composer opens with.
+
+        Several orders at once compose in ``mass_mail`` mode, which renders one
+        template per record and therefore takes none of the single-order keys
+        (they all describe *the* order being composed to).
+        """
+        ctx = {
+            "default_model": self._name,
+            "default_res_ids": self.ids,
+            "default_composition_mode": "comment",
+            "default_email_layout_xmlid": (
+                "mail.mail_notification_layout_with_responsible_signature"
+            ),
+            "email_notification_allow_footer": True,
+            "hide_mail_template_management_options": True,
+        }
+        if len(self) > 1:
+            ctx["default_composition_mode"] = "mass_mail"
+        else:
+            ctx.update(self._get_mail_composer_single_context())
+        return ctx
+
+    def _get_mail_composer_single_context(self):
+        """Composer context keys that only make sense for a single order.
+
+        ``hide_default_template`` (set by sale's list-view server action) asks
+        for a blank composer; the order still needs its portal token, since the
+        user is about to hand-write a mail carrying the portal link.
+        """
+        self.ensure_one()
+        ctx = {"force_email": True}
+        if self.env.context.get("hide_default_template"):
+            self._portal_ensure_token()
+            return ctx
+        if mail_template := self._get_mail_template():
+            ctx["default_template_id"] = mail_template.id
+            ctx[self._get_mark_sent_context_key()] = True
+        return ctx
+
+    def _get_mail_template(self):
+        """Return the ``mail.template`` used when sending this order.
+
+        Returns a **record**, not an id — ``account.move._get_mail_template``
+        and ``account.move.send._get_default_mail_template_id`` call this
+        generically.
+
+        :rtype: recordset of `mail.template`
+        """
+        raise NotImplementedError(f"{self._name} must implement _get_mail_template()")
+
+    def _get_mail_composer_lang(self, ctx):
+        """Return the language the mail composer should open in.
+
+        The template's own language wins when it defines one, so the "View..."
+        button and ``model_description`` reach the partner in the language the
+        template renders.
+
+        The guard tests ``default_res_ids``: ``mail.compose.message`` carries
+        ``res_ids``, and these composers set ``default_res_ids`` accordingly —
+        but the test used to name the singular ``default_res_id``, so it never
+        matched and the template language was silently never applied.
+        """
+        lang = self.env.context.get("lang")
+        required = {"default_template_id", "default_model", "default_res_ids"}
+        if not required <= ctx.keys():
+            return lang
+        res_ids = ctx["default_res_ids"]
+        template = self.env["mail.template"].browse(ctx["default_template_id"])
+        if res_ids and template.lang:
+            lang = template._render_lang(res_ids)[res_ids[0]]
+        return lang
 
     def _notify_by_email_prepare_rendering_context(
         self,

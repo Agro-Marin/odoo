@@ -995,47 +995,7 @@ class SaleOrder(models.Model):
 
     def action_send_quotation(self):
         """Opens a wizard to compose an email, with relevant mail template loaded by default"""
-        ctx = {
-            "default_model": "sale.order",
-            "default_res_ids": self.ids,
-            "default_composition_mode": "comment",
-            "default_email_layout_xmlid": "mail.mail_notification_layout_with_responsible_signature",
-            "email_notification_allow_footer": True,
-            "hide_mail_template_management_options": True,
-            "proforma": self.env.context.get("proforma", False),
-        }
-
-        if len(self) > 1:
-            ctx["default_composition_mode"] = "mass_mail"
-        else:
-            ctx.update(
-                {
-                    "force_email": True,
-                },
-            )
-            if not self.env.context.get("hide_default_template"):
-                mail_template = self._get_mail_template()
-                if mail_template:
-                    ctx.update(
-                        {
-                            "default_template_id": mail_template.id,
-                            "mark_so_as_sent": True,
-                        },
-                    )
-            else:
-                for order in self:
-                    order._portal_ensure_token()
-
-        action = {
-            "name": _("Send"),
-            "type": "ir.actions.act_window",
-            "view_mode": "form",
-            "res_model": "mail.compose.message",
-            "views": [(False, "form")],
-            "view_id": False,
-            "target": "new",
-            "context": ctx,
-        }
+        action = self._action_send_by_email()
         if (
             self.env.context.get("check_document_layout")
             and not self.env.context.get("discard_logo_check")
@@ -1164,8 +1124,8 @@ class SaleOrder(models.Model):
             and request.env.context.get("catalog_skip_tracking")
         )
 
-    def _mark_as_sent(self):
-        self.with_context(tracking_disable=True).write({"sent": True})
+    def _get_mark_as_sent_context(self):
+        return {**super()._get_mark_as_sent_context(), "tracking_disable": True}
 
     def _get_mail_subtitles(self, render_context):
         lang_code = render_context.get("lang")
@@ -1919,6 +1879,18 @@ class SaleOrder(models.Model):
     def _get_duplicate_ref_field(self):
         return "client_order_ref"
 
+    def _get_mail_composer_context(self):
+        """Carry the pro-forma flag through to the composer.
+
+        ``_get_mail_template`` reads it back to pick the pro-forma template, and
+        the composer's own report rendering reads it to print a pro-forma
+        invoice rather than the order.
+        """
+        return {
+            **super()._get_mail_composer_context(),
+            "proforma": self.env.context.get("proforma", False),
+        }
+
     def _get_mail_template(self):
         """Get the appropriate mail template for the current sales order based on its state.
 
@@ -1963,6 +1935,9 @@ class SaleOrder(models.Model):
 
     def _get_priced_lines(self):
         return self.line_ids.filtered(lambda x: not x.display_type)
+
+    def _get_print_report_xmlid(self):
+        return "sale.action_report_saleorder"
 
     def _prepare_analytic_account_data(self, prefix=None):
         """Prepare SO analytic account creation values.
