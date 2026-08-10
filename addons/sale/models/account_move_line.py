@@ -28,11 +28,10 @@ class AccountMoveLine(models.Model):
 
     @api.depends("product_id.sale_line_warn_msg")
     def _compute_sale_line_warn_msg(self):
-        has_warning_group = self.env.user.has_group("sale.group_warning_sale")
-        for line in self:
-            line.sale_line_warn_msg = (
-                line.product_id.sale_line_warn_msg if has_warning_group else ""
-            )
+        self._compute_warn_msg_from_product(
+            "sale_line_warn_msg",
+            "sale.group_warning_sale",
+        )
 
     @api.depends("balance")
     def _compute_is_storno(self):
@@ -52,9 +51,8 @@ class AccountMoveLine(models.Model):
     # HELPER METHODS
     # ------------------------------------------------------------
 
-    def _copy_data_extend_business_fields(self, values):
-        super()._copy_data_extend_business_fields(values)
-        values["sale_line_ids"] = [(6, None, self.sale_line_ids.ids)]
+    def _get_order_line_link_fields(self):
+        return [*super()._get_order_line_link_fields(), "sale_line_ids"]
 
     def _get_downpayment_lines(self):
         return self.sale_line_ids.filtered("is_downpayment").invoice_line_ids.filtered(
@@ -90,11 +88,8 @@ class AccountMoveLine(models.Model):
 
         return values_list
 
-    def _related_analytic_distribution(self):
-        vals = super()._related_analytic_distribution()
-        if self.sale_line_ids:
-            vals |= self.sale_line_ids[0].analytic_distribution or {}
-        return vals
+    # _copy_data_extend_business_fields and _related_analytic_distribution are
+    # inherited from base_order; both act on _get_order_line_link_fields above.
 
     def _get_discount_lines(self):
         lines = super()._get_discount_lines()

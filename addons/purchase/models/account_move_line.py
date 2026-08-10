@@ -26,19 +26,17 @@ class AccountMoveLine(models.Model):
 
     @api.depends("product_id.purchase_line_warn_msg")
     def _compute_purchase_line_warn_msg(self):
-        has_warning_group = self.env.user.has_group("purchase.group_warning_purchase")
-        for line in self:
-            line.purchase_line_warn_msg = (
-                line.product_id.purchase_line_warn_msg if has_warning_group else ""
-            )
+        self._compute_warn_msg_from_product(
+            "purchase_line_warn_msg",
+            "purchase.group_warning_purchase",
+        )
 
     # ------------------------------------------------------------
     # HELPER METHODS
     # ------------------------------------------------------------
 
-    def _copy_data_extend_business_fields(self, values):
-        super()._copy_data_extend_business_fields(values)
-        values["purchase_line_ids"] = [(6, None, self.purchase_line_ids.ids)]
+    def _get_order_line_link_fields(self):
+        return [*super()._get_order_line_link_fields(), "purchase_line_ids"]
 
     def _purchase_prepare_purchase_line_values(self):
         """Build creation values for ``purchase.order.line`` records from invoice lines.
@@ -60,8 +58,5 @@ class AccountMoveLine(models.Model):
             for line in self
         ]
 
-    def _related_analytic_distribution(self):
-        vals = super()._related_analytic_distribution()
-        if self.purchase_line_ids:
-            vals |= self.purchase_line_ids[0].analytic_distribution or {}
-        return vals
+    # _copy_data_extend_business_fields and _related_analytic_distribution are
+    # inherited from base_order; both act on _get_order_line_link_fields above.

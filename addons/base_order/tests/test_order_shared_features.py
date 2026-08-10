@@ -273,3 +273,92 @@ class TestOrderSharedFeatures(TransactionCase):
                 settings._sync_order_lock(checkbox, lock_field)
 
                 self.assertEqual(self.env.company[lock_field], "edit")
+
+    # ------------------------------------------------------------------
+    # account.move.line — links back to the order, product warnings
+    # ------------------------------------------------------------------
+
+    def _invoice_lines_of(self, order):
+        """Confirm and invoice/bill ``order``; return its product invoice lines."""
+        order.action_confirm()
+        invoice = order._create_invoices()
+        return invoice.invoice_line_ids.filtered("product_id")
+
+    def test_both_order_types_register_their_invoice_line_link(self):
+        """The registry is what lets the two shared methods below exist at all;
+        with both modules installed it must carry both fields."""
+        link_fields = self.env["account.move.line"]._get_order_line_link_fields()
+
+        self.assertIn("sale_line_ids", link_fields)
+        self.assertIn("purchase_line_ids", link_fields)
+
+    def test_invoice_line_links_back_to_its_order_line(self):
+        for order in self._orders().values():
+            with self.subTest(model=order._name):
+                field = f"{order._get_order_type()}_line_ids"
+
+                invoice_lines = self._invoice_lines_of(order)
+
+                self.assertTrue(invoice_lines)
+                self.assertEqual(invoice_lines[field], order.line_ids)
+
+    def test_copying_an_invoice_line_keeps_the_order_line_link(self):
+        """Losing the link would silently stop the order's invoiced quantities
+        from adding up."""
+        for order in self._orders().values():
+            with self.subTest(model=order._name):
+                field = f"{order._get_order_type()}_line_ids"
+                invoice_line = self._invoice_lines_of(order)[:1]
+
+                values = {}
+                invoice_line._copy_data_extend_business_fields(values)
+
+                self.assertEqual(values[field][0][2], order.line_ids.ids)
+
+    def test_invoice_line_inherits_the_order_lines_analytic_distribution(self):
+        plan = self.env["account.analytic.plan"].create({"name": "Shared Plan"})
+        account = self.env["account.analytic.account"].create(
+            {"name": "Shared Account", "plan_id": plan.id},
+        )
+        distribution = {str(account.id): 100.0}
+        for order in self._orders().values():
+            with self.subTest(model=order._name):
+                order.line_ids.analytic_distribution = distribution
+                invoice_line = self._invoice_lines_of(order)[:1]
+
+                self.assertEqual(
+                    invoice_line._related_analytic_distribution(),
+                    distribution,
+                )
+
+    def test_invoice_line_carries_the_products_warning(self):
+        for order_type, group in (
+            ("sale", "sale.group_warning_sale"),
+            ("purchase", "purchase.group_warning_purchase"),
+        ):
+            with self.subTest(order_type=order_type):
+                field = f"{order_type}_line_warn_msg"
+                self.product[field] = "Handle with care"
+                self.env.user.group_ids += self.env.ref(group)
+
+                invoice_line = self.env["account.move.line"].new(
+                    {"product_id": self.product.id},
+                )
+
+                self.assertEqual(invoice_line[field], "Handle with care")
+
+    def test_invoice_line_hides_the_warning_without_the_group(self):
+        for order_type, group in (
+            ("sale", "sale.group_warning_sale"),
+            ("purchase", "purchase.group_warning_purchase"),
+        ):
+            with self.subTest(order_type=order_type):
+                field = f"{order_type}_line_warn_msg"
+                self.product[field] = "Handle with care"
+                self.env.user.group_ids -= self.env.ref(group)
+
+                invoice_line = self.env["account.move.line"].new(
+                    {"product_id": self.product.id},
+                )
+
+                self.assertEqual(invoice_line[field], "")
