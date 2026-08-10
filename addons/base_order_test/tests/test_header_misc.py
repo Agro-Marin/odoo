@@ -56,11 +56,11 @@ class TestHeaderMisc(BaseOrderTestCase):
 
     def test_is_late_search(self):
         now = fields.Datetime.now()
-        late = self._make_order(date_planned=now - timedelta(days=1))
-        on_time = self._make_order(date_planned=now + timedelta(days=1))
+        late = self._make_order(date_commitment=now - timedelta(days=1))
+        on_time = self._make_order(date_commitment=now + timedelta(days=1))
         undated = self._make_order()
         (late + on_time + undated).write({"state": "done"})
-        draft_past = self._make_order(date_planned=now - timedelta(days=1))
+        draft_past = self._make_order(date_commitment=now - timedelta(days=1))
 
         Model = self.env["base.order.test"]
         made = late + on_time + undated + draft_past
