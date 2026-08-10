@@ -1,6 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- The footer used to be inline in each layout; web now factors it into a
+         single external_layout_footer that standard/bold/boxed/striped/folder
+         all t-call. Patching it once is what those five per-layout overrides
+         were each trying to do, and they had been silently unreachable (the
+         div they addressed is no longer in the tree they inherit) — which made
+         l10n_latam_invoice_document fail to install outright.
+
+         wave and bubble still carry their own footer markup and keep their own
+         overrides below. -->
+    <template id="external_layout_footer" inherit_id="web.external_layout_footer">
+        <xpath expr="//div[@name='footer_content']" position="attributes">
+            <attribute name="t-if">not custom_footer</attribute>
+        </xpath>
+        <xpath expr="//div[@name='footer_content']" position="after">
+            <div t-attf-class="o_footer_content {{report_type == 'pdf' and 'o_report_footer_grid' or 'd-flex border-top pt-2'}}"
+                 t-if="custom_footer and company._localization_use_documents()">
+                <t t-out="custom_footer"/>
+            </div>
+        </xpath>
+    </template>
+
     <template id="external_layout_standard" inherit_id="web.external_layout_standard" >
         <!-- support for custom header -->
         <xpath expr="//img/../.." position="attributes">
@@ -12,18 +33,6 @@
                 <t t-call="#{custom_header}"/>
             </div>
         </xpath>
-
-        <!-- support for custom footer -->
-        <div class="o_footer_content d-flex border-top pt-2" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </div>
-
-        <div class="o_footer_content d-flex border-top pt-2" position="after">
-            <div class="o_footer_content border-top pt-2"
-                 t-if="custom_footer and company._localization_use_documents()">
-                <t t-out="custom_footer"/>
-            </div>
-        </div>
     </template>
 
     <template id="external_layout_bold" inherit_id="web.external_layout_bold" >
@@ -34,17 +43,6 @@
         <xpath expr="//img/../.." position="after">
             <div t-if="custom_header and company._localization_use_documents()">
                 <t t-call="#{custom_header}"/>
-            </div>
-        </xpath>
-
-        <!-- support for custom footer -->
-        <xpath expr="//div[hasclass('o_footer_content')]" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </xpath>
-        <xpath expr="//div[hasclass('o_footer_content')]" position="after">
-            <div class="o_footer_content border-top pt-2" t-attf-class="{{'d-flex' if is_html_empty(company.report_header) else 'row' }}"
-                 t-if="custom_footer and company._localization_use_documents()">
-                <t t-out="custom_footer"/>
             </div>
         </xpath>
     </template>
@@ -59,17 +57,6 @@
                 <t t-call="#{custom_header}"/>
             </div>
         </xpath>
-
-        <!-- support for custom footer -->
-        <xpath expr="//div[hasclass('o_footer_content')]" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </xpath>
-        <xpath expr="//div[hasclass('o_footer_content')]" position="after">
-            <div class="o_footer_content border-top pt-2" t-attf-class="{{'d-flex' if is_html_empty(company.report_header) else 'row' }}"
-                 t-if="custom_footer and company._localization_use_documents()">
-                <t t-out="custom_footer"/>
-            </div>
-        </xpath>
     </template>
 
     <template id="external_layout_striped" inherit_id="web.external_layout_striped" >
@@ -82,17 +69,6 @@
                 <t t-call="#{custom_header}"/>
             </div>
         </xpath>
-
-        <!-- support for custom footer -->
-        <div class="o_footer_content border-top pt-2 text-center" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </div>
-        <div class="o_footer_content border-top pt-2 text-center" position="after">
-            <div class="o_footer_content border-top pt-2 text-center"
-                 t-if="custom_footer and company._localization_use_documents()">
-                <t t-out="custom_footer"/>
-            </div>
-        </div>
     </template>
 
     <template id="external_layout_bubble" inherit_id="web.external_layout_bubble">
@@ -151,16 +127,5 @@
                 <t t-call="#{custom_header}"/>
             </div>
         </xpath>
-
-        <!-- support for custom footer -->
-        <div class="o_footer_content d-flex border-top pt-2" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </div>
-        <div class="o_footer_content d-flex border-top pt-2" position="after">
-            <div class="o_footer_content border-top pt-2"
-                 t-if="custom_footer and company._localization_use_documents()">
-                <t t-out="custom_footer"/>
-            </div>
-        </div>
     </template>
 </odoo>
