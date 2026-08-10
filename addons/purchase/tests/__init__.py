@@ -18,3 +18,4 @@ from . import test_purchase_fixes
 from . import test_invoiced_uom_guard
 from . import test_product_purchase_stats
 from . import test_partner_purchase_stats
+from . import test_analytic_purchase_button
