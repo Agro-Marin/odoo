@@ -15,7 +15,7 @@
             <xpath expr="//t[@t-set='address']" position="after">
                 <t t-set="pre_printed_report" t-value="False"/>
                 <t t-set="header_address" t-value="o.company_id"/>
-                <t t-set="report_date" t-value="o.scheduled_date"/>
+                <t t-set="report_date" t-value="o.date_planned"/>
                 <t t-if="o.l10n_ar_cai_data">
                     <t t-set="stock_doc_type" t-value="o.env['l10n_latam.document.type'].browse(o.l10n_ar_cai_data['document_type_id'])"/>
                     <t t-set="document_letter" t-value="stock_doc_type.l10n_ar_letter"/>
@@ -67,8 +67,13 @@
             </xpath>
             <xpath expr="//t[@t-set='address']" position="replace"/>
             <xpath expr="//t[@t-set='information_block']" position="replace"/>
-            <xpath expr="//h2/span[@t-field='o.name']/.." position="replace">
-                <br/>
+            <!-- The delivery slip's heading is no longer an <h2>: it is set as
+                 layout_document_title and rendered by web.external_layout.
+                 Empty it rather than drop the t-set, so the layout still has a
+                 variable to render. The custom header above prints its own
+                 title for the Argentine delivery guide. -->
+            <xpath expr="//t[@t-set='layout_document_title']" position="replace">
+                <t t-set="layout_document_title"/>
             </xpath>
         </template>
 

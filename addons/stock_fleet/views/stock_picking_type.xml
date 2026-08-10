@@ -4,7 +4,7 @@
         <record id="stock_picking_type_kanban_inherit_stock_fleet" model="ir.ui.view">
             <field name="name">stock.picking.type.kanban.inherit.stock.transport</field>
             <field name="model">stock.picking.type</field>
-            <field name="inherit_id" ref="stock.stock_picking_type_kanban"/>
+            <field name="inherit_id" ref="stock.view_stock_picking_type_kanban"/>
             <field name="arch" type="xml">
                 <data>
                     <xpath expr="//kanban" position="inside">
@@ -42,7 +42,7 @@
     <record id="view_picking_type_form" model="ir.ui.view">
         <field name="name">stock.picking.type.form.inherit.stock_fleet</field>
         <field name="model">stock.picking.type</field>
-        <field name="inherit_id" ref="stock.view_picking_type_form"/>
+        <field name="inherit_id" ref="stock.view_stock_picking_type_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='auto_batch']" position="before">
                 <label for="dispatch_management"/>

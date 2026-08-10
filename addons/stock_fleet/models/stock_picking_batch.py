@@ -31,11 +31,11 @@ class StockPickingBatch(models.Model):
     has_dispatch_management = fields.Boolean(string="Dispatch Management", related='picking_type_id.dispatch_management')
 
     # Compute
-    @api.depends('scheduled_date')
+    @api.depends('date_planned')
     def _compute_end_date(self):
         for batch in self:
-            if not batch.end_date or (batch.scheduled_date and batch.end_date < batch.scheduled_date):
-                batch.end_date = batch.scheduled_date + timedelta(hours=1) if batch.scheduled_date else False
+            if not batch.end_date or (batch.date_planned and batch.end_date < batch.date_planned):
+                batch.end_date = batch.date_planned + timedelta(hours=1) if batch.date_planned else False
 
     @api.depends('vehicle_id')
     def _compute_vehicle_category_id(self):

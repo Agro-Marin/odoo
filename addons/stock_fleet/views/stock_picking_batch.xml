@@ -4,7 +4,7 @@
         <field name="model">stock.picking.batch</field>
         <field name="arch" type="xml">
             <pivot string="Batch Transfer" class="oe_stock_picking_batch" sample="1">
-                <field name="scheduled_date" type="row"/>
+                <field name="date_planned" type="row"/>
                 <field name="vehicle_id" type="col"/>
             </pivot>
         </field>
@@ -15,7 +15,7 @@
         <field name="model">stock.picking.batch</field>
         <field name="arch" type="xml">
             <graph string="Graph View" class="oe_stock_picking_batch" sample="1">
-                <field name="scheduled_date" type="row" interval="day"/>
+                <field name="date_planned" type="row" interval="day"/>
                 <field name="vehicle_category_id" type="row"/>
             </graph>
         </field>
@@ -86,7 +86,7 @@
             <xpath expr="//filter[@name='state']" position="after">
                 <filter name="group_by_vehicle_id" string="Vehicle" context="{'group_by':'vehicle_id'}"/>
                 <filter name="group_by_vehicle_category_id" string="Vehicle Category" context="{'group_by':'vehicle_category_id'}"/>
-                <filter name="group_by_scheduled_date" string="Scheduled Date" context="{'group_by':'scheduled_date'}"/>
+                <filter name="group_by_scheduled_date" string="Scheduled Date" context="{'group_by':'date_planned'}"/>
                 <filter name="group_by_picking_type_id" string="Operation Type" context="{'group_by':'picking_type_id'}"/>
                 <filter name="group_by_dock_id" string="Dock Location" context="{'group_by':'dock_id'}" groups="stock.group_stock_multi_locations"/>
             </xpath>
@@ -95,10 +95,10 @@
                 <filter name="vehicle_id" string="Third Party Carrier" domain="[('vehicle_id', '=', False), ('vehicle_category_id', '!=', False)]"/>
             </xpath>
             <xpath expr="//filter[@name='my_transfers']" position="after">
-                <filter name="scheduled_date" date="scheduled_date" string="Scheduled Date"/>
-                <filter string="Today" name="filter_today" domain="[('scheduled_date', '&gt;=', 'today'), ('scheduled_date', '&lt;', 'today +1d')]"/>
-                <filter string="Tomorrow" name="filter_tomorrow" domain="[('scheduled_date','&gt;=', 'today +1d')]" /><!-- wrong -->
-                <filter string="Next 7 Days" name="filter_next_7_days" domain="[('scheduled_date','&gt;=', 'today +7d')]"/><!-- wrong -->
+                <filter name="date_planned" date="date_planned" string="Scheduled Date"/>
+                <filter string="Today" name="filter_today" domain="[('date_planned', '&gt;=', 'today'), ('date_planned', '&lt;', 'today +1d')]"/>
+                <filter string="Tomorrow" name="filter_tomorrow" domain="[('date_planned','&gt;=', 'today +1d')]" /><!-- wrong -->
+                <filter string="Next 7 Days" name="filter_next_7_days" domain="[('date_planned','&gt;=', 'today +7d')]"/><!-- wrong -->
             </xpath>
         </field>
     </record>
@@ -114,7 +114,7 @@
                         <field name="dock_id"/>
                         <div>
                             <field name="state" widget="state_selection" class="float-start pt-1 me-1"/>
-                            <field name="scheduled_date" readonly="state in ['cancel', 'done']"/>
+                            <field name="date_planned" readonly="state in ['cancel', 'done']"/>
                         </div>
                         <field name="user_id" widget="many2one_avatar_user" readonly="state not in ['draft', 'in_progress']" class="ms-auto"/>
                     </footer>
