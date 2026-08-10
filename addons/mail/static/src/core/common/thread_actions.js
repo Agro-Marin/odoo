@@ -151,9 +151,7 @@ export class ThreadAction extends Action {
 
     /** ClassName on name of this action */
     get nameClass() {
-        return typeof this.definition.nameClass === "function"
-            ? this.definition.nameClass.call(this, this.params)
-            : this.definition.nameClass;
+        return this._option("nameClass");
     }
 
     /**
@@ -202,9 +200,7 @@ export class ThreadAction extends Action {
     }
 
     get panelOuterClass() {
-        return typeof this.definition.panelOuterClass === "function"
-            ? this.definition.panelOuterClass.call(this, this.params)
-            : this.definition.panelOuterClass;
+        return this._option("panelOuterClass");
     }
 
     /** Determines whether this action is a one time effect or can be toggled (on or off). */

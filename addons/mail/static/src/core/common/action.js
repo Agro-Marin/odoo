@@ -86,51 +86,86 @@ export class Action {
         return { action: this, store: this.store, owner: this.owner };
     }
 
+    /**
+     * Resolve a definition option that may be given as a value or as a function
+     * of the action's params.
+     *
+     * Almost every option below is polymorphic this way, and each getter used to
+     * spell the resolution out in full: a `_x()` subclass hook, then a `typeof`
+     * test, then the call, then the bare value — six lines that differed only in
+     * the option's name, twenty-odd times. That repetition is not free: the
+     * option list existed in three parallel places (this typedef, the `_x` hooks
+     * and the getters), and they had already drifted — `btnAttrs` was documented
+     * and implemented here while being read by nothing at all.
+     *
+     * The getters stay explicit rather than being generated onto the prototype.
+     * `tsconfig.json` maps `@mail/*` and the repo ratchets `tsc`, so a
+     * dynamically defined accessor would take every `action.<option>` read in
+     * this addon and its consumers off the type surface. One line each keeps
+     * them typed, greppable and jump-to-definition-able.
+     *
+     * @param {string} name
+     * @returns {any}
+     */
+    _option(name) {
+        const value = this.definition[name];
+        return typeof value === "function" ? value.call(this, this.params) : value;
+    }
+
+    /**
+     * `_option`, with a default used only when the option is absent.
+     *
+     * The default applies to the *value* branch, not to the function's result:
+     * an explicit callback returning `undefined` keeps `undefined`. That is the
+     * pre-existing semantics of `condition` and `componentCondition`, and it is
+     * deliberately NOT the same as `?? default` around the whole expression —
+     * see `inlineName`, which does the latter.
+     *
+     * @param {string} name
+     * @param {any} fallback
+     */
+    _optionOr(name, fallback) {
+        const value = this.definition[name];
+        return typeof value === "function"
+            ? value.call(this, this.params)
+            : (value ?? fallback);
+    }
+
+    /**
+     * Resolve an option that is only ever a function — never a bare value — so
+     * a non-callable is a definition error rather than a value to pass through.
+     *
+     * @param {string} name
+     */
+    _callOption(name) {
+        return this.definition[name]?.call(this, this.params);
+    }
+
     /** @param {ActionParams} action @returns {boolean|undefined} */
     _badge(action) {}
     /** Condition for showing badge on this action */
     get badge() {
-        return (
-            this._badge(this.params) ??
-            (typeof this.definition.badge === "function"
-                ? this.definition.badge.call(this, this.params)
-                : this.definition.badge)
-        );
+        return this._badge(this.params) ?? this._option("badge");
     }
 
     /** @param {ActionParams} action @returns {string|undefined} */
     _badgeIcon(action) {}
     /** When action shows badge @see badge this property tells the icon inside badge */
     get badgeIcon() {
-        return (
-            this._badgeIcon(this.params) ??
-            (typeof this.definition.badgeIcon === "function"
-                ? this.definition.badgeIcon.call(this, this.params)
-                : this.definition.badgeIcon)
-        );
+        return this._badgeIcon(this.params) ?? this._option("badgeIcon");
     }
 
     /** @param {ActionParams} action @returns {string|undefined} */
     _badgeText(action) {}
     /** When action shows badge @see badge this property tells the text inside badge. */
     get badgeText() {
-        return (
-            this._badgeText(this.params) ??
-            (typeof this.definition.badgeText === "function"
-                ? this.definition.badgeText.call(this, this.params)
-                : this.definition.badgeText)
-        );
+        return this._badgeText(this.params) ?? this._option("badgeText");
     }
 
     /** @param {ActionParams} action @returns {string|undefined} */
     _btnClass(action) {}
     get btnClass() {
-        return (
-            this._btnClass(this.params) ??
-            (typeof this.definition.btnClass === "function"
-                ? this.definition.btnClass.call(this, this.params)
-                : this.definition.btnClass)
-        );
+        return this._btnClass(this.params) ?? this._option("btnClass");
     }
 
     /** @param {ActionParams} action @returns {Component|undefined} */
@@ -146,9 +181,7 @@ export class Action {
     get componentCondition() {
         return (
             this._componentCondition(this.params) ??
-            (typeof this.definition.componentCondition === "function"
-                ? this.definition.componentCondition.call(this, this.params)
-                : (this.definition.componentCondition ?? true))
+            this._optionOr("componentCondition", true)
         );
     }
 
@@ -156,22 +189,14 @@ export class Action {
     _componentProps(action) {}
     /** Props to pass to the component of this action. */
     get componentProps() {
-        return (
-            this._componentProps(this.params) ??
-            this.definition.componentProps?.call(this, this.params)
-        );
+        return this._componentProps(this.params) ?? this._callOption("componentProps");
     }
 
     /** @param {ActionParams} action @returns {boolean|undefined} */
     _condition(action) {}
     /** Condition for availability of this action */
     get condition() {
-        return (
-            this._condition(this.params) ??
-            (typeof this.definition.condition === "function"
-                ? this.definition.condition.call(this, this.params)
-                : (this.definition.condition ?? true))
-        );
+        return this._condition(this.params) ?? this._optionOr("condition", true);
     }
 
     /** @param {ActionParams} action @returns {boolean|undefined} */
@@ -180,7 +205,7 @@ export class Action {
     get disabledCondition() {
         return Boolean(
             this._disabledCondition(this.params) ??
-            this.definition.disabledCondition?.call(this, this.params),
+            this._callOption("disabledCondition"),
         );
     }
 
@@ -195,6 +220,11 @@ export class Action {
     _dropdownComponent(action) {}
     /** When action is a dropdown @see dropdown, this determines an optional component to use for the content slot */
     get dropdownComponent() {
+        // The one option `_option()` cannot resolve, and the reason it takes a
+        // name rather than a value: an OWL Component subclass IS a function, so
+        // the plain `typeof === "function"` test would CALL the component class
+        // instead of returning it. The prototype check distinguishes "a factory
+        // of a component" from "a component".
         return (
             this._dropdownComponent(this.params) ??
             (typeof this.definition.dropdownComponent === "function" &&
@@ -210,9 +240,7 @@ export class Action {
     get dropdownComponentProps() {
         return (
             this._dropdownComponentProps(this.params) ??
-            (typeof this.definition.dropdownComponentProps === "function"
-                ? this.definition.dropdownComponentProps.call(this, this.params)
-                : this.definition.dropdownComponentProps)
+            this._option("dropdownComponentProps")
         );
     }
 
@@ -221,10 +249,7 @@ export class Action {
     /** When action is a dropdown @see dropdown, this determines an optional menu class for the dropdown, in addition to default dropdown menu classes */
     get dropdownMenuClass() {
         return (
-            this._dropdownMenuClass(this.params) ??
-            (typeof this.definition.dropdownMenuClass === "function"
-                ? this.definition.dropdownMenuClass.call(this, this.params)
-                : this.definition.dropdownMenuClass)
+            this._dropdownMenuClass(this.params) ?? this._option("dropdownMenuClass")
         );
     }
 
@@ -232,36 +257,21 @@ export class Action {
     _dropdownPosition(action) {}
     /** When action is a dropdown @see dropdown, this determines the preferred position of the dropdown */
     get dropdownPosition() {
-        return (
-            this._dropdownPosition(this.params) ??
-            (typeof this.definition.dropdownPosition === "function"
-                ? this.definition.dropdownPosition.call(this, this.params)
-                : this.definition.dropdownPosition)
-        );
+        return this._dropdownPosition(this.params) ?? this._option("dropdownPosition");
     }
 
     /** @param {ActionParams} action @returns {DropdownState|undefined} */
     _dropdownState(action) {}
     /** When action is a dropdown @see dropdown, this determines the preferred position of the dropdown */
     get dropdownState() {
-        return (
-            this._dropdownState(this.params) ??
-            (typeof this.definition.dropdownState === "function"
-                ? this.definition.dropdownState.call(this, this.params)
-                : this.definition.dropdownState)
-        );
+        return this._dropdownState(this.params) ?? this._option("dropdownState");
     }
 
     /** @param {ActionParams} action @returns {string|undefined} */
     _dropdownTemplate(action) {}
     /** When action is a dropdown @see dropdown, this determines an optional template to use for the content slot */
     get dropdownTemplate() {
-        return (
-            this._dropdownTemplate(this.params) ??
-            (typeof this.definition.dropdownTemplate === "function"
-                ? this.definition.dropdownTemplate.call(this, this.params)
-                : this.definition.dropdownTemplate)
-        );
+        return this._dropdownTemplate(this.params) ?? this._option("dropdownTemplate");
     }
 
     /** @param {ActionParams} action @returns {Object|undefined} */
@@ -274,33 +284,21 @@ export class Action {
     get dropdownTemplateParams() {
         return (
             this._dropdownTemplateParams(this.params) ??
-            (typeof this.definition.dropdownTemplateParams === "function"
-                ? this.definition.dropdownTemplateParams.call(this, this.params)
-                : this.definition.dropdownTemplateParams)
+            this._option("dropdownTemplateParams")
         );
     }
 
     /** @param {ActionParams} action @returns {boolean|undefined} */
     _hasBtnBg(action) {}
     get hasBtnBg() {
-        return (
-            this._hasBtnBg(this.params) ??
-            (typeof this.definition.hasBtnBg === "function"
-                ? this.definition.hasBtnBg.call(this, this.params)
-                : this.definition.hasBtnBg)
-        );
+        return this._hasBtnBg(this.params) ?? this._option("hasBtnBg");
     }
 
     /** @param {ActionParams} action @returns {string|undefined} */
     _hotkey(action) {}
     /** Determines whether this action has a keyboard hotkey to trigger the onSelected */
     get hotkey() {
-        return (
-            this._hotkey(this.params) ??
-            (typeof this.definition.hotkey === "function"
-                ? this.definition.hotkey.call(this, this.params)
-                : this.definition.hotkey)
-        );
+        return this._hotkey(this.params) ?? this._option("hotkey");
     }
 
     /** @param {ActionParams} action @returns {string|Object|undefined} */
@@ -312,49 +310,31 @@ export class Action {
      *   Template params are provided in `params` and passed to template as a `t-set="templateParams"`
      */
     get icon() {
-        return (
-            this._icon(this.params) ??
-            (typeof this.definition.icon === "function"
-                ? this.definition.icon.call(this, this.params)
-                : this.definition.icon)
-        );
+        return this._icon(this.params) ?? this._option("icon");
     }
 
     /** @param {ActionParams} action @returns {string|undefined} */
     _inlineName(action) {}
     /** If set, when action is used in inline, shows action name in addition to icon. */
     get inlineName() {
-        return (
-            this._inlineName(this.params) ??
-            (typeof this.definition.inlineName === "function"
-                ? this.definition.inlineName.call(this, this.params)
-                : this.definition.inlineName) ??
-            false
-        );
+        // `?? false` wraps the WHOLE expression, so a callback returning
+        // undefined yields false here — unlike `condition`, where the
+        // default applies to the value branch only.
+        return this._inlineName(this.params) ?? this._option("inlineName") ?? false;
     }
 
     /** @param {ActionParams} action @returns {boolean|undefined} */
     _isActive(action) {}
     /** States whether this action is currently active. */
     get isActive() {
-        return Boolean(
-            this._isActive(this.params) ??
-            (typeof this.definition.isActive === "function"
-                ? this.definition.isActive.call(this, this.params)
-                : this.definition.isActive),
-        );
+        return Boolean(this._isActive(this.params) ?? this._option("isActive"));
     }
 
     /** @param {ActionParams} action @returns {string|undefined} */
     _name(action) {}
     /** Name of this action, displayed to the user. */
     get name() {
-        return (
-            this._name(this.params) ??
-            (typeof this.definition.name === "function"
-                ? this.definition.name.call(this, this.params)
-                : this.definition.name)
-        );
+        return this._name(this.params) ?? this._option("name");
     }
 
     /** @param {ActionParams} action @param {Event} ev @returns {true|undefined} */
@@ -371,34 +351,19 @@ export class Action {
     _sequence(action) {}
     /** Determines the order of this action (smaller first). */
     get sequence() {
-        return (
-            this._sequence(this.params) ??
-            (typeof this.definition.sequence === "function"
-                ? this.definition.sequence.call(this, this.params)
-                : this.definition.sequence)
-        );
+        return this._sequence(this.params) ?? this._option("sequence");
     }
 
     /** @param {ActionParams} action @returns {number|undefined} */
     _sequenceGroup(action) {}
     get sequenceGroup() {
-        return (
-            this._sequenceGroup(this.params) ??
-            (typeof this.definition.sequenceGroup === "function"
-                ? this.definition.sequenceGroup.call(this, this.params)
-                : this.definition.sequenceGroup)
-        );
+        return this._sequenceGroup(this.params) ?? this._option("sequenceGroup");
     }
 
     /** @param {ActionParams} action @returns {number|undefined} */
     _sequenceQuick(action) {}
     get sequenceQuick() {
-        return (
-            this._sequenceQuick(this.params) ??
-            (typeof this.definition.sequenceQuick === "function"
-                ? this.definition.sequenceQuick.call(this, this.params)
-                : this.definition.sequenceQuick)
-        );
+        return this._sequenceQuick(this.params) ?? this._option("sequenceQuick");
     }
 
     /** @param {ActionParams} action @returns {true|undefined} */
@@ -414,11 +379,7 @@ export class Action {
     _tags(action) {}
     /** If set, list of tags of this action. */
     get tags() {
-        const res =
-            this._tags(this.params) ??
-            (typeof this.definition.tags === "function"
-                ? this.definition.tags.call(this, this.params)
-                : this.definition.tags);
+        const res = this._tags(this.params) ?? this._option("tags");
         return Array.isArray(res) ? res : [res];
     }
 
