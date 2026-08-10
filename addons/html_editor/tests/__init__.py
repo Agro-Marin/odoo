@@ -7,3 +7,4 @@ from . import test_diff_utils
 from . import test_diff_utils_regressions
 from . import test_modify_image_no_data
 from . import test_video_tools
+from . import test_history_divergence
