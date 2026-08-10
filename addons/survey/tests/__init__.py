@@ -20,3 +20,4 @@ from . import test_survey_results
 from . import test_survey_session
 from . import test_survey_correctness
 from . import test_survey_routes
+from . import test_scoring_engine
