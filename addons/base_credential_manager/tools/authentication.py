@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import ipaddress
 import logging
 import re
 from datetime import UTC, datetime, timedelta
@@ -328,3 +329,51 @@ def verify_timestamp(
     except Exception:
         _logger.exception("Timestamp verification error")
         return False
+
+
+def ip_in_allowlist(remote_addr, allowlist):
+    """Return whether ``remote_addr`` matches a comma-separated IP/CIDR list.
+
+    Shared by every inbound endpoint in the fork: ``base_automation``'s webhook
+    rules and ``api.endpoint.inbound``'s model-as-endpoint records had separate
+    copies of this, and separate copies of a security check drift.
+
+    **Fails closed.** An empty or unparseable allowlist matches nothing, and an
+    absent or malformed ``remote_addr`` matches nothing. Callers that mean
+    "unrestricted when unconfigured" must say so themselves --
+
+        if endpoint.ip_whitelist and not ip_in_allowlist(addr, endpoint.ip_whitelist):
+            reject()
+
+    -- which is what both callers already do. The two previous copies disagreed
+    on exactly this point (one allowed an empty list, the other denied it) and
+    only agreed in practice because both were guarded; folding that ambiguity
+    into the shared helper rather than resolving it would have been the way to
+    turn a latent difference into a live one.
+
+    :param str remote_addr: the caller's IP address
+    :param str allowlist: comma-separated IPs and/or CIDR blocks
+    :return: True when the address matches an entry
+    :rtype: bool
+    """
+    if not remote_addr:
+        return False
+    try:
+        ip = ipaddress.ip_address(remote_addr)
+    except ValueError:
+        return False
+
+    for token in (allowlist or "").split(","):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            if "/" in token:
+                if ip in ipaddress.ip_network(token, strict=False):
+                    return True
+            elif ip == ipaddress.ip_address(token):
+                return True
+        except ValueError:
+            _logger.warning("Ignoring unparseable IP allowlist entry: %r", token)
+            continue
+    return False

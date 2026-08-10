@@ -1,4 +1,3 @@
-import ipaddress
 import json
 import logging
 from collections.abc import Callable
@@ -14,6 +13,7 @@ from odoo.addons.api_transport.tools import (
     verify_timestamp,
     worker_env,
 )
+from odoo.addons.base_credential_manager.tools import ip_in_allowlist
 
 _logger = logging.getLogger(__name__)
 
@@ -670,30 +670,15 @@ class ApiEndpointInbound(models.AbstractModel):
     def validate_ip_address(self, source_ip: str) -> bool:
         """Return whether the source IP is allowed by the whitelist.
 
+        The check is shared with base_automation's webhook rules (see
+        base_credential_manager.tools.ip_in_allowlist). That helper fails closed
+        on an empty list while this method historically returned True; callers
+        guard with ``if endpoint.ip_whitelist and not ...``, which is where
+        "unrestricted when unconfigured" belongs and where it already was.
+
         :param source_ip: source IP address
         :return: True if the IP is allowed
         :rtype: bool
         """
         self.ensure_one()
-
-        if not self.ip_whitelist or not self.ip_whitelist.strip():
-            return True
-
-        allowed_ips = [ip.strip() for ip in self.ip_whitelist.split(",") if ip.strip()]
-
-        if not allowed_ips:
-            return True
-
-        for allowed_ip in allowed_ips:
-            try:
-                if "/" in allowed_ip:
-                    network = ipaddress.ip_network(allowed_ip, strict=False)
-                    if ipaddress.ip_address(source_ip) in network:
-                        return True
-                elif source_ip == allowed_ip:
-                    return True
-            except (ValueError, ipaddress.AddressValueError) as e:
-                _logger.warning("Invalid IP in whitelist: %s: %s", allowed_ip, e)
-                continue
-
-        return False
+        return ip_in_allowlist(source_ip, self.ip_whitelist)

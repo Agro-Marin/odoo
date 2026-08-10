@@ -2,6 +2,7 @@ from .authentication import (
     verify_bearer_token,
     verify_hmac_signature,
     verify_signature,
+    ip_in_allowlist,
     verify_timestamp,
 )
 from .base_lru_cache import BaseLRUCache
@@ -36,6 +37,7 @@ __all__ = [
     "get_session_cache",
     "invalidate_all_connections",
     "invalidate_session_cache",
+    "ip_in_allowlist",
     "verify_bearer_token",
     "verify_hmac_signature",
     "verify_signature",

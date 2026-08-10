@@ -1,6 +1,5 @@
 import contextlib
 import datetime
-import ipaddress
 import logging
 import re
 import traceback
@@ -16,6 +15,7 @@ from odoo.http import request
 from odoo.tools import safe_eval
 
 from odoo.addons.base_credential_manager.tools import (
+    ip_in_allowlist,
     verify_signature,
     verify_timestamp,
 )
@@ -1239,26 +1239,13 @@ class BaseAutomation(models.Model):
         return (True, 200, "OK")
 
     def _webhook_ip_allowed(self, remote_addr):
-        """Return True if remote_addr matches the comma-separated IP/CIDR list."""
-        if not remote_addr:
-            return False
-        try:
-            ip = ipaddress.ip_address(remote_addr)
-        except ValueError:
-            return False
-        for token in (self.webhook_ip_allowlist or "").split(","):
-            token = token.strip()
-            if not token:
-                continue
-            try:
-                if "/" in token:
-                    if ip in ipaddress.ip_network(token, strict=False):
-                        return True
-                elif ip == ipaddress.ip_address(token):
-                    return True
-            except ValueError:
-                continue
-        return False
+        """Return True if remote_addr matches the comma-separated IP/CIDR list.
+
+        The check itself is shared with every other inbound endpoint in the fork
+        (see base_credential_manager.tools.ip_in_allowlist); this method stays as
+        the model-level name callers and overrides already use.
+        """
+        return ip_in_allowlist(remote_addr, self.webhook_ip_allowlist)
 
     def _webhook_rate_ok(self):
         """Consume one token from this rule's DB-backed rate-limit bucket.
