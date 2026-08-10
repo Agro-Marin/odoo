@@ -1502,3 +1502,24 @@ class TestAttributeNameUniqueness(ProductCommon):
         second = Attribute.create({"name": "Diameter"})
         self.env.flush_all()
         self.assertNotEqual(first.id, second.id)
+
+    def test_the_opt_out_stays_on_the_concrete_model(self):
+        """attribute.mixin must not decline the rule on everyone's behalf.
+
+        An opt-out is a real definition rather than an absence, so declaring it
+        on the shared mixin wins the MRO over `catalog.mixin`'s rule for *every*
+        consumer -- and because `Index.apply_to_database` drops before it
+        creates, it would delete the unique index of consumers whose attribute
+        vocabulary is flat, on their next upgrade, with nothing logged.
+        """
+        mixin = self.env.registry["attribute.mixin"]
+        declared = [
+            obj
+            for cls in mixin._model_classes__
+            for obj in getattr(cls, "_table_object_definitions", ())
+            if obj.name == "name_src_uniq"
+        ]
+        self.assertFalse(
+            [obj for obj in declared if obj.get_definition(self.env.registry) == ""],
+            "attribute.mixin declares an opt-out; it belongs on the concrete model",
+        )

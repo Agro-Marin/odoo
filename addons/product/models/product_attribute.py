@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.base.models.catalog_mixin import no_name_uniq_index
+
 
 class ProductAttribute(models.Model):
     _name = "product.attribute"
@@ -17,6 +19,12 @@ class ProductAttribute(models.Model):
         "CHECK(display_type != 'multi' OR create_variant = 'no_variant')",
         "Multi-checkbox display type is not compatible with the creation of variants",
     )
+    # Product attribute names repeat legitimately, so catalog.mixin's rule is
+    # declined here rather than on attribute.mixin -- other subjects' attribute
+    # vocabularies are flat and want it. A second "Size" holding shoe sizes is
+    # a different dimension from the "Size" holding shirt sizes, and this module
+    # already ships eight attributes a database is free to extend alongside.
+    _name_src_uniq = no_name_uniq_index()
 
     # name and active come from catalog.mixin through attribute.mixin; only the
     # labels are product-specific.

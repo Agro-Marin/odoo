@@ -1,8 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
-from odoo.addons.base.models.catalog_mixin import no_name_uniq_index
-
 
 class AttributeMixin(models.AbstractModel):
     """Reusable base for an EAV attribute (the dimension being profiled)."""
@@ -11,13 +9,15 @@ class AttributeMixin(models.AbstractModel):
     # pointing to the matching concrete value model. Extend value_type or
     # display_type with selection_add if the subject needs extra modes.
     #
-    # ``name`` and ``active`` come from ``catalog.mixin``. Its name-uniqueness
-    # rule is declined: an attribute names a dimension in some subject's own
-    # vocabulary, and two of them may legitimately share a name -- a "Size"
-    # holding shoe sizes and a "Size" holding shirt sizes are different
-    # dimensions, and product ships eight attributes that a database is free to
-    # extend with same-named ones. A concrete attribute model whose vocabulary
-    # *is* flat can re-declare ``_name_src_uniq`` with ``name_uniq_index()``.
+    # ``name``, ``active`` and the unscoped name-uniqueness rule come from
+    # ``catalog.mixin``. The rule is kept here rather than declined, because
+    # whether two attributes may share a name is a property of the subject's
+    # vocabulary and not of attributes as such: it is flat for agro's surface
+    # and partner taxonomies, and not for product, which declines it on the
+    # concrete model with ``no_name_uniq_index()``. Declining it *here* would
+    # not merely leave the choice open -- an opt-out is a real definition that
+    # wins the MRO over ``catalog.mixin``'s, so it would silently drop the
+    # index from every consumer that wanted one.
     _name = "attribute.mixin"
     _inherit = ["catalog.mixin"]
     _description = "Attribute Mixin"
@@ -37,8 +37,6 @@ class AttributeMixin(models.AbstractModel):
     # to enforce -- the violation was reachable, just not by the write the
     # constraint watches.
     _attribute_line_model = None
-
-    _name_src_uniq = no_name_uniq_index()
 
     sequence = fields.Integer(
         default=10,
