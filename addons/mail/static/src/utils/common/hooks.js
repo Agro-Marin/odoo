@@ -679,6 +679,12 @@ export function useLongPress(refName, { action, predicate = () => true } = {}) {
         clearTimeout(timer);
         timer = null;
     }
+    // `touchend`/`touchcancel` are the only other way to cancel the timer, and
+    // `useLazyExternalListener` drops them on unmount — so a component torn
+    // down inside the press window (thread reload, chat window closed, message
+    // removed) would otherwise leave the timer to fire `action()` against a
+    // destroyed component. @see useHover, same class.
+    onWillUnmount(reset);
     useLazyExternalListener(
         () => ref.el,
         "touchstart",
