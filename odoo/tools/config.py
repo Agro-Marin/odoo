@@ -339,6 +339,12 @@ class configmanager:
         PosixOnlyOption: type,
     ) -> None:
         group = optparse.OptionGroup(parser, "Common options")
+        self._add_config_and_module_options(group)
+        self._add_import_and_process_options(group)
+        self._add_path_and_load_options(group)
+        parser.add_option_group(group)
+
+    def _add_config_and_module_options(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "-c",
             "--config",
@@ -404,6 +410,8 @@ class configmanager:
             "ir_module_module.content_checksum; explicitly listed modules "
             "(-u/--reinit) are always processed.",
         )
+
+    def _add_import_and_process_options(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--reinit",
             dest="reinit",
@@ -452,6 +460,8 @@ class configmanager:
             my_default="",
             help="file where the server pid will be stored",
         )
+
+    def _add_path_and_load_options(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--addons-path",
             dest="addons_path",
@@ -491,7 +501,6 @@ class configmanager:
             type="path",
             help="Directory where to store Odoo data",
         )
-        parser.add_option_group(group)
 
     def _add_http_options(
         self,
@@ -809,6 +818,14 @@ class configmanager:
         PosixOnlyOption: type,
     ) -> None:
         group = optparse.OptionGroup(parser, "Database related options")
+        self._add_db_endpoint_options(group)
+        self._add_db_replica_and_tls_options(group)
+        self._add_db_pool_sizing_options(group)
+        self._add_db_connection_lifecycle_options(group)
+        self._add_db_session_and_health_options(group)
+        parser.add_option_group(group)
+
+    def _add_db_endpoint_options(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "-d",
             "--database",
@@ -873,6 +890,8 @@ class configmanager:
             help="specify the replica port",
             type="int",
         )
+
+    def _add_db_replica_and_tls_options(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--db_replica_max_lag",
             dest="db_replica_max_lag",
@@ -945,6 +964,11 @@ class configmanager:
             env_name="PGAPPNAME",
             help="specify the application name in the database, {pid} is substituted by the process pid",
         )
+
+    def _add_db_pool_sizing_options(self, group: optparse.OptionGroup) -> None:
+        # --db-template is neither a size nor a limit; it rides in this method
+        # because --help prints options in the order they are added, so the
+        # split had to fall on contiguous runs rather than on themes.
         group.add_option(
             "--db_maxconn",
             dest="db_maxconn",
@@ -996,6 +1020,8 @@ class configmanager:
             env_name="PGDATABASE_TEMPLATE",
             help="specify a custom database template to create a new database",
         )
+
+    def _add_db_connection_lifecycle_options(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--db_borrow_timeout",
             dest="db_borrow_timeout",
@@ -1054,6 +1080,8 @@ class configmanager:
             "cycle; one network RTT elsewhere) — the price of not leaking session "
             "state between borrowers",
         )
+
+    def _add_db_session_and_health_options(self, group: optparse.OptionGroup) -> None:
         group.add_option(
             "--db_session_gucs",
             dest="db_session_gucs",
@@ -1094,7 +1122,6 @@ class configmanager:
             "died within the window (it fails on first use and is discarded). "
             "0 probes every borrow (default 1.0)",
         )
-        parser.add_option_group(group)
 
     def _add_i18n_options(
         self,
