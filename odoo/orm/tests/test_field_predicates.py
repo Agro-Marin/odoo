@@ -17,12 +17,6 @@ def _string_operands(node: ast.expr) -> set[str]:
     return set()
 
 
-#: ``predicate -> the type strings it must be true for, and no others``.
-#:
-#: Deliberately spelled as the literal type strings rather than derived from the
-#: classes, so this is a second, independent statement of the intent -- deriving
-#: it from the same class attributes the code reads would make the test agree
-#: with any bug it is meant to catch.
 PREDICATE_TYPES: dict[str, frozenset[str]] = {
     "is_x2many": frozenset({"many2many", "one2many"}),
     "is_temporal": frozenset({"date", "datetime"}),
@@ -30,12 +24,6 @@ PREDICATE_TYPES: dict[str, frozenset[str]] = {
     "is_many2one": frozenset({"many2one"}),
 }
 
-#: Files still comparing `.type` against a migrated set, with the reason.
-#:
-#: A half-migrated cluster is worse than either end state -- two ways to ask one
-#: question, and a reader cannot tell which is current. So the sweep below fails
-#: on any survivor that is not listed here, and the list is the remaining work
-#: rather than a place to put inconvenient sites.
 UNCONVERTED: dict[str, str] = {}
 """Files still comparing `.type` against a migrated set, with the reason.
 
@@ -83,7 +71,7 @@ class TestPredicatesMatchTheTypeStrings(unittest.TestCase):
 
 class TestTheMigrationIsComplete(unittest.TestCase):
     def _survivors(self) -> dict[str, list[str]]:
-        root = Path(__file__).resolve().parents[1]  # odoo/orm
+        root = Path(__file__).resolve().parents[1]
         repo = root.parents[1]
         found: dict[str, list[str]] = {}
         for path in sorted(root.rglob("*.py")):

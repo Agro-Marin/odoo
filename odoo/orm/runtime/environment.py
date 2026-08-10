@@ -124,18 +124,6 @@ class Environment(Mapping[str, "BaseModel"]):
     def __contains__(self, model_name) -> bool:
         return model_name in self.registry
 
-    # A `Literal` overload per model whose contract the framework declares, so
-    # mypy checks the CALL SITES and not only the Protocol. Before these, every
-    # `env["ir.model.data"]._load_xmlid(...)` in the core typed as `BaseModel`
-    # and the contract was enforced by one test rather than by the compiler.
-    #
-    # Each returns a Protocol that extends `RecordsetProtocol`, which is how a
-    # single return type satisfies both halves of what these values are.
-    # Python has no intersection type -- `BaseModel & IrModelDataProtocol` is
-    # unspellable -- and Protocol inheritance is what stands in for one.
-    #
-    # The fallback below still returns `BaseModel`, so the several hundred
-    # subscripts on models with no declared contract are unaffected.
     @typing.overload
     def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["ir.attachment"]
@@ -196,13 +184,6 @@ class Environment(Mapping[str, "BaseModel"]):
         self, model_name: typing.Literal["res.users"]
     ) -> ResUsersProtocol: ...
 
-    # `overload-overlap` is inherent to refining on a literal and is suppressed
-    # here rather than at thirteen call sites. `Literal["ir.model.data"]` is a
-    # subtype of `str`, so every overload above overlaps this one while
-    # returning an unrelated type, and mypy says so once per pair. That is the
-    # pattern working: when the key IS a literal the caller gets the model's
-    # contract, and when it is a `str` variable no one can know which model it
-    # names, so `BaseModel` is the only honest answer.
     @typing.overload
     def __getitem__(self, model_name: str) -> BaseModel: ...
 
@@ -574,22 +555,6 @@ class Environment(Mapping[str, "BaseModel"]):
         try:
             return self.cr.fetchall()
         except ProgrammingError as exc:
-            # "The last operation didn't produce records" -- a DDL statement or
-            # a DML without RETURNING. psycopg raises this CLIENT-side, so it
-            # carries no sqlstate, which is what tells it apart from a real
-            # server error. Pinned by
-            # `tests/contract/test_execute_query_result_detection.py`.
-            #
-            # DO NOT rewrite this as `if self.cr.description is None: return []`.
-            # It looks equivalent, `execute_query_dict` below genuinely does ask
-            # the question that way, and it is WRONG here: inside
-            # `cr.pipeline()` psycopg has not synced yet, so `description` is
-            # None for a perfectly good SELECT while `fetchall()` forces the
-            # sync and returns the rows. The declarative form therefore returns
-            # [] for real result sets whenever a caller is inside a pipeline --
-            # silently, with no error anywhere. Tried on 2026-08-09; it passed
-            # both pytest tiers and broke `base: TestParentStore` via
-            # `child_of`. The contract test covers the pipeline case too.
             if exc.sqlstate is not None:
                 raise
             return []

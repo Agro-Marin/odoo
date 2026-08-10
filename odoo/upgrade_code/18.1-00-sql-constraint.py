@@ -8,10 +8,6 @@ if typing.TYPE_CHECKING:
     from odoo.cli.upgrade_code import FileManager
 
 
-#: Attributes ``BaseModel`` defines that ``_{constraint_name}`` would shadow.
-#: Derived by hand from ``BaseModel`` rather than imported, because upgrade_code
-#: scripts run as standalone source rewriters against OTHER checkouts and must
-#: not depend on the ORM being importable.
 _RESERVED_MODEL_ATTRIBUTES = frozenset(
     {
         "_abstract",
@@ -46,23 +42,10 @@ def upgrade(file_manager: FileManager) -> None:
         try:
             constraints = ast.literal_eval("[" + match.group(1) + "]")
         except SyntaxError, ValueError:
-            # ValueError, not just SyntaxError: ast.literal_eval raises it for
-            # any NON-LITERAL node, and the single most common form of a real
-            # _sql_constraints entry is a translated message --
-            #     ('uniq', 'unique(code)', _('Code must be unique'))
-            # -- whose third element is a Call. Catching only SyntaxError let
-            # that ValueError escape build_sql_object, out of re.sub, out of
-            # `upgrade`, and abort the entire run partway through the file list,
-            # leaving everything already processed rewritten on disk.
             return match.group(0)
         result = []
         for name, definition, *messages in constraints:
             if f"_{name}" in _RESERVED_MODEL_ATTRIBUTES:
-                # `_{name}` is how this script names the new Constraint, so a
-                # constraint called "name" emits `_name = models.Constraint(...)`
-                # -- silently REDEFINING the model's own _name and destroying
-                # its identity. Same for _table, _inherit, _order and the rest.
-                # Leave the whole statement for a human.
                 log.warning(
                     "%s: constraint %r would clobber the model attribute %r; "
                     "left unconverted",

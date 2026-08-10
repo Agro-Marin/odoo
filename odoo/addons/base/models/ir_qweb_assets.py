@@ -913,11 +913,6 @@ class IrQweb(models.AbstractModel):
                             msg=str(e)[:200],
                         )
                         if self._esbuild_fail_closed():
-                            # Deliberately without recording a circuit failure:
-                            # the breaker would open and every later render
-                            # would take the `circuit_blocked` branch above and
-                            # degrade silently again, so only the first build
-                            # of the run would be honest.
                             raise EsbuildBundleError(
                                 f"esbuild failed for bundle {bundle!r}: {e}"
                             ) from e
@@ -1430,30 +1425,13 @@ class IrQweb(models.AbstractModel):
                 bridge_code += "odoo.loader.registerNativeModules({\n"
                 bridge_code += ",\n".join(register_entries)
                 bridge_code += "\n});\n"
-            elif bundle in esm_registry().import_map_included_bundles:
+            elif bundle in esm_registry().import_map_included_bundles:  # noqa: SIM114  two distinct bundle-name matches that happen to need identical handling; merging the conditions would hide which case fired
                 if non_hoot_specs:
                     imports = ", ".join(
                         f"import({json_mod.dumps(s)})" for s in non_hoot_specs
                     )
                     bridge_code += f"await Promise.allSettled([{imports}]);\n"
             elif bundle in esm_registry().secondary_bundle_names:
-                # Every module, not the ones whose PATH looks like a tour. A
-                # secondary bundle is on the page to run: its modules register
-                # themselves by side effect, and nothing about a specifier says
-                # whether it does. Selecting on ``"/tours/" in s`` evaluated
-                # ``website/static/tests/tours/...`` and silently skipped
-                # ``test_assetsbundle/static/tests/test_css_error.js``, a tour
-                # sitting directly in ``static/tests`` -- so its tour was
-                # missing from the registry on frontend pages only, and the
-                # runner could only report the ready code as "always falsy".
-                #
-                # The page's OTHER parent already loads this same bundle whole
-                # (it links the artifact rather than importing by specifier),
-                # so this is also what makes the two agree.
-                #
-                # ``allSettled`` for the same reason as the branch above: one
-                # module that throws on this page must not stop the rest from
-                # registering.
                 if non_hoot_specs:
                     imports = ", ".join(
                         f"import({json_mod.dumps(s)})" for s in non_hoot_specs

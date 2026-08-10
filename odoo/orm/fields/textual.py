@@ -559,27 +559,13 @@ class BaseString(Field[str | typing.Literal[False]]):
     ) -> dict[str, list]:
         ids = [id_ for id_ in records._ids if id_]
         if not ids or not records.env.backend.supports_translation_terms:
-            # No ids, or a backend with no jsonb column to compare the stored
-            # terms against. That is a real semantic gap rather than a slower
-            # path -- on such a backend no translation ever follows a write --
-            # which is why it is a declared capability and why DISPATCH_SITES
-            # marks this site LOSSY.
             return {}
         if lang == "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
-            # With English uninstalled, _mark_dirty_model_translation mirrors
-            # every write into en_US whatever language it targeted, so en_US
-            # holds a copy of the last language written rather than a term
-            # anyone authored. Equality with it is manufactured and says
-            # nothing about whether a language was translated away: reading it
-            # as an echo would destroy the real translations that happen to
-            # match -- exactly the loss this propagation exists to prevent.
             return {}
         stored = self._get_stored_translations_multi(records.browse(ids), dirty_ids)
         followers = defaultdict(list)
         for id_, translations in stored.items():
             if not translations or len(translations) < 2:
-                # a single stored key is the source term every language falls
-                # back to; there is nothing beside it to keep in sync
                 continue
             current = translations.get(lang)
             if current is None:
@@ -778,12 +764,6 @@ class BaseString(Field[str | typing.Literal[False]]):
             if operator == "in" and len(value) == 1:
                 value = value_to_translated_trigram_pattern(next(iter(value)))
             elif operator != "in":
-                # Only "in" can still be holding a collection: the domain is
-                # optimized before it reaches SQL, and _optimize_like_str
-                # coerces a like-operand to str(value) -- or raises "The pattern
-                # to match must be a string" for =like/=ilike. Without that,
-                # pattern_to_translated_trigram_pattern would raise TypeError on
-                # a list, which the guard above still admits.
                 assert isinstance(value, str)
                 value = pattern_to_translated_trigram_pattern(value)
             else:
@@ -995,11 +975,6 @@ class Html(BaseString):
                     original_value_normalized.splitlines(),
                 )
 
-                # Deferred on purpose: `odoo.logutils` imports `odoo.db`,
-                # `odoo.release` and `odoo.tools` at module level, and this is
-                # Layer 1. A function-local import is the sanctioned way to
-                # keep a runtime question without taking the import edge --
-                # see "Direction rules are blind to cycles" in module.md.
                 from odoo.logutils import root_handler_uses_colors
 
                 with_colors = root_handler_uses_colors()

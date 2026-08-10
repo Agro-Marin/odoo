@@ -310,10 +310,6 @@ class ChromeBrowser:
             proc = subprocess.Popen(
                 cmd,
                 stderr=log_file,
-                # PLW1509: setrlimit has to happen between fork and exec, and
-                # preexec_fn is the only hook for that. The child makes one
-                # async-signal-safe call and then execs, so the usual
-                # fork-with-live-threads hazard does not apply here.
                 preexec_fn=_preexec,  # noqa: PLW1509  see comment above
                 env={**os.environ, "TMPDIR": self.user_data_dir},
             )

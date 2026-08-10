@@ -609,13 +609,6 @@ class TestSessionStore(HttpCaseWithUserDemo):
                 side_effect=OSError("synthetic rename failure"),
             ),
             self.assertLogs("odoo.libs._vendor.sessions", level="WARNING") as logs,
-            # save() logs AND propagates. Before e5995d59639 it swallowed the
-            # error outright (`except OSError: pass`), so a session that failed
-            # to persist looked saved: the user's login appeared to succeed and
-            # then vanished on the next request. The warning alone would not
-            # have fixed that -- the caller has to learn the write failed -- so
-            # the re-raise is the contract, not an oversight, and this asserts
-            # it rather than letting the exception surface as a test error.
             self.assertRaises(OSError),
         ):
             odoo.http.root.session_store.save(session)

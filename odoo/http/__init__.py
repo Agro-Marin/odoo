@@ -102,10 +102,6 @@ from .application import (
 
 from odoo.modules.registry import Registry
 
-# Installs the transport's retry participant on `service.transaction`, so
-# `retrying()` can restore a request for a replay without importing `odoo.http`
-# -- the same injection shape `orm/runtime/savepoint.py` uses for `db/`
-# (ADR-0003). Imported for the side effect; the module is not re-exported.
 from . import _retry as _retry
 
 __all__ = [

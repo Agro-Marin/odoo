@@ -119,12 +119,6 @@ class SetDefinitions:
             return Leaf(UnknownId(ref), ref)
         return self.__leaves[ref]
 
-    # The three accessors below return list[int] and mean it. Every leaf in
-    # __leaves is built from `definitions`, whose keys are ints, and a stored
-    # leaf's subset/superset/disjoint sets only ever hold ids of such leaves.
-    # The other two members of LeafIdType belong to the universal leaf and to
-    # the on-demand unknown leaf, and neither is ever stored here.
-
     def get_superset_ids(self, ids: Iterable[int]) -> list[int]:
         return sorted(
             cast(

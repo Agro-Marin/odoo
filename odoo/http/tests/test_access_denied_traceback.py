@@ -6,7 +6,6 @@ import pytest
 from odoo.exceptions import AccessDenied
 
 _HTTP_DIR = pathlib.Path(__file__).resolve().parent.parent
-#: The call sites that do the real suppression, and the file each lives in.
 _EXPECTED_CALL_SITES = {"application.py", "_serve.py"}
 
 

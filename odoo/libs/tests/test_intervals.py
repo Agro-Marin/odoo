@@ -31,9 +31,6 @@ class Recordset:
 
 class TestIntervalsSemantics(unittest.TestCase):
     def _plain(self, triples, **kw):
-        # Intervals only promises its payload has `union`; every payload in this
-        # class is a set, and sorting one is the assertion. The cast says the
-        # test knows more than the library's contract, which is the point.
         return [
             (s, e, sorted(cast("set[str]", r))) for s, e, r in Intervals(triples, **kw)
         ]

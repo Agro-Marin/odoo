@@ -28,10 +28,6 @@ class RequestRetryParticipant:
             reset()
 
     def suppresses_uncommitted_warning(self) -> bool:
-        # `getattr` rather than attribute access: this runs on the tail of
-        # every served request, and `request` is not always a real `Request`
-        # (tests patch it, `borrow_request` swaps it). Missing the warning on
-        # such a stand-in is a far smaller failure than raising from here.
         return bool(getattr(self._request, "database_detached", False))
 
 

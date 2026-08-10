@@ -33,12 +33,6 @@ class _ModelStubs:
         _table: str
         id: int
         ids: list[int]
-        #: A real ``Char`` descriptor on ``_MagicFieldsMixin``, so it
-        #: resolves on ``BaseModel`` but on no individual mixin -- which
-        #: only surfaced when ``_compute_display_name`` moved off the
-        #: composition root onto ``_DisplayNameMixin``. Typed as ``Char``
-        #: really is; declaring it costs two ``__slots__`` assignment
-        #: reports on that mixin and removes more elsewhere.
         display_name: str | typing.Literal[False]
         _log_access: bool
         _active_name: str | None
@@ -102,12 +96,6 @@ class _ModelStubs:
             self, alias: str, field_expr: str, query: Query | None = None
         ) -> SQL: ...
 
-        #: Declared here, unlike ``display_name`` just below it in spirit:
-        #: ``create`` is a plain method, while ``display_name`` is a real
-        #: ``Char`` descriptor on ``_MagicFieldsMixin``. Declaring the
-        #: latter here would make every ``record.display_name = ...`` an
-        #: assignment to a name absent from ``__slots__ = ()``, trading two
-        #: [attr-defined] for three errors.
         def create(self, vals_list: ValuesType | list[ValuesType]) -> Self: ...
         def write(self, vals: ValuesType) -> typing.Literal[True]: ...
         def fetch(self, field_names: Collection[str] | None = None) -> None: ...

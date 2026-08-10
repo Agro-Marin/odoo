@@ -1,8 +1,7 @@
+from ...fields.misc import Id
+from ...fields.textual import Char
 from ..metaclass import MetaModel
 from ._metadata import _ModelMetadataMixin
-
-from ...fields.misc import Id  # isort: skip
-from ...fields.textual import Char  # isort: skip
 
 
 class _MagicFieldsMixin(_ModelMetadataMixin, metaclass=MetaModel):

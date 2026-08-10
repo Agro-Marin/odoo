@@ -88,7 +88,6 @@ def _core_data_files() -> tuple[Path, ...]:
 
 
 def core_data_files() -> list[Path]:
-    # A fresh list per caller -- the cached tuple is the shared, immutable one.
     return list(_core_data_files())
 
 

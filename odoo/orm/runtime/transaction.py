@@ -80,16 +80,6 @@ class Transaction:
 
     def __init__(self, registry: Registry, storage=None):
         self.registry = registry
-        # `storage` is consumed here and not retained.  It used to be kept as
-        # `self.storage`, the channel six CRUD mixins sniffed to ask "am I on the
-        # test backend?"; ADR-0011 replaced those sniffs with the `env.backend`
-        # port and left the attribute behind, with no reader since.
-        #
-        # And `backend` is non-optional.  It was `... else None`, which made
-        # `env.backend is None` the PostgreSQL implementation -- an unnamed
-        # branch at fifteen sites across nine files.  `PostgresBackend` is that
-        # branch, named, so the null check is gone and the Protocol describes
-        # production as well as the test double.
         self.backend = (
             InMemoryBackend(storage) if storage is not None else POSTGRES_BACKEND
         )
@@ -97,14 +87,6 @@ class Transaction:
         self.default_env: Environment | None = None
         self._last_env: weakref_ref[Environment] | None = None
 
-        # `FieldCache`/`ComputeEngine`/`OrmCore` are generic in their key type.
-        # Naming it here is what lets Layer 3 read a field back off the cache:
-        # `recordset_cache.py` asks the returned key for `column_type`,
-        # `company_dependent`, `store`, `translate` and `type`, which no key
-        # protocol carries -- only `Field` does. The unit tests instantiate the
-        # same classes with plain strings, deliberately, because the cache is a
-        # keyed store and nothing more; the generic is what lets both be true
-        # without `Any`.
         self._cache_store: FieldCache[Field] = FieldCache(
             dirty_factory=OrderedSet, on_detach=self._drop_field_cache_memos
         )
@@ -157,22 +139,6 @@ class Transaction:
             from ..primitives import SUPERUSER_ID
             from .environment import Environment
 
-            # Environment.__new__ installs itself as `transaction.default_env`
-            # when there is none and `uid` is a truthy int -- and SUPERUSER_ID
-            # is 1. So building this fallback used to make it the default_env,
-            # which meant the warning above fired EXACTLY ONCE per transaction
-            # and every later flush silently took the branch above, still as
-            # superuser, with no log at all.
-            #
-            # Restore default_env afterwards so the fallback stays a fallback:
-            # the warning then fires on every flush that needs it, which is the
-            # only way anyone finds out this is happening.
-            #
-            # Unconditionally, because this branch is only reachable when
-            # `default_env` is None -- the `if` above tested `is not None`.  The
-            # guard used to read `previous_default = self.default_env` and
-            # restore only `if previous_default is None`, a condition that
-            # cannot be false here.
             try:
                 Environment(env.cr, SUPERUSER_ID, {}).flush_all()
             finally:
@@ -198,14 +164,6 @@ class Transaction:
             env.cr.cache.clear()
 
     def _live_recompute_order(self) -> dict[typing.Any, int]:
-        # No `registry is None` guard and no `getattr(registry, "model_graph")`:
-        # both branches were unreachable. `registry` is a required constructor
-        # argument and `reset()` re-assigns it from `Registry(...)`, which never
-        # returns None; `model_graph` is set unconditionally by `Registry.init`.
-        # A defensive `getattr` on an always-present attribute does not make the
-        # code safer -- it converts a real AttributeError into a silent None,
-        # which here would mean "recompute in arbitrary order" rather than a
-        # traceback naming the registry that failed to initialise.
         registry = self.registry
         registry._ensure_field_triggers()
         return registry.model_graph.recompute_order

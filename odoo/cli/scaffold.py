@@ -12,9 +12,6 @@ from . import Command
 if TYPE_CHECKING:
     from jinja2 import Environment
 else:
-    # jinja2 is imported lazily inside _env(), so the name does not exist at
-    # module scope. The fallback keeps the annotation resolvable without it —
-    # test_lint's TestPEP649Annotations introspects this module.
     Environment = Any
 
 
@@ -121,8 +118,6 @@ def _env() -> Environment:
             "odoo-bin scaffold needs Jinja2, which is not installed.\n"
             "    pip install Jinja2      (or: pip install 'odoo[scaffold]')"
         )
-    # S701: scaffold renders Python/XML/CSV SOURCE files, not HTML — autoescaping
-    # would HTML-escape the generated code and corrupt every scaffolded module.
     env = jinja2.Environment()  # noqa: S701  see comment above
     env.filters["snake"] = snake
     env.filters["pascal"] = pascal

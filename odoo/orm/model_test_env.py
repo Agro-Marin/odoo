@@ -223,10 +223,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
 
         self.has_trigram = False
 
-        # Only read inside check_indexes' trigram branch, which has_trigram
-        # already gates off here -- set anyway so the attribute exists with the
-        # right *type* (FunctionStatus, not bool) rather than only by luck of
-        # never being reached.
         self.has_unaccent = FunctionStatus.MISSING
 
         self._build(list(model_defs))

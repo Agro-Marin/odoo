@@ -14,17 +14,10 @@ class WorkerThread(Protocol):
     cursor_mode: str | None
     rpc_model_method: str
 
-    #: Which server loop owns the thread -- ``"cron"`` / ``"job"`` / ``"http"``.
-    #: Set by ThreadedServer.cron_spawn / job_spawn and read by the watcher.
     type: str
 
-    #: ``time.monotonic()`` when the thread began its current unit of work, or
-    #: ``None`` between units. The threaded server's watchdog reads it to find
-    #: threads that have overrun.
     start_time: float | None
 
-    #: The profiler's saved ExecutionContext, swapped in and out around a
-    #: profiled block (``tools/profiler.py``).
     exec_context: object
 
 

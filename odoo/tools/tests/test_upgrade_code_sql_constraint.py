@@ -9,26 +9,6 @@ _SCRIPT = (
     / "18.1-00-sql-constraint.py"
 )
 
-# `odoo/upgrade_code/` had no tests at all -- nine dated source-rewriting
-# scripts that run over OTHER checkouts, in place, with nothing exercising them.
-# This covers the one with the two sharpest failure modes, both of which were
-# live before this file existed:
-#
-#   1. `ast.literal_eval` raises **ValueError** (not SyntaxError) for any
-#      non-literal node. The most common real `_sql_constraints` entry has a
-#      translated message -- ('uniq', 'unique(code)', _('...')) -- whose third
-#      element is a Call. The script caught only SyntaxError, so that ValueError
-#      escaped `re.sub` and `upgrade()` and killed the whole run partway through
-#      the file list, leaving everything already processed rewritten on disk.
-#
-#   2. The rewrite names each new constraint `_{name}`. A constraint called
-#      "name" therefore emitted `_name = models.Constraint(...)`, silently
-#      REDEFINING the model's `_name` and destroying its identity. Same for
-#      _table, _inherit, _order and 15 other BaseModel attributes.
-#
-# Both were reported in the round-1 audit and are reproduced here as tests so
-# they cannot come back.
-
 
 def _load():
     spec = importlib.util.spec_from_file_location("sql_constraint_upgrade", _SCRIPT)
@@ -72,8 +52,6 @@ class TestSqlConstraintUpgrade(unittest.TestCase):
             "class M(models.Model):\n"
             "    _sql_constraints = [('uniq', 'unique(code)', _('Must be unique'))]\n"
         )
-        # The assertion that matters is that this RETURNS at all: it used to
-        # raise ValueError out of upgrade().
         out = _run(source)
         self.assertEqual(out, source)
 
@@ -110,7 +88,6 @@ class TestSqlConstraintUpgrade(unittest.TestCase):
                 )
 
     def test_the_model_keeps_its_identity(self):
-        # The concrete disaster: two _name assignments, the second winning.
         out = _run(
             "class M(models.Model):\n"
             "    _name = 'my.model'\n"

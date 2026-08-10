@@ -296,7 +296,7 @@ def test_signal_changes_records_the_id_the_database_generated(monkeypatch):
     reg = _make_registry("_signal_returning_db", 1, 1)
     monkeypatch.setattr(Registry, "cursor", lambda self, readonly=False: cur)
     reg.registry_invalidated = True
-    reg.cache_invalidated.add("default")  # read-only property over a threading.local
+    reg.cache_invalidated.add("default")
 
     reg.signal_changes()
 
@@ -304,7 +304,6 @@ def test_signal_changes_records_the_id_the_database_generated(monkeypatch):
         f"signal_changes stopped asking the database for the id it generated: "
         f"{cur.queries}"
     )
-    # 40 and 41 -- NOT 2 and 2, which is what `+= 1` from a baseline of 1 gives.
     assert reg.registry_sequence == 40
     assert reg.cache_sequences["default"] == 41
 
@@ -328,7 +327,6 @@ def test_get_sequences_coalesces_an_empty_signalling_table():
             self.sql = query.code if hasattr(query, "code") else str(query)
 
         def fetchone(self):
-            # What the *coalesced* query returns for an empty table.
             return (0, *([0] * len(CACHES_BY_KEY)))
 
     cur = _EmptyTableCursor()
@@ -342,7 +340,6 @@ def test_get_sequences_coalesces_an_empty_signalling_table():
     assert registry_sequence == 0
     assert cache_sequences == dict.fromkeys(CACHES_BY_KEY, 0)
 
-    # The comparison that used to raise must now simply evaluate.
     assert (registry_sequence > reg.registry_sequence) is True
 
 

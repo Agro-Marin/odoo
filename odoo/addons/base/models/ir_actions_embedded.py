@@ -17,9 +17,6 @@ class IrEmbeddedActions(models.Model):
         "ir.actions.act_window",
         string="Parent Action",
         required=True,
-        # Inverse of `ir.actions.act_window.all_embedded_action_ids`, and every
-        # read of an act_window's embedded actions searches on it. Required, so
-        # there are no NULLs for a partial index to skip.
         index=True,
         ondelete="cascade",
     )

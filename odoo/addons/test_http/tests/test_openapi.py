@@ -12,15 +12,6 @@ from odoo.addons.test_http.tests.test_common import TestHttpBase
 
 def _http_handler(self, n: int, flag: bool = False, **kw):
     """Echo n and flag."""
-    # Load-bearing, not prose: `openapi._summary()` reads `handler.__doc__` to
-    # fill an operation's `summary`, so this string is fixture DATA and
-    # `test_http_typed_route_documents_query_params_and_path_params` asserts it
-    # verbatim. 4ffeacacd8c stripped it and the assertion has raised
-    # `KeyError: 'summary'` ever since. That commit meant to keep this class of
-    # docstring -- it lists "http/tests/test_openapi.py" among the contracts to
-    # retain -- but protected the near-twin under `odoo/http/tests/` and not
-    # this one under `odoo/addons/test_http/tests/`. Nothing caught it because
-    # `test_http` ran in no workflow; it does now.
     return
 
 

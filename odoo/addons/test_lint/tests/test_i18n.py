@@ -86,9 +86,6 @@ class TestI18n(lint_case.LintCase):
             ),
         ]
 
-        # A subTest per case. This used to `_logger.error` each mismatch and
-        # then assert a bare count, so the failure read `3 != 0` and which of
-        # the six cases broke was only in a log the reader may not have.
         for index, (file_content, expected_matches) in enumerate(test_cases, start=1):
             with self.subTest(case=index, source=file_content.strip()):
                 matches = [m.group(3) for m in self.PROPS_RE.finditer(file_content)]

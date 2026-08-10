@@ -28,7 +28,4 @@ class PrettyXmlLinter(LintCase):
         )
 
 
-# The debt this gate inherits. Run `_pretty_xml.py` over the repository to
-# take it to 0 -- verified to preserve every file -- and lower this in the
-# same change.
 UNFORMATTED_FLOOR = 3827

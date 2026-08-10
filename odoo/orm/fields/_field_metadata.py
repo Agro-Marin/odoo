@@ -13,11 +13,6 @@ if typing.TYPE_CHECKING:
 class _FieldMetadataMixin(_FieldStubs):
     __slots__ = ()
 
-    #: Set by ``__set_name__`` / ``_setup_attrs__`` through
-    #: ``self.__dict__.update(attrs)``, so the instance attribute shadows these
-    #: class-level defaults. Declaring them on a base rather than on ``Field``
-    #: changes neither lookup nor ``hasattr``, which ``_get_attrs`` relies on to
-    #: compute ``_extra_keys__``.
     name: str = ""
     model_name: str = ""
 

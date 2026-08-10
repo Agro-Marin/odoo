@@ -96,10 +96,20 @@ class TestDomainEvaluatorParity(TransactionCase):
             "parent_id": [False, None],
         }
         operators = [
-            "=", "!=", "in", "not in",
-            "like", "not like", "ilike", "not ilike", "=like",
-            ">", "<", ">=", "<=",
-        ]  # fmt: skip
+            "=",
+            "!=",
+            "in",
+            "not in",
+            "like",
+            "not like",
+            "ilike",
+            "not ilike",
+            "=like",
+            ">",
+            "<",
+            ">=",
+            "<=",
+        ]
         for fname, vals in values.items():
             for operator in operators:
                 for value in vals:

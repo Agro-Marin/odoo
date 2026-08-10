@@ -30,9 +30,6 @@ def test_number_granularities_are_accepted_but_not_fillable():
     assert "day_of_week" in not_fillable
 
 
-# `week` and `hour` reach env["res.lang"] (week_start / locale formatting), which
-# the DB-free model_test_env does not register. That locale dependency is a
-# separate, known Layer-1/2 coupling; it is not what this regression pins.
 _LOCALE_DEPENDENT = frozenset({"week", "hour"})
 
 

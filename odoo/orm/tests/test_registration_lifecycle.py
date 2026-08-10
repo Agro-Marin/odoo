@@ -49,8 +49,6 @@ class InhCycB(models.Model):
 
 
 class InhCycAExt(models.Model):
-    # extends reginh.a while also parenting reginh.b, which already extends
-    # reginh.a -- closing a cycle in `_inherit_children`
     _name = "reginh.a"
     _inherit = ["reginh.a", "reginh.b"]
     _module = "test_reg_inherit_cycle"

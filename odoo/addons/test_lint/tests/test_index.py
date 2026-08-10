@@ -8,7 +8,6 @@ _logger = logging.getLogger(__name__)
 
 BTREE_INDEX_PY_DEFS = (True, "1", "btree", "btree_not_null")
 
-# `INDEX (a, b DESC) WHERE ...`, once the UNIQUE/INDEX/USING prefix is off.
 _LEADING_COLUMN_RE = re.compile(
     r"""
     \(\s*
@@ -29,8 +28,6 @@ def leading_index_columns(model) -> set[str]:
         try:
             definition = table_object.get_definition(model.pool)
         except Exception:
-            # A callable definition may need registry state we do not have.
-            # Unknown means "not proven indexed", which only ever over-reports.
             _logger.debug(
                 "could not render the definition of %s on %s",
                 table_object.name,
@@ -42,18 +39,14 @@ def leading_index_columns(model) -> set[str]:
             r"^\s*(UNIQUE\s+)?INDEX\s*", "", definition, flags=re.IGNORECASE
         )
         if re.match(r"^\s*USING\s+(?!btree\b)", clause, flags=re.IGNORECASE):
-            continue  # a gin/gist index does not answer an equality lookup
+            continue
         clause = re.sub(r"^\s*USING\s+btree\s*", "", clause, flags=re.IGNORECASE)
         match = _LEADING_COLUMN_RE.match(clause)
         if not match:
-            continue  # an expression index; its leading term is not a column
+            continue
         column = match.group("column")
         condition = clause[match.end() :]
         if "where" in condition.lower():
-            # A partial index only answers the rows it covers. `IS NOT NULL` is
-            # exactly the set an inverse lookup wants -- it is what
-            # `index="btree_not_null"` generates -- and nothing else is safe to
-            # assume.
             if not re.search(
                 rf"WHERE\s+{re.escape(column)}\s+IS\s+NOT\s+NULL\s*$",
                 condition,
@@ -76,12 +69,6 @@ BTREE_INDEX_IGNORE_MODELS = {
     "ir.module.module.dependency",
     "ir.module.module.exclusion",
 }
-# Hand-maintained exceptions. Three entries left this set once the rule below
-# learned to read composite indexes -- `discuss.channel.member.channel_id`
-# leads `(channel_id, partner_id, seen_message_id)`, and `mail.presence`'s two
-# are `UniqueIndex("(x) WHERE x IS NOT NULL")`. They were never exceptions;
-# they were indexes the gate could not see. Prefer teaching the rule over
-# adding a line here.
 BTREE_INDEX_IGNORE_FIELDS = {
     "mail.message.res_id",
     "ir.attachment.res_id",
@@ -102,11 +89,6 @@ BTREE_INDEX_IGNORE_FIELDS = {
 @common.no_retry
 class TestIndex(common.TransactionCase):
     def test_enforce_index_on_one2many_inverse(self):
-        # `comodel` is a parameter, not a free variable read out of the
-        # enclosing loop. It happened to be correct only because the caller
-        # reassigned it on the line before every call -- so the helper's answer
-        # depended on loop state it does not name, and moving either the call
-        # or the assignment would have silently judged the wrong model.
         def ignore(o2m_field, m2o_field, comodel):
             if not comodel._auto or comodel._abstract:
                 return True

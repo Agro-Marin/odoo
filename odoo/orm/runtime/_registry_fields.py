@@ -21,9 +21,6 @@ _schema = logging.getLogger("odoo.schema")
 
 
 class _RegistryFieldsMixin(_RegistryStubs):
-    #: Owned here rather than declared in ``_RegistryStubs`` and assigned by
-    #: ``Registry.init`` — see the note on ``_RegistrySchemaMixin`` for why that
-    #: combination made these invisible to the coupling gate.
     model_graph: ModelGraph
     field_setup_dependents: Collector[Field, Field]
     many2one_company_dependents: Collector[str, Field]

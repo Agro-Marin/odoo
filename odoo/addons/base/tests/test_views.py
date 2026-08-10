@@ -7542,30 +7542,7 @@ class TestViewArchRecovery(ViewCase):
         self.assertEqual((view.arch_db, view.arch_prev, view.arch_updated), before)
 
     def test_hard_reset_from_file_still_works(self):
-        # ONLY VALID IN A DATABASE WHERE NOTHING INHERITS THIS VIEW.
-        #
-        # The write below replaces base.view_res_partner_filter's arch with a
-        # two-element <search>, and writing a view re-validates its children. Any
-        # installed module that inherits it with a spec anchored on content this
-        # arch no longer has therefore fails the write, not the assertion:
-        #
-        #   mail/views/res_partner_views.xml      <filter name="inactive" position="after">
-        #   hr, account, mrp_subcontracting       xpath //filter[@name='inactive']
-        #
-        # Measured: `-i base` is 5/5 green, `-i base,test_http` raises
-        # ValidationError running only this class -- test_http depends on mail.
-        # That is why integration_tests.yml gives base and test_http SEPARATE
-        # databases. If you add an addon to that lane, give it its own database
-        # too; do not add it to base's.
-        #
-        # A more robust test would use a view nothing inherits, but it needs a
-        # view with a real arch_fs to reset FROM, which is why it reaches for a
-        # core one.
         view = self.env.ref("base.view_res_partner_filter")
-        # Enforce the precondition above instead of only documenting it: in a
-        # database that carries mail/hr/account, the write below fails on their
-        # inheritance specs rather than on anything this test asserts. Skipping
-        # says that plainly; failing reads as a regression in reset_arch.
         inheriting = self.env["ir.ui.view"].search_count([("inherit_id", "=", view.id)])
         if inheriting:
             self.skipTest(

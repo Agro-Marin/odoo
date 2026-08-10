@@ -4,16 +4,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    # TYPE_CHECKING only, so no runtime import of `odoo.*` occurs and the purity
-    # contract is untouched -- `layer_check.py` skips these blocks for every
-    # contract, and `components/tests/conftest.py`'s namespace stubs never see
-    # them either. Verified 2026-08-09: `orm-components-are-pure-python: 0 new`
-    # with this import present.
-    #
-    # `IdType` is imported rather than restated as `Hashable` because the weaker
-    # spelling admits exactly the bug worth catching: a recordset is hashable,
-    # so `cache.get_value(field, records)` would type-check against `Hashable`
-    # and fail at runtime with a KeyError naming nothing.
     from ..primitives import IdType as RecordId
 else:
     RecordId = object

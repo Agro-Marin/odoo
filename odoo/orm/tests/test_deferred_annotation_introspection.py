@@ -3,27 +3,8 @@ import pathlib
 
 import pytest
 
-# PEP 649 (Python 3.14) made annotations lazily *evaluated* rather than stored
-# as strings.  `inspect.signature(fn)` therefore evaluates the annotations, and
-# a name that exists only under `if TYPE_CHECKING:` raises NameError.
-#
-# That is not an exotic case here: `ARCHITECTURE.md` prescribes exactly this
-# style for cross-layer references ("Cross-layer references for *typing* are
-# allowed when guarded by `if TYPE_CHECKING:`"), every architecture gate exempts
-# such imports, and the core itself has ~626 functions whose signatures cannot
-# be introspected at runtime for this reason.
-#
-# Wherever the framework calls `inspect.signature()` on a callable it does not
-# own -- a controller endpoint, a migration script's `migrate()`, an addon's
-# model `__init__`, an overridden `_read_group_fill_temporal` -- the default
-# VALUE format turns "the author used the documented typing style" into a hard
-# NameError.  Passing FORWARDREF degrades an unresolvable annotation to a
-# ForwardRef and leaves concrete types (int, str, list[int]) untouched.
-
 _CORE = pathlib.Path(__file__).resolve().parents[2]
 
-# Call sites allowed to use the default VALUE format, with the reason.  Empty
-# for now: every core call site inspects a callable it does not own.
 VALUE_FORMAT_ALLOWED: dict[tuple[str, int], str] = {}
 
 
@@ -72,7 +53,6 @@ def test_every_signature_call_site_is_forwardref_guarded():
 
 
 def test_at_least_one_site_is_scanned():
-    # Guard against the scan silently matching nothing (a vacuous pass).
     assert len(_signature_call_sites()) >= 5
 
 
@@ -107,9 +87,7 @@ def test_build_param_specs_leaves_unresolvable_annotation_uncoerced():
         "def endpoint(self, thing: Environment, limit: int = 10):\n    return thing"
     )
     specs = build_param_specs(ns["endpoint"])
-    # The concrete annotation still coerces...
     assert specs["limit"].target is int
-    # ...and the unresolvable one is skipped rather than exploding.
     assert "thing" not in specs
 
 

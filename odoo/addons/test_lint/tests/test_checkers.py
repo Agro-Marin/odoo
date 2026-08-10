@@ -78,9 +78,6 @@ class TestSuppression(BaseCase):
         )
 
     def test_a_directive_only_counts_where_python_sees_a_comment(self):
-        # The scan reads `tokenize` comments, not raw lines. A `#` inside a
-        # string literal silenced real rules: this exact shape, in this file,
-        # is why a five-file `_NOQA_SELF` blanket existed.
         for source in (
             'cr.execute("select # noqa from t")',
             "URL = 'http://example.test/#noqa'",
@@ -164,15 +161,7 @@ class TestNoqaRationale(BaseCase):
 
 @no_retry
 class TestCorePathScoping(BaseCase):
-    # Every file-based gate in this module is scoped by `is_core_path`, so a
-    # wrong answer here silently changes what all of them enforce.
-
     def test_a_sibling_checkout_is_not_core(self):
-        # The bug: a bare string prefix. This workspace holds `odoo` and
-        # `odoo-companion` side by side, and "<root>-companion".startswith(root)
-        # is True -- so a sibling whose name merely begins with this one's
-        # counted as core, and every rule here would have been enforced against
-        # a separately-versioned checkout.
         root = lint_case.core_root()
         self.assertTrue(lint_case.is_core_path(root))
         self.assertTrue(lint_case.is_core_path(str(Path(root) / "addons" / "x.py")))
@@ -184,8 +173,6 @@ class TestCorePathScoping(BaseCase):
                 )
 
     def test_the_real_siblings_on_this_addons_path_are_excluded(self):
-        # The claim the scoping actually rests on, asserted against the live
-        # addons_path rather than against invented paths.
         roots = [manifest.path for manifest in Manifest.all_addon_manifests()]
         self.assertTrue(roots, "no addon roots at all")
         core = [path for path in roots if lint_case.is_core_path(str(path))]
@@ -199,9 +186,6 @@ class TestCorePathScoping(BaseCase):
 @no_retry
 class TestScanScope(BaseCase):
     def test_a_data_file_is_xml(self):
-        # `is_formattable` decided by directory alone, so it answered True for
-        # a `.py` in `views/`. Every caller happens to hand it an `.xml` path
-        # today; the next one need not.
         from pathlib import Path
 
         self.assertTrue(_pretty_xml.is_formattable(Path("/a/account/views/x.xml")))
@@ -229,9 +213,6 @@ class TestScanScope(BaseCase):
 
 @no_retry
 class TestLeadingIndexColumns(BaseCase):
-    # What the index gate is allowed to accept as "already indexed". Loosening
-    # this quietly would stop it demanding indexes that are genuinely missing.
-
     class _FakeModel:
         pool = None
 
@@ -258,15 +239,12 @@ class TestLeadingIndexColumns(BaseCase):
         )
 
     def test_a_trailing_column_is_not_answered(self):
-        # Postgres will not serve `WHERE location_id = ?` from `(a, location_id)`.
         self.assertNotIn("location_id", self._columns("(product_id, location_id)"))
 
     def test_a_sort_direction_changes_nothing(self):
         self.assertEqual(self._columns("(date desc, move_name desc, id)"), {"date"})
 
     def test_a_not_null_partial_index_counts(self):
-        # Exactly what `index="btree_not_null"` produces, and exactly the rows
-        # an inverse lookup wants.
         self.assertEqual(
             self._columns("(user_id) WHERE user_id IS NOT NULL"), {"user_id"}
         )
@@ -292,8 +270,6 @@ class TestLeadingIndexColumns(BaseCase):
         self.assertEqual(self._columns("(lower(name))"), set())
 
     def test_a_unique_index_counts_like_any_other(self):
-        # `mail.presence` declares both of its through `models.UniqueIndex`,
-        # which is why they sat in the hand-maintained ignore list.
         self.assertEqual(
             self._columns("(guest_id) WHERE guest_id IS NOT NULL", unique=True),
             {"guest_id"},
@@ -333,9 +309,6 @@ class TestOnchangeLint(BaseCase):
         )
 
     def test_a_field_named_domain_is_not_a_dynamic_domain(self):
-        # The rule fired on any string constant equal to "domain" anywhere in
-        # the method, so searching on a field of that name read as an onchange
-        # returning a domain. Only a mapping key can be the one it returns.
         self.assertFalse(
             self._check("""
         @api.onchange('a')
@@ -382,10 +355,6 @@ class TestOnchangeLint(BaseCase):
 @no_retry
 class TestSqlLint(BaseCase):
     def _check(self, snippet, filepath="dummy.py"):
-        # Through the same node list production uses. There is no second entry
-        # point that walks the tree itself: one existed, it did not annotate
-        # `_parent`, and every scope lookup silently failed -- so a query built
-        # from a local constant was reported as an injection.
         source = dedent(snippet).strip()
         tree = ast.parse(source)
         nodes = _py_scan.walk_with_parents(tree)
@@ -773,9 +742,6 @@ class TestSqlLint(BaseCase):
                 )
 
     def test_test_code_is_exempt(self):
-        # Owned by the scan's scope table, not by a constructor flag. The
-        # checker carried an `is_test` of its own that `_CHECKERS` had already
-        # made unreachable -- two gates deciding one thing.
         snippet = """
         def do_the_thing(cr, name):
             cr.execute('select %s from thing' % name)
@@ -910,12 +876,6 @@ class TestGetTextLint(BaseCase):
         self.assertEqual(len(missing), 6)
 
     def test_a_literal_concatenated_onto_a_translation_still_ships_untranslated(self):
-        # `_is_whitelisted_argument` accepted a BinOp when EITHER half was
-        # whitelisted, which is right for `_("%(a)s") % {...}` -- only the left
-        # half is the message there -- and wrong for `+`, where both halves
-        # are. `_("Error:") + "\n".join(errors)` is fine; the same line without
-        # the `_()` shipped a user-facing sentence no translator ever sees, and
-        # the rule said nothing because `"\n".join(...)` is a Call.
         for snippet, expected in (
             ("""raise UserError(_('Error') + "\\n".join(errors))""", 0),
             ("""raise UserError("Error:\\n" + "\\n".join(errors))""", 1),
@@ -1075,9 +1035,6 @@ class TestBatchLint(BaseCase):
                 self.assertEqual(len(self._check(source)), 1)
 
     def test_async_for_is_a_loop_too(self):
-        # `ast.AsyncFor` is a separate node type, so the entry-point scan
-        # skipped it entirely: the same query, in a loop that runs its body
-        # once per item exactly as `for` does, was not an N+1.
         self.assertTrue(
             self._check("""
         async def process(self, records):
@@ -1098,9 +1055,6 @@ class TestBatchLint(BaseCase):
         self.assertFalse(violations, "while loops should not be flagged")
 
     def test_for_else_clause_is_not_per_record(self):
-        # A `for/else` `else:` runs once, after the loop, exactly like the
-        # statement following it. Scanning it was a category error: this test
-        # used to assert the opposite.
         self.assertFalse(
             self._check("""
         def process(self, records):
@@ -1126,11 +1080,6 @@ class TestBatchLint(BaseCase):
         )
 
     def test_env_on_the_loop_variable_is_an_orm_receiver(self):
-        # `for rec in recs: rec.env['x'].search(...)` is the most ordinary N+1
-        # there is, and the receiver test dropped it in 14 places: it demanded
-        # the chain be rooted at `self`, and this one is rooted at the loop
-        # variable. `search_count` caught the same shape only by skipping the
-        # receiver test altogether, which is how the asymmetry stayed hidden.
         for expression in (
             "record.env['res.partner'].search([])",
             "order.env['lunch.topping'].search_count([])",
@@ -1148,11 +1097,6 @@ class TestBatchLint(BaseCase):
                 )
 
     def test_only_search_is_gated_on_its_receiver(self):
-        # The gate exists to keep `re.search` out, and only `search` collides
-        # with a stdlib name. `_looks_like_orm_receiver` cannot tell a plain
-        # recordset variable from any other name, so applying it to the other
-        # three methods drops 10 real findings -- `record.search_count(...)`,
-        # `move.move_line_ids._read_group(...)` and the like.
         loop = "def process(self, items):\n    for item in items:\n        {}\n"
         self.assertFalse(
             self._check(loop.format("some_regex.search(item)")),

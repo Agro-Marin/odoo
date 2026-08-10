@@ -56,10 +56,6 @@ class L10nLinter(lint_case.LintCase):
                 )
             )
 
-        # Ratcheted like every other gate here, and reported relative to the
-        # repository rather than to `Path.cwd()`: the old form printed a
-        # different path depending on where the runner happened to be started,
-        # which is not something a failure message should depend on.
         self.assert_ratchet(
             sorted(f"{path}:{node.lineno}" for path, node in rs),
             0,

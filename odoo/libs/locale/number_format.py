@@ -51,8 +51,6 @@ def intersperse(
     string: str, counts: Sequence[int], separator: str = ""
 ) -> tuple[str, int]:
     matched = intersperse_pat.match(string)
-    # Every group is `*`-quantified, so this pattern matches any string,
-    # the empty one included.
     assert matched is not None, f"intersperse_pat failed on {string!r}"
     left, rest, right = matched.groups()
 

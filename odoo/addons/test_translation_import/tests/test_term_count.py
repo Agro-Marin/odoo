@@ -207,10 +207,6 @@ class TestImport(common.TransactionCase):
         self.env["res.lang"]._activate_lang("fr_FR")
         context = {"lang": "en_US"}
         self.assertEqual(str(BOOLEAN_TRANSLATIONS[0]), "yes")
-        # These `context` locals look dead but are read by frame inspection:
-        # `_lt.__str__` resolves the language through `translate._get_lang`,
-        # which reads `frame.f_locals["context"]` of its CALLER. Deleting them
-        # would silently fall back to `self.env.lang` and test nothing.
         context = {"lang": "fr_FR"}  # noqa: F841  read via caller-frame inspection, see above
         self.assertEqual(str(BOOLEAN_TRANSLATIONS[0]), "oui")
 

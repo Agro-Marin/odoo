@@ -8,12 +8,6 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-# One pattern per rule, in the dialect the Rust scanner takes, compiled here
-# for the unit tests. There used to be two copies of each -- a `re.compile`
-# with `re.DOTALL` for the tests and a separate string for the scanner -- so
-# what the unit tests exercised and what the gate actually ran could drift
-# apart with nothing to notice. Inline `(?s)` means the same thing to both
-# engines, which is what lets the pair collapse into one.
 TSTRING_PAT = r"(?s)_t\(\s*`.*?\s*`\s*\)"
 UNDERSCORE_PAT = r"""\b_\(\s*['"]"""
 PATTERNS = (TSTRING_PAT, UNDERSCORE_PAT)

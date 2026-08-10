@@ -83,9 +83,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Class-scoped, via enterClassContext: config.patch is a
-        # @contextmanager, so unlike patch.dict it decorates functions, not
-        # classes -- applied to a class it would replace it with a wrapper.
         cls.enterClassContext(config.patch(smtp_server="", smtp_timeout=SMTP_TIMEOUT))
 
         class Session(aiosmtpd.smtp.Session):

@@ -10,11 +10,6 @@ _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 _MIXINS_DIR = _ORM_DIR / "models" / "mixins"
 _DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields")
 
-#: Declared *capabilities*, not operations: they are read as attributes, so a
-#: "dispatch site" for them is an ``if`` rather than a call. Three were added
-#: when PostgresBackend was extracted, for the sites where the two backends run
-#: genuinely different algorithms rather than two implementations of one -- see
-#: their docstrings on the Protocol.
 _ATTRIBUTE_MEMBERS = {
     "supports_parent_store",
     "supports_record_rules",

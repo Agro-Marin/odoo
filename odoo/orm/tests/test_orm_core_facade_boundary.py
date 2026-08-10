@@ -8,31 +8,16 @@ from odoo.orm.components.core import OrmCore
 _CORE = pathlib.Path(__file__).resolve().parents[2]
 _COMPONENTS = _CORE / "orm" / "components"
 
-# ADR-0010 calls `env._core` (OrmCore) a "curated id-level facade" over
-# FieldCache/ComputeEngine, and ARCHITECTURE.md states that "the raw objects
-# stay private to Transaction (`_cache_store`/`_compute_engine`)".
-#
-# That was not true. OrmCore's slots were named `cache` and `engine`, so
-# `env._core.cache` **was** `transaction._cache_store` -- the exact object the
-# facade exists to wrap, reachable through a public attribute on the wrapper.
-# Two addon tests used it, both for `get_value`, which the facade did not
-# expose: the hole existed because the curated surface was incomplete, which is
-# how curated surfaces usually acquire holes.
-#
-# The slots are now `_cache`/`_engine` (the constructor keywords stay
-# `cache=`/`engine=`, because collaborator injection is ADR-0002's contract and
-# Transaction passes them). These tests keep the claim true.
-
 
 def _reaches_raw_collaborator() -> list[tuple[str, int, str]]:
     hits: list[tuple[str, int, str]] = []
     for path in sorted(_CORE.rglob("*.py")):
         try:
             rel = path.relative_to(_CORE).as_posix()
-        except ValueError:  # pragma: no cover
+        except ValueError:
             continue
         if rel.startswith("orm/components/"):
-            continue  # the owner may touch its own internals
+            continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError, UnicodeDecodeError:
@@ -53,16 +38,13 @@ def _core_member_reaches() -> list[tuple[str, int, str]]:
     for path in sorted(_CORE.rglob("*.py")):
         try:
             rel = path.relative_to(_CORE).as_posix()
-        except ValueError:  # pragma: no cover
+        except ValueError:
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError, UnicodeDecodeError:
             continue
 
-        # Names bound to the facade anywhere in this module. Module-scoped
-        # rather than per-function: an over-wide alias set can only make the
-        # check stricter, never blind, which is the safe direction here.
         aliases = {
             target.id
             for node in ast.walk(tree)
@@ -129,16 +111,10 @@ def test_nothing_outside_components_reaches_the_raw_collaborators():
 
 
 def test_the_facade_still_covers_what_callers_needed():
-    # Regression pin for the specific gap that caused the breach: two addon
-    # tests wanted a cached value by (field, id) and the facade had no way to
-    # give it to them.
     assert callable(OrmCore.get_value)
 
 
 def test_constructor_injection_still_works():
-    # ADR-0002: collaborators are injected. Making the *attributes* private must
-    # not make the *keywords* private, or Transaction and the component unit
-    # tests break.
     from odoo.orm.components.cache import FieldCache
     from odoo.orm.components.compute import ComputeEngine
 
@@ -149,9 +125,6 @@ def test_constructor_injection_still_works():
 
 
 def test_scan_is_not_vacuous():
-    # The scan must actually be walking the tree; if `_CORE` or the filter ever
-    # breaks, `_reaches_raw_collaborator()` returns [] and the gate above
-    # passes while checking nothing.
     assert (_COMPONENTS / "core.py").is_file()
     assert len(list(_CORE.rglob("*.py"))) > 500
 

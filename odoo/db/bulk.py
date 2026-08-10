@@ -277,9 +277,6 @@ class _BulkAccessMixin:
         ident = _table_identifier(table).as_string(self._cnx)
         self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", ident))
         row = self.fetchone()
-        # pg_get_serial_sequence is a scalar function, so the SELECT yields one
-        # row whether or not the column has a sequence; "no sequence" comes back
-        # as a NULL in that row, which is the branch below.
         assert row is not None, "pg_get_serial_sequence returned no row"
         (seq_name,) = row
         if seq_name is None:

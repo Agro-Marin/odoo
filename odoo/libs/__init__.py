@@ -1,10 +1,6 @@
 import importlib
 import typing
 
-#: Which area provides each re-exported name -- the table `__getattr__` resolves
-#: against. `__all__` below repeats these names as a literal, for the reason
-#: given there; a test asserts the two agree as sets, so a name cannot be
-#: advertised without being resolvable, or resolvable without being advertised.
 _EXPORTS: dict[str, tuple[str, ...]] = {
     "collections": (
         "Collector",
@@ -52,10 +48,6 @@ _AREA_OF: dict[str, str] = {
     name: area for area, names in _EXPORTS.items() for name in names
 }
 
-#: Spelled out rather than derived from `_AREA_OF`: a computed `__all__` is
-#: invisible to ruff, mypy and every IDE, which is exactly the wrong trade for a
-#: public surface. `test_facade_is_lazy.test_all_matches_the_export_table` keeps
-#: the two in agreement, so the literal cannot drift.
 __all__ = [
     "ADDRESS_REGEX",
     "SENTINEL",
@@ -92,9 +84,6 @@ __all__ = [
 ]
 
 if typing.TYPE_CHECKING:
-    # Never executed; it exists so type checkers and IDEs still resolve the
-    # names statically. Without it a module-level __getattr__ types every
-    # re-export as Any, which would quietly weaken the mypy gate.
     from .collections import (
         Collector,
         ConstantMapping,
@@ -142,8 +131,6 @@ def __getattr__(name: str) -> typing.Any:
     if area is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     value = getattr(importlib.import_module(f".{area}", __name__), name)
-    # Cache in the module globals so every later read is an ordinary lookup and
-    # never re-enters this function.
     globals()[name] = value
     return value
 

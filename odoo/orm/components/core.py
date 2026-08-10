@@ -11,18 +11,6 @@ if TYPE_CHECKING:
 
 
 class OrmCore[F: FieldKey = FieldKey]:
-    # PRIVATE slots, public constructor kwargs. ADR-0010 describes this class as
-    # a "curated id-level facade" over FieldCache/ComputeEngine and
-    # ARCHITECTURE.md states that "the raw objects stay private to Transaction".
-    # They were not: the slots were named `cache`/`engine`, so `env._core.cache`
-    # WAS `transaction._cache_store` -- a public pass-through straight to the
-    # object the facade exists to wrap. Measured before this change, 62 of the
-    # 64 `_core.<attr>` accesses in odoo/ + addons/ used a curated method and
-    # exactly 2 reached the raw cache, both for `get_value`, which the facade
-    # simply did not expose. Adding it (below) closed the only real gap.
-    #
-    # The keyword names stay `cache=`/`engine=`: collaborator injection is the
-    # ADR-0002 contract and Transaction plus the component unit tests pass them.
     __slots__ = ("_cache", "_engine")
 
     def __init__(
@@ -30,11 +18,6 @@ class OrmCore[F: FieldKey = FieldKey]:
         cache: FieldCache[F] | None = None,
         engine: ComputeEngine[F] | None = None,
     ) -> None:
-        # `cast` rather than a union: the fallbacks exist so a test can build
-        # an OrmCore with no arguments, and an unparameterised FieldCache() is
-        # `FieldCache[FieldKey]` -- which is precisely what `F` defaults to in
-        # that case. Injecting real collaborators (ADR-0002) is the production
-        # path and carries the real key type.
         self._cache: FieldCache[F] = (
             cache if cache is not None else cast("FieldCache[F]", FieldCache())
         )

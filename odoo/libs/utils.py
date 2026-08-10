@@ -82,7 +82,6 @@ class replace_exceptions(ContextDecorator):
         traceback: types.TracebackType | None,
     ) -> None:
         if exc_type is not None and issubclass(exc_type, self.exceptions):
-            # The interpreter passes all three or none of them.
             assert exc_value is not None, "exc_type without exc_value"
             if isinstance(self.by, type):
                 raise self.by(*exc_value.args) from exc_value

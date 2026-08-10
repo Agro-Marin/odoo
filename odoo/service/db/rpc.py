@@ -18,9 +18,6 @@ from .listing import (
 )
 from .restore import exp_restore
 
-# The log channel stays "odoo.service.db" across the split: operators and
-# log-reading tests key on it, and _db_helpers / _dump_scanner already spell
-# it literally for the same reason.
 _logger = logging.getLogger("odoo.service.db")
 
 

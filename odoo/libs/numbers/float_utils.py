@@ -77,8 +77,6 @@ def float_round(
     elif rounding_method == "HALF-EVEN":
         integral = math.floor(normalized_value)
         remainder = abs(normalized_value - integral)
-        # RUF069: the exact test is the fast path; the epsilon test after `or`
-        # is what handles the inexact case, so both are needed.
         is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069  see comment above
         result = integral + (integral & 1) if is_half else round(normalized_value)
     elif rounding_method == "HALF-DOWN":

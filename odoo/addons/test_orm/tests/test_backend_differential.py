@@ -436,11 +436,6 @@ class TestBackendDifferential(TransactionCase):
             self.assertFalse(env_a.backend.supports_record_rules)
             with self.assertRaises(InMemoryRecordRulesNotSupported):
                 _ = env_a["ir.rule"]
-        # Not `assertIsNone(self.env.backend)`: `None` stopped being the
-        # PostgreSQL implementation when PostgresBackend was extracted. The
-        # claim this test makes is about *capability*, and it is the same claim
-        # either way -- one backend enforces record rules, the other says it
-        # cannot and refuses rather than pretending.
         self.assertTrue(self.env.backend.supports_record_rules)
         self.assertIn("ir.rule", self.env.registry)
 
@@ -468,13 +463,6 @@ class TestBackendDifferential(TransactionCase):
         self.assertFalse(F.search([("name", "=", "temp")]))
 
     def test_divergence_ilike_unaccent(self):
-        # The divergence this test asserts IS the unaccent extension: with it,
-        # PostgreSQL's ilike folds "Café" onto "cafe" and the in-memory backend
-        # does not. Without it neither folds, there is no divergence, and both
-        # assertions below are simply wrong -- so this must skip, not fail.
-        # It did neither until 2026-08-08, because no CI lane ran test_orm; the
-        # workspace template carries unaccent and CI's template0 does not, so
-        # adding this suite to CI surfaced it immediately.
         if not self.env.registry.has_unaccent:
             self.skipTest("unaccent extension not installed")
 

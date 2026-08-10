@@ -375,16 +375,6 @@ def _comparable(source: bytes) -> list:
             walk(child, depth + 1)
         out.append((depth, "#tail", squeeze(element.tail)))
 
-    # The prologue, not just the tree. `_format_element` is handed the root, so
-    # everything above it -- the XML declaration, the doctype, and the nodes
-    # sitting before the root -- is reassembled separately by
-    # `format_xml_file`, and the comparison used to start at the root and never
-    # look at any of it. Losing the doctype, or the copyright comment above
-    # `<odoo>`, was a change this self-check reported as faithful.
-    #
-    # (Pre-root processing instructions are *not* a gap: lxml gives a PI a
-    # callable `.tag` exactly as it does a comment, so `format_xml_file`
-    # already carries them. They are compared here so that stays true.)
     tree = etree.parse(BytesIO(source), _PARSER)
     root = tree.getroot()
     prologue: list = [

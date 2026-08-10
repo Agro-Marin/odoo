@@ -15,8 +15,6 @@ class _Cursor(BaseCursor):
         self.closed_count = 0
 
     def execute(self, query, params=None, log_exceptions=True, prepare=None):
-        # `prepare` is part of BaseCursor.execute and was missing here, so this
-        # double raised TypeError on a call the real cursor accepts.
         self.statements.append(str(query))
 
     def commit(self):
@@ -248,9 +246,6 @@ class TestMetricsMixin(unittest.TestCase):
 
 class TestBeforeStatementSeam(unittest.TestCase):
     def test_base_cursor_hook_is_a_noop(self):
-        # Asserting the return value said nothing: the hook is declared `-> None`,
-        # so `assertIsNone` on it holds by signature. That it touches no state is
-        # the property subclasses actually rely on when they call super().
         cursor = _Cursor()
         before = dict(cursor.__dict__)
         cursor._before_statement()

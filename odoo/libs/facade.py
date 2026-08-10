@@ -121,8 +121,6 @@ class Proxy(metaclass=ProxyMeta):
     def __init__(self, instance: Any) -> None:
         object.__setattr__(self, "_wrapped__", instance)
 
-    # Answering with the wrapped class IS the proxy; object's __class__ is
-    # read-write and this one deliberately is not.
     @property  # type: ignore[misc]
     def __class__(self) -> type:
         return type(self)._wrapped__

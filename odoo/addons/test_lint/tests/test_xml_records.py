@@ -13,8 +13,6 @@ _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 class XmlRecordLinter(LintCase):
     @staticmethod
     def scanned_files():
-        # The selection, named, so `TestFixerScope` can compare it against the
-        # formatter's and against what the fixers actually rewrite.
         return core_data_files()
 
     @classmethod
@@ -128,6 +126,5 @@ class XmlRecordLinter(LintCase):
         return violations
 
 
-# The debt these gates inherit. `_sort_xml_records.py` takes both to 0.
 FIELD_ORDER_FLOOR = 792
 ATTRIB_ORDER_FLOOR = 2461

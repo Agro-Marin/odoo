@@ -3031,13 +3031,6 @@ class IrUiView(models.Model):
             )
         )
 
-    # ------------------------------------------------------------------
-    # data-api migration
-    # ------------------------------------------------------------------
-
-    #: Bootstrap spellings in stored arch, and what this fork calls them.
-    #: `data-bs-target` is deliberately absent: it also drives collapse and tab
-    #: controls, so it is only renamed on an element that opens a modal.
     _SELF_HANDLED_RENAMES = {
         ("data-bs-toggle", "dropdown"): ("data-self-handled", "dropdown"),
         ("data-bs-toggle", "modal"): ("data-self-handled", "modal"),
@@ -3080,8 +3073,6 @@ class IrUiView(models.Model):
                 node.attrib.pop(attr)
                 node.set(new_attr, new_value)
                 changed = True
-                # A modal control names its modal with `data-bs-target`; that
-                # spelling only becomes ours once we know it is a modal.
                 if new_value == "modal" and node.get("data-bs-target"):
                     node.set("data-modal-target", node.attrib.pop("data-bs-target"))
         return changed

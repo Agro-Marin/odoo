@@ -18,10 +18,6 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.service.model")
 
-#: Addon-facing aliases for the canonical vocabulary in ``odoo.db.errors``.
-#: Not dead re-exports: ``addons/mail`` reads both, and three ``enterprise``
-#: modules import the exception tuple through ``odoo.service.model``, which
-#: re-exports them in turn. ``test_db_cursor`` pins them as the same objects.
 PG_CONCURRENCY_ERRORS_TO_RETRY = PG_RETRY_SQLSTATES
 PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
@@ -40,9 +36,6 @@ MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
 def _integrity_error_to_validation(
     env: Environment, exc: IntegrityError
 ) -> ValidationError:
-    # Indexed lookup, not a scan over every model in the registry: this runs
-    # while a user waits for an error message, and the registry holds 154
-    # models with `base` alone -- thousands with a real addon set.
     rclass = env.registry.models_by_table.get(exc.diag.table_name)
     model = env[rclass._name] if rclass is not None else env["base"]
     message = env._(
@@ -68,12 +61,6 @@ def _no_participant() -> RetryParticipant | None:
     return None
 
 
-#: Resolves the participant for the work in flight, or ``None``.
-#:
-#: ``odoo.http`` overwrites this at import time. Anything that is not served
-#: over a transport -- ``service/model.py``'s RPC dispatch, a cron job -- leaves
-#: it returning ``None`` and gets a pure transaction retry, which is what it
-#: always got, now by declaration rather than by a falsy thread-local.
 current_retry_participant: Callable[[], RetryParticipant | None] = _no_participant
 
 

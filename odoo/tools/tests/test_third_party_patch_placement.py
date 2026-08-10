@@ -4,37 +4,7 @@ import unittest
 
 _CORE = pathlib.Path(__file__).resolve().parents[3] / "odoo"
 
-# ARCHITECTURE.md states the rule plainly under "Where to add code":
-#
-#     A third-party patch -> odoo/_monkeypatches/<module>.py (see its README)
-#
-# and `_monkeypatches/__init__.py` enforces the *shape* of what lives there (a
-# callable `patch_module()`, TypeError otherwise). Nothing enforced the
-# *placement*, so the rule was prose, and prose rots: measured when this test
-# landed there were ELEVEN third-party patches outside _monkeypatches/ -- nine
-# the scan can see and two it structurally cannot (below).
-#
-# This is an exact-mode pin, not a prohibition. Several of these are defensible
-# where they are; what was not defensible was that nobody could tell how many
-# there were, or notice a new one.
-#
-# LIMITATION, stated because it is load-bearing rather than incidental:
-# the scan resolves the assignment target's ROOT NAME to the import that bound
-# it, so it only sees patches whose root is *statically* third-party. Two real
-# patches are therefore invisible to it:
-#
-#   tools/pdf/__init__.py:59  pypdf.filters.decompress = ...
-#   tools/pdf/__init__.py:89  DictionaryObject.get = ...
-#
-# because that file does `from . import _pypdf as pypdf`, and
-# tools/pdf/_pypdf.py re-exports the genuine `pypdf.filters` module object. The
-# patch lands on third-party state through an odoo-internal re-export, so it
-# reads as internal. That is the same laundering shape that hides ORM layer
-# crossings behind `orm/helpers.py` and addon-model reaches behind a string key
-# -- a re-export defeats a name-based check. They are listed in
-# KNOWN_PATCHES below so the count is honest.
 
-#: (path, line-ish target) -> why it is here rather than in _monkeypatches/.
 KNOWN_PATCHES: dict[tuple[str, str], str] = {
     ("http/wrappers.py", "HTTPException.get_response"): (
         "Makes werkzeug's HTTPException render through Odoo's Response. Tightly "
@@ -77,8 +47,6 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
         "Pins tz lookup for sandboxed evaluation. DEBT: belongs in "
         "_monkeypatches/dateutil.py."
     ),
-    # Invisible to the scan -- see LIMITATION above. Listed so the inventory is
-    # complete even though the checker cannot find them.
     ("tools/pdf/__init__.py", "pypdf.filters.decompress"): (
         "LAUNDERED through `from . import _pypdf as pypdf`. DEBT, and the "
         "re-export makes it undetectable: a _monkeypatches/pypdf.py would be "
@@ -92,12 +60,6 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
 _SKIP_TOP = {"addons", "_monkeypatches", "upgrade"}
 
 
-#: ``odoo/tests/`` is the test FRAMEWORK, not a package's test directory. The
-#: "tests" path filter below is meant to skip suites (``odoo/db/tests/``,
-#: ``odoo/libs/xml/tests/``...), and it was silently swallowing 6,036 lines of
-#: shipped framework code with it -- including a real patch
-#: (``odoo/tests/common.py``: ``freezegun.freeze_time``). Scanning it is the
-#: point: that module is imported by every integration test run.
 def _is_test_suite(parts: tuple[str, ...]) -> bool:
     return "tests" in parts[1:]
 
@@ -188,9 +150,6 @@ class TestThirdPartyPatchPlacement(unittest.TestCase):
         )
 
     def test_the_framework_package_is_in_scope(self):
-        # odoo/tests/ is shipped framework code, not a suite. It was excluded by
-        # a "tests" path filter aimed at suites, hiding a real patch for as long
-        # as this checker existed.
         scanned = {rel for rel, _, _ in find_patches()}
         self.assertIn(
             "tests/common.py",
@@ -206,14 +165,9 @@ class TestThirdPartyPatchPlacement(unittest.TestCase):
         self.assertFalse(_is_test_suite(parts_framework))
 
     def test_scan_is_not_vacuous(self):
-        # If the walk or the import resolution breaks, find_patches() returns []
-        # and the assertion above passes while checking nothing.
         self.assertGreaterEqual(len(find_patches()), 5)
 
     def test_nested_module_level_blocks_are_walked(self):
-        # The pdf patches sit after a try/except; an implementation that only
-        # looked at tree.body would still find those, but one that stopped at
-        # the first `if` would not. Pin the descent explicitly.
         tree = ast.parse(
             "import optparse\n"
             "if True:\n"
@@ -238,8 +192,6 @@ class TestThirdPartyPatchPlacement(unittest.TestCase):
         self.assertEqual(assigns, [])
 
     def test_the_laundered_pdf_patches_are_still_there(self):
-        # They cannot be detected (see LIMITATION), so assert them directly:
-        # otherwise the inventory quietly drifts out of date.
         src = (_CORE / "tools" / "pdf" / "__init__.py").read_text(encoding="utf-8")
         self.assertIn("pypdf.filters.decompress =", src)
         self.assertIn("DictionaryObject.get =", src)

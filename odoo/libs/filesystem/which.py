@@ -31,9 +31,6 @@ default_path = environ.get("PATH", defpath).split(pathsep)
 
 if windows:
     default_path.insert(0, ".")
-    # Order-preserving, case-insensitive dedup. Was a comprehension whose filter
-    # leaned on `not seen.add(...)` being true because add() returns None --
-    # which also meant the checker read the whole clause as a type error.
     seen: set[str] = set()
     deduped = []
     for entry in default_path:

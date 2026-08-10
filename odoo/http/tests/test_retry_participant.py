@@ -62,7 +62,7 @@ class TestOnRetry:
         request = MagicMock(spec=["_get_session_and_dbname", "httprequest", "session"])
         request.httprequest.files.items.return_value = []
         assert not hasattr(request, "_reset_for_replay")
-        RequestRetryParticipant(request).on_retry(Exception("boom"))  # must not raise
+        RequestRetryParticipant(request).on_retry(Exception("boom"))
 
 
 class TestUncommittedWarningSuppression:

@@ -1268,22 +1268,9 @@ class IrAttachment(models.Model):
         else:
             raise ValueError(f"{mimetype=}")
 
-        # One merged mapping for both branches. They used to disagree about a
-        # caller-supplied column that this method also derives: the buffered
-        # branch merged ``**vals`` last, so the caller silently won, while the
-        # streaming branch passed ``name=``/``mimetype=`` as keywords, so the
-        # same call raised ``TypeError: got multiple values for keyword
-        # argument``. Which one a caller hit depended on
-        # ``_should_stream_upload``, i.e. on the mimetype of the file uploaded --
-        # so the bug was invisible until someone uploaded the wrong kind of file.
-        # Merging identically keeps the permissive behaviour that already worked
-        # and makes it the behaviour of both paths.
         values = {"name": filename, "type": "binary", "mimetype": mimetype, **vals}
         if self._should_stream_upload(mimetype):
             return self._create_from_stream(file, **values)
-        # ``values`` last, so an explicit ``raw`` still wins over the file the
-        # way it did before -- the merge order is what makes the two branches
-        # agree, and flipping it here would quietly change the other one.
         return self.create({"raw": file.read(), **values})
 
     def _create_from_stream(

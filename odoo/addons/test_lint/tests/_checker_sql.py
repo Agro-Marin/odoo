@@ -75,13 +75,6 @@ class SqlInjectionChecker:
     _resolving_names: set[tuple[int, str]] = field(default_factory=set, init=False)
     _resolving_nodes: set[int] = field(default_factory=set, init=False)
 
-    # `check_nodes` is the only entry point, and it takes the node list
-    # `_py_scan.walk_with_parents` produces. There used to be a `check(tree)`
-    # convenience beside it that walked the tree itself without annotating
-    # `_parent`; every scope lookup then failed, no name could be proved
-    # constant, and a query built from a local constant was reported as an
-    # injection. Correctness depended on the caller separately remembering to
-    # call a module-level `annotate_parents`, which is not an API.
     def check_nodes(self, nodes: list[ast.AST]) -> Iterator[Violation]:
         for node in nodes:
             match node:

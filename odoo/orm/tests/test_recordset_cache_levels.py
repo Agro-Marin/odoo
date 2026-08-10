@@ -56,7 +56,6 @@ def test_the_two_surfaces_stay_at_different_levels():
         "which is what env._core already is"
     )
 
-    # OrmCore is the other half of the claim: id-level, never recordset-level.
     core_src = pathlib.Path(inspect.getfile(OrmCore)).read_text(encoding="utf-8")
     core_tree = ast.parse(core_src)
     core_cls = next(

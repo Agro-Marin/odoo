@@ -231,14 +231,6 @@ class ReadMixin(_ModelStubs):
         return [vals for record, vals in data if vals]
 
     def _read_format_miss_record(self, id_):
-        # Prefetch over ``_prefetch_ids``, not ``_ids``: the latter *narrows*
-        # whenever this recordset carries a wider prefetch than the records it
-        # holds -- the normal shape for a relational value read one owner at a
-        # time (``record.author_id`` of a message batch is a single partner
-        # whose prefetch spans every author). Narrowing to ``_ids`` there throws
-        # that batch away and makes the miss below fetch one record per call.
-        # ``_prefetch_ids`` defaults to ``_ids``, so a plain recordset is
-        # unaffected; it is only ever the same set or a superset.
         return self.browse((id_,)).with_prefetch(self._prefetch_ids)
 
     def _fetch_field(self, field: Field) -> None:

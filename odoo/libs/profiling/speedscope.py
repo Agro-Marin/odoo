@@ -181,7 +181,6 @@ class Speedscope:
             if aggregate_sql:
                 frame = (frame[0], "", frame[2])
             while context_level == level:
-                # Both come from the same next(); a level implies a value.
                 assert context_value is not None, "context level without a value"
                 context_frame = (
                     ", ".join(f"{k}={v}" for k, v in context_value.items()),

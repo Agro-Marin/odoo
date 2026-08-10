@@ -464,10 +464,6 @@ class BaseCase(case.TestCase):
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
-                # PLW0108: `cls._request_handler` cannot replace this lambda —
-                # it is a classmethod, so the bare reference is already bound to
-                # cls, and a bound method is not a descriptor. Session.send would
-                # then never fill `s`, and the request would land in it instead.
                 lambda s, r, **kw: cls._request_handler(s, r, **kw),  # noqa: PLW0108  see comment above
             )
             patcher.start()
@@ -1058,9 +1054,6 @@ class Approx:
             return NotImplemented
         return self.cmp(self.value, other) == 0
 
-    # Tolerance-based equality is not transitive, so no hash can honour the
-    # "equal objects hash equal" contract. Python already sets this implicitly
-    # once __eq__ is defined; spelling it out states the intent.
     __hash__ = None
 
 
@@ -1373,9 +1366,6 @@ class freeze_time:
 
 freezegun.freeze_time = freeze_time
 
-# Imported last on purpose: `odoo.tests.http` imports from this module, so
-# hoisting this to the top makes the cycle unresolvable. The names are
-# re-exported here for `from odoo.tests.common import HttpCase`.
 from .http import (  # noqa: E402  see comment above
     HttpCase,
     JsonRpcException,

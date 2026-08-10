@@ -176,25 +176,12 @@ class TestLintOverrideSignatures(LintCase):
                 ):
                     continue
 
-                # The iterator is deliberately kept alive: what remains of it
-                # after this loop is exactly the classes that override the
-                # original definition, which is what the second loop consumes.
                 reverse_mro = reversed(model_cls.mro()[1:-1])
                 for parent_class in reverse_mro:
                     method = getattr(parent_class, method_name, None)
                     if callable(method):
                         break
                 else:
-                    # Guards an invariant, not an observed failure: measured
-                    # against this registry, no (model, method) pair reaches
-                    # here, because every routine `getmembers` finds on a
-                    # synthesized registry class comes from one of its bases.
-                    # If one ever did, `method` would be None and the
-                    # `inspect.signature` below would raise TypeError from
-                    # outside any subTest -- an error attributed to the whole
-                    # test rather than to the method that caused it. Skipping
-                    # is the honest answer: a method with no parent definition
-                    # has no override to judge.
                     continue
 
                 parent_module = get_odoo_module_name(parent_class.__module__)

@@ -244,10 +244,6 @@ def initialize_db(
     try:
         odoo.tools.config["load_language"] = lang
 
-        # run_tests=False: this registry is built to *provision* a database the
-        # caller asked for, not to test one.  Under --test-enable the install
-        # would otherwise re-enter every module's at_install suite here — on the
-        # HTTP worker thread when the request came through the database manager.
         registry = Registry.new(
             db_name, update_module=True, new_db_demo=demo, run_tests=False
         )

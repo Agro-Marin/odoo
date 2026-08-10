@@ -9,12 +9,6 @@ from odoo.orm.runtime.registry import (
     REGISTRY_CACHES,
 )
 
-#: Every bucket, with the consumer that justifies its existence. A name here is
-#: a claim that some code passes it to ``ormcache(cache=...)`` or
-#: ``clear_cache(...)``; ``test_every_bucket_has_a_consumer`` checks it.
-#:
-#: ``default`` is the exception and takes no entry: it is what ``ormcache``
-#: uses when no bucket is named, so it has no explicit call site by design.
 BUCKET_OWNERS: dict[str, str] = {
     "default": "the implicit bucket — ormcache's fallback when none is named",
     "assets": "base/web — compiled asset bundles",
@@ -25,7 +19,6 @@ BUCKET_OWNERS: dict[str, str] = {
     "routing": "base/web — the HTTP routing map",
     "routing.rewrites": "base/web — URL rewrite rules",
     "groups": "base — group membership",
-    # The clearest case of addon vocabulary in the ORM.
     "product_variants": (
         "the `product` addon — product.template._get_variant_id_for_combination "
         "and _get_first_possible_variant_id. Its own bucket because product "
@@ -56,10 +49,6 @@ def _consumer_counts() -> dict[str, int]:
     here = pathlib.Path(__file__).resolve()
     for root in _SCAN_ROOTS:
         for path in root.rglob("*.py"):
-            # The declaration is not a consumer, and neither is this file: its
-            # own docstring spells `cache="product_variants"` as an example, so
-            # counting itself would let a dead bucket look alive on the strength
-            # of the test that exists to find it.
             if path.name == "registry.py" or path.resolve() == here:
                 continue
             try:

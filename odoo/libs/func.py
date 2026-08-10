@@ -75,8 +75,6 @@ class classproperty[T]:
     def __get__(self, cls: Any, owner: type | None = None, /) -> T:
         return self.fget.__get__(None, owner)()
 
-    # A read-only __doc__ over the writeable one every object carries; that
-    # is what forwarding the wrapped function's docstring requires.
     @property
     def __doc__(self) -> str | None:  # type: ignore[override]
         return self.fget.__doc__

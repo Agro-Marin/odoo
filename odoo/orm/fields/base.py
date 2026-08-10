@@ -375,7 +375,6 @@ class Field[T](
         attrs["_module"] = modules[-1] if modules else None
         attrs["_modules"] = tuple(unique(modules) if len(modules) > 1 else modules)
 
-        # Convention, not a feature -- see primitives.CONVENTIONAL_FIELD_NAMES.
         if name == STATE_FIELD:
             attrs["copy"] = attrs.get("copy", False)
         if attrs.get("compute"):
@@ -1163,8 +1162,6 @@ class Field[T](
                     ),
                 )
 
-            # KeyError and MissingError as well as AccessError: reading through
-            # `_origin` can hit a record the origin no longer has.
             _batch_then_single(
                 _batch, _single, recs, catching=(AccessError, KeyError, MissingError)
             )
@@ -1177,11 +1174,6 @@ class Field[T](
                 self._update_cache(record, value)
             else:
                 recs = record if self.recursive else self._to_prefetch(record)
-                # No KeyError here, and no `len(recs) == 1` re-raise guard: a
-                # compute that fails for the batch is retried for the single
-                # record even when the batch IS the single record, because
-                # `compute_value` may legitimately succeed the second time
-                # (it is the recursive/protected path that differs).
                 if _batch_then_single(
                     lambda: self.compute_value(recs),
                     lambda: self.compute_value(record),

@@ -94,14 +94,7 @@ class TestGetLangFrameWalk(unittest.TestCase):
             self.assertEqual(_PlainEngine().build_message(), "")
         self.assertEqual([record.levelno for record in logs.records], [logging.WARNING])
 
-    # A frame local is matched by name, so the walk meets objects that merely
-    # happen to be called `context` or `kwargs`. Interrogating one must not
-    # raise: `.get` on a non-mapping is an AttributeError, which propagated out
-    # of every `_()` call underneath such a frame.
-
     def test_assert_raises_context_local_is_not_a_context(self):
-        # The shape that broke in practice: `as context` binds an
-        # _AssertRaisesContext, and any _() below it walked through this frame.
         def inner():
             with self.assertRaises(ValueError) as context:  # noqa: F841
                 raise ValueError("boom")

@@ -131,10 +131,6 @@ class Dispatcher(ABC):
                 set_header("Access-Control-Allow-Origin", allow_origin)
                 set_header(
                     "Access-Control-Allow-Methods",
-                    # NOT `DEFAULT_ALLOWED_METHODS`, which is the six-verb list
-                    # the OPTIONS handler below advertises. This fallback has
-                    # always been the narrower pair and stays it; the two
-                    # defaults look interchangeable and are not.
                     ", ".join(
                         self.cors_allowed_methods
                         or routing["methods"]

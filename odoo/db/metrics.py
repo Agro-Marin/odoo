@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
 
 class _MetricsMixin:
-    #: Owned and initialised here, not by ``Cursor``. See ``_MetricsHost``.
     sql_from_log: dict[str, tuple[int, float]]
     sql_into_log: dict[str, tuple[int, float]]
     sql_log_count: int

@@ -215,13 +215,6 @@ class Many2many(_RelationalMulti):
         relation, column1, column2 = self._relation_columns()
         backend = records.env.backend
         if not backend.supports_joined_m2m_read:
-            # NOT the same operation as the branch below, which is why this is a
-            # declared capability and not a port call. The SQL path fuses a JOIN
-            # into `query` -- the comodel's query, already carrying its domain,
-            # order and access filter -- and gets one statement and the ordering
-            # for free. `read_m2m_pairs` takes ids and returns pairs; it has
-            # nowhere to put that query, so a backend without the fusion must
-            # read every pair and re-sort against an already-executed query.
             position = {id2: index for index, id2 in enumerate(query.get_result_ids())}
             pairs = backend.read_m2m_pairs(
                 records, relation, column1, column2, records.ids

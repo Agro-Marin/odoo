@@ -253,9 +253,6 @@ class TestAssetsManifest(AddonManifestPatched):
             }
         )
 
-    # The four JS fixtures, by the digit in their filename. Their MINIFIED text
-    # is what the bundle assertions below compare against, which is why the
-    # declarations are load-bearing and eslint is told to leave them alone.
     JS_FIXTURES = {1: "var a=1;", 2: "var b=2;", 3: "var c=3;", 4: "var d=4;"}
 
     def assertBundleJs(self, bundle, *indexes):
@@ -506,10 +503,6 @@ class TestAssetsManifest(AddonManifestPatched):
                 "test_assetsbundle.irasset_include1"
             )
             bundle.js()
-        # Asserted against the exception, not str(it): a str is never a
-        # RecursionError, so the old form could not fail. The point is that the
-        # cycle is caught by the include guard and not by CPython running out
-        # of stack, which is a different (and much worse) way to "pass".
         self.assertNotIsInstance(cm.exception, RecursionError)
         self.assertIn("Circular assets bundle declaration:", str(cm.exception))
 
@@ -774,10 +767,6 @@ class TestAssetsManifest(AddonManifestPatched):
 
     def test_20bis_css_loud_comment_not_mistaken_for_split_marker(self):
         fixture = "test_assetsbundle/static/src/scss/test_split_marker.scss"
-        # The loud comment is what this test is about, so a fixture that lost it
-        # passes the interesting assertion vacuously. It has been lost once
-        # already -- a repo-wide comment strip took it for prose -- and the bare
-        # assertIn below then failed without saying which side was wrong.
         self.assertIn(
             "/*! a1b2c3d */",
             pathlib.Path(file_path(fixture)).read_text(encoding="utf-8"),
@@ -1110,10 +1099,6 @@ class TestAssetsManifest(AddonManifestPatched):
             }
         )
         bundle = self.env["ir.qweb"]._get_asset_bundle("test_assetsbundle.irassetsec")
-        # .js() returns an ir.attachment, and `str in recordset` is False for
-        # ANY string -- asserted against the recordset this could never fail.
-        # The control member is what makes the negative mean something: without
-        # it an empty bundle passes just as well as a correctly filtered one.
         content = (bundle.js().exists().raw or b"").decode()
         self.assertIn("var a=1", content, "the installed member must survive")
         self.assertNotIn("notinstalled_module", content)
@@ -1190,10 +1175,6 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         modified = files[0][3]
 
-        # Derived from the package, not from this file's own name: the old
-        # form was __file__.replace("/tests/test_assetsbundle.py", ""), which
-        # silently became a no-op the moment the test moved file, leaving
-        # base_path pointing at the tests directory instead of the module.
         base_path = str(pathlib.Path(__file__).resolve().parent.parent)
 
         self.assertEqual(

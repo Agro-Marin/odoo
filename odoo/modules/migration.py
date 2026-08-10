@@ -296,10 +296,6 @@ def exec_script(
         )
 
     try:
-        # FORWARDREF: only parameter names and kinds are inspected below, and a
-        # migration script annotating `cr` with a TYPE_CHECKING-only name would
-        # otherwise raise NameError (not TypeError) under PEP 649 and abort the
-        # upgrade with a misleading error.
         sig = inspect.signature(
             mod.migrate, annotation_format=annotationlib.Format.FORWARDREF
         )

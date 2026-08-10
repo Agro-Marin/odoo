@@ -102,11 +102,6 @@ class ManifestLinter(LintCase):
                 f"{manifest_data['countries'][0]!r} but has no `l10n` in its name"
             )
 
-        # Collected, not asserted in the loop. `assertNotEqual` raises on the
-        # first redundant default, and the caller catches it one level up -- so
-        # every advisory this method would have raised for a *later* key was
-        # silently never collected. Advisories are floored at 0, which makes a
-        # dropped one the difference between a green run and a real finding.
         redundant = []
         for key, value in manifest_data._Manifest__manifest_content.items():
             if key in _DEFAULT_MANIFEST:
@@ -130,8 +125,6 @@ class ManifestLinter(LintCase):
             elif key == "icon":
                 redundant.extend(self._test_manifest_icon_value(module, value))
 
-        # One assertion, after every key has been looked at, so the caller
-        # still records this manifest once and no advisory is lost on the way.
         self.assertFalse(
             redundant,
             f"Manifest key(s) {', '.join(redundant)} set to the default value for "
@@ -167,9 +160,4 @@ class ManifestLinter(LintCase):
                 )
 
 
-# 630 -> 629 with no manifest touched: `_test_manifest_values` no longer
-# aborts on its first finding, which changed what one manifest contributes.
-# `_sort_manifests.py` takes the rest to 2, and the two survivors are real --
-# `account` declares a `kpi_providers` key nothing in this fork reads, and
-# `base_account` restates the default `auto_install`.
 MANIFEST_FLOOR = 629

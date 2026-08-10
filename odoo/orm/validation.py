@@ -8,7 +8,6 @@ regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*\Z")
 
 MANUAL_NAME_PREFIX = "x_"
 
-#: PostgreSQL's identifier limit (``NAMEDATALEN - 1``).
 MAX_PG_NAME_LENGTH = 63
 
 

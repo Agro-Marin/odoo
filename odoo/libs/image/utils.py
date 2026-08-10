@@ -5,7 +5,6 @@ from random import randrange
 from typing import Any, Literal, Self
 
 from PIL import (
-    # Imported so Pillow registers the ICO codec; nothing here calls it.
     IcoImagePlugin,  # noqa: F401  plugin registration, see comment above
     Image,
     ImageOps,
@@ -114,9 +113,6 @@ class ImageProcess:
         if not self.image:
             return self.source
 
-        # Past that guard the source bytes exist: `image` is only ever set to an
-        # Image on the branch where `source` was truthy, so a false `source`
-        # implies a false `image` and we returned above.
         source = self.source
         assert source is not False, "an image was decoded from a falsy source"
 
@@ -135,8 +131,6 @@ class ImageProcess:
         ):
             return self.source
 
-        # Heterogeneous by design: Pillow's save() takes optimize/save_all as
-        # bools and quality as an int alongside the format string.
         opt: dict[str, Any] = {"output_format": output_format}
 
         if output_format == "PNG":
@@ -341,9 +335,6 @@ def average_dominant_color(
 
     final_dominant = []
     brightest = max(dominant_avg)
-    # `band`, not `color`: this indexes dominant_avg, which holds one average
-    # per band, while `color` above is a (count, rgba) pair. One name for two
-    # types in one function is what 5d3c1a3b63f paid down in read_group.
     for band in range(3):
         value = (
             dominant_avg[band] / (brightest / mitigate)
@@ -352,8 +343,6 @@ def average_dominant_color(
         )
         final_dominant.append(int(value))
 
-    # Unpacked rather than `tuple(...)`: the loop above runs exactly three
-    # times, and that is what the declared return type says.
     red, green, blue = final_dominant
     return (red, green, blue), remaining
 

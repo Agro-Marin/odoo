@@ -217,10 +217,6 @@ class _Response(werkzeug.wrappers.Response):
         return self.template is not None
 
     def render(self) -> bytes:
-        # `template` is `str | None` and `_render_template` takes `int | str`,
-        # so this could hand QWeb a None -- the precondition `is_qweb()` states
-        # one line above, which nothing enforced. Surfaced by mypy once
-        # `env["ir.ui.view"]` typed as a Protocol rather than as `BaseModel`.
         if self.template is None:
             raise ValueError(
                 "Response.render() needs a template; guard the call with "
@@ -280,8 +276,6 @@ class Headers(Proxy):
     add = ProxyFunc(None)
     add_header = ProxyFunc(None)
     clear = ProxyFunc(None)
-    # PLW0108: the lambda is load-bearing — `Headers` is the class this body is
-    # still defining, so a bare reference would NameError at import time.
     copy = ProxyFunc(lambda v: Headers(v))  # noqa: PLW0108  see comment above
     extend = ProxyFunc(None)
     get = ProxyFunc()

@@ -806,9 +806,6 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.assertEqual(len(qweb_keys), 4)
 
     def test_assets_node_orm_cache_usage_website(self):
-        # skipTest, not `return`: a bare return reports as a pass, and website
-        # ships uninstalled on a base+web database, so this asserted nothing at
-        # all on the very databases it most often runs on.
         if "website" not in self.env:
             self.skipTest("website is not installed; website_id cannot key the cache")
         self.env.registry.clear_cache("assets")
@@ -915,14 +912,6 @@ class TestAssetsBundleInBrowser(HttpCase):
             "a + b + c === 6 ? console.log('test successful') : console.log('error')",
             login="admin",
         )
-
-    # There was a test_02 here, skipped as "Feature Regression": it inherited a
-    # view onto `browse_ref("test_assetsbundle.bundle1")` to inject an inline
-    # <script>. Removed rather than left skipped -- `test_assetsbundle.bundle1`
-    # is a BUNDLE NAME, never an xmlid (this module declares only template1,
-    # template2 and test_jsfile[!4]_js), so browse_ref raises ValueError and the
-    # test could not have run even with the feature restored. test_03 below
-    # covers the supported way to add code to a bundle.
 
     def test_03_js_interpretation_recommended_new_method(self):
         code = b"const d = 4;"

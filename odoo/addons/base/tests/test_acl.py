@@ -401,17 +401,11 @@ class TestIrRule(TransactionCaseWithUserDemo):
         )
         demo_rule = self.env(user=self.user_demo)["ir.rule"]
 
-        # Serving registry: every installed module is loaded, so nothing is
-        # filtered and the rule applies as usual.
         with self._registry_loading(False):
             self.assertIn(rule, demo_rule._get_rules("res.partner", "read"))
 
-        # Loading window: the owning module is absent, so the rule is skipped
-        # instead of breaking the search.
         with self._registry_loading(True):
             self.assertNotIn(rule, demo_rule._get_rules("res.partner", "read"))
-            # ...but only that one. Rules from loaded modules still apply, and
-            # so do hand-written rules, which carry no `ir.model.data` row.
             hand_written = self.env["ir.rule"].create(
                 {
                     "name": "test_rule_written_by_hand",
@@ -440,15 +434,12 @@ class TestIrRule(TransactionCaseWithUserDemo):
         )
         demo_partner = self.env(user=self.user_demo)["res.partner"]
 
-        # Warm the cache during "loading": the rule is skipped, partners visible.
         with self._registry_loading(True):
             self.assertTrue(
                 demo_partner.search_count([]),
                 "A rule from an unloaded module must not restrict during loading",
             )
 
-        # Back in a serving registry the rule applies -- the domain cached a
-        # moment ago without it must not be reused.
         with self._registry_loading(False):
             self.assertEqual(
                 demo_partner.search_count([]),

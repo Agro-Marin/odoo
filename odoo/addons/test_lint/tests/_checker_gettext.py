@@ -71,22 +71,8 @@ def _is_whitelisted_argument(arg: ast.expr) -> bool:
         case ast.BinOp(op=ast.Add(), left=left, right=right) if _is_raw_text(
             left
         ) or _is_raw_text(right):
-            # Concatenation with a bare string literal in it. The literal *is*
-            # part of the message and ships untranslated, whatever the other
-            # half does: `"Error:\n" + "\n".join(errors)` was waved through
-            # because the join is a Call and one whitelisted half was enough.
-            #
-            # Only a raw literal decides it, not "the half is not whitelisted".
-            # Requiring both halves outright pulls in shapes that are already
-            # translated by their other operand and takes the rule from 20
-            # findings to 32, most of them noise.
             return False
         case ast.BinOp(left=left, right=right):
-            # Interpolation (`%`, and the rest): only the left half is the
-            # message. `_("%(a)s and %(b)s") % {...}` is the dominant real
-            # shape and the right half is a Dict, which is never whitelisted --
-            # so requiring both here would report 17 correctly translated
-            # sites in this repository.
             return _is_whitelisted_argument(left) or _is_whitelisted_argument(right)
     return False
 

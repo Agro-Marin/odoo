@@ -9,8 +9,6 @@ from lxml import etree
 try:
     from . import _pretty_xml
 except ImportError:
-    # Run as a script: `python .../tests/_sort_xml_records.py`. `_pretty_xml`
-    # imports nothing from Odoo, so it loads either way.
     import _pretty_xml
 
 FIELD_ORDER: dict[str, list[str]] = {
@@ -291,18 +289,6 @@ def build_parser() -> argparse.ArgumentParser:
             "Only process records of this model (repeatable); default: all known models"
         ),
     )
-    # Extra names only. The always-excluded set comes from
-    # `_pretty_xml.is_formattable`, which is the single answer to "is this a
-    # data file a fixer owns" -- the same one the lint gates ask.
-    #
-    # This used to carry its own list (`_vendor`, `enterprise`, `static`), and
-    # it did not match what `test_xml_records` scans: the gate reported over
-    # 5 400 files and this refused 1 600 of them, so its own remediation could
-    # not make it pass on a finding in any of those. That is the exact defect
-    # `TestFixerScope` was written for -- it just only ever checked the *other*
-    # fixer. Hard-coding `enterprise` was wrong for a second reason: it names a
-    # sibling checkout by directory name, which stops being true the moment the
-    # workspace is laid out differently.
     parser.add_argument(
         "--exclude",
         metavar="DIR",

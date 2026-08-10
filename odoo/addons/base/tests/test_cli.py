@@ -260,13 +260,11 @@ class TestCommand(BaseCase):
             proc = self.run_command("scaffold", "MyModule", tmp)
             self.assertEqual(proc.returncode, 0, msg=proc.stderr)
 
-            # modname_for() snake-cases the CLI name into the directory name.
             mod = Path(tmp) / "my_module"
             self.assertTrue(
                 mod.is_dir(), msg=f"scaffold produced {list(Path(tmp).iterdir())}"
             )
 
-            # .template is stripped from every rendered file.
             rendered = sorted(
                 p.relative_to(mod).as_posix() for p in mod.rglob("*") if p.is_file()
             )
@@ -278,7 +276,6 @@ class TestCommand(BaseCase):
             manifest = (mod / "__manifest__.py").read_text()
             self.assertIn("'name': \"MyModule\"", manifest)
 
-            # {%- set -%} + the custom `snake` filter + |format.
             acl = (mod / "security" / "ir.model.access.csv").read_text()
             self.assertIn(
                 "access_my_module_my_module,my_module.my_module,"
@@ -286,12 +283,10 @@ class TestCommand(BaseCase):
                 acl,
             )
 
-            # {% for item in range(5) %} with arithmetic: the last record is 4*10.
             demo = (mod / "demo" / "demo.xml").read_text()
             self.assertIn('<record id="object4" model="my_module.my_module">', demo)
             self.assertIn('<field name="value">40</field>', demo)
 
-            # Nothing anywhere kept an unrendered delimiter.
             for rel in rendered:
                 with self.subTest(file=rel):
                     body = (mod / rel).read_text()

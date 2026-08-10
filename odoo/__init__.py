@@ -2,13 +2,6 @@ from typing import TYPE_CHECKING
 
 __all__ = ["SUPERUSER_ID", "Command", "_", "_lt", "evented"]
 
-#: True when running under the gevent-based long-polling server. Set here so it
-#: always exists: ``_monkeypatches/site.py`` flips it during startup, but that
-#: module is only imported because ``patch_init()`` sees ``site`` in
-#: ``sys.modules``. Under ``python -S`` it never ran, and the five bare
-#: ``odoo.evented`` readers raised AttributeError while a sixth
-#: (``db/__init__.py``) defensively used ``hasattr`` -- the asymmetry that shows
-#: the invariant was never established.
 evented: bool = False
 
 if TYPE_CHECKING:

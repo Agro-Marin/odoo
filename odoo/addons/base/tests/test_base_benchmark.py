@@ -98,9 +98,6 @@ class TestBaseBenchmark(TransactionCase):
         )
 
     def test_bench_compute_same_vat(self):
-        # The benchmark needs distinct VAT strings, not checksum-valid ones. Without
-        # no_vat_validation these synthetic numbers fail base_vat's Belgian check,
-        # making a core benchmark depend on whether an optional addon is installed.
         partners = (
             self.env["res.partner"]
             .with_context(no_vat_validation=True)

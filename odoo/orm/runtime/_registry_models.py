@@ -59,9 +59,6 @@ class _RegistryModelsMixin(_RegistryStubs):
         models: OrderedSet[str] = OrderedSet()
         queue = deque(model_names)
         while queue:
-            # ``self.models.get`` rather than ``Mapping.get``: identical answer
-            # (``__getitem__`` is a bare ``self.models`` read) without making
-            # this leaf depend on the ``Mapping`` half of the root's bases.
             model = self.models.get(queue.popleft())
             if model is None or model._name in models:
                 continue

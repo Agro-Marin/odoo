@@ -18,9 +18,6 @@ PG_RETRY_EXCEPTIONS = (
     psycopg.errors.DeadlockDetected,
 )
 
-# `Exception`, not `BaseException`: every member is a psycopg error, and the
-# only consumer (_log_sql_error) takes an Exception. Declared wider, a caller
-# holding one of these could not pass it on without the type not matching.
 PG_RECOVERABLE_EXCEPTIONS: tuple[type[Exception], ...] = (
     *PG_RETRY_EXCEPTIONS,
     psycopg.errors.ReadOnlySqlTransaction,

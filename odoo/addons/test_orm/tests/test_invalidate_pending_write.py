@@ -162,7 +162,7 @@ class TestInvalidateInversePendingWrite(TransactionCase):
         self.env.invalidate_all()
 
         field = Bank._fields["partner_id"]
-        clean.partner_id  # populate the cache
+        clean.partner_id
         bank.write({"partner_id": target.id})
         cache = field._get_cache(self.env)
         self.assertIn(bank.id, cache)

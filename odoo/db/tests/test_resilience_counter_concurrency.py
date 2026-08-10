@@ -7,34 +7,6 @@ from odoo.db.budget import ConnectionBudget
 from odoo.db.leaks import CheckoutTracker
 from odoo.db.stats import PoolStats
 
-# The `db/` [resilience] tier keeps every counter as a bare `+=` on an instance
-# attribute, with no lock:
-#
-#     stats.borrows += 1                 (stats.py record_borrow, 4 mutations)
-#     budget.exhausted += 1              (budget.py acquire)
-#     stats.borrows_failed += 1          (pool.py x4)
-#     stats.borrows_direct += 1          (pool.py)
-#
-# `x += 1` is LOAD / ADD / STORE, which is not atomic in either build: with the
-# GIL a thread switch may land between the bytecodes, and without it the write
-# is a plain data race. These counters exist to diagnose pool exhaustion, i.e.
-# they matter most under exactly the concurrency that can corrupt them.
-#
-# MEASURED on this interpreter (a GIL build: Py_GIL_DISABLED=0), 8 threads x
-# 20,000 increments with sys.setswitchinterval(1e-6): **zero** lost updates.
-# So this is a latent defect, not a live one -- see the audit note. These tests
-# pin the *invariants* rather than assert the current happy result, so that:
-#
-#   * they keep passing if the counters are given a lock (the fix), and
-#   * they start failing on a free-threaded build, where the race is real,
-#     which is the moment somebody needs to know.
-#
-# `test_pool_lock_covers_every_stats_mutation_or_none` is the interesting one:
-# it does not ask for locking, it asks for *consistency*. `pool.py` today
-# increments `self._direct_out` inside `with self._lock` and `stats.borrows_direct`
-# one line later outside it, which is the evidence that the omission is
-# accidental rather than a considered "stats are best-effort" policy.
-
 THREADS = 8
 ITERATIONS = 5_000
 EXPECTED = THREADS * ITERATIONS
@@ -50,8 +22,6 @@ def _hammer(fn, threads: int = THREADS, iterations: int = ITERATIONS) -> None:
             for _ in range(iterations):
                 fn()
         except BaseException as exc:
-            # Re-surfaced by the assert below: a worker that dies silently would
-            # make every count in this file pass for the wrong reason.
             errors.append(exc)
 
     old = sys.getswitchinterval()
@@ -79,9 +49,6 @@ def test_pool_stats_borrow_count_is_not_lost_under_concurrency():
 
 
 def test_pool_stats_histogram_agrees_with_the_total():
-    # A weaker but sharper invariant: every recorded borrow lands in exactly one
-    # latency bucket, so the histogram must sum to the counter regardless of
-    # what either value is.
     stats = PoolStats()
     _hammer(lambda: stats.record_borrow(0.0))
     assert sum(stats.borrow_wait_buckets) == stats.borrows, (
@@ -93,7 +60,7 @@ def test_pool_stats_histogram_agrees_with_the_total():
 
 def test_connection_budget_exhausted_count_is_not_lost():
     budget = ConnectionBudget(1)
-    assert budget.acquire(0.0) is True  # drain it: every later acquire fails
+    assert budget.acquire(0.0) is True
     _hammer(lambda: budget.acquire(0.0))
     assert budget.exhausted == EXPECTED, (
         f"lost {EXPECTED - budget.exhausted} of {EXPECTED} increments to "
@@ -102,15 +69,13 @@ def test_connection_budget_exhausted_count_is_not_lost():
 
 
 def test_budget_in_use_tracks_acquire_release_exactly():
-    # The semantic invariant behind the counters: whatever the bookkeeping does,
-    # in_use must equal the number of outstanding acquires.
     budget = ConnectionBudget(THREADS)
     gate = threading.Barrier(THREADS + 1)
 
     def hold() -> None:
         assert budget.acquire(5.0)
-        gate.wait()  # all THREADS holders in flight
-        gate.wait()  # released only after the main thread has measured
+        gate.wait()
+        gate.wait()
         budget.release()
 
     holders = [threading.Thread(target=hold) for _ in range(THREADS)]
@@ -151,9 +116,6 @@ def test_checkout_tracker_length_matches_tracked_connections():
 
 
 def test_pool_lock_covers_every_stats_mutation_or_none():
-    # Not "add a lock" — "stop being inconsistent about it". pool.py holds
-    # self._lock while incrementing self._direct_out and then increments
-    # stats.borrows_direct one line later, outside it.
     import pathlib
     import re
 
@@ -168,7 +130,6 @@ def test_pool_lock_covers_every_stats_mutation_or_none():
     for i, line in enumerate(lines):
         if not re.search(r"self\.stats\.\w+ \+= 1", line):
             continue
-        # walk backwards for an enclosing `with self._lock:` at lower indent
         under_lock = False
         for j in range(i - 1, max(i - 40, -1), -1):
             prev = lines[j]
@@ -184,15 +145,6 @@ def test_pool_lock_covers_every_stats_mutation_or_none():
 
     assert locked or unlocked, "no stats mutations found in pool.py — scan broke"
 
-    # Exact-mode pin of the current split, in the style of tooling/ratchet:
-    # measured today, 2 of the 15 PoolStats increments happen to sit under
-    # self._lock and 13 do not. That is not a policy, it is where the code
-    # landed -- `_borrow_direct` increments self._direct_out inside
-    # `with self._lock` and stats.borrows_direct one line later outside it.
-    #
-    # The goal state is `len(unlocked) == 0`. Until then this pin makes any
-    # movement -- in either direction -- a deliberate, reviewed change rather
-    # than drift.
     assert (len(locked), len(unlocked)) == (2, 13), (
         f"the PoolStats locking split moved: {len(locked)} locked "
         f"(lines {locked}), {len(unlocked)} unlocked (lines {unlocked}); "

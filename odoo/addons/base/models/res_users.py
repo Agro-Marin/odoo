@@ -842,9 +842,6 @@ class ResUsers(models.Model):
             }
             for vals in vals_list
         ]
-        # Keyed on the values, not on `deferred`: a settings key that was
-        # dropped as an absence must still not reach `super().create()`, where
-        # it would meet the same missing row the deferral exists to avoid.
         if any(k in backed for vals in vals_list for k in vals):
             vals_list = [
                 {k: v for k, v in vals.items() if k not in backed} for vals in vals_list

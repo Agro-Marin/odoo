@@ -25,9 +25,6 @@ if TYPE_CHECKING:
 else:
     BaseCursor = Any
 
-# The log channel stays "odoo.service.db" across the split: operators and
-# log-reading tests key on it, and _db_helpers / _dump_scanner already spell
-# it literally for the same reason.
 _logger = logging.getLogger("odoo.service.db")
 
 
@@ -235,14 +232,6 @@ def _write_zip_dump(
         with db.cursor() as cr:
             manifest = dump_db_manifest(cr)
         zipf.writestr("manifest.json", json.dumps(manifest, indent=4))
-        # force_zip64 is mandatory, not defensive: streaming into a member
-        # through ``ZipFile.open(..., "w")`` commits the local header before a
-        # single byte is read, so zipfile cannot infer that the member needs
-        # ZIP64 the way ``ZipFile.write()`` does from a stat().  Without it a
-        # ``dump.sql`` that overruns 4 GiB raises "File size too large, try
-        # using force_zip64" at member close — after minutes of dumping, and
-        # only once the database grows past the threshold.  ``allowZip64`` on
-        # the archive covers the central directory, not this.
         with zipf.open("dump.sql", "w", force_zip64=True) as sql_member:
             _run_pg_dump_streaming(cmd, env, sql_member)
         if with_filestore:
@@ -277,7 +266,6 @@ def dump_db(
         if stream:
             _write_zip_dump(db_name, stream, cmd, env, with_filestore)
         else:
-            # SIM115: `t` IS the return value — the caller owns and closes it.
             t = tempfile.TemporaryFile()  # noqa: SIM115  `t` IS the return value; the caller owns and closes it
             try:
                 _write_zip_dump(db_name, t, cmd, env, with_filestore)

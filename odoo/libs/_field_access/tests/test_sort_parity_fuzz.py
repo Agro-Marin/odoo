@@ -139,8 +139,6 @@ def test_incomparable_column_raises_like_python():
     ids = (0, 1)
     values = [1, "a"]
     with pytest.raises(TypeError):
-        # Handing sorted() something it cannot order is the assertion: both
-        # implementations must fail exactly where CPython does.
         sorted(values)  # type: ignore[type-var]
     with pytest.raises(TypeError):
         sort_ids_by_values(ids, values, False)

@@ -136,8 +136,6 @@ First differing element 0:
     @mute_logger("odoo.db")
     def test_assertRaises_clear_recovery(self):
 
-        # The evaluated-once default is the mechanism here: `clear` has to fail
-        # on its first call only, so the counter must persist across calls.
         def clear(call_count=itertools.count()):  # noqa: B008  see comment above
             if next(call_count) == 0:
                 self.env.cr.execute("select nonsense")

@@ -13,9 +13,6 @@ class TestBound:
         assert list(backoff.bounds(5, base=0.2, cap=2.0)) == [0.2, 0.4, 0.8, 1.6, 2.0]
 
     def test_the_schedule_grows_strictly_until_capped(self):
-        # The assertion whose absence let a flat "exponential" backoff ship twice.
-        # A cap that swallows the growth term makes every retry draw from the
-        # same interval; that is invisible to any test that looks at one delay.
         seen = list(backoff.bounds(6, base=0.2, cap=2.0))
         growing = [b for b in seen if b < 2.0]
         assert growing == sorted(set(growing)), (
@@ -29,8 +26,6 @@ class TestBound:
         assert all(b <= 2.0 for b in backoff.bounds(20, base=0.2, cap=2.0))
 
     def test_a_cap_below_the_base_is_rejected_rather_than_flattening_the_curve(self):
-        # This is the misconfiguration that shipped: the growth term reached the
-        # cap on attempt 1, so the cap won every time and the curve was flat.
         with pytest.raises(ValueError, match="flattens the curve"):
             backoff.bound(1, base=2.0, cap=1.5)
 
@@ -55,8 +50,6 @@ class TestDelay:
                 )
 
     def test_later_attempts_wait_longer_on_average(self):
-        # The property that matters under contention: the distribution must
-        # actually move, not just the code that computes it.
         rng = random.Random(20260808)
         means = [
             sum(backoff.delay(a, base=0.2, cap=2.0, rng=rng) for _ in range(2000))
@@ -99,8 +92,6 @@ class TestCallSitesAreNotFlat:
         assert seen[0] < seen[-1]
 
     def test_ir_job_concurrency_schedule_grows(self):
-        # ir_job cannot be imported without an addons path, so read its constants
-        # from source. Hardcoding them here would pin nothing.
         import pathlib
         import re
 

@@ -251,12 +251,6 @@ class TestPrettyXml(BaseCase):
         self.assertEqual(path.read_bytes(), original, "the file must be untouched")
 
     def test_the_self_check_covers_the_prologue_too(self):
-        # `_format_element` starts at the root, so the declaration, the
-        # doctype and the nodes above `<odoo>` are reassembled separately --
-        # and the faithfulness comparison used to start at the root as well,
-        # which made losing any of them a change it reported as faithful.
-        # Each mutation below drops one part of the prologue; each must be
-        # refused rather than written.
         document = (
             b'<?xml version="1.0" encoding="utf-8"?>\n'
             b'<!DOCTYPE odoo SYSTEM "odoo.dtd">\n'
@@ -500,11 +494,6 @@ class TestSortManifests(BaseCase):
                 )
 
     def test_every_string_shape_round_trips(self):
-        # Hand-picked cases only ever cover the shapes someone thought of, and
-        # the first fix here covered exactly two of them -- a fuzz of the same
-        # alphabet then failed on 560 values out of 9 579. The renderer decides
-        # by verifying the literal it built, so this is a proof rather than a
-        # sample; the corpus is enumerated, not random, so it cannot go quiet.
         pieces = [
             "",
             "a",
@@ -680,15 +669,6 @@ class TestFixerScope(LintCase):
         )
 
     def test_both_xml_gates_own_the_same_files_as_both_fixers(self):
-        # This class existed to stop a gate reporting files its fixer refuses,
-        # and then only ever checked the formatter. The record sorter had the
-        # same split the whole time -- `test_xml_records` scanned every core
-        # XML file while `_sort_xml_records.main` skipped `static/` (and
-        # `enterprise/`, by directory name) -- so a finding in any of those
-        # 1 600 files could never be fixed by the command the failure prints.
-        #
-        # Asserted through the one selection all four now ask, so the next
-        # divergence is a failure here rather than an unfixable report.
         from .test_pretty_xml import PrettyXmlLinter
         from .test_xml_records import XmlRecordLinter
 
@@ -698,13 +678,6 @@ class TestFixerScope(LintCase):
         self.assertEqual({str(p) for p in XmlRecordLinter.scanned_files()}, shared)
 
     def test_the_cli_walk_selects_what_the_gate_reports(self):
-        # The gates and the fixer entry points were compared above; this is the
-        # third side, and the one that had actually drifted -- what
-        # `main()` *walks*. Both CLIs inlined their own loop, so the record
-        # sorter skipped `static/` (and `enterprise/`, by name) while
-        # `test_xml_records` scanned it. Comparing the selections only at the
-        # gate level cannot see that: a mutation putting the old exclude list
-        # back passed every other test in this class.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             laid_out = [
@@ -735,11 +708,6 @@ class TestFixerScope(LintCase):
             )
 
     def test_neither_fixer_names_a_sibling_checkout_by_directory(self):
-        # Scoping to this repository is `is_core_path`'s job, and it answers
-        # from the configured root. A fixer with `enterprise` baked into its
-        # exclude list is right only for one workspace layout, and silently
-        # wrong for any other -- including one where the sibling is a symlink
-        # or is called something else.
         for module in (_pretty_xml, _sort_xml_records, _sort_manifests):
             with self.subTest(fixer=module.__name__):
                 defaults = [

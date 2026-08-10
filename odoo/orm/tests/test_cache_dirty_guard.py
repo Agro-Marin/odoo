@@ -129,7 +129,7 @@ class TestUpdateCacheItems:
         _dirty_record(env)
         field = env["x.widget"]._fields["name"]
 
-        field._update_cache_items(env, [])  # must not raise
+        field._update_cache_items(env, [])
 
 
 if __name__ == "__main__":

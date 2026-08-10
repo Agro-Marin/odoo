@@ -3427,8 +3427,6 @@ class TestFromRequestFileValsMerge(TransactionCase):
     def setUp(self):
         super().setUp()
         self.Attachments = self.env["ir.attachment"]
-        # A PNG buffers, anything else streams: one file per branch, so the
-        # assertions below genuinely cover both.
         self.png = (
             b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
             b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"

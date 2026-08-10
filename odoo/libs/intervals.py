@@ -10,10 +10,6 @@ if TYPE_CHECKING:
     class SupportsUnion(Protocol):
         def union(self, other: Any, /) -> SupportsUnion: ...
 
-    # `Self` would be wrong: `set.union` is `(*s: Iterable[S]) -> set[T | S]`,
-    # so a plain set — which the callers here pass constantly — does not return
-    # its own exact type and would fail the protocol at every call site.
-
     class SupportsOrdering(Protocol):
         def __lt__(self, other: Any, /) -> bool: ...
         def __gt__(self, other: Any, /) -> bool: ...
@@ -61,8 +57,6 @@ class Intervals[T: SupportsOrdering]:
                 else:
                     start = starts.pop()
                     if not starts:
-                        # `items` is set on the matching "start" above, and a
-                        # stop is only reached through one.
                         assert items is not None, "a stop with no open start"
                         append((start, value, items))
                         items = None
@@ -123,8 +117,6 @@ class Intervals[T: SupportsOrdering]:
                 recs1 = recs
             elif flag == "stop":
                 if enabled and start is not None and start < value:
-                    # Mirrors the guard the "switch" branch below already uses;
-                    # recs1 is assigned with start, so one implies the other.
                     assert recs1 is not None, "a start without its records"
                     append((start, value, recs1))
                 start = None

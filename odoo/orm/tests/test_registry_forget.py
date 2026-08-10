@@ -44,7 +44,7 @@ def test_forget_drops_every_per_database_map(seeded):
 
 def test_forget_is_idempotent(seeded):
     Registry.forget(DB)
-    Registry.forget(DB)  # must not raise on the second pass
+    Registry.forget(DB)
 
 
 def test_delete_all_clears_the_per_database_maps(seeded):
@@ -60,13 +60,8 @@ def test_teardown_call_sites_use_forget_not_delete():
 
     root = pathlib.Path(reg_mod.__file__).resolve().parents[3]
     expected = {
-        # ADR-0014 split service/db.py into a package; the two teardown calls
-        # live with the DDL that performs them. This test read the old path and
-        # broke on FileNotFoundError when that landed -- caught late, because
-        # that change verified `tests/service` and Tier 1 but not Tier 2, which
-        # is the "pass all three paths" trap odoo/CLAUDE.md names.
-        "odoo/service/db/lifecycle.py": 2,  # _drop_database, _rename_database
-        "odoo/http/_serve.py": 1,  # db_absent after a RegistryError
+        "odoo/service/db/lifecycle.py": 2,
+        "odoo/http/_serve.py": 1,
     }
     for rel, count in expected.items():
         text = (root / rel).read_text()

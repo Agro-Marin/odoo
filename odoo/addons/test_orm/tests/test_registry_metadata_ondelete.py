@@ -1,9 +1,6 @@
 from odoo import fields
 from odoo.tests.common import TransactionCase
 
-#: The models whose rows the module system owns. Spelled out rather than
-#: derived, so that dropping a declaration fails instead of shrinking the
-#: expectation with it.
 REGISTRY_METADATA_MODELS = (
     "ir.model",
     "ir.model.data",

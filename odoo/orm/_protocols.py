@@ -106,9 +106,6 @@ class IrModelConstraintProtocol(RecordsetProtocol, Protocol):
         self,
         model: Any,
         conname: str,
-        # Shadows the builtin, and has to: a Protocol only checks a keyword
-        # call if its parameter names match the implementation's, and
-        # `ir.model.constraint._reflect_constraint` calls this one `type`.
         type: str,
         definition: str,
         module: str,
@@ -207,12 +204,6 @@ class ResUsersProtocol(RecordsetProtocol, Protocol):
     def has_groups(self, group_spec: str) -> bool: ...
 
 
-#: ``model name -> Protocol``, the map both the gate and the contract test read.
-#:
-#: One entry per model the core reaches for two or more members. The single-member
-#: models are deliberately absent: a one-method contract is a call site with extra
-#: steps, and the surface ratchet in `model_member_surface_check` already pins
-#: those names exactly.
 FRAMEWORK_MODEL_PROTOCOLS: dict[str, type] = {
     "ir.attachment": IrAttachmentProtocol,
     "ir.default": IrDefaultProtocol,

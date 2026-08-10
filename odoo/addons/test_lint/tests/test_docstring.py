@@ -143,12 +143,6 @@ def extract_docstring_params(doctree):
     return list(params), types, rtype
 
 
-# This gate reads the *installed* registry, so its count is a function of the
-# install and not of the tree: 1 on `base` + `test_lint` (the scope CI runs),
-# 32 with the enterprise suite loaded. The floor is therefore the ceiling of
-# the canonical scope and the ratchet is one-sided -- a bigger install
-# reporting more is not a regression, and a smaller one reporting less is not
-# a fix. Make it exact again the day this gate reads files instead.
 DOCSTRING_FLOOR = 32
 
 
@@ -221,23 +215,10 @@ class TestDocstring(LintCase):
                             )
                         )
                 self._test_docstring_params(method, doctree, where)
-            # A malformed docstring is the finding, not a crash. `extract_docstring_params`
-            # raises ValueError for exactly the shapes this gate exists to report
-            # -- `:returns set:` for `:rtype: set`, an empty `:param:`, an unknown
-            # info-field -- and only AssertionError was caught, so one of them
-            # ended the whole run with an error instead of contributing one
-            # offender. Four methods in `account_reports` did precisely that, and
-            # only once enough modules were installed for the registry to hold
-            # them: the gate passed thinly and errored fat. IndexError joins it
-            # for `sign_params[-1]` on a signature with no parameters.
             except (AssertionError, ValueError, IndexError) as exc:
                 offenders.append(f"{where}: {str(exc).splitlines()[0][:160]}")
 
         logger.info("checked %s documented method definitions", checked)
-        # Scales with the installed module set -- 151 on `base` + `test_lint`,
-        # 3 347 with the enterprise suite installed. The anchor guards against a
-        # registry that loaded nothing, so it has to hold at the *smallest*
-        # scope this suite runs at, which is the one CI uses.
         self.assertGreater(checked, 100, "the scan reached almost no docstrings")
         self.assert_ratchet(
             offenders,
@@ -296,11 +277,6 @@ class TestDocstring(LintCase):
         return str(sign_type).removeprefix("typing.")
 
     def test_a_malformed_docstring_is_a_finding_not_a_crash(self):
-        # `extract_docstring_params` raises ValueError for exactly the shapes
-        # this gate reports. Four methods in `account_reports` write
-        # `:returns set:` where they mean `:rtype: set`, and each one used to
-        # end the whole run with an error -- so the gate scored zero offenders
-        # on a thin install and did not run at all on a fat one.
         for docstring, expected in (
             (":returns set: the ids\n", 'invalid ":returns set:"'),
             (":param:\n", "empty :param:"),

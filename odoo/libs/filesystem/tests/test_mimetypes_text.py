@@ -92,8 +92,6 @@ class TestBytearrayMatchesBytes(unittest.TestCase):
         with zipfile.ZipFile(buf, "w") as z:
             z.writestr("[Content_Types].xml", "<Types/>")
             z.writestr("xl/workbook.xml", "<workbook/>")
-            # Pad past MIMETYPE_HEAD_SIZE so the truncation is what decides it,
-            # not the file simply being small enough to survive the cut.
             z.writestr("xl/pad.bin", b"\0" * (MIMETYPE_HEAD_SIZE * 4))
         return buf.getvalue()
 
@@ -122,8 +120,6 @@ class TestBytearrayMatchesBytes(unittest.TestCase):
 
     def test_rejects_other_types(self):
         with self.assertRaises(TypeError):
-            # The wrong type is the point of the test; odoo/libs/ is inside the
-            # mypy gate's scope, tests included, so the call needs the waiver.
             guess_mimetype("not bytes")  # type: ignore[arg-type]
 
 
@@ -152,7 +148,6 @@ class TestOlecfStreamNames(unittest.TestCase):
                 self.assertEqual(_check_olecf(self._olecf(stream)), expected)
 
     def test_first_sector_signature_still_wins(self):
-        # The original fast path must keep working where it did apply.
         data = self.OLE_MAGIC + b"\0" * (0x200 - 8) + b"\xec\xa5\xc1\x00" + b"\0" * 512
         self.assertEqual(_check_olecf(data), "application/msword")
 

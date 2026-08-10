@@ -205,14 +205,6 @@ class Selection(Field[str | typing.Literal[False]]):
     def get_values(self, env: Environment) -> list[str]:
         selection = self.selection
         if isinstance(selection, str) or callable(selection):
-            # `lang='en_US'` rather than `lang=None`: only the keys are kept
-            # here, so the language cannot change the result -- but `lang=None`
-            # does not mean "source language". `_()` resolves by walking the
-            # stack for a frame whose `self.env.lang` is truthy, so `None` makes
-            # a callable selection translate into whatever language the *caller*
-            # happens to be in. Harmless where the labels are discarded, wasted
-            # gettext lookups either way, and a trap for the next reader who
-            # copies the idiom somewhere it does matter.
             selection = determine(
                 selection, env[self.model_name].with_context(lang="en_US")
             )

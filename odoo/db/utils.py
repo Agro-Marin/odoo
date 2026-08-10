@@ -106,11 +106,6 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
                 RuntimeWarning,
                 stacklevel=2,
             )
-            # A URI with no path, no username AND no host (``postgresql:///``)
-            # left this returning None from a function declared to return a
-            # str, and nothing downstream expects that — the label is used as a
-            # pool key. There is no name to be had, so the empty one is
-            # returned deliberately, with the warning above already fired.
             db_name = us.hostname or ""
         uri_keys = {k for k, _ in parse_qsl(us.query)}
         merged = {k: v for k, v in _HEALTH_PARAMS.items() if k not in uri_keys}

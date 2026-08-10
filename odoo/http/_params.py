@@ -51,11 +51,6 @@ def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
 
 def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
     specs: dict[str, ParamSpec] = {}
-    # FORWARDREF: an unresolvable annotation (a TYPE_CHECKING-only name) must
-    # leave its parameter uncoerced, which is what this function already does
-    # for an annotation it cannot resolve -- not abort route registration with
-    # NameError, which is what the default VALUE format does under PEP 649.
-    # Concrete types (int, str, list[int], ...) are unaffected.
     params = list(
         inspect.signature(
             endpoint, annotation_format=annotationlib.Format.FORWARDREF
@@ -72,8 +67,6 @@ def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
         annotation = param.annotation
         if isinstance(annotation, str):
             try:
-                # S307: resolving a STRING annotation is what typing.get_type_hints
-                # does too; the source is the route handler's own signature.
                 annotation = eval(annotation, getattr(endpoint, "__globals__", None))  # noqa: S307  see comment above
             except Exception:
                 _logger.debug(

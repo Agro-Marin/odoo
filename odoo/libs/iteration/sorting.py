@@ -56,9 +56,6 @@ def merge_sequences[T](*iterables: Iterable[T]) -> list[T]:
             if prev is SENTINEL:
                 deps[item]
             else:
-                # Same as lru: single-member enum, unbounded T, so the negative
-                # branch cannot be narrowed automatically. prev is only ever a
-                # previously seen item here.
                 deps[item].append(cast("T", prev))
             prev = item
     return topological_sort(deps, strict=False)

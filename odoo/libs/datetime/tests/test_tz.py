@@ -23,7 +23,6 @@ class TestCountryTimezones(unittest.TestCase):
 
     def test_mapping_is_not_writable(self):
         with self.assertRaises(TypeError):
-            # Writing to it is the assertion — the Mapping type says so too.
             country_timezones()["ZZ"] = ("Nowhere/Land",)  # type: ignore[index]
 
     def test_zone_lists_are_not_writable(self):

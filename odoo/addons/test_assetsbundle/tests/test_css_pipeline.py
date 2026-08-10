@@ -408,14 +408,6 @@ class TestCompileMemoContract(TransactionCase):
             calls.append(source)
             return "compiled{}"
 
-        # _runtime_options, NOT config.options. config.options is a ChainMap,
-        # and patch.dict restores a mapping by clear()+update(flattened copy):
-        # on a ChainMap that clears only maps[0] and then writes EVERY key of
-        # every layer into it, so the whole config is permanently promoted to
-        # the highest-precedence layer. Nothing fails here -- it fails later,
-        # in whatever test next tries to patch a lower layer and finds itself
-        # silently shadowed (TestEsbuildFailClosed did, once this file began
-        # running before test_esm_bundles.py).
         with patch.dict(config._runtime_options, {"dev_mode": ["xml"]}):
             for _ in range(3):
                 CssPipeline._memoized_transform(("t",), "a{}", transform)
@@ -1582,7 +1574,6 @@ class TestRtlcssProbeFailures(BaseCase):
         import subprocess
 
         probe = Mock()
-        # Two calls: the timed one that raises, then the drain after kill().
         probe.communicate.side_effect = [
             subprocess.TimeoutExpired("rtlcss", 10),
             (b"", b""),

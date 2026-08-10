@@ -129,12 +129,6 @@ class Registry(
     _init: bool
     ready: bool
     loaded: bool
-    # ``models`` is declared by ``_RegistryModelsMixin``, which owns the
-    # container and the Mapping protocol over it. Declaring it here too would
-    # put the name back in this class body, which is what makes a unit the
-    # *owner* of a member for ``mixin_coupling_check.py`` -- and every
-    # ``self.models`` read in the other two mixins a back-edge into the root.
-    # That is exactly the cycle the leaf was extracted to break.
 
     @classmethod
     @locked
@@ -234,12 +228,6 @@ class Registry(
         self.loaded = False
         self.ready = False
 
-        # Each mixin initialises the state it declares. `Registry.init` owns
-        # instance construction, but not the *contents* of every mixin: a
-        # member declared in the typing stub and assigned here is owned by no
-        # unit, which is how eight of them stayed invisible to
-        # `mixin_coupling_check` while genuinely coupling the mixins to this
-        # class. See `unowned_shared_state` and REGISTRY_BASELINE.
         self._init_models_container()
         self._init_phase_state()
         self._init_field_state()
@@ -273,9 +261,6 @@ class Registry(
 
         self._invalidation_flags = threading.local()
 
-        # The connection is this class's concern, so the cursor is opened here
-        # and handed to the leaf; `_RegistryCapabilitiesMixin` never reaches
-        # back for `self.cursor()`, which is what keeps it a leaf.
         with closing(self.cursor()) as cr:
             self._probe_capabilities(cr, db_name)
 
@@ -419,9 +404,6 @@ class Registry(
                     self.field_depends_context.pop(field, None)
 
                     done.add(field)
-                    # `todo` is a deliberate worklist: list iteration re-reads
-                    # len() each step, so dependents queued here are picked up by
-                    # this same loop, and `done` stops a field being processed twice.
                     todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  see comment above
 
             self.many2one_company_dependents.clear()
@@ -456,18 +438,6 @@ class Registry(
         context: dict[str, typing.Any],
         install: bool = True,
     ):
-        # Materialised once, because this body consumes `model_names` FIVE
-        # times -- the comprehension below plus four `_reflect_*` calls -- and
-        # the parameter is annotated `Iterable[str]`. Given a generator the old
-        # code did two wrong things silently: `if not model_names` is False for
-        # any generator, so the early return never fired, and the comprehension
-        # exhausted it, so every `_reflect_*` reflected NOTHING into ir_model,
-        # ir_model_fields, ir_model_constraint and ir_model_inherit. Latent
-        # rather than live -- all three call sites pass a list today, and one of
-        # them already spells `list(models_to_untranslate)` defensively -- but
-        # the signature promised something the body could not honour. Surfaced
-        # by mypy once `env["ir.model"]` typed as a Protocol declaring
-        # `_reflect_models(list[str])` instead of as `BaseModel`.
         model_names = list(model_names)
         if not model_names:
             return
@@ -604,18 +574,6 @@ class Registry(
     def get_sequences(self, cr: BaseCursor) -> tuple[int, dict[str, int]]:
         signaling_selects = SQL(", ").join(
             [
-                # coalesce, because max() over an EMPTY table is NULL, not 0, and
-                # this method is annotated -> tuple[int, dict[str, int]]. Without
-                # it setup_signaling stores None into registry_sequence (an int)
-                # and the next check_signaling raises
-                #   TypeError: '>' not supported between 'NoneType' and 'int'
-                # -- for every registry in the cluster, until a row reappears.
-                # An empty-but-present table is reachable: setup_signaling only
-                # seeds a row when it CREATEs the table, so a truncate/restore,
-                # or an interrupted setup, leaves exactly this state.
-                # 0 is the right zero value: registry_sequence starts at -1, and
-                # check_signaling already treats a db value BELOW the local one
-                # as stale rather than an error.
                 SQL(
                     "( SELECT coalesce(max(id), 0) FROM %s)",
                     SQL.identifier(signaling_table),
@@ -722,15 +680,6 @@ class Registry(
             )
             return
 
-        # RETURNING id, rather than assuming the row we just inserted got
-        # `local + 1`. These tables exist to coordinate SEVERAL processes, so
-        # concurrent inserts are the normal case, not the edge one: two workers
-        # signalling together take ids N+1 and N+2 while both record `+= 1`
-        # locally. The one that lost the race then reads db_seq > local_seq on
-        # its next check_signaling and performs a full `Registry.new()` reload
-        # -- the most expensive operation in the system -- to learn about a
-        # change it already made. The sequence is generated by the database; ask
-        # it what it generated.
         if self.registry_invalidated:
             _logger.info("Registry changed, signaling through the database")
             with self.cursor() as cr:

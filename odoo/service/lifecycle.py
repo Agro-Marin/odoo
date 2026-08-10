@@ -50,8 +50,6 @@ def load_server_wide_modules() -> None:
 
 def _reexec(updated_modules: list[str] | None = None) -> None:
     if osutil.is_running_as_nt_service(nt_service_name):
-        # S602: `&&` needs a shell. nt_service_name comes from the server's own
-        # config, not from a request, and this path only runs as an NT service.
         rc = subprocess.call(  # noqa: S602  see comment above
             f"net stop {nt_service_name} && net start {nt_service_name}",
             shell=True,

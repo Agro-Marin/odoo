@@ -53,7 +53,6 @@ class TestNonConvergence:
         message = str(caught.value)
         assert "did not converge" in message
         assert "optimizer defect" in message
-        # The regression: it must NOT claim the domain was too deeply nested.
         assert "nesting" not in message
         assert "exhausts the evaluation stack" not in message
 
@@ -71,8 +70,6 @@ class TestNonConvergence:
 
 class TestGenuineRecursionStillReportsNesting:
     def test_a_real_recursion_error_still_reports_nesting(self, domain, model):
-        # Patch the concrete node type: `_optimize_step` is overridden per
-        # subclass, so patching `Domain` itself intercepts nothing.
         with patch.object(
             type(domain), "_optimize_step", side_effect=RecursionError("stack")
         ):

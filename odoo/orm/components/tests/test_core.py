@@ -7,15 +7,7 @@ from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.core import OrmCore
 
 _DELEGATIONS = [
-    # Added when OrmCore stopped exposing its raw collaborators: two addon
-    # tests were reaching `env._core.cache.get_value(...)` because the facade
-    # had no equivalent, which is how a "curated facade" acquires a hole.
     ("get_value", "cache", "get_value", 2, True),
-    # `set_value` joined it for the same reason, one lane later: the two sites
-    # reaching `_core.cache.set_value` live in DB-BACKED addon tests
-    # (base/tests/test_orm.py, base/tests/test_translate.py), which the DB-free
-    # tiers never execute -- so the slot rename left them raising
-    # AttributeError and only `--test-tags /base` said so.
     ("set_value", "cache", "set_value", 3, False),
     ("get_field_data", "cache", "get_field_data", 1, True),
     ("get_field_data_or_none", "cache", "get_field_data_or_none", 1, True),

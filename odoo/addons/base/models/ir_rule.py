@@ -143,9 +143,6 @@ class IrRule(models.Model):
     def _unloaded_module_rules_clause(self) -> SQL:
         loaded_modules = list(self.pool._init_modules)
         if not self.pool._init or not loaded_modules:
-            # Not loading (the normal case), or nothing loaded yet -- and with
-            # an empty list `<> ALL` is vacuously true, which would drop every
-            # module-owned rule instead of none.
             return SQL("")
         return SQL(
             """AND NOT EXISTS (
@@ -165,12 +162,6 @@ class IrRule(models.Model):
             "model_name",
             "mode",
             "tuple(self._compute_domain_context_values())",
-            # A domain computed while the registry was still loading was built
-            # from a partial rule set (see `_unloaded_module_rules_clause`) and
-            # must never be served to a finished registry -- that would leave a
-            # record rule silently unapplied. Nothing clears the cache when
-            # loading ends, so the flag goes in the key instead: once `_init`
-            # flips, every loading-time entry becomes unreachable.
             "self.pool._init",
         ),
     )

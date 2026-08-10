@@ -24,8 +24,6 @@ class TestLowerLogging(unittest.TestCase):
         base = logging.LogRecord.__bases__
         records: list[logging.LogRecord] = []
         sink = logging.Handler()
-        # A Handler exists to be given an emit; assigning one is how the
-        # stdlib intends it to be used, and there is no seam that avoids it.
         sink.emit = records.append  # type: ignore[method-assign,assignment]
         root = logging.getLogger()
         old_level = root.level

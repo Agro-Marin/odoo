@@ -13,56 +13,12 @@ import pytest
 _LIBS = pathlib.Path(__file__).resolve().parents[1]
 _REPO = _LIBS.parents[1]
 
-# `libs_facade_check.py` enforces that code imports odoo.libs **areas**
-# (`odoo.libs.numbers`), never the module that implements them today
-# (`odoo.libs.numbers.float_utils`). It is structurally blind to one spelling:
-#
-#     from odoo.libs.numbers import float_utils
-#
-# because `imported_modules()` records `node.module` -- here `odoo.libs.numbers`,
-# a legal area -- and treats everything in the `import` list as a *symbol*. Its
-# own docstring says as much: "the names are symbols and are not paths."
-#
-# ARCHITECTURE.md notes the discriminator "is on disk". That is necessary but
-# NOT sufficient, which is worth recording because the obvious fix does not
-# work: `odoo/libs/json/fast_clone.py` exists, yet `from odoo.libs.json import
-# fast_clone` yields a **function** (`__init__.py` does `from .fast_clone import
-# fast_clone`), so a disk-presence rule reports 8 false positives there while
-# missing `web.urls`. I tried exactly that rule; it got 11 of 23 sites wrong in
-# both directions. Only the runtime binding is authoritative -- which a static
-# CI checker cannot consult, and a test can.
-#
-# The surface splits in two, and the distinction is the point:
-#
-#   DECLARED   -- the area lists the submodule in its own `__all__`. That is the
-#                 area publishing it; importing it is using the public surface.
-#   ACCIDENTAL -- Python binds a submodule onto its parent package as a side
-#                 effect of importing it, so every area leaks its internals
-#                 whether it meant to or not. Importing one of these is real
-#                 leaf coupling, and it is what the gate exists to stop.
-#
-# The accidental count is 37, measured from DISK. It was 36 until 2026-08-09,
-# when `colors/terminal.py` was added to hold the ANSI escape codes that had
-# been stranded in `odoo/logutils.py` -- a new leaf in an existing area, which
-# is exactly the kind of growth this bound exists to make visible rather than
-# forbid. Two earlier versions measured
-# it from the areas' runtime attributes and were order-dependent: a submodule
-# binds onto its parent when anything imports it, and a full Tier-1 run also
-# imports odoo/libs/<area>/tests/, binding `tests` onto the area too. Both
-# passed in isolation and failed inside the full run.
 
-#: Submodules an area deliberately publishes in `__all__`.
 DECLARED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
     "filesystem": {"appdirs", "mimetypes", "osutil"},
-    # `import_map` left on 2026-08-09 with `libs/constants.py`: it read
-    # ODOO_EXTERNAL_LIBS, a table of Odoo asset paths, so neither it nor the
-    # table was ever libs material. Both are under `tools/assets/` now, and
-    # `web` publishes only the genuinely generic URL helpers.
     "web": {"urls"},
 }
 
-#: Leaf-module imports spelled `from odoo.libs.<area> import <submodule>` that
-#: reach ACCIDENTAL surface. Invisible to libs_facade_check; pinned here.
 KNOWN_ACCIDENTAL_LEAF_IMPORTS: dict[str, str] = {
     "datetime.tz": "safe_eval and others take the tz module wholesale",
     "numbers.float_utils": "float helpers imported as a module rather than by name",
@@ -184,9 +140,6 @@ def _accidental_from_disk(area: str) -> set[str]:
 
 def test_accidental_submodule_surface_is_bounded():
     total = sum(len(_accidental_from_disk(a)) for a in _areas())
-    # Not a prohibition: Python binds a submodule onto its parent on import, so
-    # this cannot reach zero without lazy areas. It is a *budget*, so a new leak
-    # is visible rather than free.
     assert total <= 37, (
         f"accidental submodule surface grew to {total} (was 37). Each one is a "
         f"leaf module importable as `from odoo.libs.<area> import <name>`, "
@@ -212,15 +165,11 @@ def test_leaf_imports_through_accidental_surface_are_pinned():
 
 
 def test_the_scan_is_not_vacuous():
-    # If the area walk or the AST scan breaks, every assertion above passes
-    # while measuring nothing.
     assert len(_areas()) >= 15
     assert _leaf_imports_via_area(), "found no leaf-via-area imports at all"
 
 
 def test_disk_presence_alone_would_misclassify():
-    # Pins the reason this lives in a test rather than in libs_facade_check:
-    # `json/fast_clone.py` exists on disk, but the name resolves to a function.
     assert (_LIBS / "json" / "fast_clone.py").is_file()
     from odoo.libs import json as json_area
 

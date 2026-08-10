@@ -44,27 +44,10 @@ class StorageBackend(typing.Protocol):
     supports_parent_store: bool
     supports_record_rules: bool
 
-    #: Whether a relational read may be served by fusing a JOIN into the
-    #: comodel's ``Query``. This is NOT a performance knob: the port's
-    #: ``read_m2m_pairs`` takes ids and returns pairs, and has nowhere to put
-    #: the comodel query that carries the comodel's own domain, order and
-    #: access filter. A backend that can fuse runs one query and gets ordering
-    #: for free; one that cannot reads every pair and re-sorts against an
-    #: already-executed query. Two algorithms, not two implementations -- which
-    #: is why this is a declared capability rather than a port method.
     supports_joined_m2m_read: bool
 
-    #: Whether the backend can answer "the distinct values of one column over
-    #: these ids" cheaply enough to be worth a prefetch.
-    #: ``Reference._reference_exists`` uses it to collapse a per-record model
-    #: lookup into one scan; without it the fallback is correct, just slower.
     supports_column_scan: bool
 
-    #: Whether stored translations live in a jsonb column the backend can
-    #: compare term by term. ``Char._languages_in_sync_with`` needs that to
-    #: decide which languages echo the one being written; a backend without it
-    #: propagates to nothing, which is a real semantic gap and not a slower
-    #: path -- see DISPATCH_SITES' LOSSY note on textual.py.
     supports_translation_terms: bool
 
     def create_rows(
@@ -266,8 +249,6 @@ class PostgresBackend:
         model._unlink_m2m_pairs_sql(relation, column1, column2, pairs)
 
 
-#: Stateless, so the transaction shares one rather than building a new one per
-#: request. ``InMemoryBackend`` cannot be shared -- it holds the ``DictBackend``.
 POSTGRES_BACKEND = PostgresBackend()
 
 

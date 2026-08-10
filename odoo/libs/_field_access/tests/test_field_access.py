@@ -64,13 +64,6 @@ class _FakeNewId:
 
 
 if TYPE_CHECKING:
-    # The mixin is never instantiated alone -- both concrete suites below spell
-    # `(_FieldAccessTestMixin, unittest.TestCase)` -- but a type checker cannot
-    # know that from the mixin's own bases, so every `self.assertEqual` in the
-    # 100-odd tests below read as an error on an undeclared attribute. Declaring
-    # the base only under TYPE_CHECKING keeps the runtime class a plain object,
-    # so neither unittest discovery nor pytest collects the mixin itself and
-    # runs its tests without an implementation bound.
     _MixinBase = unittest.TestCase
 else:
     _MixinBase = object

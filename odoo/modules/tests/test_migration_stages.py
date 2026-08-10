@@ -25,10 +25,10 @@ class TestUnstagedScriptsWarn:
     @pytest.mark.parametrize(
         "name",
         [
-            "pre_01_typo.py",  # underscore instead of hyphen
-            "Pre-01.py",  # the match is case-sensitive
-            "migrate.py",  # no stage at all
-            "0-first.py",  # numeric prefix, a plausible ordering idiom
+            "pre_01_typo.py",
+            "Pre-01.py",
+            "migrate.py",
+            "0-first.py",
         ],
     )
     def test_a_script_matching_no_stage_is_reported(self, version_dir, caplog, name):

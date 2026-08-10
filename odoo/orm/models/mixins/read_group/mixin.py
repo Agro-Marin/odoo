@@ -531,9 +531,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             else:
                 known_keys = {
                     name
-                    # FORWARDREF: only defaults are inspected; an override that
-                    # annotates a parameter with a TYPE_CHECKING-only name must
-                    # not turn read_group(fill_temporal=...) into a NameError.
                     for name, param in inspect.signature(
                         self._read_group_fill_temporal,
                         annotation_format=annotationlib.Format.FORWARDREF,

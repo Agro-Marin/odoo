@@ -5,7 +5,6 @@ from typing import Any
 try:
     from blake3 import blake3 as _blake3
 except ImportError:
-    # Optional accelerator; the module falls back to hashlib without it.
     _blake3 = None  # type: ignore[assignment]
 
 __all__ = [

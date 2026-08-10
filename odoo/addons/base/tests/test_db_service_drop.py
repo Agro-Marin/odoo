@@ -12,9 +12,6 @@ class TestExpDropAllowlist(BaseCase):
                 db_service.listing, "list_dbs", return_value=["exposed_db"]
             ),
             mock.patch.object(db_service.lifecycle, "_drop_database") as drop_mock,
-            # The channel, not a module attribute: every module in the
-            # odoo.service.db package logs to "odoo.service.db" by design
-            # (ADR-0014), so the name is the stable thing to assert on.
             self.assertLogs("odoo.service.db", level="WARNING") as logs,
             self.assertRaises(odoo.exceptions.AccessDenied),
         ):

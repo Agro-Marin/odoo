@@ -14,7 +14,6 @@ def _rewrites(source: str) -> list[tuple[int, int, str]]:
     try:
         tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
     except tokenize.TokenError, IndentationError, SyntaxError:
-        # Unparseable input is left untouched rather than half-rewritten.
         return out
 
     meaningful = [
@@ -29,17 +28,13 @@ def _rewrites(source: str) -> list[tuple[int, int, str]]:
             continue
         dot = meaningful[index - 1]
         if dot.type != tokenize.OP or dot.string != ".":
-            continue  # a bare `_context = {}` definition, not an attribute read
+            continue
         if index >= 2:
             owner = meaningful[index - 2]
             if owner.type == tokenize.NAME and owner.string == "env":
-                continue  # `env._cr` is already the runtime object
+                continue
         nxt = meaningful[index + 1] if index + 1 < len(meaningful) else None
         if nxt is not None and nxt.type == tokenize.OP and nxt.string in ("=", ":="):
-            # An ASSIGNMENT TARGET. `record.env.cr = ...` is not a thing, so a
-            # `x._cr = ...` is by construction not the deprecated recordset
-            # property this script converts -- it is some other object that
-            # happens to use the name (`conn._cr = make_cursor()`).
             continue
         out.append((token.start[0], token.start[1], token.string))
     return out
@@ -56,7 +51,6 @@ def upgrade(file_manager: FileManager) -> None:
         if not spans:
             continue
         lines = source.splitlines(keepends=True)
-        # Apply back-to-front so earlier offsets stay valid.
         for lineno, col, name in sorted(spans, reverse=True):
             line = lines[lineno - 1]
             if line[col : col + len(name)] != name:

@@ -239,9 +239,6 @@ class LoadMixin(_ModelStubs):
                     break
                 field = model._fields.get(field_name)
                 if field is None:
-                    # Unknown field: already reported per row, with the model
-                    # name, by the converter. Don't pre-empt it with a worse
-                    # message.
                     break
                 if not field.relational:
                     messages.append(

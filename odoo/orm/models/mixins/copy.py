@@ -51,7 +51,6 @@ class CopyMixin(_ModelStubs):
             if field.copy and name not in default and name not in blacklist
         }
 
-        # One shared map for the whole operation, carried through the context.
         seen_map = self.env.context["__copy_data_seen"]
 
         for record in self:
@@ -64,13 +63,6 @@ class CopyMixin(_ModelStubs):
 
             for name, field in fields_to_copy.items():
                 if field.type == "one2many":
-                    # Drop the already-copied lines *before* recursing rather
-                    # than after: they would come back as `None` entries that
-                    # this method then filters out anyway, but on the way there
-                    # they pass through the child model's own `copy_data`, whose
-                    # overrides overwhelmingly assume a dict. Same result, minus
-                    # the trap. (Reachable whenever two copied relations overlap,
-                    # or a self-referential one2many closes a cycle.)
                     lines = record[name].sorted(key="id")
                     lines = lines.filtered(
                         lambda line: line.id not in seen_map[line._name]
@@ -176,18 +168,12 @@ class CopyMixin(_ModelStubs):
             f"{field} is not a stored translate=True field"
         )
         if new[field_name] != rename(self, self[field_name]):
-            # ``field_name`` came from a caller-supplied default, not from the
-            # ``copy_data`` rename: leave it alone.
             return
         stored_translations = field._get_stored_translations(self)
         if not stored_translations:
             return
         valid_langs = {code for code, _name in self.env["res.lang"].get_installed()}
         valid_langs.add("en_US")
-        # NB: a ``translate=True`` field keeps one cache per language, so the
-        # whole dict has to go through ``_update_cache``, which dispatches it.
-        # ``env.cache.update_raw`` would store it as the *current* language's
-        # value, and the record would then read back a dict instead of a name.
         field._update_cache(
             new,
             {

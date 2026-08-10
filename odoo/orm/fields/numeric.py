@@ -39,7 +39,6 @@ class Integer(Field[int]):
         self, model_class: type[BaseModel], name: str
     ) -> dict[str, typing.Any]:
         res = super()._get_attrs(model_class, name)
-        # Convention, not a feature -- see primitives.CONVENTIONAL_FIELD_NAMES.
         if "aggregator" not in res and name == SEQUENCE_FIELD:
             res["aggregator"] = None
         return res

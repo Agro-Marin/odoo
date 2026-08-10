@@ -164,8 +164,6 @@ def localize_standard(dt: datetime, tz: ZoneInfo | dt_timezone) -> datetime:
     second = dt.replace(tzinfo=tz, fold=1)
     if first.utcoffset() == second.utcoffset():
         return first
-    # The two offsets differ, so dt is either repeated or skipped. Only a
-    # skipped one fails to survive a round trip through UTC.
     if first.astimezone(UTC).astimezone(tz).replace(tzinfo=None) == dt:
         return second
     return first

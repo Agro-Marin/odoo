@@ -50,15 +50,6 @@ class _FieldSqlMixin(_FieldStubs):
                 fallback=fallback,
                 column_type=SQL(self._column_type[1]),
             )
-            # A `type` check, NOT a class flag, and it must stay one. `type`
-            # is leaf identity that subclasses reset; a boolean class attribute
-            # is inherited. `Many2oneReference` subclasses `Integer` and
-            # overrides `type = "many2one_reference"`, so this test excludes it
-            # -- an `is_fixed_width_column = True` on `Integer` would include
-            # it and silently change the company-dependent SQL for every m2o
-            # reference column. Tried on 2026-08-09 while removing the
-            # type-string branches that ARE safe to convert (`delegate`,
-            # `attachment`, now inert defaults on `Field`).
             if self.type in ("boolean", "integer", "float", "monetary"):
                 return SQL("(%s)::%s", sql_field, SQL(self._column_type[1]))
             return SQL("(%s->>0)::%s", sql_field, SQL(self._column_type[1]))

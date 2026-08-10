@@ -10,18 +10,6 @@ from werkzeug.test import EnvironBuilder
 from odoo.http.stream import Stream
 from odoo.tools import config
 
-# `Stream.get_response()` asks werkzeug to set `X-Sendfile` (the ABSOLUTE path
-# of the attachment inside data_dir/filestore) and, when `x_sendfile` is
-# configured, adds `X-Accel-Redirect` with the nginx-relative path.
-#
-# It used to add the second header without removing the first. nginx serves
-# from `X-Accel-Redirect` and passes unknown upstream headers straight through,
-# so every filestore download shipped the server's on-disk layout to the client.
-#
-# These tests exercise the real header-assembly path with a real file rather
-# than asserting on source text, so they keep working if the implementation
-# moves.
-
 
 @pytest.fixture
 def filestore(tmp_path):
@@ -56,8 +44,6 @@ def _serving(tmp_path, *, x_sendfile):
 
 @contextlib.contextmanager
 def _config(tmp_path, *, x_sendfile):
-    # config.options is a ChainMap, which unittest.mock.patch.dict cannot
-    # handle; go through the public setter and drop the override afterwards.
     config["x_sendfile"] = x_sendfile
     config["data_dir"] = str(tmp_path)
     try:
@@ -122,8 +108,6 @@ def test_x_sendfile_disabled_leaves_no_accel_redirect(filestore):
 
 
 def test_a_path_outside_the_filestore_gets_no_accel_redirect(filestore):
-    # relative_to() raises for a path outside data_dir/filestore and the code
-    # suppresses it; the response must then not claim an nginx redirect.
     tmp_path, _ = filestore
     with tempfile.TemporaryDirectory() as outside:
         target = Path(outside) / "elsewhere.bin"

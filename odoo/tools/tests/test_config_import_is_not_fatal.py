@@ -2,13 +2,8 @@ import subprocess
 import sys
 import textwrap
 
-#: Two options the parser rejects as mutually exclusive -- the combination that
-#: was reported from the field, and the cheapest fatal path to reproduce.
 _CONFLICTING = {"ODOO_SYSLOG": "1", "ODOO_LOGFILE": "/tmp/odoo-import-probe.log"}
 
-#: A value the env loader cannot coerce, i.e. the ValueError path rather than
-#: the SystemExit one. Both had to be caught; a test for only one would let the
-#: other regress.
 _MALFORMED = {"ODOO_LIMIT_TIME_CPU": "notanumber"}
 
 
@@ -22,7 +17,7 @@ def _run(code: str, env_extra: dict[str, str]) -> subprocess.CompletedProcess:
         text=True,
         env=env,
         timeout=120,
-        check=False,  # the return code IS the assertion
+        check=False,
     )
 
 

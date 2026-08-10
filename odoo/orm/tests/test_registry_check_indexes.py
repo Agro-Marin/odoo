@@ -33,7 +33,6 @@ def _make_registry(*fields):
     reg = object.__new__(Registry)
     reg.models = {"fake.model": _Model}
     reg.has_trigram = False
-    # Tri-state, not a bool -- see _RegistryStubs.has_unaccent.
     reg.has_unaccent = FunctionStatus.MISSING
     return reg
 

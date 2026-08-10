@@ -29,11 +29,6 @@ _KEYWORDS = {
     "#fff": "#ffffff",
 }
 
-# Per-module debt between this fork and a single stylesheet, for the modules
-# of *this* repository only. Twenty entries here used to name modules that
-# live in the `enterprise` checkout: measurable in a workspace that carries
-# it, invisible to CI (`--addons-path=odoo/addons,addons`), and so a table
-# whose correctness depended on the layout of the machine it ran on.
 SINGLE_BUNDLE_GAP_FLOOR = {
     "account": 5,
     "account_edi_ubl_cii": 1,
@@ -312,12 +307,6 @@ class TestSchemeDuplication(lint_case.LintCase):
             len(gap),
             answered,
         )
-        # Scoped to this repository, like every other gate here. A declaration
-        # served from a sibling checkout is not this branch's debt, and counting
-        # it made the whole floor table depend on whether `enterprise` happened
-        # to be on the addons path -- 20 of the 47 floors named modules CI
-        # cannot see, so `test_every_floor_names_a_module_that_exists` could
-        # never pass there.
         core = lint_case.core_module_names()
         by_module = Counter(
             module
@@ -350,12 +339,6 @@ class TestSchemeDuplication(lint_case.LintCase):
             len(unreachable),
             ", ".join(unreachable),
         )
-        # Shrinkage stays informational here, unlike `assert_ratchet`, and the
-        # reason is not laziness: a module contributes declarations only when it
-        # is installed, so `by_module` is a function of the install and a count
-        # below its floor usually means "not installed", not "fixed". What can
-        # be asserted is that the measurement happened at all -- `web` is in
-        # every install this suite runs under.
         self.assertIn(
             "web",
             by_module,
@@ -372,9 +355,6 @@ class TestSchemeDuplication(lint_case.LintCase):
         )
 
     def test_every_floor_names_a_module_that_exists(self):
-        # Against this repository's modules, not every manifest on the addons
-        # path: a floor for a sibling checkout's module is unmeasurable here and
-        # silently makes the table depend on the workspace layout.
         self.assertFalse(
             sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - lint_case.core_module_names()),
             "these floors name a module that is not in this repository",

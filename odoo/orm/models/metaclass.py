@@ -84,11 +84,6 @@ class MetaModel(type):
 
         if (
             "__init__" in attrs
-            # FORWARDREF: this branch exists only to emit a warning about a
-            # signature mismatch. With the default VALUE format a model whose
-            # __init__ is annotated with a TYPE_CHECKING-only name raises
-            # NameError here under PEP 649 -- i.e. a diagnostic aborts class
-            # definition, and the addon cannot be imported at all.
             and len(
                 inspect.signature(
                     attrs["__init__"],

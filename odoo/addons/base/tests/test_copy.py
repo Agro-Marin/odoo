@@ -52,8 +52,6 @@ class TestCopyDataContract(TransactionCase):
         line = export.export_fields
         self.assertTrue(line, "the fixture needs a copied one2many line")
 
-        # Pretend the line was already copied earlier in this operation, which
-        # is what a cycle or two overlapping copied relations produce.
         seen = defaultdict(set)
         seen["ir.exports.line"].add(line.id)
 

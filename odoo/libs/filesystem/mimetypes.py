@@ -79,10 +79,6 @@ _old_ms_office_mimetypes = {
 }
 _olecf_mimetypes = ("application/x-ole-storage", "application/CDFV2")
 
-# OLE compound-file directory entry names, UTF-16LE as they are stored. The
-# signature checks in _check_olecf look at one fixed offset and only match when
-# the stream happens to be the first sector allocated; these names are present
-# whichever sector the FAT put the stream in.
 _olecf_streams = (
     ("WordDocument".encode("utf-16-le"), "application/msword"),
     ("Workbook".encode("utf-16-le"), "application/vnd.ms-excel"),
@@ -108,10 +104,6 @@ def _check_olecf(data: bytes) -> str | Literal[False]:
         return "application/vnd.ms-excel"
     elif _ppt_pattern.match(data, offset):
         return "application/vnd.ms-powerpoint"
-    # Every check above reads one fixed offset, so a real .doc whose
-    # WordDocument stream is not the first sector fell through to False and was
-    # served as the container type application/x-ole-storage -- which is not
-    # even an IANA-registered mimetype. The directory entry names do not move.
     for stream, mimetype in _olecf_streams:
         if stream in data:
             return mimetype
@@ -187,8 +179,6 @@ def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> st
                 for discriminant in entry.discriminants:
                     try:
                         guess = discriminant(bin_data)
-                        # `isinstance`, not truthiness: the discriminants are
-                        # typed `str | bool` and only a str is a mimetype.
                         if isinstance(guess, str):
                             return guess
                     except Exception:
@@ -208,27 +198,6 @@ def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> st
     return default
 
 
-# libmagic is an ENHANCEMENT over _odoo_guess_mimetype above, not a replacement:
-# guess_mimetype consults it first and falls back to our own signatures only when
-# it answers UNKNOWN_MIMETYPE. That ordering is why a pure-Python detector cannot
-# simply take its place, and puremagic in particular must not -- measured 2026-08
-# over 90 real files from this checkout, on the 2048-byte head this module passes,
-# the two agree on 38. The disagreements are not just coverage:
-#
-#   .xlsx / .ods / .odt  ->  ...wordprocessingml.document   (every OOXML and ODF
-#                                                            container called a
-#                                                            Word document)
-#   .zip                 ->  application/java-archive
-#   .js                  ->  text/x-python
-#
-# Those are CONFIDENT wrong answers, so they never reach the UNKNOWN_MIMETYPE
-# branch and our _check_ooxml/_check_open_container_format discriminants -- which
-# exist precisely to tell the zip-container subtypes apart -- are bypassed.
-# puremagic is better on a few (font/ttf where libmagic says
-# application/SIMH-tape-data, application/json, image/x-icon), and it would drop
-# the libmagic system dependency and the win32 exclusion on the pin. Neither pays
-# for mislabelling every spreadsheet as a text document. Revisit only with a
-# fixture corpus asserting the zip-family subtypes.
 try:
     import magic
 except ImportError:
@@ -237,12 +206,6 @@ except ImportError:
 
 def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE) -> str:
     if isinstance(bin_data, bytearray):
-        # Convert, but do NOT truncate: the fallback below needs the whole
-        # buffer. A zip's central directory sits at the END of the file, so a
-        # 2048-byte head makes _check_ooxml/_check_open_container_format raise
-        # BadZipFile, and every OOXML or ODF buffer passed as a bytearray came
-        # back as the generic application/zip -- with six warning lines logged
-        # per call -- where the same bytes returned the right subtype.
         bin_data = bytes(bin_data)
     elif not isinstance(bin_data, bytes):
         msg = "`bin_data` must be bytes or bytearray"
@@ -325,10 +288,6 @@ def fix_filename_extension(filename: str, mimetype: str) -> str:
     }:
         return filename
 
-    # A distinct name from the `extension` above: the walrus used to rebind it,
-    # so the two lines below silently switched from the filename's own
-    # extension to the guessed one. Same values, but only one of them is
-    # `str` — which is how the reuse surfaced at all.
     if guessed_extension := mimetypes.guess_extension(mimetype):
         _logger.warning(
             "File %r has an invalid extension for mimetype %r, adding %r",

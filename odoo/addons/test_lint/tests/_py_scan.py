@@ -107,10 +107,6 @@ _CHECKERS: list[
         lambda u: _checker_batch.check(u.tree, u.nodes),
         lambda u: not u.is_test,
     ),
-    # No self-exclusion list. The rule reads `tokenize` comments, so the
-    # directive spellings inside this module's own test fixtures are string
-    # literals rather than comments and never were findings -- the five-file
-    # blanket that used to sit here was covering for a text scan.
     (
         "noqa-rationale",
         lambda u: _checker_noqa_rationale.find_violations(u.comments),
@@ -252,10 +248,6 @@ def findings() -> dict[str, list[Finding]]:
         try:
             rows = _run_parallel(entries, jobs)
         except Exception:
-            # A worker pool is an optimisation, never a correctness
-            # requirement: any reason it cannot start (a sandbox with no
-            # fork, an exhausted process table) falls back to the in-process
-            # scan rather than failing a lint gate for an unrelated reason.
             _logger.warning(
                 "parallel scan unavailable, falling back to a serial one",
                 exc_info=True,

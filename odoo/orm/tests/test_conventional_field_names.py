@@ -11,7 +11,6 @@ from odoo.orm.primitives import (
 
 _ORM = Path(__file__).resolve().parents[1]
 
-#: The two the ORM branches on, and the constant each must be reached through.
 BRANCHED = {"state": STATE_FIELD, "sequence": SEQUENCE_FIELD}
 
 
@@ -48,9 +47,6 @@ class TestTheTableMatchesTheCode:
     def test_every_documented_name_is_still_referenced_by_the_orm(self, name):
         needle = f'"{name}"'
         constant = BRANCHED.get(name)
-        # primitives.py is excluded because it DEFINES the table: searching it
-        # finds every key by construction, which made the first version of this
-        # assertion vacuous -- adding a fabricated entry passed.
         found = any(
             needle in text or (constant is not None and f"{name.upper()}_FIELD" in text)
             for text in (

@@ -164,7 +164,7 @@ class ModuleGraph:
                 self._remove(cycle_member)
         for name in names:
             if module := self._modules.get(name):
-                _ = module.depth  # force the cached depth computation
+                _ = module.depth
 
     def _find_cycle_members(self) -> set[str]:
         indices: dict[str, int] = {}

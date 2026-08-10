@@ -105,11 +105,6 @@ class _FakePool:
         return dict(self._stats)
 
     def getconn(self, timeout=None):
-        # The real pool's borrow entry point, which was missing here entirely:
-        # the one test driving _getconn_with_retry grafted it on per-instance,
-        # so the double did not carry the method the code under test calls.
-        # A constructor argument rather than an assignment, because overwriting
-        # a method on an instance is invisible to every reader of this class.
         if self._getconn_raises is not None:
             raise self._getconn_raises
         raise NotImplementedError("this test needs _FakePool(getconn_raises=...)")
@@ -431,8 +426,6 @@ class TestReachabilityProof(unittest.TestCase):
     def _pool_with_probe_counter(self, **kw):
         pool = ConnectionPool(maxconn=2, **kw)
         calls = []
-        # Deliberate per-instance override: the test counts probe calls, and
-        # the pool has no seam for injecting one.
         pool._probe_connectable = lambda *a, **k: calls.append(a)  # type: ignore[method-assign]
         return pool, calls
 

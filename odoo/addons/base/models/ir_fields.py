@@ -647,23 +647,6 @@ class IrFieldsConverter(models.AbstractModel):
         tnx_cache = self._import_memo()
         cache_key = ("selection", field.model_name, field.name, self.env.lang)
         if cache_key not in tnx_cache:
-            # A *computed* selection builds its labels with `_()`, and `_()`
-            # resolves the language by walking the call stack for a frame whose
-            # `self.env.lang` is truthy (`_get_lang`). An env carrying
-            # `lang=None` is therefore not an answer but a frame to skip: the
-            # walk continued outwards and found the *caller's* language, so
-            # under an fr_FR import the "source" selection came back already
-            # translated. Only the French labels were indexed, and a file
-            # written with the English ones failed with "Value 'Wheee' not
-            # found in selection field". `en_US` is the source language by the
-            # same definition `_get_translation_source` uses.
-            #
-            # A *static* selection is a Python literal that is already the
-            # source, and asking for a language sends
-            # `_description_selection` through `get_field_selection` — one
-            # query per field, where the literal costs none. Keep `lang=None`
-            # there: it is inert for a literal, and this index is built for
-            # every selection column of every import.
             computed = callable(field.selection) or isinstance(field.selection, str)
             source_lang = "en_US" if computed else None
             selection = field._description_selection(

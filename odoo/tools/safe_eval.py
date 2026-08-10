@@ -28,9 +28,6 @@ _ALLOWED_MODULES = ["_strptime", "math", "time"]
 
 def _import(
     name: str,
-    # A002: this replaces the `__import__` builtin inside safe_eval, so the
-    # parameter names have to match its signature — callers pass positionally,
-    # but keyword use must keep working too.
     globals: dict | None = None,  # noqa: A002  mirrors __import__, see comment above
     locals: dict | None = None,  # noqa: A002  mirrors __import__, see comment above
     fromlist: list[str] | None = None,

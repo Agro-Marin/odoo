@@ -74,8 +74,6 @@ REGEX_SUBTYPE_UNFORMATED = re.compile(r"^\w+/[\w-]+$")
 REGEX_SUBTYPE_FORMATED = re.compile(r"^/\w+#2F[\w-]+$")
 
 
-# Touching the plugin module forces Pillow to register its PDF handler; the
-# import alone is lazy and the registration would not have happened yet.
 _ = PdfImagePlugin.__name__
 
 

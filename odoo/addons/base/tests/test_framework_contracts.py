@@ -105,8 +105,6 @@ class TestFrameworkModelContracts(TransactionCase):
                         f"so {model_name} must carry a field of that name",
                     )
 
-    # -- what a Protocol declares, split by kind ---------------------------
-
     @staticmethod
     def _declared_methods(protocol):
         return [

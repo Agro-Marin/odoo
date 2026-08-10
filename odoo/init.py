@@ -13,8 +13,6 @@ if sys.version_info[:2] < MIN_PY_VERSION:
     )
 
 try:
-    # Hard dependency probe; the ImportError below is the message. The module
-    # object is used again by the freshness check further down.
     import odoo_rust
 except ImportError as exc:
     raise ImportError(
@@ -39,11 +37,6 @@ def _rust_source_crc(crate):
     return f"{zlib.crc32(blob):08x}"
 
 
-# A development checkout carries the crate that built the extension, so it can
-# prove the two agree.  An installed deployment has no crate to compare against
-# and skips the check.  The extension is a hard dependency with no fallback, so
-# a stale build does not degrade gracefully -- it segfaults on a cyclic clone
-# and mis-orders timezone-aware columns, neither of which names its own cause.
 _RUST_CRATE = Path(__file__).resolve().parents[1] / "crates" / "odoo_rust"
 
 if _RUST_CRATE.is_dir() and not os.environ.get("ODOO_SKIP_RUST_FRESHNESS_CHECK"):

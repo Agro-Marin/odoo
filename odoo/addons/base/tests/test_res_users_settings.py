@@ -156,8 +156,6 @@ class TestResUsersSettingsRowLifecycle(TransactionCase):
         self.assertTrue(user.res_users_settings_id)
 
     def test_created_portal_user_has_none(self):
-        # Not an oversight: the row carries preferences a share user never
-        # reaches, and `_find_or_create_for_user` makes one if that changes.
         user = new_test_user(self.env, login="rusetlc_b", groups="base.group_portal")
         self.assertFalse(user.res_users_settings_id)
 
@@ -224,5 +222,5 @@ class TestResUsersSettingsRowLifecycle(TransactionCase):
         settings_fields = self.env["res.users.settings"]._fields
         for name in sorted(self.env["res.users"]._settings_backed_fields()):
             selection = getattr(settings_fields[name], "selection", None)
-            if isinstance(selection, list):  # nothing else is safe to write blind
+            if isinstance(selection, list):
                 yield name, selection[-1][0]

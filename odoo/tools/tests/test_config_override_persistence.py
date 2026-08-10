@@ -3,24 +3,6 @@ from unittest.mock import patch
 
 from odoo.tools.config import configmanager
 
-# `config["x"] = y` used to land in the same ChainMap layer that
-# `_postprocess_options()` starts by clearing, so every programmatic override
-# silently evaporated on the next `parse_config()`. Four live writers depended
-# on it working:
-#
-#   modules/db.py:245  config["load_language"] = lang
-#   modules/db.py:294  config["load_language"] = saved_load_language   <- restore
-#   cli/upgrade_code.py:282  config["addons_path"] = requested
-#   cli/db.py:306  config["list_db"] = True
-#
-# The modules/db.py pair is the dangerous one: it saves a value, changes it, and
-# restores it. If the clear happened in between, the *saved* value was lost too.
-#
-# Overrides now live in their own `_override_options` map, above the derived
-# `_runtime_options` map that is cleared and recomputed. The invariant, which is
-# what these tests pin: what a caller set explicitly survives re-parsing; what
-# post-processing derived does not.
-
 
 class TestOverridePersistence(unittest.TestCase):
     def setUp(self):
@@ -36,7 +18,6 @@ class TestOverridePersistence(unittest.TestCase):
         self.assertEqual(self.config["db_maxconn"], default + 935)
 
     def test_save_change_restore_round_trip_across_a_reparse(self):
-        # The modules/db.py shape, which is what actually breaks.
         saved = self.config["load_language"]
         self.config["load_language"] = "fr_FR"
         self.config.parse_config([], setup_logging=False)
@@ -56,9 +37,6 @@ class TestOverridePersistence(unittest.TestCase):
         self.assertEqual(self.config["db_maxconn"], default)
 
     def test_derived_values_are_still_recomputed_not_persisted(self):
-        # The other half of the invariant: _postprocess_options() must keep
-        # clearing what it derives, or a stale derivation would outlive its
-        # inputs. `test_enable` is derived from `test_tags`.
         self.config.parse_config([], setup_logging=False)
         self.assertIn("test_enable", self.config._runtime_options)
         before = dict(self.config._runtime_options)
@@ -66,9 +44,6 @@ class TestOverridePersistence(unittest.TestCase):
         self.assertEqual(dict(self.config._runtime_options), before)
 
     def test_override_outranks_the_command_line(self):
-        # An explicit programmatic write is the most deliberate act available,
-        # so it sits at the top of the ChainMap. Pinned because it is a real
-        # precedence decision, not an accident of map order.
         self.config.parse_config(["--db_maxconn", "5"], setup_logging=False)
         self.assertEqual(self.config["db_maxconn"], 5)
         self.config["db_maxconn"] = 11
@@ -82,8 +57,6 @@ class TestOverridePersistence(unittest.TestCase):
         self.assertIn("runtime", sources)
 
     def test_deprecated_rcfile_setter_behaves_like_the_documented_form(self):
-        # Its own DeprecationWarning says to use `config["config"] = ...`
-        # instead, so it must land in the same place.
         import warnings
 
         with warnings.catch_warnings():

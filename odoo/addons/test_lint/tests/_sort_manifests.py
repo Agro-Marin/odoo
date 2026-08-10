@@ -45,19 +45,6 @@ def expected_key_order(present_keys: list[str]) -> list[str]:
 
 
 def _fmt_str(s: str) -> str:
-    # The triple-quoted form is only used when it is *verified* to mean the
-    # same string, never when it merely looks safe. Escaping rules for a
-    # triple-quoted literal have more corners than they appear to -- a value
-    # ending in `"` closes the literal a quote early, a trailing backslash
-    # escapes the closing delimiter, and `\r` is folded into `\n` by universal
-    # newlines. Enumerating those shapes is how this went wrong once already:
-    # it produced `"""...a quoted "word""""`, an unterminated literal, and the
-    # module it was rewriting dropped out of the addons list.
-    #
-    # Deciding by round-trip instead of by rule is correct by construction, and
-    # a fuzz of 9 579 values (`test_fixers`) puts the number of shapes that
-    # reach the fallback at whatever it really is rather than whatever was
-    # remembered. json.dumps is exact for every string; it is only less pretty.
     if "\n" in s:
         candidate = f'"""{s.replace("\\", "\\\\").replace('"""', r"\"\"\"")}"""'
         try:

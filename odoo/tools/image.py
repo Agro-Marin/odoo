@@ -70,16 +70,6 @@ def image_process(
     output_format: str = "",
     padding: int | bool = False,
 ) -> bytes | bool | None:
-    # Delegates, passing this module's UserError-raising ImageProcess subclass.
-    # It used to be a byte-identical COPY of the libs body, because the shared
-    # body binds `ImageProcess` at its definition site and the Odoo-coupled layer
-    # needs its own. The copy then drifted, in both directions that mattered:
-    # `padding` was declared `bool | tuple[int, int, int, int]` (add_padding does
-    # `2 * padding` and compares it to the image size, so a tuple raises
-    # TypeError) and `source` was declared `bytes | None` while
-    # addons/base/tests/test_image.py:115 asserts image_process(False) is False.
-    # `processor=` is the seam that removes the copy; the other members of this
-    # module (binary_to_image, base64_to_image) already delegated this way.
     return _image_process_base(
         source,
         size=size,

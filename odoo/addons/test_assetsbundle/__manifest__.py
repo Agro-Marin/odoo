@@ -82,11 +82,6 @@
             "test_assetsbundle/static/tests/lazy_component.test.js",
         ],
     },
-    # Registers native_esm as an esbuild-compiled bundle, which is what routes
-    # its members to AssetsBundle.native_modules and lets a test drive
-    # EsbuildCompiler.compile over files that really exist on disk. Standalone
-    # because it imports nothing from another bundle, so it needs no bridge to
-    # the parent app and can be compiled in isolation.
     "esm": {
         "bundles": ["test_assetsbundle.native_esm"],
         "standalone_bundles": ["test_assetsbundle.native_esm"],

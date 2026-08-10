@@ -8,7 +8,6 @@ from odoo.orm.runtime.environment import Environment
 
 _MOD = "test_field_cache_memo_fast_path"
 
-#: The four sites, so a moved fast path is noticed rather than silently dropped.
 _FAST_PATH_SITES = (
     ("orm/fields/base.py", 2),
     ("orm/fields/textual.py", 1),
@@ -53,7 +52,6 @@ def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch):
         model = env["memo.thing"]
         field = model._fields["name"]
 
-        # Warm the memo the way production does.
         field._get_cache(env)
         assert field in env.__dict__["_field_cache_memo"]
 
@@ -65,7 +63,6 @@ def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch):
             lambda self, e: (calls.append(self), original(self, e))[1],
         )
 
-        # Exactly what the hot paths do.
         field_cache = env.__dict__["_field_cache_memo"][field]
 
         assert field_cache is not None

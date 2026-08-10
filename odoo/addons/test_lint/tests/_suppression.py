@@ -2,9 +2,6 @@ import io
 import re
 import tokenize
 
-# `noqa` has to end where a directive ends: at the end of the comment, at
-# whitespace, or at the `:` that introduces the codes. Without this, any word
-# merely starting with `noqa` read as a bare suppression of every rule.
 _NOQA_RE = re.compile(
     r"""
     \#\s*

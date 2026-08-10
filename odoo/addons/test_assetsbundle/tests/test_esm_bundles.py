@@ -920,10 +920,6 @@ class TestEsbuildEndToEnd(TransactionCase):
 class TestEsbuildFailurePath(TransactionCase):
     def setUp(self):
         super().setUp()
-        # The breaker is class-level state on ir.qweb and survives the
-        # transaction rollback, so one test recording a failure would put the
-        # next one down the `circuit_blocked` branch, where the compiler is
-        # never called and nothing can raise.
         IrQweb = type(self.env["ir.qweb"])
         cooldowns = IrQweb._esbuild_cooldowns
         self.addCleanup(cooldowns.update, dict(cooldowns))
@@ -1856,7 +1852,6 @@ class TestBridgeRwCursorEscalation(TransactionCase):
 
         self.assertTrue(manager._persist_bridges_via_rw_cursor(self._to_create("ok")))
 
-        # A separate cursor, because the write was committed outside ours.
         with Registry(get_db_name()).cursor() as cr:
             cr.execute(
                 "SELECT count(*) FROM ir_attachment WHERE url = %s",
@@ -1867,9 +1862,6 @@ class TestBridgeRwCursorEscalation(TransactionCase):
     def test_a_failed_escalation_reports_false_rather_than_raising(self):
         manager = AssetsBundle("web.assets_web", [], env=self.env)._bridges
         bad = self._to_create("bad")
-        # An unknown field: create() raises, which is what the escalation has
-        # to absorb. (res_model is a Char, so a bogus value there is coerced
-        # rather than refused -- it would not exercise anything.)
         bad[0]["no_such_field_on_ir_attachment"] = 1
 
         with self.assertLogs("odoo.tools.assets.esm_bridges", level="DEBUG") as logged:

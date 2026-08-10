@@ -17,8 +17,6 @@ def _spec(fn):
 
 
 def test_resolve_optional_forms_are_equivalent():
-    # The point of this test is that the LEGACY spellings still resolve the same
-    # way as `X | None` / `X | Y`, so it has to name them.
     optional = typing.Optional  # noqa: TID251  legacy spelling under test
     union = typing.Union  # noqa: TID251  legacy spelling under test
     assert _resolve(int | None) == (int, None, True)

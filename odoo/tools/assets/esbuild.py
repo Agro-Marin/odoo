@@ -550,12 +550,7 @@ class EsbuildCompiler:
             if spec.startswith("@") and "/" not in spec:
                 addon_roots[spec] = odoo_root / target.removeprefix("./")
 
-        # ``<dir>: {<file names the shims will take>}``, so a rebuilt directory
-        # never links over a name a shim is about to occupy -- writing the shim
-        # afterwards would follow that link into the source tree.
         occupied: dict[str, set[str]] = {}
-        # Every directory with a stub somewhere beneath it, at any depth. These
-        # have to be real directories in the mirror; a symlink is the escape.
         must_be_real: set[str] = set()
         for spec in exact_stubs:
             parent_rel, _, name = spec.lstrip("@").rpartition("/")
@@ -565,8 +560,6 @@ class EsbuildCompiler:
                 parent_rel = parent_rel.rpartition("/")[0]
 
         flags = []
-        # Shortest first: a spec's directory must exist as a real one before any
-        # stub nested inside it is written.
         for spec in sorted(exact_stubs):
             rel = spec.lstrip("@")
             stub_path = stub_root / rel

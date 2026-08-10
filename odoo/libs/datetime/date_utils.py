@@ -228,12 +228,6 @@ def subtract[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
 def date_range[D: (date, datetime)](
     start: D, end: D, step: relativedelta = relativedelta(months=1)
 ) -> Iterator[D]:
-    # The timezone to put back on each yielded value, or None to yield it as
-    # it is. This was two conditional lambdas, which do NOT type cleanly however
-    # they are written: unannotated, the second is "cannot infer type of lambda";
-    # annotated, `date.replace(tzinfo=...)` comes into scope on the `D = date`
-    # leg of the constrained parameter, where it does not exist. Carrying the
-    # timezone instead of a function to apply it removes the dilemma.
     restore_tz: tzinfo | None = None
 
     if isinstance(start, datetime) and isinstance(end, datetime):
