@@ -48,6 +48,7 @@ GATES = {
     "js_cycle_check": ["--check"],
     "js_layer_check": ["--check"],
     "js_layer_cohesion": ["--check"],
+    "js_deployment_layers": ["--check"],
     "js_registry_layering": ["--check"],
     "js_public_surface": ["--check"],
     "js_extension_surface": ["--check"],

@@ -22,10 +22,21 @@ Every leaf directory under `static/src/` carries a **layer suffix** (`.../common
 | `web_portal/` | portal + backend | `web.assets_backend` (+ standalone `mail.assets_*_web_portal`) |
 | `public/` | anonymous public discuss page only | `mail.assets_public` |
 
-**The import rule that makes this work:** `common/` may **not** import from any higher
-layer; higher layers import downward only (`web` → `public_web` → `common`). A `common/`
-file importing from `web/` would break the public page (where `web/` is absent). See
-CONVENTIONS.md.
+**The import rule that makes this work:** a file may import another only if the target
+ships **everywhere the importer ships** — `bundles(source) ⊆ bundles(target)`, read off
+the table above. That forbids `common/` → anything (it alone ships in all three
+contexts), `web/` ↔ `public/` (disjoint targets), and `public_web/` ↔ `web_portal/`
+(each ships somewhere the other does not). A `common/` file importing from `web/`
+resolves to `undefined` on the public page, where `web/` is absent. See CONVENTIONS.md.
+
+> A linear rank (`common` < `public_web` < `web`) is the intuitive model and is **wrong**:
+> `web` and `public` are mutually exclusive, so no ordering places them. Use the subset rule.
+
+**This is now gated, not just documented.** `tooling/architecture/js_deployment_layers.py`
+enforces it drift-zero across every addon using the convention (mail plus `im_livechat`,
+`hr_holidays`, `whatsapp`, `cloud_storage`, …), including cross-addon and relative
+imports. It runs in `.github/workflows/architecture.yml` and is blocking. The tree was at
+zero when the gate landed and `KNOWN_VIOLATIONS` is empty.
 
 Directories on disk carrying these suffixes: `core/{common,public_web,web_portal,web}`,
 `chatter/{web,web_portal}`, `discuss/call/{common,public,public_web,web}`,
