@@ -28,7 +28,7 @@ from .ast import (
     _nary_value_tiebreak,
 )
 from .constants import (
-    CONDITION_OPERATORS,
+    ACCEPTED_CONDITION_OPERATORS,
     INVERSE_OPERATOR,
     LIKE_CONDITION_OPERATORS,
     NEGATIVE_CONDITION_OPERATORS,
@@ -47,13 +47,16 @@ def operator_optimization(
     level: OptimizationLevel = OptimizationLevel.BASIC,
 ) -> typing.Callable[[typing.Any], typing.Any]:
     assert operators, "Missing operator to register"
-    if unknown := set(operators) - CONDITION_OPERATORS:
+    if unknown := set(operators) - ACCEPTED_CONDITION_OPERATORS:
         raise ValueError(
-            f"unknown domain operator(s) {sorted(unknown)!r}. Operators are "
-            f"declared in domain/constants.py (STANDARD_CONDITION_OPERATORS or "
-            f"EXTENDED_CONDITION_OPERATORS); registering an optimization no "
-            f"longer creates one, so this is either a typo or a missing "
-            f"declaration."
+            f"unknown domain operator(s) {sorted(unknown)!r}. Framework "
+            f"operators are declared in domain/constants.py "
+            f"(STANDARD_CONDITION_OPERATORS or EXTENDED_CONDITION_OPERATORS) "
+            f"and addon operators are contributed by calling "
+            f"register_condition_operators() before this decorator runs; "
+            f"registering an optimization no longer creates one, so this is "
+            f"either a typo, a missing declaration, or a registration that "
+            f"happens too late."
         )
 
     def register(optimization: typing.Any) -> typing.Any:
@@ -828,7 +831,7 @@ def _operator_hierarchy(condition, model):
     field = condition._field(model)
     if field.type == "many2one":
         comodel = model.env[field.comodel_name].with_context(active_test=False)
-    elif field.type in ("one2many", "many2many"):
+    elif field.type in ("many2many", "one2many"):
         comodel = model.env[field.comodel_name].with_context(**field.context)
     elif field.name == "id":
         comodel = model

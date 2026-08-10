@@ -18,7 +18,7 @@ from .._recordset import is_recordset
 from ..parsing import parse_field_expr
 from ..primitives import COLLECTION_TYPES, NewId
 from .constants import (
-    CONDITION_OPERATORS,
+    ACCEPTED_CONDITION_OPERATORS,
     FALSE_LEAF,
     INTERNAL_CONDITION_OPERATORS,
     INVERSE_INEQUALITY,
@@ -817,7 +817,7 @@ class DomainCondition(Domain):
                 stacklevel=2,
             )
             return DomainCondition(self.field_expr, op, self.value).checked()
-        if op not in CONDITION_OPERATORS:
+        if op not in ACCEPTED_CONDITION_OPERATORS:
             self._raise("Invalid operator")
         if op in SUBDOMAIN_OPERATORS and isinstance(self.value, (list, tuple)):
             _check_subdomain_nesting(self.value, MAX_DOMAIN_NESTING)

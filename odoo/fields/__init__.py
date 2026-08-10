@@ -1,6 +1,8 @@
 from odoo.orm.primitives import COLLECTION_TYPES, NO_ACCESS, Command
 from odoo.orm.domain import (
+    ACCEPTED_CONDITION_OPERATORS,
     CONDITION_OPERATORS,
+    register_condition_operators,
     NEGATIVE_CONDITION_OPERATORS,
     Domain,
     DomainCondition,
@@ -34,6 +36,7 @@ from odoo.orm.fields import (
 from odoo.orm.parsing import parse_field_expr
 
 __all__ = [
+    "ACCEPTED_CONDITION_OPERATORS",
     "COLLECTION_TYPES",
     "CONDITION_OPERATORS",
     "NEGATIVE_CONDITION_OPERATORS",
@@ -66,4 +69,5 @@ __all__ = [
     "Text",
     "operator_optimization",
     "parse_field_expr",
+    "register_condition_operators",
 ]

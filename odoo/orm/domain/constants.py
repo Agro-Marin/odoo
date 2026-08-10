@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from typing import Final
 
 STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
@@ -78,11 +79,61 @@ membership instead of mutating.
 CONDITION_OPERATORS: Final[frozenset[str]] = (
     STANDARD_CONDITION_OPERATORS | EXTENDED_CONDITION_OPERATORS
 )
-"""All available condition operators.
+"""All condition operators the framework itself declares.
 
 Non-standard operators are reduced to standard ones by the optimization
 functions (see each for details).
+
+This is the *framework's* language and is frozen. An addon that adds a
+predicate the framework has no notion of -- ``geoengine``'s PostGIS operators
+are the only case in this codebase -- contributes it through
+:func:`register_condition_operators`, and the union of the two is
+:data:`ACCEPTED_CONDITION_OPERATORS`.
 """
+
+ACCEPTED_CONDITION_OPERATORS: set[str] = set(CONDITION_OPERATORS)
+"""Operators a condition may actually carry: the frozen set above, plus what
+addons have registered.
+
+Mutable, and deliberately so, but **not** a return to what
+:data:`EXTENDED_CONDITION_OPERATORS` describes. What made the old mutable set a
+defect was that ``@operator_optimization`` widened it as a *side effect*, so a
+typo in a decorator argument invented an operator instead of failing. Widening
+now takes a named call that says what it is doing and validates its argument;
+the decorator only ever *reads* this set. Membership is the hot path in
+``DomainCondition.checked()``, so consumers import this object and test against
+it directly rather than recomputing a union per call -- which is why it is
+mutated in place and never rebound.
+"""
+
+
+def register_condition_operators(operators: Collection[str]) -> frozenset[str]:
+    """Declare addon-provided condition operators and return them as a set.
+
+    Call at import time of the module that implements the operators, before the
+    ``@operator_optimization`` that gives them meaning -- the decorator
+    validates against the registry, so registration has to come first.
+
+    Registering an operator only makes it *sayable*: a condition carrying it
+    survives ``checked()``. Something still has to give it meaning, or the
+    domain will reach a consumer that cannot translate it.
+    """
+    operators = frozenset(operators)
+    if not operators:
+        raise ValueError("Missing operator to register")
+    if collisions := operators & CONDITION_OPERATORS:
+        raise ValueError(
+            f"cannot redefine the framework's own operator(s) "
+            f"{sorted(collisions)!r}; addon operators must be new names."
+        )
+    if malformed := {op for op in operators if not op or op != op.lower()}:
+        raise ValueError(
+            f"domain operator(s) {sorted(malformed)!r} must be non-empty and "
+            f"lower-case; DomainCondition.checked() lower-cases the operator "
+            f"before looking it up, so a mixed-case name could never match."
+        )
+    ACCEPTED_CONDITION_OPERATORS.update(operators)
+    return operators
 
 LIKE_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
     op for op in STANDARD_CONDITION_OPERATORS if op.endswith("like")

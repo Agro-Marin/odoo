@@ -1,6 +1,8 @@
 from .constants import (
     STANDARD_CONDITION_OPERATORS,
+    ACCEPTED_CONDITION_OPERATORS,
     CONDITION_OPERATORS,
+    register_condition_operators,
     INTERNAL_CONDITION_OPERATORS,
     NEGATIVE_CONDITION_OPERATORS,
     INVERSE_OPERATOR,
@@ -34,6 +36,7 @@ from .optimizations import (
 )
 
 __all__ = [
+    "ACCEPTED_CONDITION_OPERATORS",
     "ANY_TYPES",
     "CONDITION_OPERATORS",
     "FALSE_LEAF",
@@ -58,4 +61,5 @@ __all__ = [
     "nary_condition_optimization",
     "nary_optimization",
     "operator_optimization",
+    "register_condition_operators",
 ]
