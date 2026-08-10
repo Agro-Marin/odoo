@@ -30,7 +30,6 @@ export const ACTION_TAGS = Object.freeze({
  * @property {boolean|(params: ActionParams) => boolean} [badge]
  * @property {string|(params: ActionParams) => string} [badgeIcon]
  * @property {string|(params: ActionParams) => string} [badgeText]
- * @property {Object|(params: ActionParams) => Object} [btnAttrs]
  * @property {string|(params: ActionParams) => string} [btnClass]
  * @property {Component} [component]
  * @property {boolean|(params: ActionParams) => boolean} [componentCondition=true]
@@ -120,17 +119,6 @@ export class Action {
             (typeof this.definition.badgeText === "function"
                 ? this.definition.badgeText.call(this, this.params)
                 : this.definition.badgeText)
-        );
-    }
-
-    /** @param {ActionParams} action @returns {Object|undefined} */
-    _btnAttrs(action) {}
-    get btnAttrs() {
-        return (
-            this._btnAttrs(this.params) ??
-            (typeof this.definition.btnAttrs === "function"
-                ? this.definition.btnAttrs.call(this, this.params)
-                : this.definition.btnAttrs)
         );
     }
 
