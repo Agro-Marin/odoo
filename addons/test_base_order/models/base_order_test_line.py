@@ -20,11 +20,7 @@ class BaseOrderTestLine(models.Model):
 
     # Self-referential section link: the compute lives in the mixin, but the
     # comodel must point to this concrete line model (as in sale/purchase).
-    parent_id = fields.Many2one(
-        comodel_name="base.order.test.line",
-        string="Parent Section Line",
-        compute="_compute_parent_id",
-    )
+    parent_id = fields.Many2one(comodel_name="base.order.test.line")
 
     # ROUTING
 

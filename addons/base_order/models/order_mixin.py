@@ -321,6 +321,13 @@ class OrderMixin(models.AbstractModel):
     # Terms
     notes = fields.Html(string="Terms and Conditions")
 
+    # Self-referential, so the placeholder points at this abstract model and
+    # each concrete model re-declares it with its own comodel.
+    duplicated_order_ids = fields.Many2many(
+        comodel_name="order.mixin",
+        compute="_compute_duplicated_order_ids",
+    )
+
     # Computed status helpers
     is_expired = fields.Boolean(
         string="Is Expired",
@@ -536,9 +543,10 @@ class OrderMixin(models.AbstractModel):
     def _compute_duplicated_order_ids(self):
         """Compute potential duplicated orders based on key fields.
 
-        Concrete models declare the ``duplicated_order_ids`` Many2many field
-        (an abstract model cannot point a Many2many at its concrete model) and
-        extend the dependencies with their reference field.
+        Concrete models re-declare ``duplicated_order_ids`` with their own
+        ``comodel_name`` and extend the dependencies with their reference
+        field. (The dependencies are *unioned* across the MRO, so an override's
+        ``@api.depends`` adds to this one rather than replacing it.)
         """
         draft_orders = self.filtered(lambda order: order.state == "draft")
         order_to_duplicate_orders = draft_orders._get_duplicate_orders()

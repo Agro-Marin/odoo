@@ -321,10 +321,7 @@ class SaleOrder(models.Model):
         column2="tag_id",
         string="Tags",
     )
-    duplicated_order_ids = fields.Many2many(
-        comodel_name="sale.order",
-        compute="_compute_duplicated_order_ids",
-    )
+    duplicated_order_ids = fields.Many2many(comodel_name="sale.order")
     sale_warning_text = fields.Text(
         string="Sale Warning",
         compute="_compute_sale_warning_text",

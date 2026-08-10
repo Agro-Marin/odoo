@@ -47,8 +47,6 @@ class SaleOrderLine(models.Model):
     # Section-related fields
     parent_id = fields.Many2one(
         comodel_name="sale.order.line",
-        string="Parent Section Line",
-        compute="_compute_parent_id",
         help="The section or subsection this line belongs to.",
     )
     collapse_prices = fields.Boolean(

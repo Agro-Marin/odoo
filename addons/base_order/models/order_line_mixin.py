@@ -21,10 +21,10 @@ class OrderLineFieldsMixin(models.AbstractModel):
 
     Fields that **must** be defined by concrete models:
 
-    - ``order_id``: re-declared with the concrete ``comodel_name`` (the
-      placeholder below points at the abstract ``order.mixin`` so the bridge
-      fields can resolve their related paths at setup)
-    - ``parent_id``: Many2one to self (with ``compute='_compute_parent_id'``)
+    Concrete models re-declare ``order_id`` and ``parent_id`` with their own
+    ``comodel_name`` — and nothing else: the placeholders below point at
+    abstract models (``order.mixin``, and this mixin itself) so every other
+    attribute, and the related paths, resolve at registry setup.
     """
 
     _name = "order.line.fields.mixin"
@@ -125,6 +125,18 @@ class OrderLineFieldsMixin(models.AbstractModel):
     product_type = fields.Selection(
         related="product_id.type",
         depends=["product_id"],
+    )
+
+    # ─── Section Hierarchy ─────────────────────────────────────────
+    # Self-referential: the placeholder points at this abstract model, and each
+    # concrete model re-declares it with its own comodel. Pointing an abstract
+    # model's relational field at its *concrete* model is what does not work;
+    # pointing it at the abstract shape does.
+
+    parent_id = fields.Many2one(
+        comodel_name="order.line.fields.mixin",
+        string="Parent Section Line",
+        compute="_compute_parent_id",
     )
 
     # ─── Structural Fields ─────────────────────────────────────────

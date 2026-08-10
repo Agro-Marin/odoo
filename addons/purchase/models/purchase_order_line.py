@@ -46,11 +46,7 @@ class PurchaseOrderLine(models.Model):
     )
 
     # Section-related fields
-    parent_id = fields.Many2one(
-        comodel_name="purchase.order.line",
-        string="Parent Section Line",
-        compute="_compute_parent_id",
-    )
+    parent_id = fields.Many2one(comodel_name="purchase.order.line")
 
     purchase_line_warn_msg = fields.Text(
         compute="_compute_purchase_line_warn_msg",

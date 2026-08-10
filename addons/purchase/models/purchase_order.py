@@ -155,10 +155,7 @@ class PurchaseOrder(models.Model):
         compute="_compute_purchase_warning_text",
         help="Internal warning for the partner or the products as set by the user.",
     )
-    duplicated_order_ids = fields.Many2many(
-        comodel_name="purchase.order",
-        compute="_compute_duplicated_order_ids",
-    )
+    duplicated_order_ids = fields.Many2many(comodel_name="purchase.order")
     receipt_reminder_email = fields.Boolean(
         string="Receipt Reminder Email",
         compute="_compute_receipt_reminder_email",
