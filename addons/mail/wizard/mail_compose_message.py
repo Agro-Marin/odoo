@@ -430,7 +430,7 @@ class MailComposeMessage(models.TransientModel):
             elif not composer.template_id:
                 composer.attachment_ids = False
 
-    @api.depends("template_id")
+    @api.depends("composition_mode", "template_id")
     def _compute_email_add_signature(self):
         """When having a template, consider it defines completely body and
         do not add signature. Without template, add signature by default
@@ -646,6 +646,7 @@ class MailComposeMessage(models.TransientModel):
 
     @api.depends(
         "composition_mode",
+        "message_type",
         "model",
         "parent_id",
         "res_domain",

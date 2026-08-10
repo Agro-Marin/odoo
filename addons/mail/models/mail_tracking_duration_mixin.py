@@ -40,6 +40,21 @@ class MailTrackingDurationMixin(models.AbstractModel):
         search="_search_is_rotting",
     )
 
+    def _get_duration_tracking_depends_fields(self):
+        """The tracked many2one, or nothing on a model that declares none.
+
+        Mirrors ``_get_rotting_depends_fields``: the field name is per-model, so
+        the dependency has to be resolved per model rather than written literally.
+        """
+        field_name = getattr(self, "_track_duration_field", None)
+        return [field_name] if field_name else []
+
+    # Every mail.tracking.value this reads exists *because* the tracked many2one
+    # changed, so that field is the whole dependency. Without it the buckets were
+    # computed once and never invalidated: moving a record to another stage and
+    # reading it back in the same request -- which is what a kanban drag-and-drop
+    # does -- returned the time spent in the *previous* stage.
+    @api.depends(lambda self: self._get_duration_tracking_depends_fields())
     def _compute_duration_tracking(self):
         """Compute duration_tracking, a Json mapping each id taken by the tracked
         many2one field to the seconds spent on it, e.g. {"1": 1230, "5": 14}.

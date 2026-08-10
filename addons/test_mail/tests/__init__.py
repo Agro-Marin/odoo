@@ -32,3 +32,4 @@ from . import test_mail_template_preview
 from . import test_message_post
 from . import test_message_track
 from . import test_performance
+from . import test_tracking_duration_depends
