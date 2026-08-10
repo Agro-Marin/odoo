@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from odoo.exceptions import ValidationError
-from odoo.tests import tagged
+from odoo.tests import new_test_user, tagged
 from odoo.tests.common import TransactionCase
 
 
@@ -604,3 +604,61 @@ class TestSchedulingMixinAllocationBounds(TransactionCase):
     def test_boundaries_accepted(self):
         self.assertTrue(self._record(allocated_percentage=0.0))
         self.assertTrue(self._record(allocated_percentage=100.0))
+
+
+@tagged("post_install", "-at_install")
+class TestSchedulingMixinSurplusRelease(TransactionCase):
+    """Releasing a surplus reservation must not need the user's own rights.
+
+    ``base.group_user`` holds *read-only* access to ``resource.reservation`` --
+    the rows are engine-owned mirrors, written only by the projection. Creating
+    one has always gone through ``sudo``; deleting a surplus one did not,
+    because the recordset collecting them is built from ``self.browse()`` and
+    ``union`` answers in the environment of its left operand, discarding the
+    ``sudo`` the rows were fetched with. So an ordinary user who moved a
+    booking from one resource to another got an AccessError from a sync that
+    was only tidying up after them.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = new_test_user(
+            cls.env, "surplus_release_user", groups="base.group_user"
+        )
+        cls.resource_a, cls.resource_b = cls.env["resource.resource"].create(
+            [{"name": "Resource A"}, {"name": "Resource B"}]
+        )
+
+    def test_moving_a_booking_between_resources_as_a_plain_user(self):
+        record = (
+            self.env["resource.scheduling.test"]
+            .with_user(self.user)
+            .create(
+                {
+                    "name": "surplus",
+                    "date_start": datetime(2025, 1, 6, 8, 0),
+                    "date_end": datetime(2025, 1, 6, 12, 0),
+                    "resource_id": self.resource_a.id,
+                }
+            )
+        )
+        # The old resource's row is now surplus and has to be released.
+        record.resource_id = self.resource_b
+
+        reservations = (
+            self.env["resource.reservation"]
+            .sudo()
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("res_model", "=", "resource.scheduling.test"),
+                    ("res_id", "=", record.id),
+                ]
+            )
+        )
+        self.assertEqual(
+            reservations.resource_id,
+            self.resource_b,
+            "the booking moved, leaving no claim on the resource it left",
+        )

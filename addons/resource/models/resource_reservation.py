@@ -921,7 +921,16 @@ class ResourceReservation(models.Model):
         # ``enforcement_mode = 'hard'`` and abort a sync that is only shuffling
         # rows around.
         if to_delete:
-            to_delete.unlink()
+            # ``sudo``: reservations are engine-owned mirror rows and
+            # ``base.group_user`` holds read-only access to them, so releasing
+            # a surplus row has to bypass the ACL exactly as creating one does
+            # below.  ``to_delete`` is built from ``self.browse()``, which
+            # carries the *caller's* environment however the rows in it were
+            # fetched -- ``union`` answers in the env of its left operand -- so
+            # without this an ordinary user dropping an assignee from a task,
+            # a resource from a shift or an attendee from a meeting hit an
+            # AccessError on a sync that was only tidying up after them.
+            to_delete.sudo().unlink()
         created = self.sudo().create(to_create) if to_create else self.browse()
 
         return (existing - to_delete) | created
