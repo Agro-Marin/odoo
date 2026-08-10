@@ -6,6 +6,7 @@
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";
+import { useFieldHandle } from "@web/fields/field_handle";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -18,8 +19,9 @@ export class EmailField extends TrimmingInputFieldBase {
     };
 
     setup() {
+        this.field = useFieldHandle();
         useInputField({
-            getValue: () => this.props.record.data[this.props.name] || "",
+            getValue: () => this.field.value || "",
             parse: (v) => this.parse(v),
         });
     }

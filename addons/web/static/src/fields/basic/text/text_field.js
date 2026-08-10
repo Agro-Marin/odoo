@@ -9,6 +9,7 @@ import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import { useFieldHandle } from "@web/fields/field_handle";
 import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -46,12 +47,13 @@ export class TextField extends TextInputFieldBase {
     }
 
     setup() {
+        this.field = useFieldHandle();
         useRenderCounter("fields.TextField");
         this.divRef = useRef("div");
         this.textareaRef = useRef("textarea");
         this.setupDynamicPlaceholder(this.textareaRef);
         useInputField({
-            getValue: () => this.props.record.data[this.props.name] || "",
+            getValue: () => this.field.value || "",
             refName: "textarea",
             parse: (v) => this.parse(v),
             preventLineBreaks: !this.props.lineBreaks,

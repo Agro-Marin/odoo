@@ -73,11 +73,16 @@ export const FIELD_RECORD_SURFACE = [
  * an undifferentiated majority. That conversion is not this file; making it
  * derivable is.
  *
- * `record.data` reads split 175 own-field (`data[props.name]`) to 52 distinct
- * sibling names to 43 dynamic keys, so the majority of the traffic through the
- * widest member is a widget reading its own value the long way round. Those
- * figures are restated here as orientation only; they are measured by
- * `js_field_record_surface`, whose MEASURED block is the copy that cannot rot.
+ * The majority of the traffic through the widest member is a widget reading its
+ * own value the long way round, which is what `useFieldHandle`
+ * (`@web/fields/field_handle`) exists to shorten. A widget that has adopted it
+ * reaches no record member at all and is counted as `detached`; that number,
+ * not `narrow`, is what moves as the conversion proceeds.
+ *
+ * No figure is restated here. They are measured by `js_field_record_surface`,
+ * whose MEASURED block is the copy that cannot rot — an earlier revision of this
+ * comment said "63 distinct sibling names" where the union is 52, having summed
+ * the per-file counts.
  *
  * @type {string[]}
  */

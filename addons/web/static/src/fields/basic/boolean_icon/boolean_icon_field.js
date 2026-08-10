@@ -6,6 +6,7 @@
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { useFieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class BooleanIconField extends Component {
@@ -19,13 +20,15 @@ export class BooleanIconField extends Component {
         icon: "fa-regular fa-square-check",
     };
 
+    setup() {
+        this.field = useFieldHandle();
+    }
+
     update() {
         if (this.props.readonly) {
             return;
         }
-        this.props.record.update({
-            [this.props.name]: !this.props.record.data[this.props.name],
-        });
+        this.field.update(!this.field.value);
     }
 }
 

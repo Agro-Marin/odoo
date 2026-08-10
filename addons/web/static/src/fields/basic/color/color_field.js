@@ -7,6 +7,7 @@ import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
+import { useFieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ColorField extends Component {
@@ -23,6 +24,7 @@ export class ColorField extends Component {
     state;
 
     setup() {
+        this.field = useFieldHandle();
         this.state = useState({ livePreview: null });
     }
 
@@ -31,7 +33,7 @@ export class ColorField extends Component {
         if (this.state.livePreview !== null) {
             return this.state.livePreview;
         }
-        return this.props.record.data[this.props.name] || "";
+        return this.field.value || "";
     }
 
     /** @param {Event} ev */
