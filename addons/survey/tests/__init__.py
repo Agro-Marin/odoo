@@ -22,3 +22,4 @@ from . import test_survey_correctness
 from . import test_survey_routes
 from . import test_scoring_engine
 from . import test_question_validators
+from . import test_conditional_triggers
