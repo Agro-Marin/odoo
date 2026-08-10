@@ -32,7 +32,6 @@ class Many2one(_Relational):
 
     @property
     def is_delegating(self) -> bool:
-        """See :attr:`Field.is_delegating`."""
         return self.delegate
 
     @typing.overload

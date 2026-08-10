@@ -1,16 +1,3 @@
-"""The HTTP transport's :class:`~odoo.service.transaction.RetryParticipant`.
-
-``retrying()`` may run a handler more than once, and a replayed HTTP handler
-needs transport state that the first run consumed: a session object that is
-still valid after the rollback, and uploaded file streams rewound to position
-zero. This module holds that knowledge, so ``service/transaction.py`` does not
-have to.
-
-It is installed on import of ``odoo.http`` (see that package's ``__init__``),
-the same injection shape ``orm/runtime/savepoint.py`` uses to give ``db/`` its
-flushing savepoint without ``db/`` importing the ORM (ADR-0003).
-"""
-
 from __future__ import annotations
 
 import typing
@@ -23,8 +10,6 @@ from .helpers import rewind_uploaded_files
 
 
 class RequestRetryParticipant:
-    """Restores one in-flight :class:`Request` for a replay."""
-
     __slots__ = ("_request",)
 
     def __init__(self, request: typing.Any) -> None:
@@ -51,7 +36,6 @@ class RequestRetryParticipant:
 
 
 def current_request_participant() -> RetryParticipant | None:
-    """The participant for the request in flight, or ``None`` off-request."""
     request = _current_request
     if not request:
         return None

@@ -37,7 +37,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
     not_null_fields: set[Field]
 
     def _init_schema_state(self) -> None:
-        """Initialise this mixin's own state. Called by ``Registry.init``."""
         self._ordinary_tables = {}
         self._constraint_queue = {}
         self.not_null_fields = set()

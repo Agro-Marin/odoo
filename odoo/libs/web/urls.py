@@ -16,12 +16,6 @@ def _segment_core(segment: str) -> str:
 
 
 def contains_dot_segments(path: str) -> bool:
-    """Whether `path` contains a `.` or `..` segment, after percent-decoding.
-
-    Public API of the ``odoo.libs.web`` area: addon code validating a
-    user-supplied URL needs this predicate on its own, not only the rejection
-    `urljoin` performs internally.
-    """
     current = path
     for _ in range(_MAX_UNQUOTE_PASSES):
         if any(

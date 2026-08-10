@@ -544,38 +544,6 @@ class EsbuildCompiler:
         alias_flags: list[str],
         odoo_root: Path,
     ) -> list[str]:
-        """Lay the shims out under *stub_root* mirroring their specifier paths.
-
-        ``--alias`` is a PREFIX rewrite, not the module-exact one this used to
-        assume: esbuild remaps ``<spec>/<sub>`` to ``<target>/<sub>`` too.
-        Pointing a specifier straight at a shim file therefore broke every
-        submodule of it -- ``@web/core/network`` is both a stub and the parent
-        of eleven live specifiers, so ``@web/core/network/model_mutation``
-        resolved to ``<stub>.js/model_mutation`` and esbuild failed the whole
-        bundle with *"Cannot read directory ...: not a directory"*.
-
-        That shape is the norm here rather than an oddity: a module's face is a
-        sibling file next to its own directory (no barrel files), so 38 of
-        ``web.assets_web``'s specifiers have submodules and any of them could be
-        stubbed by a test importing the face.
-
-        So the target has to be a place where the prefix rewrite is *also*
-        right. Each shim is written at ``<stub_root>/<spec>.js`` and aliased
-        without the extension -- resolution prefers the file over the sibling
-        directory -- and that sibling directory is filled in from the real one:
-        a symlink where nothing below it is stubbed, or a directory of
-        per-entry links rebuilt **recursively**, for as deep as the stubs go.
-
-        The recursion is the point. Shadowing a single level down protects a
-        stub's immediate children and nothing else, so a stub two or more
-        levels below another one -- ``@spreadsheet/chart/plugins/...`` beneath
-        ``@spreadsheet/chart`` -- had its shim written straight through the
-        directory symlink and **replaced the real module in the source tree**.
-        81 files across ``odoo`` and ``enterprise`` were overwritten that way,
-        by an ordinary secondary-bundle compile rather than anything test-only.
-        `_ensure_inside_mirror` is the backstop: it turns a future escape into
-        a failed build instead of a silently rewritten checkout.
-        """
         addon_roots = {}
         for flag in alias_flags:
             spec, _, target = flag.removeprefix("--alias:").partition("=")
@@ -624,12 +592,6 @@ class EsbuildCompiler:
         occupied: dict[str, set[str]],
         must_be_real: set[str],
     ) -> None:
-        """Rebuild *real_dir* at *mirror* entry by entry, one level at a time.
-
-        An entry is skipped when a shim is going to claim its name, rebuilt the
-        same way when a stub lives somewhere below it, and symlinked otherwise
-        -- a symlink is only safe once nothing under it will ever be written.
-        """
         mirror.mkdir(parents=True, exist_ok=True)
         taken = occupied.get(rel, frozenset())
         for entry in real_dir.iterdir():
@@ -645,13 +607,6 @@ class EsbuildCompiler:
 
     @staticmethod
     def _ensure_inside_mirror(path: Path, stub_root: Path) -> None:
-        """Refuse to write a shim anywhere but inside the mirror.
-
-        The mirror is stitched together from symlinks into the source tree, so
-        a single unprotected level turns a shim write into an edit of a real
-        module -- which is precisely what happened. Resolving the parent
-        catches that whatever the reason the link was there.
-        """
         resolved = path.parent.resolve()
         if not resolved.is_relative_to(stub_root.resolve()):
             raise RuntimeError(
@@ -661,12 +616,6 @@ class EsbuildCompiler:
 
     @staticmethod
     def _stub_sibling_dir(spec: str, addon_roots: dict[str, Path]) -> Path | None:
-        """The real directory a stubbed specifier's submodules live in, if any.
-
-        ``None`` for a specifier with no addon alias behind it (``@odoo/owl``)
-        or no directory beside it, which both mean the prefix rewrite has
-        nothing to hijack.
-        """
         addon, _, rest = spec.partition("/")
         root = addon_roots.get(addon)
         if root is None:

@@ -111,7 +111,15 @@ FLOORS = {
     # the revision that set 425: -1 each, and nothing else in the corpus moved.
     # The gate is exact-mode, so those three commits left 19.0-marin red; this
     # is the correction, made from the change that tripped over it.
-    "n-plus-one-query": 422,
+    #
+    # 422 -> 421: 7e15c7657be ("batch relation reads when building a Store
+    # payload") widened `_read_format`'s cache-miss prefetch from the single
+    # record to `_prefetch_ids`, which is the fix that turned the per-record
+    # `browse(id).with_prefetch(self._ids)` narrowing into a batched read the
+    # scanner no longer flags. Left the floor at 422 and this repo red since;
+    # corrected here, in the change that tripped over it -- same shape as the
+    # 425 -> 422 correction above.
+    "n-plus-one-query": 421,
 }
 
 

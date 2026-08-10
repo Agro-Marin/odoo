@@ -58,13 +58,6 @@ class InhCycAExt(models.Model):
 
 
 def test_circular_inherit_raises_type_error():
-    """A circular ``_inherit`` is diagnosed, not left to exhaust the stack.
-
-    Before the guard in ``_init_model_class_attributes`` this recursed through
-    ``_inherit_children`` until ``RecursionError``, which reproduced on a real
-    ``-i`` install of three ordinary addons: ~1000 identical frames, no model
-    named, and a half-built database left behind.
-    """
     with pytest.raises(TypeError, match="Circular _inherit chain involving model"):
         ModelRegistry([InhCycA, InhCycB, InhCycAExt])
 
@@ -102,12 +95,6 @@ class DiamondBaseExtRight(models.Model):
 
 
 def test_diamond_inherit_children_are_not_mistaken_for_a_cycle():
-    """Reaching one model twice by different paths is not a cycle.
-
-    This is why the guard tracks the recursion *path* rather than every model
-    already visited: ``regdia.base`` is re-entered once per extension, and a
-    visited set would reject that as circular.
-    """
     registry = ModelRegistry(
         [
             DiamondBase,

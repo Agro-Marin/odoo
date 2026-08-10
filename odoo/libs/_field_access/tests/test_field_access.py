@@ -77,17 +77,6 @@ else:
 
 
 class _FieldAccessTestMixin(_MixinBase):
-    """The shared body of the fallback/accelerated differential suite.
-
-    The nine names below are **annotated, not assigned**. They used to default
-    to ``None``, which was false the moment any test ran -- both subclasses bind
-    all nine in ``setUpClass`` -- and the declared ``Callable | None`` made every
-    call site an error ("None" not callable). A bare annotation states the real
-    contract, that a concrete suite must supply each one, and a subclass that
-    forgets one now fails with a plain ``AttributeError`` naming it instead of a
-    ``TypeError`` about ``None``.
-    """
-
     batch_cache_fill: Callable
     batch_cache_get: Callable
     batch_cache_filter: Callable

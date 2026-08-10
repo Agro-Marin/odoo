@@ -54,37 +54,14 @@ def _integrity_error_to_validation(
 
 @typing.runtime_checkable
 class RetryParticipant(typing.Protocol):
-    """Transport state that must be restored when a handler is replayed.
-
-    ``retrying()`` is a *transaction* primitive, but a handler it re-runs may
-    have consumed transport-level state that a second run needs back: an HTTP
-    request has a session to refresh and uploaded file streams to rewind, and
-    knows whether an uncommitted-cursor warning would be noise.
-
-    Until 2026-08-09 this module did those three things itself, reaching
-    ``odoo.http`` through two function-level imports and a thread-local. That
-    was the ENTIRE ``service`` -> ``http`` coupling outside
-    ``service/lifecycle.py``, concentrated in the one primitive
-    ``ARCHITECTURE.md`` holds up as transport-independent, and it made the RPC
-    path opt out only implicitly -- by ``http.request`` being falsy.
-
-    The transport now supplies its own participant through
-    :data:`current_retry_participant`, the same injection shape ``db/`` uses
-    for the flushing savepoint (ADR-0003).
-    """
-
     def on_rollback(self, exc: BaseException) -> None:
-        """After the transaction is rolled back, for *every* caught error.
-
-        Runs even when the error will not be retried -- an IntegrityError still
-        needs a usable session to render its response.
-        """
+        pass
 
     def on_retry(self, exc: BaseException) -> None:
-        """Just before the backoff sleep, only when the handler will re-run."""
+        pass
 
     def suppresses_uncommitted_warning(self) -> bool:
-        """Whether "cursor closed before commit" is expected rather than a bug."""
+        pass
 
 
 def _no_participant() -> RetryParticipant | None:
@@ -112,7 +89,6 @@ def _reset_env_state(env: Environment) -> None:
 def _warn_cursor_closed_before_commit(
     func: Callable[..., object], participant: RetryParticipant | None
 ) -> None:
-    """Warn that ``func`` closed its own cursor, so nothing was committed."""
     if participant is not None and participant.suppresses_uncommitted_warning():
         return
     _logger.warning(
@@ -124,14 +100,6 @@ def _warn_cursor_closed_before_commit(
 
 
 def _commit_and_signal(env: Environment) -> None:
-    """Commit the transaction and signal the registry.
-
-    A commit that raises may still have been durable -- the failure can come
-    from the signalling that follows it -- so the two cases are told apart by
-    the cursor's commit counter rather than by the exception alone. When the
-    work did not land, an IntegrityError is translated to the ValidationError a
-    user can act on, exactly as the retry loop does.
-    """
     commits_before = env.cr.commit_count
     try:
         env.cr.commit()

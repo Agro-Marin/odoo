@@ -1,25 +1,3 @@
-"""``CONVENTIONAL_FIELD_NAMES`` is data, so it must be read by something.
-
-The table in ``orm/primitives.py`` collects the field names the ORM attaches
-behaviour to *purely because of the name* — the five that were previously five
-inline string literals spread across four Layer-1 modules, with nothing telling
-a reader that calling a field ``sequence`` changes its aggregator.
-
-Collecting them was the right instinct, but as unread data the table drifts
-exactly like the prose it replaced, with the added cost of looking
-authoritative: its own docstring concedes "This mapping is documentation", and
-the only two references to it in the tree are *comments*. These assertions make
-it a claim.
-
-Two of the five are backed by exported constants because the ORM *branches* on
-them (``STATE_FIELD``, ``SEQUENCE_FIELD``). The other three are not, and
-deliberately: ``currency_id``/``company_id``/``display_name`` appear in Layer 1
-in contexts that are not the convention — ``value.mapped("display_name")`` is a
-field read, not a name-triggered rule — so a constant would imply a uniformity
-that does not exist. What is asserted for those is that the ORM still mentions
-them at all.
-"""
-
 import re
 from pathlib import Path
 
@@ -53,12 +31,6 @@ class TestTheTableMatchesTheCode:
 
     @pytest.mark.parametrize("name", sorted(BRANCHED))
     def test_a_branched_name_is_never_compared_as_a_bare_literal(self, name):
-        """The point of exporting the constant is that the branch uses it.
-
-        A bare ``name == "state"`` in Layer 1 would work and would be invisible
-        to anyone reading the table, which is the state this table was created
-        to end.
-        """
         pattern = re.compile(rf'(name|self\.name)\s*==\s*[\'"]{name}[\'"]')
         offenders = [
             f"{path.relative_to(_ORM)}:{lineno}"
@@ -74,11 +46,6 @@ class TestTheTableMatchesTheCode:
 
     @pytest.mark.parametrize("name", sorted(CONVENTIONAL_FIELD_NAMES))
     def test_every_documented_name_is_still_referenced_by_the_orm(self, name):
-        """A convention the ORM stopped honouring must leave the table.
-
-        This is the drift the table is exposed to: a name is dropped from the
-        code and the documentation keeps asserting it.
-        """
         needle = f'"{name}"'
         constant = BRANCHED.get(name)
         # primitives.py is excluded because it DEFINES the table: searching it

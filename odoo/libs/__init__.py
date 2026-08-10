@@ -1,30 +1,3 @@
-"""Odoo-agnostic utilities.
-
-The names below are re-exported **lazily** (PEP 562). They used to be imported
-eagerly, which made this module the single heaviest import in the framework for
-reasons none of its consumers asked for: `.text` pulls `libs/text/html.py`,
-which imports `lxml`, `lxml.html.clean`, `markupsafe` and `arabic_reshaper`. So
-
-    from odoo.libs.collections import Collector      # a 30-line helper
-
-executed the parent package first and dragged in the whole HTML sanitiser.
-
-Measured, that reached further than a slow import. `odoo/orm/components/` is
-contractually pure Python -- `layer_check`'s `orm-components-are-pure-python`,
-whose stated purpose is that the cache/compute engine be "unit-testable without
-an Environment, Registry, or database" -- and `components/model_graph.py` imports
-`Collector` from here. A `sys.modules` diff around a single
-`import odoo.orm.components.model_graph` showed **lxml, babel and markupsafe**
-loaded. The gate could not see it: it inspects `odoo.*` import edges, and this
-dependency arrives through a third party.
-
-Lazy resolution fixes that at the root, for every consumer at once, without
-moving a helper or weakening a contract: importing an area now costs that area.
-
-The area packages remain the public boundary (`libs_facade_check`); this module
-is a convenience surface over them, not a second one.
-"""
-
 import importlib
 import typing
 

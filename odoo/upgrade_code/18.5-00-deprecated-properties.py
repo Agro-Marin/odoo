@@ -1,23 +1,3 @@
-"""Convert deprecated recordset properties to their ``env`` equivalents.
-
-``x._cr`` / ``x._uid`` / ``x._context`` -> ``x.env.cr`` / ``.uid`` / ``.context``.
-
-TESTED: ``odoo/tools/tests/test_upgrade_code_deprecated_properties.py``.
-
-This was a bare regex until 2026-08 and mis-rewrote five of seven realistic
-shapes, three of them into code that does not run: it edited string literals and
-comments, turned ``self.env._cr`` into ``self.env.env.cr``, and turned
-``self._cr = cr`` in a non-recordset ``__init__`` into ``self.env.cr = cr``.
-Against this repository it would have broken ``db/savepoint.py``,
-``tools/translate.py`` and ``web/controllers/json_helpers.py``.
-
-It is now driven by ``tokenize``: strings and comments yield no NAME tokens, and
-the neighbouring tokens let it skip an owner that is already ``env`` and skip
-assignment targets. One limitation is inherent — whether ``x`` is a recordset
-cannot be decided statically, so a read on a non-recordset is still converted.
-See ``odoo/cli/upgrade_code.py`` before running this.
-"""
-
 import io
 import logging
 import tokenize
@@ -30,23 +10,6 @@ _DEPRECATED = ("_cr", "_uid", "_context")
 
 
 def _rewrites(source: str) -> list[tuple[int, int, str]]:
-    """Byte-free (line, col) spans to replace, computed from real tokens.
-
-    The previous implementation was a bare regex over the raw text::
-
-        re.compile(r"\\._(cr|uid|context)\\b").sub(r".env.\\1", content)
-
-    which is unsound in three ways, all of which produce code that is worse than
-    what it replaced:
-
-    * ``self.env._cr``      -> ``self.env.env.cr``   (broken)
-    * ``conn._cr = cur``    -> ``conn.env.cr = cur`` (broken; ``conn`` has no env)
-    * ``'use ._context'``   -> ``'use .env.context'`` (rewrites a string literal)
-
-    Working from the tokenizer removes all three: strings and comments never
-    yield NAME tokens, and the token *before* the dot is available, so an
-    attribute already reached through ``env`` can be left alone.
-    """
     out: list[tuple[int, int, str]] = []
     try:
         tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))

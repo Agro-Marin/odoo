@@ -1,10 +1,3 @@
-"""The ir.asset directive engine: which files a bundle name resolves to.
-
-Everything here is about RESOLUTION -- globs, append/prepend/replace/remove/
-before/after, include graphs, cross-module contributions and the path
-sandbox -- not about what the pipeline then does with the files.
-"""
-
 import base64
 import pathlib
 import tempfile
@@ -266,14 +259,6 @@ class TestAssetsManifest(AddonManifestPatched):
     JS_FIXTURES = {1: "var a=1;", 2: "var b=2;", 3: "var c=3;", 4: "var d=4;"}
 
     def assertBundleJs(self, bundle, *indexes):
-        """Assert the bundle concatenates exactly test_jsfile<i>.js, in order.
-
-        Most of this class is one question -- which files, in which order --
-        asked of a different directive each time. Spelling the answer out as a
-        24-line heredoc buried that question in its own formatting, and made
-        the interesting part (the order of the digits) the least visible thing
-        on screen.
-        """
         expected = ";\n\n".join(
             f"/* /test_assetsbundle/static/src/js/test_jsfile{i}.js */\n"
             f"{self.JS_FIXTURES[i]}"
@@ -282,12 +267,6 @@ class TestAssetsManifest(AddonManifestPatched):
         self.assertEqual(bundle.js().raw.decode().strip(), expected.strip())
 
     def declare_sibling_module(self, assets):
-        """Add an installed `test_other` addon contributing *assets*.
-
-        Cross-module contribution is the case a single manifest cannot test:
-        the directive has to be declared by a module that is not the bundle's
-        owner, and resolved in dependency order.
-        """
         self.installed_modules.add("test_other")
         self.manifests["test_other"] = {
             "name": "test_other",

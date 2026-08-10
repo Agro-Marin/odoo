@@ -1,11 +1,3 @@
-"""Where a built bundle is persisted, found again, superseded and collected.
-
-AssetAttachmentStore is the only part of the pipeline that touches rows other
-requests can see, so its concerns are identity (which attachment is THIS
-bundle's), concurrency (a row another transaction holds) and garbage
-collection (which superseded versions may go).
-"""
-
 import os
 import tempfile
 from pathlib import Path
@@ -664,20 +656,6 @@ class TestBundleChangedBroadcastDedup(TransactionCase):
 
 
 class TestSimilarAttachmentReuse(TransactionCase):
-    """Reusing an identical artifact built for a different set of params.
-
-    Two websites that theme identically produce byte-identical CSS under two
-    different URLs. Rather than recompile, the store looks for an attachment
-    matching the params-insensitive pattern and copies its bytes under the
-    params-sensitive URL.
-
-    In base the two patterns are the same string, so the branch is unreachable
-    and skipped outright -- TestAuditFallbackDeadInBase pins that. It becomes
-    live as soon as an override makes `_get_asset_bundle_url` params-aware, so
-    the seam is what gets driven here: without it the copy path only ever ran
-    on databases carrying website, and nothing in this repo covered it.
-    """
-
     BUNDLE = "test_assetsbundle.similar"
 
     def _store(self, params):
@@ -690,7 +668,6 @@ class TestSimilarAttachmentReuse(TransactionCase):
         )._store
 
     def _make_params_significant(self):
-        """Make the URL depend on assets_params, as website's override does."""
         IrAsset = type(self.env["ir.asset"])
         original = IrAsset._get_asset_bundle_url
 

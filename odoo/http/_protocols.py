@@ -41,18 +41,6 @@ else:
 
 
 class HasHttpStatus(Protocol):
-    """An exception that names the HTTP status it should be served as.
-
-    A structural contract spanning two modules that do not import each other:
-    ``odoo/exceptions.py`` sets it on ``UserError`` and four subclasses,
-    ``odoo/http/exceptions.py`` on ``SessionExpiredException``, and
-    ``http/dispatcher.py`` reads ``exc.http_status`` off a union of the two.
-    Nothing declared it, and the two modules disagreed on the type -- plain
-    ``int`` on one side, ``HTTPStatus`` on the other. Both work, because
-    ``HTTPStatus`` is an ``IntEnum``; declaring the protocol is what makes the
-    agreement checkable rather than incidental.
-    """
-
     http_status: int
 
 
@@ -105,13 +93,4 @@ class HttpExtension(Protocol):
         pass
 
     def _apply_max_upload_size(self) -> None:
-        """Clamp ``httprequest.max_content_length`` to the configured ceiling.
-
-        Reached from ``_serve.py``'s not-found fallback and, through
-        ``_pre_dispatch``, from every dispatched request. It was called by the
-        core and undeclared here until 2026-08-09 — the contract test only ever
-        checked *declared -> implemented*, so a member reached from ``http/``
-        and absent from this Protocol had its existence and its signature
-        checked by nothing. ``model_member_surface_check.py`` reads the other
-        direction and is what found it.
-        """
+        pass

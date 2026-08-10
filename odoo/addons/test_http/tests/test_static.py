@@ -45,22 +45,6 @@ class TestHttpStaticCommon(TestHttpBase):
         return res
 
     def assertXSendfileWithheld(self, res, absolute_path):
-        """``X-Accel-Redirect`` is served; the absolute path must not be.
-
-        Werkzeug sets ``X-Sendfile`` to the ABSOLUTE filestore path, and nginx
-        passes unknown upstream headers straight through -- so shipping it
-        discloses the server's ``data_dir`` layout to every client that
-        downloads an attachment. ``Stream.get_response`` pops it once
-        ``X-Accel-Redirect`` carries the same information in a form that does
-        not leak the path.
-
-        These assertions used to require ``X-Sendfile`` to be *present*, which
-        is upstream 19.0's behaviour and the reason this suite failed against
-        the fixed code: the header removal landed in ``odoo/http/stream.py``
-        and the expectation here was never updated. Asserting the absence
-        rather than deleting the assertion keeps the fix from silently
-        regressing.
-        """
         self.assertNotIn(
             "X-Sendfile",
             res.headers,

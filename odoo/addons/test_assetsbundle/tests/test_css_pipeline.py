@@ -1,10 +1,3 @@
-"""The CSS half of the pipeline, from source text to served stylesheet.
-
-Order of the stages, and of this file: error contract -> compile/memoisation ->
-sass backends -> @import sanitising -> autoprefix -> url() rewriting ->
-minification -> error banner -> RTL -> asset classification.
-"""
-
 import logging
 import pathlib
 import re
@@ -1457,27 +1450,7 @@ class TestUrlExtensionCaseFolding(TransactionCase):
 
 
 class TestSourceDialectTokenizers(BaseCase):
-    """``StylesheetAsset._fetch_content`` URL rewriting, per source dialect.
-
-    The rewrite runs over the asset's *source*, so what counts as an opaque
-    span depends on the dialect: ``//`` starts a comment in SCSS but is
-    ordinary text in plain CSS (``url(//cdn/x)``). Each asset class therefore
-    carries its own ``_SOURCE_TOKEN_RE``; these tests pin that split, and the
-    regression it exists for — an apostrophe in a ``//`` comment used to open a
-    phantom string span that swallowed every later ``url()``, so the bundle's
-    relative font URLs silently stopped being rewritten and 404'd.
-
-    Moved here from ``addons/web/tests/test_assets.py``, where it was tagged
-    ``web_unit``/``web_assets`` while importing nothing from web: it exercises
-    ``odoo.addons.base.models.assetsbundle`` only. Changing the rewriter meant
-    running two modules' suites to learn whether you had broken it, and the
-    dialect split it pins was the one part of the scanner this module did not
-    cover -- everything else here drives ``StylesheetAsset._SOURCE_TOKEN_RE``
-    or ``_SCSS_STATEMENT_SPANS``, never the choice between them.
-    """
-
     def _rewritten(self, source, token_re):
-        """Return the ``url()`` bodies the rewriter treats as code."""
         bodies = []
 
         def _collect(match):
@@ -1525,21 +1498,6 @@ class TestSourceDialectTokenizers(BaseCase):
 
 
 class TestCssCompileErrorReporting(TransactionCase):
-    """What a broken stylesheet actually puts in front of a developer.
-
-    A Sass error does not raise past the pipeline: it lands in
-    `bundle.css_errors`, becomes the red banner, and the bundle still serves.
-    So the message IS the feature -- if it does not name the bundle and the
-    files that went into it, the developer is left with a Sass complaint about
-    line 2 of a concatenation they never wrote.
-
-    This path used to be covered by accident, because the deliberately-invalid
-    test_error.scss sat inside the static/src/*/** glob that three bundles
-    enumerate. Moving it out of their way (it was costing them all their CSS
-    coverage) took the accident with it, which is the better reason to assert
-    it on purpose.
-    """
-
     BROKEN_SCSS = ".rule1 ()){\n    color: black;\n}\n"
 
     def _bundle(self, *files, **kw):
@@ -1586,7 +1544,6 @@ class TestCssCompileErrorReporting(TransactionCase):
         self.assertIn("test_assetsbundle.csserr", banner)
 
     def test_sass_load_path_noise_is_trimmed(self):
-        """Dart Sass appends its whole load-path list; it is not the message."""
         pipeline = CssPipeline(SimpleNamespace(name="b", stylesheets=[], css_errors=[]))
         formatted = pipeline._format_compiler_error(
             "Error: bad\n  Use --trace for backtrace.\nLoad paths\n  /a\n  /b\n"
@@ -1596,12 +1553,6 @@ class TestCssCompileErrorReporting(TransactionCase):
         self.assertIn("Error: bad", formatted)
 
     def test_a_desynchronised_split_marker_is_loud(self):
-        """The compiled output is mapped back to assets by marker id.
-
-        If a marker names an asset the bundle no longer holds, the mapping is
-        wrong and every later asset would silently receive another one's CSS.
-        That must raise rather than mis-assign.
-        """
         bundle = self._bundle(("/m/static/src/a.scss", ".a{color:red}"))
         pipeline = bundle._css
         pipeline.compile_css = lambda compiler, source: (
@@ -1612,13 +1563,6 @@ class TestCssCompileErrorReporting(TransactionCase):
 
 
 class TestRtlcssProbeFailures(BaseCase):
-    """`_check_rtlcss` decides, once per process, whether RTL exists at all.
-
-    False makes run_rtlcss hand back the LTR source unchanged, so an RTL page
-    is silently served left-to-right. Every branch that returns False is
-    therefore a silent-degradation switch, and each has to warn.
-    """
-
     def setUp(self):
         super().setUp()
         _ab.css_pipeline._check_rtlcss.cache_clear()

@@ -1,23 +1,3 @@
-"""The ORM's two cache surfaces sit at different abstraction levels.
-
-``env._core`` (``OrmCore``) is id-level; ``env.cache`` (``Cache``) is
-recordset-level and resolves the storage layout — context-dependent buckets,
-term-translated ``LangProxyDict`` — on the caller's behalf. ADR-0010 proposed
-retiring the second (step 4) and **dropped that step on reassessment**, because
-a mechanical rewrite onto ``_core`` would have mishandled both layouts.
-
-That conclusion was lost twice, and this file used to exist to re-assert it: the
-module was named ``cache_compat.py``, so every reader who met the name concluded
-"compatibility shim" and had to be corrected — in the class docstring, in
-``doc/architecture/module.md``, and here. On 2026-08-08 the module was renamed to
-``recordset_cache.py``, which is what it is, and the apologetics went with it.
-
-What remains is the part that was always worth checking: not the *conclusion*,
-but the **property the conclusion rests on** — that the two surfaces really do
-take arguments at different levels. If they ever converge, the retire-vs-keep
-question genuinely reopens and this test should be the thing that says so.
-"""
-
 import ast
 import inspect
 import pathlib
@@ -38,7 +18,6 @@ def test_the_class_states_which_level_it_is():
 
 
 def test_the_module_is_not_named_for_what_it_is_not():
-    """The rename is the fix; a revert would bring the three corrections back."""
     path = pathlib.Path(inspect.getfile(Cache))
     assert path.name == "recordset_cache.py", (
         f"the module is named {path.name!r}. A name describing what the class is "
@@ -57,13 +36,6 @@ def test_nothing_marks_it_deprecated():
 
 
 def test_the_two_surfaces_stay_at_different_levels():
-    """The property the whole decision rests on, checked rather than asserted.
-
-    ``Cache`` methods take a recordset (``record`` / ``records`` / ``model``);
-    ``OrmCore`` methods take a field and a raw ``record_id``. If those ever
-    converge, the "different abstraction level" argument stops holding and the
-    retire-vs-keep question genuinely reopens.
-    """
     tree = ast.parse(pathlib.Path(inspect.getfile(Cache)).read_text(encoding="utf-8"))
     cls = next(
         n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Cache"

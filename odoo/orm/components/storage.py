@@ -1,21 +1,3 @@
-"""The in-memory row store beneath ``InMemoryBackend`` (ADR-0011).
-
-Deliberately a *store*, not a query engine: it holds rows and hands them back.
-Selection is `InMemoryBackend.search`'s job, and it does it by materialising the
-table and applying ``Domain._as_predicate`` — the same normalised domain the SQL
-path evaluates, which is what makes the two backends differentially comparable
-at all.
-
-This module carried a ``search_rows(table, column, value, operator)`` with its
-own ``_OPERATORS`` table until 2026-08-08. Nothing outside its own unit tests
-ever called it, and its semantics had already drifted from both of the things it
-could have agreed with: ``n < 5`` raised ``TypeError`` on a row where ``n`` is
-unset, where PostgreSQL excludes the row and Odoo's domain layer excludes it too.
-A second, ad-hoc implementation of the ORM's most semantically delicate
-operation, kept looking alive by the tests that were its only consumer. Removed
-rather than fixed — the parity-tested path already exists one layer up.
-"""
-
 from collections import defaultdict
 from typing import Any
 

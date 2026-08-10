@@ -8,15 +8,6 @@ if TYPE_CHECKING:
     from typing import Any, Protocol
 
     class SupportsUnion(Protocol):
-        """What an interval's payload must provide: `union`, and nothing else.
-
-        The payload was annotated `collections.abc.Set`, which is the one thing
-        it is NOT required to be — `Set` publishes `|` and no `union`, while
-        this module only ever calls `union`. Both an Odoo recordset and a
-        frozenset satisfy this; `Set` additionally demanded `__contains__`,
-        `__iter__` and `__len__`, none of which is read here.
-        """
-
         def union(self, other: Any, /) -> SupportsUnion: ...
 
     # `Self` would be wrong: `set.union` is `(*s: Iterable[S]) -> set[T | S]`,
@@ -24,18 +15,6 @@ if TYPE_CHECKING:
     # its own exact type and would fail the protocol at every call site.
 
     class SupportsOrdering(Protocol):
-        """A bound stating what this module needs of an interval's endpoints.
-
-        Every type parameter here is ordered — the whole point of an interval is
-        that its bounds compare — so the requirement belongs in the declaration
-        rather than being rediscovered at each `<`. `_typeshed`'s
-        `SupportsRichComparison` is the wrong bound: it is a *union* of "has
-        __lt__" and "has __gt__", so it cannot promise both, and this module
-        uses `<`, `>` and `>=` on the same values. Python would reflect `>` onto
-        the operand's `__lt__` at runtime, but that fallback is not something a
-        checker can assume. int, str, date and datetime all satisfy this.
-        """
-
         def __lt__(self, other: Any, /) -> bool: ...
         def __gt__(self, other: Any, /) -> bool: ...
         def __ge__(self, other: Any, /) -> bool: ...

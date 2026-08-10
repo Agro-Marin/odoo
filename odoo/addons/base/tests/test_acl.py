@@ -374,13 +374,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
 
     @contextmanager
     def _registry_loading(self, loading):
-        """Pin `registry._init` for the duration of the block.
-
-        Save-and-restore rather than set-and-clear: these tests run at install,
-        i.e. *inside* `load_modules`, where `_init` is already True. Forcing it
-        back to False afterwards told the loader it had finished and broke the
-        rest of the run.
-        """
         registry = self.env.registry
         previous = registry._init
         registry._init = loading
@@ -390,14 +383,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
             registry._init = previous
 
     def test_ir_rule_from_an_unloaded_module_is_skipped_while_loading(self):
-        """`ir_rule` rows exist for every *installed* module, but during
-        `load_modules` the registry only holds the modules loaded so far. A rule
-        from a later module references fields that are not in this registry yet,
-        and the domain optimizer rejects the entire search rather than the rule
-        -- `hr`'s `[('partner_id.employee_ids', '=', False)]` on
-        `res.partner.bank` broke every at-install `account` test that created a
-        bank account, because `account` loads at 58/123 and `hr` at 60/123.
-        """
         model_res_partner = self.env.ref("base.model_res_partner")
         rule = self.env["ir.rule"].create(
             {
@@ -437,10 +422,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
             self.assertIn(hand_written, demo_rule._get_rules("res.partner", "read"))
 
     def test_ir_rule_domain_computed_while_loading_is_not_reused_after(self):
-        """The loading-time rule set is partial, so a domain cached during
-        loading must never be served to a finished registry -- that would leave
-        a record rule silently unapplied. Nothing clears the cache when loading
-        ends, so `pool._init` is part of the cache key."""
         model_res_partner = self.env.ref("base.model_res_partner")
         rule = self.env["ir.rule"].create(
             {

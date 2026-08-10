@@ -171,34 +171,6 @@ class CopyMixin(_ModelStubs):
         field_name: str,
         rename: Callable[[Self, str], str],
     ) -> None:
-        """Re-apply a ``copy_data`` rename to every stored translation.
-
-        Models that mark duplicates with ``vals["name"] = _("%s (copy)", ...)``
-        only see the value in the duplicating user's language: ``create``
-        stores that one string under every language, and
-        :meth:`copy_translations` then puts the *source* record's terms back
-        for all the other languages -- so the copy silently carries the
-        original's exact name there, and a later rename made in the
-        duplicator's language never reaches it.
-
-        Call this from :meth:`copy_translations`, passing ``field_name`` to the
-        ``super()`` call's ``excluded`` so the generic pass leaves the field
-        alone::
-
-            def copy_translations(self, new, excluded=()):
-                super().copy_translations(new, excluded=(*excluded, "name"))
-                self._copy_translations_of_renamed_field(
-                    new, "name", lambda record, term: record.env._("%s (copy)", term)
-                )
-
-        :param new: the copy, as received by :meth:`copy_translations`
-        :param field_name: a stored ``translate=True`` field
-        :param rename: ``(record_in_lang, term) -> str``; called once per
-            language with ``self`` in that language, so a translatable marker
-            is itself translated into the language it is appended to.  It must
-            reproduce what ``copy_data`` did: the field is left untouched when
-            the two disagree, which is how a caller-supplied default wins.
-        """
         field = self._fields[field_name]
         assert field.translate is True and field.store, (
             f"{field} is not a stored translate=True field"

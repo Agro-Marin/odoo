@@ -166,22 +166,6 @@ class IrAsset(models.Model):
         return {}
 
     def _get_asset_url_segments(self, assets_params: dict[str, Any]) -> tuple[str, ...]:
-        """URL path segments naming the variant *assets_params* selects.
-
-        ``unique`` is a SHA256 over the *result*, so it tells two variants apart
-        but describes neither. That is enough while the attachment exists and is
-        found by URL, and not enough the moment it is missing: the route rebuilds
-        the bundle from the URL alone, and anything ``_get_asset_params`` added
-        is gone by then. It then computes a different version and redirects the
-        browser to the variant it did manage to build -- silently, and to the
-        wrong bytes.
-
-        So every override that adds a key to :meth:`_get_asset_params` must add
-        its segment here, and route it back (see ``website``'s
-        ``content_assets_website``); otherwise its bundles cannot be served at
-        their own URLs. Segments accumulate outward through ``super()``, so the
-        order follows the addon dependency order.
-        """
         return ()
 
     def _get_asset_bundle_url(
@@ -191,17 +175,6 @@ class IrAsset(models.Model):
         assets_params: dict[str, Any],
         ignore_params: bool = False,
     ) -> str:
-        """Assemble the attachment URL for one bundle artifact.
-
-        ``ignore_params`` is deliberately not honoured: it asks for a pattern
-        widened across params so ``get_attachments`` can copy an equal-version
-        bundle's bytes to this URL. Equal version implies equal content only
-        while every param is part of the hashed input, which
-        ``website``'s custom SCSS URLs break (see
-        :meth:`~odoo.addons.website.models.ir_asset.IrAsset._get_asset_url_segments`).
-        Keeping the pattern narrow leaves the fallback inert rather than
-        occasionally serving one variant's CSS under another's URL.
-        """
         segments = self._get_asset_url_segments(assets_params)
         return "/".join(("/web/assets", *segments, unique, filename))
 

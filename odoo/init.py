@@ -26,12 +26,6 @@ except ImportError as exc:
 
 
 def _rust_source_crc(crate):
-    """CRC32 of the crate's build inputs — mirrors `crates/odoo_rust/build.rs`.
-
-    Both sides feed the same length-delimited blob, in relative-path order, to
-    CRC-32/ISO-HDLC.  Keep the two in step: a change to what is hashed, or in
-    what order, must land in both files or every checkout reports itself stale.
-    """
     inputs = sorted(
         (
             (path.relative_to(crate).as_posix(), path)

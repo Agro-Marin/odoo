@@ -1,33 +1,3 @@
-"""``Registry.delete`` is a rebuild hook; ``Registry.forget`` is a teardown one.
-
-Three module-level maps are keyed by database name and outlive a
-:class:`Registry` instance:
-
-===========================  =========================================
-``Registry.registries``      the registries themselves (an ``LRU(42)``)
-``_UnaccentTables.by_db``    ~1500-entry accent-folding table, ~180 kB
-``_ASSERTION_REPORTS``       the ``--test-enable`` result per database
-===========================  =========================================
-
-Two live in ``orm/runtime/registry.py``; the fold table moved to
-``orm/runtime/_registry_capabilities.py`` with the rest of the unaccent/trigram
-cluster, and ``registry.py`` now prunes it through that module's
-``forget_unaccent_table`` / ``forget_all_unaccent_tables`` rather than reaching
-into its private class.
-
-Only the first was bounded.  The other two grew for the life of the process,
-one entry per database ever served, and nothing pruned them --
-``doc/architecture/data.md`` requires per-database caches be invalidated per
-database.
-
-The obvious fix -- prune them in ``delete`` -- is wrong, and that is what these
-tests pin.  ``Registry.new`` calls ``cls.delete(db_name)`` on **every** registry
-build, so pruning there would discard the assertion report on every reload and
-re-introduce the exit-code defect recorded in ``_ASSERTION_REPORTS``' own
-docstring (a run logs its failures and still exits 0), and would re-probe 12 352
-codepoints through ``unaccent()`` on every rebuild.
-"""
-
 import pytest
 
 from odoo.orm.runtime import _registry_capabilities as cap_mod
@@ -39,7 +9,6 @@ DB = "test_registry_forget_db"
 
 @pytest.fixture
 def seeded():
-    """Seed all three per-database maps, and clean up whatever the test leaves."""
     cap_mod._UnaccentTables.by_db[DB] = {0xE9: "e"}
     reg_mod._ASSERTION_REPORTS[DB] = object()
     try:
@@ -87,12 +56,6 @@ def test_delete_all_clears_the_per_database_maps(seeded):
 
 
 def test_teardown_call_sites_use_forget_not_delete():
-    """The three places a database is genuinely gone must call ``forget``.
-
-    ``Registry.delete`` remains correct inside ``Registry.new`` (a rebuild) and
-    nowhere else; a new ``delete`` call outside this module is almost certainly
-    a missed ``forget``.
-    """
     import pathlib
 
     root = pathlib.Path(reg_mod.__file__).resolve().parents[3]

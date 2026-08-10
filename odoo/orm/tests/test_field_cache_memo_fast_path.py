@@ -1,29 +1,3 @@
-"""The `env.__dict__["_field_cache_memo"]` fast path must stay fast.
-
-Four Layer-1 hot paths read the memo by **string key** off the instance dict to
-skip a descriptor call::
-
-    try:
-        field_cache = env.__dict__["_field_cache_memo"][self]
-    except KeyError:
-        field_cache = self._get_cache(env)
-
-(`fields/base.py:1027,1393`, `fields/textual.py:76`,
-`fields/relational/many2one.py:54`.)
-
-It works only because `Environment._field_cache_memo` is a
-`functools.cached_property`, which writes into the instance `__dict__` on first
-access. Make it a slot, a plain attribute, or rename it, and the subscript
-raises `KeyError` -- which the `except KeyError` above **catches**, because that
-clause already exists for the ordinary "no entry for this field yet" miss. The
-two are indistinguishable at the call site, so the fast path degrades to a
-permanent slow path and nothing fails: not ruff, not the test suite, and not
-`env_surface_check`, which validates that the name *exists* on `Environment`
-(it would, as a slot) but not that this access *reaches* it.
-
-That is the whole gap these tests close: existence is already gated, use is not.
-"""
-
 import functools
 
 import pytest
@@ -52,11 +26,6 @@ class MemoThing(models.Model):
 
 
 def test_the_memo_is_an_instance_dict_cached_property():
-    """The precondition the subscript depends on.
-
-    A slot or a plain class attribute would keep `env._field_cache_memo`
-    working and make `env.__dict__["_field_cache_memo"]` raise forever.
-    """
     attr = Environment.__dict__.get("_field_cache_memo")
     assert isinstance(attr, functools.cached_property), (
         "Environment._field_cache_memo is no longer a functools.cached_property "
@@ -80,12 +49,6 @@ def test_the_memo_actually_lands_in_the_instance_dict():
 
 
 def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch):
-    """The behavioural assertion: the fast path is *taken*, not merely available.
-
-    `_get_cache` is the fallback. Once the memo holds an entry for the field,
-    reading through it must not call `_get_cache` at all -- if it does, the
-    subscript is missing and every read is paying the slow path.
-    """
     with model_test_env(MemoThing) as env:
         model = env["memo.thing"]
         field = model._fields["name"]
@@ -113,11 +76,6 @@ def test_a_warm_read_does_not_fall_back_to_get_cache(monkeypatch):
 
 @pytest.mark.parametrize(("relpath", "expected"), _FAST_PATH_SITES)
 def test_the_fast_path_sites_are_where_we_think(relpath, expected):
-    """If a site moves or is deleted, this file's premise needs re-checking.
-
-    Not a prohibition -- removing a fast path is fine. But it should be a
-    decision, and the count above should move with it.
-    """
     import pathlib
 
     root = pathlib.Path(__file__).resolve().parents[2]

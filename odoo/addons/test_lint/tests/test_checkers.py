@@ -110,7 +110,6 @@ class TestSuppression(BaseCase):
 
 
 def _violations(source):
-    """The rationale rule reads the comment map `_suppression` produces."""
     return list(
         _checker_noqa_rationale.find_violations(_suppression.comment_lines(source))
     )
@@ -234,8 +233,6 @@ class TestLeadingIndexColumns(BaseCase):
     # this quietly would stop it demanding indexes that are genuinely missing.
 
     class _FakeModel:
-        """Enough of a model for `leading_index_columns`: a pool and indexes."""
-
         pool = None
 
         def __init__(self, table_objects):

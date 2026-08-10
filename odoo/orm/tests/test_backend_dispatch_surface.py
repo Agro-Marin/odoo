@@ -213,14 +213,6 @@ _NUMBER_WORDS = {
 
 
 def test_the_header_count_matches_the_dict():
-    """The header quantifies the surface; re-derive it rather than trust it.
-
-    The header said "fifteen sites across eight files -- including four in
-    Layer 1" while the dict held fourteen across eight with three in Layer 1:
-    the prose was written once and never re-derived, which is the same drift
-    this whole module exists to stop one level down. A count in a comment is a
-    second copy, so it gets an assertion or it goes.
-    """
     header = (
         pathlib.Path(__file__)
         .read_text(encoding="utf-8")

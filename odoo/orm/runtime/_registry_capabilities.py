@@ -1,23 +1,3 @@
-"""What this database's PostgreSQL can do, and the folding derived from it.
-
-A leaf of the ``Registry`` composition (see :mod:`._registry_models` for the
-shape and why it matters). Four members that were declared in the typing stub,
-assigned in ``Registry.init`` and read by ``_registry_schema`` — which made them
-*shared state owned by nobody*, invisible to ``mixin_coupling_check``'s graph
-while being exactly the kind of coupling it exists to measure.
-
-``unaccent`` and ``has_unaccent`` are a **capability**, not a schema fact, which
-is why this is its own leaf rather than three more attributes on
-``_RegistrySchemaMixin``: ``check_indexes`` is one consumer, and the search path
-(``pool.unaccent``, from the domain optimiser) is another that has nothing to do
-with DDL. Filing them under "schema" would have made the busiest reader look
-like the owner.
-
-Its out-degree into the composition is zero — every member reads only what this
-module declares, and the probe takes its cursor as an argument rather than
-calling ``self.cursor()``, which is what keeps it from reaching the root.
-"""
-
 import typing
 from functools import partial
 
@@ -67,18 +47,10 @@ def _get_unaccent_table(cr: BaseCursor, db_name: str) -> dict[int, str]:
 
 
 def forget_unaccent_table(db_name: str) -> None:
-    """Drop the probed fold table for *db_name*.
-
-    Module-level rather than a method: ``Registry.forget`` and
-    ``Registry.delete_all`` call it about a database that may have no live
-    registry, and reaching ``_UnaccentTables`` from ``registry.py`` would have
-    it touching this module's privates.
-    """
     _UnaccentTables.by_db.pop(db_name, None)
 
 
 def forget_all_unaccent_tables() -> None:
-    """Drop every probed fold table — the process-wide reset."""
     _UnaccentTables.by_db.clear()
 
 
@@ -91,8 +63,6 @@ def _unaccent_python(x: str, table: dict[int, str]) -> str:
 
 
 class _RegistryCapabilitiesMixin(_RegistryStubs):
-    """Per-database PostgreSQL capabilities, probed once at registry init."""
-
     __slots__ = ()
 
     has_unaccent: FunctionStatus
@@ -120,12 +90,6 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
     costs no query per use."""
 
     def _probe_capabilities(self, cr: BaseCursor, db_name: str) -> None:
-        """Ask *cr*'s database what it supports and derive the folds.
-
-        Takes the cursor rather than calling ``self.cursor()``: the connection
-        is the root's concern, and reaching for it here would give this leaf an
-        out-edge and put the composition back in a cycle.
-        """
         from odoo.modules import db as modules_db
 
         self.has_unaccent = modules_db.has_unaccent(cr)

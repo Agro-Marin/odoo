@@ -108,16 +108,6 @@ mutated in place and never rebound.
 
 
 def register_condition_operators(operators: Collection[str]) -> frozenset[str]:
-    """Declare addon-provided condition operators and return them as a set.
-
-    Call at import time of the module that implements the operators, before the
-    ``@operator_optimization`` that gives them meaning -- the decorator
-    validates against the registry, so registration has to come first.
-
-    Registering an operator only makes it *sayable*: a condition carrying it
-    survives ``checked()``. Something still has to give it meaning, or the
-    domain will reach a consumer that cannot translate it.
-    """
     operators = frozenset(operators)
     if not operators:
         raise ValueError("Missing operator to register")

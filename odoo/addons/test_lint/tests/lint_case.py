@@ -71,13 +71,6 @@ def core_xml_files() -> list[str]:
 
 @functools.cache
 def core_module_names() -> frozenset[str]:
-    """The addon names that live in *this* repository.
-
-    Gates whose numbers must not depend on what else is on the addons path ask
-    this rather than looking at every manifest. A workspace with `enterprise`
-    beside this checkout otherwise measures a different tree from the one CI
-    measures, and any floor harvested in one is wrong in the other.
-    """
     return frozenset(
         manifest.name
         for manifest in Manifest.all_addon_manifests()
@@ -87,14 +80,6 @@ def core_module_names() -> frozenset[str]:
 
 @functools.cache
 def _core_data_files() -> tuple[Path, ...]:
-    """The XML data files a fixer owns: the one selection every gate asks.
-
-    Both XML gates and both XML fixers have to agree on this set, or a gate
-    reports a file its own remediation refuses to touch and can never be made
-    to pass. That had already happened once for the formatter (12 665 reported,
-    9 876 refused) and was still true for the record sorter, whose CLI carried
-    its own exclude list while `test_xml_records` scanned everything.
-    """
     from . import _pretty_xml
 
     return tuple(
@@ -119,15 +104,6 @@ class LintCase(BaseCase):
     def assert_ratchet(
         self, findings, floor: int, what: str, fix: str, *, exact: bool = True
     ) -> None:
-        """Fail if the count moved, in either direction.
-
-        `exact=False` drops the downward half, and is only correct for a gate
-        whose count is a function of the *installed* module set rather than of
-        the tree: it measures the registry or an assembled bundle, so a smaller
-        install legitimately reports less and "fewer findings" cannot be read
-        as "debt paid down". A file-scanning gate is never in that position and
-        must stay exact.
-        """
         found = list(findings)
         if len(found) > floor:
             self.fail(

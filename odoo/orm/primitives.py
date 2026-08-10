@@ -13,31 +13,6 @@ COLLECTION_TYPES = (list, tuple, AbstractSet)
 
 
 class NewId:
-    """Pseudo-id for a record that does not exist in the database yet.
-
-    Falsy, so ``bool(record.id)`` still means "is this saved?".
-
-    **Ordering is epsilon-semantics, and the four comparison methods only look
-    like they contain typos.** A ``NewId(origin=n)`` sorts immediately *after*
-    the integer ``n`` -- think ``n + eps`` -- and an origin-less ``NewId`` sorts
-    after everything. That is why ``__le__`` against an int returns
-    ``self.origin < other`` and ``__gt__`` returns ``self.origin >= other``:
-    ``NewId(5)`` is neither ``< 5`` nor ``<= 5``, but is both ``> 5`` and
-    ``>= 5``, and is ``< 6``. Sorting a mixed list gives::
-
-        sorted([9, NewId(5), 5, NewId(9), 3, NewId()])
-        # [3, 5, <NewId origin=5>, 9, <NewId origin=9>, <NewId 0x...>]
-
-    **Trichotomy does not hold** for two origin-less, ref-less instances: they
-    are neither ``==``, ``<``, nor ``>`` each other. Harmless for ``sort()``,
-    which uses only ``__lt__``, but do not build a comparison-based invariant
-    on it.
-
-    Pinned by ``odoo/orm/tests/test_newid_ordering.py``; both halves were
-    undocumented and unasserted until 2026-08-09, which made every one of these
-    methods look like an off-by-one waiting to be "fixed".
-    """
-
     __slots__ = ("__hash", "origin", "ref")
 
     def __init__(self, origin: int | None = None, ref: typing.Any = None) -> None:

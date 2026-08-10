@@ -82,16 +82,6 @@ def _areas() -> list[str]:
 
 @functools.cache
 def _runtime_surface() -> dict[str, dict[str, list[str]]]:
-    """Per-area {declared, accidental} submodule attributes, probed OUT OF PROCESS.
-
-    This has to import every submodule to tell a module from a same-named
-    symbol, and doing that in-process is not neutral: it populates
-    ``sys.modules`` and broke the neighbouring lazy-facade suite
-    (``test_facade_is_lazy.py`` went 6 passed -> 3 failed purely because this
-    file ran first). A subprocess keeps the measurement accurate and the
-    parent's import state untouched -- the same reason
-    ``odoo/tools/tests/test_all_tools_modules_import.py`` shells out.
-    """
     program = textwrap.dedent(
         """
         import importlib, json, pathlib, sys, types
@@ -135,13 +125,11 @@ def _runtime_surface() -> dict[str, dict[str, list[str]]]:
 
 
 def _submodule_attributes(area: str) -> tuple[set[str], set[str]]:
-    """(declared, accidental) submodules reachable as attributes of the area."""
     entry = _runtime_surface().get(area, {"declared": [], "accidental": []})
     return set(entry["declared"]), set(entry["accidental"])
 
 
 def _leaf_imports_via_area() -> dict[str, int]:
-    """`from odoo.libs.<area> import <name>` where <name> is really a module."""
     is_module: set[str] = set()
     for area in _areas():
         declared, accidental = _submodule_attributes(area)
@@ -188,14 +176,6 @@ def test_declared_submodule_exports_are_pinned():
 
 
 def _accidental_from_disk(area: str) -> set[str]:
-    """Submodules on disk that the area does not declare in ``__all__``.
-
-    Computed from the filesystem, NOT from the area's runtime attributes.
-    Reading attributes is order-dependent in two ways that both bit this test:
-    a submodule binds onto its parent when anything imports it, and a full
-    Tier-1 run also imports ``odoo/libs/<area>/tests/``, which binds ``tests``
-    onto the area as well. Disk is the stable denominator.
-    """
     mod = importlib.import_module(f"odoo.libs.{area}")
     exported = set(getattr(mod, "__all__", []))
     on_disk = {p.stem for p in (_LIBS / area).glob("*.py") if p.stem != "__init__"}

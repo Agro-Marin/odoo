@@ -1,13 +1,3 @@
-"""Contract of `CopyMixin.copy_data` / `CopyMixin.copy`.
-
-`copy_data` returns a list positionally aligned with ``self``, and addon
-overrides zip the two together and mutate the dicts in place. A `None` entry
-(for a record this operation has already copied) breaks every one of those
-overrides with a bare `TypeError`, so both ways of producing one are closed off:
-a repeated record in ``self`` is rejected outright, and the one2many recursion
-drops already-copied records before recursing into the child model.
-"""
-
 from collections import defaultdict
 
 from odoo.tests import TransactionCase, tagged
@@ -21,9 +11,6 @@ class TestCopyDataContract(TransactionCase):
         cls.Partner = cls.env["res.partner"]
 
     def test_duplicated_recordset_is_refused_by_copy_data(self):
-        """`copy()` would answer two occurrences with a single record and hand
-        back a recordset shorter than ``self``, silently mispairing callers that
-        zip the two together."""
         partner = self.Partner.create({"name": "Copy Contract"})
         twice = self.Partner.browse([partner.id, partner.id])
         self.assertEqual(len(twice), 2)
@@ -42,7 +29,6 @@ class TestCopyDataContract(TransactionCase):
         self.assertNotEqual(copies, partner)
 
     def test_distinct_records_stay_paired_with_their_copies(self):
-        """The property every `zip(self, copy_data(...))` override relies on."""
         partners = self.Partner.create(
             [{"name": "Copy Pair A"}, {"name": "Copy Pair B"}]
         )
@@ -53,9 +39,6 @@ class TestCopyDataContract(TransactionCase):
             self.assertIn(partner.name, vals["name"])
 
     def _make_export(self, name):
-        """`ir.exports.export_fields` is one of the few `copy=True` one2many
-        fields in `base` (One2many defaults to copy=False), so it is what makes
-        the recursion below observable at all."""
         return self.env["ir.exports"].create(
             {
                 "name": name,
@@ -65,10 +48,6 @@ class TestCopyDataContract(TransactionCase):
         )
 
     def test_already_copied_o2m_lines_never_reach_the_child_copy_data(self):
-        """An already-copied line used to be handed to the child model's
-        `copy_data`, come back as `None`, and be dropped here -- passing through
-        every override on the way. It is now filtered out before recursing.
-        """
         export = self._make_export("Copy Export")
         line = export.export_fields
         self.assertTrue(line, "the fixture needs a copied one2many line")

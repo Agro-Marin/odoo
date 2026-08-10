@@ -48,18 +48,7 @@ class _EsmFallbackError(Exception):
 
 
 class EsbuildBundleError(RuntimeError):
-    """An esbuild build failed where the failure must not be degraded away.
-
-    Serving an empty bundle is the right answer for a user — a degraded page
-    beats a 500 — and the wrong one for whoever caused it: the page comes back
-    ``200`` with no JavaScript, and the only trace is a WARNING. That has cost
-    this fork two silent outages, each found by a person clicking rather than
-    by anything failing.
-
-    So the pipeline fails closed exactly where somebody is positioned to act on
-    it (``--test-enable``, ``--dev=assets``) and keeps degrading in production.
-    See ``IrQweb._esbuild_fail_closed``.
-    """
+    pass
 
 
 class IrQweb(models.AbstractModel):
@@ -452,24 +441,6 @@ class IrQweb(models.AbstractModel):
         self,
         asset_bundle: AssetsBundle,
     ) -> None:
-        """Reject a per-file-served bundle whose members relatively import
-        files OUTSIDE the bundle.
-
-        Such an import resolves against the member's static URL, so the
-        browser fetches the target's RAW source instead of the parent-bridge
-        shim the import map holds for it — bridge discovery never sees the raw
-        copy's own bare imports, and the first one that lives only inside the
-        parent's compiled bundle fails at runtime with a bare
-        "Failed to resolve module specifier" (see
-        :func:`find_escaping_relative_imports`).  Failing the payload build
-        with the file, the import, and the fix beats letting the browser
-        throw a TypeError that names neither.
-
-        Raised unconditionally (not ``_esbuild_fail_closed``-gated): there is
-        no degraded serve for this class — per-file delivery is already the
-        only mode a lazy bundle has, and it is broken exactly as long as the
-        import is.
-        """
         escapes = find_escaping_relative_imports(asset_bundle.native_modules)
         if not escapes:
             return
@@ -535,20 +506,6 @@ class IrQweb(models.AbstractModel):
             return default
 
     def _esbuild_fail_closed(self) -> bool:
-        """Whether a failed esbuild build must raise instead of degrading.
-
-        Degrading is correct for a user and wrong for a developer, so the two
-        cases are split by who is watching rather than by how bad the failure
-        is: under ``--test-enable`` or ``--dev=assets`` somebody is positioned
-        to fix it now, and an empty bundle there reads as unrelated test
-        failures somewhere else entirely (a missing service, absent
-        translations) which is how the cause stays hidden. Production keeps
-        serving the degraded page.
-
-        ``web.esbuild.fail_closed`` overrides in either direction — set it to
-        ``0`` to get the old behaviour back in a test run that has to survive a
-        broken bundle, or to ``1`` to make a staging server strict.
-        """
         override = self._get_esbuild_setting("fail_closed", default=None)
         if override is not None:
             return str(override).strip().lower() not in ("0", "false", "")
@@ -697,24 +654,6 @@ class IrQweb(models.AbstractModel):
 
     @classmethod
     def _hoot_specifiers(cls, bundle: str, specifiers: Iterable[str]) -> list[str]:
-        """The specifiers of *bundle* that Hoot loads itself.
-
-        Hoot-ness is a property of the BUNDLE, not of a path. The runner's
-        bundles and the tour bundle are disjoint — ``web.assets_unit_tests``
-        holds 1088 ``*.test.js`` suites, ``web.assets_tests`` holds none, only
-        tours and the odd integration helper — so reading ``"/tests/" in
-        specifier`` as "Hoot owns this" misclassified every file of the tour
-        bundle that does not sit under a ``tours/`` directory. Those were then
-        left out of the eager import, silently: ``test_css_error.js``,
-        ``auth_passkey``'s tours and a dozen more never registered, and the
-        runner could only report the ready code as "always falsy".
-
-        So the directory reading applies only where it is true — a bundle that
-        the Hoot runner loads through an import map. Elsewhere a suite is still
-        recognised by name, which keeps a self-contained runner bundle
-        (``im_livechat.embed_assets_unit_tests``) lazy without declaring the
-        relationship.
-        """
         registry = esm_registry()
         by_directory = (
             bundle in registry.import_map_includes

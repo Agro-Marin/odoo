@@ -60,14 +60,6 @@ class UnitOfWork[F: FieldKey = FieldKey]:
         self._recompute_order = order
 
     def dirty_models(self) -> list[str]:
-        """Return the models holding dirty fields, in first-seen order.
-
-        Reads ``model_name`` through ``getattr`` for the same reason
-        :meth:`FieldCache.pop_dirty_for_model` does: the key type is
-        :class:`FieldKey`, because the unit tests key this store with plain
-        strings on purpose, and only production keys (``Field``) carry a model.
-        A key without one is skipped rather than crashing the flush loop.
-        """
         seen: dict[str, None] = {}
         for fld in self.cache.iter_dirty_fields():
             model_name = getattr(fld, "model_name", None)

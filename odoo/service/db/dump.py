@@ -1,9 +1,3 @@
-"""Backups: pg_dump, the zip envelope, and the filestore that travels with it.
-
-One of the five modules ``service/db.py`` was split into; the package
-``__init__`` carries the shape and the dependency direction.
-"""
-
 import base64
 import json
 import logging
@@ -41,12 +35,6 @@ BACKUP_FORMATS = frozenset({"zip", "dump"})
 
 
 def _pg_dump_total_timeout() -> float:
-    """Wall-clock ceiling (seconds) for any single ``pg_dump`` invocation.
-
-    Shared by every dump path (blocking and streaming) so a hung ``pg_dump``
-    (PG-side lock wait, unresponsive remote) can't block a worker forever.
-    Default 1h; override via ``ODOO_PG_DUMP_TOTAL_TIMEOUT``.
-    """
     return env_float("ODOO_PG_DUMP_TOTAL_TIMEOUT", 3600.0, logger=_logger)
 
 
@@ -76,12 +64,6 @@ def exp_dump(db_name: str, backup_format: str) -> str:
 
 @check_db_management_enabled
 def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
-    """Return a dict describing the database content for a zip-format dump.
-
-    The resulting ``manifest.json`` is written alongside the SQL dump and
-    filestore, and is inspected at restore time to decide compatibility
-    (Odoo version, installed modules with their db_version).
-    """
     v = cr.connection.info.server_version
     pg_version = f"{v // 10000}.{v // 100 % 100}"
     cr.execute(
@@ -100,14 +82,6 @@ def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
 
 
 def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
-    """Run ``pg_dump`` to completion, raising ``RuntimeError`` on timeout/error.
-
-    Used by the buffered custom-format path (``stream=None``), which needs the
-    whole dump on disk before it can hand back a seekable file.  Every other dump
-    path streams through :func:`_run_pg_dump_streaming`.  Bounded by
-    ``_pg_dump_total_timeout`` so a hung pg_dump can't block a worker —
-    ``subprocess.run`` kills and reaps.
-    """
     timeout = _pg_dump_total_timeout()
     try:
         result = subprocess.run(
@@ -138,14 +112,6 @@ _STDERR_DRAIN_JOIN_S = 10.0
 
 
 def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None:
-    """Stream a custom-format ``pg_dump`` to ``stream`` while draining stderr.
-
-    stdout is copied as produced; a sibling thread drains stderr so neither pipe
-    blocks when pg_dump emits more than the OS pipe buffer of warnings.  A
-    wall-clock ``Timer`` SIGTERMs a stalled pg_dump (``copyfileobj`` is otherwise
-    unbounded if stdout EOF never arrives), and a bounded post-EOF wait escalates
-    SIGTERM → SIGKILL.  Raises ``RuntimeError`` on stall or non-zero exit.
-    """
     proc = subprocess.Popen(
         cmd,
         env=env,
@@ -234,13 +200,6 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
 
 
 def _zip_filestore_into(zipf: zipfile.ZipFile, filestore: str) -> None:
-    """Add ``filestore``'s files to ``zipf`` under ``filestore/``, in place.
-
-    Reads the LIVE filestore rather than a staged copy — see :func:`dump_db`.
-    Symlinks are resolved and any target escaping ``filestore`` is skipped, so a
-    stray link cannot pull arbitrary host files into a backup (the containment
-    check :func:`osutil.zip_dir` performed, kept here now that the walk is ours).
-    """
     root = Path(filestore)
     if not root.is_dir():
         return
@@ -269,15 +228,6 @@ def _write_zip_dump(
     env: dict,
     with_filestore: bool,
 ) -> None:
-    """Write the v8+ zip backup of ``db_name`` straight into ``stream``.
-
-    Members are produced in place — ``manifest.json``, ``dump.sql`` streamed from
-    ``pg_dump``'s stdout through the deflater, then the filestore read where it
-    lives.  Nothing is staged first: assembling the backup in a temporary
-    directory charged a full copy of the filestore plus the uncompressed SQL to
-    ``TMPDIR``, which is frequently a tmpfs and therefore to RAM.  Peak temp
-    space is now the compressed archive alone, and only when ``stream`` is None.
-    """
     with zipfile.ZipFile(
         stream, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
     ) as zipf:
@@ -306,19 +256,6 @@ def dump_db(
     backup_format: str = "zip",
     with_filestore: bool = True,
 ) -> IO[bytes] | None:
-    """Dump database ``db_name`` into ``stream``; if ``stream`` is None,
-    return a file object with the dump.
-
-    .. warning::
-        For the ``zip`` format this is a **best-effort online snapshot**, not a
-        transactional one: ``pg_dump`` and the filestore read run in sequence, so
-        writes landing in between are not captured coherently.  The SQL is taken
-        FIRST and the filestore after, which makes the residue benign — a file
-        with no row that references it, rather than a row whose file is missing.
-        (The reverse order, which staging the filestore first used to impose,
-        produced the broken direction.)  For a backup-of-record on a busy DB,
-        freeze writes externally or use physical-replica snapshots.
-    """
     validate_db_name(db_name)
     if backup_format not in BACKUP_FORMATS:
         raise ValueError(

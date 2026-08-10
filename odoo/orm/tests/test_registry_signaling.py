@@ -272,25 +272,8 @@ def test_get_sequences_rejects_row_length_drift():
 
 
 def test_signal_changes_records_the_id_the_database_generated(monkeypatch):
-    """``RETURNING id``, not ``local + 1``.
-
-    These tables coordinate several processes, so concurrent inserts are the
-    normal case. Two workers signalling together take ids N+1 and N+2 while both
-    record ``+= 1`` locally; the loser then reads ``db_seq > local_seq`` on its
-    next ``check_signaling`` and performs a full ``Registry.new()`` -- the most
-    expensive operation in the system -- to learn about a change it made itself.
-
-    Demonstrated on a live database before the fix. With a competing writer
-    taking one id, the old code recorded ``local=10`` against ``dbmax=11`` (a
-    spurious reload); with ``RETURNING id`` the two agree.
-
-    Here the cursor reports ids that skip ahead, which is exactly what a
-    competing writer looks like from this process.
-    """
 
     class _ReturningCursor:
-        """Reports ids 40 then 41, i.e. someone else consumed the ones between."""
-
         def __init__(self):
             self.queries = []
             self._next = 40
@@ -327,7 +310,6 @@ def test_signal_changes_records_the_id_the_database_generated(monkeypatch):
 
 
 def test_signalled_id_falls_back_when_no_row_comes_back():
-    """A cursor that returns nothing must not crash the signal path."""
 
     class _NoRowCursor:
         def fetchone(self):
@@ -337,25 +319,8 @@ def test_signalled_id_falls_back_when_no_row_comes_back():
 
 
 def test_get_sequences_coalesces_an_empty_signalling_table():
-    """``max(id)`` over an empty table is NULL, and the caller compares with ``>``.
-
-    Reproduced against a live database before the fix: after
-    ``DELETE FROM orm_signaling_registry``, ``get_sequences`` returned
-    ``(None, ...)``, ``setup_signaling`` stored that ``None`` into
-    ``registry_sequence`` (annotated ``int``), and the next ``check_signaling``
-    raised ``TypeError: '>' not supported between instances of 'NoneType' and
-    'int'`` -- for every registry in the cluster, until a row reappeared.
-
-    An empty-but-present table is reachable in practice: ``setup_signaling``
-    seeds a row only when it *creates* the table, so a truncate/restore or an
-    interrupted setup leaves exactly this state. The SQL now coalesces to 0,
-    which ``check_signaling`` already handles (a db value below the local one is
-    treated as stale, not as an error).
-    """
 
     class _EmptyTableCursor:
-        """Stands in for PostgreSQL returning NULL from ``max()``."""
-
         def __init__(self):
             self.sql = ""
 

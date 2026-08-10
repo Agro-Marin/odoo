@@ -12,22 +12,6 @@ _logger = logging.getLogger("odoo.models")
 
 
 class _HooksMixin(_ModelStubs):
-    """The decorator-collected registries for ``@api.ondelete`` / ``@api.onchange``.
-
-    Both are ``getmembers`` scans of the runtime class, memoised per class with
-    :func:`own_class_memo` — the same shape as ``_ConstraintsMixin``'s
-    ``_constraint_methods``, and the third of the three registries whose memo
-    keys ``helpers.ORM_CLASS_MEMOS`` lists side by side.
-
-    They lived on ``base.py`` until 19.0-marin, and were the **only** reason
-    anything depended on the composition root: measured through
-    ``mixin_coupling_check``'s own collector, ``base.py``'s entire in-degree was
-    ``lifecycle -> _onchange_methods`` and ``unlink -> _ondelete_methods``. A
-    leaf that nothing in the composition depends on cannot close a cycle, which
-    is the design rule ``doc/architecture/module.md`` states for new mixins;
-    a composition root that others depend on is not a root at all.
-    """
-
     __slots__ = ()
 
     @property

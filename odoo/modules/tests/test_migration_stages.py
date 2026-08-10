@@ -1,17 +1,5 @@
-"""A migration script whose name matches no stage must not vanish silently.
-
-``migrate_module`` selects scripts by filename prefix
-(``name.startswith(f"{stage}-")``), and ``_scripts_by_version`` globs ``*.py``.
-Anything in between — ``pre_01.py``, ``Pre-01.py``, ``migrate.py`` — is
-collected and then dropped by every stage, with no diagnostic. On an upgrade of
-a populated database that is a migration nobody notices did not happen.
-
-``risks.md`` R3 records staging as unenforced. The *semantic* half genuinely is:
-nothing can know that a script reading the old schema was filed ``post-``. The
-syntactic half is checkable, and these tests are the check.
-"""
-
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -61,7 +49,6 @@ class TestUnstagedScriptsWarn:
         assert _warnings(caplog) == []
 
     def test_dunder_init_is_not_a_migration_script(self, version_dir, caplog):
-        """Packages beside the scripts are legitimate and must stay quiet."""
         path = version_dir / "__init__.py"
         path.touch()
         with caplog.at_level(logging.WARNING):
@@ -71,7 +58,6 @@ class TestUnstagedScriptsWarn:
 
 class TestCollectionWiresTheWarning:
     def test_scripts_by_version_reports_while_collecting(self, tmp_path, caplog):
-        """The warning must fire on the real collection path, not only in isolation."""
         version_dir = tmp_path / "19.0.1.0"
         version_dir.mkdir()
         (version_dir / "pre-01-good.py").touch()
@@ -96,5 +82,38 @@ class TestCollectionWiresTheWarning:
 
 class TestStagesAreDeclaredOnce:
     def test_the_stage_tuple_is_what_migrate_module_accepts(self):
-        """``migrate_module``'s assert and the prefix list must not drift apart."""
         assert MIGRATION_STAGES == ("pre", "post", "end")
+
+
+class TestTheDocstringFigureIsMeasured:
+    @staticmethod
+    def _scripts():
+        root = Path(__file__).resolve().parents[3]
+        return [
+            path
+            for tree in ("odoo/addons", "addons")
+            for subdir in ("migrations", "upgrades")
+            for path in (root / tree).rglob(f"{subdir}/*/*.py")
+            if path.name != "__init__.py"
+        ]
+
+    def test_the_measured_script_count_is_current(self):
+        scripts = self._scripts()
+        assert scripts, "no migration scripts found — the glob has rotted"
+        docstring = _warn_unstaged_scripts.__doc__ or ""
+        assert f"{len(scripts)} migration scripts" in docstring, (
+            f"the docstring's script count is stale: measured {len(scripts)} "
+            f"across odoo/addons + addons"
+        )
+
+    def test_none_of_them_is_skipped(self):
+        unstaged = sorted(
+            str(p.name)
+            for p in self._scripts()
+            if not p.name.startswith(tuple(f"{s}-" for s in MIGRATION_STAGES))
+        )
+        assert unstaged == [], (
+            f"{len(unstaged)} migration script(s) match no stage and will never "
+            f"run: {unstaged}"
+        )
+        assert "0 skipped" in (_warn_unstaged_scripts.__doc__ or "")

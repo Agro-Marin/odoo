@@ -517,19 +517,6 @@ def get_translated_module(
 
 
 def _probe(obj: object, name: str) -> object:
-    """Read ``obj.name`` without ever running the object's ``__getattr__``.
-
-    Frames are introspected, not called into: the ``self`` of an arbitrary
-    frame is a stranger, and asking it for an attribute it does not have must
-    stay free of consequences. A type that traps the miss does not merely
-    raise -- ``odoo.tests.Form`` turns the name into a field lookup, and
-    ``ir_qweb``'s lazy value renders its whole template and exhausts the stack.
-
-    ``object.__getattribute__`` is the normal lookup minus that fallback: slots,
-    instance dict and descriptors all still answer, so a real recordset yields
-    its ``env`` and so does a class that happens to define ``__getattr__``
-    beside a genuine one. Only the trap is skipped.
-    """
     if obj is None:
         return None
     try:
@@ -583,20 +570,6 @@ def _lang_search_frames(frame: object) -> list[object]:
 
 
 def _mapping_lang(candidate: object) -> str:
-    """Read ``candidate["lang"]`` when ``candidate`` really is a mapping.
-
-    Frame locals are matched by *name*, so anything at all may be bound to one
-    called ``context``: ``with assertRaises(...) as context`` binds a
-    ``_AssertRaisesContext``, and ``.get`` on that raises ``AttributeError``
-    rather than simply missing. This is ``_probe``'s rule applied to the other
-    half of the frame -- an arbitrary frame's locals are strangers, and
-    interrogating one must stay free of consequences -- so the name is checked
-    against the shape it is assumed to have before it is used as that shape.
-
-    ``dict`` and ``frozendict`` (a ``dict`` subclass) both satisfy ``Mapping``,
-    which is what a real ``env.context`` ever is. The ``lang`` value is checked
-    too, so this function's return annotation holds for any input.
-    """
     if not isinstance(candidate, Mapping):
         return ""
     lang = candidate.get("lang")
@@ -613,19 +586,6 @@ def _get_frame_context_lang(frame: object) -> str:
 
 
 def _get_lang(frame: object, default_lang: str = "") -> str:
-    """Resolve the language a ``_()`` call should translate into.
-
-    Search the calling frame and then outwards along the stack: a helper that
-    holds no Odoo context of its own -- a ``lambda``, a ``staticmethod``, a
-    method of a plain non-recordset object -- still runs underneath a caller
-    that does, and its strings must translate like any other. The walk is
-    depth-bounded so that a genuinely untranslatable call stays cheap.
-
-    :param frame: frame of the ``_()`` caller, the innermost one searched
-    :param default_lang: language to fall back on instead of reporting failure
-    :return: a language code, or ``""`` when none is reachable
-    :rtype: str
-    """
     frames = _lang_search_frames(frame)
     found_env = False
     for candidate in frames:

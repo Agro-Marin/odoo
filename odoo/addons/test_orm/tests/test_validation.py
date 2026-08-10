@@ -165,17 +165,6 @@ class TestCheckPgName(TransactionCase):
 
 
 class TestPrivateMethodsAreNotCallableRemotely(TransactionCase):
-    """The RPC gate is ``service.model.get_public_method``, not a name check.
-
-    These assertions used to run against ``orm.validation.check_method_name``,
-    a Layer-0 helper with no production caller that raised the same
-    "cannot be called remotely" AccessError and so read as the authoritative
-    check. It was strictly weaker: it knew nothing of ``@api.private`` or of
-    ``safe_eval``'s unsafe-attribute list, so it ALLOWED ``browse`` -- which
-    the real gate blocks. Deleted 2026-08-09; its coverage lives here, against
-    the code that actually decides.
-    """
-
     def _method(self, name):
         return get_public_method(self.env["res.partner"], name)
 
@@ -191,8 +180,6 @@ class TestPrivateMethodsAreNotCallableRemotely(TransactionCase):
             self._method("__init__")
 
     def test_init_blocked(self):
-        """``init`` is public by name; ``@api.private`` on ``BaseModel.init``
-        is what blocks it, and the MRO walk covers every addon override."""
         with self.assertRaises(AccessError):
             self._method("init")
 

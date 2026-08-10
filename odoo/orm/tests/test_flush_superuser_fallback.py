@@ -44,8 +44,6 @@ class FlushWidget(models.Model):
 
 
 class _PreAuthTransaction:
-    """A transaction holding only an anonymous (uid=None) environment."""
-
     def __init__(self, env):
         self._cr = env.cr
         self._root_tx = env.transaction

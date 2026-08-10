@@ -74,8 +74,16 @@ def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
     A warning rather than an error, for the same reason ``_is_upgrade_version_dir``
     warns on a malformed version directory: an addon may legitimately keep a
     helper module beside its scripts, and refusing to upgrade over one would be a
-    worse failure than the one being reported. Measured across this workspace's
-    five addon trees: 223 migration scripts, all correctly prefixed, 0 skipped.
+    worse failure than the one being reported.
+
+    Measured over **this repository's two addon trees** (``odoo/addons`` and
+    ``addons``): 120 migration scripts, all correctly prefixed, 0 skipped —
+    re-derived by ``test_migration_stages.test_the_measured_script_count_is_current``.
+    The scope is this repo on purpose. The figure here read "223 across this
+    workspace's five addon trees", which CI could never reproduce because it
+    checks out this repo alone, so the number could be neither confirmed nor
+    refuted from inside the build that was supposed to be keeping it honest —
+    and it had already drifted to 235 by the time anyone counted.
     """
     for path in files:
         name = Path(path).name

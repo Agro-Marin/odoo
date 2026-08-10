@@ -256,20 +256,6 @@ class TestCommand(BaseCase):
         self.assertIn("not a valid module template", proc.stderr)
 
     def test_scaffold_renders_default_template(self):
-        """The render path itself, which nothing covered until 2026-08-08.
-
-        Every other scaffold test stops at argparse — ``--help``, or a bad
-        template name rejected before rendering — so ``render_to`` and the Jinja
-        environment behind it were dark. That mattered once the ``jinja2``
-        import moved out of module scope: an ImportError there would have
-        surfaced only to whoever next ran the command.
-
-        Asserts the three template features stdlib string formatting cannot
-        express, so a "simplification" away from Jinja fails here rather than
-        silently emitting broken modules:
-        ``{% set %}`` + the custom ``snake`` filter, ``{% for %}`` over
-        ``range()``, and arithmetic in an expression.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             proc = self.run_command("scaffold", "MyModule", tmp)
             self.assertEqual(proc.returncode, 0, msg=proc.stderr)
@@ -313,13 +299,6 @@ class TestCommand(BaseCase):
                     self.assertNotIn("{%", body)
 
     def test_scaffold_renders_templated_filenames(self):
-        """``l10n_payroll`` is the only template whose *filename* is rendered.
-
-        ``render_to`` runs the path through Jinja separately from the content
-        (``l10n_{{code}}_hr_payroll_demo.xml.template``), and it is also the one
-        template with a non-default ``parse_params``/``modname_for`` pair — so
-        this covers a branch the default template never reaches.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             proc = self.run_command("scaffold", "-t", "l10n_payroll", "mexico-mx", tmp)
             self.assertEqual(proc.returncode, 0, msg=proc.stderr)

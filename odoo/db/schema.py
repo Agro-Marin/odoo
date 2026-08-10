@@ -616,19 +616,6 @@ def drop_view_if_exists(cr: Cursor, viewname: str) -> None:
 def constraint_columns(
     cr: Cursor, diagnostics: psycopg.errors.Diagnostic, *, check_registry: bool = False
 ) -> list[str]:
-    """Column names implicated by a failing constraint, from its diagnostics.
-
-    PostgreSQL fills ``column_name`` for a NOT NULL violation but not for a
-    unique/check one, where only ``constraint_name`` and ``table_name`` are
-    given; ``check_registry`` asks the catalogue for the constraint's column
-    list in that case.
-
-    Lived in ``orm/helpers.py`` until 2026-08-09, typed ``cr: Any,
-    diagnostics: Any``. It is catalogue introspection over ``pg_constraint`` /
-    ``pg_attribute`` -- this module's declared job -- and the ORM already
-    depends on ``db`` downward, so the dependency did not change; only the
-    place it is spelled, and whether anything types it.
-    """
     if column := diagnostics.column_name:
         return [column]
     if not check_registry:

@@ -1,13 +1,3 @@
-"""``AccessDenied`` must not serve its traceback or exception chain.
-
-The suppression is done by the HTTP layer after the raise, not by the
-constructor. That is easy to get backwards: until 2026-08-08 ``__init__`` also
-called ``suppress_traceback()``, which was a guaranteed no-op — the interpreter
-sets ``__traceback__``/``__context__``/``__cause__`` at the ``raise``, not at
-construction — and reading it invited deleting the two call sites that actually
-work. These tests pin both halves so neither can be removed as redundant.
-"""
-
 import ast
 import pathlib
 
@@ -28,7 +18,6 @@ class TestSuppression:
         assert exc.__cause__ is None
 
     def test_a_raise_attaches_a_traceback_and_a_context(self):
-        """Why the constructor cannot do this job."""
         with pytest.raises(AccessDenied) as caught:
             self._raise_denied_from_a_value_error()
         exc = caught.value
@@ -46,20 +35,16 @@ class TestSuppression:
 
     @staticmethod
     def _raise_denied_from_a_value_error() -> None:
-        """Raise ``AccessDenied`` with an implicit ``__context__``, as a handler would."""
         try:
             raise ValueError("inner")
         except ValueError:
             raise AccessDenied  # noqa: B904  the implicit context IS the fixture
 
     def test_no_dead_traceback_attribute(self):
-        """``self.traceback = ("", "", "")`` had zero readers workspace-wide."""
         assert not hasattr(AccessDenied(), "traceback")
 
 
 class TestTheHttpLayerStillCallsIt:
-    """A behavioural test needs a served request; this pins the call sites."""
-
     def test_both_http_call_sites_are_present(self):
         found = set()
         for path in _HTTP_DIR.glob("*.py"):

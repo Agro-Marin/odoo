@@ -1,9 +1,3 @@
-"""The /web/database/manager endpoint: the dispatch table and its master-password gate.
-
-One of the five modules ``service/db.py`` was split into; the package
-``__init__`` carries the shape and the dependency direction.
-"""
-
 import logging
 from collections.abc import Callable
 from typing import Any, Literal
@@ -83,18 +77,6 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
 
 
 def dispatch(method: str, params: list[Any]) -> Any:
-    """Dispatch a db-service RPC call, enforcing master password for admin ops.
-
-    Single allowlist (``_DISPATCH``) for handler resolution, sister set
-    (``_REQUIRES_MASTER_PASSWORD``) for auth — so no method can be both public
-    and admin.  Unknown methods raise ``AttributeError``, uniform with
-    ``common.dispatch`` / ``model.dispatch``.
-
-    TRUST BOUNDARY: the master-password check lives HERE, at the RPC edge, not on
-    the ``exp_*`` handlers.  A direct in-process call is trusted and bypasses the
-    password, but is still gated by ``@check_db_management_enabled`` on the
-    handler — keep destructive handlers decorated so that gate holds internally too.
-    """
     handler = _DISPATCH.get(method)
     if handler is None:
         raise AttributeError(f"Method not found: {method}")

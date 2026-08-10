@@ -93,19 +93,6 @@ class TestOverridePersistence(unittest.TestCase):
 
 
 class TestScopedPatch(unittest.TestCase):
-    """`config.patch()` — the safe replacement for patch.dict(config.options).
-
-    `options` is a ChainMap, and `mock.patch.dict` restores a mapping with
-    `clear()` + `update(copy)`. On a ChainMap that clears only `maps[0]` while
-    the copy still iterates every layer, so the exit path writes the entire
-    flattened configuration into `_override_options` — the highest-precedence
-    map — and every layer beneath it is shadowed for the rest of the process.
-
-    Nothing fails where that happens, which is why it survived: it surfaces
-    arbitrarily later, as some unrelated test finding that setting a lower
-    layer no longer has any effect.
-    """
-
     def setUp(self):
         patcher = patch.dict("os.environ", {}, clear=True)
         patcher.start()
@@ -129,12 +116,6 @@ class TestScopedPatch(unittest.TestCase):
         self.assertEqual(self.config["db_maxconn"], 111)
 
     def test_lower_layers_stay_reachable_afterwards(self):
-        """The actual regression, stated as a property.
-
-        After the block, a write to a LOWER layer must still be visible. Under
-        patch.dict it was not: the key had been copied up into the override map
-        and shadowed whatever the lower layer said from then on.
-        """
         with self.config.patch(db_maxconn=4242):
             pass
         self.config._runtime_options["db_maxconn"] = 777
@@ -142,7 +123,6 @@ class TestScopedPatch(unittest.TestCase):
         self.assertEqual(self.config["db_maxconn"], 777)
 
     def test_patch_dict_on_the_chainmap_is_why_this_exists(self):
-        """Pins the failure mode itself, so the reason cannot be forgotten."""
         before = dict(self.config._override_options)
         with patch.dict(self.config.options, {"db_maxconn": 4242}):
             pass

@@ -20,24 +20,10 @@ EXCLUDED_DIRS: frozenset[str] = frozenset({"_vendor", "static", "node_modules"})
 
 
 def is_formattable(path: Path) -> bool:
-    """Is this a data file the XML gates and the XML fixers both own?
-
-    The suffix is part of the answer. This only ever checked the directory, so
-    it said `True` for `views/x.py` -- harmless while every caller happened to
-    hand it an `.xml` path, and a trap the moment one does not.
-    """
     return path.suffix == ".xml" and not EXCLUDED_DIRS.intersection(path.parts)
 
 
 def iter_target_files(roots, excluded=frozenset()):
-    """The XML files a fixer CLI walks: one implementation, both fixers.
-
-    Both `main()` functions used to inline this loop, and they disagreed --
-    the record sorter carried `_vendor, enterprise, static` of its own while
-    the formatter asked `is_formattable`. A gate can only be as trustworthy as
-    the command its failure tells you to run, so the selection is named, shared
-    and directly testable rather than written twice.
-    """
     for root in roots:
         for path in sorted(Path(root).rglob("*.xml")):
             if is_formattable(path) and not set(excluded).intersection(path.parts):

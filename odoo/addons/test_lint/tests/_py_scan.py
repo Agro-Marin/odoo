@@ -56,12 +56,6 @@ def is_test_path(path: str) -> bool:
 
 
 def walk_with_parents(tree: ast.AST) -> list[ast.AST]:
-    """Pre-order node list, each node carrying `_parent`.
-
-    Only `_checker_sql` reads `_parent` -- it is how a name is resolved to its
-    enclosing scope -- but the list itself is what every checker iterates, so
-    one walk serves all of them.
-    """
     nodes: list[ast.AST] = []
     stack: list[ast.AST] = [tree]
     while stack:
@@ -163,12 +157,6 @@ def _source_line(text: str, lineno: int, limit: int = 110) -> str:
 
 
 def scan_one(path: str, in_module: bool) -> list[tuple[str, str, int, str]]:
-    """Every finding in one file, as plain tuples.
-
-    Deliberately free of Odoo, logging and shared state: this is the unit a
-    worker process runs, and anything it touches beyond the standard library
-    would have to survive being imported in a fresh interpreter.
-    """
     try:
         raw = Path(path).read_bytes()
         text = raw.decode("utf-8", errors="replace")
@@ -214,12 +202,6 @@ def scan_many(entries: list[tuple[str, bool]]) -> list[tuple[str, str, int, str]
 
 
 def _job_count(work: int) -> int:
-    """How many worker processes to use, or 1 for an in-process scan.
-
-    `TEST_LINT_JOBS` overrides; 1 disables. The scan is ~9 200 independent
-    files of pure `ast` work, which is the whole reason this is worth
-    parallelising at all -- it was 80% of the module's runtime.
-    """
     override = os.environ.get("TEST_LINT_JOBS")
     if override:
         try:
@@ -235,20 +217,6 @@ def _job_count(work: int) -> int:
 
 
 def _stop_multiprocessing_helpers() -> None:
-    """Reap the resident helper processes a worker pool leaves behind.
-
-    `multiprocessing` keeps a `resource_tracker` and a `forkserver` alive for
-    the rest of the interpreter's life, whatever start method is used. Odoo's
-    own `BaseCase` class cleanup treats any surviving child as a leak: it
-    terminates it and then waits up to ten seconds for it to die. Neither
-    helper dies on SIGTERM, so every test class that ran afterwards paid the
-    full ten seconds -- a scan that saves eleven seconds cost the suite two
-    extra minutes, which no measurement outside the real harness would show.
-
-    Both expose `_stop()`, which does reap them and leaves the pool machinery
-    reusable. They are private, so a failure here is logged and ignored: the
-    worst case is the leak warning this exists to avoid, never a failed gate.
-    """
     import multiprocessing.forkserver
     import multiprocessing.resource_tracker
 

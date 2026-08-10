@@ -1,19 +1,8 @@
-"""``NewId`` ordering: the epsilon rule, asserted.
-
-``NewId``'s four comparison methods encode "``NewId(origin=n)`` sorts
-immediately after the integer ``n``". Under that rule ``__le__`` against an int
-must use ``<`` and ``__gt__`` must use ``>=`` -- both of which read as
-off-by-one slips out of context, so this module states the rule as executable
-assertions. Before it existed, nothing in the tree would have failed if someone
-had "corrected" either line.
-"""
-
 from odoo.orm.primitives import NewId
 
 
 class TestNewIdOrdersAfterItsOrigin:
     def test_is_not_below_or_equal_to_its_own_origin(self):
-        """``NewId(5)`` is ``5 + eps``: strictly greater, never less or equal."""
         new = NewId(5)
         assert not new < 5
         assert not new <= 5
@@ -47,7 +36,6 @@ class TestNewIdOrdersAfterItsOrigin:
         assert sorted(values) == [3, 5, NewId(5), 9, NewId(9), anonymous]
 
     def test_lt_and_ge_are_consistent_complements(self):
-        """No pair may satisfy both ``<`` and ``>=``, or neither."""
         subjects = [NewId(5), NewId(9), NewId()]
         others = [3, 5, 9, NewId(5), NewId(9)]
         for left in subjects:
@@ -57,12 +45,6 @@ class TestNewIdOrdersAfterItsOrigin:
 
 class TestNewIdTrichotomyGap:
     def test_two_anonymous_newids_are_neither_equal_nor_ordered(self):
-        """A declared gap, not an accident -- see ``NewId``'s docstring.
-
-        Two origin-less, ref-less instances compare False on every operator.
-        ``list.sort`` only uses ``__lt__`` so this is harmless there; it is
-        asserted so that anyone relying on trichotomy finds this first.
-        """
         one, two = NewId(), NewId()
         assert (one == two) is False
         assert not one < two

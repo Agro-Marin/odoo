@@ -963,23 +963,9 @@ class TestAssetsCacheStores(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestInstalledAddonGate(TransactionCase):
-    """``Resolution.active`` is the whole of the addon gate.
-
-    Every directive -- manifest command or ``ir.asset`` row -- ends at
-    ``_resolve_path_def``, and the only thing there that consults addon state
-    is ``addon not in resolution.active``. That single point is what keeps an
-    uninstalled module's files out of a bundle, and it is fed from
-    ``_get_active_addons_list`` rather than ``_get_installed_addons_list``
-    precisely so that a *narrower* notion of active reaches it too: an override
-    that filters the addon list but left this set installed-wide would gate the
-    manifest source only, since an ``ir.asset`` row names a path and no addon
-    (see ``web/tests/test_ir_asset_scope.py``).
-    """
-
     EXISTING_FILE = "/base/static/src/scss/res_users.scss"
 
     def _uninstalled_addon_file(self):
-        """A real, bundleable file belonging to an addon absent from this DB."""
         installed = self.env["ir.asset"]._get_installed_addons_list()
         resolution = Resolution(active=installed)
         for manifest in Manifest.all_addon_manifests():
@@ -994,13 +980,6 @@ class TestInstalledAddonGate(TransactionCase):
         return None, resolution
 
     def test_the_file_exists_but_the_addon_does_not_resolve(self):
-        """The gate is about installation, not about the disk.
-
-        ``base`` is installed in every database, so resolving one of its own
-        files against an empty installed set isolates the check from every
-        other reason a path can fail: same path, same file on disk, only the
-        gate differs.
-        """
         IrAsset = self.env["ir.asset"]
         installed = Resolution(active=IrAsset._get_installed_addons_list())
 
@@ -1012,15 +991,6 @@ class TestInstalledAddonGate(TransactionCase):
         self.assertEqual(gated, ())
 
     def test_a_gated_addon_yields_nothing_rather_than_an_attachment_url(self):
-        """It must not degrade to the attachment fallback.
-
-        A literal path that resolves to no file normally becomes
-        ``ResolvedPath(path, None, None)`` -- "assume an attachment serves this"
-        -- and the bundle then looks the URL up at build time. Were the
-        installed gate to fall through to that branch, an uninstalled addon's
-        path would still occupy a slot in the bundle and be reported as a
-        missing attachment instead of being absent.
-        """
         gated = self.env["ir.asset"]._get_paths(
             "/base/static/src/scss/__no_such_file__.scss",
             Resolution(active=frozenset()),
@@ -1029,7 +999,6 @@ class TestInstalledAddonGate(TransactionCase):
         self.assertEqual(gated, ())
 
     def test_wildcards_do_not_expand_into_a_gated_addon(self):
-        """A glob is the shape that would leak a whole directory at once."""
         IrAsset = self.env["ir.asset"]
         installed = Resolution(active=IrAsset._get_installed_addons_list())
 
@@ -1042,13 +1011,6 @@ class TestInstalledAddonGate(TransactionCase):
         self.assertEqual(gated, ())
 
     def test_a_record_cannot_pull_in_an_uninstalled_addon(self):
-        """End-to-end: the gate holds for the source that carries no addon.
-
-        An ``ir.asset`` row names a path, never an addon, and
-        ``_fetch_bundle_assets`` selects rows by bundle with no addon
-        predicate -- so this row reaches the walk exactly as an installed
-        addon's would. Only ``Resolution.active`` stops it.
-        """
         path, _resolution = self._uninstalled_addon_file()
         if path is None:
             self.skipTest("every addon on the addons path is installed")
@@ -1062,12 +1024,6 @@ class TestInstalledAddonGate(TransactionCase):
         self.assertEqual(entries, ())
 
     def test_server_wide_modules_are_treated_as_installed(self):
-        """``--load`` modules resolve even before the DB knows about them.
-
-        ``_get_installed_addons_list`` unions ``_init_modules`` with
-        ``server_wide_modules`` precisely so a module loaded at the process
-        level is not gated out of the bundles it contributes to.
-        """
         IrAsset = self.env["ir.asset"]
         with patch.dict(
             tools.config.options, {"server_wide_modules": ["__probe_addon__"]}
@@ -1077,20 +1033,6 @@ class TestInstalledAddonGate(TransactionCase):
         self.assertIn("__probe_addon__", installed)
 
     def test_narrowing_the_active_list_narrows_the_bundle(self):
-        """The wiring: an override's answer is what the gate reads.
-
-        ``_get_active_addons_list`` is the only hook an override has --
-        ``website`` drops the themes a site does not use, ``web`` scopes a HOOT
-        run -- and both were half-effective while ``Resolution`` was built from
-        the installed list instead: the manifest source narrowed, the record
-        source did not. Driven by narrowing the hook itself rather than by
-        installing a theme, since the property is about the wiring and holds
-        for whatever an override chooses to remove.
-
-        (No theme actually exercises the difference: all 29 in
-        ``design-themes`` declare manifest assets and ship no ``ir.asset``
-        rows, so the two sources agreed for them either way.)
-        """
         IrAsset = self.env["ir.asset"]
         bundle = "base.test_active_narrowing"
         self.env["ir.asset"].create(

@@ -73,21 +73,6 @@ def to_record_ids(arg) -> list[int]:
 
 
 def _ancestor_company_ids(self: BaseModel, company_ids: list[int]) -> list[int]:
-    """Every company in *company_ids* plus all of their ancestors.
-
-    Expanded here rather than left to the `parent_of` operator, which the
-    string branches of the two callers use and which produces a semantically
-    IDENTICAL result (verified against a 3-level hierarchy with records at
-    every level). The reason is speed, not history: these domains are
-    evaluated on essentially every multi-company query, and one browse + a
-    parent_path split beats making the domain layer resolve the hierarchy --
-    measured 0.220 ms vs 0.368 ms per search (+67%). The `env["res.company"]`
-    reach is therefore deliberate; do not "simplify" it to `parent_of`.
-
-    Extracted 2026-08-09: this comprehension was copy-pasted into both callers
-    and the rationale above sat on only one of them, so the other read as
-    gratuitous complexity and was the one a future reader would "simplify".
-    """
     return [
         int(parent)
         for rec in self.env["res.company"].sudo().browse(company_ids)

@@ -1,18 +1,3 @@
-"""``Field`` refuses to overwrite a dirty cache value without ``dirty=True``.
-
-This guard is the ORM's protection against silently losing a pending write: a
-value written but not yet flushed lives only in the field cache, so anything
-that overwrites it without carrying the dirty flag forward drops the write on
-the floor with no error and no query.
-
-It had no test. Both entry points -- :meth:`Field._update_cache` and
-:meth:`Field._update_cache_items` -- carried near-identical copies of the check,
-down to the wording of the message, and neither was exercised, so the guard
-could have been removed from either without a suite noticing. They now share
-:meth:`Field._check_not_dirty`; these tests pin the behaviour that extraction
-had to preserve, including the two asymmetries that are deliberate.
-"""
-
 import pytest
 
 from odoo import fields, models
@@ -42,7 +27,6 @@ def env():
 
 
 def _dirty_record(env):
-    """A record with an unflushed write to ``name``."""
     record = env["x.widget"].create({"name": "before", "qty": 1})
     env.flush_all()
     record.name = "pending"
@@ -90,7 +74,6 @@ class TestUpdateCache:
         assert record.name == "fetched"
 
     def test_a_disjoint_record_is_not_guarded(self, env):
-        """The guard fires on OVERLAP, not on the field being dirty anywhere."""
         dirty = _dirty_record(env)
         other = env["x.widget"].create({"name": "other"})
         env.flush_all()
@@ -102,7 +85,6 @@ class TestUpdateCache:
         assert dirty.name == "pending"
 
     def test_non_column_fields_are_not_guarded(self, env):
-        """``is_column`` gates the check: a non-stored field has no pending write."""
         record = env["x.widget"].create({"name": "x"})
         env.flush_all()
         field = env["x.widget"]._fields["label"]
@@ -136,17 +118,6 @@ class TestUpdateCacheItems:
         )
 
     def test_it_has_no_dirty_escape_hatch(self, env):
-        """Asymmetry by design: ``_update_cache_items`` always guards.
-
-        ``_update_cache`` takes ``dirty=`` and skips the check when set;
-        ``_update_cache_items`` has no such parameter, so it is unconditional.
-        Pinned because the shared helper makes the two look interchangeable.
-
-        Read off ``__code__`` rather than ``inspect.signature``: under PEP 649
-        the latter evaluates annotations on access, and both methods annotate
-        ``env`` as ``Environment``, a name imported only under
-        ``if TYPE_CHECKING:`` -- so ``signature()`` raises ``NameError`` here.
-        """
 
         def params(func):
             return func.__code__.co_varnames[: func.__code__.co_argcount]

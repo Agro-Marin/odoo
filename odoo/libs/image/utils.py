@@ -70,15 +70,6 @@ def image_data_uri(base64_source: bytes) -> str:
 
 
 class ImageProcess:
-    """Load ``source`` and apply operations to it.
-
-    ``False`` — never ``True`` — is the "no usable image" sentinel throughout,
-    for both attributes: an SVG, a WebP and an undecodable input all leave
-    ``image`` false while ``source`` keeps the original bytes to hand back. The
-    two are declared because each is assigned a sentinel before it is ever
-    assigned an image, so inference would fix the type as ``bool``.
-    """
-
     image: PILImage | Literal[False]
     source: bytes | Literal[False]
     original_format: str
@@ -269,30 +260,6 @@ def image_process(
     padding: int | bool = False,
     processor: type[ImageProcess] = ImageProcess,
 ) -> bytes | Literal[False] | None:
-    """Resize / crop / pad / re-encode ``source``, returning the new bytes.
-
-    :param source: image bytes; a falsy value is returned unchanged.
-    :param size: ``(max_width, max_height)``; ``(0, 0)`` means no resize.
-    :param verify_resolution: reject images above ``IMAGE_MAX_RESOLUTION``.
-    :param quality: JPEG/WebP quality, ``0`` to leave it alone.
-    :param expand: allow upscaling past the source's own dimensions.
-    :param crop: ``"top"`` / ``"bottom"`` / ``"center"`` — crop instead of fit.
-    :param colorize: fill transparency, with a given RGB or a dominant colour.
-    :param output_format: ``"PNG"`` / ``"JPEG"`` / ``"WEBP"``; ``""`` keeps it.
-    :param padding: border in pixels added on all four sides. An **int**:
-        :meth:`ImageProcess.add_padding` does ``2 * padding`` arithmetic and
-        compares it to the image size, so a tuple raises ``TypeError``.
-    :param processor: the :class:`ImageProcess` subclass to run the operations
-        through. The seam exists so ``odoo.tools.image`` can supply the subclass
-        that re-raises decode failures as ``UserError`` **without copying this
-        function**, which is what it did until 2026-08-08. The two copies then
-        drifted: the ``odoo.tools`` one had come to declare
-        ``padding: bool | tuple[int, int, int, int]`` (a call that raises) and
-        ``source: bytes | None`` (contradicted by its own test, which passes
-        ``False``). One implementation cannot drift from itself.
-    :return: the processed image bytes, or ``source`` unchanged when there is
-        nothing to do.
-    """
     if not source or (
         (not size or (not size[0] and not size[1]))
         and not verify_resolution

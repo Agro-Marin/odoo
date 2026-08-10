@@ -43,27 +43,11 @@ class OrmCore[F: FieldKey = FieldKey]:
         )
 
     def get_value(self, field: F, record_id: Any, default: Any = _MISSING) -> Any:
-        """Return the cached value for ``(field, record_id)``.
-
-        Falls back to ``default``, or raises ``KeyError`` when it is absent.
-        """
         if default is _MISSING:
             return self._cache.get_value(field, record_id)
         return self._cache.get_value(field, record_id, default)
 
     def set_value(self, field: F, record_id: Any, value: Any) -> None:
-        """Seed one ``(field, record_id)`` entry.
-
-        The counterpart to ``get_value`` above, and added for the same reason:
-        the surviving raw-cache reaches were the ones the facade did not expose.
-        The measurement that found two ``get_value`` reaches scanned only what
-        the DB-free tiers exercise; two more sites reached
-        ``_core.cache.set_value`` from **DB-backed** addon tests
-        (``base/tests/test_orm.py``, ``base/tests/test_translate.py``), which
-        `pytest` never runs -- so renaming the slot to ``_cache`` left them
-        raising ``AttributeError``, visible only in the `--test-tags /base`
-        integration lane.
-        """
         self._cache.set_value(field, record_id, value)
 
     def get_field_data(self, field: F) -> dict[Any, Any]:

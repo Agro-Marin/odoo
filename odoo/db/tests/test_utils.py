@@ -54,14 +54,6 @@ class TestIsMaintenanceDb(unittest.TestCase):
                     self.assertFalse(is_maintenance_db(name))
 
     def test_system_dbs_has_one_definition(self):
-        """``SYSTEM_DBS`` is defined here and only re-exported elsewhere.
-
-        The predicate used to be re-spelled inline at seven call sites across
-        ``service``/``http``/``cli``/``orm.runtime`` — one of them the sole
-        runtime ``orm -> service`` edge (now forbidden by the
-        ``orm-below-the-serving-tier`` contract). Identity, not equality:
-        a second frozenset with the same members would drift independently.
-        """
         self.assertEqual(
             db_utils.SYSTEM_DBS, frozenset({"postgres", "template0", "template1"})
         )
@@ -151,12 +143,6 @@ class TestConnectionInfoForUri(unittest.TestCase):
         self.assertEqual(db, "host.example")
 
     def test_a_uri_with_no_path_user_or_host_still_returns_a_string(self):
-        """The label is a pool key, and this branch used to return None.
-
-        `postgresql:///` has nothing to name the database after, so the
-        hostname fallback had nothing to fall back to — and the function is
-        declared to return a str.
-        """
         for uri in ("postgresql:///", "postgresql://?connect_timeout=1"):
             with self.subTest(uri=uri), self.assertWarns(RuntimeWarning):
                 db, info = self._info(uri)

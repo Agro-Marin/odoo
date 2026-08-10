@@ -25,7 +25,6 @@ _COMPONENTS = _CORE / "orm" / "components"
 
 
 def _reaches_raw_collaborator() -> list[tuple[str, int, str]]:
-    """Find `<anything>._core._cache` / `._engine` outside orm/components/."""
     hits: list[tuple[str, int, str]] = []
     for path in sorted(_CORE.rglob("*.py")):
         try:
@@ -50,21 +49,6 @@ def _reaches_raw_collaborator() -> list[tuple[str, int, str]]:
 
 
 def _core_member_reaches() -> list[tuple[str, int, str]]:
-    """Every facade member reached in the tree, including addon tests.
-
-    Follows **local aliases**, which is not a refinement but the whole point:
-    the real-world callers do not spell ``self.env._core.set_value(...)``, they
-    do::
-
-        core = self.env._core  # alias
-        core.get_field_data(field)  # reach, invisible to a literal scan
-        core.cache.set_value(...)  # the reach that actually broke
-
-    A first version of this scan matched only a literal ``<x>._core.<attr>``
-    and therefore reported green against the exact regression it was written
-    for -- caught by testing the test against that regression rather than
-    trusting it.
-    """
     hits: list[tuple[str, int, str]] = []
     for path in sorted(_CORE.rglob("*.py")):
         try:
@@ -102,25 +86,6 @@ def _core_member_reaches() -> list[tuple[str, int, str]]:
 
 
 def test_every_member_reached_through_the_facade_exists_on_it():
-    """A renamed or dropped facade member must fail here, not at runtime.
-
-    This is the check the other two runtime-seam gates already make --
-    ``env_surface_check`` and ``pool_surface_check`` both validate that every
-    member reached actually exists on ``Environment`` / ``Registry`` -- and its
-    absence here cost a real regression.
-
-    When ``OrmCore``'s slots were renamed ``cache``/``engine`` -> ``_cache``/
-    ``_engine``, the accompanying measurement found "exactly 2 reached the raw
-    cache, both for ``get_value``" and added that method. It missed two further
-    sites calling ``_core.cache.set_value``, because those live in **DB-backed
-    addon tests** (``base/tests/test_orm.py``, ``base/tests/test_translate.py``)
-    that the DB-free tiers never execute. Nothing static caught it either, so
-    the breakage surfaced only as ``AttributeError`` in the ``--test-tags /base``
-    integration lane, minutes into a full install.
-
-    This scan covers ``odoo/`` including ``addons/`` **and their tests**, which
-    is the scope that matters: the callers that broke were tests.
-    """
     known = set(dir(OrmCore))
     missing = [
         (rel, lineno, attr)
@@ -135,12 +100,6 @@ def test_every_member_reached_through_the_facade_exists_on_it():
 
 
 def test_the_member_scan_sees_the_addon_tests_that_broke():
-    """Vacuity guard, aimed at the exact blind spot this test exists for.
-
-    The scan is only worth anything if it reaches ``odoo/addons/**``; a filter
-    that quietly stopped at the framework would report green over precisely the
-    files that regressed.
-    """
     reached = _core_member_reaches()
     assert reached, "the _core member scan found nothing at all"
     addon_files = {rel for rel, _, _ in reached if rel.startswith("addons/")}

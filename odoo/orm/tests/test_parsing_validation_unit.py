@@ -145,9 +145,6 @@ class TestObjectAndManualNames:
         ],
     )
     def test_check_object_name_raises_where_the_predicate_is_false(self, name, ok):
-        """The raising half of the pair, and the same ValidationError as
-        ``check_pg_name`` -- it raised ``ValueError`` under its old name
-        ``raise_on_invalid_object_name`` until 2026-08-09."""
         if ok:
             assert check_object_name(name) is None
         else:

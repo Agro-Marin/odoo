@@ -1,22 +1,3 @@
-"""Convert ``_sql_constraints`` lists to ``models.Constraint`` attributes.
-
-TESTED: ``odoo/tools/tests/test_upgrade_code_sql_constraint.py``.
-
-Two bugs were fixed here in 2026-08, both of which corrupted the tree this ran
-on; the guards that prevent them are commented inline and are not incidental:
-
-* ``ast.literal_eval`` raises **ValueError** (not ``SyntaxError``) for a
-  non-literal node, and the commonest real entry carries a translated message
-  ``_('...')`` — a Call. The uncaught ValueError aborted the entire run partway
-  through the file list, with earlier files already rewritten on disk.
-* The rewrite names each constraint ``_{name}``, so a constraint called ``name``
-  emitted ``_name = models.Constraint(...)``, silently redefining the model's
-  own ``_name``. Nineteen ``BaseModel`` attributes were reachable this way.
-
-Unconvertible statements are now left in place for a human rather than
-half-rewritten. See ``odoo/cli/upgrade_code.py`` before running this.
-"""
-
 import ast
 import json
 import logging

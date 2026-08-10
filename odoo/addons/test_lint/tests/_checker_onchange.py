@@ -20,13 +20,6 @@ def _is_onchange_decorator(node: ast.expr) -> bool:
 
 
 def _is_domain_mapping(node: ast.AST) -> bool:
-    """A ``{'domain': ...}`` mapping -- the shape an onchange actually returns.
-
-    The rule used to fire on *any* string constant equal to ``"domain"``
-    anywhere in the method, so a search on a field named `domain`
-    (``[('domain', '=', self.domain)]``) read as a dynamic domain. Only a
-    mapping key can be the one an onchange returns.
-    """
     return isinstance(node, ast.Dict) and any(
         isinstance(key, ast.Constant) and key.value == "domain" for key in node.keys
     )

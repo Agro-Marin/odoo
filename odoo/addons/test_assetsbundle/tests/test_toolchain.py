@@ -1,12 +1,3 @@
-"""The external programs and config files the pipeline shells out to.
-
-These assert on the CHECKOUT, not on Odoo: that rtlcss resolves, that
-package.json and its lock agree, that every input feeding the cache-busting
-fingerprint still exists. Each guards a failure that is silent by
-construction -- a missing binary degrades to a no-op, an unresolvable
-fingerprint source simply stops invalidating.
-"""
-
 import errno
 import pathlib
 from pathlib import Path
@@ -126,16 +117,6 @@ class TestNodeToolchainManifest(BaseCase):
 
 
 class TestPipelineFingerprint(BaseCase):
-    """What feeds the digest that busts a cached bundle when the CODE changes.
-
-    Content alone cannot key a bundle: recompiling the same SCSS with a fixed
-    compiler must produce a new URL. `_pipeline_sources` is the list of inputs
-    that claim to matter, and each test below guards one way that list can be
-    wrong -- a source that no longer resolves, a layer nobody listed, an edit
-    that fails to move the digest, or an import that makes the whole thing
-    raise instead of degrade.
-    """
-
     def _covered_files(self):
         covered = []
         for source in _pipeline_sources():
@@ -225,15 +206,6 @@ class TestRunCliPipeFailures(BaseCase):
 
 
 class TestFingerprintDegradation(BaseCase):
-    """What the fingerprint does when it cannot read its own inputs.
-
-    It must never raise: it is on the hot path of every bundle version. Both
-    fallbacks trade correctness for availability, and quietly -- a fingerprint
-    that stops tracking the code still produces a stable-looking URL, so
-    cached bundles simply stop being invalidated by code changes. Each
-    therefore has to warn.
-    """
-
     def setUp(self):
         super().setUp()
         _pipeline_fingerprint.cache_clear()

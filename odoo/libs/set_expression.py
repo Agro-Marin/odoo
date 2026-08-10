@@ -14,13 +14,6 @@ class SetExpressionError(ValueError):
 
 
 class SetDefinition(TypedDict):
-    """One set's declaration, as `SetDefinitions` reads it.
-
-    Was `dict[str, object]`, which made every read of it an error: `ref` is a
-    str, and the two relation keys hold ids. They are optional because the code
-    reaches them with `.get(..., default)` and `ref` with `[...]`.
-    """
-
     ref: str
     supersets: NotRequired[Collection[int]]
     disjoints: NotRequired[Collection[int]]

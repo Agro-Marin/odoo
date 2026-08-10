@@ -57,7 +57,6 @@ def _get_call_name(node: ast.Call) -> str:
 
 
 def _is_raw_text(node: ast.expr) -> bool:
-    """A bare string literal: text that reaches the user with no way to translate it."""
     return isinstance(node, ast.Constant) and isinstance(node.value, str)
 
 

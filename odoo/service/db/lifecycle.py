@@ -1,9 +1,3 @@
-"""A database's DDL lifecycle: create, drop, duplicate, rename — and the retries they need.
-
-One of the five modules ``service/db.py`` was split into; the package
-``__init__`` carries the shape and the dependency direction.
-"""
-
 import logging
 import os
 import shutil
@@ -44,12 +38,6 @@ _logger = logging.getLogger("odoo.service.db")
 
 
 def _check_faketime_mode(db_name: str) -> None:
-    """Inject a clock-shifting ``public.now()`` into the DB for faketime tests.
-
-    Gated on BOTH ``ODOO_FAKETIME_TEST_MODE`` AND ``test_enable`` (env-var-only
-    would corrupt production timestamps on a stray export; ``test_enable``-only
-    would fire on every test run), and only for databases named in ``db_name``.
-    """
     if not os.getenv("ODOO_FAKETIME_TEST_MODE"):
         return
     if not odoo.tools.config["test_enable"]:
@@ -87,17 +75,6 @@ def _check_faketime_mode(db_name: str) -> None:
 
 
 def _warn_on_non_c_template(cr, template: str) -> None:
-    """Warn when *template* would produce a database that is not ``LC_COLLATE=C``.
-
-    The ``template0`` branch below pins ``LC_COLLATE 'C'`` explicitly, and the
-    ORM leans on it: ``BaseModel.sorted()`` orders text by Python comparison
-    while ``search(order=...)`` orders by the database's collation, and the two
-    agree *only* because byte order and code-point order coincide under ``C``.
-    A configured ``db_template`` that is not itself ``C`` propagates its own
-    collation -- PostgreSQL refuses to override a template's collation, so this
-    can be reported but not corrected here -- and every in-memory re-sort then
-    silently stops reproducing the order the records were searched in.
-    """
     cr.execute("SELECT datcollate FROM pg_database WHERE datname = %s", (template,))
     row = cr.fetchone()
     if row is not None and row[0] != "C":
@@ -117,62 +94,6 @@ def _create_empty_database(
     force_unaccent: bool = False,
     setup_if_exists: bool = True,
 ) -> None:
-    """Create an empty database.
-
-    Lets PostgreSQL be the source of truth for existence (a pre-flight
-    ``SELECT`` is racy): attempt ``CREATE DATABASE`` directly and translate the
-    duplicate-name error into the canonical ``DatabaseExists``.
-
-    That error has TWO spellings and both must be caught.  A *sequential*
-    duplicate raises ``42P04`` (``DuplicateDatabase``), but when callers race,
-    the losers trip the unique index on ``pg_database.datname`` and get
-    ``23505`` (``UniqueViolation``) instead — which is not a subclass of the
-    former.  Catching only ``42P04`` therefore missed the exact concurrent case
-    this pre-flight-free design exists to handle, and a racing caller of the
-    ``auth``-gated ``exp_create_database`` received a raw psycopg error as an RPC
-    Fault rather than ``DatabaseExists``.  Measured against a live PostgreSQL 18
-    cluster: 10 trials x 4 racers produced 30 ``UniqueViolation`` and zero
-    ``DuplicateDatabase``; the sequential duplicate produced ``42P04``.  Pinned
-    against the real server by ``tests/contract/test_pg_create_database_race.py``
-    — a mock cannot catch this, because the mock encodes the same wrong belief.
-
-    ``CREATE DATABASE ... TEMPLATE t`` also needs zero sessions on ``t``, so it
-    is retried through :func:`_retry_on_object_in_use` like the sibling
-    database-level DDLs.  With the upstream default template this never fires —
-    ``template0`` is ``datallowconn = false``, so nothing can be connected — but
-    ``--db-template`` is documented and supported, and a populated template
-    (this workspace's ``tpl_p314o19marin``) is ``datallowconn = true``: one
-    ``psql`` session on it is enough to fail every database creation on the
-    instance, including the auto-create-on-serve boot path.  Without the retry
-    that surfaced as a raw ``psycopg.errors.ObjectInUse``.
-
-    Unlike DROP / RENAME / DUPLICATE this deliberately does NOT terminate the
-    blocking sessions (no ``_drop_conn``): those ops evict connections to a
-    database they are about to destroy or rewrite, whereas the blocker here is a
-    third party's session on a template this call only READS — very likely the
-    operator maintaining it.  Backoff-only retries the transient case and leaves
-    the deliberate one alone, failing with an error that names the template.
-
-    :param template: override the configured ``db_template``. ``restore_db``
-        passes ``"template0"``: a dump replay needs a bare canvas — any object
-        a populated template pre-creates (e.g. ``orm_signaling_*``) collides
-        with the dump's own copy and aborts the restore under ON_ERROR_STOP.
-    :param force_unaccent: install and mark ``unaccent`` indexable regardless
-        of ``config['unaccent']``. ``restore_db`` needs this: the *source*
-        database decided whether unaccent expression indexes exist in the
-        dump, and pg_dump cannot carry the IMMUTABLE marking of an
-        extension-owned function — without it the replay fails with
-        "functions in index expression must be marked IMMUTABLE".
-    :param setup_if_exists: when the database already exists, whether to still
-        run the idempotent extension/GRANT setup on it before raising
-        ``DatabaseExists``.  ``True`` (default) suits the auto-create/serve path
-        (``cli/server.py``, ``cli/start.py``): the operator may have pre-created
-        a bare DB with ``createdb`` and Odoo must make it ready.  ``False`` suits
-        the strict create/restore paths, where hitting an existing name is a
-        *collision* on a database this call did not make and must not mutate
-        (notably re-``GRANT``ing ``CREATE ON public``, which the owner may have
-        deliberately revoked).
-    """
     db = odoo.db.db_connect("postgres")
     with closing(db.cursor()) as cr:
         chosen_template = template or odoo.tools.config["db_template"]
@@ -246,25 +167,12 @@ def _create_empty_database(
 
 
 def _rollback_new_database(db_name: str, what: str) -> None:
-    """Drop a half-built database after a create/restore/duplicate failure.
-
-    Call from the population step's ``except``, then re-``raise``.  Uses the
-    internal ``_drop_database`` (not ``exp_drop``, whose ``list_db`` re-check
-    could orphan the DB if the flag toggled).  Drop failures are suppressed so
-    they can't mask the original error.  ``what`` is an operator-facing tag.
-    """
     _logger.info("%s: rolling back database %r after failure", what, db_name)
     with suppress(Exception):
         _drop_database(db_name)
 
 
 def _assert_filestore_dest_free(dest: str, problem: str) -> None:
-    """Pre-flight a name-creating op: refuse if its destination filestore exists.
-
-    A leftover ``filestore/<name>/`` (failed drop, manual ``dropdb``, crashed
-    restore) would silently bind the new database to foreign attachments.  Run
-    before any DB-level work so a conflict leaves nothing to roll back.
-    """
     if Path(dest).exists():
         raise RuntimeError(
             f"{problem}: destination filestore {dest!r} already exists.  "
@@ -327,18 +235,6 @@ def _duplicate_database(
     db_name: str,
     neutralize_database: bool = False,
 ) -> Literal[True]:
-    """Duplicate ``db_original_name`` to ``db_name`` (ungated internal helper).
-
-    No gates here: both live on the RPC wrapper ``exp_duplicate_database``.  The
-    shell-access ``odoo db duplicate`` CLI calls this directly (mirrors the
-    ``_drop_database`` / ``exp_drop`` split).
-
-    Uses ``CREATE DATABASE ... TEMPLATE ...``, which needs the source to have no
-    active connections — hence the ``close_db`` + ``_drop_conn`` preamble.
-    Forces a new dbuuid so the copy can coexist with the original; with
-    ``neutralize_database=True`` also scrubs sensitive settings (SMTP, webhooks).
-    On any failure after creation the empty database is dropped to free the name.
-    """
     validate_db_name(db_name)
 
     to_fs = odoo.tools.config.filestore(db_name)
@@ -405,21 +301,6 @@ def _retry_on_object_in_use(
     *,
     before_attempt: Callable[[], None] | None = None,
 ) -> None:
-    """Run a database-level DDL op, retrying while PG reports ``ObjectInUse``.
-
-    Every ``CREATE``/``DROP``/``ALTER ... RENAME`` at the database level needs
-    zero sessions on the database it reads or writes, and raises ``ObjectInUse``
-    (55006) otherwise.  Because the sessions belong to other processes, that is a
-    race rather than a permanent failure, so it is retried with exponential
-    backoff instead of surfacing raw to the caller.
-
-    ``before_attempt`` runs before each try; ``_retry_terminate_then_ddl``
-    supplies the connection-eviction step for the ops that are entitled to it.
-    ``run`` MUST let ``ObjectInUse`` propagate (so this loop retries) and may
-    raise any other exception to abort immediately.  After the retries are
-    exhausted the last ``ObjectInUse`` is re-raised wrapped in ``RuntimeError``,
-    so callers see one actionable error type rather than a bare psycopg class.
-    """
     last_error: psycopg.errors.ObjectInUse | None = None
     for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
         if before_attempt is not None:
@@ -451,32 +332,12 @@ def _retry_terminate_then_ddl(
     op_label: str,
     run: Callable[[], None],
 ) -> None:
-    """Terminate-then-act variant of :func:`_retry_on_object_in_use`.
-
-    Used by DROP / DUPLICATE / RENAME, which are entitled to evict the sessions
-    in their way: a connection to a database they are about to destroy or
-    rewrite is already doomed.  The eviction re-runs on every attempt because a
-    fresh request can reconnect before the DDL lands.
-
-    CREATE deliberately does not use this variant — see
-    :func:`_create_empty_database`.
-    """
     _retry_on_object_in_use(
         op_label, run, before_attempt=lambda: _drop_conn(cr, terminate_target)
     )
 
 
 def _drop_database(db_name: str) -> bool:
-    """Internal DROP DATABASE helper for both ``exp_drop`` and cleanup paths.
-
-    Ungated (no ``@check_db_management_enabled``, no ``list_dbs(True)`` check):
-    both gates live on ``exp_drop``.  Cleanup callers (e.g. ``restore_db``
-    rolling back a half-built DB that was never in the allowlist) must be able
-    to bypass them — the reason this helper exists separately.
-
-    Handles the terminate-then-drop race (``ObjectInUse`` / 55006 when another
-    thread reconnects mid-drop) by retrying ``_DROP_DATABASE_MAX_RETRIES`` times.
-    """
     try:
         probe = odoo.db.db_connect("postgres")
         with closing(probe.cursor()) as cr:
@@ -559,21 +420,6 @@ def exp_rename(old_name: str, new_name: str) -> Literal[True]:
 
 
 def _rename_database(old_name: str, new_name: str) -> Literal[True]:
-    """Rename a database (ungated internal helper; gates live on ``exp_rename``).
-
-    No gates here: the shell-access ``odoo db rename`` CLI calls this directly
-    (mirrors the ``_drop_database`` / ``exp_drop`` split).
-
-    Validates ``new_name``, tears down the old registry and pool, issues ``ALTER
-    DATABASE RENAME`` in autocommit (same ``ObjectInUse`` backoff retry as
-    ``_drop_database``), then renames the filestore.  No new registry is built —
-    the next request to ``new_name`` lazy-loads it.  Refuses pre-flight if the
-    destination filestore exists.
-
-    If ``shutil.move`` fails after the SQL rename, the DB is renamed back so DB
-    and filestore stay in sync; if the rename-back also fails, both errors are
-    raised together for manual intervention.
-    """
     validate_db_name(new_name)
 
     old_fs = odoo.tools.config.filestore(old_name)
@@ -651,11 +497,6 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
 
 
 def _rollback_db_rename(cr: BaseCursor, old_name: str, new_name: str) -> None:
-    """Issue ``ALTER DATABASE new_name RENAME TO old_name``.
-
-    Extracted so the rollback is identical for the filestore-move failure and
-    the race-window case.
-    """
     cr.execute(
         SQL(
             "ALTER DATABASE %s RENAME TO %s",

@@ -109,17 +109,6 @@ class Registry(
     _RegistryCapabilitiesMixin,
     Mapping[str, type["BaseModel"]],
 ):
-    """The per-database model registry.
-
-    The composition root.  ``_RegistryModelsMixin`` and
-    ``_RegistryInitPhaseMixin`` are leaves with no out-edge into the
-    composition; ``_RegistryFieldsMixin`` and ``_RegistrySchemaMixin`` depend on
-    them and on nothing here, which is what makes the whole a DAG.  Before those
-    two leaves existed, both reached *this class* for ``models`` and
-    ``init_phase`` and the three units formed a cycle --- see
-    :mod:`._registry_models`.
-    """
-
     _lock: threading.RLock | DummyRLock = threading.RLock()
 
     registries = LRU[str, "Registry"](42)
@@ -293,14 +282,6 @@ class Registry(
     @classmethod
     @locked
     def delete(cls, db_name: str) -> None:
-        """Drop the cached registry for *db_name*.
-
-        This is a **rebuild** hook, not a teardown one: :meth:`new` calls it on
-        every registry build, before publishing the replacement.  Anything that
-        must outlive a rebuild -- the per-database assertion report, the
-        unaccent fold table -- therefore does NOT belong here.  Use
-        :meth:`forget` when the database itself is gone.
-        """
         if db_name in cls.registries:
             del cls.registries[db_name]
         from odoo.tools.cache import prune_counters
@@ -310,21 +291,6 @@ class Registry(
     @classmethod
     @locked
     def forget(cls, db_name: str) -> None:
-        """Drop every process-lifetime trace of *db_name*.
-
-        Called when the database is genuinely gone -- dropped, renamed away, or
-        found absent while serving a request -- as opposed to :meth:`delete`,
-        which runs on every registry rebuild.
-
-        Three maps in this module are keyed by database name and outlive a
-        :class:`Registry` instance by design.  Only ``registries`` (an ``LRU``)
-        was bounded; the other two grew for the life of the process, one entry
-        per database ever served.  ``_UnaccentTables`` is the expensive one: it
-        holds the Python-side accent-folding table, ~1500 entries and ~180 kB
-        per database, built by probing 12 352 codepoints through ``unaccent()``.
-        Both are per-database caches, which ``doc/architecture/data.md`` requires
-        be invalidated per database; neither had anywhere that did it.
-        """
         cls.delete(db_name)
         forget_unaccent_table(db_name)
         _ASSERTION_REPORTS.pop(db_name, None)
@@ -559,16 +525,6 @@ class Registry(
         return self._caches.lrus
 
     def _log_invalidation(self, cache_names: Collection[str], level: int) -> None:
-        """Log which cache groups were invalidated, and by whom.
-
-        Shared by :meth:`clear_cache` and :meth:`clear_all_caches` so the
-        decision "is this level enabled?" is made once. It has to be made at
-        all: ``format_frame`` walks a stack frame, and ``clear_all_caches``
-        used to call it unconditionally and only then choose between ``info``
-        and ``debug`` -- so on the ``debug`` branch with debug disabled it
-        formatted a frame and threw it away. ``clear_cache`` guarded correctly,
-        four lines above. One helper, one answer.
-        """
         if not _logger.isEnabledFor(level):
             return
         _logger.log(
@@ -676,39 +632,6 @@ class Registry(
         return registry_sequence, cache_sequences
 
     def check_signaling(self, cr: BaseCursor | None = None) -> Registry:
-        """Apply pending signals and return **the live registry**.
-
-        ``registry = registry.check_signaling()``. The return value is not
-        optional decoration: when another worker has signalled a registry
-        change, this rebuilds and publishes a replacement and returns *that*.
-        The receiver is left behind as a fully-formed registry -- ``ready`` is
-        still True, its ``models`` still resolve -- so nothing about the stale
-        object announces that it is stale. Verified against a live pair:
-        ``held is not returned``, both ``ready``, and
-        ``held["res.partner"] is not returned["res.partner"]``.
-
-        What saves most callers is that they do not keep it: a fresh
-        ``Environment`` re-resolves through ``Registry(cr.dbname)`` and gets the
-        published one regardless. The ones that bite are those that *hold* the
-        object and read models off it later --
-        ``addons/bus/websocket.py`` did exactly that and served
-        ``ir.http._sanitize_cookies`` from the superseded class for the life of
-        a connection.
-
-        Discarding the result is legitimate in one case, and it is worth
-        stating so the next reader does not "fix" it: ``service/_prefork.py``
-        wants only the cache-invalidation side effect for registries it does not
-        otherwise touch. ``addons/base/models/ir_cron.py`` uses the identity
-        change as a signal (``if self.pool is not self.pool.check_signaling()``)
-        and then resets the transaction, which re-resolves -- also correct.
-
-        The name conflates two jobs and a cleaner shape would separate them --
-        ``apply_signals()`` for the side effect, a lookup for the object. It is
-        not done here because the instance receiver is load-bearing for the
-        tests: ``orm/tests/test_registry_signaling.py`` builds deliberately
-        stale registries and asks *those* to check themselves, which a
-        classmethod keyed by database name could not express.
-        """
         own_cursor = cr is None
         try:
             with (
@@ -787,13 +710,6 @@ class Registry(
 
     @staticmethod
     def _signalled_id(cr: BaseCursor, previous: int) -> int:
-        """The id the INSERT above actually produced, or ``previous + 1``.
-
-        The fallback keeps the old behaviour for any cursor that does not return
-        a row (a test double, a driver that drops RETURNING), so this cannot
-        turn a working signal into a crash -- it only removes the guess when the
-        database is there to answer.
-        """
         row = cr.fetchone()
         if row and isinstance(row[0], int):
             return row[0]

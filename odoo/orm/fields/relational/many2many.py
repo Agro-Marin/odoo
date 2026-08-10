@@ -61,23 +61,6 @@ class Many2many(_RelationalMulti):
         )
 
     def _relation_columns(self) -> tuple[str, str, str]:
-        """The relation table and its two columns -- for the row-I/O paths only.
-
-        All three are declared ``str | None`` because a ``Many2many`` exists
-        before setup runs.  After it they are None together or set together:
-        :meth:`setup_nonrelated` fills all three when ``store`` and clears all
-        three when not.  Row I/O only ever happens on a stored field, so on
-        those paths the union's None arm is unreachable.
-
-        Stating that once matters more than it looks.  These three were the
-        subject of six ``SQL.identifier(str | None)`` reports until the SQL
-        behind them moved into ``_query.py``, whose parameters are declared
-        ``str`` -- at which point the reports vanished *without the None-ness
-        going anywhere*, because ``env.backend`` reaches Layer 1 through
-        ``_ModelStubs.env: Any``, so the port calls are unchecked.  Six fewer
-        findings, exactly as much risk.  This accessor is what makes the
-        narrowing real rather than invisible.
-        """
         relation, column1, column2 = self.relation, self.column1, self.column2
         assert relation and column1 and column2, (
             f"{self}: row I/O before setup resolved the relation table"

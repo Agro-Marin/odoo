@@ -1,30 +1,3 @@
-"""Importing ``odoo.tools`` must not be able to terminate the process.
-
-``odoo/tools/__init__.py`` builds the singleton at module scope
-(``config = configmanager()``), and that constructor reads ``$ODOO_*`` and the
-rcfile and then *validates* the result. Validation there is fatal by
-construction -- ``optparse.error()`` calls ``sys.exit(2)``, and a malformed env
-value raises ``ValueError`` -- so ambient environment could kill any process
-that imported the module, which ``odoo.orm``, ``odoo.db`` and ``odoo.http`` all
-do transitively.
-
-Measured before the fix, with ``ODOO_SYSLOG`` and ``ODOO_LOGFILE`` both set: the
-whole Tier-1 pytest suite could not be **collected**, dying with
-
-    __main__.py: error: the syslog and logfile options are exclusive
-
-which names neither odoo nor the environment variable responsible. After it,
-the same command collects 2684 tests.
-
-The validation is not weakened, only moved to the call that means it:
-``parse_config()`` re-runs the same parse over the same inputs, so a genuine
-misconfiguration still fails there -- before the server starts, with the real
-argv in the message. Construction populates; parsing validates.
-
-Subprocesses throughout: the singleton is built once per interpreter, at import,
-so the behaviour under a given environment is not observable in-process.
-"""
-
 import subprocess
 import sys
 import textwrap
@@ -72,13 +45,6 @@ def test_import_survives_a_malformed_env_value():
 
 
 def test_import_is_quiet_about_it():
-    """Swallowing the exit is not enough if the usage block still prints.
-
-    optparse writes the message itself *before* calling ``sys.exit``, so an
-    earlier version of this fix left every import printing a bare
-    ``error: the syslog and logfile options are exclusive`` and then carrying
-    on -- which reads as a failure that is not one, on every test run.
-    """
     proc = _run("import odoo.tools", _CONFLICTING)
     assert "exclusive" not in proc.stderr, (
         f"import printed a parser error it then ignored:\n{proc.stderr}"
@@ -86,7 +52,6 @@ def test_import_is_quiet_about_it():
 
 
 def test_parse_config_still_rejects_the_same_environment():
-    """The validation must be deferred, not deleted."""
     proc = _run(
         """
         from odoo.tools import config
@@ -107,7 +72,6 @@ def test_parse_config_still_rejects_the_same_environment():
 
 
 def test_a_clean_environment_still_populates_the_config():
-    """Construction must still do its job on the ordinary path."""
     proc = _run(
         """
         from odoo.tools import config

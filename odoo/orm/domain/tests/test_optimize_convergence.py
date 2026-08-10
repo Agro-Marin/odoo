@@ -1,11 +1,3 @@
-"""Non-convergence must not be reported as stack exhaustion.
-
-Both failures used to funnel into ``_recursion_error_as_value_error``: the
-fixpoint guard raised ``RecursionError``, the wrapper caught it and re-raised a
-``ValueError`` about nesting depth, and ``from None`` hid the original. The two
-have opposite remedies, so the message mattered.
-"""
-
 from unittest.mock import patch
 
 import pytest
@@ -66,14 +58,12 @@ class TestNonConvergence:
         assert "exhausts the evaluation stack" not in message
 
     def test_it_survives_the_recursion_error_wrapper(self, domain, model):
-        """The wrapper wraps every public entry point; it must not swallow this."""
         for entry in ("optimize", "optimize_full", "validate"):
             with patch.object(dast, "MAX_OPTIMIZE_ITERATIONS", 0):
                 with pytest.raises(DomainOptimizationError):
                     getattr(domain, entry)(model)
 
     def test_it_stays_catchable_as_value_error(self, domain, model):
-        """Existing callers catch ValueError; the new type must not break them."""
         with patch.object(dast, "MAX_OPTIMIZE_ITERATIONS", 0):
             with pytest.raises(ValueError):
                 domain.optimize(model)

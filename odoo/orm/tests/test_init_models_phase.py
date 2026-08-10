@@ -1,27 +1,9 @@
-"""``Registry.init_phase`` is open only during ``init_models()``.
-
-Four attributes used to be created in ``init_models``' ``try:`` and ``del``-eted
-in its ``finally:``, reached from six sites outside ``registry.py`` -- five of
-them in Layer 1. Nothing declared the ordering, and violating it produced
-``AttributeError: 'Registry' object has no attribute '_post_init_queue'``, which
-names neither the caller nor the rule.
-
-These pin what replaced it: one nullable attribute, a named error, and the two
-entry points Layer 1 actually uses.
-"""
-
 import pytest
 
 from odoo.orm.runtime._init_phase import InitModelsPhase
 
 
 class _FakeRegistry:
-    """The two members ``Registry.init_phase`` and its callers touch.
-
-    A real ``Registry`` needs a database; the property under test needs one
-    attribute. Bound from the real class so the test cannot drift from it.
-    """
-
     def __init__(self, phase=None):
         self._init_phase = phase
 
@@ -39,7 +21,6 @@ class TestPhaseIsClosedByDefault:
             _FakeRegistry().init_phase
 
     def test_the_error_says_what_the_window_is_for(self):
-        """The old AttributeError named a private attribute and nothing else."""
         with pytest.raises(RuntimeError) as caught:
             _FakeRegistry().init_phase
         message = str(caught.value)
@@ -51,7 +32,6 @@ class TestPhaseIsClosedByDefault:
             _FakeRegistry().post_init(lambda: None)
 
     def test_add_relation_reflection_outside_the_window_raises_it_too(self):
-        """The one site that used to write into the phase set directly."""
         with pytest.raises(RuntimeError, match="only available while init_models"):
             _FakeRegistry().add_relation_reflection("a.model", "a_rel", "base")
 
@@ -90,13 +70,10 @@ class TestPhaseWhileOpen:
         ]
 
     def test_install_flag_is_carried(self):
-        """``post_constraint`` branches on it to decide error vs retry."""
         assert _FakeRegistry(InitModelsPhase(install=True)).init_phase.install is True
         assert _FakeRegistry(InitModelsPhase(install=False)).init_phase.install is False
 
     def test_each_phase_starts_empty(self):
-        """No shared mutable default across runs -- the collections are fields
-        with default_factory, not class attributes."""
         first = InitModelsPhase(install=True)
         first.post_init_queue.append(lambda: None)
         first.foreign_keys[("t", "c")] = ("t2", "c2", "cascade", None, "base")

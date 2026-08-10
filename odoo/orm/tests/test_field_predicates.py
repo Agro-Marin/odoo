@@ -1,33 +1,3 @@
-"""The predicates that replaced ``field.type == "..."`` must not widen.
-
-`Field` carries a class hierarchy *and* a string type tag, and the fork is
-migrating the second onto the first: `is_x2many`, `is_temporal`,
-`is_properties`, `is_delegating`, `is_attachment_backed`. Each replaces a
-comparison against one or more `type` strings.
-
-**The migration has a hazard, and it is written down at the one site that
-refused it** (`fields/_field_sql.py`, the company-dependent column branch):
-
-    A `type` check, NOT a class flag, and it must stay one. `type` is leaf
-    identity that subclasses reset; a boolean class attribute is inherited.
-
-That asymmetry is the whole risk. `Many2oneReference` subclasses `Integer` and
-resets `type` to `"many2one_reference"`; had `Integer` carried an
-`is_fixed_width_column = True`, the subclass would have inherited it and
-silently changed the SQL for every m2o-reference column. Nothing checked that,
-so this file does.
-
-Two invariants, both measured over `Field._by_type__` -- every field class that
-has ever been imported, not merely the ones some registry happens to
-instantiate:
-
-1. each predicate agrees, class by class, with the type-string test it replaced;
-2. no class inherits a predicate flag from a parent whose `type` it resets.
-
-The second is the one that catches the hazard before it ships: it fails on a new
-subclass the day it is written, rather than on the SQL it quietly changed.
-"""
-
 import ast
 import unittest
 from pathlib import Path
@@ -36,12 +6,6 @@ from odoo.orm.fields.base import Field
 
 
 def _string_operands(node: ast.expr) -> set[str]:
-    """The string literals *node* compares against, as a set.
-
-    Handles the constant and the container forms alike, so a reversed tuple is
-    the same fact as an ordered one -- which is precisely what the regex sweep
-    this test replaces could not see.
-    """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return {node.value}
     if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
@@ -84,7 +48,6 @@ commit, while another session had uncommitted work in it.
 
 class TestPredicatesMatchTheTypeStrings(unittest.TestCase):
     def test_the_registry_is_populated(self):
-        """A predicate suite over an empty registry proves nothing."""
         self.assertGreaterEqual(
             len(Field._by_type__),
             15,
@@ -104,7 +67,6 @@ class TestPredicatesMatchTheTypeStrings(unittest.TestCase):
                     )
 
     def test_each_predicate_is_true_somewhere(self):
-        """A predicate nothing answers True is a stub, not a migration."""
         for predicate, want_types in PREDICATE_TYPES.items():
             with self.subTest(predicate=predicate):
                 answering = {
@@ -120,20 +82,6 @@ class TestPredicatesMatchTheTypeStrings(unittest.TestCase):
 
 
 class TestTheMigrationIsComplete(unittest.TestCase):
-    """No `.type` comparison against a migrated set may survive unlisted.
-
-    This exists because a regex sweep silently missed four sites and I reported
-    the clusters as complete on the strength of the sweep rather than by
-    measuring afterwards. Two spellings defeated it: a reversed tuple
-    (``field.type in ("datetime", "date")``) and a subscript receiver
-    (``fields[name].type != "properties"``), neither matched by a pattern
-    written for ``field.type in ("date", "datetime")``.
-
-    An AST walk cannot be fooled that way, and running it as a test means the
-    next cluster is finished or explicitly unfinished, never accidentally
-    half-done.
-    """
-
     def _survivors(self) -> dict[str, list[str]]:
         root = Path(__file__).resolve().parents[1]  # odoo/orm
         repo = root.parents[1]
@@ -170,7 +118,6 @@ class TestTheMigrationIsComplete(unittest.TestCase):
         )
 
     def test_the_unconverted_list_has_no_stale_entries(self):
-        """A file that has been converted must leave the list."""
         survivors = self._survivors()
         stale = sorted(set(UNCONVERTED) - set(survivors))
         self.assertFalse(
@@ -182,10 +129,7 @@ class TestTheMigrationIsComplete(unittest.TestCase):
 
 
 class TestNoFlagLeaksThroughAResetType(unittest.TestCase):
-    """The hazard `fields/_field_sql.py` names, checked rather than remembered."""
-
     def _resetting_classes(self):
-        """``(cls, parent)`` for every class that resets `type` under a parent."""
         for type_name, cls in sorted(Field._by_type__.items()):
             for parent in cls.__mro__[1:]:
                 if not (isinstance(parent, type) and issubclass(parent, Field)):
@@ -195,7 +139,6 @@ class TestNoFlagLeaksThroughAResetType(unittest.TestCase):
                     yield cls, parent, type_name, parent_type
 
     def test_the_hazard_shape_still_exists(self):
-        """If nothing resets `type` any more, this suite has stopped testing."""
         found = list(self._resetting_classes())
         self.assertTrue(
             found,
@@ -223,17 +166,6 @@ class TestNoFlagLeaksThroughAResetType(unittest.TestCase):
 
 
 class TestInstancePredicates(unittest.TestCase):
-    """`is_delegating` / `is_attachment_backed` are per-instance, not per-class.
-
-    They report an attribute rather than a fixed class answer, so they are set
-    on the instance here. Passing ``delegate=True`` to the constructor would
-    *not* work and the first draft of this file assumed it would:
-    ``Field.__init__`` stashes its kwargs in ``_args__`` and
-    ``_setup_attrs__`` applies them when the field is set up on a model, so
-    before setup the instance still carries the class default. The predicate
-    reads the resolved attribute, which is the state every caller sees.
-    """
-
     def test_delegating_follows_the_delegate_flag(self):
         from odoo.orm.fields.relational import Many2one
 

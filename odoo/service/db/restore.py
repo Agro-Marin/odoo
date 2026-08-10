@@ -1,9 +1,3 @@
-"""Restoring a backup, and the bounds that keep a hostile archive from unpacking the disk.
-
-One of the five modules ``service/db.py`` was split into; the package
-``__init__`` carries the shape and the dependency direction.
-"""
-
 import base64
 import logging
 import os
@@ -47,17 +41,6 @@ _EXTRACT_CHUNK_BYTES = 1024 * 1024
 def _extract_members_bounded(
     z: zipfile.ZipFile, members: list[str], dest: str, budget: int
 ) -> int:
-    """Extract ``members`` into ``dest``, aborting once ``budget`` bytes are written.
-
-    Replaces ``ZipFile.extractall``, which has no size ceiling.  Counts the bytes
-    actually produced rather than trusting each member's declared ``file_size``,
-    so a header that under-reports its own size buys nothing.  Returns the total
-    written.
-
-    Path safety is already established by the caller's ZipSlip check over
-    ``namelist()`` — a superset of ``members`` — so this only has to create the
-    parent directories.
-    """
     dest_path = Path(dest)
     written = 0
     for member in members:
@@ -83,15 +66,6 @@ def _extract_members_bounded(
 
 
 def _source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
-    """Compressed size of ``dump_file``, whether it is a path or an open file.
-
-    ``restore_db`` accepts both — the database-manager UI hands it a temp-file
-    *path*, while ``odoo db load <url>`` streams the download into a
-    ``SpooledTemporaryFile`` and passes the *object* (``cli/db.py``). A file
-    object has no path for ``Path(...).stat()``, so its size is taken with
-    ``seek``/``tell`` and the position restored, leaving it ready for the
-    ``zipfile`` read that follows.
-    """
     if isinstance(dump_file, (str, os.PathLike)):
         return Path(dump_file).stat().st_size
     pos = dump_file.tell()
@@ -103,7 +77,6 @@ def _source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
 
 
 def _unpack_budget(dump_file: str | os.PathLike | IO[bytes]) -> int:
-    """Bytes ``restore_db`` will let an archive expand to (see the constants)."""
     ratio = env_int(
         "ODOO_RESTORE_MAX_EXPANSION_RATIO",
         _RESTORE_MAX_EXPANSION_RATIO,
@@ -114,13 +87,6 @@ def _unpack_budget(dump_file: str | os.PathLike | IO[bytes]) -> int:
 
 
 def _pg_restore_total_timeout() -> float:
-    """Wall-clock ceiling (seconds) for the ``psql``/``pg_restore`` invocation.
-
-    Sibling of ``_pg_dump_total_timeout``, so a hung ``psql -f`` (lock wait,
-    disk-full stall) raises a clean ``RuntimeError`` instead of blocking the
-    worker until the master watchdog SIGKILLs it.  Default 1h; override via
-    ``ODOO_PG_RESTORE_TOTAL_TIMEOUT``.
-    """
     return env_float("ODOO_PG_RESTORE_TOTAL_TIMEOUT", 3600.0, logger=_logger)
 
 
@@ -164,24 +130,6 @@ def restore_db(
     copy: bool = False,
     neutralize_database: bool = False,
 ) -> None:
-    """Restore a database from a file.
-
-    ``dump_file`` may be a filesystem path (the database-manager UI) or an open
-    binary file object (``odoo db load <url>`` streams a download into a
-    ``SpooledTemporaryFile``); ``zipfile`` and the expansion-budget sizing both
-    accept either.
-
-    Handles the v8+ zip format (SQL + filestore + manifest) and the raw pg_dump
-    custom format.  On any failure after the empty DB is created,
-    ``_drop_database`` frees the name.
-
-    ``copy=True`` forces a new dbuuid; ``neutralize_database=True`` also scrubs
-    external-integration config (SMTP, webhooks) for staging clones.
-
-    Pre-flights the destination filestore: ``shutil.move`` into an existing
-    directory would nest the dumped filestore inside a stale ``filestore/<db>/``,
-    leaving ``ir.attachment`` rows resolving against the wrong tree.
-    """
     if not isinstance(db, str):
         raise TypeError(f"db must be a str, got {type(db).__name__!r}")
     validate_db_name(db)

@@ -3412,20 +3412,6 @@ class TestAccessibleIdScanFootprint(TransactionCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestFromRequestFileValsMerge(TransactionCase):
-    """``_from_request_file``'s two storage branches must accept the same vals.
-
-    ``_should_stream_upload`` picks between streaming the payload and buffering
-    it, and that choice depends on the *mimetype of the file the user uploaded*.
-    The buffered branch merged ``**vals`` last, so a caller-supplied column that
-    the method also derives silently won; the streaming branch passed those same
-    columns as keyword arguments, so the identical call raised ``TypeError: got
-    multiple values for keyword argument 'name'``.
-
-    That made the failure depend on what a user happened to upload -- a PNG took
-    the working path, a text file took the raising one -- which is how it reached
-    production as a 500 on every non-image attachment upload in Discuss.
-    """
-
     class _FakeFile:
         def __init__(self, content, filename):
             self._buf = io.BytesIO(content)
@@ -3476,7 +3462,6 @@ class TestFromRequestFileValsMerge(TransactionCase):
                 self.assertEqual(attachment.name, filename)
 
     def test_the_file_is_still_what_gets_stored(self):
-        """Deriving the name from vals must not change where the bytes come from."""
         for filename, content in (("photo.png", self.png), ("note.txt", b"hello")):
             with self.subTest(filename=filename):
                 attachment = self.Attachments._from_request_file(

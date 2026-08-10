@@ -25,7 +25,7 @@ class _Target:
     remove_signature_method = None
 
 
-@tagged("post_install", "-at_install")
+@tagged("post_install_l10n", "post_install", "-at_install")
 class TestRemoveSignature(BaseCase):
     """ remove_signature() tries each strategy under a try/except, so a strategy
         that cannot run at all is indistinguishable from one that declined --

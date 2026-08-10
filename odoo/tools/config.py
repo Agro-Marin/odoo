@@ -374,7 +374,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Common options" option group."""
         group = optparse.OptionGroup(parser, "Common options")
         group.add_option(
             "-c",
@@ -536,7 +535,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "HTTP Service Configuration" option group."""
         group = optparse.OptionGroup(parser, "HTTP Service Configuration")
         group.add_option(
             "--http-interface",
@@ -593,7 +591,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Web interface Configuration" option group."""
         group = optparse.OptionGroup(parser, "Web interface Configuration")
         group.add_option(
             "--db-filter",
@@ -611,7 +608,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Testing Configuration" option group."""
         group = optparse.OptionGroup(parser, "Testing Configuration")
         group.add_option(
             "--test-file",
@@ -680,7 +676,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Logging Configuration" option group."""
         group = optparse.OptionGroup(parser, "Logging Configuration")
         group.add_option(
             "--logfile",
@@ -766,7 +761,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "SMTP Configuration" option group."""
         group = optparse.OptionGroup(parser, "SMTP Configuration")
         group.add_option(
             "--email-from",
@@ -850,7 +844,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Database related options" option group."""
         group = optparse.OptionGroup(parser, "Database related options")
         group.add_option(
             "-d",
@@ -1145,7 +1138,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Internationalisation options" option group."""
         group = optparse.OptionGroup(
             parser,
             "Internationalisation options",
@@ -1175,7 +1167,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Security-related options" option group."""
         group = optparse.OptionGroup(parser, "Security-related options")
         group.add_option(
             "--no-database-list",
@@ -1194,7 +1185,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Advanced options" option group."""
         group = optparse.OptionGroup(parser, "Advanced options")
         group.add_option(
             "--dev",
@@ -1294,7 +1284,6 @@ class configmanager:
         OdooOption: type,
         PosixOnlyOption: type,
     ) -> None:
-        """Register the "Multiprocessing options" option group."""
         group = optparse.OptionGroup(parser, "Multiprocessing options")
         group.add_option(
             PosixOnlyOption(
@@ -1978,30 +1967,6 @@ class configmanager:
 
     @contextlib.contextmanager
     def patch(self, **values: Any) -> Iterator[None]:
-        """Override options for the duration of the block, then restore them.
-
-        Use this instead of ``mock.patch.dict(config.options, …)``, which is a
-        trap: ``options`` is a ChainMap over the layers, and ``patch.dict``
-        restores a mapping by ``clear()`` followed by ``update(copy)``. On a
-        ChainMap ``clear()`` empties only ``maps[0]``, and iterating the copy
-        yields every key of *every* layer — so on exit the entire flattened
-        configuration is written into ``_override_options``, permanently
-        shadowing the CLI, environment and file layers beneath it.
-
-        Nothing fails where that happens. It fails later, in whatever code
-        next sets a lower layer and finds itself silently ignored, arbitrarily
-        far away — which is how it went unnoticed until a test module was
-        reordered and a suite that patched ``_runtime_options`` stopped seeing
-        its own values.
-
-        Writes to the same layer ``config[key] = value`` writes to, so
-        precedence during the block is unchanged; only the restore differs.
-
-        Usable as a decorator, like any ``@contextmanager``::
-
-            with config.patch(smtp_timeout=5):
-                ...
-        """
         sentinel = object()
         previous = {key: self._override_options.get(key, sentinel) for key in values}
         self._override_options.update(values)

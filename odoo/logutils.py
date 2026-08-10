@@ -191,16 +191,6 @@ class ColoredFormatter(logging.Formatter):
 
 
 def root_handler_uses_colors() -> bool:
-    """Whether the root logger's first handler formats with colour.
-
-    The question "may I emit ANSI codes into a log message?" belongs to the
-    logging configuration, which is this module. It is exposed as a predicate
-    because the caller that needs it -- the ``Html`` field, rendering a
-    sanitisation diff -- is Layer 1 of the ORM, and had been importing
-    :class:`ColoredFormatter` to run the ``isinstance`` check itself. That is a
-    field type reaching into the server's logging setup to ask about the
-    terminal.
-    """
     handlers = logging.getLogger().handlers
     return bool(handlers) and isinstance(handlers[0].formatter, ColoredFormatter)
 

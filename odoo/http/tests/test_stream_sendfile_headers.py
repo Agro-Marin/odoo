@@ -44,12 +44,6 @@ def _stream_for(path):
 
 @contextlib.contextmanager
 def _serving(tmp_path, *, x_sendfile):
-    """Minimal serving context: the config keys plus a bound `request`.
-
-    `Stream.get_response()` reaches the request proxy for exactly one thing on
-    the `path` branch -- `request.httprequest.environ`, which werkzeug's
-    send_file needs to decide whether the WSGI server supports x-sendfile.
-    """
     environ = EnvironBuilder(method="GET", path="/web/content/1").get_environ()
     environ["werkzeug.request"] = None
     fake_request = SimpleNamespace(httprequest=SimpleNamespace(environ=environ))

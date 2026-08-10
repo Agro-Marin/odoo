@@ -194,13 +194,7 @@ class Dispatcher(ABC):
 
     @abstractmethod
     def handle_error(self, exc: Exception) -> Response | HTTPException:
-        """Turn *exc* into the thing to serve.
-
-        Was annotated ``-> collections.abc.Callable``. True -- a werkzeug
-        response is a WSGI callable -- and useless: it told a caller nothing
-        about what it may do with the value, and admitted anything callable.
-        Both implementors return a ``Response`` or an ``HTTPException``.
-        """
+        pass
 
 
 class HttpDispatcher(Dispatcher):

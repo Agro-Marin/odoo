@@ -1,10 +1,3 @@
-"""QWeb template assets: parsing, error reporting, and the JS they become.
-
-An XML asset is the one kind whose failure must be loud -- a template that
-does not parse cannot be degraded into "no template", it has to raise -- so
-the error paths carry as much weight here as the happy one.
-"""
-
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -62,15 +55,6 @@ class TestXMLAssetsBundle(FileTouchable):
                 self.bundle.xml()
 
     def test_03_multiple_same_name(self):
-        """Two `t-name`s that collide are passed through, not rejected here.
-
-        The fixture and its bundle outlived the test that used them (this class
-        went 01, 02, 04, 05 for a while, and the gap was the only trace). The
-        behaviour it pins is a boundary: uniqueness of template names is the
-        registry's business at load time, not the bundle's, so the bundle owes
-        both elements to whoever consumes it rather than silently dropping one.
-        Were that to change, the drop would be invisible without this.
-        """
         self.bundle = self._get_asset("test_assetsbundle.multiple_same_name")
         (block,) = self.bundle.xml()
         self.assertEqual(block["type"], "templates")
@@ -237,16 +221,6 @@ class TestEsmTemplateBundleForms(BaseCase):
 
 
 class TestTemplateInheritance(TransactionCase):
-    """`t-inherit` / `t-inherit-mode`, and what the client is told when a
-    parent is missing.
-
-    Two shapes come out of one bundle: primary templates, registered by name,
-    and extensions, registered against the name they patch. An extension whose
-    parent never arrives is the interesting case -- the bundle still loads, so
-    the only trace is what the generator emits for the client to complain
-    about, and until now nothing asserted it emitted anything at all.
-    """
-
     def _bundle(self, *templates):
         return AssetsBundle(
             "test_assetsbundle.inherit",
@@ -281,8 +255,6 @@ class TestTemplateInheritance(TransactionCase):
         self.assertNotIn("registerTemplateExtension", rendered)
 
     def test_a_primary_parent_from_outside_the_bundle_is_checked_at_runtime(self):
-        """The parent may legitimately live in another bundle, so this is a
-        client-side check rather than a build error."""
         bundle = self._bundle(
             '<templates><t t-name="a.Child" t-inherit="b.Elsewhere"'
             ' t-inherit-mode="primary"><xpath expr="//div" position="inside">'

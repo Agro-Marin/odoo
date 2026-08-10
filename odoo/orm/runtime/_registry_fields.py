@@ -30,7 +30,6 @@ class _RegistryFieldsMixin(_RegistryStubs):
     many2many_relations: defaultdict[tuple[str, str, str], OrderedSet]
 
     def _init_field_state(self) -> None:
-        """Initialise this mixin's own state. Called by ``Registry.init``."""
         self.model_graph = ModelGraph()
         self.field_setup_dependents = Collector()
         self.many2one_company_dependents = Collector()

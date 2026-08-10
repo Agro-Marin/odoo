@@ -65,7 +65,6 @@ class TestMenuParents(lint_case.LintCase):
 
     @classmethod
     def _collect(cls, module, path, element, core):
-        """Record menus this element defines, and the parent it references."""
         is_menu = element.tag == "menuitem" or (
             element.tag == "record" and element.get("model") == "ir.ui.menu"
         )

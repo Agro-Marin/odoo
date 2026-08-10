@@ -45,20 +45,6 @@ if typing.TYPE_CHECKING:
 
 
 def _expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
-    """``id0`` first, then the ids of the same kind, deduplicated.
-
-    "Kind" is truthiness: a real id and a :class:`NewId` must never be batched
-    together. One caller (:meth:`Field.recompute`), and private -- it read as
-    part of the module's surface while nothing outside this file has ever used
-    it.
-
-    :meth:`Field._to_prefetch`'s Python branch walks the same shape and is
-    deliberately NOT expressed in terms of this, because it differs on both
-    axes that matter in the hottest path in the ORM: it stops at
-    ``PREFETCH_MAX`` and skips ids already cached. Parameterising one generator
-    to cover both would put two branches per element inside prefetch expansion.
-    Noted here so the resemblance is visible rather than discovered.
-    """
     yield id0
     seen = {id0}
     kind = bool(id0)
@@ -76,19 +62,6 @@ def _batch_then_single(
     catching: tuple[type[BaseException], ...],
     reraise_when_single: bool = True,
 ) -> bool:
-    """Run *batch*; on a listed failure, fall back to *single*. Did it fall back?
-
-    Prefetching means a read for one record is attempted for many, so a failure
-    that belongs to a *sibling* must not surface as this record's failure --
-    the batch is an optimisation and the single-record path is the semantics.
-
-    ``Field._get_cache_miss`` implements this three times, and the three used
-    to differ in ways nothing declared: which exceptions they caught
-    (``AccessError`` / ``+KeyError, MissingError`` / ``+MissingError``) and
-    whether they re-raised when the batch was already a single record. A reader
-    could not tell which differences were deliberate. They are arguments now,
-    so each caller states its own answer at the call site.
-    """
     try:
         batch()
         return False
@@ -216,32 +189,10 @@ class Field[T](
 
     @property
     def is_delegating(self) -> bool:
-        """Whether this is a Many2one that sets up ``_inherits`` delegation.
-
-        The predicate form of ``self.type == "many2one" and self.delegate``,
-        which is what ``__get__``'s cache-miss path -- the hottest read in the
-        ORM -- used to spell. That expression was correct only by accident:
-        ``delegate`` lived on ``Many2one`` alone, so it was ``and``
-        short-circuiting on the type string that kept every other field from
-        raising ``AttributeError``. Reordering the two terms, or adding a second
-        reader that tested ``delegate`` first, broke every non-m2o field on the
-        hot path. The attribute was hoisted to this class with an inert default
-        on 2026-08-09 to stop that; the predicate is the other half, because a
-        hoisted attribute makes the base class carry a subclass's vocabulary and
-        leaves the caller still doing the dispatch.
-
-        ``Many2one`` overrides this to report ``self.delegate``.
-        """
         return False
 
     @property
     def is_attachment_backed(self) -> bool:
-        """Whether this is a Binary that stores its bytes as an ``ir.attachment``.
-
-        Same shape and same history as :attr:`is_delegating`:
-        ``self.related_field.type == "binary" and self.related_field.attachment``
-        in :meth:`update_db`, safe only by short-circuiting.
-        """
         return False
 
     write_sequence: int = 0
@@ -1074,14 +1025,6 @@ class Field[T](
     def _check_not_dirty(
         self, env: Environment, ids: Collection[IdType], caller: str
     ) -> None:
-        """Refuse to overwrite a pending write.
-
-        Shared by :meth:`_update_cache_items` and :meth:`_update_cache`, which
-        carried near-identical copies of this guard down to the wording of the
-        message. ``_update_cache_items`` lacked the ``isdisjoint`` fast path the
-        other had, so it built a sorted intersection on every call with any
-        dirty id for the field, not only on the colliding ones.
-        """
         if not self.is_column:
             return
         dirty_ids = env._core.get_dirty(self)

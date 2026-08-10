@@ -1,11 +1,3 @@
-"""The JS half of the pipeline: classification, minification, source maps.
-
-The through-line is that minifying JS is not safe in general -- rjsmin
-corrupts nested template literals, and a legacy bundle handed ESM syntax
-cannot be concatenated at all -- so most of this file is about the gates that
-decide which transform a file is allowed to receive.
-"""
-
 import re
 import unittest
 from types import SimpleNamespace

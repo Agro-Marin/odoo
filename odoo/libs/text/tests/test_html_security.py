@@ -13,13 +13,6 @@ from odoo.libs.text.html import (
 
 
 def sanitize(src: str) -> str:
-    """`html_sanitize` through an assertion that it answered at all.
-
-    It returns None for falsy input and a Markup otherwise; every call in this
-    module passes a non-empty document, so a None here would mean the sanitizer
-    silently dropped the whole input — which is the one failure a security
-    suite must not read as "the bad thing is not in the output".
-    """
     out = html_sanitize(src)
     assert out is not None, f"html_sanitize returned None for {src!r}"
     return out

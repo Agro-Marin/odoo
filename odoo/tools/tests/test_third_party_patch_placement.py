@@ -99,20 +99,10 @@ _SKIP_TOP = {"addons", "_monkeypatches", "upgrade"}
 #: (``odoo/tests/common.py``: ``freezegun.freeze_time``). Scanning it is the
 #: point: that module is imported by every integration test run.
 def _is_test_suite(parts: tuple[str, ...]) -> bool:
-    """True for a package's own test directory, False for ``odoo/tests/**``.
-
-    A suite is a ``tests`` directory NESTED under a package (``db/tests/``,
-    ``libs/xml/tests/``). ``odoo/tests/`` is the framework and stays in scope.
-    """
     return "tests" in parts[1:]
 
 
 def _module_level_statements(tree: ast.Module):
-    """Yield statements at module scope, descending into if/try/with only.
-
-    A patch guarded by `try:` or `if os.name == "posix":` is still applied on
-    import; a patch inside a function or class is not, and is out of scope.
-    """
     stack = list(tree.body)
     while stack:
         stmt = stack.pop()

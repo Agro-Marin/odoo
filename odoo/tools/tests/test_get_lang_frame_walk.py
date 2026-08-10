@@ -14,15 +14,11 @@ class _Env:
 
 
 class _PlainEngine:
-    """Helper object with no ``env``, like the report module's WeasyPrint engine."""
-
     def build_message(self):
         return _get_lang(inspect.currentframe())
 
 
 class _Recordset:
-    """Model-like caller that carries the environment the helper runs under."""
-
     def __init__(self, lang):
         self.env = _Env(lang)
 

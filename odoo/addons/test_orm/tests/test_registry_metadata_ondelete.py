@@ -1,16 +1,3 @@
-"""``ondelete="restrict"`` is refused when the comodel describes the registry.
-
-The rule: the ``ir.model*`` reflection models and ``ir.module.module`` have
-their rows deleted and rewritten on every install, upgrade and uninstall, so a
-restricting foreign key into one blocks the operation that maintains it.
-
-It was enforced against ``IR_MODELS``, a tuple of seven model names hardcoded
-in ``orm/fields/base.py`` -- Layer 1 of the ORM naming addon-owned models, and
-covered by no test at all. It is now ``BaseModel._is_registry_metadata``,
-declared by the models it describes. Both halves are asserted here: that the
-flag is where it should be, and that the check still fires.
-"""
-
 from odoo import fields
 from odoo.tests.common import TransactionCase
 
@@ -40,24 +27,12 @@ class TestRegistryMetadataFlag(TransactionCase):
                 self.assertFalse(self.env[name]._is_registry_metadata)
 
     def test_it_is_readable_on_every_model(self):
-        """A default on the metadata mixin, not an attribute only some carry --
-        ``Many2one.setup_nonrelated`` reads it on an arbitrary comodel."""
         for model_cls in self.env.registry.values():
             self.assertIn(model_cls._is_registry_metadata, (True, False))
 
 
 class TestRestrictOntoRegistryMetadataIsRefused(TransactionCase):
     def _setup_m2o(self, comodel_name, ondelete):
-        """A Many2one far enough along to run ``setup_nonrelated``.
-
-        ``Many2one(...)`` only stashes its kwargs in ``_args__``; the named
-        attributes appear when ``__set_name__``/``_setup_attrs__`` run against
-        an owning model class. This test has no such class, so the three
-        attributes the method reads are assigned directly. Setting them through
-        the constructor instead leaves ``self.ondelete`` as ``None``, the
-        method fills in a default, and the assertion silently tests nothing --
-        which is what the first version of this file did.
-        """
         field = fields.Many2one(comodel_name)
         field.name = "probe_field"
         field.model_name = "res.partner"
@@ -79,7 +54,6 @@ class TestRestrictOntoRegistryMetadataIsRefused(TransactionCase):
         self.assertEqual(field.ondelete, "restrict")
 
     def test_cascade_onto_a_reflection_model_is_allowed(self):
-        """Only ``restrict`` is refused -- cascade follows the deletion."""
         field = self._setup_m2o("ir.model", ondelete="cascade")
         field.setup_nonrelated(self.env["res.partner"])
         self.assertEqual(field.ondelete, "cascade")

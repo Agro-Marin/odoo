@@ -65,14 +65,6 @@ class FieldCache[F: FieldKey = FieldKey]:
         return self._dirty.pop(field, None)
 
     def pop_dirty_for_model(self, model_name: str) -> dict[F, set[Any]]:
-        """Take the dirty ids of every cached field belonging to *model_name*.
-
-        The only method that asks a key for anything. The store is keyed by
-        :class:`FieldKey` because that is what its callers actually pass -- the
-        unit tests use bare strings, deliberately, since the cache is a keyed
-        store and nothing else -- so a key with no ``model_name`` simply never
-        matches here rather than raising. Production keys are always ``Field``.
-        """
         result: dict[Any, set] = {}
         for field in list(self._dirty):
             if getattr(field, "model_name", None) == model_name:

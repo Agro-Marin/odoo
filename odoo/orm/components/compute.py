@@ -8,12 +8,6 @@ if TYPE_CHECKING:
 
 
 class _StackMap[F: FieldKey = FieldKey]:
-    """A stack of ``{field: protected ids}`` scopes, read newest-first.
-
-    One scope per open ``Environment.protecting()`` block; ``get`` walks them in
-    reverse so an inner block shadows an outer one without copying it.
-    """
-
     __slots__ = ("_maps",)
 
     def __init__(self) -> None:

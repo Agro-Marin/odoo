@@ -11,34 +11,6 @@ if typing.TYPE_CHECKING:
 
 
 class _FieldMetadataMixin(_FieldStubs):
-    """What a field *is*, as a column — the declarations and what derives from them.
-
-    A leaf: nothing here reaches any other unit of the ``Field`` composition, so
-    nothing it is used by can close a cycle through it.
-
-    That is the point of extracting it. When ``mixin_coupling_check`` was
-    generalised to measure ``Field`` (it had only ever measured ``BaseModel``),
-    its first run found a 2-cycle: ``base.py`` reached ``_field_convert`` from
-    the descriptor protocol (``convert_to_cache`` / ``convert_to_record`` /
-    ``convert_to_write``) while ``_field_convert`` reached back into ``base.py``
-    for exactly these members — ``column_type``, ``company_dependent``,
-    ``translate``, ``_is_context_dependent``, ``_company_dependent_fallback_raw``.
-    Conversion needs to know a field's *shape*, not the composition root.
-
-    This is the same fix ``models/`` already made, and for the same reason:
-    ``base.py`` was the articulation point of a nine-unit cycle until its model
-    metadata moved onto ``_metadata`` / ``_properties`` / ``_magic_fields``
-    leaves. A composition root that holds the declarations every other unit
-    reads is a hub, whatever it is called.
-
-    Scope is deliberately "the column shape", not "every declared attribute".
-    ``Field`` declares around forty; the ones here are those that answer *what
-    column does this field become, and under what key is it cached* — which is
-    the question conversion, SQL generation and description all ask, and the
-    only cluster whose removal breaks the cycle. Widening it further would be a
-    separate, larger move with no gate movement to show for it.
-    """
-
     __slots__ = ()
 
     #: Set by ``__set_name__`` / ``_setup_attrs__`` through

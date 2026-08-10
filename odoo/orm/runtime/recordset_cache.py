@@ -130,21 +130,6 @@ class Cache:
         values: Iterable,
         dirty: bool = False,
     ) -> None:
-        """Write values straight into the field cache.
-
-        ``remove()`` and ``invalidate()`` below *raise* when the target holds a
-        pending write, on the grounds that dropping it loses data silently. This
-        method did neither until 2026-08-08 — it is the mutator addons actually
-        call, so the class enforced its invariant on the two paths addons rarely
-        take and skipped the one they do.
-
-        It **warns** rather than raising because the promotion needs evidence
-        this repository cannot currently produce: of the three addon call sites,
-        two pass ``dirty=True`` (and are unaffected), but
-        ``hr.employee._copy_cache_from`` does not, and no DB-backed suite that
-        would exercise it runs in CI. Promote to ``ValueError`` once the
-        integration lane covers those addons.
-        """
         if not dirty and (
             found := self.transaction.core.find_pending_write((field,), records._ids)
         ):

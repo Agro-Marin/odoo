@@ -22,18 +22,6 @@ _LEADING_COLUMN_RE = re.compile(
 
 
 def leading_index_columns(model) -> set[str]:
-    """Columns a declared btree index already answers on its own.
-
-    PostgreSQL serves ``WHERE a = ?`` from an index on ``(a, b, ...)``: what
-    decides is the *leading* column, not the arity. So a field that already
-    leads a composite index does not need a second single-column one -- adding
-    it would cost every write and buy no read.
-
-    This is not hypothetical. `stock.quant.product_id` leads both
-    `_product_location_idx` and `_quant_merge_idx`, and its standalone index
-    was deliberately dropped in this fork (with an `init()` that removes the
-    orphan). Reading only ``field.index``, this gate demanded it back.
-    """
     columns: set[str] = set()
     for table_object in getattr(model, "_table_objects", {}).values():
         if not isinstance(table_object, models.Index):

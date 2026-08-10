@@ -140,7 +140,6 @@ class ManifestLinter(LintCase):
         )
 
     def _test_manifest_icon_value(self, module, value):
-        """Advisories go on ``self.advisories``; redundant keys are returned."""
         if not isinstance(value, str):
             self.advisories.append(
                 f"{module}: icon is {type(value).__name__}, expected str"

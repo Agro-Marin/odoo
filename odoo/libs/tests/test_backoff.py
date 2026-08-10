@@ -81,8 +81,6 @@ class TestDelay:
 
 
 class TestCallSitesAreNotFlat:
-    """The two loops that shipped the flat curve, pinned at their own constants."""
-
     def test_retrying_schedule_grows(self):
         from odoo.service.transaction import (
             BASE_CONCURRENCY_BACKOFF_SECONDS,

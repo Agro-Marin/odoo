@@ -568,14 +568,6 @@ class _ModuleLoader:
             )
 
     def capture_database_field_metadata(self) -> None:
-        """Snapshot which stored fields the DATABASE currently calls translated.
-
-        Read before the module graph converges, because that is the last moment
-        the old shape is still on disk -- and only when updating, since nothing
-        can change it otherwise. The table check is part of the precondition,
-        not of the caller: on a fresh database ``ir_model_fields`` does not
-        exist yet and there is nothing to capture.
-        """
         if not (self.update_module and schema.table_exists(self.cr, "ir_model_fields")):
             return
         cr = self.cr
@@ -907,39 +899,6 @@ def load_modules(
     models_to_check: OrderedSet[str] | None = None,
     run_tests: bool = True,
 ) -> None:
-    """Build ``registry``'s module state.
-
-    ``run_tests=False`` vetoes the at_install suites this build would otherwise
-    run under ``--test-enable``.  Pass it from every path that provisions a
-    database as a *side effect of serving a request* (create, duplicate,
-    restore, migrate): ``--test-enable`` describes the databases this
-    ``odoo-bin`` invocation was told to test, not every registry the process
-    ever builds.  Without the veto the suites re-enter from the HTTP worker
-    thread, where the test framework's process-global state (the registry test
-    lock, ``current_test``, active patchers) is owned by the test thread — the
-    run then wedges for 60s per case and exits.
-
-    **Every phase below runs unconditionally, and each decides for itself.**
-    Nine of them apply only while installing or upgrading, and this function
-    used to say so: 9 of its 11 ``if`` statements tested ``update_module``, in a
-    95-line body, so what a reader saw was one pipeline with holes rather than
-    the two that exist — *serve an existing database* and *install/upgrade*.
-    Worse, the precondition sat one level away from the code it protected, so
-    the only way to answer "does this step run on a plain boot?" was to re-read
-    the orchestrator.
-
-    The loader already carries ``update_module``, so each phase now opens with
-    its own guard and this reads as the sequence it is. Two phases have a
-    precondition wider than that flag and say so where it belongs:
-    :meth:`_ModuleLoader.run_pre_upgrade_scripts` also needs
-    ``upgrade_modules``, and :meth:`_ModuleLoader.capture_database_field_metadata`
-    also needs ``ir_model_fields`` to exist, which it does not on a fresh
-    database.
-
-    The one branch that remains is real control flow rather than a mode flag:
-    uninstalling a module can require the whole registry to be rebuilt, which is
-    a ``return``, not a step.
-    """
     if models_to_check is None:
         models_to_check = OrderedSet()
 

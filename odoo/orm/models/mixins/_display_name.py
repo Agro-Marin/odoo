@@ -7,21 +7,6 @@ from ._model_stubs import _ModelStubs
 
 
 class _DisplayNameMixin(_ModelStubs):
-    """``display_name`` and the ``_rec_name`` machinery behind it.
-
-    Three members that only ever talk to each other and to ``_rec_name``:
-    the compute, its fallback, and ``name_create``, which is the write-side
-    counterpart (given a label, make the record that would display it).
-
-    They lived on ``base.py``, where ``name_create``'s ``self.create(...)`` was
-    the edge that put the composition root in a 2-cycle with ``create`` once
-    ``mixin_coupling_check`` started following recordset-mediated calls (the
-    2026-08c finding in its ``BASELINE`` history). Breaking that cycle by moving
-    ``_validate_fields`` onto a leaf left the ``base.py -> create`` direction
-    in place; moving this cluster removes it, because the call travels with the
-    behaviour that needs it rather than staying at the root.
-    """
-
     __slots__ = ()
 
     @api.model

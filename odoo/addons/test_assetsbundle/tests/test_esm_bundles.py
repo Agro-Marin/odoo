@@ -1,11 +1,3 @@
-"""Native ES modules: the registry, the import map, the bridges, esbuild.
-
-This is the newest and least settled layer, and the one whose failures are
-least legible at runtime -- a mis-registered bundle or a bridge that resolves
-to undefined surfaces as an unrelated service going missing, far from the
-cause. It is therefore the layer that most needs its invariants written down.
-"""
-
 import re
 import shutil
 import subprocess
@@ -352,16 +344,6 @@ class TestEsmConfigValidation(TransactionCase):
 
 
 class TestEsmRegistryInstallationScope(TransactionCase):
-    """What the registry gates, given that it is built from *disk*, not the DB.
-
-    ``_build`` walks ``Manifest.all_addon_manifests()``, so every addon on the
-    addons path contributes whether or not it is installed here. That is a
-    deliberate choice, and the safe one *only* while two properties hold: a
-    module may not claim a bundle it does not own, and a declaration from an
-    absent module must resolve to nothing rather than to something wrong.
-    Neither is enforced by ``validate_esm_config``; these pin them.
-    """
-
     def _declarations(self):
         from odoo.modules import Manifest
 
@@ -371,15 +353,6 @@ class TestEsmRegistryInstallationScope(TransactionCase):
                 yield manifest.name, esm
 
     def _claims_a_live_foreign_namespace(self, module, bundle):
-        """Whether *module* registers *bundle* out of another addon's namespace.
-
-        A namespace with no addon behind it is not foreign: ``pos_enterprise``
-        registers and fills ``pos_preparation_display.*``, a bundle family whose
-        module was folded into it upstream, and there is no other claimant a
-        declaration could be stolen from. The rule worth enforcing is narrower
-        than "prefix equals declaring module" -- it is that no manifest may
-        register a bundle belonging to a *different addon that exists*.
-        """
         from odoo.modules import Manifest
 
         namespace = bundle.partition(".")[0]
@@ -388,15 +361,6 @@ class TestEsmRegistryInstallationScope(TransactionCase):
         return Manifest.for_addon(namespace, display_warning=False) is not None
 
     def test_a_module_only_registers_bundles_it_owns(self):
-        """The invariant that makes a disk-wide registry safe, unenforced.
-
-        ``esm.bundles`` entries are merged into one flat set with no check on
-        the namespace, so a single manifest anywhere on the addons path can
-        register ``web.assets_web`` -- flipping a core bundle to esbuild on
-        every database, whether or not either module is installed. Every
-        manifest in this workspace is well-behaved today, which is exactly why
-        the rule is worth pinning before one is not.
-        """
         stolen = [
             (module, bundle)
             for module, esm in self._declarations()
@@ -407,14 +371,6 @@ class TestEsmRegistryInstallationScope(TransactionCase):
         self.assertFalse(stolen, f"modules registering foreign bundles: {stolen}")
 
     def test_child_declarations_stay_in_their_namespace(self):
-        """Same rule for the relationship mappings' *children*.
-
-        A parent may legitimately be another module's bundle -- that is the
-        whole point of ``dynamic_children``, where the child's module declares
-        itself against ``web.assets_web``. The child, though, is the thing being
-        contributed, and contributing another addon's bundle is the same theft
-        as registering it.
-        """
         misplaced = [
             (module, key, child)
             for module, esm in self._declarations()
@@ -429,19 +385,6 @@ class TestEsmRegistryInstallationScope(TransactionCase):
         )
 
     def test_absent_modules_contribute_empty_children_not_wrong_ones(self):
-        """Why a disk-wide registry is survivable, and what it actually costs.
-
-        ``esm_registry.py`` states that membership checks for unavailable
-        modules "are simply never asked". They are: ``_get_dynamic_child_bundles``
-        builds an ``AssetsBundle`` for every declared child of the rendered
-        bundle, including children whose module is not installed here. What
-        saves it is one layer down -- ``_get_asset_paths`` resolves those
-        bundles against the *installed* addon list, so each yields no files and
-        contributes nothing to the import map.
-
-        So the guarantee is real but indirect, and it is the empty result, not
-        the absent question, that has to hold.
-        """
         registry = esm_registry()
         installed = self.env["ir.asset"]._get_installed_addons_list()
         absent = {
@@ -473,19 +416,6 @@ class TestEsmRegistryInstallationScope(TransactionCase):
 
 
 class TestSecondarySingletonSurface(TransactionCase):
-    """How far the singleton guarantee of a secondary bundle actually reaches.
-
-    A secondary bundle is esbuild-compiled self-contained, so every module it
-    imports transitively is INLINED — a second copy, distinct from the one the
-    parent app bundle registered. ``_secondary_shared_specs`` stubs some of
-    them back to ``odoo.loader.modules`` so identity survives, which is what
-    makes ``patchWithCleanup(browser, …)`` from a tour reach the running app.
-
-    It stubs only what the bundle imports DIRECTLY, so the guarantee stops one
-    hop in. These pin the part that holds and measure the part that does not,
-    rather than leaving the shortfall to a docstring.
-    """
-
     BUNDLE = "web.assets_tests"
     PARENT = "web.assets_web"
 
@@ -497,11 +427,6 @@ class TestSecondarySingletonSurface(TransactionCase):
         )
 
     def test_every_stubbed_specifier_is_owned_by_the_parent(self):
-        """The shim reads the parent's registration, so the parent must have one.
-
-        A stub for a specifier no parent registers would resolve to
-        ``undefined`` at eval time and take the importing module down with it.
-        """
         shared = self.env["ir.qweb"]._secondary_shared_specs(self.BUNDLE, {})
         if not shared:
             self.skipTest("no shared specifiers on this database")
@@ -509,16 +434,6 @@ class TestSecondarySingletonSurface(TransactionCase):
         self.assertLessEqual(set(shared), self._specs(self.PARENT))
 
     def test_the_guarantee_stops_at_direct_imports(self):
-        """DOCUMENTED SHORTFALL, not an accident of this database.
-
-        Everything the parent owns and this bundle does not stub is inlined a
-        second time. Asserted as a property — some parent-owned specifier is
-        neither stubbed nor absent — because the count moves with whatever is
-        installed; it was 274 against 24 stubs when this was written.
-
-        Tightening ``discovered`` to a transitive walk should make this test
-        fail, and that is the signal to delete it.
-        """
         shared = set(self.env["ir.qweb"]._secondary_shared_specs(self.BUNDLE, {}))
         if not shared:
             self.skipTest("no shared specifiers on this database")
@@ -536,25 +451,10 @@ class TestSecondarySingletonSurface(TransactionCase):
 
 
 class TestHootOwnership(TransactionCase):
-    """Which bundle owns a specifier decides whether Hoot loads it, not its path.
-
-    Anything Hoot owns is left out of the eager import so ``loadAndStart`` can
-    apply the page's ``&id=`` filter first. Anything else has to be imported
-    eagerly or it never runs — and a tour that never runs is invisible: the
-    registry simply lacks it and the runner reports the ready code as "always
-    falsy", naming nothing.
-    """
-
     TOUR_BUNDLE = "web.assets_tests"
     RUNNER_BUNDLE = "web.assets_unit_tests_setup"
 
     def test_the_tour_bundle_owns_none_of_its_specifiers(self):
-        """The regression: a tour outside a ``tours/`` directory.
-
-        ``test_assetsbundle``'s own tour sits directly in ``static/tests``, as
-        do ``auth_passkey``'s and a dozen more. Read by directory they all
-        looked like Hoot's, so the frontend skipped them.
-        """
         IrQweb = self.env["ir.qweb"]
         specs = set(
             IrQweb._get_asset_bundle(
@@ -568,12 +468,6 @@ class TestHootOwnership(TransactionCase):
         self.assertFalse(owned, f"Hoot does not own tour-bundle specifiers: {owned}")
 
     def test_a_suite_is_recognised_by_name_in_any_bundle(self):
-        """Name recognition is what keeps a self-contained runner bundle lazy.
-
-        ``im_livechat.embed_assets_unit_tests`` carries suites without
-        declaring an import-map relationship, so nothing but the file kind
-        identifies them.
-        """
         suite = "@im_livechat/../tests/embed/thread.test"
 
         self.assertEqual(
@@ -582,12 +476,6 @@ class TestHootOwnership(TransactionCase):
         )
 
     def test_a_runner_bundle_still_owns_its_unnamed_helpers(self):
-        """The directory reading survives exactly where it is true.
-
-        A runner bundle's helpers (``_framework/*.js``, ``mock_*.hoot.js``) are
-        neither suites nor named like them, and eagerly importing them would
-        fetch most of the bundle before the ``&id=`` filter is read.
-        """
         helper = "@web/../tests/_framework/mock_server/mock_server"
 
         self.assertEqual(
@@ -623,14 +511,6 @@ class TestBridgeShimLiterals(TransactionCase):
         self.assertFalse(is_fallback)
 
     def test_a_reserved_word_survives_as_an_alias(self):
-        """``export const class = ...`` is a SyntaxError; the alias form is not.
-
-        An export name only has to be an IdentifierName, so a module really can
-        export ``class`` and the bridge really does meet it. Emitted as a
-        declaration it would take down the whole shim -- every other name it
-        carries included -- which is why the generators bind to a local and
-        re-export under an alias.
-        """
         shim, _ = AssetsBundle._bridge_shim_source(
             "@web/core/x", set(), self.NAMES, False
         )
@@ -642,17 +522,6 @@ class TestBridgeShimLiterals(TransactionCase):
 
     @unittest.skipUnless(shutil.which("node"), "node binary not available")
     def test_the_two_generators_agree(self):
-        """The Python and JS shim generators must emit the same text.
-
-        ``_bridge_shim_source`` builds the server's bridge attachment and
-        ``@web/core/module_bridge.buildBridgeModuleSource`` builds the client's
-        ``data:`` bridge for the same specifier; the two are interchangeable
-        only while they agree, and that contract lived in a docstring. It had
-        already drifted once -- this file asserted the pre-alias
-        ``export const <name> = ...`` shape that only one side still produced.
-        Comparing them directly is what keeps a change to either from being
-        silently one-sided.
-        """
         bridge_js = file_path("web/static/src/core/module_bridge.js")
         names = sorted(self.NAMES)
         script = (
@@ -794,15 +663,6 @@ class TestEsbuildCompilerAddonFlagsSeam(BaseCase):
 
 
 class TestSecondaryStubMirror(BaseCase):
-    """A stubbed specifier must not swallow the submodules beneath it.
-
-    ``--alias`` is a prefix rewrite, so aliasing ``@web/core/network`` straight
-    at a shim file remapped ``@web/core/network/model_mutation`` to
-    ``<shim>.js/model_mutation`` and esbuild refused the bundle outright. A
-    module face sitting beside its own directory is the normal shape in this
-    codebase, so the mirror has to keep the prefix meaningful.
-    """
-
     FACE = "@probe/core/network"
     NESTED = "@probe/core/network/rpc"
     SIBLING = "@probe/core/network/model_mutation"
@@ -829,11 +689,6 @@ class TestSecondaryStubMirror(BaseCase):
         return stub_root, real, {f.split("=")[0]: f.split("=", 1)[1] for f in flags}
 
     def test_the_alias_target_leaves_room_for_submodules(self):
-        """Extensionless, so the sibling directory can answer the prefix.
-
-        Resolution prefers ``network.js`` over the ``network/`` directory, so
-        the face still gets the shim while ``network/...`` stays a real path.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             stub_root, _real, targets = self._build_mirror(tmp)
 
@@ -855,13 +710,6 @@ class TestSecondaryStubMirror(BaseCase):
             self.assertEqual(mirrored.read_text(), "export const sub = 'REAL_SUB';")
 
     def test_a_nested_stub_shadows_without_writing_through(self):
-        """The failure mode a whole-directory symlink would have caused.
-
-        With ``network/`` symlinked to the source tree, writing the nested
-        shim at ``network/rpc.js`` would follow the link and overwrite the real
-        module on disk. The directory is rebuilt entry by entry instead, so the
-        shim lands only in the mirror.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             stub_root, real, _targets = self._build_mirror(tmp)
 
@@ -876,12 +724,6 @@ class TestSecondaryStubMirror(BaseCase):
 
     @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
     def test_esbuild_resolves_face_and_submodule_together(self):
-        """The end the whole mirror exists for, driven through esbuild itself.
-
-        Asserting the layout is not the same as asserting esbuild agrees with
-        it -- the original bug was precisely a wrong belief about what esbuild
-        does with an alias.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             _stub_root, _real, targets = self._build_mirror(tmp)
             entry = Path(tmp) / "entry.js"
@@ -914,19 +756,6 @@ class TestSecondaryStubMirror(BaseCase):
 
 
 class TestDeepStubMirror(BaseCase):
-    """A stub more than one level below another must not reach the source tree.
-
-    `TestSecondaryStubMirror` pins the one-level case, and shadowing by
-    immediate parent passed it while protecting nothing deeper: a stub at
-    ``<face>/<dir>/<name>`` is not a child of the face, so the face's sibling
-    directory was symlinked whole and the shim write followed that link out of
-    the mirror. That overwrote 42 modules under
-    ``addons/spreadsheet/static/src`` and 39 under
-    ``spreadsheet_edition/static/src/bundle`` with their own shims, from a
-    plain secondary-bundle compile. The shape is ordinary rather than exotic --
-    a plugin directory beside a module face -- so it is pinned at depth.
-    """
-
     FACE = "@probe/core/network"
     DEEP = "@probe/core/network/plugins/core"
 
@@ -974,12 +803,6 @@ class TestDeepStubMirror(BaseCase):
             )
 
     def test_unstubbed_neighbours_at_every_depth_reach_the_real_files(self):
-        """The rebuild has to stay transparent, or it trades one bug for another.
-
-        Rebuilding a directory entry by entry is only correct while every entry
-        no shim claims still resolves -- at the rebuilt level and at the one
-        below it, which the recursion newly rebuilds too.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             stub_root, _real = self._build_mirror(tmp)
 
@@ -994,12 +817,6 @@ class TestDeepStubMirror(BaseCase):
                     self.assertEqual((stub_root / rel).read_text(), expected)
 
     def test_a_write_that_escapes_the_mirror_raises(self):
-        """The backstop, exercised directly rather than through a live escape.
-
-        Every escape this guard exists for is a layout bug that has not been
-        thought of yet, so the test cannot reproduce one; it can only pin that
-        a path resolving outside the mirror is refused instead of written.
-        """
         with tempfile.TemporaryDirectory() as tmp:
             stub_root = Path(tmp) / "stubs"
             outside = Path(tmp) / "source"
@@ -1015,16 +832,7 @@ class TestDeepStubMirror(BaseCase):
 
 
 class TestEsbuildFailClosed(TransactionCase):
-    """An esbuild failure degrades for users and raises for developers.
-
-    Serving an empty bundle keeps a production page alive, and hides the cause
-    everywhere else: the response is still 200, the only trace is a WARNING,
-    and the symptom surfaces as unrelated failures (a missing service, absent
-    translations) far from the broken import that caused them.
-    """
-
     def _run(self, **config):
-        """Drive the failure branch with `config` patched over tools.config."""
         from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
 
         qweb = self.env["ir.qweb"]
@@ -1034,32 +842,22 @@ class TestEsbuildFailClosed(TransactionCase):
             return qweb._esbuild_fail_closed(), EsbuildBundleError
 
     def test_test_enable_fails_closed(self):
-        """`--test-enable`: somebody is watching, so do not degrade."""
         fail_closed, _ = self._run(test_enable=True, dev_mode=[])
         self.assertTrue(fail_closed)
 
     def test_dev_assets_fails_closed(self):
-        """`--dev=assets`: likewise."""
         fail_closed, _ = self._run(test_enable=False, dev_mode=["assets"])
         self.assertTrue(fail_closed)
 
     def test_production_still_degrades(self):
-        """Plain server: a degraded page beats a 500 for a user."""
         fail_closed, _ = self._run(test_enable=False, dev_mode=[])
         self.assertFalse(fail_closed)
 
     def test_unrelated_dev_mode_still_degrades(self):
-        """`--dev=xml` says nothing about assets."""
         fail_closed, _ = self._run(test_enable=False, dev_mode=["xml", "reload"])
         self.assertFalse(fail_closed)
 
     def test_config_parameter_overrides_both_ways(self):
-        """`web.esbuild.fail_closed` wins over the inferred default.
-
-        The escape hatch matters in both directions: a test run that has to
-        survive a known-broken bundle can opt out, and a staging server can opt
-        in without pretending to be a test.
-        """
         param = self.env["ir.config_parameter"].sudo()
         param.set_param("web.esbuild.fail_closed", "0")
         fail_closed, _ = self._run(test_enable=True, dev_mode=["assets"])
@@ -1078,29 +876,12 @@ NATIVE_REEXPORT = "@test_assetsbundle/../tests/native_esm/reexport"
 
 @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
 class TestEsbuildEndToEnd(TransactionCase):
-    """esbuild driven for real, over files that exist on disk.
-
-    Everything else in this file tests the plumbing AROUND the compiler -- the
-    import map it feeds, the stub mirror it reads, the flags it is handed --
-    by asserting on inputs or by shelling out to the binary directly. None of
-    it enters `EsbuildCompiler.compile`, which was measurable: instrumenting
-    that method showed zero calls across the whole at_install phase, and the
-    only ones in a full run came from the framework pregenerating bundles and
-    from a browser fetching a page. The compiler is the single most
-    consequential thing in this layer and nothing here exercised it.
-
-    `test_assetsbundle.native_esm` exists for this: three real modules under
-    static/tests/native_esm/, registered as an esbuild bundle in the manifest,
-    so the compiler resolves genuine imports off genuine paths.
-    """
-
     def _bundle(self):
         return self.env["ir.qweb"]._get_asset_bundle(
             NATIVE_BUNDLE, css=False, assets_params={}
         )
 
     def test_the_fixture_bundle_routes_to_native_modules(self):
-        """Precondition: without esm registration these would be legacy JS."""
         bundle = self._bundle()
         self.assertEqual(
             sorted(a.module_path for a in bundle.native_modules),
@@ -1131,25 +912,12 @@ class TestEsbuildEndToEnd(TransactionCase):
             )
 
     def test_two_compiles_of_the_same_sources_agree(self):
-        """Byte-stability is what lets the content hash address the bundle."""
         first = self._bundle().esbuild_native_bundle()
         second = self._bundle().esbuild_native_bundle()
         self.assertEqual(first.code, second.code)
 
 
 class TestEsbuildFailurePath(TransactionCase):
-    """What happens when the compiler raises -- the branch, not the predicate.
-
-    TestEsbuildFailClosed covers `_esbuild_fail_closed()` as a function. This
-    covers the caller: that a raising compile really does become an
-    EsbuildBundleError when the flag says so, and really does degrade to an
-    empty result when it does not.
-
-    Steered through the `web.esbuild.fail_closed` config parameter rather than
-    tools.config, deliberately: config.options is a ChainMap, and patching it
-    is a trap (see test_css_pipeline's dev-mode memo test).
-    """
-
     def setUp(self):
         super().setUp()
         # The breaker is class-level state on ir.qweb and survives the
@@ -1193,13 +961,6 @@ class TestEsbuildFailurePath(TransactionCase):
 
 
 class TestEsmSpecifierResolution(BaseCase):
-    """`@addon/path` <-> `/addon/static/...`, and relative imports between them.
-
-    Every bridge, stub and import-map entry is keyed on a specifier, so a
-    resolution that is merely plausible produces a shim for a module nobody
-    imports and no shim for the one that needed it.
-    """
-
     def _resolver(self, ext_libs=None, lib_candidates=None):
         from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
@@ -1252,12 +1013,6 @@ class TestEsmSpecifierResolution(BaseCase):
 
 
 class TestEsmExportExtraction(BaseCase):
-    """`export * from` has to be followed, or the bridge under-reports names.
-
-    A shim only re-exports what extraction found; a name it misses is not a
-    degraded import but `undefined` at the call site.
-    """
-
     @staticmethod
     def _extract(src, source_map=None, importer="@w/leaf"):
         from odoo.tools.assets.esm_graph import _extract_esm_exports
@@ -1296,12 +1051,6 @@ class TestEsmExportExtraction(BaseCase):
 
 
 class TestBridgeExportResolverReadsDisk(BaseCase):
-    """The resolver's other half: actually reading the module it resolved.
-
-    The memoisation of this was already pinned by seeding the cache by hand,
-    which tested the memo and skipped the read. These drive the read.
-    """
-
     def _resolver(self):
         from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
@@ -1337,8 +1086,6 @@ class TestBridgeExportResolverReadsDisk(BaseCase):
 
 
 class _Mod:
-    """Minimal stand-in for a native module asset."""
-
     def __init__(self, module_path, raw_content, url=""):
         self.module_path = module_path
         self.raw_content = raw_content
@@ -1346,13 +1093,6 @@ class _Mod:
 
 
 class TestEscapingRelativeImports(BaseCase):
-    """A relative import that leaves the bundle is a singleton split.
-
-    Per-file delivery resolves relative imports against the member's URL, with
-    no import map in the way, so an import that lands outside the bundle
-    fetches raw source instead of the parent's registered instance.
-    """
-
     def _escapes(self, modules):
         from odoo.tools.assets.esm_graph import find_escaping_relative_imports
 
@@ -1385,13 +1125,6 @@ class TestEscapingRelativeImports(BaseCase):
 
 
 class TestTransitiveSpecifierDiscovery(BaseCase):
-    """Bridge discovery has to follow imports, not just read the top level.
-
-    A specifier reachable only through another module still needs a shim; the
-    first one missed fails at runtime with "Failed to resolve module
-    specifier" and names nothing useful.
-    """
-
     def _discover(self, seeds, known=()):
         from odoo.tools.assets.esm_graph import discover_transitive_import_specifiers
 
@@ -1420,8 +1153,6 @@ class TestTransitiveSpecifierDiscovery(BaseCase):
 
 
 class TestBridgeShimSources(TransactionCase):
-    """`build_shim_sources` is what a secondary bundle stubs its parent with."""
-
     def _manager(self):
         return AssetsBundle("web.assets_web", [], env=self.env)._bridges
 
@@ -1470,20 +1201,6 @@ class TestBridgeShimSources(TransactionCase):
 
 
 class TestLexerWorkerDegradation(BaseCase):
-    """How the es-module-lexer worker gives up, and how quietly.
-
-    `lex_module` returning None is not an error: callers fall back to the
-    regex extractor, which is not comment-proof. So every path that disables
-    the worker trades correctness for availability silently, and the only
-    thing standing between "node is missing" and "an `export` inside a comment
-    is treated as a real export" is that this degradation is deliberate and
-    bounded. These pin the state machine that bounds it.
-
-    A private instance is used throughout: the module-level `_worker` is
-    process-global, and flipping its `_disabled` flag would leave every later
-    suite on the regex path.
-    """
-
     def _worker(self):
         from odoo.tools.assets.esm_lexer import _LexerWorker
 
@@ -1572,13 +1289,6 @@ class TestLexerWorkerDegradation(BaseCase):
 
     @unittest.skipUnless(shutil.which("node"), "node binary not available")
     def test_the_real_worker_lexes_a_module(self):
-        """The other side of the contract: when it works, it really works.
-
-        `imports` and `starFrom` are DISJOINT -- a re-export is reported only
-        under starFrom, never as an import. Every caller that wants "what does
-        this file depend on" therefore has to union the two, and one that reads
-        `imports` alone silently misses every `export * from`.
-        """
         response = self._worker().request(
             "import { a } from '@x/y';\nexport const b = 1;\nexport * from '@x/z';\n"
         )
@@ -1590,7 +1300,6 @@ class TestLexerWorkerDegradation(BaseCase):
 
     @unittest.skipUnless(shutil.which("node"), "node binary not available")
     def test_the_union_of_both_lists_is_what_discovery_uses(self):
-        """Guards the disjointness above against a caller that forgets it."""
         from odoo.tools.assets.esm_graph import _scan_import_specifiers
 
         specs = _scan_import_specifiers(
@@ -1600,19 +1309,6 @@ class TestLexerWorkerDegradation(BaseCase):
 
 
 class TestParentSelfBridge(TransactionCase):
-    """A bundle bridging its OWN modules, for the sake of everyone else's.
-
-    A secondary bundle stubs the parent's specifiers so that
-    `patchWithCleanup(browser, …)` from a tour reaches the same instance the
-    running app holds. That only works if the parent has published a shim per
-    specifier it owns, which is what this builds -- one shim per native module,
-    keyed on the module's own path.
-
-    It differs from the native-to-legacy bridge in what it reads: exports come
-    from the bundle's own sources rather than from disk, so `export * from` a
-    sibling has to be resolved through the in-memory source map.
-    """
-
     def _manager(self, *modules):
         bundle = AssetsBundle("web.assets_web", [], env=self.env)
         manager = bundle._bridges
@@ -1636,7 +1332,6 @@ class TestParentSelfBridge(TransactionCase):
         )
 
     def test_a_star_reexport_is_resolved_from_the_bundle_not_from_disk(self):
-        """The sibling exists only in this bundle, so disk cannot answer."""
         manager = self._manager(
             _Mod("@a/base", "export const A = 1;\nexport const B = 2;\n"),
             _Mod("@a/face", "export * from './base';\nexport const C = 3;\n"),
@@ -1657,7 +1352,6 @@ class TestParentSelfBridge(TransactionCase):
             self.assertRegex(shim, rf"_e\d+ as {name}\b", f"{name} missing")
 
     def test_a_relative_specifier_is_not_bridged(self):
-        """Only bare `@…` specifiers are addressable through the loader."""
         manager = self._manager(
             _Mod("@a/one", "export const ONE = 1;\n"),
             _Mod("../legacy/thing", "export const X = 1;\n"),
@@ -1673,15 +1367,6 @@ class TestParentSelfBridge(TransactionCase):
 
 
 class TestBridgeDiscoveryWithoutTheLexer(BaseCase):
-    """Discovery must survive the es-module-lexer being unavailable.
-
-    `lex_module` returns None whenever node is missing or the worker has
-    disabled itself, and discovery then falls back to `_IMPORT_ANY_RE`. That
-    fallback decides which specifiers get a bridge, so a shape it fails to
-    recognise is a module that resolves to nothing at runtime -- and until now
-    only the lexer path was exercised, because this checkout has node.
-    """
-
     def _discover(self, source, native=(), ext=()):
         from odoo.tools.assets import esm_bridges
 
@@ -1713,7 +1398,6 @@ class TestBridgeDiscoveryWithoutTheLexer(BaseCase):
         self.assertEqual(ext_seen, {"@odoo/owl"})
 
     def test_the_two_paths_agree_on_the_same_source(self):
-        """The fallback is only safe while it says what the lexer says."""
         source = (
             'import def from "@web/core/a";\n'
             'import * as ns from "@web/core/b";\n'
@@ -1731,15 +1415,6 @@ class TestBridgeDiscoveryWithoutTheLexer(BaseCase):
 
 
 class TestMinifyJsFailureModes(BaseCase):
-    """`minify_js` returns None rather than raising, on every failure.
-
-    Its callers treat None as "ship the source unminified", which keeps a page
-    alive when esbuild is missing or unhappy. That makes every failure path a
-    silent one, so each needs to be reachable and to say something in the log:
-    a bundle that quietly stops being minified is a performance regression
-    nobody gets an exception for.
-    """
-
     SOURCE = "const a = `A${`B  ${1}  C`}D`;\n"
 
     def test_no_binary_returns_none_and_says_so(self):
@@ -1792,15 +1467,6 @@ class TestMinifyJsFailureModes(BaseCase):
 
 
 class TestRunEsbuildFailureReporting(BaseCase):
-    """What a failed compile leaves behind for whoever has to diagnose it.
-
-    esbuild reads its entry point from stdin, so when it rejects one there is
-    no file to look at -- the input that failed exists only in the process
-    that died. `_run_esbuild` therefore dumps the entry text to a temp file
-    and names it in the log. That dump is the only artefact of the failure,
-    and nothing exercised the code that writes it.
-    """
-
     def _compiler(self, name="test.failrep"):
         return EsbuildCompiler(name, [], [])
 
@@ -1830,7 +1496,6 @@ class TestRunEsbuildFailureReporting(BaseCase):
         )
 
     def test_each_failure_purges_the_previous_dump_for_that_bundle(self):
-        """Otherwise a bundle failing on every render fills /tmp."""
         compiler = self._compiler("test.purge")
         self.addCleanup(compiler._purge_stale_fail_dumps, compiler.name)
 
@@ -1866,19 +1531,6 @@ class TestRunEsbuildFailureReporting(BaseCase):
 
 
 class TestExportExtractionWithoutTheLexer(BaseCase):
-    """The regex extractor, which decides what a bridge shim re-exports.
-
-    `_extract_esm_exports` prefers es-module-lexer and falls back to a table of
-    regexes when `lex_module` returns None -- node missing, or the worker
-    having disabled itself. This checkout has node, so the fallback had never
-    run, yet it is the thing standing between a module's real export list and
-    a shim that binds `undefined` under a name the importer will happily use.
-
-    The parsing that follows each match is where the risk sits: aliases,
-    destructuring renames and defaults all have to be reduced to the name the
-    module actually publishes.
-    """
-
     @staticmethod
     def _names(src, source_map=None, importer="@w/leaf"):
         from odoo.tools.assets import esm_graph
@@ -1949,31 +1601,12 @@ class TestExportExtractionWithoutTheLexer(BaseCase):
         self.assertFalse(has_default)
 
     def test_a_quoted_string_is_NOT_opaque__documented_divergence(self):
-        """A known, bounded gap in the fallback -- not an oversight.
-
-        _JS_OPAQUE_RE blanks block comments and template literals, not quoted
-        strings, so an export-shaped string literal publishes a phantom name.
-        The lexer does not do this, so the two extractors disagree here.
-
-        It is left alone because the obvious fix is worse. Blanking quoted
-        strings too would also blank the module specifier in
-        `export * from "./base"`, and star_from needs that specifier to follow
-        the re-export -- so the cure turns an over-report into an
-        UNDER-report, which is the direction that actually breaks: a name the
-        shim fails to publish is a broken import, whereas a name it publishes
-        spuriously merely evaluates to undefined for an importer who was
-        already asking for something that does not exist.
-
-        Fixing it properly means telling specifier strings from ordinary ones,
-        which is the lexer's job. Change this test only alongside that.
-        """
         names, _ = self._names(
             'const s = "export const stringy = 2;";\nexport const real = 3;\n'
         )
         self.assertEqual(names, {"real", "stringy"})
 
     def test_the_divergence_never_costs_a_real_export(self):
-        """The property that makes the gap above tolerable, stated directly."""
         src = 'const s = "export const stringy = 2;";\nexport const real = 3;\n'
         from odoo.tools.assets import esm_graph
 
@@ -1986,7 +1619,6 @@ class TestExportExtractionWithoutTheLexer(BaseCase):
         )
 
     def test_the_two_extractors_agree_on_an_ordinary_module(self):
-        """The fallback is only safe while it says what the lexer says."""
         src = (
             "export const a = 1;\n"
             "export function b() {}\n"
@@ -2004,8 +1636,6 @@ class TestExportExtractionWithoutTheLexer(BaseCase):
 
 
 class _EntryMod:
-    """A native module as `_esbuild_entry_lines` reads one."""
-
     def __init__(self, module_path, url="", filename=None):
         self.module_path = module_path
         self.url = url
@@ -2013,23 +1643,12 @@ class _EntryMod:
 
 
 class TestEsbuildEntryLines(BaseCase):
-    """The synthetic entry point esbuild is fed on stdin.
-
-    esbuild bundles from an entry, and there is no file for one: the compiler
-    writes it. That text is the whole specification of the build -- which
-    modules are pulled in, under which specifier each is registered with the
-    loader, and which aliases are wired afterwards. A module missing from it
-    is simply not in the bundle, with no error anywhere, so the shape is worth
-    pinning per bundle kind rather than only through a successful compile.
-    """
-
     ROOT = Path("/odoo")
 
     def _compiler(self, modules, **kw):
         return EsbuildCompiler("test.entry", modules, [], **kw)
 
     def test_a_standalone_bundle_imports_for_side_effects_only(self):
-        """No loader registration: nothing else shares its module instances."""
         lines = self._compiler(
             [_EntryMod("@a/one", url="/a/static/src/one.js")], standalone=True
         )._esbuild_entry_lines(self.ROOT)
@@ -2053,7 +1672,6 @@ class TestEsbuildEntryLines(BaseCase):
         self.assertIn('"@odoo/owl": __owl', entry)
 
     def test_a_real_file_is_addressed_by_its_path_on_disk(self):
-        """`filename` wins over the url, and is made relative to the root."""
         lines = self._compiler(
             [
                 _EntryMod(
@@ -2067,8 +1685,6 @@ class TestEsbuildEntryLines(BaseCase):
         self.assertIn('import * as __m0 from "./addons/a/static/src/one.js";', lines)
 
     def test_a_test_member_is_skipped_where_the_import_map_supplies_it(self):
-        """skip_legacy_test_imports: the parent already registers these, and
-        importing them again would inline a second copy."""
         modules = [
             _EntryMod("@a/src", url="/a/static/src/src.js"),
             _EntryMod("@a/../tests/spec", url="/a/static/tests/spec.js"),
@@ -2088,8 +1704,6 @@ class TestEsbuildEntryLines(BaseCase):
         self.assertIn("tests/spec", entry)
 
     def test_hoot_is_aliased_only_when_the_bundle_carries_it(self):
-        """`@odoo/hoot` is the public name of a module that lives under
-        `@web/../lib`; the alias is wired only if that module is present."""
         without = "\n".join(
             self._compiler(
                 [_EntryMod("@a/one", url="/a/static/src/one.js")]
@@ -2114,18 +1728,6 @@ class TestEsbuildEntryLines(BaseCase):
 
 
 class TestExternalLibsValidator(BaseCase):
-    """The four invariants tying ODOO_EXTERNAL_LIBS to what esbuild can do.
-
-    An external library is one esbuild deliberately does NOT bundle: it leaves
-    the import verbatim and the browser resolves it through the page's import
-    map. That splits one fact across three tables -- the alias esbuild
-    resolves, the URL the import map serves, the file on disk -- and any pair
-    of them can drift. Each way they can drift is a production-only failure:
-    the build succeeds, the page loads, and one specifier 404s or fails to
-    resolve. The validator turns each into a startup error instead, and only
-    the first of its four guards had a test.
-    """
-
     REAL_URL = "/web/static/lib/owl/owl.es.js"
 
     def test_a_specifier_esbuild_cannot_resolve_is_refused(self):
@@ -2157,12 +1759,6 @@ class TestExternalLibsValidator(BaseCase):
             )
 
     def test_an_unknown_addon_in_the_url_is_not_mistaken_for_a_missing_file(self):
-        """A URL under an addon this checkout lacks is out of scope, not broken.
-
-        `_addon_relative_path_exists` separates "the addon is not here" from
-        "the addon is here and the file is missing"; only the second is a
-        drift this validator can meaningfully report.
-        """
         AssetsBundle._validate_external_libs(
             {"@odoo/owl": "/no_such_addon_here/static/lib/x.js"},
             bare_specifiers=set(),
@@ -2170,20 +1766,10 @@ class TestExternalLibsValidator(BaseCase):
         )
 
     def test_the_live_tables_satisfy_all_four(self):
-        """The guard the other five exist to keep meaningful."""
         AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
 
 
 class TestEsmManifestShapeGuards(BaseCase):
-    """Manifest typos in `esm`, refused at build rather than absorbed.
-
-    The registry is merged from every manifest on the addons path, so a
-    malformed declaration in one addon shapes what every database does. A
-    bare string where a list belongs is the dangerous shape: it iterates as
-    characters, so `"web.assets_web"` would register fifteen one-letter
-    bundles instead of failing.
-    """
-
     def _build_with(self, esm):
         from odoo.modules import Manifest
         from odoo.tools.assets import esm_registry as reg
@@ -2224,7 +1810,6 @@ class TestEsmManifestShapeGuards(BaseCase):
         self.assertIn("a.b", registry.standalone_bundles)
 
     def test_a_standalone_bundle_may_not_be_in_a_relationship(self):
-        """It has no import map or odoo.loader, so there is nothing to relate."""
         with self.assertRaisesRegex(ValueError, "cannot participate"):
             self._build_with(
                 {
@@ -2236,20 +1821,6 @@ class TestEsmManifestShapeGuards(BaseCase):
 
 
 class TestBridgeRwCursorEscalation(TransactionCase):
-    """Persisting bridge shims from a request served by a read replica.
-
-    A readonly cursor cannot create the attachment, and the fallback is a
-    `data:` URI -- functional, but it inlines the shim into the import map on
-    every render instead of once into a cached row. So the escalation to a
-    second, writable cursor is what keeps a replica-served page from paying
-    that cost forever.
-
-    Every other test of this patches the escalation out, because it commits on
-    a cursor of its own and the rows outlive the test transaction. This one
-    runs it for real and cleans up after itself, which is the only way to know
-    the rows actually land.
-    """
-
     URL_PREFIX = "/web/assets/esm/bridges/rwprobe"
 
     def _cleanup_rows(self):
@@ -2294,7 +1865,6 @@ class TestBridgeRwCursorEscalation(TransactionCase):
             self.assertEqual(cr.fetchone()[0], 1)
 
     def test_a_failed_escalation_reports_false_rather_than_raising(self):
-        """The caller's whole point is to fall back, so this must not raise."""
         manager = AssetsBundle("web.assets_web", [], env=self.env)._bridges
         bad = self._to_create("bad")
         # An unknown field: create() raises, which is what the escalation has

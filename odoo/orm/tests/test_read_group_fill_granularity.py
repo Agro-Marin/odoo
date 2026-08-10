@@ -23,11 +23,6 @@ class FillGranularityThing(models.Model):
 
 
 def test_number_granularities_are_accepted_but_not_fillable():
-    """The set that makes the guard necessary must not silently shrink.
-
-    `_read_group_groupby` accepts every key of READ_GROUP_ALL_TIME_GRANULARITY,
-    but only READ_GROUP_TIME_GRANULARITY entries denote a fillable interval.
-    """
     not_fillable = set(READ_GROUP_ALL_TIME_GRANULARITY) - set(
         READ_GROUP_TIME_GRANULARITY
     )
@@ -45,13 +40,6 @@ _LOCALE_DEPENDENT = frozenset({"week", "hour"})
     "granularity", sorted(set(READ_GROUP_ALL_TIME_GRANULARITY) - _LOCALE_DEPENDENT)
 )
 def test_fill_temporal_never_raises_on_an_accepted_granularity(granularity):
-    """Regression: `adate:day_of_week` + fill_temporal raised KeyError.
-
-    `fill.py` indexed READ_GROUP_TIME_GRANULARITY (6 keys) with a granularity
-    drawn from READ_GROUP_ALL_TIME_GRANULARITY (16 keys), so all 10 number
-    granularities crashed. Verified against a live database before the guard
-    landed: read_group(..., ['create_date:day_of_week']) -> KeyError('day_of_week').
-    """
     with model_test_env(FillGranularityThing) as env:
         model = env["fill.granularity.thing"].with_context(fill_temporal=True)
         group = f"adate:{granularity}"
@@ -61,7 +49,6 @@ def test_fill_temporal_never_raises_on_an_accepted_granularity(granularity):
 
 
 def test_non_fillable_granularity_passes_rows_through_unchanged():
-    """The guard must be a pass-through, not a silent drop."""
     with model_test_env(FillGranularityThing) as env:
         model = env["fill.granularity.thing"].with_context(fill_temporal=True)
         group = "adate:day_of_week"

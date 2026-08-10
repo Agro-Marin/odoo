@@ -205,18 +205,6 @@ class _QueryMixin(_ModelStubs):
         check_access: bool,
         prof: typing.Any = None,
     ) -> Query:
-        """PostgreSQL's half of :meth:`_search`, reached through ``env.backend``.
-
-        It applies the ``ir.rule`` domain itself, which is what
-        ``PostgresBackend.supports_record_rules = True`` claims: a backend that
-        says it enforces record rules is the one that has to. The *policy* still
-        comes from the model (``env["ir.rule"]._compute_domain``); what happens
-        here is turning it into SQL, which is the same thing the user domain
-        two lines above gets.
-
-        ``prof`` is threaded in rather than restarted so the marks stay on one
-        timeline with the ``acl`` mark ``_search`` takes before dispatching.
-        """
         if prof is None:
             prof = _OrmProfile(_orm_read)
         query = Query(self.env, self._table, self._table_sql)
@@ -268,12 +256,6 @@ class _QueryMixin(_ModelStubs):
     def _read_m2m_pairs_sql(
         self, relation: str, column1: str, column2: str, ids: typing.Collection[int]
     ) -> list[tuple[int, int]]:
-        """Unfused pair read. See ``supports_joined_m2m_read``.
-
-        ``Many2many.read`` never reaches this on PostgreSQL, because it can fuse
-        the join into the comodel query instead. It exists so the adapter
-        implements the whole port rather than most of it.
-        """
         sql_id1 = SQL.identifier(relation, column1)
         sql_id2 = SQL.identifier(relation, column2)
         rows = self.env.execute_query(

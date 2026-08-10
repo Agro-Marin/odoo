@@ -1,17 +1,3 @@
-"""Constants owned by the server-side asset pipeline.
-
-These lived in ``odoo/libs/constants.py`` until 2026-08-09 -- inside the
-package whose contract is that it holds **no framework knowledge**
-(``libs-is-dependency-free``). The contract was green the whole time, because
-it is an *import* rule and a string literal produces no import edge:
-``ODOO_EXTERNAL_LIBS`` hardcoded 24 asset paths, two of them into optional
-business addons (``/spreadsheet/static/lib/...``, ``/survey/static/lib/...``),
-and not one consumer of the module was a generic utility.
-
-``tools/`` is the Odoo-coupled layer and ``tools/assets/`` is the pipeline that
-reads these, so this is where they belong.
-"""
-
 from types import MappingProxyType
 
 __all__ = [

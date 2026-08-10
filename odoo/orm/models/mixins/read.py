@@ -345,12 +345,6 @@ class ReadMixin(_ModelStubs):
         return fields_to_fetch
 
     def _fetch_query(self, query: Query, fields: Sequence[Field]) -> Self:
-        """Split the fields by storage shape, then hand the read to the backend.
-
-        The profiling and the ``context`` reads that used to live here moved
-        with the SQL into :meth:`_fetch_query_sql`; what is left is the part
-        both backends share.
-        """
         column_fields: OrderedSet[Field] = OrderedSet()
         other_fields: OrderedSet[Field] = OrderedSet()
         for field in fields:

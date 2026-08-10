@@ -72,7 +72,6 @@ def test_supports_record_rules_is_consulted():
 
 
 def test_every_capability_is_consulted_somewhere():
-    """A capability nothing reads is a claim, not a switch."""
     text = "".join(
         path.read_text()
         for directory in _DISPATCH_DIRS

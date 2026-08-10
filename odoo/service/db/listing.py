@@ -1,9 +1,3 @@
-"""Which databases exist, which are exposed, and the static lists beside them.
-
-One of the five modules ``service/db.py`` was split into; the package
-``__init__`` carries the shape and the dependency direction.
-"""
-
 import functools
 import logging
 from contextlib import closing
@@ -28,14 +22,6 @@ _logger = logging.getLogger("odoo.service.db")
 
 
 def check_db_exposed(db_name: str) -> None:
-    """Raise ``AccessDenied`` if ``db_name`` is not an exposed database.
-
-    Shared allowlist gate for the master-password RPC handlers that act on an
-    existing DB by name (``exp_dump``, ``exp_rename``, ``exp_duplicate_database``,
-    ``exp_migrate_databases``).
-
-    :raises odoo.exceptions.AccessDenied: if ``db_name`` is not exposed
-    """
     if db_name not in list_dbs(True):
         _logger.warning(
             "DB management op on %s rejected, not in the list of exposed databases",
@@ -74,22 +60,6 @@ def exp_db_exist(db_name: str) -> bool:
 
 
 def _rpc_db_exist(db_name: str) -> bool:
-    """RPC-facing ``db_exist``: answers only for databases this instance exposes.
-
-    Unexposed-but-existing names answer ``False``, indistinguishable by design
-    from names that do not exist.  ``exp_db_exist`` stays ungated for in-process
-    callers, the same split as ``_drop_database``/``exp_drop``.
-
-    The gate matters because this verb is reachable unauthenticated: ungated it
-    is a per-name existence oracle over every database owned by the PG role, and
-    ``exp_db_exist`` connects, so a probe loop would also leave a pool resident
-    per name.  Membership is ``list_dbs(True)`` so exposure rules cannot drift
-    from ``check_db_exposed``.
-
-    Deliberately not wrapped in ``check_db_management_enabled``: that raises
-    ``AccessDenied`` when ``list_db = False``, which would turn a verb
-    contracted to return a bool into one that raises for every input.
-    """
     if not odoo.tools.config["list_db"]:
         return False
     try:
@@ -104,17 +74,6 @@ def _rpc_db_exist(db_name: str) -> bool:
 
 
 def list_dbs(force: bool = False) -> list[str]:
-    """List databases visible to this Odoo instance.
-
-    1. ``AccessDenied`` unless ``list_db=True`` or ``force=True``.
-    2. If ``--dbfilter`` is unset and ``--database`` is set, return that list
-       as-is (explicit allowlist, PG roundtrip skipped).
-    3. Otherwise query ``pg_database`` for DBs owned by the current PG role —
-       how shared PG servers keep instances from enumerating each other (give
-       each instance its own role for isolation).
-
-    ``postgres`` and the configured template are excluded from the result.
-    """
     if not odoo.tools.config["list_db"] and not force:
         raise odoo.exceptions.AccessDenied
 
@@ -218,16 +177,6 @@ def exp_list_lang() -> list:
 
 @functools.cache
 def _scan_countries() -> tuple[tuple[str, str], ...]:
-    """Parse the bundled ``res.country`` XML once per process.
-
-    A shipped data file under ``config.root_path`` cannot change while the
-    process runs, and ``list_countries`` is an unauthenticated RPC verb, so an
-    uncached parse re-read the XML on every anonymous call.
-
-    Returns tuples so the cached value cannot be mutated by a caller;
-    :func:`exp_list_countries` restores the list-of-lists its RPC contract
-    promises.
-    """
     root = ET.parse(  # noqa: S314  parses Odoo's own res_country_data.xml from root_path
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
     ).getroot()

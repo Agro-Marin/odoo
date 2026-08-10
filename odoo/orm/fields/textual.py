@@ -557,27 +557,6 @@ class BaseString(Field[str | typing.Literal[False]]):
         lang: str,
         dirty_ids: typing.Any,
     ) -> dict[str, list]:
-        """Map every other language that must follow a write in ``lang`` to the
-        ids it must follow it for.
-
-        A language whose stored term is *identical* to ``lang``'s was never
-        translated away from it -- most often because the record was created by
-        a user working in ``lang``, which stores the typed value under both the
-        source language and theirs.  Nothing distinguishes that echo from a real
-        translation, so leaving it behind means an edit made in ``lang`` never
-        reaches the languages that merely mirrored it, and their readers keep
-        seeing a name that no longer exists.  Languages holding a genuinely
-        different term have been translated on purpose and are never touched.
-
-        Only *materialised* keys count -- the stored keys are exactly the
-        languages someone has a value for, so no installed-language lookup is
-        needed.  A language with no key of its own already falls back to
-        ``en_US``; it is in sync with the source term, not with ``lang``, and
-        writing ``lang`` must not drag it -- otherwise the first Spanish edit of
-        an English-authored record would overwrite the English name.  For the
-        same reason a write in a language that has no key yet propagates to
-        nothing: it is creating a translation, not editing one.
-        """
         ids = [id_ for id_ in records._ids if id_]
         if not ids or not records.env.backend.supports_translation_terms:
             # No ids, or a backend with no jsonb column to compare the stored
@@ -615,18 +594,6 @@ class BaseString(Field[str | typing.Literal[False]]):
         records: BaseModel,
         dirty_ids: typing.Any,
     ) -> dict[IdType, dict[str, str] | None]:
-        """Batched :meth:`_get_stored_translations`: ``{id: {lang: term}}``.
-
-        One SELECT per call, so ``records.write(...)`` costs a single extra
-        query however many records it covers.  A per-record write *loop* still
-        pays one query per iteration -- there is no cross-call memo, because
-        keeping one coherent against every other path that can change the column
-        (raw SQL, ``update_field_translations``, cache invalidation) is a
-        correctness risk that a query is not worth.
-
-        Only records carrying an unflushed value are flushed first, so the usual
-        case adds no write round-trip on top of the read.
-        """
         pending = records.filtered(lambda rec: rec.id in (dirty_ids or ()))
         if pending:
             pending.flush_recordset([self.name])

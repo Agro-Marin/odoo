@@ -1,31 +1,3 @@
-"""The ORM's cache buckets, and the addon vocabulary compiled into them.
-
-``orm/runtime/registry.py`` hard-codes the complete set of ``ormcache`` buckets
-in ``REGISTRY_CACHES``, groups them in ``CACHES_BY_KEY``, and derives
-``_SIGNALING_TABLES`` from the latter — so **every bucket costs an
-``orm_signaling_<name>`` table in every database that will ever run**
-(``doc/architecture/data.md``, *The signalling tables*).
-
-Most of the names are addon concerns. ``assets`` / ``templates`` / ``routing``
-belong to ``base`` and ``web``; ``product_variants`` belongs to one addon
-(``product``), and the comment beside it in the ORM names that addon's business
-logic — variant lookup keyed by template plus attribute-value combination, and
-the product churn that invalidates it.
-
-**No gate could see this**, which is why it is worth one. The coupling is
-spelled as a *string*: ``@tools.ormcache(cache="product_variants")`` in an
-addon, matched against a dict key in the ORM. ``core-does-not-depend-on-addons``
-reasons about imports, ``env_model_surface_check`` about ``env["..."]`` model
-names, and neither sees a cache-bucket name — exactly the argument that earned
-the model-name gate its own checker.
-
-This does not remove the coupling; the buckets are wanted and the invalidation
-they buy is real. It makes the set closed, so adding one is a decision that
-shows up in a diff, and it catches the two failures the arrangement invites: a
-bucket nobody uses (a table in every database for nothing) and a group naming a
-bucket that does not exist (a silent no-op on ``clear_cache``).
-"""
-
 import pathlib
 import re
 
@@ -65,16 +37,6 @@ BUCKET_OWNERS: dict[str, str] = {
 
 
 def _repo_root() -> pathlib.Path:
-    """The checkout root, found by its ``odoo-bin`` marker.
-
-    Not by counting parents. ``parents[4]`` reaches the *workspace* directory
-    above this repo, which happens to make the scan below pass by scanning the
-    whole checkout as if it were ``odoo/`` — and CI checks this repo out alone,
-    where the same expression lands outside it entirely. ``tooling/_repo_root.py``
-    exists for this reason and cannot be imported from here (``odoo/`` must not
-    depend on ``tooling/``), so the marker check is repeated rather than the
-    count trusted.
-    """
     for parent in pathlib.Path(__file__).resolve().parents:
         if (parent / "odoo-bin").is_file():
             return parent
@@ -86,14 +48,6 @@ _SCAN_ROOTS = (_CHECKOUT / "odoo", _CHECKOUT / "addons")
 
 
 def _consumer_counts() -> dict[str, int]:
-    """How many times each bucket is named, across this checkout.
-
-    Scope is this repo only — ``odoo/`` and the repo-root ``addons/`` — because
-    that is what CI checks out. A bucket used *only* by ``enterprise`` or
-    ``agromarin`` would read as dead here; none is today, and if one ever is,
-    the fix is to say so in ``BUCKET_OWNERS`` rather than to widen the scan into
-    trees CI does not have.
-    """
     patterns = {
         b: re.compile(rf'(?:cache=|clear_cache\(\s*)["\']{re.escape(b)}["\']')
         for b in REGISTRY_CACHES
@@ -148,7 +102,6 @@ def test_groups_only_name_real_buckets():
 
 
 def test_every_group_clears_itself():
-    """A group that does not contain its own key clears everything but itself."""
     for key, members in CACHES_BY_KEY.items():
         assert key in members, (
             f"group {key!r} does not include {key!r}, so clear_cache({key!r}) "

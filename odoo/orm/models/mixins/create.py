@@ -469,12 +469,6 @@ class CreateMixin(_ModelStubs):
         columns: list[str],
         col_fields: list[Field],
     ) -> list[int]:
-        """PostgreSQL's half of :meth:`_create`, reached through ``env.backend``.
-
-        Holds the COPY fast path, which the in-memory backend does not have and
-        does not need: ``DISPATCH_SITES`` records that divergence as
-        performance-only, and it is the only one at this site.
-        """
         cr = self.env.cr
         ids: list[int] = []
         use_copy = (

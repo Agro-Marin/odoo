@@ -229,23 +229,6 @@ class LoadMixin(_ModelStubs):
     def _invalid_load_paths(
         self, field_paths: list[tuple[str | None, ...]]
     ) -> list[dict]:
-        """Report column mappings that descend through something with no
-        sub-fields, e.g. ``name/foo`` where ``name`` is a Char.
-
-        ``load`` validated this asymmetrically: a bad subpath under a relation
-        (``parent_id/nope``) was refused, while one under a scalar was silently
-        truncated to its first segment and imported there -- ``name/foo`` set
-        ``name``. So a mapping the user cannot have meant produced a record
-        anyway, and the only signal was the absence of one.
-
-        Reported rather than raised, and reported before any row is touched, so
-        the caller gets the same ``{ids, messages}`` shape it gets for every
-        other import error.
-
-        :param field_paths: paths already split by :func:`fix_import_export_id_paths`
-        :returns: one message dict per unusable path, empty when all are usable
-        :rtype: list[dict]
-        """
         messages = []
         for field_path in field_paths:
             if not field_path or field_path[0] in (None, "id", ".id"):

@@ -96,20 +96,7 @@ def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
 
 
 class DomainOptimizationError(ValueError):
-    """The optimizer did not reach a fixpoint within ``MAX_OPTIMIZE_ITERATIONS``.
-
-    Distinct from the stack-exhaustion path below because the two have opposite
-    remedies: exhausting the stack means "this domain is too deeply nested",
-    while failing to converge means "two registered optimizations are rewriting
-    each other in a loop" — a defect in the optimizer, not in the caller's
-    domain.
-
-    Until 2026-08-08 non-convergence raised ``RecursionError``, which
-    :func:`_recursion_error_as_value_error` then caught and reported as nesting
-    depth, discarding the real message via ``from None``.  A developer hitting
-    the optimizer bug was told to simplify their domain.  A ``ValueError``
-    subclass so existing ``except ValueError`` callers are unaffected.
-    """
+    pass
 
 
 @contextlib.contextmanager

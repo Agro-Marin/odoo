@@ -1,12 +1,3 @@
-"""Bundle generation, versioning and cache invalidation -- the core contract.
-
-What a bundle IS: given a file list it produces one attachment per (asset type,
-direction, debug) variant, addressed by a version that must move when and only
-when the inputs move. The suites for each pipeline stage live beside this one:
-test_css_pipeline, test_js_pipeline, test_xml_pipeline, test_esm_bundles,
-test_attachment_store, test_ir_asset, test_toolchain.
-"""
-
 import base64
 import os
 import time

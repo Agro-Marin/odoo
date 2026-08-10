@@ -1,25 +1,3 @@
-"""Every framework→addon Protocol must be satisfied by the model it describes.
-
-`odoo/orm/_protocols.py` declares what the core requires of the twelve
-addon-owned models it calls two or more members on. Those declarations are worth
-exactly as much as the thing that checks them, which is this file.
-
-**Direction matters, and both are needed.** This suite checks
-*declared → implemented*: every member `ResUsersProtocol` names exists on
-`res.users` with a signature the framework's calls fit. The other direction --
-*called → declared* -- is `tooling/architecture/model_member_surface_check.py`,
-which reads the core's own call sites and fails when it reaches a member the
-Protocol omits. Neither alone is enough: `HttpExtension` had only the first for
-as long as it existed, and `http/_serve.py` was calling
-`ir.http._apply_max_upload_size`, undeclared and therefore unchecked in both
-existence and signature, until the second gate was written.
-
-This is `addons/base`, not `odoo/`, because it needs a registry: a Protocol
-describes the *runtime* model, assembled from every installed module's
-contribution, and an addon that overrides one of these members with an
-incompatible signature is exactly the failure worth catching.
-"""
-
 import annotationlib
 import inspect
 
@@ -33,27 +11,6 @@ _POSITIONAL = (
 
 
 def _positional_capacity(func, *, drop_self: bool = False) -> tuple[int, float]:
-    """``(required, maximum)`` positional arguments *func* accepts.
-
-    ``**kwargs`` and keyword-only parameters are not counted, which is the whole
-    subtlety: the first draft of this file compared the protocol's *parameter
-    count* against the implementation's *positional capacity*, so
-    ``res.lang._get_data(self, **kwargs)`` looked like a one-argument call the
-    implementation could not take. It reported a contract violation that was
-    entirely an artefact of counting two different things.
-
-    ``drop_self`` is for an unbound protocol function, where ``self`` is still
-    in the signature; a bound method has already lost it.
-
-    ``FORWARDREF`` for the same reason ``orm/models/metaclass.py`` uses it: under
-    PEP 649 the default VALUE format EVALUATES annotations, and three of the
-    members declared here -- ``browse``, ``search_read``, ``search_fetch`` --
-    are annotated with names that exist only under ``if TYPE_CHECKING``
-    (``IdType``, ``Sequence``, ``ValuesType``). Evaluating them raises
-    ``NameError`` inside ``inspect.signature``, so a *diagnostic* would abort
-    instead of reporting. The DB-backed run is what surfaced it; no unit test
-    could, because the failure needs the real model classes.
-    """
     params = list(
         inspect.signature(
             func, annotation_format=annotationlib.Format.FORWARDREF
@@ -76,7 +33,6 @@ def _positional_capacity(func, *, drop_self: bool = False) -> tuple[int, float]:
 @tagged("post_install", "-at_install")
 class TestFrameworkModelContracts(TransactionCase):
     def test_the_protocol_map_is_populated(self):
-        """An empty map would make every assertion below vacuous."""
         self.assertGreaterEqual(
             len(FRAMEWORK_MODEL_PROTOCOLS),
             10,
@@ -106,13 +62,6 @@ class TestFrameworkModelContracts(TransactionCase):
                     )
 
     def test_every_declared_method_accepts_the_framework_s_calls(self):
-        """A signature the core's call sites do not fit is a runtime TypeError.
-
-        Compared by *positional capacity* rather than by equality: an addon may
-        add optional parameters or accept ``*args`` and still satisfy the
-        framework. What it may not do is require more than the framework passes,
-        or accept fewer.
-        """
         for model_name, protocol in FRAMEWORK_MODEL_PROTOCOLS.items():
             model = self.env[model_name]
             for name, proto_func in self._declared_methods(protocol):
@@ -145,13 +94,6 @@ class TestFrameworkModelContracts(TransactionCase):
                     )
 
     def test_declared_attributes_are_fields_not_methods(self):
-        """``res.users.company_id`` and friends must stay data, not callables.
-
-        The four attribute declarations are the reason a method-only contract
-        would have missed a third of what the framework reads off ``res.users``.
-        If one became a method, `Environment.company` would silently hold a
-        bound method instead of a recordset.
-        """
         for model_name, protocol in FRAMEWORK_MODEL_PROTOCOLS.items():
             model = self.env[model_name]
             for name in self._declared_attributes(protocol):

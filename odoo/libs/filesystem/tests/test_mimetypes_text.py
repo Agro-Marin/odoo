@@ -83,15 +83,6 @@ class TestNoStateLeakBetweenCalls(unittest.TestCase):
 
 
 class TestBytearrayMatchesBytes(unittest.TestCase):
-    """A bytearray must classify exactly as the same bytes do.
-
-    guess_mimetype truncated the bytearray branch to MIMETYPE_HEAD_SIZE and
-    rebound the name, so the signature fallback -- which runs on the FULL buffer
-    for a bytes input -- saw only a 2048-byte head. A zip's central directory is
-    at the end of the file, so every OOXML/ODF buffer handed in as a bytearray
-    degraded to application/zip.
-    """
-
     @staticmethod
     def _minimal_xlsx() -> bytes:
         import io
@@ -137,20 +128,9 @@ class TestBytearrayMatchesBytes(unittest.TestCase):
 
 
 class TestOlecfStreamNames(unittest.TestCase):
-    """OLE subtype detection must not depend on which sector a stream landed in.
-
-    _check_olecf read three fixed offsets: the Word FIB signature at 0x200, a
-    "Microsoft Excel" substring, and the PowerPoint pattern at 0x200. 0x200 is
-    the first sector after the 512-byte header, which holds the stream only when
-    the FAT happened to allocate it first. A real Word 97 document that did not
-    fall that way returned False and was served as application/x-ole-storage --
-    the container type, and not an IANA-registered mimetype at all.
-    """
-
     OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
     def _olecf(self, stream_name: str, sector: int = 3) -> bytes:
-        """An OLE header plus a directory entry name at a NON-first sector."""
         buf = bytearray(self.OLE_MAGIC + b"\0" * (0x200 * sector))
         buf += stream_name.encode("utf-16-le")
         buf += b"\0" * 512

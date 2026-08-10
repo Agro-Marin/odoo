@@ -3047,18 +3047,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _migrate_self_handled_arch(self) -> Self:
-        """Rewrite Bootstrap's data-api spelling to this fork's own, in place.
-
-        The view layer understands both (see `@web/views/self_handled`), so this
-        is what lets the Bootstrap one be withdrawn: run it once per database
-        and no stored arch depends on it any more.
-
-        Only the view types the client compiles are touched. `qweb` arch is
-        rendered server-side for the website and portal, where Bootstrap's JS is
-        still shipped and its data-api is the real thing, not a token.
-
-        :return: the views that were rewritten.
-        """
         views = self.search(
             [
                 ("type", "in", ("form", "list", "kanban", "search")),
@@ -3081,10 +3069,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _rewrite_self_handled(self, arch) -> bool:
-        """Apply `_SELF_HANDLED_RENAMES` to *arch* in place.
-
-        :return: whether anything changed.
-        """
         changed = False
         for node in arch.iter(etree.Element):
             for (attr, value), (

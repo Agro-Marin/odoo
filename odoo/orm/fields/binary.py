@@ -34,7 +34,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @property
     def is_attachment_backed(self) -> bool:
-        """See :attr:`Field.is_attachment_backed`."""
         return self.attachment
 
     bin_size_field: str = ""

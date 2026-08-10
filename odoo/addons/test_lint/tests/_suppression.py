@@ -1,22 +1,3 @@
-"""The one place that decides what a suppression comment says.
-
-Two independent parsers used to answer that: `is_suppressed` here, and the
-rationale checker's own regex. Both scanned raw lines, which cost this module
-three things it no longer pays for:
-
-* a string literal containing the text of a directive silenced a real rule --
-  ``cr.execute("select # noqa from t")`` suppressed `sql-injection`, and a
-  snippet in a test file was reported as an unexplained `noqa`;
-* `_NOQA_SELF`, a file-wide blanket over five files, existed only to hide the
-  second half of that;
-* `noqa` had no word boundary, so ``# noqawhatever`` and ``# NOQA is a linter
-  directive`` waived every rule on the line.
-
-Comments now come from `tokenize`, so a directive is only a directive where
-Python says there is a comment, and both consumers parse it with the same
-function.
-"""
-
 import io
 import re
 import tokenize
@@ -53,13 +34,6 @@ NOQA_RATIONALE_RULE = "noqa-rationale"
 
 
 def comment_lines(source: str) -> dict[int, str]:
-    """``{lineno: comment text}`` for every real comment in ``source``.
-
-    A file that does not tokenise has no comments as far as this module is
-    concerned. That is the safe direction: `_py_scan` only reaches here for a
-    file it has already parsed, so an untokenisable one is not being linted
-    either, and answering "no suppression" can only ever over-report.
-    """
     comments: dict[int, str] = {}
     try:
         for token in tokenize.generate_tokens(io.StringIO(source).readline):
@@ -79,7 +53,6 @@ def _split_codes(codes: str) -> set[str]:
 
 
 def comment_suppresses(comment: str, rule: str) -> bool:
-    """Does this comment waive ``rule``?"""
     if match := _PYLINT_DISABLE_RE.search(comment):
         if _split_codes(match.group(1)) & _aliases(rule):
             return True
@@ -96,13 +69,6 @@ def comment_suppresses(comment: str, rule: str) -> bool:
 
 
 class Suppressions:
-    """The suppression comments of one file, tokenised once.
-
-    `is_suppressed` used to re-split the whole source on every finding. One
-    scan per file is both cheaper and the only way to know that a `#` is a
-    comment rather than the inside of a string.
-    """
-
     __slots__ = ("comments",)
 
     def __init__(self, source: str) -> None:
@@ -110,7 +76,6 @@ class Suppressions:
 
     @classmethod
     def from_comments(cls, comments: dict[int, str]) -> Suppressions:
-        """Reuse a map `comment_lines` already produced, rather than re-tokenise."""
         instance = cls.__new__(cls)
         instance.comments = comments
         return instance
@@ -123,5 +88,4 @@ class Suppressions:
 
 
 def is_suppressed(source: str, lineno: int, rule: str) -> bool:
-    """Convenience for a single check; prefer `Suppressions` per file."""
     return Suppressions(source).suppresses(lineno, rule)

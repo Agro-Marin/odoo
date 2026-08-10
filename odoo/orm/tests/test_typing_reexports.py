@@ -40,14 +40,6 @@ def _typing_imports_across_orm() -> list[tuple[pathlib.Path, str]]:
 
 
 def test_typing_reexports_every_name_the_orm_imports_from_it():
-    """Every `from ...._typing import X` across orm/ must resolve.
-
-    A missing re-export is invisible at runtime (the imports are all
-    `TYPE_CHECKING`-guarded) but breaks mypy with `[attr-defined]` and
-    silently voids type-checking of the importing module. This locks the
-    class: `CommandValue`/`Registry` were imported by orm/fields/relational/*
-    while `_typing` exported neither.
-    """
     provided = _names_provided_by(_TYPING)
     missing = sorted(
         {
@@ -62,7 +54,6 @@ def test_typing_reexports_every_name_the_orm_imports_from_it():
 
 
 def test_typing_all_matches_module_bindings():
-    """`__all__` must list only names the module actually binds."""
     provided = _names_provided_by(_TYPING)
     tree = ast.parse(_TYPING.read_text(encoding="utf-8"))
     dunder_all: list[str] = []
@@ -84,5 +75,4 @@ def test_typing_all_matches_module_bindings():
 
 @pytest.mark.parametrize("name", ["CommandValue", "Registry"])
 def test_regression_specific_missing_reexports(name):
-    """Direct regression pin for the two names the audit found missing."""
     assert name in _names_provided_by(_TYPING)

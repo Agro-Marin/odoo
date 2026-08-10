@@ -153,35 +153,6 @@ class StorageBackend(typing.Protocol):
 
 
 class PostgresBackend:
-    """The production backend: PostgreSQL, through the model's own SQL.
-
-    Until 19.0-marin this class did not exist, and ``env.backend is None`` *was*
-    the PostgreSQL implementation -- an unnamed branch at fifteen sites across
-    nine files. ADR-0011 introduced the port to remove nine ``transaction.storage``
-    sniffs and, measured afterwards, had renamed them rather than removed them:
-    ``fields/reference.py`` said so in its own comment, "this is the inline
-    test-backend sniff ADR-0011 set out to remove, renamed from
-    transaction.storage".
-
-    Three things followed from having no named production implementor. The
-    Protocol described only the test double, so nothing checked that the SQL
-    path honoured its signatures. No differential test was possible, because
-    there was no second object to compare against -- in its place
-    ``orm/tests/test_backend_dispatch_surface.py`` keeps a hand-maintained
-    inventory of known divergences, four of them marked LOSSY. And "am I on
-    PostgreSQL?" was spelled as a null check, which reads as an accident.
-
-    **This adapts the port to the model; it does not move the SQL.** Every
-    method here delegates to a ``_*_sql`` method on the model, which is where
-    the SQL already lived and where it belongs: building it needs
-    ``_field_to_sql``, ``_table_sql``, the field objects and the ``Query`` --
-    model knowledge, not storage knowledge. ``InMemoryBackend`` adapts the same
-    port to ``DictBackend``. Both are adapters; the port is the seam, and now it
-    has two sides that can be run against the same scenarios.
-
-    Stateless, so one instance is shared -- see :data:`POSTGRES_BACKEND`.
-    """
-
     supports_parent_store: bool = True
 
     supports_record_rules: bool = True
@@ -272,14 +243,6 @@ class PostgresBackend:
         column2: str,
         ids: typing.Collection[int],
     ) -> list[tuple[int, int]]:
-        """Only reached when the caller cannot fuse the join.
-
-        ``supports_joined_m2m_read`` is True here, so ``Many2many.read`` takes
-        the fused path and never calls this. It is implemented anyway because
-        the port declares it and a half-implemented adapter is worse than a
-        slower one -- and because a caller that holds no comodel query has
-        nothing to fuse.
-        """
         return model._read_m2m_pairs_sql(relation, column1, column2, ids)
 
     def link_m2m_pairs(

@@ -762,11 +762,6 @@ class ResUsers(models.Model):
     @api.model
     @tools.ormcache()
     def _settings_backed_fields(self) -> frozenset[str]:
-        """Fields on this model whose writes land in ``res.users.settings``.
-
-        Asked of the registry rather than listed, so a preference added later
-        is covered by having been declared, not by someone remembering this.
-        """
         return frozenset(
             name
             for name, field in self._fields.items()
@@ -776,21 +771,6 @@ class ResUsers(models.Model):
         )
 
     def _settings_value_is_a_choice(self, name: str, value: Any) -> bool:
-        """Whether *value* for settings-backed *name* is a choice, not an absence.
-
-        A related field is not required just because its target is: reading
-        ``color_scheme`` off a user whose settings row does not exist yet gives
-        ``False``, and nothing on ``res.users`` objects, because the constraint
-        lives on ``res.users.settings``. A form built on such a user carries
-        that ``False`` back into ``create``, where replaying it would overwrite
-        the default the settings row is about to be created with -- and, for a
-        Selection, with a value outside its own selection list.
-
-        Falsy is only an absence where the *target* is required; elsewhere it
-        is someone clearing a setting, which is theirs to do. Resolved through
-        the registry so a preference added later is covered by having been
-        declared, as with :meth:`_settings_backed_fields`.
-        """
         if value:
             return True
         _, target_name = self._fields[name].related.split(".", 1)
@@ -853,19 +833,6 @@ class ResUsers(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Create, holding back the values that live on ``res.users.settings``.
-
-        That row cannot exist before the user does, and ``_inverse_related``
-        runs inside ``super().create()`` -- against no row, and in silence, so
-        ``create({..., "color_scheme": "dark"})`` returned a user whose theme
-        was the default. Written afterwards instead, through :meth:`write`,
-        which is where making the row belongs.
-
-        Only actual choices are held back. The same missing row that makes the
-        deferral necessary also makes a form read ``False`` for every setting
-        it shows, and writing that back afterwards would undo the defaults the
-        row is created with -- see :meth:`_settings_value_is_a_choice`.
-        """
         backed = self._settings_backed_fields()
         deferred = [
             {
