@@ -34,6 +34,10 @@ Cross-cutting:
   helpers.py       Shared utility functions
 
 Seams (cross-layer, deliberately not in any layer):
+  _protocols.py    Typing-only Protocols naming what the core requires of the
+                   twelve addon-owned models it reaches by string key. No core
+                   module imports them; base's test_framework_contracts checks
+                   each against the live model.
   _recordset.py    The Layer-1 inversion point: the model layer injects
                    BaseModel here so fields/ and domain/ can recognise a
                    recordset without importing Layer 2.
