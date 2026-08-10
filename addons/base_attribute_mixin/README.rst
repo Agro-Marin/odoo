@@ -23,6 +23,42 @@ Mixins
   subject record: ``sequence``, ``active``, ``value_count``, and the
   ``_check_values`` coherence constraint. Concrete models declare the parent
   Many2one, ``attribute_id``, ``value_ids`` and their own ``_rec_name``.
+* ``band.mixin`` -- a half-open numeric band ``[min_value, max_value)`` over a
+  scale, with bounds validation, overlap rejection and ``_covers(value)``.
+
+Bands
+=====
+
+A *scale* is a set of sibling bands that together classify a number: a
+production-size bucket derived from hectares, a commercial profile derived from
+a score percentage.
+
+Bounds are **half-open** -- the lower bound belongs to the band, the upper
+bound belongs to the *next* one -- and ``max_value = 0`` means unbounded, which
+is how the top band is written.
+
+That is not a stylistic choice. Inclusive-both-ends bounds cannot express a
+contiguous scale: ``0-10`` and ``10-20`` are rejected as overlapping at the
+shared point 10, so a configuration has to leave integer gaps, and every
+fractional measurement landing in a gap classifies into *nothing*. Both
+consumers of this mixin had that shape, and in one of them the band selects a
+multiplier applied to revenue targets, so "nothing" was not cosmetic.
+
+Consumers say which records are bands and which bands share a scale:
+
+``_is_band()``
+  Whether the bounds are meaningful on this record. True by default; an
+  attribute value overrides it to "only when my attribute is numeric".
+
+``_band_siblings()``
+  The other active bands of the same scale. Defaults to every other record,
+  which suits a model that *is* one scale; override to scope per attribute, per
+  company.
+
+Note the mixin's ``@api.constrains`` can only name the fields it declares. If
+``_is_band`` or ``_band_siblings`` reads a field of the concrete model, that
+model must re-trigger ``_check_band`` on it -- moving a value to another
+attribute changes both which rules apply and which scale it must not overlap.
 
 ``value_type`` vs ``display_type``
 ==================================
