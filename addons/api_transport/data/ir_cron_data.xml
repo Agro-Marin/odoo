@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Retry Failed Events Cron -->
+    <record id="ir_cron_retry_failed_events" model="ir.cron">
+        <field name="name">API Communications: Retry Failed Events</field>
+        <field name="model_id" ref="model_api_event_log" />
+        <field name="state">code</field>
+        <field name="code">model._cron_retry_failed_events()</field>
+        <field name="interval_number" eval="1" />
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True" />
+    </record>
+
+    <!-- Health Check Cron -->
+    <record id="ir_cron_health_check" model="ir.cron">
+        <field name="name">API Communications: Service Health Check</field>
+        <field name="model_id" ref="model_api_endpoint_outbound" />
+        <field name="state">code</field>
+        <field name="code">model.cron_health_check_all()</field>
+        <field name="interval_number" eval="15" />
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True" />
+    </record>
+
+    <!-- Reset Cache Errors Cron -->
+    <record id="ir_cron_reset_cache_errors" model="ir.cron">
+        <field name="name">API Communications: Reset Cache Errors</field>
+        <field name="model_id" ref="model_api_endpoint_outbound" />
+        <field name="state">code</field>
+        <field name="code">model.cron_reset_cache_errors()</field>
+        <field name="interval_number" eval="1" />
+        <field name="interval_type">days</field>
+        <field name="active" eval="True" />
+    </record>
+
+</odoo>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- API Communications Security Groups -->
+    <record id="module_category_api_transport" model="ir.module.category">
+        <field name="name">API Communications</field>
+        <field name="sequence" eval="100" />
+    </record>
+
+    <!-- Privilege group for API Communications -->
+    <record id="res_groups_privilege_api_transport" model="res.groups.privilege">
+        <field name="name">API Communications</field>
+        <field name="sequence" eval="100" />
+        <field name="category_id" ref="module_category_api_transport" />
+    </record>
+
+    <!-- User: Can view logs and statistics -->
+    <record id="group_comm_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="sequence" eval="10" />
+        <field name="privilege_id" ref="res_groups_privilege_api_transport" />
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
+    </record>
+
+    <!-- Manager: Can configure services and endpoints -->
+    <record id="group_comm_manager" model="res.groups">
+        <field name="name">Manager</field>
+        <field name="sequence" eval="20" />
+        <field name="privilege_id" ref="res_groups_privilege_api_transport" />
+        <field name="implied_ids" eval="[(4, ref('group_comm_user'))]" />
+    </record>
+
+    <!-- Admin: Full access including security settings -->
+    <record id="group_comm_admin" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="sequence" eval="30" />
+        <field name="privilege_id" ref="res_groups_privilege_api_transport" />
+        <field name="implied_ids" eval="[(4, ref('group_comm_manager'))]" />
+        <field
+            name="user_ids"
+            eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
+    </record>
+
+    <!--
+        Wire these groups into the suite-wide Integrations ladder defined in
+        base_credential_manager (additive Command.link — the per-module groups
+        and their ACLs are unchanged).
+    -->
+    <record id="base_credential_manager.group_integration_user" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('group_comm_user'))]" />
+    </record>
+
+    <record id="base_credential_manager.group_integration_manager" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('group_comm_manager'))]" />
+    </record>
+
+    <record id="base_credential_manager.group_integration_admin" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('group_comm_admin'))]" />
+    </record>
+
+</odoo>

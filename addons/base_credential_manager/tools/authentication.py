@@ -26,11 +26,16 @@ def _get_param_with_legacy(env, suffix, default):
     value = icp.get_param(f"base_credential_manager.{suffix}", default=None)
     if value is None:
         # This module is the canonical copy of what used to live in
-        # api_communication.tools.authentication (now a re-export shim of this
-        # file). Databases configured before the promotion may still carry the
-        # parameter under the old api_communication.* key, so the canonical
-        # base_credential_manager.* key wins and the legacy key is only the fallback.
-        value = icp.get_param(f"api_communication.{suffix}", default=None)
+        # api_communication.tools.authentication (now a re-export shim in
+        # api_transport). The canonical base_credential_manager.* key wins; the
+        # others are fallbacks, newest first. api_transport ships these
+        # parameters and migrates the api_communication.* rows on install, but a
+        # database that has not run that migration yet still answers under the
+        # historical key, so both are tried.
+        for legacy in (f"api_transport.{suffix}", f"api_communication.{suffix}"):
+            value = icp.get_param(legacy, default=None)
+            if value is not None:
+                break
     return default if value is None else value
 
 

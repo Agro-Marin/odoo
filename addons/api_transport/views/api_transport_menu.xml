@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Root Menu -->
+    <menuitem id="menu_comm_root" name="API Communications" parent="base_credential_manager.menu_integrations_root" sequence="20"/>
+
+    <!-- Event Logs Menu -->
+    <menuitem id="menu_api_event_logs" name="Event Logs" parent="menu_comm_root" action="action_api_event_log" sequence="10"/>
+
+    <!-- Services Menu -->
+    <menuitem id="menu_comm_services" name="Services" parent="menu_comm_root" sequence="20"/>
+
+    <menuitem id="menu_api_endpoint_outbounds" name="API Services" parent="menu_comm_services" action="action_api_endpoint_outbound" sequence="10"/>
+
+    <!-- Configuration Menu -->
+    <menuitem id="menu_comm_config" name="Configuration" parent="menu_comm_root" sequence="90" groups="group_comm_manager"/>
+
+    <menuitem id="menu_comm_response_cache" name="Response Cache" parent="menu_comm_config" action="action_comm_response_cache" sequence="10"/>
+
+</odoo>

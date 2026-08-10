@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Outbound Service Search View -->
+    <record id="view_api_endpoint_outbound_search" model="ir.ui.view">
+        <field name="name">api.endpoint.outbound.search</field>
+        <field name="model">api.endpoint.outbound</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="code" />
+                <field name="provider" />
+
+                <filter
+                    name="filter_healthy"
+                    string="Healthy"
+                    domain="[('is_healthy', '=', True)]" />
+                <filter
+                    name="filter_unhealthy"
+                    string="Unhealthy"
+                    domain="[('is_healthy', '=', False)]" />
+
+                <separator />
+
+                <filter
+                    name="filter_production"
+                    string="Production"
+                    domain="[('environment', '=', 'production')]" />
+                <filter
+                    name="filter_test"
+                    string="Test"
+                    domain="[('environment', '=', 'test')]" />
+
+                <group>
+                    <filter
+                        name="group_category"
+                        string="Category"
+                        context="{'group_by': 'category'}" />
+                    <filter
+                        name="group_environment"
+                        string="Environment"
+                        context="{'group_by': 'environment'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Outbound Service List View -->
+    <record id="view_api_endpoint_outbound_list" model="ir.ui.view">
+        <field name="name">api.endpoint.outbound.list</field>
+        <field name="model">api.endpoint.outbound</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="code" />
+                <field name="category" widget="badge" />
+                <field name="environment" widget="badge" />
+                <field name="is_healthy" widget="boolean_toggle" readonly="1" />
+                <field name="credential_count" />
+                <field name="active" widget="boolean_toggle" />
+            </list>
+        </field>
+    </record>
+
+    <!-- Outbound Service Form View -->
+    <record id="view_api_endpoint_outbound_form" model="ir.ui.view">
+        <field name="name">api.endpoint.outbound.form</field>
+        <field name="model">api.endpoint.outbound</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button
+                        name="action_test_connection"
+                        type="object"
+                        string="Test Connection"
+                        class="btn-primary" />
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_view_credentials"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-key">
+                            <field
+                                name="credential_count"
+                                widget="statinfo"
+                                string="Credentials" />
+                        </button>
+                        <button
+                            name="action_view_logs"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-list-alt">
+                            <field
+                                name="total_requests"
+                                widget="statinfo"
+                                string="Requests" />
+                        </button>
+                    </div>
+
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+
+                    <div class="oe_title">
+                        <label for="name" />
+                        <h1>
+                            <field name="name" placeholder="Service Name" />
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="code" />
+                            <field name="category" />
+                            <field name="provider" />
+                            <field name="active" invisible="1" />
+                        </group>
+                        <group>
+                            <field name="environment" />
+                            <field name="auth_type" />
+                            <field name="allow_multiple_credentials" />
+                            <field name="is_healthy" readonly="1" />
+                            <field name="health_message" readonly="1" />
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="API Configuration" name="api_config">
+                            <group>
+                                <group string="Endpoints">
+                                    <field name="endpoint_url" />
+                                    <field name="endpoint_url_test" />
+                                    <field name="api_version" />
+                                    <field name="request_format" />
+                                </group>
+                                <group string="Timeouts">
+                                    <field name="timeout_connect" />
+                                    <field name="timeout_read" />
+                                </group>
+                            </group>
+
+                            <group invisible="category != 'odoo_database'">
+                                <group string="Odoo Database">
+                                    <field name="odoo_database_name" />
+                                    <field name="odoo_hosting_type" />
+                                    <field name="odoo_protocol" />
+                                    <field name="odoo_version" readonly="1" />
+                                </group>
+                            </group>
+
+                            <group invisible="auth_type != 'oauth2'">
+                                <!-- Non-secret client configuration only: the
+                                    client secret is captured on the linked
+                                    vault credential (t23878). -->
+                                <group string="OAuth 2.0">
+                                    <field name="oauth_client_id" />
+                                    <field name="oauth_auth_endpoint" />
+                                    <field name="oauth_token_endpoint" />
+                                    <field name="oauth_scope" />
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Rate Limiting" name="rate_limiting">
+                            <group>
+                                <group>
+                                    <field name="rate_limit_enabled" />
+                                    <field
+                                        name="rate_limit_requests"
+                                        invisible="not rate_limit_enabled" />
+                                    <field
+                                        name="rate_limit_period"
+                                        invisible="not rate_limit_enabled" />
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Retry" name="retry">
+                            <group>
+                                <group>
+                                    <field name="retry_enabled" />
+                                    <field
+                                        name="retry_max_attempts"
+                                        invisible="not retry_enabled" />
+                                    <field
+                                        name="retry_initial_delay"
+                                        invisible="not retry_enabled" />
+                                    <field
+                                        name="retry_backoff_type"
+                                        invisible="not retry_enabled" />
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Caching" name="caching">
+                            <group>
+                                <group>
+                                    <field name="cache_enabled" />
+                                    <field
+                                        name="cache_ttl"
+                                        invisible="not cache_enabled" />
+                                    <field
+                                        name="cache_health"
+                                        invisible="not cache_enabled" />
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Health Check" name="health_check">
+                            <group>
+                                <group>
+                                    <field name="health_check_enabled" />
+                                    <field
+                                        name="health_check_endpoint"
+                                        invisible="not health_check_enabled" />
+                                    <field
+                                        name="health_check_interval"
+                                        invisible="not health_check_enabled" />
+                                    <field
+                                        name="health_check_environment"
+                                        invisible="not health_check_enabled" />
+                                </group>
+                                <group>
+                                    <field name="last_health_check" readonly="1" />
+                                    <field name="date_last_activity" readonly="1" />
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Statistics" name="statistics">
+                            <group>
+                                <group>
+                                    <field name="total_requests" readonly="1" />
+                                    <field name="success_rate" readonly="1" />
+                                    <field name="avg_response_time" readonly="1" />
+                                </group>
+                                <group>
+                                    <field name="log_retention_days" />
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Info" name="info">
+                            <group>
+                                <group>
+                                    <field name="website" widget="url" />
+                                    <field name="documentation_url" widget="url" />
+                                </group>
+                                <group>
+                                    <field name="description" />
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <!-- Outbound Service Action -->
+    <record id="action_api_endpoint_outbound" model="ir.actions.act_window">
+        <field name="name">API Services</field>
+        <field name="res_model">api.endpoint.outbound</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_api_endpoint_outbound_search" />
+    </record>
+
+</odoo>
