@@ -71,8 +71,17 @@ class CalendarEvent(models.Model):
     _name = "calendar.event"
     _description = "Calendar Event"
     _order = "start desc"
-    _inherit = ["mail.thread"]
+    _inherit = ["mail.thread", "resource.scheduling.mixin"]
     _systray_view = "calendar"
+
+    # ``write`` below keeps working long after ``super()`` returns: it applies
+    # recurrence values, detaches occurrences, archives part of ``self`` and
+    # unlinks the rest.  Worse, the ``update_recurrence`` branch never calls
+    # ``super().write()`` on ``self`` at all -- ``_rewrite_recurrence`` and
+    # ``_update_future_events`` do the work -- so the mixin's own hook would
+    # simply never fire for the edits that move the most bookings.  Project
+    # from the end of ``create``/``write`` instead, once the event is settled.
+    _reservation_sync_manual = True
 
     DISCUSS_ROUTE = "calendar/join_videocall"
 
@@ -851,6 +860,12 @@ class CalendarEvent(models.Model):
         self._create_sync_activities(events, vals_list)
         if not self.env.context.get("dont_notify"):
             self._create_setup_alarms(events, vals_list)
+        # `_reservation_sync_manual`: project once this model is done with the
+        # records.  `_create_split_by_recurrency` may have expanded one vals
+        # dict into a whole series, so `events` is the authoritative set.
+        to_sync = events._active_for_sync()
+        to_sync.flush_recordset()
+        to_sync._sync_reservations()
         return events.with_context(is_calendar_event_new=False)
 
     def _create_prepare_activities(self, vals_list):
@@ -1104,8 +1119,86 @@ class CalendarEvent(models.Model):
 
         return events
 
+    # ------------------------------------------------------------------
+    # Resource reservation integration (contracts from resource.scheduling.mixin)
+    # ------------------------------------------------------------------
+
+    def _get_reservation_date_fields(self):
+        """Return (start_field, end_field) names for reservation sync."""
+        return ("start", "stop")
+
+    def _get_reservation_vals_list(self):
+        """Mirror the meeting into the shared ledger, one row per attendee.
+
+        Only attendees resolving to a ``resource.resource`` book anything: a
+        contact invited by e-mail alone holds no capacity in this database,
+        and a reservation without a resource takes no part in the sweep.
+
+        An event shown as *free* books nothing at all.  ``show_as`` is the
+        organiser's own statement that the time remains available -- it is
+        already what the rest of calendar reads to decide whether a slot
+        counts as busy -- so honouring it keeps the ledger agreeing with what
+        the calendar displays.  Declining an invitation is deliberately *not*
+        read here: RSVP lives on ``calendar.attendee`` and changes without the
+        event ever being written, so a sync keyed on it would go stale
+        immediately.  An unwanted meeting is removed, not merely declined.
+
+        All-day events need no special case: ``start``/``stop`` are Datetimes
+        and are populated for them like any other event.
+        """
+        self.ensure_one()
+        if not self.start or not self.stop or self.show_as != "busy":
+            return []
+
+        vals_list = []
+        booked = set()
+        for user in self.partner_ids.user_ids:
+            # Rebind to the user's own company before resolving: the mapping
+            # is company-scoped, and a reader working in another active
+            # company would otherwise resolve every attendee to False and the
+            # sync would wipe the meeting's existing reservations.
+            scoped = user.with_company(user.company_id) if user.company_id else user
+            resource = scoped._get_calendar_event_resource()
+            # One row per resource, not per user.  A partner may carry several
+            # users, and two partners may share one, but a person attends a
+            # meeting once; the ledger permits repeated resources (a task can
+            # book one twice) and would take the duplicates at face value as
+            # 200% of that person's capacity, conflicting with themselves.
+            if not resource or resource.id in booked:
+                continue
+            booked.add(resource.id)
+            vals_list.append(
+                {
+                    "name": self.display_name,
+                    "date_start": self.start,
+                    "date_end": self.stop,
+                    "resource_id": resource.id,
+                    # A meeting takes the attendee whole; there is no notion of
+                    # attending a fraction of one.
+                    "allocated_percentage": 100.0,
+                    "enforcement_mode": "soft",
+                }
+            )
+        return vals_list
+
+    def _get_sync_trigger_fields(self):
+        """Attendees, title and the busy/free flag also move bookings.
+
+        ``name`` is a trigger because the reservation label is built from
+        ``display_name``; ``show_as`` because flipping it to *free* has to
+        release the claims, and back to *busy* to retake them.
+        """
+        return super()._get_sync_trigger_fields() | {
+            "partner_ids",
+            "name",
+            "show_as",
+        }
+
     def write(self, vals):
         values = vals
+        # Snapshot before the pops below: ``values`` IS ``vals``, and the
+        # recurrence branches consume the very keys the sync decision needs.
+        written_fnames = set(vals)
         detached_events = self.env["calendar.event"]
         recurrence_update_setting = values.pop("recurrence_update", None)
         # `recurrence_update` selects which occurrences of an EXISTING recurrence
@@ -1217,6 +1310,18 @@ class CalendarEvent(models.Model):
             self.env["calendar.recurrence"].search(
                 [("base_event_id", "in", self.ids)]
             )._select_new_base_event()
+
+        # `_reservation_sync_manual`: project only now, with the recurrence
+        # rewrite settled.  `written_fnames` rather than `values`, which the
+        # branches above emptied; `exists()` because `_rewrite_recurrence` and
+        # `_update_future_events` unlink occurrences, `self` among them.
+        if written_fnames & (self._get_sync_trigger_fields() | {"active"}):
+            to_sync = self.exists()._active_for_sync()
+            # Settle first: the computes this write triggered are still
+            # pending, and reading `stop` to build a booking would otherwise
+            # force `_compute_stop` ahead of the inverse that set it.
+            to_sync.flush_recordset()
+            to_sync._sync_reservations()
 
         return True
 

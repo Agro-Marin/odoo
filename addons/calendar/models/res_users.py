@@ -19,6 +19,27 @@ class ResUsers(models.Model):
         inverse="_inverse_calendar_res_users_settings",
     )
 
+    def _get_calendar_event_resource(self):
+        """Return the ``resource.resource`` whose capacity this user's meetings claim.
+
+        The override point for the user->resource mapping, mirroring
+        ``_get_project_task_resource``. Core resolves it through
+        ``resource.resource.user_id``, the only link available at this layer;
+        an ``hr`` installation owns a richer one (the employee's resource) and
+        is free to replace this.
+
+        Scoped to the user's own company: a user may hold one resource per
+        company, and booking the wrong one would claim capacity on a calendar
+        nobody consults. A company-less resource is shared reference data and
+        always eligible -- ``resource.resource`` declines ``check_company`` for
+        that same reason.
+        """
+        self.ensure_one()
+        resources = self.sudo().resource_ids.filtered(
+            lambda resource: not resource.company_id or resource.company_id == self.company_id
+        )
+        return resources[:1]
+
     @property
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + ['calendar_default_privacy']
