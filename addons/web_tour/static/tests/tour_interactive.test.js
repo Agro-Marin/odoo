@@ -989,7 +989,7 @@ test("check alternative trigger that appear after the initial trigger", async ()
         static props = ["*"];
     }
     await mountWithCleanup(Root);
-    getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
+    await getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
     await animationFrame();
     expect(".o_tour_pointer").toHaveCount(1);
     const otherButton = document.createElement("button");
@@ -1020,7 +1020,7 @@ test("validating edit step on autocomplete by selecting autocomplete item", asyn
         type: "ir.actions.act_window",
         views: [[false, "form"]],
     });
-    getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
+    await getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
     await animationFrame();
 
     expect(".o_tour_pointer").toHaveCount(1);
@@ -1056,7 +1056,7 @@ test("validating edit step on autocomplete by selecting autocomplete item (valid
         type: "ir.actions.act_window",
         views: [[false, "form"]],
     });
-    getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
+    await getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
     await animationFrame();
 
     expect(".o_tour_pointer").toHaveCount(1);
@@ -1092,7 +1092,7 @@ test("validating click on autocomplete item by pressing Enter", async () => {
         type: "ir.actions.act_window",
         views: [[false, "form"]],
     });
-    getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
+    await getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
     await animationFrame();
 
     expect(".o_tour_pointer").toHaveCount(1);
@@ -1141,7 +1141,7 @@ test("Tour don't backward when dropdown loading", async () => {
         }
     });
 
-    getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
+    await getService("tour_service").startTour("rainbow_tour", { mode: "manual" });
     await animationFrame();
 
     expect(".o_tour_pointer").toHaveCount(1);
