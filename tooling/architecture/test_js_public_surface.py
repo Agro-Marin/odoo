@@ -390,40 +390,43 @@ def test_the_two_addons_do_not_share_a_pin_file():
     assert jps.pin_path("mail").name == "public_surface_mail.txt"
 
 
-def test_mails_shallow_surface_is_exactly_the_unlayered_directories():
-    """93 specifiers, 88 of them three or more segments deep. The five that are
-    not are worth naming rather than rounding away: `@mail/model/*` (3) and
-    `@mail/js/*` (2) — precisely the two top-level directories that carry no
-    deployment-layer suffix and get their own explicit manifest glob lines.
+def test_mails_shallow_surface_is_exactly_the_unlayered_directory():
+    """93 specifiers, 90 of them three or more segments deep. The three that are
+    not are all `@mail/model/*` -- the one top-level directory left without a
+    deployment-layer suffix, and the one that still needs its own manifest glob.
 
-    Mail's only shallow, layer-edge API is the part of the tree that opted out
-    of the layer scheme. That is a finding, not a rounding error, and folding
-    `js/` into the scheme is expected to move these entries.
+    This list was five entries until `js/` was folded into the layer scheme, and
+    the two that went were `@mail/js/*`. That is the claim sharpened rather than
+    weakened: mail's only shallow, layer-edge API is precisely the part of the
+    tree that sits outside the layering. `model/` is deliberate -- it is
+    genuinely cross-layer, shipping in both the backend and public bundles -- so
+    this list is expected to stay at three.
     """
     measured = jps.measure(jps.CONSUMER_ROOTS, "mail")
     shallow = sorted(s for s in measured if s.count("/") < 3)
     assert shallow == [
-        "@mail/js/emojis_mixin",
-        "@mail/js/onchange_on_keydown",
         "@mail/model/export",
         "@mail/model/misc",
         "@mail/model/record",
     ]
 
 
-def test_mails_deep_and_production_counts_are_different_partitions():
-    """Both are 88 of 93, which invites reading them as one fact. They are not:
-    the 5 shallow specifiers and the 5 test-only ones are different sets."""
+def test_mails_deep_and_production_specifiers_are_different_sets():
+    """A specifier can be deep and test-only, or shallow and production; the two
+    partitions of the 93 are independent and neither implies the other.
+
+    They were both 88 when this pin was taken, which read as one fact and was
+    two. Folding `js/` moved two entries deeper without changing how they are
+    reached, and the numbers separated (90 deep, 88 production) -- which is the
+    clearest possible demonstration that they were never the same measurement.
+    """
     detailed = jps.measure_detailed(jps.CONSUMER_ROOTS, "mail")
     deep = {s for s in detailed if s.count("/") >= 3}
     production = {
         s for s, scopes in detailed.items() if any(prod for prod, _ in scopes.values())
     }
-    assert len(deep) == len(production), "the coincidence this test exists to explain"
-    assert deep != production, (
-        "if these ever coincide, the two numbers really are one fact and this "
-        "test should be replaced by a comment saying so"
-    )
+    assert deep != production
+    assert deep - production, "some deep specifiers are reached only from tests"
 
 
 def test_an_addons_own_imports_are_not_its_surface():

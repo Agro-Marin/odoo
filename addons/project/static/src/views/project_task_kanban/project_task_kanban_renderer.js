@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { RottingKanbanRenderer } from "@mail/js/rotting_mixin/rotting_kanban_renderer";
+import { RottingKanbanRenderer } from "@mail/views/web/rotting/rotting_kanban_renderer";
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/core/user";
 

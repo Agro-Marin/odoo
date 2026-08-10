@@ -708,16 +708,15 @@ jobs:
         # The same ratchet, pointed at the second governed addon. `mail` has the
         # same property as `web` and the second-largest JS tree in the repo: 93
         # specifiers reached from outside it, 88 of them from production code and
-        # 88 of them three or more segments deep into internals (two different
-        # partitions of the 93 — the shallow five are `model/` and `js/`, the
-        # directories with no deployment-layer suffix).
+        # 90 three or more segments deep into internals (two independent
+        # partitions of the 93 — the shallow three are `@mail/model/*`, the one
+        # top-level directory left without a deployment-layer suffix).
         #
-        # It is pinned BEFORE the layout work it is meant to protect, not after.
-        # The `js/` directory (a kanban view extension, a mixin, a debug menu and
-        # a tours folder, grouped by being JavaScript) and the `views/fields/`
-        # split still want folding into the layer scheme; with the surface pinned
-        # each of those moves is a visible edit to the pin file instead of a
-        # silent break in a separately-versioned consumer repo.
+        # It was pinned BEFORE the layout work it protects, and that work has
+        # since happened: `views/fields/` and the whole of `js/` are folded into
+        # the layer scheme, and every one of those moves showed up here as a
+        # reviewable rename rather than as a silent break in a
+        # separately-versioned consumer repo.
         run: |
           set +e
           python tooling/architecture/js_public_surface.py --addon mail | tee /tmp/js_surface_mail.log

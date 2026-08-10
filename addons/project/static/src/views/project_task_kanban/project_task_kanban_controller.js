@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { RottingKanbanController } from "@mail/js/rotting_mixin/rotting_kanban_controller";
+import { RottingKanbanController } from "@mail/views/web/rotting/rotting_kanban_controller";
 
 import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 

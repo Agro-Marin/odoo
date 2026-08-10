@@ -3,11 +3,11 @@
 Addon-parameterised via ``--addon``, defaulting to ``web``; each governed addon
 has its own pin file (``public_surface_<addon>.txt``). ``mail`` is the second,
 added because it has the same property and the second-largest JS tree in the
-repo: **93 specifiers reached from outside it, 88 from production code and 88
-three or more segments deep** — two different partitions of the 93 that happen
-to share a number (5 are test-only; a different 5 are shallow, and those five
-are exactly the `model/` and `js/` directories, the two that carry no
-deployment-layer suffix). Everything the rest of this
+repo: **93 specifiers reached from outside it, 88 from production code and 90
+three or more segments deep** — two independent partitions of the 93 (5 are
+test-only; a different 3 are shallow, and those three are exactly `@mail/model/*`,
+the one top-level directory left without a deployment-layer suffix). Everything
+the rest of this
 docstring says about `web` — no declared boundary, moves priced in downstream
 edits, the pin as the worklist — is true of `mail` verbatim.
 

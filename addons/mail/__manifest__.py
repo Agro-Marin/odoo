@@ -153,7 +153,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/scss/*.scss",
             "mail/static/lib/idb-keyval/idb-keyval.js",
             "mail/static/lib/selfie_segmentation/selfie_segmentation.js",
-            "mail/static/src/js/**/*",
             "mail/static/src/model/**/*",
             "mail/static/src/core/common/**/*",
             "mail/static/src/core/public_web/**/*",

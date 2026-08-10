@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { rottingKanbanView } from "@mail/js/rotting_mixin/rotting_kanban_view";
+import { rottingKanbanView } from "@mail/views/web/rotting/rotting_kanban_view";
 import { registry } from "@web/core/registry";
 
 import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel.js";
