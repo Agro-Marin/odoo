@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.11
+:Version: 5.12
 :Date: 2026-08-10
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -1397,6 +1397,35 @@ Declare them with ``models.Constraint`` in the ``# CONSTRAINTS`` section
        "UNIQUE(code, company_id)",
        "Code must be unique per company.",
    )
+
+**Never declare UNIQUE over a translated column**
+``[test_lint test_translated_unique]``. A ``translate=True`` field is stored as
+``jsonb``, so the constraint compares whole translation *documents* rather than
+values: two rows stop colliding the moment one carries a language the other does
+not. That is not a later translation step — it is the next create, because Odoo
+writes the active language alongside the source term. The rule enforces nothing
+from then on, silently, and only in databases that have a second language, which
+is why it survives review and testing.
+
+Use ``name_uniq_index()`` from ``odoo/addons/base/models/catalog_mixin.py``,
+which indexes the source term. It has to be a ``models.UniqueIndex`` rather than
+a ``Constraint`` because the comparison is an expression and PostgreSQL allows
+none in a UNIQUE constraint:
+
+.. code-block:: python
+
+   # CONSTRAINTS
+   _name_src_uniq = name_uniq_index(
+       "company_id",
+       message="A template with this name already exists for this company.",
+   )
+
+When **converting an existing** ``UNIQUE(name, ...)``, pass
+``nulls_distinct=True`` so only the comparison changes. The helper otherwise
+defaults to ``NULLS NOT DISTINCT``, which is right for a catalog adopting the
+rule for the first time but tightens what the old constraint permitted: a plain
+UNIQUE never fired for two rows sharing a NULL scope column, and code relies on
+that (``res.groups`` holds several same-named groups with no privilege).
 
 2.9.9 Onchange
 ~~~~~~~~~~~~~~
@@ -3440,6 +3469,24 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.12
+     - 2026-08-10
+     - **§2.9.8 forbids UNIQUE over a translated column**, gated at a hard zero
+       by ``test_lint``'s ``test_translated_unique``. A ``translate=True``
+       field is ``jsonb``, so the constraint compares translation *documents*
+       and stops matching as soon as one row carries a language the other does
+       not — reproduced on ``utm.tag``, where two rows named "DupeProof"
+       coexisted under ``unique (name)``. 29 rules were in this state across
+       the three repos and were fixed in the same series (odoo ``27836af2f3e``,
+       enterprise ``47a6a928a64``, agromarin ``34e0b495``), so the floor is 0
+       with no debt for a new one to hide behind. The section also records the
+       trap the fix walked into: ``name_uniq_index`` defaults to ``NULLS NOT
+       DISTINCT`` while a plain UNIQUE does not, and tightening that silently
+       broke ``base``'s own ``test_ir_embedded_actions`` — hence
+       ``nulls_distinct=True`` when converting rather than adopting. The gate
+       is whole-tree rather than per-file because whether a column is
+       translated is often decided on another module's extension or an
+       inherited mixin.
    * - 5.11
      - 2026-08-10
      - **§8.3's re-export command no longer parses.** It gave

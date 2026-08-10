@@ -196,7 +196,8 @@ Related:
   a separate blocking step, with no floor to absorb a new finding.
 - `odoo/addons/test_lint/` — the fork's own AST checkers and registry gates: SQL
   built from non-constant values, gettext misuse, N+1 queries, ORM-facade imports,
-  XML/manifest canonical form, asset bundles that do not assemble. Each is an
+  XML/manifest canonical form, asset bundles that do not assemble, UNIQUE
+  declared over a translated (jsonb) column. Each is an
   exact-match ratchet, so an undone fix fails as loudly as a new offence. CI runs
   it in `.github/workflows/test_lint.yml` (whole module, every PR, no `paths:`
   filter) and `.github/workflows/asset_lint.yml` (the registry-dependent
