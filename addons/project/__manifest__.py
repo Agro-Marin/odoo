@@ -1,6 +1,6 @@
 {
     "name": "Project",
-    "version": "1.14",
+    "version": "1.15",
     "website": "https://www.odoo.com/app/project",
     "category": "Services/Project",
     "sequence": 45,
@@ -37,7 +37,6 @@
         "views/project_task_dependency_views.xml",
         "views/project_project_views.xml",
         "views/project_task_views.xml",
-        "views/project_role_views.xml",
         "views/project_tags_views.xml",
         "views/project_milestone_views.xml",
         "views/res_partner_views.xml",

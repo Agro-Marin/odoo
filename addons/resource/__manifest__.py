@@ -1,6 +1,6 @@
 {
     "name": "Resource",
-    "version": "1.4",
+    "version": "1.5",
     "category": "Hidden",
     "description": """
 Module for resource management.
@@ -17,6 +17,7 @@ associated to every resource. It also manages the leaves of every resource.
         "security/resource_security.xml",
         "views/resource_reservation_views.xml",
         "views/resource_resource_views.xml",
+        "views/resource_role_views.xml",
         "views/resource_calendar_leaves_views.xml",
         "views/resource_calendar_attendance_views.xml",
         "views/resource_calendar_views.xml",

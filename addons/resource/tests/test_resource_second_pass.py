@@ -240,12 +240,26 @@ class TestResourceSecondPass(TransactionCase):
         self.assertEqual(data["days"], 3.0)
 
     # ------------------------------------------------------------------
-    # The mixin owns allocated_percentage, so it triggers on it
+    # Whichever mixin owns allocated_percentage is the one that triggers on it
     # ------------------------------------------------------------------
 
-    def test_mixin_default_triggers_include_allocated_percentage(self):
-        triggers = self.env["resource.scheduling.mixin"]._get_sync_trigger_fields()
-        self.assertIn("allocated_percentage", triggers)
+    def test_allocation_mixin_triggers_on_allocated_percentage(self):
+        """The field's owner declares the trigger, and only its owner.
+
+        ``allocated_percentage`` moved to ``resource.allocation.mixin`` when
+        allocation semantics were split out of the projection: a consumer that
+        declines the allocation mixin does not have the field, so the
+        projection mixin naming it would be a trigger on something that may not
+        exist. Every consumer of the allocation mixin forwards it into
+        ``_get_reservation_vals_list``, so the trigger belongs beside the
+        declaration -- a consumer left to remember it got a mirror reservation
+        stuck at the old percentage with nothing to indicate it.
+        """
+        projection = self.env["resource.scheduling.mixin"]._get_sync_trigger_fields()
+        self.assertNotIn("allocated_percentage", projection)
+
+        allocation = self.env["resource.allocation.mixin"]._get_sync_trigger_fields()
+        self.assertIn("allocated_percentage", allocation)
 
     # ------------------------------------------------------------------
     # An explicit calendar overrides the resource's, flexible included

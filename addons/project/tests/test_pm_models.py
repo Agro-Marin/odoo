@@ -232,7 +232,7 @@ class TestPmModels(TestProjectCommon):
         that used to carry its own copy_data override."""
         step = self.env["project.workflow.step"].create({"name": "Backlog"})
         phase = self.env["project.phase"].create({"name": "Planning"})
-        role = self.env["project.role"].create({"name": "Reviewer"})
+        role = self.env["resource.role"].create({"name": "Reviewer"})
         triage = self.env["project.triage"].create(
             {
                 "name": "Today",
@@ -720,8 +720,8 @@ class TestPmModelBehaviour(TestProjectCommon):
             )
 
     def test_role_defaults_and_task_assignment(self) -> None:
-        """project.role gets a color in range and can be assigned to a task."""
-        role = self.env["project.role"].create({"name": "Reviewer"})
+        """resource.role gets a color in range and can be assigned to a task."""
+        role = self.env["resource.role"].create({"name": "Reviewer"})
         self.assertTrue(1 <= role.color <= 11, "default color must be in [1, 11]")
         self.task_1.role_ids = [(4, role.id)]
         self.assertIn(role, self.task_1.role_ids)

@@ -408,7 +408,7 @@ class ProjectTask(models.Model):
     )
 
     role_ids = fields.Many2many(
-        "project.role",
+        "resource.role",
         string="Project Roles",
         help="When you create a project from a template, you can choose which employee takes each role. These employees will be added to the tasks, along with anyone already assigned.",
     )

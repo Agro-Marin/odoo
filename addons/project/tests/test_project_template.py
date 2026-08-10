@@ -152,7 +152,7 @@ class TestProjectTemplates(TestProjectCommon):
         """The tasks of a project template should be dispatched to the new project according to the role-to-users mapping defined
         on the project template wizard.
         """
-        role1, role2, role3, role4, role5 = self.env["project.role"].create(
+        role1, role2, role3, role4, role5 = self.env["resource.role"].create(
             [
                 {"name": "Developer"},
                 {"name": "Designer"},

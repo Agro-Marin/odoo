@@ -165,7 +165,7 @@
             <menuitem
                 name="Project Roles"
                 id="menu_project_config_roles"
-                action="project_roles_action"
+                action="resource.resource_role_action"
             />
             <menuitem
                 name="Activity Types"

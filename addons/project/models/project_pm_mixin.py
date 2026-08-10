@@ -1,9 +1,9 @@
 """Shared mixin for the small project-scoped PM configuration models.
 
-Several fork-added models (project.role, project.triage, project.phase,
+Several fork-added models (project.triage, project.phase,
 project.workflow.step) each repeated the exact same ``copy_data`` idiom that
 appends " (copy)" to the record name on duplication. This abstract model holds
-that single behaviour so the four copies cannot drift apart.
+that single behaviour so the copies cannot drift apart.
 """
 
 from odoo import models

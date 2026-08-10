@@ -8,7 +8,6 @@ from . import project_task_recurrence
 from . import project_task_triage
 from . import project_milestone
 from . import project_project
-from . import project_role
 from . import project_task
 from . import project_workflow_step
 from . import project_triage

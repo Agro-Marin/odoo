@@ -9,3 +9,4 @@ access_resource_calendar_leaves_user,resource.calendar.leaves,model_resource_cal
 access_resource_calendar_leaves,resource.calendar.leaves,model_resource_calendar_leaves,base.group_system,1,1,1,1
 access_resource_reservation_user,resource.reservation.user,model_resource_reservation,base.group_user,1,0,0,0
 access_resource_reservation_system,resource.reservation.system,model_resource_reservation,base.group_system,1,1,1,1
+access_resource_role_user,resource.role.user,model_resource_role,base.group_user,1,0,0,0

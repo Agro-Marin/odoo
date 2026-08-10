@@ -96,7 +96,7 @@ class ProjectTemplateRoleToUsersMap(models.TransientModel):
     wizard_id = fields.Many2one(
         "project.template.create.wizard", export_string_translation=False
     )
-    role_id = fields.Many2one("project.role", string="Project Role", required=True)
+    role_id = fields.Many2one("resource.role", string="Project Role", required=True)
     user_ids = fields.Many2many(
         "res.users",
         string="Assignees",
