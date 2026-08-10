@@ -6,6 +6,27 @@
 class AssertionError extends Error {}
 export class ValueError extends Error {}
 
+/** CPython raises this, not ValueError, when date arithmetic leaves 1..9999. */
+export class OverflowError extends Error {}
+
+/**
+ * Guard the representable range after arithmetic.
+ *
+ * The constructors validate through ``assertDateComponents``, but ``add`` and
+ * the relativedelta path build their result with ``new PyDate(...)`` directly,
+ * so nothing stopped them: ``date(9999,12,31) + timedelta(days=1)`` answered
+ * year 10000 and ``date(1,1,1) - timedelta(days=1)`` answered year 0, both of
+ * which CPython refuses. A year outside the range also breaks ``fmt4``, so the
+ * out-of-range value flowed on into a malformed date string.
+ *
+ * @param {number} year
+ */
+export function assertYearInRange(year) {
+    if (year < 1 || year > 9999) {
+        throw new OverflowError("date value out of range");
+    }
+}
+
 /** @param {number} n */
 export function fmt2(n) {
     return String(n).padStart(2, "0");

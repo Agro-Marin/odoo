@@ -1507,6 +1507,63 @@ describe("CPython-alignment regressions", () => {
         expect(Number.isNaN(evaluateExpr("float('nan')"))).toBe(true);
         expect(evaluateExpr("float('3.5')")).toBe(3.5);
     });
+
+    // Non-finite values printed with JavaScript's spellings, which no Python
+    // ever produces, and which flowed into domains and %s output verbatim.
+    test("inf and nan are spelled the Python way, everywhere", () => {
+        expect(evaluateExpr("str(float('inf'))")).toBe("inf");
+        expect(evaluateExpr("str(float('-inf'))")).toBe("-inf");
+        expect(evaluateExpr("str(float('nan'))")).toBe("nan");
+        expect(evaluateExpr("repr(float('inf'))")).toBe("inf");
+        expect(evaluateExpr("'%s' % float('inf')")).toBe("inf");
+        expect(evaluateExpr("'%f' % float('inf')")).toBe("inf");
+        expect(evaluateExpr("'%e' % float('nan')")).toBe("nan");
+        expect(evaluateExpr("'%+f' % float('inf')")).toBe("+inf");
+        expect(evaluateExpr("'%10.2f' % float('inf')")).toBe("       inf");
+        // The uppercase conversions uppercase them; that is the only thing %F
+        // does differently from %f, since digits have no case.
+        expect(evaluateExpr("'%F' % float('inf')")).toBe("INF");
+        expect(evaluateExpr("'%E' % float('inf')")).toBe("INF");
+        expect(evaluateExpr("'%G' % float('nan')")).toBe("NAN");
+        expect(evaluateExpr("'%F' % 2.5")).toBe("2.500000");
+    });
+
+    test("the integer conversions refuse inf and nan, by CPython's two names", () => {
+        expect(() => evaluateExpr("'%d' % float('inf')")).toThrow(
+            /cannot convert float infinity to integer/,
+        );
+        expect(() => evaluateExpr("'%d' % float('nan')")).toThrow(
+            /cannot convert float NaN to integer/,
+        );
+    });
+
+    test("%c takes an int or a one-character string", () => {
+        expect(evaluateExpr("'%c' % 65")).toBe("A");
+        expect(evaluateExpr("'%c' % 'A'")).toBe("A");
+        expect(evaluateExpr("'%c' % True")).toBe("\u0001");
+        expect(evaluateExpr("'%c' % 128512")).toBe("\u{1F600}"); // beyond the BMP
+        expect(evaluateExpr("'%5c' % 65")).toBe("    A");
+        expect(evaluateExpr("'%-5c' % 65")).toBe("A    ");
+        expect(() => evaluateExpr("'%c' % 'AB'")).toThrow(/a string of length 2/);
+        expect(() => evaluateExpr("'%c' % 1.5")).toThrow(/not float/);
+        expect(() => evaluateExpr("'%c' % 1114112")).toThrow(/range\(0x110000\)/);
+    });
+
+    // Python switches to scientific below 1e-4, JS only below 1e-6, and JS
+    // writes a one-digit exponent where Python pads to two. Only the small side
+    // is correctable: every float at or above 1e16 is integral, so it cannot be
+    // told apart from an int, and `str(10000000000000000)` is the digits.
+    test("small floats use Python's exponent form and padding", () => {
+        expect(evaluateExpr("repr(0.0001)")).toBe("0.0001");
+        expect(evaluateExpr("repr(0.00001)")).toBe("1e-05");
+        expect(evaluateExpr("repr(1e-7)")).toBe("1e-07");
+        expect(evaluateExpr("repr(1.5e-5)")).toBe("1.5e-05");
+        expect(evaluateExpr("'%s' % 0.000012345")).toBe("1.2345e-05");
+        // unchanged either side of the threshold
+        expect(evaluateExpr("str(0.001)")).toBe("0.001");
+        expect(evaluateExpr("str(1.5)")).toBe("1.5");
+        expect(evaluateExpr("str(0)")).toBe("0");
+    });
 });
 
 describe("builtin fidelity", () => {
@@ -1626,6 +1683,46 @@ describe("attribute access raises like safe_eval, instead of yielding undefined"
         expect(evaluateExpr("{'a': 1}.get('b', 9)")).toBe(9);
         expect(evaluateExpr("'aBc'.lower()")).toBe("abc");
         expect(evaluateExpr("set([1, 2]).union([3])")).toEqual(new Set([1, 2, 3]));
+    });
+
+    // Everything that is not a dict, str, set or None took a different branch,
+    // which returned `undefined` and let the *caller* fail: the message that
+    // reached the user was V8's "Function.prototype.apply was called on
+    // undefined", naming neither the object nor the attribute.
+    test("absent member of a temporal, a number or a list", () => {
+        expect(() => evaluateExpr("datetime.date(2024, 1, 1).nope")).toThrow(
+            /AttributeError: 'date' object has no attribute 'nope'/,
+        );
+        expect(() => evaluateExpr("datetime.datetime(2024, 1, 1).nope")).toThrow(
+            /AttributeError: 'datetime' object has no attribute 'nope'/,
+        );
+        expect(() => evaluateExpr("datetime.timedelta(days=1).nope")).toThrow(
+            /AttributeError: 'timedelta' object has no attribute 'nope'/,
+        );
+        expect(() => evaluateExpr("[1, 2].nope")).toThrow(
+            /AttributeError: 'list' object has no attribute 'nope'/,
+        );
+        expect(() => evaluateExpr("(1).nope")).toThrow(
+            /AttributeError: 'int' object has no attribute 'nope'/,
+        );
+    });
+
+    test("a call to an absent method names the attribute, not V8's receiver", () => {
+        // `isoformat` and `timetuple` are real CPython date methods py_js does
+        // not implement; the point is that the failure says which one.
+        expect(() => evaluateExpr("datetime.date(2024, 1, 1).isoformat()")).toThrow(
+            /AttributeError: 'date' object has no attribute 'isoformat'/,
+        );
+        expect(() => evaluateExpr("datetime.date(2024, 1, 1).timetuple()")).toThrow(
+            /AttributeError: 'date' object has no attribute 'timetuple'/,
+        );
+    });
+
+    test("the temporal members that do exist still resolve", () => {
+        expect(evaluateExpr("datetime.date(2024, 1, 1).year")).toBe(2024);
+        expect(evaluateExpr("datetime.datetime(2024, 1, 1, 5, 0, 0).hour")).toBe(5);
+        expect(evaluateExpr("datetime.date(2024, 1, 1).strftime('%Y')")).toBe("2024");
+        expect(evaluateExpr("datetime.timedelta(days=1).total_seconds()")).toBe(86400);
     });
 
     // The lenient read is deliberate for anything that is not a py value: a

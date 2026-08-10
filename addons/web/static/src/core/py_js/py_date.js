@@ -8,6 +8,7 @@ import { DateTime } from "@web/core/l10n/luxon";
 import { bindArgs } from "./py_args.js";
 import {
     assert,
+    assertYearInRange,
     daysInMonth,
     divmod,
     fmt2,
@@ -220,6 +221,10 @@ export class PyDate {
      * @param {number} day
      */
     constructor(year, month, day) {
+        // Here rather than in `create()`, which is only the *literal* path:
+        // `add()` and the relativedelta walk build their result straight
+        // through the constructor, and those are the paths that overflow.
+        assertYearInRange(year);
         this.year = year;
         this.month = month;
         this.day = day;
@@ -322,6 +327,30 @@ export class PyDate {
     }
 
     /**
+     * Monday is 0 and Sunday is 6, as in CPython.
+     *
+     * Ordinal 1 is 0001-01-01, a Monday, so the shift is +6 mod 7. Shipped
+     * views really do call this -- `[('date', '>=', (context_today() -
+     * datetime.timedelta(days=context_today().weekday())).strftime(...))]`
+     * is the "since Monday" filter -- and without it the domain failed with
+     * V8's "Function.prototype.apply was called on undefined".
+     *
+     * @returns {number}
+     */
+    weekday() {
+        return (this.toordinal() + 6) % 7;
+    }
+
+    /**
+     * Monday is 1 and Sunday is 7, as in CPython.
+     *
+     * @returns {number}
+     */
+    isoweekday() {
+        return this.weekday() + 1;
+    }
+
+    /**
      * @returns {number}
      */
     valueOf() {
@@ -410,6 +439,7 @@ export class PyDateTime {
      * @param {number} microsecond
      */
     constructor(year, month, day, hour, minute, second, microsecond) {
+        assertYearInRange(year);
         this.year = year;
         this.month = month;
         this.day = day;
@@ -530,6 +560,25 @@ export class PyDateTime {
     /** @returns {number} */
     toordinal() {
         return ymd2ord(this.year, this.month, this.day);
+    }
+
+    /**
+     * Monday is 0 and Sunday is 6, as in CPython. `datetime` inherits this
+     * from `date` there; here the two classes are siblings, so it is restated.
+     *
+     * @returns {number}
+     */
+    weekday() {
+        return (this.toordinal() + 6) % 7;
+    }
+
+    /**
+     * Monday is 1 and Sunday is 7, as in CPython.
+     *
+     * @returns {number}
+     */
+    isoweekday() {
+        return this.weekday() + 1;
     }
 
     /**

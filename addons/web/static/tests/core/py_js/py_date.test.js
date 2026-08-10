@@ -256,6 +256,71 @@ describe("datetime.date", () => {
         ).toBe(true);
     });
 
+    // The constructors validated 1..9999, but `add` and the relativedelta walk
+    // build their result with `new PyDate(...)` directly and so bypassed it:
+    // `date(9999,12,31) + timedelta(days=1)` answered year 10000, which then
+    // broke `fmt4` and flowed on as a malformed date string.
+    test("arithmetic cannot leave the representable range", () => {
+        expect(() =>
+            evaluateExpr("datetime.date(9999,12,31) + datetime.timedelta(days=1)"),
+        ).toThrow(/date value out of range/);
+        expect(() =>
+            evaluateExpr("datetime.date(1,1,1) - datetime.timedelta(days=1)"),
+        ).toThrow(/date value out of range/);
+        expect(() =>
+            evaluateExpr("datetime.date(9999,1,1) + relativedelta(years=1)"),
+        ).toThrow(/date value out of range/);
+        expect(() =>
+            evaluateExpr(
+                "datetime.datetime(9999,12,31,23,0,0) + datetime.timedelta(days=1)",
+            ),
+        ).toThrow(/date value out of range/);
+        // The edges themselves stay reachable.
+        expect(
+            evaluateExpr(
+                "(datetime.date(9999,12,30) + datetime.timedelta(days=1)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("9999-12-31");
+        expect(
+            evaluateExpr(
+                "(datetime.date(1,1,2) - datetime.timedelta(days=1)).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("0001-01-01");
+    });
+
+    test("weekday and isoweekday, Monday-based like CPython", () => {
+        // Ordinal 1 is 0001-01-01, a Monday.
+        expect(evaluateExpr("datetime.date(1, 1, 1).weekday()")).toBe(0);
+        expect(evaluateExpr("datetime.date(1, 1, 1).isoweekday()")).toBe(1);
+        expect(evaluateExpr("datetime.date(2026, 8, 9).weekday()")).toBe(6); // Sunday
+        expect(evaluateExpr("datetime.date(2026, 8, 9).isoweekday()")).toBe(7);
+        expect(evaluateExpr("datetime.date(2024, 8, 9).weekday()")).toBe(4); // Friday
+        // Across the century-leap rule, where a wrong ordinal drifts by a day.
+        expect(evaluateExpr("datetime.date(1900, 1, 1).weekday()")).toBe(0);
+        expect(evaluateExpr("datetime.date(2000, 2, 29).weekday()")).toBe(1);
+        expect(evaluateExpr("datetime.date(9999, 12, 31).weekday()")).toBe(4);
+        // datetime is a sibling class here, not a subclass, so it restates it.
+        expect(evaluateExpr("datetime.datetime(2026, 8, 9, 5, 0, 0).weekday()")).toBe(
+            6,
+        );
+        expect(
+            evaluateExpr("datetime.datetime(2024, 8, 9, 5, 0, 0).isoweekday()"),
+        ).toBe(5);
+    });
+
+    test("the shipped 'since Monday' domain evaluates", () => {
+        // Two AgroMarin views ship this shape. Without `weekday()` it failed
+        // with V8's "Function.prototype.apply was called on undefined", naming
+        // neither the object nor the attribute.
+        mockDate("2026-08-09 12:00:00", 0); // a Sunday
+        expect(
+            evaluateExpr(
+                "(context_today() - datetime.timedelta(days=context_today().weekday()))" +
+                    ".strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2026-08-03"); // the Monday of that week
+    });
+
     test("datetime.date.today is UTC, not the client zone", () => {
         // The server runs `date.today()` in a process pinned to UTC, so this
         // is the one date builtin that must NOT follow the user's timezone --

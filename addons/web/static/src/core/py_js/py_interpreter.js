@@ -642,7 +642,12 @@ function pyStringFormat(fmt, value) {
                 }
                 arg = values[i++];
             }
-            if (conv !== "s" && conv !== "r" && !"diufeEgGxXo".includes(conv)) {
+            if (
+                conv !== "s" &&
+                conv !== "r" &&
+                conv !== "c" &&
+                !"diufFeEgGxXo".includes(conv)
+            ) {
                 throw new EvaluationError(
                     `unsupported format character '${conv}' (0x${conv
                         .charCodeAt(0)
@@ -652,6 +657,34 @@ function pyStringFormat(fmt, value) {
             const precision = prec != null ? Number(prec) : null;
             const w = width ? Number(width) : 0;
             const leftAlign = flags.includes("-");
+
+            if (conv === "c") {
+                // An int (bool included, as a Python int subclass) or a
+                // one-character string. Not a float, even an integral one --
+                // CPython names the type, so `%c % 1.5` is a TypeError.
+                let str;
+                if (typeof arg === "boolean" || Number.isInteger(arg)) {
+                    const code = Number(arg);
+                    if (code < 0 || code > 0x10ffff) {
+                        throw new EvaluationError("%c arg not in range(0x110000)");
+                    }
+                    str = String.fromCodePoint(code);
+                } else if (typeof arg === "string" && [...arg].length === 1) {
+                    str = arg;
+                } else if (typeof arg === "string") {
+                    throw new EvaluationError(
+                        `%c requires an int or a unicode character, not a string of length ${[...arg].length}`,
+                    );
+                } else {
+                    throw new EvaluationError(
+                        `%c requires an int or a unicode character, not ${pyTypeName(arg)}`,
+                    );
+                }
+                if (w > str.length) {
+                    str = leftAlign ? str.padEnd(w) : str.padStart(w);
+                }
+                return str;
+            }
 
             if (conv === "s" || conv === "r") {
                 let str = conv === "s" ? pyStr(arg) : pyRepr(arg);
@@ -683,6 +716,15 @@ function pyStringFormat(fmt, value) {
             const zeroPad = flags.includes("0");
             const alt = flags.includes("#");
             const isIntConv = "diuxXo".includes(conv);
+            if (!Number.isFinite(num) && "diu".includes(conv)) {
+                // The float conversions render inf/nan; the integer ones refuse
+                // them, and CPython separates the two cases by exception type.
+                throw new EvaluationError(
+                    Number.isNaN(num)
+                        ? "cannot convert float NaN to integer"
+                        : "cannot convert float infinity to integer",
+                );
+            }
             if (isIntConv) {
                 if (
                     "xXo".includes(conv) &&
@@ -714,10 +756,18 @@ function pyStringFormat(fmt, value) {
                                 ? "0X"
                                 : "";
                 }
+            } else if (!Number.isFinite(num)) {
+                // "inf"/"nan", never JS's "Infinity"/"NaN", and uppercased by
+                // the uppercase conversions -- which is the ONLY thing %F does
+                // differently from %f, since digits have no case.
+                body = Number.isNaN(num) ? "nan" : "inf";
+                if (conv === "F" || conv === "E" || conv === "G") {
+                    body = body.toUpperCase();
+                }
             } else {
                 const magnitude = Math.abs(num);
                 const p = precision != null ? precision : 6;
-                if (conv === "f") {
+                if (conv === "f" || conv === "F") {
                     body = formatFixed(magnitude, p);
                     if (alt && !body.includes(".")) {
                         body += ".";
@@ -1095,6 +1145,29 @@ const allowedFns = new Set([
 ]);
 
 /**
+ * Whether ``value`` is a value this module owns the shape of, as opposed to a
+ * host object handed in through the evaluation context.
+ *
+ * Only the former may be held to Python's attribute contract: a host object is
+ * arbitrary caller data, and reading an absent key off one has to stay lenient.
+ *
+ * @param {any} value
+ * @returns {boolean}
+ */
+function isPyValue(value) {
+    return (
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        Array.isArray(value) ||
+        value instanceof PyDate ||
+        value instanceof PyDateTime ||
+        value instanceof PyTime ||
+        value instanceof PyTimeDelta ||
+        value instanceof PyRelativeDelta
+    );
+}
+
+/**
  * A py-level dict, str or set exposes exactly the members of its table, so an
  * absent one is an ``AttributeError`` on the server rather than ``undefined``.
  * Reading it back as ``undefined`` did not stop the evaluation: ``{'a': 1}.b ==
@@ -1270,7 +1343,15 @@ export function evaluate(ast, context = {}) {
                 case ASTType.ObjLookup: {
                     let left = _evaluate(ast.obj);
                     let result;
-                    if (left === null) {
+                    // `undefined` as well as `null`: an absent host key reads
+                    // back as `undefined` (deliberately -- see the generic
+                    // branch below), so a CHAIN through one, which is exactly
+                    // the sparse-record case, reached `undefined[key]` and
+                    // failed with V8's "Cannot read properties of undefined
+                    // (reading 'foo')". It threw either way; it now says which
+                    // attribute of what, and agrees with the server, where the
+                    // unloaded field is None and `None.foo` is an AttributeError.
+                    if (left === null || left === undefined) {
                         throw new EvaluationError(
                             `AttributeError: 'NoneType' object has no attribute '${ast.key}'`,
                         );
@@ -1293,6 +1374,26 @@ export function evaluate(ast, context = {}) {
                         if (BLOCKED_PROPERTIES.has(ast.key)) {
                             throw new EvaluationError(
                                 `Access to '${ast.key}' is forbidden`,
+                            );
+                        }
+                        // Same contract as the dict/str/set tables above, which
+                        // `attributeOf` already enforces: an absent attribute is
+                        // an AttributeError, not `undefined`. Applied here only
+                        // to values that ARE py values -- the temporals, numbers
+                        // and lists -- because this branch also carries host
+                        // objects, whose lenient read is deliberate (a domain
+                        // over a sparse record reaches `parent.some_field` for
+                        // rows where the field was never loaded).
+                        //
+                        // Without it, `datetime.date(2024,1,1).weekday()` failed
+                        // inside V8 with "Function.prototype.apply was called on
+                        // undefined", naming neither the object nor the
+                        // attribute. `in`, not `hasOwn`: these are class
+                        // instances whose methods live on the prototype, and
+                        // `Object()` so a primitive receiver does not throw.
+                        if (isPyValue(left) && !(ast.key in Object(left))) {
+                            throw new EvaluationError(
+                                `AttributeError: '${pyTypeName(left)}' object has no attribute '${ast.key}'`,
                             );
                         }
                         result = left[ast.key];
