@@ -278,6 +278,164 @@ export class DynamicList extends DataPoint {
         return unique(resIds);
     }
 
+    /**
+     * Mass edit stages x2many changes on the edited record only. Replay its
+     * commands onto every OTHER selected record so they all carry the same
+     * relation before validity is judged and the values are read back.
+     *
+     * `display_name` is re-attached to LINK commands when the list tracks it:
+     * the other records' lists have never fetched those rows, so without it the
+     * tag renders blank until the next read.
+     *
+     * @param {RelationalRecord} editedRecord
+     * @param {Record<string, any>} changes
+     * @param {RelationalRecord[]} selectedRecords
+     * @returns {Promise<void>}
+     */
+    async _applyMultiEditX2ManyCommands(editedRecord, changes, selectedRecords) {
+        const proms = [];
+        for (const fieldName of Object.keys(changes)) {
+            if (isX2Many(this.fields[fieldName])) {
+                const list = editedRecord.data[fieldName];
+                let commands = list._getCommands();
+                if ("display_name" in list.activeFields) {
+                    commands = commands.map((command) => {
+                        if (command[0] === x2ManyCommands.LINK) {
+                            const relRecord = list.getCachedRecord(command[1]);
+                            return [
+                                command[0],
+                                command[1],
+                                { display_name: relRecord.data.display_name },
+                            ];
+                        }
+                        return command;
+                    });
+                }
+                for (const record of selectedRecords) {
+                    if (record !== editedRecord) {
+                        proms.push(record.data[fieldName]._applyCommands(commands));
+                    }
+                }
+            }
+        }
+        await Promise.all(proms);
+    }
+
+    /**
+     * Split the selection into the records this save may write and those it may
+     * not. A record is excluded when any changed field is readonly ON THAT
+     * RECORD, or when it fails validation.
+     *
+     * Only the edited record reports its invalid fields; the rest validate
+     * `silent` because the user is looking at one row and would otherwise get a
+     * notification per selected record.
+     *
+     * @param {RelationalRecord[]} selectedRecords
+     * @param {RelationalRecord} editedRecord
+     * @param {Record<string, any>} changes
+     * @returns {{ validRecords: RelationalRecord[], invalidRecords: RelationalRecord[] }}
+     */
+    _partitionByValidity(selectedRecords, editedRecord, changes) {
+        const validRecords = [];
+        const invalidRecords = [];
+        for (const record of selectedRecords) {
+            const isEditedRecord = record === editedRecord;
+            if (
+                Object.keys(changes).every(
+                    (fieldName) => !record._isReadonly(fieldName),
+                ) &&
+                record._checkValidity({ silent: !isEditedRecord })
+            ) {
+                validRecords.push(record);
+            } else {
+                invalidRecords.push(record);
+            }
+        }
+        return { validRecords, invalidRecords };
+    }
+
+    /**
+     * The write to send, as a thunk so the caller can run it inside its own
+     * try/catch after the confirmation hook.
+     *
+     * Two shapes, and the choice is not cosmetic: an `Operation` value (an
+     * increment, say) resolves to a DIFFERENT number per record, so those go
+     * through `web_save_multi` with one vals dict each. Everything else writes
+     * one identical vals dict to every id via `web_save`.
+     *
+     * @param {RelationalRecord} editedRecord
+     * @param {RelationalRecord[]} validRecords
+     * @param {Record<string, any>} changes
+     * @returns {() => Promise<any>}
+     */
+    _buildMultiSaveCall(editedRecord, validRecords, changes) {
+        const resIds = unique(validRecords.map((r) => r.resId));
+        const kwargs = {
+            context: this.context,
+            specification: getFieldsSpec(
+                editedRecord.activeFields,
+                editedRecord.fields,
+                getSpecEvalContext(editedRecord.config),
+            ),
+        };
+        let save;
+        if (Object.values(changes).some((v) => v instanceof Operation)) {
+            const changesById = {};
+            for (const record of validRecords) {
+                changesById[record.resId] =
+                    changesById[record.resId] || record._getChanges();
+            }
+            const valsList = resIds.map((resId) => changesById[resId]);
+            const multiKwargs = buildKnownValuesKwargs(
+                validRecords,
+                Object.keys(changes),
+                kwargs,
+            );
+            save = () =>
+                this.model.orm.webSaveMulti(
+                    this.resModel,
+                    resIds,
+                    valsList,
+                    multiKwargs,
+                );
+        } else {
+            const vals = editedRecord._getChanges();
+            const saveKwargs = buildKnownValuesKwargs(
+                validRecords,
+                Object.keys(vals),
+                kwargs,
+            );
+            save = () =>
+                this.model.orm.webSave(this.resModel, resIds, vals, saveKwargs);
+        }
+        return save;
+    }
+
+    /**
+     * Write the server's read-back onto the records that were saved.
+     *
+     * Keyed by id and skipped when absent rather than zipped positionally: the
+     * server returns a row per WRITTEN record, and `resIds` was uniqued, so the
+     * two lists need not line up when the same record is selected twice.
+     *
+     * @param {any[]} records rows returned by web_save / web_save_multi
+     * @param {RelationalRecord[]} validRecords
+     * @returns {void}
+     */
+    _applyMultiSaveResult(records, validRecords) {
+        const serverValuesById = Object.fromEntries(
+            records.map((record) => [record.id, record]),
+        );
+        for (const record of validRecords) {
+            const serverValues = serverValuesById[/** @type {number} */ (record.resId)];
+            if (!serverValues) {
+                continue;
+            }
+            record._setData(serverValues);
+            this.model._updateSimilarRecords(record, serverValues);
+        }
+    }
+
     /** @param {{ discard?: boolean }} [options] */
     async leaveEditMode({ discard } = {}) {
         if (this.model.urgentSave.isActive) {
@@ -470,32 +628,12 @@ export class DynamicList extends DataPoint {
 
         const selectedRecords = this.selection;
 
-        const proms = [];
-        for (const fieldName of Object.keys(changes)) {
-            if (isX2Many(this.fields[fieldName])) {
-                const list = editedRecord.data[fieldName];
-                let commands = list._getCommands();
-                if ("display_name" in list.activeFields) {
-                    commands = commands.map((command) => {
-                        if (command[0] === x2ManyCommands.LINK) {
-                            const relRecord = list.getCachedRecord(command[1]);
-                            return [
-                                command[0],
-                                command[1],
-                                { display_name: relRecord.data.display_name },
-                            ];
-                        }
-                        return command;
-                    });
-                }
-                for (const record of selectedRecords) {
-                    if (record !== editedRecord) {
-                        proms.push(record.data[fieldName]._applyCommands(commands));
-                    }
-                }
-            }
-        }
-        await Promise.all(proms);
+        await this._applyMultiEditX2ManyCommands(
+            editedRecord,
+            changes,
+            selectedRecords,
+        );
+
         selectedRecords.forEach((record) => {
             const _changes = { ...changes };
             for (const fieldName of Object.keys(_changes)) {
@@ -506,21 +644,11 @@ export class DynamicList extends DataPoint {
             record._applyChanges(_changes);
         });
 
-        const validRecords = [];
-        const invalidRecords = [];
-        for (const record of selectedRecords) {
-            const isEditedRecord = record === editedRecord;
-            if (
-                Object.keys(changes).every(
-                    (fieldName) => !record._isReadonly(fieldName),
-                ) &&
-                record._checkValidity({ silent: !isEditedRecord })
-            ) {
-                validRecords.push(record);
-            } else {
-                invalidRecords.push(record);
-            }
-        }
+        const { validRecords, invalidRecords } = this._partitionByValidity(
+            selectedRecords,
+            editedRecord,
+            changes,
+        );
         const discardInvalidRecords = () =>
             invalidRecords.forEach((record) => record._discard());
 
@@ -530,45 +658,7 @@ export class DynamicList extends DataPoint {
             return false;
         }
 
-        const resIds = unique(validRecords.map((r) => r.resId));
-        const kwargs = {
-            context: this.context,
-            specification: getFieldsSpec(
-                editedRecord.activeFields,
-                editedRecord.fields,
-                getSpecEvalContext(editedRecord.config),
-            ),
-        };
-        let save;
-        if (Object.values(changes).some((v) => v instanceof Operation)) {
-            const changesById = {};
-            for (const record of validRecords) {
-                changesById[record.resId] =
-                    changesById[record.resId] || record._getChanges();
-            }
-            const valsList = resIds.map((resId) => changesById[resId]);
-            const multiKwargs = buildKnownValuesKwargs(
-                validRecords,
-                Object.keys(changes),
-                kwargs,
-            );
-            save = () =>
-                this.model.orm.webSaveMulti(
-                    this.resModel,
-                    resIds,
-                    valsList,
-                    multiKwargs,
-                );
-        } else {
-            const vals = editedRecord._getChanges();
-            const saveKwargs = buildKnownValuesKwargs(
-                validRecords,
-                Object.keys(vals),
-                kwargs,
-            );
-            save = () =>
-                this.model.orm.webSave(this.resModel, resIds, vals, saveKwargs);
-        }
+        const save = this._buildMultiSaveCall(editedRecord, validRecords, changes);
 
         const _changes = { ...changes };
         for (const fieldName of Object.keys(changes)) {
@@ -596,17 +686,7 @@ export class DynamicList extends DataPoint {
             this.model._patchConfig(editedRecord.config, { mode: "readonly" });
             throw e;
         }
-        const serverValuesById = Object.fromEntries(
-            records.map((record) => [record.id, record]),
-        );
-        for (const record of validRecords) {
-            const serverValues = serverValuesById[/** @type {number} */ (record.resId)];
-            if (!serverValues) {
-                continue;
-            }
-            record._setData(serverValues);
-            this.model._updateSimilarRecords(record, serverValues);
-        }
+        this._applyMultiSaveResult(records, validRecords);
         this.model._patchConfig(editedRecord.config, { mode: "readonly" });
         this.model.hooks.lifecycle.onSavedMulti(validRecords);
         return true;
