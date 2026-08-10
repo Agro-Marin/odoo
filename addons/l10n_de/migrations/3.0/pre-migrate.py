@@ -17,6 +17,6 @@ def migrate(cr, version):
     if balance_column:
         cr.execute("DELETE FROM account_report_column WHERE id = %s", (balance_column.id,))
     if report_line_ids:
-        cr.execute("DELETE FROM account_report_line WHERE id IN %s", (report_line_ids,))
+        cr.execute("DELETE FROM account_report_line WHERE id = ANY(%s)", (list(report_line_ids),))
     if tax_report:
         cr.execute("UPDATE account_report_line SET code = NULL WHERE report_id = %s", (tax_report.id,))
