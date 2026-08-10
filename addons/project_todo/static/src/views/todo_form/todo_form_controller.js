@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { markup, onWillStart } from "@odoo/owl";
+import { onWillStart } from "@odoo/owl";
 
-import { HistoryDialog } from "@html_editor/components/history_dialog/history_dialog";
-import { ConfirmationDialog } from "@web/ui/dialog";
+import { openDescriptionHistoryDialog } from "@project/views/project_task_form/description_history";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";
@@ -84,44 +83,16 @@ export class TodoFormController extends FormControllerWithHTMLExpander {
     }
 
     async openHistoryDialog() {
-        const record = this.model.root;
-        const versionedFieldName = "description";
-        const historyMetadata =
-            record.data["html_field_history_metadata"]?.[versionedFieldName];
-        if (!historyMetadata) {
-            this.notifications.add(
-                _t(
-                    "The To-do description lacks any past content that could be restored at the moment.",
-                ),
-            );
-            return;
-        }
-
-        this.dialogService.add(HistoryDialog, {
+        openDescriptionHistoryDialog({
+            record: this.model.root,
+            resModel: this.props.resModel,
+            dialogService: this.dialogService,
+            notificationService: this.notifications,
             title: _t("To-do History"),
-            noContentHelper: markup`
-                    <span class='text-muted fst-italic'>${_t(
-                        "The To-do description was empty at the time.",
-                    )}</span>`,
-            recordId: record.resId,
-            recordModel: this.props.resModel,
-            versionedFieldName,
-            historyMetadata,
-            restoreRequested: (html, close) => {
-                this.dialogService.add(ConfirmationDialog, {
-                    title: _t("Are you sure you want to restore this version?"),
-                    body: _t(
-                        "Restoring will replace the current content with the selected version. Any unsaved changes will be lost.",
-                    ),
-                    confirm: () => {
-                        const restoredData = {};
-                        restoredData[versionedFieldName] = html;
-                        record.update(restoredData);
-                        close();
-                    },
-                    confirmLabel: _t("Restore"),
-                });
-            },
+            emptyLabel: _t("The To-do description was empty at the time."),
+            noHistoryMessage: _t(
+                "The To-do description lacks any past content that could be restored at the moment.",
+            ),
         });
     }
 }

@@ -1,19 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
+    <!-- The hover freeze is a no-op on touch devices, where mouseover/mouseleave
+         do not fire, so both layouts can share one element. -->
     <t t-name="project_todo.TodoDoneCheckmark">
-        <t t-if="!env.isSmall">
-            <a t-att-title="stateDone.isDone ? 'Mark as to-do' : 'Mark as done'"
-               t-on-click.stop="onDoneToggled"
-               t-on-mouseleave="actualizeDoneState"
-               t-on-mouseover="freezeDoneState"
-               t-attf-class="o_todo_done_button fa-lg {{!stateDone.isDone ? 'fa-regular fa-circle-check' : 'fa-solid fa-circle-check done_button_enabled'}}"/>
-        </t>
-        <t t-else="">
-            <a t-att-title="stateDone.isDone ? 'Mark as to-do' : 'Mark as done'"
-               t-on-click.stop="onDoneToggled"
-               t-attf-class="o_todo_done_button_mobile fa-lg {{!stateDone.isDone ? 'fa-regular fa-circle-check' : 'fa-solid fa-circle-check done_button_enabled'}}"/>
-        </t>
+        <a t-att-title="toggleTitle"
+           t-on-click.stop="onDoneToggled"
+           t-on-mouseleave="actualizeDoneState"
+           t-on-mouseover="freezeDoneState"
+           t-attf-class="{{ env.isSmall ? 'o_todo_done_button_mobile' : 'o_todo_done_button' }} fa-lg {{ isDone ? 'fa-solid fa-circle-check done_button_enabled' : 'fa-regular fa-circle-check' }}"/>
     </t>
 
 </templates>

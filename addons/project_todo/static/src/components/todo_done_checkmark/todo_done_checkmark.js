@@ -1,69 +1,67 @@
 /** @odoo-module native */
-import { useState, onRendered, onMounted } from "@odoo/owl";
+import { useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { StateSelectionField, stateSelectionField } from "@web/fields/selection/state_selection/state_selection_field";
+import { _t } from "@web/core/translation";
+import {
+    StateSelectionField,
+    stateSelectionField,
+} from "@web/fields/selection/state_selection/state_selection_field";
 
 export class TodoDoneCheckmark extends StateSelectionField {
     static template = "project_todo.TodoDoneCheckmark";
-    static props = {
-        ...stateSelectionField.component.props,
-        viewType: { type: String },
-    };
+
     setup() {
         super.setup();
-        this.stateDone = useState({
-            isDone: false, //This state determines the appearance of the done checkmark and should only be actualized when the mouse leaves it (and atfer the form is loaded)
-            notReloadState: false, //used to avoid a change of the checkmark when re-rendering the form
-        });
+        // While the pointer rests on the checkmark its appearance is frozen, so
+        // the icon does not flip under the cursor. `null` means "not frozen":
+        // read the record instead.
+        this.frozen = useState({ isDone: null });
         onMounted(() => {
-            const fieldValue = this.props.record.data[this.props.name]
-            this.notDoneState = fieldValue == 'done' ? 'in_progress' : fieldValue;
+            const value = this.props.record.data[this.props.name];
+            this.notDoneState = value === "done" ? "in_progress" : value;
         });
-        onRendered(() => {
-            if (!this.stateDone.notReloadState) {
-                this.stateDone.isDone = this.props.record.data[this.props.name] == 'done';
-            }
-        });
+    }
+
+    get isDone() {
+        return this.frozen.isDone ?? this.props.record.data[this.props.name] === "done";
+    }
+
+    get toggleTitle() {
+        return this.isDone ? _t("Mark as to-do") : _t("Mark as done");
     }
 
     /**
      * @private
      */
     actualizeDoneState() {
-        this.stateDone.notReloadState = false;
+        this.frozen.isDone = null;
     }
 
     /**
      * @private
      */
     freezeDoneState() {
-        this.stateDone.notReloadState = true;
+        this.frozen.isDone = this.isDone;
     }
 
     /**
      * @private
      */
     async onDoneToggled() {
-        const value = this.props.record.data[this.props.name] != 'done' ? 'done' : this.notDoneState;
-        if (['kanban', 'list'].includes(this.props.viewType)) {
-            await super.updateRecord(value);
-        }
-        else {
-            await this.props.record.update({
-                [this.props.name]: value,
-            });
-        }
+        const value =
+            this.props.record.data[this.props.name] !== "done"
+                ? "done"
+                : this.notDoneState;
+        // Whether this saves is the `autosave` option's job: the list and kanban
+        // want it, the form saves through its own buttons and sets
+        // options="{'autosave': false}".
+        await this.updateRecord(value);
     }
 }
 
 export const todoDoneCheckmark = {
     ...stateSelectionField,
     component: TodoDoneCheckmark,
-    extractProps: (fieldInfo, dynamicInfo) => {
-        const props = stateSelectionField.extractProps(fieldInfo, dynamicInfo);
-        props.viewType = fieldInfo.viewType;
-        return props;
-    },
-}
+};
 
 registry.category("fields").add("todo_done_checkmark", todoDoneCheckmark);

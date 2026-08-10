@@ -115,7 +115,11 @@ registry.category("web_tour.tours").add("project_todo_history_tour", {
         run: "click",
     }, {
         content: "Verify that the description contains the right text after the restore",
-        trigger: descriptionField,
+        // The bare editor selector matches the instant the dialog closes, i.e.
+        // before the restored value has been written back into it, so the
+        // assertion below read the pre-restore content. Waiting on the text
+        // makes the step observe the restore instead of racing it.
+        trigger: `${descriptionField}:contains(${baseDescriptionContent} 1)`,
         run: function () {
             const p = this.anchor?.innerText;
             const expected = `${baseDescriptionContent} 1`;
