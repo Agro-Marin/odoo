@@ -22,9 +22,9 @@
  t-ref="root"
  >
  <!-- card -->
- <t t-if="!props.isSidebarItem and props.cardData.type === 'screen' and rtc.state.screenTrack and !rtc.state.screenTrack.enabled">
+ <t t-if="showPausedScreenStream">
  <div class="o-text-white display-5 gap-3">
- <button class="pe-auto bg-transparent o-text-white border-0 opacity-25 opacity-75-hover" t-ref="resumeStream" t-on-click.stop="() => (this.rtc.state.screenTrack.enabled = true)">
+ <button class="pe-auto bg-transparent o-text-white border-0 opacity-25 opacity-75-hover" t-ref="resumeStream" t-on-click.stop="resumeScreenStream">
  <i class="fa-regular " t-att-class="{ 'fa-circle-play': resumeStreamHover.isHover, 'fa-circle-pause': !resumeStreamHover.isHover }"/> <span><t t-if="resumeStreamHover.isHover">Resume stream</t><t t-else="">Stream paused</t></span>
  </button>
  </div>

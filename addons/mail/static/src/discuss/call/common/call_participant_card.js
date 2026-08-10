@@ -98,6 +98,34 @@ export class CallParticipantCard extends Component {
         return this.env.pipWindow || window;
     }
 
+    /**
+     * Whether this card is the local user's own screen share, currently
+     * paused (the infinite-mirroring warning disables the track). Only then
+     * may the card offer to resume it.
+     *
+     * `rtc.state.screenTrack` is the LOCAL upload and exists only on the tab
+     * hosting the call, so testing it alone matched every OTHER participant's
+     * screen tile too: their stream was replaced by a "Stream paused" button
+     * that resumed this user's upload instead of showing their video.
+     */
+    get showPausedScreenStream() {
+        return Boolean(
+            !this.props.isSidebarItem &&
+            this.props.cardData.type === "screen" &&
+            this.rtcSession?.eq(this.rtc.localSession) &&
+            this.rtc.state.screenTrack &&
+            !this.rtc.state.screenTrack.enabled,
+        );
+    }
+
+    resumeScreenStream() {
+        // optional chain: the share can end between the render that showed the
+        // button and the click that reaches here
+        if (this.rtc.state.screenTrack) {
+            this.rtc.state.screenTrack.enabled = true;
+        }
+    }
+
     get showLiveLabel() {
         if (this.props.isSidebarItem) {
             return false;
