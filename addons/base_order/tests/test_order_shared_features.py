@@ -208,3 +208,68 @@ class TestOrderSharedFeatures(TransactionCase):
                     "context"
                 ]
                 self.assertEqual(ctx["lang"], "en_US")
+
+    # ------------------------------------------------------------------
+    # res.config.settings — order settings plumbing
+    # ------------------------------------------------------------------
+
+    # (settings field, its onchange) for each order type. The field names are
+    # the ones ``res.company`` stores; they differ per type only by history.
+    VALIDITY_SETTINGS = (
+        ("quotation_validity_days", "_onchange_quotation_validity_days"),
+        ("po_quotation_validity_days", "_onchange_po_quotation_validity_days"),
+    )
+    LOCK_SETTINGS = (
+        ("lock_confirmed_so", "order_lock_so"),
+        ("lock_confirmed_po", "order_lock_po"),
+    )
+
+    def test_negative_validity_days_is_reset_to_the_default_with_a_warning(self):
+        for field, onchange in self.VALIDITY_SETTINGS:
+            with self.subTest(field=field):
+                settings = self.env["res.config.settings"].new({field: -5})
+
+                result = getattr(settings, onchange)()
+
+                self.assertIn("warning", result)
+                self.assertEqual(
+                    settings[field],
+                    self.env["res.company"].default_get([field])[field],
+                )
+
+    def test_non_negative_validity_days_is_left_alone(self):
+        for field, onchange in self.VALIDITY_SETTINGS:
+            with self.subTest(field=field):
+                settings = self.env["res.config.settings"].new({field: 7})
+
+                self.assertIsNone(getattr(settings, onchange)())
+                self.assertEqual(settings[field], 7)
+
+    def test_zero_validity_days_is_accepted(self):
+        """0 means "no automatic expiry" and must survive the clamp."""
+        for field, onchange in self.VALIDITY_SETTINGS:
+            with self.subTest(field=field):
+                settings = self.env["res.config.settings"].new({field: 0})
+
+                self.assertIsNone(getattr(settings, onchange)())
+                self.assertEqual(settings[field], 0)
+
+    def test_lock_checkbox_reaches_the_company_setting(self):
+        for checkbox, lock_field in self.LOCK_SETTINGS:
+            with self.subTest(checkbox=checkbox):
+                settings = self.env["res.config.settings"].create({checkbox: True})
+
+                settings._sync_order_lock(checkbox, lock_field)
+
+                self.assertEqual(settings[lock_field], "lock")
+                self.assertEqual(self.env.company[lock_field], "lock")
+
+    def test_clearing_the_lock_checkbox_reaches_the_company_setting(self):
+        for checkbox, lock_field in self.LOCK_SETTINGS:
+            with self.subTest(checkbox=checkbox):
+                self.env.company[lock_field] = "lock"
+                settings = self.env["res.config.settings"].create({checkbox: False})
+
+                settings._sync_order_lock(checkbox, lock_field)
+
+                self.assertEqual(self.env.company[lock_field], "edit")

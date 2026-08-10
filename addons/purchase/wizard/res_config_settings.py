@@ -62,25 +62,13 @@ class ResConfigSettings(models.TransientModel):
 
     @api.onchange("po_quotation_validity_days")
     def _onchange_po_quotation_validity_days(self):
-        if self.po_quotation_validity_days < 0:
-            self.po_quotation_validity_days = self.env["res.company"].default_get(
-                ["po_quotation_validity_days"]
-            )["po_quotation_validity_days"]
-            return {
-                "warning": {
-                    "title": _("Warning"),
-                    "message": _(
-                        "RFQ Validity is required and must be greater or equal to 0."
-                    ),
-                },
-            }
-        return None
+        return self._clamp_validity_days(
+            "po_quotation_validity_days",
+            _("RFQ Validity"),
+        )
 
     # === CRUD METHODS ===#
 
     def set_values(self):
         super().set_values()
-        # Synchronize lock_confirmed_po with order_lock_po
-        order_lock_po = "lock" if self.lock_confirmed_po else "edit"
-        if self.order_lock_po != order_lock_po:
-            self.order_lock_po = order_lock_po
+        self._sync_order_lock("lock_confirmed_po", "order_lock_po")

@@ -6,6 +6,7 @@ from . import order_invoice_mixin
 from . import account_move_line
 from . import res_partner
 from . import product_product
+from . import res_config_settings
 from . import order_merge_mixin
 from . import order_report_mixin
 from . import order_mass_cancel_mixin

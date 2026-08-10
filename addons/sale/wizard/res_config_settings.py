@@ -132,19 +132,10 @@ class ResConfigSettings(models.TransientModel):
 
     @api.onchange("quotation_validity_days")
     def _onchange_quotation_validity_days(self):
-        if self.quotation_validity_days < 0:
-            self.quotation_validity_days = self.env["res.company"].default_get(
-                ["quotation_validity_days"]
-            )["quotation_validity_days"]
-            return {
-                "warning": {
-                    "title": _("Warning"),
-                    "message": _(
-                        "Quotation Validity is required and must be greater or equal to 0."
-                    ),
-                },
-            }
-        return None
+        return self._clamp_validity_days(
+            "quotation_validity_days",
+            _("Quotation Validity"),
+        )
 
     # === CRUD METHODS ===#
 
@@ -154,10 +145,7 @@ class ResConfigSettings(models.TransientModel):
             self.env["ir.config_parameter"].set_param(
                 key="sale.automatic_invoice", value=False
             )
-        # Synchronize lock_confirmed_so with order_lock_so
-        order_lock_so = "lock" if self.lock_confirmed_so else "edit"
-        if self.order_lock_so != order_lock_so:
-            self.order_lock_so = order_lock_so
+        self._sync_order_lock("lock_confirmed_so", "order_lock_so")
 
     # === ACTION METHODS === #
 
