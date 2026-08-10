@@ -348,26 +348,32 @@ class EsbuildCompiler:
 
         alias_flags = list(alias_flags)
         if secondary_parent_stubs:
-            exact_stubs = {
-                spec: shim_js
-                for spec, shim_js in secondary_parent_stubs.items()
-                if "/" in spec
-            }
-            bare_specs = sorted(secondary_parent_stubs.keys() - exact_stubs.keys())
-            if bare_specs:
-                log_event(
-                    _esbuild_log,
-                    logging.WARNING,
-                    "bare_package_stub_skipped",
-                    bundle=self.name,
-                    specs=bare_specs,
-                )
-            if exact_stubs:
-                alias_flags.extend(
-                    self._write_stub_mirror(
-                        Path(tmp_dir) / "stubs", exact_stubs, alias_flags, odoo_root
-                    )
-                )
+            stub_flags = self._write_stub_mirror(
+                Path(tmp_dir) / "stubs",
+                secondary_parent_stubs,
+                alias_flags,
+                odoo_root,
+            )
+            if stub_flags:
+                # A stub's alias must *replace* any alias the addon scan already
+                # emitted for the same specifier, not sit beside it — with two
+                # `--alias:` flags for one specifier which of them wins is
+                # esbuild's business, not ours. This is what a bare package
+                # (`@spreadsheet`, aliased to its `static/src`) always hits, and
+                # what a `_LIB_CANDIDATES` entry aliased straight to a file
+                # (`@odoo/hoot-dom`) would hit too. A plain sub-path specifier
+                # (`@web/core/network`) has no scanned alias, so nothing is
+                # dropped for it.
+                stubbed = {
+                    flag.removeprefix("--alias:").partition("=")[0]
+                    for flag in stub_flags
+                }
+                alias_flags = [
+                    flag
+                    for flag in alias_flags
+                    if flag.removeprefix("--alias:").partition("=")[0] not in stubbed
+                ]
+                alias_flags.extend(stub_flags)
 
         log_event(
             _esbuild_log,
@@ -540,10 +546,19 @@ class EsbuildCompiler:
     def _write_stub_mirror(
         cls,
         stub_root: Path,
-        exact_stubs: dict[str, str],
+        stubs: dict[str, str],
         alias_flags: list[str],
         odoo_root: Path,
     ) -> list[str]:
+        """Write each shim as `<mirror>/<spec>.js` and alias the specifier at the
+        extensionless `<mirror>/<spec>`, so file resolution picks the shim while
+        `<spec>/<sub>` still reaches the real tree beside it.
+
+        A bare package (`@spreadsheet`) is the depth-0 case of that same shape:
+        the shim lands at `<mirror>/spreadsheet.js` next to a mirror of the
+        addon's `static/src`, which is what its own `index.js` would otherwise
+        have resolved to. The caller drops the scanned alias it replaces.
+        """
         addon_roots = {}
         for flag in alias_flags:
             spec, _, target = flag.removeprefix("--alias:").partition("=")
@@ -552,7 +567,7 @@ class EsbuildCompiler:
 
         occupied: dict[str, set[str]] = {}
         must_be_real: set[str] = set()
-        for spec in exact_stubs:
+        for spec in stubs:
             parent_rel, _, name = spec.lstrip("@").rpartition("/")
             occupied.setdefault(parent_rel, set()).add(f"{name}.js")
             while parent_rel:
@@ -560,7 +575,7 @@ class EsbuildCompiler:
                 parent_rel = parent_rel.rpartition("/")[0]
 
         flags = []
-        for spec in sorted(exact_stubs):
+        for spec in sorted(stubs):
             rel = spec.lstrip("@")
             stub_path = stub_root / rel
             stub_path.parent.mkdir(parents=True, exist_ok=True)
@@ -572,7 +587,7 @@ class EsbuildCompiler:
                     stub_path.symlink_to(real_dir, target_is_directory=True)
             shim_path = stub_root / f"{rel}.js"
             cls._ensure_inside_mirror(shim_path, stub_root)
-            shim_path.write_text(exact_stubs[spec], encoding="utf-8")
+            shim_path.write_text(stubs[spec], encoding="utf-8")
             flags.append(f"--alias:{spec}={stub_path}")
         return flags
 

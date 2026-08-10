@@ -831,6 +831,125 @@ class TestDeepStubMirror(BaseCase):
             self.assertIn("outside the stub mirror", str(caught.exception))
 
 
+class TestBarePackageStubMirror(BaseCase):
+    """A bare package specifier (`@spreadsheet`) is stubbable like any other.
+
+    It used to be dropped with a `bare_package_stub_skipped` warning: the shim
+    was built and then thrown away, leaving the specifier pointed at the addon's
+    real `static/src`. Nothing imports `@spreadsheet` at runtime today — every
+    reference to it is a JSDoc `import("@spreadsheet")` type annotation — so the
+    hole cost nothing measurable, and closing it leaves `web.assets_web`
+    byte-identical. What it closes is the case where a bare package a parent
+    bundle *does* import gets inlined into that parent instead of deferring to
+    the child bundle that owns it, which would duplicate the module's state.
+    """
+
+    BARE = "@probe"
+    SUB = "@probe/core/network"
+    ADDON_ALIAS = "--alias:@probe=./addons/probe/static/src"
+
+    def _build_mirror(self, tmp, stubs=None):
+        odoo_root = Path(tmp)
+        real = odoo_root / "addons" / "probe" / "static" / "src"
+        (real / "core").mkdir(parents=True)
+        # What the bare specifier resolves to without a stub.
+        (real / "index.js").write_text("export const face = 'REAL_INDEX';")
+        (real / "core" / "network.js").write_text("export const net = 'REAL_NET';")
+        stub_root = odoo_root / "stubs"
+        flags = EsbuildCompiler._write_stub_mirror(
+            stub_root,
+            stubs or {self.BARE: "export const face = 'SHIM_INDEX';"},
+            [self.ADDON_ALIAS],
+            odoo_root,
+        )
+        return stub_root, real, {f.split("=")[0]: f.split("=", 1)[1] for f in flags}
+
+    def test_the_bare_specifier_gets_a_shim_and_an_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, _real, targets = self._build_mirror(tmp)
+
+            self.assertEqual(targets[f"--alias:{self.BARE}"], str(stub_root / "probe"))
+            self.assertEqual(
+                (stub_root / "probe.js").read_text(),
+                "export const face = 'SHIM_INDEX';",
+            )
+
+    def test_the_addon_static_src_is_still_reachable_beside_the_shim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, _real, _targets = self._build_mirror(tmp)
+
+            # Sub-path imports keep resolving through the mirror to the real file.
+            self.assertEqual(
+                (stub_root / "probe" / "core" / "network.js").read_text(),
+                "export const net = 'REAL_NET';",
+            )
+
+    def test_a_bare_stub_alongside_a_sub_path_stub_writes_both(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub_root, real, _targets = self._build_mirror(
+                tmp,
+                stubs={
+                    self.BARE: "export const face = 'SHIM_INDEX';",
+                    self.SUB: "export const net = 'SHIM_NET';",
+                },
+            )
+
+            self.assertEqual(
+                (stub_root / "probe.js").read_text(),
+                "export const face = 'SHIM_INDEX';",
+            )
+            self.assertEqual(
+                (stub_root / "probe" / "core" / "network.js").read_text(),
+                "export const net = 'SHIM_NET';",
+            )
+            # The mirror must not have been written through into the source tree.
+            self.assertEqual(
+                (real / "core" / "network.js").read_text(),
+                "export const net = 'REAL_NET';",
+            )
+
+    @unittest.skipUnless(_find_esbuild(), "esbuild binary not available")
+    def test_esbuild_prefers_the_shim_over_the_packages_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _stub_root, _real, targets = self._build_mirror(tmp)
+            entry = Path(tmp) / "entry.js"
+            entry.write_text(
+                f"import {{ face }} from '{self.BARE}';\n"
+                f"import {{ net }} from '{self.SUB}';\n"
+                "console.log(face, net);\n"
+            )
+            # The scanned addon alias is dropped for a stubbed specifier, exactly
+            # as `compile()` does — leaving both would make the winner esbuild's
+            # choice rather than ours.
+            stubbed = {key.removeprefix("--alias:") for key in targets}
+            alias_flags = [
+                flag
+                for flag in [self.ADDON_ALIAS]
+                if flag.removeprefix("--alias:").partition("=")[0] not in stubbed
+            ]
+
+            proc = subprocess.run(
+                [
+                    _find_esbuild(),
+                    str(entry),
+                    "--bundle",
+                    "--format=esm",
+                    *alias_flags,
+                    *(f"{spec}={target}" for spec, target in targets.items()),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("SHIM_INDEX", proc.stdout)
+            self.assertNotIn("REAL_INDEX", proc.stdout)
+            # ...while an unstubbed sub-path still reaches the real module.
+            self.assertIn("REAL_NET", proc.stdout)
+
+
 class TestEsbuildFailClosed(TransactionCase):
     def _run(self, **config):
         from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
