@@ -12,6 +12,16 @@ class ResPartner(models.Model):
     user_purchase_id = fields.Many2one(
         comodel_name="res.users",
         string="Buyer",
+        compute="_compute_user_purchase_id",
+        precompute=True,
+        readonly=False,
+        store=True,
+        # mail tracks the salesperson (``user_id``, sequence 4); the buyer is
+        # the same kind of assignment and was the only half not logged. Bare
+        # ``tracking=True`` on purpose: 1-5 is mail's curated block for the
+        # core identity fields, and purchase does not belong inside it.
+        tracking=True,
+        help="The internal user in charge of purchases from this contact.",
     )
     property_purchase_currency_id = fields.Many2one(
         comodel_name="res.currency",
@@ -44,6 +54,30 @@ class ResPartner(models.Model):
     # ------------------------------------------------------------
     # COMPUTE METHODS
     # ------------------------------------------------------------
+
+    @api.depends("parent_id")
+    def _compute_user_purchase_id(self):
+        """Mirror ``res.partner._compute_user_id`` for the buyer.
+
+        ``user_id`` ("Salesperson") is declared in ``base`` and has always
+        cascaded from the parent company to its contacts. ``user_purchase_id``
+        is purchase's own field — the name ``user_id`` was taken — and never
+        gained the same rule, so a contact under a company showed no buyer.
+
+        ``purchase.order`` papered over it by falling back to
+        ``commercial_partner_id`` when defaulting the buyer, but
+        ``purchase_stock``'s stock rules read the field raw: an RFQ generated
+        for a child contact got no buyer at all, and its merge domain
+        (``user_id = False``) would not match the buyer's existing draft.
+        """
+        for partner in self.filtered(
+            lambda partner: (
+                not partner.user_purchase_id
+                and not partner.is_company
+                and partner.parent_id.user_purchase_id
+            )
+        ):
+            partner.user_purchase_id = partner.parent_id.user_purchase_id
 
     def _compute_purchase_order_count(self):
         self._compute_order_count(
