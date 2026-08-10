@@ -1,4 +1,5 @@
 import logging
+import re
 from collections.abc import Collection
 from datetime import datetime, timedelta
 from typing import Any, Self
@@ -138,6 +139,36 @@ _INTERPOLATION_FORMATS = {
     "isoy": "%g",
     "isoweek": "%V",
 }
+
+# Width of what each format above emits. strftime zero-pads all of them, which is
+# what makes the table invertible: a fixed width per placeholder is enough to take
+# a string the pattern produced back apart. Kept beside the formats so the two
+# cannot drift.
+_INTERPOLATION_WIDTHS = {
+    "year": 4,
+    "month": 2,
+    "day": 2,
+    "y": 2,
+    "doy": 3,
+    "woy": 2,
+    "weekday": 1,
+    "h24": 2,
+    "h12": 2,
+    "min": 2,
+    "sec": 2,
+    "isoyear": 4,
+    "isoy": 2,
+    "isoweek": 2,
+}
+
+# Same `range_` / `current_` prefixes `_InterpolationDict.__missing__` accepts.
+_INTERPOLATION_REGEXES = {
+    prefix + name: rf"\d{{{width}}}"
+    for name, width in _INTERPOLATION_WIDTHS.items()
+    for prefix in ("", "range_", "current_")
+}
+
+_PLACEHOLDER_RE = re.compile(r"%\((\w+)\)s")
 
 
 class _InterpolationDict(dict):
@@ -400,6 +431,55 @@ class IrSequence(models.Model):
             + f"{number_next:0{max(0, self.padding)}d}"
             + interpolated_suffix
         )
+
+    @api.model
+    def _get_pattern_placeholders(self) -> dict[str, str]:
+        """Placeholder name -> regex for what interpolating it can emit.
+
+        Override to declare placeholders a caller substitutes itself, on top of
+        the date ones every sequence understands.
+        """
+        return dict(_INTERPOLATION_REGEXES)
+
+    @api.model
+    def _pattern_to_regex(self, pattern: str) -> str:
+        """Compile a prefix/suffix pattern into an anchored regex with named groups.
+
+        `_get_prefix_suffix` runs a pattern forward, turning `%(year)s` into a
+        year. This runs it backward, so a string the pattern could have produced
+        can be recognised and taken apart again — which is what validating a
+        user-typed reference, or recovering the date encoded in one, needs.
+
+        A placeholder used twice becomes a backreference rather than a second
+        group: one interpolation cannot yield two different values, so a string
+        where the two copies disagree is not one this pattern produced.
+
+        :param str pattern: pattern in `%(name)s` form, as `prefix`/`suffix` hold
+        :return: anchored regex, one named group per distinct placeholder
+        :rtype: str
+        :raises ValueError: if the pattern names a placeholder with no regex
+        """
+        placeholders = self._get_pattern_placeholders()
+        parts = ["^"]
+        seen = set()
+        position = 0
+        for match in _PLACEHOLDER_RE.finditer(pattern):
+            parts.append(re.escape(pattern[position : match.start()]))
+            name = match.group(1)
+            if name not in placeholders:
+                raise ValueError(
+                    f"Unknown placeholder %({name})s: expected one of "
+                    f"{', '.join(sorted(placeholders))}"
+                )
+            if name in seen:
+                parts.append(f"(?P={name})")
+            else:
+                seen.add(name)
+                parts.append(f"(?P<{name}>{placeholders[name]})")
+            position = match.end()
+        parts.append(re.escape(pattern[position:]))
+        parts.append("$")
+        return "".join(parts)
 
     def _create_date_range_seq(self, date: Any) -> Any:
         year = fields.Date.from_string(date).strftime("%Y")

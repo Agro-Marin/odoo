@@ -1,5 +1,7 @@
+import re
 from contextlib import contextmanager
 from datetime import datetime
+from unittest.mock import patch
 
 import psycopg.errors
 
@@ -9,6 +11,8 @@ from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase
 from odoo.tools.misc import mute_logger
+
+from odoo.addons.base.models.ir_sequence import _INTERPOLATION_FORMATS
 
 ADMIN_USER_ID = common.ADMIN_USER_ID
 
@@ -560,3 +564,79 @@ class TestIrSequenceStepInvariant(common.TransactionCase):
             implementation="standard", number_increment=3, number_next=10
         )
         self.assertEqual([standard._next() for _ in range(3)], ["010", "013", "016"])
+
+
+class TestIrSequencePatternToRegex(common.TransactionCase):
+    """`_pattern_to_regex` must recognise exactly what `_get_prefix_suffix` emits."""
+
+    def test_every_placeholder_round_trips(self):
+        """Each date placeholder matches, and its group recovers the emitted value.
+
+        This is the property that keeps the widths table honest: it is derived
+        from what strftime actually pads to, not from what it looks like it does.
+        """
+        sequence = self.env["ir.sequence"]
+        for name in _INTERPOLATION_FORMATS:
+            with self.subTest(placeholder=name):
+                pattern = f"REF/%({name})s/"
+                emitted, _suffix = (
+                    self.env["ir.sequence"]
+                    .create({"name": name, "prefix": pattern, "padding": 0})
+                    ._get_prefix_suffix()
+                )
+                match = re.match(sequence._pattern_to_regex(pattern), emitted)
+                self.assertIsNotNone(
+                    match, f"%({name})s emitted {emitted!r}, which its regex rejects"
+                )
+                self.assertEqual(match.group(name), emitted[4:-1])
+
+    def test_full_generated_name_round_trips(self):
+        """A whole name, prefix + padded counter + suffix, is recognised."""
+        sequence = self.env["ir.sequence"].create(
+            {
+                "name": "round trip",
+                "prefix": "%(year)s%(month)s/",
+                "suffix": "/%(day)s",
+                "padding": 5,
+            }
+        )
+        name = sequence.get_next_char(42)
+        pattern = "%(year)s%(month)s/00042/%(day)s"
+        match = re.match(sequence._pattern_to_regex(pattern), name)
+        self.assertIsNotNone(match, f"{name!r} not matched by its own pattern")
+        self.assertEqual(match.group("year"), datetime.now().strftime("%Y"))
+
+    def test_repeated_placeholder_is_a_backreference(self):
+        """The same placeholder twice cannot match two different values."""
+        regex = self.env["ir.sequence"]._pattern_to_regex("%(y)s-%(y)s")
+        self.assertIsNotNone(re.match(regex, "26-26"))
+        self.assertIsNone(re.match(regex, "26-27"))
+
+    def test_literals_are_escaped(self):
+        """Regex metacharacters in the pattern match themselves."""
+        regex = self.env["ir.sequence"]._pattern_to_regex("A.C|%(y)s")
+        self.assertIsNotNone(re.match(regex, "A.C|26"))
+        self.assertIsNone(re.match(regex, "AbC|26"))
+
+    def test_anchored_at_both_ends(self):
+        """A pattern matches the whole reference, never a fragment of one."""
+        regex = self.env["ir.sequence"]._pattern_to_regex("%(year)s")
+        self.assertIsNone(re.match(regex, "2026/EXTRA"))
+        self.assertIsNone(re.match(regex, "X2026"))
+
+    def test_unknown_placeholder_is_rejected(self):
+        """A placeholder core cannot interpolate is a pattern error, not a literal."""
+        with self.assertRaises(ValueError):
+            self.env["ir.sequence"]._pattern_to_regex("%(vendor_lot)s")
+
+    def test_placeholders_are_extensible(self):
+        """A caller can declare its own placeholder without patching the parser."""
+        sequence = self.env["ir.sequence"]
+        extended = dict(sequence._get_pattern_placeholders(), vendor_lot=r"[A-Z0-9]+")
+        with patch.object(
+            type(sequence), "_get_pattern_placeholders", return_value=extended
+        ):
+            regex = sequence._pattern_to_regex("%(y)s-%(vendor_lot)s")
+        match = re.match(regex, "26-AYE4B1501C")
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group("vendor_lot"), "AYE4B1501C")
