@@ -8,7 +8,7 @@ assert SOURCE_LANG.replace("_", "").isalnum(), "SOURCE_LANG must be an alphanume
 _NAME_SOURCE_SQL = f"(name->>'{SOURCE_LANG}')"
 
 
-def name_uniq_index(*scope, message=None):
+def name_uniq_index(*scope, message=None, nulls_distinct=False, where=None):
     """Build the catalog name-uniqueness rule, optionally scoped to a parent.
 
     **Why an index and not a Constraint.** A ``translate=True`` Char is stored
@@ -51,11 +51,22 @@ def name_uniq_index(*scope, message=None):
         a parentless record still collides with another parentless record of
         the same name.
     :param str message: what to tell the user on a violation.
+    :param bool nulls_distinct: keep PostgreSQL's default treatment of NULL
+        scope columns, where two rows with a NULL there never collide. Only for
+        *converting an existing* ``UNIQUE(name, ...)``, whose NULL semantics
+        these are: fixing the jsonb comparison is one change and tightening the
+        NULL handling is another, and they do not have to be made together. A
+        catalog adopting the rule for the first time wants the default -- see
+        the ``NULLS NOT DISTINCT`` note above.
+    :param str where: partial-index predicate, for a rule that applies to only
+        some rows. Same reason: a converted index may already have one.
     :rtype: odoo.models.UniqueIndex
     """
     columns = ", ".join([_NAME_SOURCE_SQL, *scope])
+    nulls = "" if nulls_distinct else " NULLS NOT DISTINCT"
+    predicate = f" WHERE {where}" if where else ""
     return models.UniqueIndex(
-        f"({columns}) NULLS NOT DISTINCT",
+        f"({columns}){nulls}{predicate}",
         message or "A record with this name already exists in this catalog.",
     )
 
