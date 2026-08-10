@@ -9,7 +9,7 @@ import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
-import { useFieldHandle } from "@web/fields/field_handle";
+import { fieldHandle } from "@web/fields/field_handle";
 import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -36,6 +36,11 @@ export class TextField extends TextInputFieldBase {
         rowCount: 2,
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @type {import("@odoo/owl").Ref<HTMLTextAreaElement>} */
     textareaRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
@@ -47,7 +52,6 @@ export class TextField extends TextInputFieldBase {
     }
 
     setup() {
-        this.field = useFieldHandle();
         useRenderCounter("fields.TextField");
         this.divRef = useRef("div");
         this.textareaRef = useRef("textarea");

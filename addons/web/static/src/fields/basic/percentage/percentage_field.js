@@ -9,6 +9,7 @@ import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -20,6 +21,11 @@ export class PercentageField extends NumericInputFieldBase {
         ...standardFieldProps,
         digits: { type: Array, optional: true },
     };
+
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
 
     /**
      * @param {string} v
@@ -43,7 +49,7 @@ export class PercentageField extends NumericInputFieldBase {
         return formatPercentage(this.value, {
             digits: this.props.digits,
             noSymbol: true,
-            field: this.props.record.fields[this.props.name],
+            field: this.field.definition,
         });
     }
 
@@ -51,7 +57,7 @@ export class PercentageField extends NumericInputFieldBase {
     get formattedValueWithSymbol() {
         return formatPercentage(this.value, {
             digits: this.props.digits,
-            field: this.props.record.fields[this.props.name],
+            field: this.field.definition,
         });
     }
 }

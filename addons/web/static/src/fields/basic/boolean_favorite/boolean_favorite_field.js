@@ -7,6 +7,7 @@ import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { extractAutosave } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -22,18 +23,19 @@ export class BooleanFavoriteField extends Component {
         autosave: true,
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @returns {string} */
     get iconClass() {
-        return this.props.record.data[this.props.name]
-            ? "fa-solid fa-star me-1"
-            : "fa-regular fa-star me-1";
+        return this.field.value ? "fa-solid fa-star me-1" : "fa-regular fa-star me-1";
     }
 
     /** @returns {string} */
     get label() {
-        return this.props.record.data[this.props.name]
-            ? _t("Remove from Favorites")
-            : _t("Add to Favorites");
+        return this.field.value ? _t("Remove from Favorites") : _t("Add to Favorites");
     }
 
     /** @returns {Promise<void>} */
@@ -41,10 +43,7 @@ export class BooleanFavoriteField extends Component {
         if (this.props.readonly) {
             return;
         }
-        const changes = {
-            [this.props.name]: !this.props.record.data[this.props.name],
-        };
-        await this.props.record.update(changes, { save: this.props.autosave });
+        await this.field.update(!this.field.value, { save: this.props.autosave });
     }
 }
 

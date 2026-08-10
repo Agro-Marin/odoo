@@ -9,6 +9,7 @@ import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
@@ -30,6 +31,11 @@ export class CharField extends TextInputFieldBase {
     };
     static defaultProps = { dynamicPlaceholder: false };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
     input;
 
@@ -43,7 +49,7 @@ export class CharField extends TextInputFieldBase {
         this.input = useRef("input");
         this.setupDynamicPlaceholder(this.input);
         useInputField({
-            getValue: () => this.props.record.data[this.props.name] || "",
+            getValue: () => this.field.value || "",
             parse: (v) => this.parse(v),
         });
     }
@@ -54,11 +60,11 @@ export class CharField extends TextInputFieldBase {
     }
     /** @returns {number | undefined} */
     get maxLength() {
-        return this.props.record.fields[this.props.name].size;
+        return this.field.definition.size;
     }
     /** @returns {string} */
     get formattedValue() {
-        return formatChar(this.props.record.data[this.props.name], {
+        return formatChar(this.field.value, {
             isPassword: this.props.isPassword,
         });
     }

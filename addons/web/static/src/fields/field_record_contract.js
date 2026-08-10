@@ -74,7 +74,7 @@ export const FIELD_RECORD_SURFACE = [
  * derivable is.
  *
  * The majority of the traffic through the widest member is a widget reading its
- * own value the long way round, which is what `useFieldHandle`
+ * own value the long way round, which is what `fieldHandle`
  * (`@web/fields/field_handle`) exists to shorten. A widget that has adopted it
  * reaches no record member at all and is counted as `detached`; that number,
  * not `narrow`, is what moves as the conversion proceeds.

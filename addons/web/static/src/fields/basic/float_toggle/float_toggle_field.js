@@ -8,6 +8,7 @@ import { formatFloatFactor } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class FloatToggleField extends Component {
@@ -25,9 +26,14 @@ export class FloatToggleField extends Component {
         disableReadOnly: false,
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     onChange() {
         const range = this.range;
-        const current = this.props.record.data[this.props.name] * this.factor;
+        const current = this.field.value * this.factor;
         const EPSILON = 1e-6;
         let currentIndex = range.findIndex(
             (/** @type {number} */ v) => Math.abs(v - current) < EPSILON,
@@ -36,9 +42,7 @@ export class FloatToggleField extends Component {
         if (currentIndex > range.length - 1) {
             currentIndex = 0;
         }
-        this.props.record.update({
-            [this.props.name]: range[currentIndex] / this.factor,
-        });
+        this.field.update(range[currentIndex] / this.factor);
     }
 
     /**
@@ -77,10 +81,10 @@ export class FloatToggleField extends Component {
 
     /** @returns {string} */
     get formattedValue() {
-        return formatFloatFactor(this.props.record.data[this.props.name], {
+        return formatFloatFactor(this.field.value, {
             digits: this.props.digits,
             factor: this.factor,
-            field: this.props.record.fields[this.props.name],
+            field: this.field.definition,
         });
     }
 }

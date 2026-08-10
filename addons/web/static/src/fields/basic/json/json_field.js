@@ -7,7 +7,7 @@ import { Component } from "@odoo/owl";
 import { formatJson } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { useFieldHandle } from "@web/fields/field_handle";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JsonField extends Component {
@@ -16,8 +16,9 @@ export class JsonField extends Component {
         ...standardFieldProps,
     };
 
-    setup() {
-        this.field = useFieldHandle();
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
     }
 
     /** @returns {string} */

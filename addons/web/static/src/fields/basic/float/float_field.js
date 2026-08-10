@@ -8,6 +8,7 @@ import { parseFloat } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { registerField } from "@web/fields/_registry";
+import { fieldHandle } from "@web/fields/field_handle";
 import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -34,6 +35,11 @@ export class FloatField extends NumericInputFieldBase {
         trailingZeros: true,
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /**
      * @param {string} value
      * @returns {number | import("@web/core/utils/operation").Operation}
@@ -55,7 +61,7 @@ export class FloatField extends NumericInputFieldBase {
         const options = {
             digits: this.props.digits,
             minDigits: this.props.minDigits,
-            field: this.props.record.fields[this.props.name],
+            field: this.field.definition,
             trailingZeros: this.props.trailingZeros,
         };
         if (this.props.humanReadable && !this.state.hasFocus) {

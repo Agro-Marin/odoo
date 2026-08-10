@@ -7,7 +7,7 @@ import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
-import { useFieldHandle } from "@web/fields/field_handle";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ColorField extends Component {
@@ -20,11 +20,15 @@ export class ColorField extends Component {
         autosave: false,
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     /** @type {{ livePreview: string | null }} */
     state;
 
     setup() {
-        this.field = useFieldHandle();
         this.state = useState({ livePreview: null });
     }
 
@@ -44,10 +48,9 @@ export class ColorField extends Component {
     /** @param {Event} ev */
     onChange(ev) {
         this.state.livePreview = null;
-        this.props.record.update(
-            { [this.props.name]: /** @type {HTMLInputElement} */ (ev.target).value },
-            { save: this.props.autosave },
-        );
+        this.field.update(/** @type {HTMLInputElement} */ (ev.target).value, {
+            save: this.props.autosave,
+        });
     }
 }
 

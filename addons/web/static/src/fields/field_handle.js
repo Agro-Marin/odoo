@@ -5,6 +5,9 @@
 
 import { useComponent } from "@odoo/owl";
 
+/** @type {WeakMap<object, FieldHandle>} */
+const HANDLES = new WeakMap();
+
 /**
  * The field a widget is rendering: its value, its definition, and how to write
  * it back.
@@ -54,40 +57,79 @@ import { useComponent } from "@odoo/owl";
  * 38 widgets that genuinely need the record keep using it, and
  * `js_field_record_surface` measures the balance either way.
  *
+ * ## Why a getter and not a `setup()` assignment
+ *
+ * `this.field = useFieldHandle()` in `setup()` is the shorter spelling and it is
+ * not safe here. A subclass that overrides `setup()` **without calling
+ * `super.setup()`** loses every instance property the base set, and these
+ * widgets are subclassed heavily — twenty-odd classes across the fork extend
+ * `CharField`, `FloatField`, `TextField` and friends, plus web's own tests.
+ * The hazard pre-exists (`CharField.setup` already sets `this.input`), but a
+ * handle read by a getter that runs on *every* render widens it from "some
+ * paths break" to "the widget throws on mount". `form_view.test.js`'s
+ * `AsyncField extends CharField` is exactly that shape and is what caught it.
+ *
+ * A prototype getter is immune: it resolves through the prototype chain whatever
+ * the subclass did with `setup()`. So a widget writes
+ *
+ * ```js
+ * get field() {
+ *     return fieldHandle(this);
+ * }
+ * ```
+ *
+ * The handle is memoized per component, so the getter is a WeakMap lookup rather
+ * than an allocation per render.
+ *
+ * @param {any} component
+ * @returns {FieldHandle}
+ */
+export function fieldHandle(component) {
+    let handle = HANDLES.get(component);
+    if (!handle) {
+        handle = {
+            get name() {
+                return component.props.name;
+            },
+            get value() {
+                return component.props.record.data[component.props.name];
+            },
+            get definition() {
+                return component.props.record.fields[component.props.name];
+            },
+            get type() {
+                return component.props.record.fields[component.props.name].type;
+            },
+            get readonly() {
+                return Boolean(component.props.readonly);
+            },
+            update(value, options) {
+                return component.props.record.update(
+                    { [component.props.name]: value },
+                    options,
+                );
+            },
+        };
+        HANDLES.set(component, handle);
+    }
+    return handle;
+}
+
+/**
+ * The hook spelling, for a widget that would rather hold the handle than declare
+ * a getter. Prefer the getter on anything that is subclassed — see above.
+ *
  * @returns {FieldHandle}
  */
 export function useFieldHandle() {
-    const component = /** @type {any} */ (useComponent());
-    return {
-        get name() {
-            return component.props.name;
-        },
-        get value() {
-            return component.props.record.data[component.props.name];
-        },
-        get field() {
-            return component.props.record.fields[component.props.name];
-        },
-        get type() {
-            return component.props.record.fields[component.props.name].type;
-        },
-        get readonly() {
-            return Boolean(component.props.readonly);
-        },
-        update(value, options) {
-            return component.props.record.update(
-                { [component.props.name]: value },
-                options,
-            );
-        },
-    };
+    return fieldHandle(useComponent());
 }
 
 /**
  * @typedef {{
  *  readonly name: string,
  *  readonly value: any,
- *  readonly field: Record<string, any>,
+ *  readonly definition: Record<string, any>,
  *  readonly type: string,
  *  readonly readonly: boolean,
  *  update: (value: any, options?: { save?: boolean }) => Promise<void>,

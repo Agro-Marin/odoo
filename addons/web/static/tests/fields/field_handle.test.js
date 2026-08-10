@@ -4,8 +4,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { useFieldHandle } from "@web/fields/field_handle";
 import { SignalStore } from "@web/core/utils/reactive";
+import { fieldHandle, useFieldHandle } from "@web/fields/field_handle";
 
 describe.current.tags("headless");
 
@@ -25,8 +25,8 @@ class FakeRecord extends SignalStore {
 class Widget extends Component {
     static template = xml`<span t-esc="handle.value"/>`;
     static props = ["record", "name", "readonly?"];
-    setup() {
-        this.handle = useFieldHandle();
+    get handle() {
+        return fieldHandle(this);
     }
 }
 
@@ -80,7 +80,7 @@ test("field and type come from the record's field definitions", async () => {
     const parent = await mountWidget(record);
     const widget = Object.values(/** @type {any} */ (parent).__owl__.children)[0];
     const handle = /** @type {any} */ (widget).component.handle;
-    expect(handle.field.string).toBe("Foo");
+    expect(handle.definition.string).toBe("Foo");
     expect(handle.type).toBe("char");
     expect(handle.name).toBe("foo");
 });
@@ -143,7 +143,8 @@ test("a parent-built handle does NOT subscribe the child", async () => {
     record.update({ foo: "z" });
     await animationFrame();
     expect("span").toHaveText("a", {
-        message: "if this ever passes, a `field` prop became possible — re-read field_handle.js",
+        message:
+            "if this ever passes, a `field` prop became possible — re-read field_handle.js",
     });
 });
 
@@ -172,5 +173,68 @@ test("wrapping the record in useState in the PARENT does not fix it", async () =
     await animationFrame();
     expect("span").toHaveText("a", {
         message: "it subscribes the parent, whose child props are unchanged",
+    });
+});
+
+test("the handle survives a subclass that overrides setup without super", async () => {
+    // THE regression: `this.field = useFieldHandle()` in setup is lost by such a
+    // subclass, and web's own form_view suite contains one
+    // (`AsyncField extends CharField`). A prototype getter resolves regardless.
+    const record = new FakeRecord();
+
+    class Base extends Component {
+        static template = xml`<span t-esc="field.value"/>`;
+        static props = ["record", "name"];
+        setup() {
+            this.fromBase = true;
+        }
+        get field() {
+            return fieldHandle(this);
+        }
+    }
+    class Derived extends Base {
+        setup() {} // deliberately does not call super.setup()
+    }
+    class Parent extends Component {
+        static template = xml`<Derived record="record" name="'foo'"/>`;
+        static components = { Derived };
+        static props = {};
+        setup() {
+            this.record = record;
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    expect("span").toHaveText("a");
+    record.update({ foo: "z" });
+    await animationFrame();
+    expect("span").toHaveText("z");
+});
+
+test("the hook spelling returns the same handle as the getter", async () => {
+    const record = new FakeRecord();
+    let fromHook;
+    class W extends Component {
+        static template = xml`<span t-esc="field.value"/>`;
+        static props = ["record", "name"];
+        setup() {
+            fromHook = useFieldHandle();
+        }
+        get field() {
+            return fieldHandle(this);
+        }
+    }
+    class Parent extends Component {
+        static template = xml`<W record="record" name="'foo'"/>`;
+        static components = { W };
+        static props = {};
+        setup() {
+            this.record = record;
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    const widget = Object.values(/** @type {any} */ (parent).__owl__.children)[0];
+    expect(fromHook).toBe(/** @type {any} */ (widget).component.field, {
+        message: "memoized per component, so both spellings are one object",
     });
 });

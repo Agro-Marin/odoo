@@ -8,7 +8,7 @@ import { parseFloatTime } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
-import { useFieldHandle } from "@web/fields/field_handle";
+import { fieldHandle } from "@web/fields/field_handle";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
@@ -20,9 +20,9 @@ export class FloatTimeField extends NumericInputFieldBase {
         displaySeconds: { type: Boolean, optional: true },
     };
 
-    setup() {
-        super.setup();
-        this.field = useFieldHandle();
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
     }
 
     /**

@@ -6,6 +6,7 @@
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";
+import { fieldHandle } from "@web/fields/field_handle";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -17,15 +18,20 @@ export class PhoneField extends TrimmingInputFieldBase {
         required: { type: Boolean, optional: true },
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     setup() {
         useInputField({
-            getValue: () => this.props.record.data[this.props.name] || "",
+            getValue: () => this.field.value || "",
             parse: (v) => this.parse(v),
         });
     }
     /** @returns {string} */
     get phoneHref() {
-        return `tel:${(this.props.record.data[this.props.name] || "").replace(/\s+/g, "")}`;
+        return `tel:${(this.field.value || "").replace(/\s+/g, "")}`;
     }
 }
 

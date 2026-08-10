@@ -7,6 +7,7 @@ import { _t } from "@web/core/translation";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
 import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";
+import { fieldHandle } from "@web/fields/field_handle";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -20,6 +21,11 @@ export class UrlField extends TrimmingInputFieldBase {
         required: { type: Boolean, optional: true },
     };
 
+    /** @returns {import("@web/fields/field_handle").FieldHandle} */
+    get field() {
+        return fieldHandle(this);
+    }
+
     setup() {
         useInputField({
             getValue: () => this.value,
@@ -29,14 +35,14 @@ export class UrlField extends TrimmingInputFieldBase {
 
     /** @returns {string} */
     get value() {
-        return this.props.record.data[this.props.name] || "";
+        return this.field.value || "";
     }
 
     /**
      * @returns {string}
      */
     get formattedHref() {
-        let value = this.props.record.data[this.props.name];
+        let value = this.field.value;
         if (!value) {
             return "";
         }
