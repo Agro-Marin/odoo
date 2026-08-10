@@ -101,15 +101,19 @@ class TestBaseBenchmark(TransactionCase):
         # The benchmark needs distinct VAT strings, not checksum-valid ones. Without
         # no_vat_validation these synthetic numbers fail base_vat's Belgian check,
         # making a core benchmark depend on whether an optional addon is installed.
-        partners = self.env["res.partner"].with_context(no_vat_validation=True).create(
-            [
-                {
-                    "name": f"BenchVAT_{i}",
-                    "vat": f"BE{i:010d}",
-                    "country_id": self.env.ref("base.be").id,
-                }
-                for i in range(20)
-            ]
+        partners = (
+            self.env["res.partner"]
+            .with_context(no_vat_validation=True)
+            .create(
+                [
+                    {
+                        "name": f"BenchVAT_{i}",
+                        "vat": f"BE{i:010d}",
+                        "country_id": self.env.ref("base.be").id,
+                    }
+                    for i in range(20)
+                ]
+            )
         )
 
         self._run_benchmark(

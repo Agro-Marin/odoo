@@ -94,7 +94,9 @@ class TestDeprecatedPropertiesUpgrade(unittest.TestCase):
         self.assertEqual(_run(src), src)
 
     def test_comparisons_are_still_reads(self):
-        self.assertEqual(_run("if a._uid == 1:\n    pass\n"), "if a.env.uid == 1:\n    pass\n")
+        self.assertEqual(
+            _run("if a._uid == 1:\n    pass\n"), "if a.env.uid == 1:\n    pass\n"
+        )
 
     def test_unparseable_source_is_left_untouched(self):
         src = "def broken(:\n    pass\n"

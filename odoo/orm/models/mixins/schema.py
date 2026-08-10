@@ -215,9 +215,7 @@ class SchemaMixin(_ModelStubs):
             "constraint_name": diag.constraint_name,
         }
         if self._table == diag.table_name:
-            columns = sql.constraint_columns(
-                self.env.cr, diag, check_registry=True
-            )
+            columns = sql.constraint_columns(self.env.cr, diag, check_registry=True)
         else:
             columns = sql.constraint_columns(self.env.cr, diag)
             info["model_display"] = unknown

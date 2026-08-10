@@ -135,6 +135,7 @@ def register_condition_operators(operators: Collection[str]) -> frozenset[str]:
     ACCEPTED_CONDITION_OPERATORS.update(operators)
     return operators
 
+
 LIKE_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
     op for op in STANDARD_CONDITION_OPERATORS if op.endswith("like")
 )

@@ -53,8 +53,9 @@ def _serving(tmp_path, *, x_sendfile):
     environ = EnvironBuilder(method="GET", path="/web/content/1").get_environ()
     environ["werkzeug.request"] = None
     fake_request = SimpleNamespace(httprequest=SimpleNamespace(environ=environ))
-    with _config(tmp_path, x_sendfile=x_sendfile), patch(
-        "odoo.http.stream.request", fake_request
+    with (
+        _config(tmp_path, x_sendfile=x_sendfile),
+        patch("odoo.http.stream.request", fake_request),
     ):
         yield
 

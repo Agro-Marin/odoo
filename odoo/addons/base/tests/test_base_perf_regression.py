@@ -18,15 +18,19 @@ class TestBasePerfRegression(TransactionCase):
 
         # Distinct VAT strings suffice here; no_vat_validation keeps this core
         # fixture from failing base_vat's checksum when that addon is installed.
-        cls.vat_partners = cls.env["res.partner"].with_context(no_vat_validation=True).create(
-            [
-                {
-                    "name": f"VATPartner_{i}",
-                    "vat": f"BE099900{i:04d}",
-                    "country_id": cls.env.ref("base.be").id,
-                }
-                for i in range(5)
-            ]
+        cls.vat_partners = (
+            cls.env["res.partner"]
+            .with_context(no_vat_validation=True)
+            .create(
+                [
+                    {
+                        "name": f"VATPartner_{i}",
+                        "vat": f"BE099900{i:04d}",
+                        "country_id": cls.env.ref("base.be").id,
+                    }
+                    for i in range(5)
+                ]
+            )
         )
 
         cls.server_actions = cls.env["ir.actions.server"].create(

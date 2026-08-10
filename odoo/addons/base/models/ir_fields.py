@@ -665,7 +665,7 @@ class IrFieldsConverter(models.AbstractModel):
             # there: it is inert for a literal, and this index is built for
             # every selection column of every import.
             computed = callable(field.selection) or isinstance(field.selection, str)
-            source_lang = 'en_US' if computed else None
+            source_lang = "en_US" if computed else None
             selection = field._description_selection(
                 self.with_context(lang=source_lang).env
             )

@@ -84,9 +84,7 @@ class _MetricsMixin:
         for hook in hooks or ():
             hook(self, query, params, start, delay)
 
-    def _record_sql_log(
-        self, query_type: str, table: str | None, delay: float
-    ) -> None:
+    def _record_sql_log(self, query_type: str, table: str | None, delay: float) -> None:
         if query_type == "into":
             log_target = self.sql_into_log
         elif query_type == "from":

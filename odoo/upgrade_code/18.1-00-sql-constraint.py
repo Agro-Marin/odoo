@@ -64,7 +64,7 @@ def upgrade(file_manager: FileManager) -> None:
     def build_sql_object(match: re.Match[str]) -> str:
         try:
             constraints = ast.literal_eval("[" + match.group(1) + "]")
-        except (SyntaxError, ValueError):
+        except SyntaxError, ValueError:
             # ValueError, not just SyntaxError: ast.literal_eval raises it for
             # any NON-LITERAL node, and the single most common form of a real
             # _sql_constraints entry is a translated message --

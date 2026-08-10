@@ -3087,7 +3087,10 @@ class IrUiView(models.Model):
         """
         changed = False
         for node in arch.iter(etree.Element):
-            for (attr, value), (new_attr, new_value) in self._SELF_HANDLED_RENAMES.items():
+            for (attr, value), (
+                new_attr,
+                new_value,
+            ) in self._SELF_HANDLED_RENAMES.items():
                 if node.get(attr) != value:
                     continue
                 node.attrib.pop(attr)

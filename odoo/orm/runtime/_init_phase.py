@@ -10,8 +10,10 @@ Until 2026-08-09 these four lived as attributes created inside ``init_models``'
         self._is_install = install
         ...
     finally:
-        del self._post_init_queue; del self._foreign_keys
-        del self._relation_reflections; del self._is_install
+        del self._post_init_queue
+        del self._foreign_keys
+        del self._relation_reflections
+        del self._is_install
 
 ``doc/architecture/module.md`` documents one of them, ``_relation_reflections``,
 as "the sharpest temporal coupling in the ORM and the one least visible to every

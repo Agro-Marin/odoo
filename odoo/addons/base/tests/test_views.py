@@ -7566,9 +7566,7 @@ class TestViewArchRecovery(ViewCase):
         # database that carries mail/hr/account, the write below fails on their
         # inheritance specs rather than on anything this test asserts. Skipping
         # says that plainly; failing reads as a regression in reset_arch.
-        inheriting = self.env["ir.ui.view"].search_count(
-            [("inherit_id", "=", view.id)]
-        )
+        inheriting = self.env["ir.ui.view"].search_count([("inherit_id", "=", view.id)])
         if inheriting:
             self.skipTest(
                 f"{inheriting} installed view(s) inherit base.view_res_partner_filter; "

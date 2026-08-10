@@ -37,9 +37,7 @@ _EXTERNAL_ENTITY = (
     b"<r>&x;</r>"
 )
 _INTERNAL_ENTITY = (
-    b'<?xml version="1.0"?>'
-    b'<!DOCTYPE r [ <!ENTITY e "EXPANDED"> ]>'
-    b"<r>&e;</r>"
+    b'<?xml version="1.0"?><!DOCTYPE r [ <!ENTITY e "EXPANDED"> ]><r>&e;</r>'
 )
 
 

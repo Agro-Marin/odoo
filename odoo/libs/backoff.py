@@ -14,9 +14,9 @@ readable: ``base=0.2, cap=2.0`` says "start at 0.2s, double, never exceed 2s".
 This module exists because the schedule was open-coded four times and got it
 wrong twice, in the same shape both times::
 
-    random.uniform(0.0, min(2 ** attempt, 2.0))     # attempt starts at 1
+    random.uniform(0.0, min(2**attempt, 2.0))  # attempt starts at 1
 
-``2 ** 1`` already equals the 2.0 cap, so the cap won on every iteration and the
+``2**1`` already equals the 2.0 cap, so the cap won on every iteration and the
 curve was flat: every retry drew from the same ``uniform(0, 2.0)``. The growth
 term was decorative. Both sites -- ``service/transaction.py``'s ``retrying()``
 and ``ir_job``'s concurrency replay -- were the fork's two most contended retry

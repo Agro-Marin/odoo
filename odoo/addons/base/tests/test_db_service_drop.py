@@ -8,7 +8,9 @@ from odoo.tests import BaseCase
 class TestExpDropAllowlist(BaseCase):
     def test_exp_drop_refuses_db_outside_allowlist(self):
         with (
-            mock.patch.object(db_service.listing, "list_dbs", return_value=["exposed_db"]),
+            mock.patch.object(
+                db_service.listing, "list_dbs", return_value=["exposed_db"]
+            ),
             mock.patch.object(db_service.lifecycle, "_drop_database") as drop_mock,
             # The channel, not a module attribute: every module in the
             # odoo.service.db package logs to "odoo.service.db" by design
@@ -25,14 +27,18 @@ class TestExpDropAllowlist(BaseCase):
 
     def test_exp_drop_refusal_is_indistinguishable_from_its_siblings(self):
         with (
-            mock.patch.object(db_service.listing, "list_dbs", return_value=["exposed_db"]),
+            mock.patch.object(
+                db_service.listing, "list_dbs", return_value=["exposed_db"]
+            ),
             self.assertRaises(odoo.exceptions.AccessDenied),
         ):
             db_service.check_db_exposed("other_db")
 
     def test_exp_drop_allows_db_in_allowlist(self):
         with (
-            mock.patch.object(db_service.listing, "list_dbs", return_value=["exposed_db"]),
+            mock.patch.object(
+                db_service.listing, "list_dbs", return_value=["exposed_db"]
+            ),
             mock.patch.object(
                 db_service.lifecycle, "_drop_database", return_value=True
             ) as drop_mock,

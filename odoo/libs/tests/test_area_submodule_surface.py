@@ -156,14 +156,17 @@ def _leaf_imports_via_area() -> dict[str, int]:
                 continue
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"))
-            except (SyntaxError, UnicodeDecodeError):
+            except SyntaxError, UnicodeDecodeError:
                 continue
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ImportFrom):
                     continue
                 if node.level or not node.module:
                     continue
-                if not node.module.startswith("odoo.libs.") or node.module.count(".") != 2:
+                if (
+                    not node.module.startswith("odoo.libs.")
+                    or node.module.count(".") != 2
+                ):
                     continue
                 area = node.module.split(".")[2]
                 for alias in node.names:

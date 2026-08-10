@@ -214,7 +214,7 @@ class Selection(Field[str | typing.Literal[False]]):
             # gettext lookups either way, and a trap for the next reader who
             # copies the idiom somewhere it does matter.
             selection = determine(
-                selection, env[self.model_name].with_context(lang='en_US')
+                selection, env[self.model_name].with_context(lang="en_US")
             )
         return [value for value, _ in selection]
 

@@ -839,11 +839,7 @@ class Field[T](
             and not self.related_field.is_x2many
         ):
             join_field = model._fields[self._related_names[0]]
-            if (
-                join_field.is_many2one
-                and join_field.store
-                and not join_field.compute
-            ):
+            if join_field.is_many2one and join_field.store and not join_field.compute:
                 model.pool.post_init(self.update_db_related, model)
                 return False
 

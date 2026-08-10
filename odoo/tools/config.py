@@ -1382,7 +1382,6 @@ class configmanager:
         )
         parser.add_option_group(group)
 
-
     def _load_default_options(self) -> None:
         self._default_options.clear()
         self._default_options.update(

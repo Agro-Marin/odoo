@@ -18,8 +18,12 @@ class TestBound:
         # same interval; that is invisible to any test that looks at one delay.
         seen = list(backoff.bounds(6, base=0.2, cap=2.0))
         growing = [b for b in seen if b < 2.0]
-        assert growing == sorted(set(growing)), f"schedule is not strictly growing: {seen}"
-        assert len(growing) >= 3, f"cap swallowed the curve after {len(growing)} attempt(s): {seen}"
+        assert growing == sorted(set(growing)), (
+            f"schedule is not strictly growing: {seen}"
+        )
+        assert len(growing) >= 3, (
+            f"cap swallowed the curve after {len(growing)} attempt(s): {seen}"
+        )
 
     def test_the_cap_is_never_exceeded(self):
         assert all(b <= 2.0 for b in backoff.bounds(20, base=0.2, cap=2.0))
@@ -46,22 +50,33 @@ class TestDelay:
         for attempt in range(1, 6):
             ceiling = backoff.bound(attempt, base=0.2, cap=2.0)
             for _ in range(200):
-                assert 0.0 <= backoff.delay(attempt, base=0.2, cap=2.0, rng=rng) <= ceiling
+                assert (
+                    0.0 <= backoff.delay(attempt, base=0.2, cap=2.0, rng=rng) <= ceiling
+                )
 
     def test_later_attempts_wait_longer_on_average(self):
         # The property that matters under contention: the distribution must
         # actually move, not just the code that computes it.
         rng = random.Random(20260808)
         means = [
-            sum(backoff.delay(a, base=0.2, cap=2.0, rng=rng) for _ in range(2000)) / 2000
+            sum(backoff.delay(a, base=0.2, cap=2.0, rng=rng) for _ in range(2000))
+            / 2000
             for a in (1, 2, 3, 4)
         ]
-        assert means == sorted(means), f"mean wait does not increase per attempt: {means}"
-        assert means[-1] > means[0] * 4, f"growth is far below the doubling curve: {means}"
+        assert means == sorted(means), (
+            f"mean wait does not increase per attempt: {means}"
+        )
+        assert means[-1] > means[0] * 4, (
+            f"growth is far below the doubling curve: {means}"
+        )
 
     def test_the_rng_is_injectable_and_deterministic(self):
-        a = [backoff.delay(2, base=0.2, cap=2.0, rng=random.Random(7)) for _ in range(3)]
-        b = [backoff.delay(2, base=0.2, cap=2.0, rng=random.Random(7)) for _ in range(3)]
+        a = [
+            backoff.delay(2, base=0.2, cap=2.0, rng=random.Random(7)) for _ in range(3)
+        ]
+        b = [
+            backoff.delay(2, base=0.2, cap=2.0, rng=random.Random(7)) for _ in range(3)
+        ]
         assert a == b
 
 

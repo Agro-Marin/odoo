@@ -50,12 +50,14 @@ def _rewrites(source: str) -> list[tuple[int, int, str]]:
     out: list[tuple[int, int, str]] = []
     try:
         tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
-    except (tokenize.TokenError, IndentationError, SyntaxError):
+    except tokenize.TokenError, IndentationError, SyntaxError:
         # Unparseable input is left untouched rather than half-rewritten.
         return out
 
     meaningful = [
-        t for t in tokens if t.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT)
+        t
+        for t in tokens
+        if t.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT)
     ]
     for index, token in enumerate(meaningful):
         if token.type != tokenize.NAME or token.string not in _DEPRECATED:
@@ -102,7 +104,5 @@ def upgrade(file_manager: FileManager) -> None:
                     name,
                 )
                 continue
-            lines[lineno - 1] = (
-                line[:col] + "env." + name[1:] + line[col + len(name) :]
-            )
+            lines[lineno - 1] = line[:col] + "env." + name[1:] + line[col + len(name) :]
         file.content = "".join(lines)

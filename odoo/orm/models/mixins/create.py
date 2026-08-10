@@ -216,11 +216,7 @@ class CreateMixin(_ModelStubs):
                     field.compute and (not field.readonly or field.precompute)
                 ) or key in cached_only:
                     protected.update(self.pool.field_computed.get(field, [field]))
-                if (
-                    field.is_many2one
-                    and field.bypass_search_access
-                    and not self.env.su
-                ):
+                if field.is_many2one and field.bypass_search_access and not self.env.su:
                     co_id = field.convert_to_cache(val, self)
                     self.env[field.comodel_name].browse(co_id).check_access("read")
 

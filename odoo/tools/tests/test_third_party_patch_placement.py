@@ -42,8 +42,7 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
         "_monkeypatches/werkzeug.py would split one behaviour across two files."
     ),
     ("http/wrappers.py", "werkzeug.exceptions.abort"): (
-        "Same behaviour, same argument: abort() must raise the patched "
-        "HTTPException."
+        "Same behaviour, same argument: abort() must raise the patched HTTPException."
     ),
     ("http/wrappers.py", "werkzeug.exceptions._odoo_original_get_response"): (
         "Not a patch but the re-entrancy guard for one: stashes the original "
@@ -91,6 +90,7 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
 }
 
 _SKIP_TOP = {"addons", "_monkeypatches", "upgrade"}
+
 
 #: ``odoo/tests/`` is the test FRAMEWORK, not a package's test directory. The
 #: "tests" path filter below is meant to skip suites (``odoo/db/tests/``,
@@ -151,7 +151,7 @@ def find_patches() -> list[tuple[str, str, int]]:
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
+        except SyntaxError, UnicodeDecodeError:
             continue
         foreign = _foreign_names(tree)
         if not foreign:
@@ -178,7 +178,9 @@ def find_patches() -> list[tuple[str, str, int]]:
 class TestThirdPartyPatchPlacement(unittest.TestCase):
     def test_every_patch_outside_monkeypatches_is_acknowledged(self):
         found = {(rel, target) for rel, target, _ in find_patches()}
-        detectable_known = {k for k in KNOWN_PATCHES if "LAUNDERED" not in KNOWN_PATCHES[k]}
+        detectable_known = {
+            k for k in KNOWN_PATCHES if "LAUNDERED" not in KNOWN_PATCHES[k]
+        }
         new = sorted(found - detectable_known)
         gone = sorted(detectable_known - found)
         self.assertFalse(
@@ -239,10 +241,10 @@ class TestThirdPartyPatchPlacement(unittest.TestCase):
         self.assertIn("optparse.something", targets)
 
     def test_function_bodies_are_out_of_scope(self):
-        tree = ast.parse(
-            "import optparse\ndef f():\n    optparse.patched_here = 1\n"
-        )
-        assigns = [s for s in _module_level_statements(tree) if isinstance(s, ast.Assign)]
+        tree = ast.parse("import optparse\ndef f():\n    optparse.patched_here = 1\n")
+        assigns = [
+            s for s in _module_level_statements(tree) if isinstance(s, ast.Assign)
+        ]
         self.assertEqual(assigns, [])
 
     def test_the_laundered_pdf_patches_are_still_there(self):
