@@ -20,6 +20,7 @@ Run with::
     python -m pytest tests/service/test_watcher.py -v
 """
 
+import errno
 import shutil
 import time
 from unittest.mock import MagicMock, patch
@@ -265,7 +266,18 @@ class TestFSWatcherInotifyRewatch:
         obj.thread = None
         # Production builder, so the test covers what __init__ actually sets up
         # (notably the overflow watch-descriptor mapping) rather than a copy.
-        obj._build_watcher([str(root)], block_duration_s=0.05)
+        try:
+            obj._build_watcher([str(root)], block_duration_s=0.05)
+        except OSError as exc:
+            if exc.errno != errno.ENOSPC:
+                raise
+            # A per-USER cap, not a property of this checkout: every concurrent
+            # server, test run and editor holds inotify instances from the same
+            # pool. Erroring here reported a defect in the watcher whenever the
+            # box was merely busy, and did it behind "No space left on device",
+            # which is why the class read as flaky. Skip on the one errno that
+            # means "the OS would not give us the resource", never on any other.
+            pytest.skip(str(exc))
         obj.handle_file = lambda path: seen.append(path) and None
         obj.start()
         try:

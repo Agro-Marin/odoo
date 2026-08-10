@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import logging
 import os
 import threading
@@ -51,6 +52,48 @@ OVERFLOW_PATH = "<inotify-overflow>"
 
 ASSET_BURST_PATH = "<asset-burst>"
 """Stand-in path for a coalesced invalidation, which covers many files."""
+
+
+INOTIFY_SYSCTL_DIR = Path("/proc/sys/fs/inotify")
+
+INOTIFY_LIMITS = ("max_user_instances", "max_user_watches")
+"""The two caps that both report ENOSPC, in the order the syscalls hit them."""
+
+
+def inotify_limit_diagnosis(exc: BaseException) -> str:
+    """Explain an inotify ENOSPC, which never means disk space.
+
+    inotify spends ``ENOSPC`` on two unrelated caps reached by two different
+    syscalls, and ``strerror`` renders both as "No space left on device":
+
+    * ``inotify_init()`` exhausts ``fs.inotify.max_user_instances`` — one
+      instance per watcher object, so concurrent servers, test runs and editors
+      share a per-*user* pool that defaults to 128 and is reached long before
+      anything about files is wrong.
+    * ``inotify_add_watch()`` exhausts ``fs.inotify.max_user_watches`` — one
+      watch per directory, so a large addons path reaches it instead.
+
+    Naming only one of them sends the reader to the wrong sysctl: raising a
+    limit that is nowhere near its cap changes nothing, and the message reads
+    like a diagnosis rather than the guess it was. So report both **with their
+    current values**, letting whoever is looking see which one is at its cap
+    instead of being told. Returns ``""`` for any error that is not ENOSPC.
+    """
+    if getattr(exc, "errno", None) != errno.ENOSPC:
+        return ""
+    limits = []
+    for name in INOTIFY_LIMITS:
+        try:
+            value = (INOTIFY_SYSCTL_DIR / name).read_text().strip()
+        except OSError:
+            value = "unreadable"
+        limits.append(f"fs.inotify.{name}={value}")
+    return (
+        "inotify is out of capacity (ENOSPC — not disk space). One of these is "
+        f"at its cap: {', '.join(limits)}. Instances are consumed one per "
+        "watcher and shared across every process you run as this user, so "
+        "concurrent servers, test runs and an editor will reach that one first."
+    )
 
 
 def inotify_watch_paths() -> list[str]:
@@ -192,9 +235,22 @@ class FSWatcherInotify(FSWatcherBase):
 
     def _build_watcher(self, paths: list[str], block_duration_s: float = 0.5) -> None:
         self.roots = paths
-        self.watcher = InotifyTrees(
-            paths, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=block_duration_s
-        )
+        try:
+            self.watcher = InotifyTrees(
+                paths, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=block_duration_s
+            )
+        except Exception as exc:
+            # `InotifyTrees` calls inotify_init() and then add_watch() per path,
+            # and the library reports both failures as `InotifyError: Call failed
+            # (should not be -1): (-1) ERRNO=(28) [No space left on device]`. That
+            # string sends every reader to `df`. Re-raise as an OSError carrying
+            # the real errno and an explanation of which caps are in play; the
+            # caller in lifecycle.py already degrades to running without a
+            # watcher, so this changes what it can SAY, not what it does.
+            diagnosis = inotify_limit_diagnosis(exc)
+            if not diagnosis:
+                raise
+            raise OSError(errno.ENOSPC, diagnosis) from exc
         self.watcher._i._Inotify__watches_r[OVERFLOW_WD] = OVERFLOW_PATH
 
     def _resync(self) -> None:
@@ -222,11 +278,11 @@ class FSWatcherInotify(FSWatcherBase):
             except Exception:
                 _logger.debug("autoreload: stale watch purge for %s", path)
             tree.add_watch(path, self.watcher._mask)
-        except Exception:
+        except Exception as exc:
             _logger.warning(
-                "autoreload: cannot watch %s; edits below it will not be seen "
-                "(fs.inotify.max_user_watches exhausted?)",
+                "autoreload: cannot watch %s; edits below it will not be seen. %s",
                 directory,
+                inotify_limit_diagnosis(exc) or "See the traceback for the cause.",
                 exc_info=True,
             )
 
