@@ -52,6 +52,7 @@ GATES = {
     "js_registry_layering": ["--check"],
     "js_public_surface": ["--check"],
     "js_extension_surface": ["--check"],
+    "js_env_config_surface": ["--check"],
     "js_face_boundary": ["--check"],
     "js_import_resolution": ["--check"],
     "js_patch_blind_facade": ["--check"],
