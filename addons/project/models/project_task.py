@@ -147,7 +147,10 @@ class ProjectTask(models.Model):
         "mail.tracking.duration.mixin",
         "portal.mixin",
         "rating.mixin",
-        "resource.scheduling.mixin",
+        # Allocation, not just projection: a task's committed hours genuinely
+        # are the sum of its per-assignee reservations. The allocation mixin
+        # inherits the scheduling one, so this covers both.
+        "resource.allocation.mixin",
     ]
     _mail_post_access = "read"
     _mail_thread_customer = True

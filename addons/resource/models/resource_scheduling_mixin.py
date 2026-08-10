@@ -1,16 +1,17 @@
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
 
 
 class ResourceSchedulingMixin(models.AbstractModel):
-    """Consumer-facing mixin for models that delegate scheduling data to resource.reservation.
+    """Projects a consumer's schedule into the shared ``resource.reservation`` ledger.
+
+    This mixin is a *projection*, not a base class.  It owns the mapping from
+    consumer state to ledger rows — reconciliation, archive mirroring, orphan
+    cleanup — and the read-only query surface over the result.  It owns no
+    business field, and deliberately says nothing about what allocation means.
 
     Provides:
     - Reverse One2many to ``resource.reservation`` via ``(res_model, res_id)``
-    - Shared ``allocated_percentage`` (input passed through to reservations)
-    - Computed ``allocated_hours`` aggregated from ``reservation_ids``
-      (PMI Work semantic: sum of person-hours committed across resources)
-    - Computed ``schedule_overlap_count`` aggregated from reservations
+    - Computed ``schedule_overlap_count``, saved and unsaved records alike
     - CRUD hooks that reconcile reservations via ``_sync_reservations``
     - Contracts consumers override: ``_get_reservation_date_fields``,
       ``_get_reservation_vals_list``, ``_get_sync_trigger_fields``
@@ -19,14 +20,34 @@ class ResourceSchedulingMixin(models.AbstractModel):
       ``_scheduling_resolve_calendar``) for calendar-aware computations
       independent of field-name conventions
 
-    Consumers that need a planning estimate independent of resource
-    commitment (e.g. ``project.task.planned_hours``) declare it locally;
-    the mixin only computes the *committed* side.
+    **Why no allocation fields here.**  Field dependencies *union* along the
+    MRO (``odoo/orm/fields/base.py``, ``get_depends``): a consumer that
+    overrides a compute inherited from a mixin keeps the mixin's dependency
+    edges as well as its own, permanently and invisibly.  A mixin field is
+    therefore only safe when no consumer will ever want different semantics.
+    ``allocated_hours`` failed that test — task hours are a sum over
+    assignees, work-order time is workcenter capacity in minutes, a shift's
+    hours invert into a percentage that may exceed 100 — so they live in the
+    opt-in :class:`resource.allocation.mixin` instead.
+    ``schedule_overlap_count`` passes it: it is derived from the ledger alone.
     """
 
     _name = "resource.scheduling.mixin"
     _description = "Resource Scheduling Mixin"
     _inherit = ["resource.scheduling.tools"]
+
+    #: Set to ``True`` by consumers whose ``write`` keeps working after
+    #: ``super()`` returns.  The CRUD hooks below then leave the ledger alone
+    #: and the consumer calls ``_sync_reservations()`` itself once its own
+    #: state is final.
+    #:
+    #: No hook can infer that moment: ``create``/``write`` are too early for
+    #: such a consumer -- projecting from there reads half-settled values and
+    #: forces its interdependent computes to resolve in an order they
+    #: otherwise would not -- and ``cr.precommit`` is too late to be read, as
+    #: it runs only from ``cr.flush()`` (savepoints and commit), not from
+    #: ordinary field access.  So the consumer declares it.
+    _reservation_sync_manual = False
 
     # ---- Reservation linkage ----
     reservation_ids = fields.One2many(
@@ -37,51 +58,12 @@ class ResourceSchedulingMixin(models.AbstractModel):
         bypass_search_access=True,
     )
 
-    # ---- Allocation ----
-    allocated_percentage = fields.Float(
-        "Allocation %",
-        default=100.0,
-        help="Percentage of the resource's work capacity allocated to this record.",
-    )
-    allocated_hours = fields.Float(
-        "Allocated Hours",
-        compute="_compute_allocated_hours",
-        store=True,
-        readonly=False,
-        help="Working hours between scheduling start and end, respecting the resource calendar.",
-    )
-
     # ---- Aggregated conflict count (sums the linked reservations) ----
     schedule_overlap_count = fields.Integer(
         "Scheduling Conflicts",
         compute="_compute_schedule_overlap_count",
         search="_search_schedule_overlap_count",
     )
-
-    # ------------------------------------------------------------------
-    # Constraints
-    # ------------------------------------------------------------------
-
-    @api.constrains("allocated_percentage")
-    def _check_allocated_percentage(self):
-        """Keep the allocation share inside 0..100 on every consumer.
-
-        ``resource.reservation`` carries the equivalent SQL ``CHECK``, but the
-        value originates here: consumers pass it straight through
-        ``_get_reservation_vals_list``, so rejecting it at the source gives the
-        user an error on the field they actually edited instead of a constraint
-        violation on a mirror row they never see.  A Python constraint (rather
-        than a table one) is what propagates to the concrete models inheriting
-        this abstract mixin.
-        """
-        for record in self:
-            if not 0.0 <= record.allocated_percentage <= 100.0:
-                raise ValidationError(
-                    self.env._(
-                        "%(name)s: allocation %% must be between 0 and 100.",
-                        name=record.display_name,
-                    )
-                )
 
     # ------------------------------------------------------------------
     # Contracts (consumers override)
@@ -110,20 +92,14 @@ class ResourceSchedulingMixin(models.AbstractModel):
     def _get_sync_trigger_fields(self):
         """Return the set of field names whose write triggers ``_sync_reservations``.
 
-        Default: the date fields returned by ``_get_reservation_date_fields``,
-        plus ``allocated_percentage``.  Consumers typically add their assignee
-        field on top.
-
-        ``allocated_percentage`` belongs here because *this mixin declares it*
-        and every consumer forwards it into ``_get_reservation_vals_list``.
-        Leaving it out made a field the mixin owns depend on each consumer
-        remembering to re-declare it: both consumers in the tree did, which is
-        the evidence that the default was wrong rather than that they were
-        careful.  A consumer that forgot got a mirror reservation permanently
-        stuck at the old percentage -- and therefore a wrong
-        ``allocated_hours`` -- with nothing to indicate it.
+        Default: the date fields returned by ``_get_reservation_date_fields``.
+        Consumers add their assignee field on top;
+        :class:`resource.allocation.mixin` adds ``allocated_percentage``,
+        because the field it declares is one every consumer of it forwards
+        into ``_get_reservation_vals_list``.  A trigger left out leaves the
+        mirror row stuck at the old value with nothing to indicate it.
         """
-        triggers = {"allocated_percentage"}
+        triggers = set()
         start_field, end_field = self._get_reservation_date_fields()
         if start_field:
             triggers.add(start_field)
@@ -187,9 +163,10 @@ class ResourceSchedulingMixin(models.AbstractModel):
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
-        # Records created already archived (import, copy of an archived
-        # record) must not plant active claims on their resources.
-        records._active_for_sync()._sync_reservations()
+        if not self._reservation_sync_manual:
+            # Records created already archived (import, copy of an archived
+            # record) must not plant active claims on their resources.
+            records._active_for_sync()._sync_reservations()
         return records
 
     def write(self, vals):
@@ -221,7 +198,7 @@ class ResourceSchedulingMixin(models.AbstractModel):
         triggers = self._get_sync_trigger_fields()
         sync_needed = bool(triggers and triggers.intersection(vals.keys()))
         reactivating = bool(vals.get("active")) and has_dates
-        if sync_needed or reactivating:
+        if (sync_needed or reactivating) and not self._reservation_sync_manual:
             # Never let an *archived* record sync: doing so would create active
             # reservations — live claims on the resource — for a record that no
             # longer exists to the user.  ``_get_reservation_vals_list`` still
@@ -246,20 +223,8 @@ class ResourceSchedulingMixin(models.AbstractModel):
         return result
 
     # ------------------------------------------------------------------
-    # Generic computes
+    # Query surface
     # ------------------------------------------------------------------
-
-    # ``reservation_ids.active`` is a dependency on purpose: ``reservation_ids``
-    # drops archived rows on read (x2many active_test), so an archive flip
-    # changes both aggregates without touching the relation or the summed
-    # fields themselves — without it the stored sums go stale.
-    @api.depends("reservation_ids.allocated_hours", "reservation_ids.active")
-    def _compute_allocated_hours(self):
-        """Aggregate committed hours from the consumer's reservation ledger."""
-        for record in self:
-            record.allocated_hours = sum(
-                record.reservation_ids.mapped("allocated_hours")
-            )
 
     def _get_overlap_depends_fields(self):
         """Fields whose change re-evaluates ``schedule_overlap_count``.

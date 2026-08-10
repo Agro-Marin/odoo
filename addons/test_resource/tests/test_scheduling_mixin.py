@@ -295,6 +295,72 @@ class TestSchedulingMixin(TransactionCase):
         self.assertEqual(rec2.schedule_overlap_count, 0)
 
     # ------------------------------------------------------------------
+    # Manual projection (_reservation_sync_manual)
+    # ------------------------------------------------------------------
+
+    def _manual_vals(self, **overrides):
+        vals = {
+            "name": "Manual",
+            "date_start": datetime(2025, 1, 6, 8, 0),
+            "date_end": datetime(2025, 1, 6, 17, 0),
+            "resource_id": self.resource.id,
+        }
+        vals.update(overrides)
+        return vals
+
+    def test_manual_sync_skips_the_create_hook(self):
+        """A manual-sync consumer books nothing until it says so."""
+        Manual = self.env["resource.scheduling.manual.test"]
+        record = Manual.create(self._manual_vals())
+        self.assertFalse(
+            record.reservation_ids,
+            "create must not project for a consumer that manages its own sync",
+        )
+
+        record._sync_reservations()
+        self.assertEqual(len(record.reservation_ids), 1)
+        self.assertEqual(record.reservation_ids.date_start, datetime(2025, 1, 6, 8, 0))
+
+    def test_manual_sync_skips_the_write_hook(self):
+        """Writing a trigger field does not project either; the call does."""
+        Manual = self.env["resource.scheduling.manual.test"]
+        record = Manual.create(self._manual_vals())
+        record._sync_reservations()
+
+        record.date_end = datetime(2025, 1, 6, 12, 0)
+        self.assertEqual(
+            record.reservation_ids.date_end,
+            datetime(2025, 1, 6, 17, 0),
+            "the ledger still holds the pre-write window",
+        )
+
+        record._sync_reservations()
+        self.assertEqual(record.reservation_ids.date_end, datetime(2025, 1, 6, 12, 0))
+
+    def test_automatic_sync_remains_the_default(self):
+        """The flag is opt-in: an ordinary consumer still projects on create."""
+        record = self.Model.create(self._manual_vals())
+        self.assertEqual(
+            len(record.reservation_ids),
+            1,
+            "consumers that do not set the flag keep the CRUD hooks",
+        )
+
+    def test_manual_sync_unlink_still_cleans_the_ledger(self):
+        """Only projection is deferred -- orphan cleanup is not negotiable."""
+        Manual = self.env["resource.scheduling.manual.test"]
+        record = Manual.create(self._manual_vals())
+        record._sync_reservations()
+        reservation = record.reservation_ids
+        self.assertTrue(reservation.exists())
+
+        record.unlink()
+        self.assertFalse(
+            reservation.exists(),
+            "a deleted consumer must never leave a claim behind, however it syncs",
+        )
+
+    # ------------------------------------------------------------------
     # Conflicts on unsaved records
     # ------------------------------------------------------------------
 
