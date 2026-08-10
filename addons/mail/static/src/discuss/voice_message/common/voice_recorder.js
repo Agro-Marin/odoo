@@ -84,7 +84,7 @@ export function useVoiceRecorder() {
             } catch {
                 notification.add(
                     _t('"%(hostname)s" needs to access your microphone', {
-                        hostname: window.location.host,
+                        hostname: browser.location.host,
                     }),
                     { type: "warning" },
                 );

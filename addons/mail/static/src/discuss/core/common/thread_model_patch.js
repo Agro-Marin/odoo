@@ -15,7 +15,7 @@ import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";
-import { imageUrl } from "@web/core/utils/urls";
+import { getOrigin, imageUrl } from "@web/core/utils/urls";
 const commandRegistry = registry.category("discuss.channel_commands");
 
 /** @type {typeof Thread} */
@@ -399,7 +399,7 @@ const threadPatch = {
         if (!this.uuid || this.channel_type === "chat") {
             return undefined;
         }
-        return `${window.location.origin}/chat/${this.id}/${this.uuid}`;
+        return `${getOrigin()}/chat/${this.id}/${this.uuid}`;
     },
     /** @override */
     get hasAttachmentPanel() {

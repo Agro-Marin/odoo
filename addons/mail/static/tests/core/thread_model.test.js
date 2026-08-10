@@ -7,8 +7,10 @@ import {
     getService,
     makeServerError,
     onRpc,
+    patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -255,4 +257,23 @@ test("a deleted message is not resurrected by a stale fetch response", async () 
     thread.messages.add({ id: messageId });
     expect(store["mail.message"].get(messageId)).toBe(undefined);
     expect(thread.messages).toHaveLength(0);
+});
+
+test("a channel's invitation link is built from the mockable origin", async () => {
+    // Regression guard for the `browser` seam, not for the URL shape: built
+    // from the bare `window.location`, this link ignored the configured origin
+    // and no test could reach the code at all (@see rtc_service's
+    // `isClientRtcCompatible`, same reasoning).
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    await start();
+    patchWithCleanup(browser.location, {
+        origin: "https://example.test",
+        host: "example.test",
+        protocol: "https:",
+    });
+    const store = getService("mail.store");
+    const thread = store.Thread.insert({ id: channelId, model: "discuss.channel" });
+    thread.uuid = "abcd";
+    expect(thread.invitationLink).toBe(`https://example.test/chat/${channelId}/abcd`);
 });

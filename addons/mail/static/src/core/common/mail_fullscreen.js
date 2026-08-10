@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, reactive } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 const DEFAULT_ID = Symbol("default");
@@ -73,7 +74,7 @@ export const fullscreenService = {
                 // doing nothing, we're just in non-native fullscreen.
             }
         }
-        window.addEventListener("fullscreenchange", () => {
+        browser.addEventListener("fullscreenchange", () => {
             const isFullscreen = Boolean(
                 document.webkitFullscreenElement || document.fullscreenElement,
             );
