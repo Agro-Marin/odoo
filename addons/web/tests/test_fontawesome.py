@@ -4,6 +4,8 @@ from pathlib import Path
 import odoo.tests
 from odoo.tools.misc import file_path
 
+import odoo.addons
+
 # Font Awesome 7 renders `content: var(--fa)/""`, so a class name it does not
 # define produces no glyph at all rather than a visible fallback box. A typo, or
 # an FA4 name that outlived its shim, is therefore an icon that silently stops
@@ -29,9 +31,30 @@ class TestFontAwesomeIconNames(odoo.tests.TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # the addons directory of this repository, i.e. the tree this guards
+        # the addons directory of this repository, which owns the stylesheets
         cls.addons_root = Path(file_path("web/__manifest__.py")).parent.parent
         cls.fa_css_dir = cls.addons_root / FA_CSS_DIR
+        cls.scanned_roots = cls._addons_roots()
+
+    @classmethod
+    def _addons_roots(cls):
+        """Every addons directory the running server loads, not just this repo.
+
+        A spliced class name in an *enterprise* template
+        (``'fa-solid fa-angle- fa-2x' + (opened ? 'up' : 'down')``, from the FA4→7
+        upgrade) rendered no chevron and cost 14 barcode tour failures. It was
+        invisible to this guard purely because the scan stopped at this
+        repository, while the icons it validates are shipped from here for every
+        addon on the path. CI checks this repo out alone, so there the scanned
+        set is unchanged; a workspace that assembles siblings gets them covered.
+        """
+        roots, seen = [], set()
+        for path in [str(cls.addons_root), *odoo.addons.__path__]:
+            resolved = Path(path).resolve()
+            if resolved.is_dir() and resolved not in seen:
+                seen.add(resolved)
+                roots.append(resolved)
+        return roots
 
     def _defined_class_names(self):
         """Every `.fa-*` selector the shipped stylesheets define: icons, the
@@ -44,25 +67,32 @@ class TestFontAwesomeIconNames(odoo.tests.TransactionCase):
     def _used_class_names(self):
         """`fa-*` tokens written literally in a template class attribute, mapped
         to the files using them. Attributes holding an interpolation are skipped:
-        their value is only known at render time."""
+        their value is only known at render time.
+
+        A concatenated name is *not* an interpolation and is still checked: the
+        dangling half of ``'fa-solid fa-angle- fa-2x' + (…)`` reads as the token
+        ``fa-angle-``, which no stylesheet defines — which is exactly how that
+        bug announces itself here.
+        """
         used = {}
-        for path in self.addons_root.rglob("*.xml"):
-            if self.fa_css_dir in path.parents:
-                continue
-            try:
-                content = path.read_text(encoding="utf-8", errors="ignore")
-            except OSError:
-                continue
-            if "fa-" not in content:
-                continue
-            for value in RE_CLASS_ATTR.findall(content):
-                if any(c in value for c in "{}#$"):
+        for root in self.scanned_roots:
+            for path in root.rglob("*.xml"):
+                if self.fa_css_dir in path.parents:
                     continue
-                for token in value.split():
-                    if RE_FA_TOKEN.match(token):
-                        used.setdefault(token, set()).add(
-                            str(path.relative_to(self.addons_root))
-                        )
+                try:
+                    content = path.read_text(encoding="utf-8", errors="ignore")
+                except OSError:
+                    continue
+                if "fa-" not in content:
+                    continue
+                for value in RE_CLASS_ATTR.findall(content):
+                    if any(c in value for c in "{}#$"):
+                        continue
+                    for token in value.split():
+                        if RE_FA_TOKEN.match(token):
+                            used.setdefault(token, set()).add(
+                                str(path.relative_to(root))
+                            )
         return used
 
     def test_fontawesome_stylesheets_are_present(self):
