@@ -257,7 +257,7 @@ KanbanRecord.record  enterprise
 KanbanRecord.renderingContext  odoo
 KanbanRecord.setup  odoo enterprise
 KanbanRecordQuickCreate.getQuickCreateProps  enterprise
-KanbanRenderer.archiveRecord  odoo enterprise agromarin
+KanbanRenderer.archiveRecord  odoo enterprise
 KanbanRenderer.canCreateGroup  odoo enterprise
 KanbanRenderer.canMoveRecords  enterprise
 KanbanRenderer.canResequenceGroups  enterprise
@@ -268,7 +268,7 @@ KanbanRenderer.getGroupClasses  odoo
 KanbanRenderer.getGroupUnloadedCount  enterprise
 KanbanRenderer.getGroupsOrRecords  odoo enterprise
 KanbanRenderer.isMovableField  odoo
-KanbanRenderer.setup  odoo enterprise agromarin
+KanbanRenderer.setup  odoo enterprise
 KanbanRenderer.showNoContentHelper  odoo enterprise
 KanbanRenderer.toggleRangeSelection  odoo
 KanbanRenderer.toggleSelection  odoo
