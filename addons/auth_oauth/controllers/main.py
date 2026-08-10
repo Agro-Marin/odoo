@@ -1,5 +1,4 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-import functools
 import json
 import logging
 from urllib.parse import quote_plus, unquote_plus, urlencode, urlsplit
@@ -8,7 +7,7 @@ from werkzeug.exceptions import BadRequest
 
 from odoo import SUPERUSER_ID, _, api, http
 from odoo.exceptions import AccessDenied
-from odoo.http import Response, request
+from odoo.http import fragment_to_query_string, request
 from odoo.modules.registry import Registry
 from odoo.tools.misc import clean_context
 
@@ -16,32 +15,6 @@ from odoo.addons.auth_signup.controllers.main import AuthSignupHome as Home
 from odoo.addons.web.controllers.utils import _get_login_redirect_url, ensure_db
 
 _logger = logging.getLogger(__name__)
-
-
-# ----------------------------------------------------------
-# helpers
-# ----------------------------------------------------------
-def fragment_to_query_string(func):
-    @functools.wraps(func)
-    def wrapper(self, *a, **kw):
-        kw.pop("debug", False)
-        if not kw:
-            return Response("""<html><head><script>
-                var l = window.location;
-                var q = l.hash.substring(1);
-                var r = l.pathname + l.search;
-                if(q.length !== 0) {
-                    var s = l.search ? (l.search === '?' ? '' : '&') : '?';
-                    r = l.pathname + l.search + s + q;
-                }
-                if (r == l.pathname) {
-                    r = '/';
-                }
-                window.location = r;
-            </script></head><body></body></html>""")
-        return func(self, *a, **kw)
-
-    return wrapper
 
 
 # ----------------------------------------------------------

@@ -48,6 +48,7 @@ from .controller import Controller
 
 from .routing import (
     FasterRule,
+    fragment_to_query_string,
     LazyCompiledBuilder,
     register_routing_parameters,
     route,
@@ -158,6 +159,7 @@ __all__ = [
     "db_filter",
     "db_list",
     "dispatch_rpc",
+    "fragment_to_query_string",
     "geoip2",
     "get_default_session",
     "get_session_max_inactivity",

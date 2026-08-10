@@ -359,3 +359,43 @@ def _check_and_complete_route_definition(
         )
         fragment["readonly"] = False
     return fragment
+
+
+def fragment_to_query_string(func: Callable) -> Callable:
+    """Re-request the endpoint with the URL fragment turned into query args.
+
+    OAuth2 and OAuth-like providers that use the implicit flow hand their
+    answer back in the URL *fragment* (``#access_token=...``), which a browser
+    never sends to the server -- so the endpoint sees no parameters at all.
+    Wrapped, it answers that first, parameter-less request with a page whose
+    only job is to move the fragment into the query string and navigate again;
+    the second request carries the values and runs the real handler.
+
+    ``debug`` is dropped because the web client appends it to the fragment on
+    a debug session, and it alone would make the request look answered.
+
+    Lives here rather than beside its first caller: it holds no state of any
+    provider's, and being in ``odoo.http`` means an addon that needs it does
+    not have to depend on an authentication provider to reach it.
+    """
+
+    @functools.wraps(func)
+    def wrapper(self, *a, **kw):
+        kw.pop("debug", False)
+        if not kw:
+            return Response("""<html><head><script>
+                var l = window.location;
+                var q = l.hash.substring(1);
+                var r = l.pathname + l.search;
+                if(q.length !== 0) {
+                    var s = l.search ? (l.search === '?' ? '' : '&') : '?';
+                    r = l.pathname + l.search + s + q;
+                }
+                if (r == l.pathname) {
+                    r = '/';
+                }
+                window.location = r;
+            </script></head><body></body></html>""")
+        return func(self, *a, **kw)
+
+    return wrapper
