@@ -185,6 +185,12 @@ mean:
 | removing specifiers backed by no module | 219 | |
 | `date_range` entered at the `@web/core/tree` face | **218** | `in_range_providers` was reached directly by the only consumer outside `web`; the face republishes it, so the file stops being surface |
 
+**A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
+enters at `@web/views/widgets` added a third scope tag to a line already pinned
+for `odoo` and `enterprise`, and moved this figure by nothing. The number counts
+what `web` cannot rename; a second consumer of an already-published specifier
+constrains `web` no further.
+
 **The 219 → 222 move was not new exposure, and part of it was not exposure at
 all.** The same commit that followed the renames sent
 `cloud_drive_s3/drive_action.js` to the *dissolved* name, and `--update`
