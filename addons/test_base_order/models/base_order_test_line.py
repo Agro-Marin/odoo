@@ -13,48 +13,17 @@ class BaseOrderTestLine(models.Model):
 
     # FIELDS
 
-    order_id = fields.Many2one(
-        comodel_name="base.order.test",
-        string="Order",
-        required=True,
-        ondelete="cascade",
-        index=True,
-    )
+    # Only ``comodel_name`` differs from ``order.line.fields.mixin``, which
+    # also supplies the bridge fields (company_id, currency_id, state,
+    # partner_id, locked, …) — as in the real sale/purchase lines.
+    order_id = fields.Many2one(comodel_name="base.order.test", string="Order")
 
-    # Bridge fields the mixins expect the concrete model to supply
-    # (real sale/purchase lines declare the same set).
-    company_id = fields.Many2one(
-        comodel_name="res.company",
-        related="order_id.company_id",
-        store=True,
-        index=True,
-    )
-    currency_id = fields.Many2one(
-        comodel_name="res.currency",
-        related="order_id.currency_id",
-        store=True,
-    )
-    state = fields.Selection(
-        related="order_id.state",
-        store=True,
-    )
-    partner_id = fields.Many2one(
-        comodel_name="res.partner",
-        related="order_id.partner_id",
-        store=True,
-    )
-    locked = fields.Boolean(related="order_id.locked")
     # Self-referential section link: the compute lives in the mixin, but the
     # comodel must point to this concrete line model (as in sale/purchase).
     parent_id = fields.Many2one(
         comodel_name="base.order.test.line",
         string="Parent Section Line",
         compute="_compute_parent_id",
-    )
-    product_type = fields.Selection(related="product_id.type")
-    product_categ_id = fields.Many2one(
-        comodel_name="product.category",
-        related="product_id.categ_id",
     )
 
     # ROUTING
