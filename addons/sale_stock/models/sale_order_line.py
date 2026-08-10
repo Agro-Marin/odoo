@@ -13,6 +13,13 @@ class SaleOrderLine(models.Model):
     _name = "sale.order.line"
     _inherit = ["sale.order.line", "order.line.stock.mixin"]
 
+    def _get_merge_date_field(self):
+        # EXTENDS base_order: plain sale.order.line has no merge-relevant date,
+        # but this module adds ``date_planned``, so quotation lines must agree
+        # on it before they consolidate — the same rule purchase applies to
+        # ``date_commitment``.
+        return "date_planned"
+
     # ------------------------------------------------------------
     # FIELDS
     # ------------------------------------------------------------

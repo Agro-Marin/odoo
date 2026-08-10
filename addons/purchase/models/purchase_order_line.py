@@ -26,6 +26,11 @@ class PurchaseOrderLine(models.Model):
     def _get_order_type(self):
         return "purchase"
 
+    def _get_merge_date_field(self):
+        # EXTENDS base_order: RFQ lines only consolidate when their expected
+        # arrival dates agree.
+        return "date_commitment"
+
     # ------------------------------------------------------------
     # FIELDS
     # ------------------------------------------------------------
@@ -156,9 +161,9 @@ class PurchaseOrderLine(models.Model):
     discount = fields.Float(
         aggregator="avg",
     )
-    date_planned = fields.Datetime(
+    date_commitment = fields.Datetime(
         string="Expected Arrival",
-        compute="_compute_date_planned",
+        compute="_compute_date_commitment",
         store=True,
         precompute=True,
         readonly=False,
@@ -201,7 +206,7 @@ class PurchaseOrderLine(models.Model):
     # -------------------------------------------------------------------------
 
     def _get_display_type_nullify_vals(self):
-        return {**super()._get_display_type_nullify_vals(), "date_planned": False}
+        return {**super()._get_display_type_nullify_vals(), "date_commitment": False}
 
     def _get_count_id(self, query):
         # Grouping purchase order lines by analytic_distribution counts orders.
@@ -429,7 +434,7 @@ class PurchaseOrderLine(models.Model):
         return self._get_price_from_product_cost(), 0.0
 
     @api.depends("date_order", "selected_seller_id", "selected_seller_id.delay")
-    def _compute_date_planned(self):
+    def _compute_date_commitment(self):
         """Compute expected delivery date from order date and seller lead time."""
         # Skip non-accountable lines
         accountable_lines = self.filtered(lambda l: not l.display_type and l.product_id)
@@ -437,20 +442,20 @@ class PurchaseOrderLine(models.Model):
             return
 
         for line in accountable_lines:
-            new_date = line._get_date_planned(line.selected_seller_id)
+            new_date = line._get_date_commitment(line.selected_seller_id)
 
             # Not set yet - use the computed date
-            if not line.date_planned:
-                line.date_planned = new_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
+            if not line.date_commitment:
+                line.date_commitment = new_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
                 continue
 
             # Already equals the new computed date - nothing to do
-            if line.date_planned.date() == new_date.date():
+            if line.date_commitment.date() == new_date.date():
                 continue
 
             # Product changed from origin - always update (reset manual flag too)
             if line._origin.product_id and line._origin.product_id != line.product_id:
-                line.date_planned = new_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
+                line.date_commitment = new_date.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
                 line.date_is_manual = False
                 continue
 
@@ -462,9 +467,9 @@ class PurchaseOrderLine(models.Model):
             # This handles existing records that don't have date_is_manual set
             if not line._origin.date_is_manual:
                 valid_dates = line._get_seller_valid_dates()
-                if line.date_planned.date() in valid_dates:
+                if line.date_commitment.date() in valid_dates:
                     # Current date matches a known seller default - update it
-                    line.date_planned = new_date.strftime(
+                    line.date_commitment = new_date.strftime(
                         DEFAULT_SERVER_DATETIME_FORMAT
                     )
 
@@ -590,12 +595,15 @@ class PurchaseOrderLine(models.Model):
     # ONCHANGE METHODS
     # -------------------------------------------------------------------------
 
-    @api.onchange("date_planned")
-    def _onchange_date_planned(self):
+    @api.onchange("date_commitment")
+    def _onchange_date_commitment(self):
         """Mark date as manually set when user changes it in the UI."""
         # The flag prevents automatic date updates when seller or order date
         # changes, preserving the user's explicit choice.
-        if self._origin.date_planned and self.date_planned != self._origin.date_planned:
+        if (
+            self._origin.date_commitment
+            and self.date_commitment != self._origin.date_commitment
+        ):
             self.date_is_manual = True
 
     # -------------------------------------------------------------------------
@@ -637,8 +645,8 @@ class PurchaseOrderLine(models.Model):
         return subtotal
 
     @api.model
-    def _get_date_planned(self, seller, po=False):
-        """Return the Schedule Date (``date_planned``) for a PO line ordered from the given seller.
+    def _get_date_commitment(self, seller, po=False):
+        """Return the Schedule Date (``date_commitment``) for a PO line ordered from the given seller.
 
         :param seller: product.supplierinfo used to fetch the delivery delay
                        (if no seller is provided, the delay is 0)
@@ -829,11 +837,11 @@ class PurchaseOrderLine(models.Model):
 
         # Add date from each seller's delay
         for seller in self.product_id.seller_ids:
-            seller_date = self._get_date_planned(seller)
+            seller_date = self._get_date_commitment(seller)
             valid_dates.add(seller_date.date())
 
         # Add the no-seller default (order date with 0 delay)
-        no_seller_date = self._get_date_planned(False)
+        no_seller_date = self._get_date_commitment(False)
         valid_dates.add(no_seller_date.date())
 
         return valid_dates
@@ -993,7 +1001,7 @@ class PurchaseOrderLine(models.Model):
         if product_lang.description_purchase:
             name += "\n" + product_lang.description_purchase
 
-        date_planned = self.order_id.date_planned or self._get_date_planned(
+        date_commitment = self.order_id.date_commitment or self._get_date_commitment(
             seller,
             po=po,
         )
@@ -1005,7 +1013,7 @@ class PurchaseOrderLine(models.Model):
             "product_id": product_id.id,
             "product_uom_id": product_uom_id.id or seller.product_uom_id.id,
             "price_unit": price_unit,
-            "date_planned": date_planned,
+            "date_commitment": date_commitment,
             "tax_ids": [Command.set(taxes.ids)],
             "order_id": po.id,
             "discount": discount,
@@ -1170,8 +1178,8 @@ class PurchaseOrderLine(models.Model):
 
         return total
 
-    def _update_date_planned(self, updated_date):
-        self.date_planned = updated_date
+    def _update_date_commitment(self, updated_date):
+        self.date_commitment = updated_date
 
     # ------------------------------------------------------------
     # VALIDATIONS

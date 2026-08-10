@@ -37,7 +37,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
                         "product_qty": 5.0,
                         "product_uom_id": cls.product_id_1.uom_id.id,
                         "price_unit": 500.0,
-                        "date_planned": datetime.today()
+                        "date_commitment": datetime.today()
                         .replace(hour=9)
                         .strftime(DEFAULT_SERVER_DATETIME_FORMAT),
                     },
@@ -51,7 +51,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
                         "product_qty": 5.0,
                         "product_uom_id": cls.product_id_2.uom_id.id,
                         "price_unit": 250.0,
-                        "date_planned": datetime.today()
+                        "date_commitment": datetime.today()
                         .replace(hour=9)
                         .strftime(DEFAULT_SERVER_DATETIME_FORMAT),
                     },
@@ -122,7 +122,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         seller = self.product_id_2._select_seller(
             partner_id=self.partner_a,
             quantity=2.0,
-            date=self.po.date_planned,
+            date=self.po.date_commitment,
             uom_id=self.product_id_2.uom_id,
         )
         price_unit = seller.price if seller else 0.0
@@ -325,7 +325,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
                             "product_qty": 10,
                             "product_uom_id": uom_unit.id,
                             "price_unit": 123.0,
-                            "date_planned": datetime.today().strftime(
+                            "date_commitment": datetime.today().strftime(
                                 DEFAULT_SERVER_DATETIME_FORMAT
                             ),
                         },
@@ -384,15 +384,15 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
             "Lowering product qty below invoiced qty should schedule an activity",
         )
 
-    def test_04_update_date_planned(self):
+    def test_04_update_date_commitment(self):
         today = datetime.today().replace(hour=9, microsecond=0)
         tomorrow = datetime.today().replace(hour=9, microsecond=0) + timedelta(days=1)
         po = self.env["purchase.order"].create(self.po_vals)
         po.action_confirm()
 
         # update first line
-        po._update_order_lines_date_planned([(po.line_ids[0], tomorrow)])
-        self.assertEqual(po.line_ids[0].date_planned, tomorrow)
+        po._update_order_lines_date_commitment([(po.line_ids[0], tomorrow)])
+        self.assertEqual(po.line_ids[0].date_commitment, tomorrow)
         activity = self.env["mail.activity"].search(
             [
                 ("summary", "=", "Date Updated"),
@@ -413,9 +413,9 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         po.picking_ids.button_validate()
 
         # update second line
-        old_date = po.line_ids[1].date_planned
-        po._update_order_lines_date_planned([(po.line_ids[1], tomorrow)])
-        self.assertEqual(po.line_ids[1].date_planned, old_date)
+        old_date = po.line_ids[1].date_commitment
+        po._update_order_lines_date_commitment([(po.line_ids[1], tomorrow)])
+        self.assertEqual(po.line_ids[1].date_commitment, old_date)
         self.assertEqual(
             "<p>partner_a modified receipt dates for the following products:</p>\n"
             "<p> - Large Desk from %s to %s</p>\n"
@@ -591,7 +591,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
                             "product_qty": 4.0,
                             "product_uom_id": yards_uom.id,  # PO line in yards (seller UoM)
                             "price_unit": 1.0,
-                            "date_planned": datetime.today().strftime(
+                            "date_commitment": datetime.today().strftime(
                                 DEFAULT_SERVER_DATETIME_FORMAT
                             ),
                         },

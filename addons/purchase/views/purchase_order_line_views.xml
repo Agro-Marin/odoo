@@ -54,7 +54,7 @@
                 <field name="product_uom_id" groups="uom.group_uom" widget="many2one_uom" />
                 <field name="price_subtotal" widget="monetary" />
                 <field name="currency_id" column_invisible="True" />
-                <field name="date_planned" />
+                <field name="date_commitment" />
             </list>
         </field>
     </record>
@@ -130,7 +130,7 @@
                         <group>
                             <field name="tax_ids" widget="many2many_tax_tags"
                                 domain="[('type_tax_use', '=', 'purchase')]" />
-                            <field name="date_planned" readonly="1" />
+                            <field name="date_commitment" readonly="1" />
                             <field name="company_id" groups="base.group_multi_company"
                                 options="{'no_create': True}" />
                             <field name="analytic_distribution" widget="analytic_distribution"

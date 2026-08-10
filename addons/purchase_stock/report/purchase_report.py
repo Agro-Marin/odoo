@@ -39,7 +39,7 @@ class PurchaseReport(models.Model):
         fields["date_effective"] = "o.date_effective"
         fields["days_to_arrival"] = """EXTRACT(
             EPOCH FROM age(
-                l.date_planned,
+                l.date_commitment,
                 COALESCE(
                     order_date_effective.date_done,
                     o.date_order

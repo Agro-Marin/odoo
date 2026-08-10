@@ -1659,7 +1659,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
                             "product_qty": 12.0,
                             "product_uom_id": self.product1.uom_id.id,
                             "price_unit": 100.0,
-                            "date_planned": datetime.today().strftime(
+                            "date_commitment": datetime.today().strftime(
                                 DEFAULT_SERVER_DATETIME_FORMAT
                             ),
                         },
@@ -1725,7 +1725,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
                             "product_qty": 12.0,
                             "product_uom_id": self.product1.uom_id.id,
                             "price_unit": 100.0,
-                            "date_planned": datetime.today().strftime(
+                            "date_commitment": datetime.today().strftime(
                                 DEFAULT_SERVER_DATETIME_FORMAT
                             ),
                         },
@@ -2756,7 +2756,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
                             "product_id": self.product1.id,
                             "product_qty": 1.0,
                             "price_unit": 100.0,
-                            "date_planned": datetime.today().strftime(
+                            "date_commitment": datetime.today().strftime(
                                 DEFAULT_SERVER_DATETIME_FORMAT
                             ),
                         }

@@ -45,9 +45,9 @@
                         <strong>Order Deadline:</strong>
                         <p t-field="o.date_order" t-options="{'date_only': 'true'}" class="m-0" />
                     </div>
-                    <div t-if="o.date_planned" class="col-2 mb-2">
+                    <div t-if="o.date_commitment" class="col-2 mb-2">
                         <strong>Expected Arrival:</strong>
-                        <p t-field="o.date_planned" t-options="{'date_only': 'true'}" class="m-0" />
+                        <p t-field="o.date_commitment" t-options="{'date_only': 'true'}" class="m-0" />
                     </div>
                 </div>
 

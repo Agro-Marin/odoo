@@ -69,9 +69,15 @@ class TestOrderReportMixin(TransactionCase):
     # --- both reports are built on the shared mixin ---
 
     def test_reports_inherit_the_mixin(self):
+        # Walk the registry MRO rather than reading ``_inherit``: once another
+        # module extends sale.report or purchase.report, ``_inherit`` holds that
+        # extension's list, not the original mixin chain.
         for report in ("sale.report", "purchase.report"):
             with self.subTest(report=report):
-                self.assertIn("order.report.mixin", self.env[report]._inherit)
+                bases = {
+                    getattr(cls, "_name", None) for cls in type(self.env[report]).mro()
+                }
+                self.assertIn("order.report.mixin", bases)
 
     def test_hoisted_fields_exist(self):
         for report in ("sale.report", "purchase.report"):

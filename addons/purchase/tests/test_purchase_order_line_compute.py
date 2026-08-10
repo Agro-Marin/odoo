@@ -4,7 +4,7 @@ These tests verify the correct behavior of the computed field cascade:
 - selected_seller_id (stored, triggers downstream computes)
 - price_unit, price_unit_auto, discount (combined compute)
 - name (with known-defaults override detection)
-- date_planned (with known-defaults override detection)
+- date_commitment (with known-defaults override detection)
 """
 
 from datetime import timedelta
@@ -397,12 +397,12 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         self.assertEqual(line.name, custom_name)
 
     # =========================================================================
-    # TEST: date_planned computation
+    # TEST: date_commitment computation
     # =========================================================================
 
     @freeze_time("2024-01-15")
-    def test_date_planned_computed_from_seller_delay(self):
-        """Verify date_planned is computed from order date + seller delay."""
+    def test_date_commitment_computed_from_seller_delay(self):
+        """Verify date_commitment is computed from order date + seller delay."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -420,11 +420,11 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
 
         # First seller has delay=3
         expected_date = fields.Datetime.now() + timedelta(days=3)
-        self.assertEqual(line.date_planned.date(), expected_date.date())
+        self.assertEqual(line.date_commitment.date(), expected_date.date())
 
     @freeze_time("2024-01-15")
-    def test_date_planned_updates_on_seller_change(self):
-        """Verify date_planned updates when seller changes."""
+    def test_date_commitment_updates_on_seller_change(self):
+        """Verify date_commitment updates when seller changes."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -442,16 +442,16 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
 
         # Initial: delay=3 from first seller
         initial_date = fields.Datetime.now() + timedelta(days=3)
-        self.assertEqual(line.date_planned.date(), initial_date.date())
+        self.assertEqual(line.date_commitment.date(), initial_date.date())
 
         # Change qty to select second seller (delay=2)
         line.product_qty = 15
         expected_date = fields.Datetime.now() + timedelta(days=2)
-        self.assertEqual(line.date_planned.date(), expected_date.date())
+        self.assertEqual(line.date_commitment.date(), expected_date.date())
 
     @freeze_time("2024-01-15")
-    def test_custom_date_planned_preserved(self):
-        """Verify custom date_planned is preserved when seller changes."""
+    def test_custom_date_commitment_preserved(self):
+        """Verify custom date_commitment is preserved when seller changes."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -469,13 +469,13 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
 
         # Set custom date
         custom_date = fields.Datetime.now() + timedelta(days=30)
-        line.date_planned = custom_date
+        line.date_commitment = custom_date
 
         # Change quantity (which changes seller)
         line.product_qty = 15
 
         # Custom date should be preserved
-        self.assertEqual(line.date_planned.date(), custom_date.date())
+        self.assertEqual(line.date_commitment.date(), custom_date.date())
 
     # =========================================================================
     # TEST: Form interactions (simulates UI behavior)
@@ -606,7 +606,7 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         self.assertFalse(line.date_is_manual)
         # Date should be computed from seller delay
         expected_date = fields.Datetime.now() + timedelta(days=3)
-        self.assertEqual(line.date_planned.date(), expected_date.date())
+        self.assertEqual(line.date_commitment.date(), expected_date.date())
 
     @freeze_time("2024-01-15")
     def test_date_is_manual_set_via_onchange(self):
@@ -637,14 +637,14 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         custom_date = fields.Datetime.now() + timedelta(days=30)
         line.write(
             {
-                "date_planned": custom_date,
+                "date_commitment": custom_date,
                 "date_is_manual": True,  # Simulates what onchange does
             }
         )
 
         # Verify the flag is set
         self.assertTrue(po.line_ids.date_is_manual)
-        self.assertEqual(po.line_ids.date_planned.date(), custom_date.date())
+        self.assertEqual(po.line_ids.date_commitment.date(), custom_date.date())
 
     @freeze_time("2024-01-15")
     def test_date_preserved_when_manual_flag_set(self):
@@ -668,7 +668,7 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         custom_date = fields.Datetime.now() + timedelta(days=30)
         line.write(
             {
-                "date_planned": custom_date,
+                "date_commitment": custom_date,
                 "date_is_manual": True,
             }
         )
@@ -677,7 +677,7 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
         line.product_qty = 15
 
         # Date should be preserved because date_is_manual is True
-        self.assertEqual(line.date_planned.date(), custom_date.date())
+        self.assertEqual(line.date_commitment.date(), custom_date.date())
         self.assertTrue(line.date_is_manual)
 
     @freeze_time("2024-01-15")
@@ -700,7 +700,7 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
 
         # Initial date from first seller (delay=3)
         initial_date = fields.Datetime.now() + timedelta(days=3)
-        self.assertEqual(line.date_planned.date(), initial_date.date())
+        self.assertEqual(line.date_commitment.date(), initial_date.date())
         self.assertFalse(line.date_is_manual)
 
         # Change qty to select second seller (delay=2)
@@ -708,5 +708,5 @@ class TestPurchaseOrderLineCompute(AccountTestInvoicingCommon):
 
         # Date should update to new seller's delay
         expected_date = fields.Datetime.now() + timedelta(days=2)
-        self.assertEqual(line.date_planned.date(), expected_date.date())
+        self.assertEqual(line.date_commitment.date(), expected_date.date())
         self.assertFalse(line.date_is_manual)

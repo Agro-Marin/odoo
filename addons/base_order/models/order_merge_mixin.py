@@ -229,19 +229,25 @@ class OrderMergeMixin(models.AbstractModel):
     def _merge_lines_match_date(self, line1, line2):
         """Check if two lines have compatible dates for merging.
 
-        Duck-typed: returns ``True`` if ``date_planned`` doesn't exist
-        (base sale/purchase without stock module).  When the field
-        exists, matches within ``DATE_MATCH_THRESHOLD_SECONDS`` (24h).
+        The line model names its own date field through
+        ``_get_merge_date_field``; ``None`` (the default) means the model has
+        no merge-relevant date and every pair matches. When there is one,
+        the values must agree within ``DATE_MATCH_THRESHOLD_SECONDS`` (24h).
         """
         # Intentional optional-module guard (NOT removable composition-defense):
-        # purchase.order.line always has ``date_planned``, but sale.order.line
-        # only gets it when ``sale_stock`` is installed. Keep unless the fork
-        # commits to ``sale_stock`` always being present.
-        if "date_planned" not in line1._fields:
+        # purchase.order.line always has a date, but sale.order.line only gets
+        # one when ``sale_stock`` is installed. This used to duck-type on the
+        # literal name ``date_planned``, which silently assumed both models
+        # spelled it the same — they no longer do (purchase renamed its field
+        # to ``date_commitment``), so the field name is asked for, not guessed.
+        field_name = line1._get_merge_date_field()
+        if not field_name:
             return True
-        if not line1.date_planned or not line2.date_planned:
-            return not line1.date_planned and not line2.date_planned
-        delta = abs(line1.date_planned - line2.date_planned).total_seconds()
+        date1 = line1[field_name]
+        date2 = line2[field_name]
+        if not date1 or not date2:
+            return not date1 and not date2
+        delta = abs(date1 - date2).total_seconds()
         return delta <= DATE_MATCH_THRESHOLD_SECONDS
 
     # ─── Metadata ──────────────────────────────────────────────────

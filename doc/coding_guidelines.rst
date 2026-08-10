@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.5
+:Version: 5.7
 :Date: 2026-08-08
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -3271,6 +3271,30 @@ regardless of what training data suggests.
 So ``("stage_id.fold", "=", False)`` becomes ``("step_id.fold", "=", False)``, and
 ``order="date_deadline asc"`` becomes ``order="date_end asc"``.
 
+``purchase.order`` and ``purchase.order.line`` rename one field, so that the date a
+human committed to has a single name across order types:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Vanilla Odoo
+     - This fork
+   * - ``date_planned``
+     - ``date_commitment``
+
+``sale.order.date_commitment`` already carried that meaning — the delivery date
+promised to the customer — while purchase spelled the vendor's promised arrival
+``date_planned``. The two are the same concept, and shared code in ``base_order``
+can now name it once: ``order.mixin``'s ``is_late`` domain reads
+``date_commitment`` on both.
+
+**``date_planned`` still exists, and still means something else.** It is a
+*derived, unstored* estimate on ``sale.order`` (and on ``sale.order.line`` once
+``sale_stock`` is installed), and it is the scheduling date on ``stock.move`` and
+``stock.picking``, the key in the procurement ``values`` dicts the stock rules pass
+around, and a field on the replenishment wizard. None of those were renamed. Read
+the model before assuming which one a given ``date_planned`` refers to.
+
 Appendix B — References
 =======================
 
@@ -3355,6 +3379,18 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.7
+     - 2026-08-09
+     - **Appendix A records the purchase ``date_planned`` ->
+       ``date_commitment`` rename.** sale already stored the date promised to
+       the customer as ``date_commitment`` while purchase called the vendor's
+       promised arrival ``date_planned``, so one concept had two names and one
+       name had two concepts — sale's ``date_planned`` is a derived, unstored
+       estimate. The appendix also spells out where ``date_planned`` survives
+       and still means something else (sale's estimate, stock.move /
+       stock.picking scheduling, the procurement ``values`` dicts, the
+       replenishment wizard), because a blind rename across those would be
+       wrong.
    * - 5.6
      - 2026-08-09
      - **§2.4 gains the cache lifecycle verbs.** ``invalidate_`` /

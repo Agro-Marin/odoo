@@ -290,7 +290,7 @@ class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):
             updated_dates.append((line, updated_date))
 
         if updated_dates:
-            order_sudo._update_order_lines_date_planned(updated_dates)
+            order_sudo._update_order_lines_date_commitment(updated_dates)
         return Response(status=204)
 
     @http.route(

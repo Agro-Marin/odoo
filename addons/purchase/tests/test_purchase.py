@@ -19,9 +19,9 @@ class TestPurchase(AccountTestInvoicingCommon):
         super().setUpClass()
         cls.company_data_2 = cls.setup_other_company()
 
-    def test_date_planned(self):
-        """Set a date planned on 2 PO lines. Check that the PO date_planned is the earliest PO line date
-        planned. Change one of the dates so it is even earlier and check that the date_planned is set to
+    def test_date_commitment(self):
+        """Set a date planned on 2 PO lines. Check that the PO date_commitment is the earliest PO line date
+        planned. Change one of the dates so it is even earlier and check that the date_commitment is set to
         this earlier date.
         """
         po = Form(self.env["purchase.order"])
@@ -37,44 +37,52 @@ class TestPurchase(AccountTestInvoicingCommon):
         po = po.save()
 
         # Check that the same date is planned on both PO lines.
-        self.assertNotEqual(po.line_ids[0].date_planned, False)
+        self.assertNotEqual(po.line_ids[0].date_commitment, False)
         self.assertAlmostEqual(
-            po.line_ids[0].date_planned,
-            po.line_ids[1].date_planned,
+            po.line_ids[0].date_commitment,
+            po.line_ids[1].date_commitment,
             delta=timedelta(seconds=10),
         )
         self.assertAlmostEqual(
-            po.line_ids[0].date_planned, po.date_planned, delta=timedelta(seconds=10)
+            po.line_ids[0].date_commitment,
+            po.date_commitment,
+            delta=timedelta(seconds=10),
         )
 
-        orig_date_planned = po.line_ids[0].date_planned
+        orig_date_commitment = po.line_ids[0].date_commitment
 
         # Set an earlier date planned on a PO line and check that the PO expected date matches it.
-        new_date_planned = orig_date_planned - timedelta(hours=1)
-        po.line_ids[0].date_planned = new_date_planned
+        new_date_commitment = orig_date_commitment - timedelta(hours=1)
+        po.line_ids[0].date_commitment = new_date_commitment
         self.assertAlmostEqual(
-            po.line_ids[0].date_planned, po.date_planned, delta=timedelta(seconds=10)
+            po.line_ids[0].date_commitment,
+            po.date_commitment,
+            delta=timedelta(seconds=10),
         )
 
         # Set an even earlier date planned on the other PO line and check that the PO expected date matches it.
         # Also check that the other PO line's date planned is not modified.
-        new_date_planned_2 = orig_date_planned - timedelta(hours=72)
+        new_date_commitment_2 = orig_date_commitment - timedelta(hours=72)
         po_form = Form(po)
         with po_form.line_ids.edit(1) as po_line:
-            po_line.date_planned = new_date_planned_2
+            po_line.date_commitment = new_date_commitment_2
         po = po_form.save()
         self.assertAlmostEqual(
-            po.line_ids[1].date_planned, po.date_planned, delta=timedelta(seconds=10)
+            po.line_ids[1].date_commitment,
+            po.date_commitment,
+            delta=timedelta(seconds=10),
         )
         self.assertAlmostEqual(
-            po.line_ids[0].date_planned, new_date_planned, delta=timedelta(seconds=10)
+            po.line_ids[0].date_commitment,
+            new_date_commitment,
+            delta=timedelta(seconds=10),
         )
 
-    def test_date_planned_2(self):
+    def test_date_commitment_2(self):
         """
-        Check that the date_planned of the onchange is correctly applied:
-        Create a PO, change its date_planned to tommorow and check that the date_planned of the lines are updated.
-        Create a new line (this will update the date_planned of the PO but should not alter the other lines).
+        Check that the date_commitment of the onchange is correctly applied:
+        Create a PO, change its date_commitment to tommorow and check that the date_commitment of the lines are updated.
+        Create a new line (this will update the date_commitment of the PO but should not alter the other lines).
         """
 
         po = self.env["purchase.order"].create(
@@ -94,16 +102,16 @@ class TestPurchase(AccountTestInvoicingCommon):
             }
         )
         with Form(po) as po_form:
-            po_form.date_planned = fields.Datetime.now() + timedelta(days=1)
-        self.assertEqual(po.line_ids.date_planned, po.date_planned)
+            po_form.date_commitment = fields.Datetime.now() + timedelta(days=1)
+        self.assertEqual(po.line_ids.date_commitment, po.date_commitment)
 
         with Form(po) as po_form:
             with po_form.line_ids.new() as new_line:
                 new_line.product_id = self.product_b
                 new_line.product_qty = 10
                 new_line.price_unit = 200
-        self.assertEqual(po.line_ids[1].date_planned, po.date_planned)
-        self.assertNotEqual(po.line_ids[0].date_planned, po.date_planned)
+        self.assertEqual(po.line_ids[1].date_commitment, po.date_commitment)
+        self.assertNotEqual(po.line_ids[0].date_commitment, po.date_commitment)
 
     def test_purchase_order_sequence(self):
         PurchaseOrder = self.env["purchase.order"].with_context(tracking_disable=True)
@@ -160,10 +168,10 @@ class TestPurchase(AccountTestInvoicingCommon):
             po_line.product_qty = 10
             po_line.price_unit = 200
         # set to send reminder today
-        date_planned = fields.Datetime.now().replace(hour=23, minute=0) + timedelta(
+        date_commitment = fields.Datetime.now().replace(hour=23, minute=0) + timedelta(
             days=2
         )
-        po.date_planned = date_planned
+        po.date_commitment = date_commitment
         po = po.save()
         po.action_confirm()
         # Check that reminder is not set in Company 1 and the mail will not be sent
@@ -186,16 +194,16 @@ class TestPurchase(AccountTestInvoicingCommon):
         self.assertTrue(po.receipt_reminder_email)
         self.assertEqual(po.reminder_date_before_receipt, 2)
 
-        # check date_planned is correctly set
-        self.assertEqual(po.date_planned, date_planned)
+        # check date_commitment is correctly set
+        self.assertEqual(po.date_commitment, date_commitment)
         po_tz = timezone(po.user_id.tz)
-        localized_date_planned = po.date_planned.astimezone(po_tz)
-        self.assertEqual(localized_date_planned, po.get_localized_date_planned())
-        # Ensure that the function get_localized_date_planned can accept a date in string format
+        localized_date_commitment = po.date_commitment.astimezone(po_tz)
+        self.assertEqual(localized_date_commitment, po.get_localized_date_commitment())
+        # Ensure that the function get_localized_date_commitment can accept a date in string format
         self.assertEqual(
-            localized_date_planned,
-            po.get_localized_date_planned(
-                po.date_planned.strftime("%Y-%m-%d %H:%M:%S")
+            localized_date_commitment,
+            po.get_localized_date_commitment(
+                po.date_commitment.strftime("%Y-%m-%d %H:%M:%S")
             ),
         )
 
@@ -231,7 +239,7 @@ class TestPurchase(AccountTestInvoicingCommon):
             po_line.product_qty = 10
             po_line.price_unit = 200
         # set to send reminder tomorrow
-        po.date_planned = fields.Datetime.now() + timedelta(days=2)
+        po.date_commitment = fields.Datetime.now() + timedelta(days=2)
         po = po.save()
         self.partner_a.receipt_reminder_email = True
         self.partner_a.reminder_date_before_receipt = 1
@@ -249,25 +257,27 @@ class TestPurchase(AccountTestInvoicingCommon):
         # check no reminder send
         self.assertFalse(messages_send)
 
-    def test_update_date_planned(self):
+    def test_update_date_commitment(self):
         po = Form(self.env["purchase.order"])
         po.partner_id = self.partner_a
         with po.line_ids.new() as po_line:
             po_line.product_id = self.product_a
             po_line.product_qty = 1
             po_line.price_unit = 100
-            po_line.date_planned = "2020-06-06 00:00:00"
+            po_line.date_commitment = "2020-06-06 00:00:00"
         with po.line_ids.new() as po_line:
             po_line.product_id = self.product_b
             po_line.product_qty = 10
             po_line.price_unit = 200
-            po_line.date_planned = "2020-06-06 00:00:00"
+            po_line.date_commitment = "2020-06-06 00:00:00"
         po = po.save()
         po.action_confirm()
 
         # update first line
-        po._update_order_lines_date_planned([(po.line_ids[0], fields.Datetime.today())])
-        self.assertEqual(po.line_ids[0].date_planned, fields.Datetime.today())
+        po._update_order_lines_date_commitment(
+            [(po.line_ids[0], fields.Datetime.today())]
+        )
+        self.assertEqual(po.line_ids[0].date_commitment, fields.Datetime.today())
         activity = self.env["mail.activity"].search(
             [
                 ("summary", "=", "Date Updated"),
@@ -283,8 +293,10 @@ class TestPurchase(AccountTestInvoicingCommon):
         )
 
         # update second line
-        po._update_order_lines_date_planned([(po.line_ids[1], fields.Datetime.today())])
-        self.assertEqual(po.line_ids[1].date_planned, fields.Datetime.today())
+        po._update_order_lines_date_commitment(
+            [(po.line_ids[1], fields.Datetime.today())]
+        )
+        self.assertEqual(po.line_ids[1].date_commitment, fields.Datetime.today())
         self.assertIn(
             "<p>partner_a modified receipt dates for the following products:</p>\n"
             "<p> - product_a from 2020-06-06 to %(today)s</p>\n"
@@ -947,14 +959,14 @@ class TestPurchase(AccountTestInvoicingCommon):
         self.assertEqual(po.line_ids.name, "[Vendor A] product_a")
         self.assertEqual(po.line_ids.product_qty, 10)
         self.assertEqual(
-            po.line_ids.date_planned, fields.Datetime.now() + timedelta(days=5)
+            po.line_ids.date_commitment, fields.Datetime.now() + timedelta(days=5)
         )
         po.partner_id = self.partner_b
         self.assertEqual(po.line_ids.price_unit, 10)
         self.assertEqual(po.line_ids.name, "[Vendor B] product_a")
         self.assertEqual(po.line_ids.product_qty, 10)
         self.assertEqual(
-            po.line_ids.date_planned, fields.Datetime.now() + timedelta(days=6)
+            po.line_ids.date_commitment, fields.Datetime.now() + timedelta(days=6)
         )
 
     def test_merge_purchase_order(self):

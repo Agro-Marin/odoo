@@ -137,7 +137,7 @@ class PurchaseReport(models.Model):
                 ) / (24 * 60 * 60)::decimal(16,2)""",
             "delay_pass": """EXTRACT(
                     EPOCH FROM age(
-                        l.date_planned, o.date_order
+                        l.date_commitment, o.date_order
                     )
                 ) / (24 * 60 * 60)::decimal(16,2)""",
             "product_uom_qty": """SUM(
@@ -226,7 +226,7 @@ class PurchaseReport(models.Model):
             "c.currency_id",
             "l.price_unit",
             "o.date_confirmed",
-            "l.date_planned",
+            "l.date_commitment",
             "l.product_uom_id",
             "o.dest_address_id",
             "o.fiscal_position_id",

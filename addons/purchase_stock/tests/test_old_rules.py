@@ -400,7 +400,7 @@ class TestPurchaseOldRules(PurchaseTestCommon):
 
         # Modify the date_planned of the purchase -> propagate the deadline
         purchase_form = Form(purchase)
-        purchase_form.date_planned = purchase.date_planned + timedelta(days=1)
+        purchase_form.date_commitment = purchase.date_commitment + timedelta(days=1)
         purchase_form.save()
         self.assertEqual(
             incoming_shipment2.date_deadline,

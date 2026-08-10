@@ -263,9 +263,9 @@ class PurchaseRequisitionLine(models.Model):
         self.ensure_one()
         if self.product_description_variants:
             name += '\n' + self.product_description_variants
-        date_planned = fields.Datetime.now()
+        date_commitment = fields.Datetime.now()
         if self.requisition_id.date_start:
-            date_planned = max(date_planned, fields.Datetime.to_datetime(self.requisition_id.date_start))
+            date_commitment = max(date_commitment, fields.Datetime.to_datetime(self.requisition_id.date_start))
         return {
             'name': name,
             'product_id': self.product_id.id,
@@ -273,6 +273,6 @@ class PurchaseRequisitionLine(models.Model):
             'product_qty': product_qty,
             'price_unit': price_unit,
             'tax_ids': [(6, 0, taxes_ids)],
-            'date_planned': date_planned,
+            'date_commitment': date_commitment,
             'analytic_distribution': self.analytic_distribution,
         }

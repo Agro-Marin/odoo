@@ -41,7 +41,7 @@
             <field name="user_id" ref="base.user_admin"/>
             <field name="state">draft</field>
             <field name="date_order" eval="(datetime.now() + relativedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')"/>
-            <field name="date_planned" eval="(datetime.now() + relativedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="date_commitment" eval="(datetime.now() + relativedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')"/>
             <field name="line_ids" model="purchase.order.line" eval="[(5, 0, 0),
                 (0, 0, {
                     'product_id': ref('product.product_product_25'),
@@ -49,14 +49,14 @@
                     'price_unit': 286.80,
                     'product_qty': 20.0,
                     'product_uom_id': ref('uom.product_uom_unit'),
-                    'date_planned': DateTime.today()}),
+                    'date_commitment': DateTime.today()}),
                 (0, 0, {
                     'product_id': ref('product.product_product_20'),
                     'name': obj().env.ref('product.product_product_20').partner_ref,
                     'price_unit': 120.00,
                     'product_qty': 10.0,
                     'product_uom_id': ref('uom.product_uom_unit'),
-                    'date_planned': DateTime.today()}),
+                    'date_commitment': DateTime.today()}),
             ]"/>
         </record>
 

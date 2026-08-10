@@ -13,7 +13,7 @@
                 </t>
             </t>
         </xpath>
-        <xpath expr="//div[@t-if='o.date_planned']" position="after">
+        <xpath expr="//div[@t-if='o.date_commitment']" position="after">
             <div t-if="o.incoterm_id" class="col-2 bm-2">
                 <strong>Incoterm:</strong>
                 <p t-if="o.incoterm_location">
@@ -36,7 +36,7 @@
                     </div>
                     <div>
                         <strong>Requested Ship Date:</strong>
-                        <span t-field="o.date_planned" t-options="{'date_only': 'true'}"/>
+                        <span t-field="o.date_commitment" t-options="{'date_only': 'true'}"/>
                     </div>
                 </t>
             </t>

@@ -532,7 +532,7 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
         Changing product_qty triggers:
         - _compute_selected_seller_id
         - _compute_price_and_discount
-        - _compute_date_planned
+        - _compute_date_commitment
         - _compute_amounts (on order)
 
         This test identifies which computed fields are the bottleneck.
@@ -1389,10 +1389,10 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
             "Amount computation (50 lines): %.3fs, %d queries", t1 - t0, query_count
         )
 
-    def test_bottleneck_date_planned_computation(self):
-        """Isolate date_planned computation performance.
+    def test_bottleneck_date_commitment_computation(self):
+        """Isolate date_commitment computation performance.
 
-        The _compute_date_planned method iterates through all seller_ids
+        The _compute_date_commitment method iterates through all seller_ids
         to check if current date matches any seller's expected date.
         """
         _logger.info("=" * 60)
@@ -1416,14 +1416,14 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # Change product to trigger date_planned recomputation
+        # Change product to trigger date_commitment recomputation
         queries_start = self.env.cr.sql_log_count
         t0 = time.perf_counter()
 
-        # Simulate product change (triggers date_planned recompute)
+        # Simulate product change (triggers date_commitment recompute)
         for line in po.line_ids:
-            line.invalidate_recordset(["date_planned"])
-            _ = line.date_planned
+            line.invalidate_recordset(["date_commitment"])
+            _ = line.date_commitment
 
         t1 = time.perf_counter()
         query_count = self.env.cr.sql_log_count - queries_start

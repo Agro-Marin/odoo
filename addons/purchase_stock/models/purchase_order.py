@@ -412,7 +412,7 @@ class PurchaseOrder(models.Model):
 
     def _add_picking_info(self, activity):
         """Helper method to add picking info to the Date Updated activity when
-        vender updates date_planned of the po lines.
+        vender updates date_commitment of the po lines.
         """
         validated_picking = self.picking_ids.filtered(lambda p: p.state == "done")
         if validated_picking:
@@ -588,8 +588,8 @@ class PurchaseOrder(models.Model):
             fields.Datetime.now() - relativedelta(months=3),
         )
         purchases = self.env["purchase.order"].search_fetch(
-            [("state", "=", "done"), ("date_planned", ">=", three_months_ago)],
-            ["date_planned", "date_effective", "user_id"],
+            [("state", "=", "done"), ("date_commitment", ">=", three_months_ago)],
+            ["date_commitment", "date_effective", "user_id"],
         )
         otd_purchase_count = 0
         my_purchase_count = 0
@@ -601,7 +601,7 @@ class PurchaseOrder(models.Model):
 
             if (
                 not po.date_effective
-                or po.date_effective.date() > po.date_planned.date()
+                or po.date_effective.date() > po.date_commitment.date()
             ):
                 continue
 

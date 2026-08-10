@@ -188,8 +188,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         self.assertEqual((orig_po.line_ids[2].display_type, orig_po.line_ids[2].name), (alt_po_1.line_ids[2].display_type, alt_po_1.line_ids[2].name))
         self.assertEqual(len(alt_po_1.alternative_po_ids), 2, "Newly created PO should be auto-linked to itself and original PO")
 
-        # check compare POLs correctly calcs best date/price PO lines: orig_po.date_planned = best & alt_po.price = best
-        alt_po_1.line_ids[0].date_planned += timedelta(days=1)
+        # check compare POLs correctly calcs best date/price PO lines: orig_po.date_commitment = best & alt_po.price = best
+        alt_po_1.line_ids[0].date_commitment += timedelta(days=1)
         alt_po_1.line_ids[0].price_unit = unit_price - 10
         action = orig_po.action_compare_alternative_lines()
         best_price_ids, best_date_ids, best_price_unit_ids = orig_po.get_tender_best_lines()

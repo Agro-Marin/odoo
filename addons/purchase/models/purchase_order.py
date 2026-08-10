@@ -123,9 +123,9 @@ class PurchaseOrder(models.Model):
         comodel_name="product.product",
         string="Product",
     )
-    date_planned = fields.Datetime(
+    date_commitment = fields.Datetime(
         string="Expected Arrival",
-        compute="_compute_date_planned",
+        compute="_compute_date_commitment",
         store=True,
         readonly=False,
         copy=False,
@@ -195,7 +195,9 @@ class PurchaseOrder(models.Model):
         new_orders = super().copy(default=default)
         for line in new_orders.line_ids:
             if line.product_id:
-                line.date_planned = line._get_date_planned(line.selected_seller_id)
+                line.date_commitment = line._get_date_commitment(
+                    line.selected_seller_id
+                )
         return new_orders
 
     # _unlink_except_draft_or_cancel is inherited from order.mixin (base_order).
@@ -267,21 +269,21 @@ class PurchaseOrder(models.Model):
                 order.company_id,
             ).reminder_date_before_receipt
 
-    @api.depends("state", "line_ids", "line_ids.date_planned")
-    def _compute_date_planned(self):
-        """date_planned = the earliest date_planned across all order lines."""
+    @api.depends("state", "line_ids", "line_ids.date_commitment")
+    def _compute_date_commitment(self):
+        """date_commitment = the earliest date_commitment across all order lines."""
         for order in self:
             if order.state == "cancel":
-                order.date_planned = False
+                order.date_commitment = False
                 continue
 
             dates_list = order.line_ids.filtered(
-                lambda line: not line.display_type and line.date_planned,
-            ).mapped("date_planned")
+                lambda line: not line.display_type and line.date_commitment,
+            ).mapped("date_commitment")
             if dates_list:
-                order.date_planned = min(dates_list)
+                order.date_commitment = min(dates_list)
             else:
-                order.date_planned = False
+                order.date_commitment = False
 
     @api.depends("line_ids", "line_ids.product_id")
     def _compute_show_comparison(self):
@@ -369,17 +371,17 @@ class PurchaseOrder(models.Model):
 
     def onchange(self, values, field_names, fields_spec):
         """
-        Override onchange to NOT update all date_planned on PO lines when
-        date_planned on PO is updated by the change of date_planned on PO lines.
+        Override onchange to NOT update all date_commitment on PO lines when
+        date_commitment on PO is updated by the change of date_commitment on PO lines.
         """
         result = super().onchange(values, field_names, fields_spec)
         if (
-            any(self._must_delete_date_planned(field) for field in field_names)
+            any(self._must_delete_date_commitment(field) for field in field_names)
             and "value" in result
         ):
             for line in result["value"].get("line_ids", []):
-                if line[0] == Command.UPDATE and "date_planned" in line[2]:
-                    del line[2]["date_planned"]
+                if line[0] == Command.UPDATE and "date_commitment" in line[2]:
+                    del line[2]["date_commitment"]
         return result
 
     @api.onchange("partner_id", "company_id")
@@ -399,12 +401,12 @@ class PurchaseOrder(models.Model):
                 self.user_id = self.partner_id.user_purchase_id
         return {}
 
-    @api.onchange("date_planned")
-    def _onchange_date_planned(self):
-        if self.date_planned:
+    @api.onchange("date_commitment")
+    def _onchange_date_commitment(self):
+        if self.date_commitment:
             self.line_ids.filtered(
                 lambda line: not line.display_type,
-            ).date_planned = self.date_planned
+            ).date_commitment = self.date_commitment
 
     @api.onchange("company_id", "fiscal_position_id")
     def _onchange_fiscal_position_id(self):
@@ -607,7 +609,7 @@ class PurchaseOrder(models.Model):
             note += Markup("<p> - %s</p>\n") % _(
                 "%(product)s from %(original_receipt_date)s to %(new_receipt_date)s",
                 product=line.product_id.display_name,
-                original_receipt_date=line.date_planned.date(),
+                original_receipt_date=line.date_commitment.date(),
                 new_receipt_date=date.date(),
             )
         activity = self.activity_schedule(
@@ -683,7 +685,7 @@ class PurchaseOrder(models.Model):
             activity.note += Markup("<p> - %s</p>\n") % _(
                 "%(product)s from %(original_receipt_date)s to %(new_receipt_date)s",
                 product=line.product_id.display_name,
-                original_receipt_date=line.date_planned.date(),
+                original_receipt_date=line.date_commitment.date(),
                 new_receipt_date=date.date(),
             )
 
@@ -940,18 +942,18 @@ class PurchaseOrder(models.Model):
         """
         return {"product_qty": 0}
 
-    def get_localized_date_planned(self, date_planned=False):
+    def get_localized_date_commitment(self, date_commitment=False):
         """Returns the localized date planned in the timezone of the order's user or the
         company's partner or UTC if none of them are set."""
         self.ensure_one()
-        date_planned = date_planned or self.date_planned
-        if not date_planned:
+        date_commitment = date_commitment or self.date_commitment
+        if not date_commitment:
             return False
 
-        if isinstance(date_planned, str):
-            date_planned = fields.Datetime.from_string(date_planned)
+        if isinstance(date_commitment, str):
+            date_commitment = fields.Datetime.from_string(date_commitment)
         tz = self.get_timezone()
-        return date_planned.astimezone(tz)
+        return date_commitment.astimezone(tz)
 
     def _get_mail_template(self):
         """Return the mail template used when sending this order.
@@ -1277,7 +1279,7 @@ class PurchaseOrder(models.Model):
         if template:
             orders = self if send_single else self._get_orders_to_remind()
             for order in orders:
-                date = order.date_planned
+                date = order.date_commitment
                 if date and (
                     send_single
                     or (
@@ -1367,7 +1369,7 @@ class PurchaseOrder(models.Model):
             ),
         }
 
-    def _update_order_lines_date_planned(self, updated_dates):
+    def _update_order_lines_date_commitment(self, updated_dates):
         # create or update the activity
         activity = self.env["mail.activity"].search(
             [
@@ -1385,7 +1387,7 @@ class PurchaseOrder(models.Model):
 
         # update the date on PO line
         for line, date in updated_dates:
-            line._update_date_planned(date)
+            line._update_date_commitment(date)
 
     # ------------------------------------------------------------
     # VALIDATIONS
@@ -1499,7 +1501,7 @@ class PurchaseOrder(models.Model):
                 ),
             )
 
-    def _must_delete_date_planned(self, field_name):
+    def _must_delete_date_commitment(self, field_name):
         # To be overridden
         return field_name == "line_ids"
 

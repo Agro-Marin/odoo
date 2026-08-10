@@ -63,8 +63,8 @@ class PurchaseOrderLine(models.Model):
     # ------------------------------------------------------------
 
     def write(self, vals):
-        if vals.get("date_planned"):
-            new_date = fields.Datetime.to_datetime(vals["date_planned"])
+        if vals.get("date_commitment"):
+            new_date = fields.Datetime.to_datetime(vals["date_commitment"])
             self.filtered(
                 lambda l: not l.display_type,
             )._update_stock_move_date_deadline(
@@ -187,7 +187,7 @@ class PurchaseOrderLine(models.Model):
 
             line.qty_transferred = qty_transferred
 
-    @api.depends("product_uom_qty", "date_planned")
+    @api.depends("product_uom_qty", "date_commitment")
     def _compute_forecasted_issue(self):
         for line in self:
             warehouse = line.order_id.picking_type_id.warehouse_id
@@ -195,7 +195,7 @@ class PurchaseOrderLine(models.Model):
             if line.product_id:
                 qty_available_virtual = line.product_id.with_context(
                     warehouse_id=warehouse.id,
-                    to_date=line.date_planned,
+                    to_date=line.date_commitment,
                 ).qty_available_virtual
                 if line.state == "draft":
                     qty_available_virtual += line.product_uom_qty
@@ -464,17 +464,22 @@ class PurchaseOrderLine(models.Model):
         if line_description and product_id.name != line_description:
             res["name"] = (res["name"] + "\n" + line_description).strip()
 
-        res["date_planned"] = fields.Datetime.to_datetime(values.get("date_planned"))
+        res["date_commitment"] = fields.Datetime.to_datetime(
+            values.get("date_planned")
+        )
         # The date must be day before or equal at the supplier target day
 
         if po.partner_id.group_rfq == "week" and po.partner_id.group_on != "default":
             delta_days = (
-                7 + int(po.partner_id.group_on) - res["date_planned"].isoweekday()
+                7 + int(po.partner_id.group_on) - res["date_commitment"].isoweekday()
             ) % 7
-            res["date_planned"] = res["date_planned"] + relativedelta(days=delta_days)
+            res["date_commitment"] = res["date_commitment"] + relativedelta(
+                days=delta_days
+            )
 
-            if not po.date_planned or po.date_planned >= res["date_planned"]:
-                # date_order was computed based on procurement date_planned. If the PO date_planned is
+            if not po.date_commitment or po.date_commitment >= res["date_commitment"]:
+                # date_order was computed from the procurement date_planned. If the PO
+                # date_commitment is
                 # shifted, we also need to shift the date_order.
                 po.date_order = fields.Datetime.to_datetime(
                     po.date_order,
@@ -621,11 +626,11 @@ class PurchaseOrderLine(models.Model):
         if location_final and location_final._child_of(location_dest):
             location_dest = location_final
 
-        date_planned = self.date_planned or self.order_id.date_planned
+        date_commitment = self.date_commitment or self.order_id.date_commitment
         return {
             "product_id": self.product_id.id,
-            "date": date_planned,
-            "date_deadline": date_planned,
+            "date": date_commitment,
+            "date_deadline": date_commitment,
             "location_id": self.order_id.partner_id.property_stock_supplier.id,
             "location_dest_id": location_dest.id,
             "location_final_id": location_final.id,
@@ -646,14 +651,14 @@ class PurchaseOrderLine(models.Model):
             "sequence": self.sequence,
         }
 
-    def _update_date_planned(self, updated_date):
+    def _update_date_commitment(self, updated_date):
         move_to_update = self.move_ids.filtered(
             lambda m: m.state not in ["done", "cancel"],
         )
         # Only change the date if there is no move done or none
 
         if not self.move_ids or move_to_update:
-            super()._update_date_planned(updated_date)
+            super()._update_date_commitment(updated_date)
 
         if move_to_update:
             self._update_stock_move_date_deadline(updated_date)

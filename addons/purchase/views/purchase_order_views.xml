@@ -244,7 +244,7 @@
                     decoration-info="state == 'draft'"
                     decoration-warning="state == 'to approve'"
                     optional="show" />
-                <field name="date_planned" column_invisible="context.get('quotation_only', False)"
+                <field name="date_commitment" column_invisible="context.get('quotation_only', False)"
                     optional="show" />
                 <field name="invoice_state"
                     widget="badge"
@@ -296,7 +296,7 @@
                     optional="show" />
                 <field name="date_confirmed" column_invisible="context.get('quotation_only', False)"
                     optional="show" />
-                <field name="date_planned" column_invisible="context.get('quotation_only', False)"
+                <field name="date_commitment" column_invisible="context.get('quotation_only', False)"
                     optional="show" />
                 <field name="partner_id" readonly="1" />
                 <field name="origin" optional="hide" />
@@ -373,7 +373,7 @@
                 <field name="invoice_state" widget="badge"
                     decoration-success="invoice_state == 'done'"
                     decoration-info="invoice_state == 'to do'" optional="show" />
-                <field name="date_planned" column_invisible="context.get('quotation_only', False)"
+                <field name="date_commitment" column_invisible="context.get('quotation_only', False)"
                     optional="show" />
             </list>
         </field>
@@ -550,9 +550,9 @@
                             <div name="date_confirmed" invisible="state != 'done'" class="o_row">
                                 <field name="date_confirmed" />
                             </div>
-                            <label for="date_planned" />
-                            <div name="date_planned_div" class="o_row">
-                                <field name="date_planned"
+                            <label for="date_commitment" />
+                            <div name="date_commitment_div" class="o_row">
+                                <field name="date_commitment"
                                     readonly="state not in ['draft', 'done']" />
                             </div>
                             <field name="currency_id"
@@ -680,7 +680,7 @@
                                         readonly="qty_invoiced != 0"
                                         optional="hide" />
                                     <field name="price_subtotal" string="Amount" />
-                                    <field name="date_planned" optional="hide"
+                                    <field name="date_commitment" optional="hide"
                                         required="not display_type and not is_downpayment"
                                         force_save="1" readonly="is_downpayment" />
                                 </list>
@@ -732,7 +732,7 @@
                                                 <field name="discount" class="oe_inline" /> % </div>
                                         </group>
                                         <group invisible="display_type">
-                                            <field name="date_planned"
+                                            <field name="date_commitment"
                                                 required="not display_type and not is_downpayment" />
                                             <field name="analytic_distribution"
                                                 widget="analytic_distribution"

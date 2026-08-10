@@ -18,7 +18,7 @@
                         name="purchase_shipping_address" />
                     <div>
                         <strong>Requested Ship Date:</strong>
-                        <span t-field="o.date_planned" t-options="{'date_only': 'true'}" />
+                        <span t-field="o.date_commitment" t-options="{'date_only': 'true'}" />
                     </div>
                 </t>
             </t>
@@ -47,7 +47,7 @@
                                         <span t-field="line.name" />
                                     </td>
                                     <td class="text-center">
-                                        <span t-field="line.date_planned"
+                                        <span t-field="line.date_commitment"
                                             t-options="{'date_only': 'true'}" />
                                     </td>
                                     <td class="text-end">

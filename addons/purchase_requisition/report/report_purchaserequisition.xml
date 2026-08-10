@@ -96,7 +96,7 @@
                                 <span t-if="purchase_id.user_id" t-field="purchase_id.user_id.name">Mitchell Admin</span>
                             </td>
                             <td>
-                                <span t-if="purchase_id.date_planned" t-field="purchase_id.date_planned" t-options='{"widget": "date"}'>12/25/2024</span>
+                                <span t-if="purchase_id.date_commitment" t-field="purchase_id.date_commitment" t-options='{"widget": "date"}'>12/25/2024</span>
                             </td>
                             <td class="text-end">
                                 <span t-field="purchase_id.amount_total">$500</span>

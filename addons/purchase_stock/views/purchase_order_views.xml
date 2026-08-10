@@ -25,7 +25,7 @@
             <xpath expr="//field[@name='currency_id']" position="after">
                 <field name="is_shipped" invisible="1" />
             </xpath>
-            <xpath expr="//field[@name='line_ids']/list//field[@name='date_planned']"
+            <xpath expr="//field[@name='line_ids']/list//field[@name='date_commitment']"
                 position="after">
                 <field name="move_dest_ids" column_invisible="True" />
             </xpath>
@@ -39,7 +39,7 @@
                 <button type="object" name="action_product_forecast_report" title="Forecast Report"
                     icon="fa-area-chart" invisible="not id or forecasted_issue or not is_storable" />
             </xpath>
-            <xpath expr="//div[@name='date_planned_div']" position="inside">
+            <xpath expr="//div[@name='date_commitment_div']" position="inside">
                 <div>
                     <button name="%(action_purchase_vendor_delay_report)d" class="oe_link"
                         type="action" context="{'search_default_partner_id': partner_id}"
@@ -104,15 +104,15 @@
                 <field name="date_effective" column_invisible="True" />
                 <field name="transfer_state" optional="hide" widget="badge"
                     decoration-success="transfer_state=='done'"
-                    decoration-danger="date_planned and (date_planned &lt; date_effective or date_planned &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done' and date_effective &lt;= date_planned)"
-                    decoration-warning="date_planned and date_planned &gt;= datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and date_planned &lt;= datetime.datetime.combine(datetime.date.today(), datetime.time(23,59,59)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done'" />
+                    decoration-danger="date_commitment and (date_commitment &lt; date_effective or date_commitment &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done' and date_effective &lt;= date_commitment)"
+                    decoration-warning="date_commitment and date_commitment &gt;= datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and date_commitment &lt;= datetime.datetime.combine(datetime.date.today(), datetime.time(23,59,59)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done'" />
             </field>
-            <xpath expr="//field[@name='date_planned']" position="attributes">
-                <attribute name="decoration-danger">date_planned and (date_planned &lt;
-                    date_effective or date_planned &lt;
+            <xpath expr="//field[@name='date_commitment']" position="attributes">
+                <attribute name="decoration-danger">date_commitment and (date_commitment &lt;
+                    date_effective or date_commitment &lt;
                     datetime.datetime.combine(datetime.date.today(),
                     datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and
-                    transfer_state!='done' and date_effective &lt;= date_planned)</attribute>
+                    transfer_state!='done' and date_effective &lt;= date_commitment)</attribute>
             </xpath>
         </field>
     </record>

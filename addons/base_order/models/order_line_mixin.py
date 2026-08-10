@@ -135,11 +135,21 @@ class OrderLineFieldsMixin(models.AbstractModel):
 
     # ─── CRUD ──────────────────────────────────────────────────────
 
+    def _get_merge_date_field(self):
+        """Name of the date two lines must agree on to be merged, or None.
+
+        ``None`` means the line model carries no merge-relevant date, so
+        ``order.merge.mixin`` treats every pair as compatible. purchase.order.line
+        returns ``date_commitment``; sale.order.line has no such date until
+        ``sale_stock`` adds one, and overrides this there.
+        """
+        return
+
     @api.model
     def _get_display_type_nullify_vals(self):
         """Values nulled out on display lines (sections/notes) at creation.
 
-        Purchase extends with ``date_planned``.
+        Purchase extends with ``date_commitment``.
         """
         return {
             "product_id": False,

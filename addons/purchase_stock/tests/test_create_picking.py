@@ -654,17 +654,17 @@ class TestCreatePicking(ProductVariantsCommon):
 
         # change scheduled date of po line.
         purchase_order_line.write(
-            {"date_planned": purchase_order_line.date_planned + timedelta(days=5)}
+            {"date_commitment": purchase_order_line.date_commitment + timedelta(days=5)}
         )
 
         # Now check scheduled date and deadline of delivery order.
         self.assertNotEqual(
-            purchase_order_line.date_planned,
+            purchase_order_line.date_commitment,
             delivery_order.date_planned,
             "Scheduled delivery order date should not changed.",
         )
         self.assertEqual(
-            purchase_order_line.date_planned,
+            purchase_order_line.date_commitment,
             delivery_order.date_deadline,
             "Delivery deadline date should be changed.",
         )
@@ -680,11 +680,11 @@ class TestCreatePicking(ProductVariantsCommon):
         po_form.partner_id = self.partner_id
         with po_form.line_ids.new() as line:
             line.product_id = self.product_id_1
-            line.date_planned = datetime.today()
+            line.date_commitment = datetime.today()
             line.product_qty = 1.0
         with po_form.line_ids.new() as line:
             line.product_id = self.product_id_1
-            line.date_planned = datetime.today() + timedelta(days=7)
+            line.date_commitment = datetime.today() + timedelta(days=7)
             line.product_qty = 1.0
         po = po_form.save()
 

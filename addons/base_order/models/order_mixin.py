@@ -584,19 +584,28 @@ class OrderMixin(models.AbstractModel):
         return self._get_is_late_search_domain(domain, positive)
 
     def _get_domain_is_late(self, operator, value):
-        """Domain matching confirmed orders whose planned date has passed.
+        """Domain matching confirmed orders whose promised date has passed.
 
-        Requires ``date_planned`` from the concrete model (its attributes
-        diverge — sale's is a non-storable compute, purchase's is stored and
-        editable — so the field itself stays concrete).  The explicit
-        ``!= False`` term keeps orders without a planned date out of both the
-        domain and its negation.
+        Built on ``date_commitment``, the date a human committed to — sale's is
+        the delivery date promised to the customer, purchase's the arrival date
+        promised by the vendor. Both are stored, so both are searchable.
+
+        This used to read ``date_planned``, which named that commitment on
+        purchase but a *derived, unstored* estimate on sale. Searching it there
+        raised "Cannot convert sale.order.date_planned to SQL because it is not
+        stored", so ``is_late`` — declared on this mixin and therefore
+        advertised on both models — could not be searched on a sale order at
+        all.
+
+        The explicit ``!= False`` term keeps orders with no promised date out of
+        both the domain and its negation: nothing was promised, so nothing is
+        late.
         """
         return Domain(
             [
                 ("state", "=", "done"),
-                ("date_planned", "!=", False),
-                ("date_planned", "<=", fields.Datetime.now()),
+                ("date_commitment", "!=", False),
+                ("date_commitment", "<=", fields.Datetime.now()),
             ]
         )
 

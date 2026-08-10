@@ -30,7 +30,7 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
                             "product_qty": 1.0,
                             "product_uom_id": uom_dozen.id,
                             "price_unit": 100.0,
-                            "date_planned": datetime.today(),
+                            "date_commitment": datetime.today(),
                             "tax_ids": False,
                         },
                     ),
@@ -43,7 +43,7 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
                             "product_qty": 1.0,
                             "product_uom_id": uom_dozen.id,
                             "price_unit": 200.0,
-                            "date_planned": datetime.today(),
+                            "date_commitment": datetime.today(),
                             "tax_ids": False,
                         },
                     ),
@@ -142,7 +142,7 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
             line.product_id = self.product_a
         with po_form.line_ids.new() as line:
             line.product_id = self.product_b
-        po_form.date_planned = datetime.now() + timedelta(days=15)
+        po_form.date_commitment = datetime.now() + timedelta(days=15)
         po = po_form.save()
 
         po.action_confirm()

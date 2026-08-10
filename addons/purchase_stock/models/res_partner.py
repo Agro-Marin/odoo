@@ -93,10 +93,10 @@ class ResPartner(models.Model):
             [("purchase_line_id", "in", order_lines.ids), ("state", "=", "done")],
         )
         # Fetch fields from db and put them in cache.
-        order_lines.read(["date_planned", "partner_id", "product_uom_qty"], load="")
+        order_lines.read(["date_commitment", "partner_id", "product_uom_qty"], load="")
         moves.read(["purchase_line_id", "date"], load="")
         moves = moves.filtered(
-            lambda m: m.date.date() <= m.purchase_line_id.date_planned.date(),
+            lambda m: m.date.date() <= m.purchase_line_id.date_commitment.date(),
         )
         for move, quantity in zip(moves, moves.mapped("quantity"), strict=False):
             lines_quantity[move.purchase_line_id.id] += quantity

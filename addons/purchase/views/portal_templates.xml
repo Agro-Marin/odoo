@@ -253,8 +253,8 @@
  <t t-if="order.date_confirmed">
  <strong>Confirmation Date:</strong> <span t-field="order.date_confirmed" t-options='{"widget": "date"}'/><br/>
  </t>
- <div t-att-class="'d-inline' if order.date_planned else 'd-none'">
- <strong>Receipt Date:</strong><span class="ms-1" t-field="order.date_planned" t-options='{"widget": "date"}'/>
+ <div t-att-class="'d-inline' if order.date_commitment else 'd-none'">
+ <strong>Receipt Date:</strong><span class="ms-1" t-field="order.date_commitment" t-options='{"widget": "date"}'/>
  </div>
  </div>
  </div>
@@ -335,7 +335,7 @@
  t-att-data-access-token="order.access_token"
  t-att-data-order-id="order.id"
  t-att-data-line-id="line.id"
- t-att-data-value="line.date_planned.isoformat()"
+ t-att-data-value="line.date_commitment.isoformat()"
  />
  </div>
  </div>

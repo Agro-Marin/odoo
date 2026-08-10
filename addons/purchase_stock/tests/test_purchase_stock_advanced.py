@@ -628,8 +628,8 @@ class TestPurchaseStockLeadTime(TestStockCommon):
         )
         cls.buy_route = cls.env.ref("purchase_stock.route_warehouse0_buy")
 
-    def test_date_planned_includes_supplier_delay(self):
-        """Test that date_planned includes supplier lead time."""
+    def test_date_commitment_includes_supplier_delay(self):
+        """Test that date_commitment includes supplier lead time."""
         product = self.env["product.product"].create(
             {
                 "name": "Product With Delay",
@@ -666,13 +666,13 @@ class TestPurchaseStockLeadTime(TestStockCommon):
         # Date planned should be at least 10 days from order date
         expected_min_date = po.date_order + timedelta(days=10)
         self.assertGreaterEqual(
-            po.line_ids[0].date_planned,
+            po.line_ids[0].date_commitment,
             expected_min_date,
             "Date planned should include supplier delay",
         )
 
-    def test_date_planned_with_zero_delay(self):
-        """Test date_planned when supplier has zero delay."""
+    def test_date_commitment_with_zero_delay(self):
+        """Test date_commitment when supplier has zero delay."""
         product = self.env["product.product"].create(
             {
                 "name": "Product No Delay",
@@ -707,7 +707,7 @@ class TestPurchaseStockLeadTime(TestStockCommon):
         )
 
         # Date planned should be close to order date
-        delta = po.line_ids[0].date_planned - po.date_order
+        delta = po.line_ids[0].date_commitment - po.date_order
         self.assertLessEqual(
             delta.days, 1, "Date planned should be same day with zero delay"
         )

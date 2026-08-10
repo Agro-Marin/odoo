@@ -92,7 +92,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
     def init_purchase(
         cls, partner=None, confirm=False, products=None, taxes=None, company=False
     ):
-        date_planned = fields.Datetime.now() - timedelta(days=1)
+        date_commitment = fields.Datetime.now() - timedelta(days=1)
         po_form = Form(
             cls.env["purchase.order"]
             .with_company(company or cls.env.company)
@@ -106,7 +106,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
                 line_form.product_id = product
                 line_form.product_qty = 1
                 line_form.product_uom_id = product.uom_id
-                line_form.date_planned = date_planned
+                line_form.date_commitment = date_commitment
                 if taxes:
                     line_form.tax_ids.clear()
                     for tax in taxes:

@@ -42,7 +42,7 @@ class VendorDelayReport(models.Model):
                 pol.partner_id           AS partner_id,
                 pol.product_uom_qty      AS qty_total,
                 SUM(CASE
-                        WHEN (m.state = 'done' and pol.date_planned::date >= m.date::date) THEN ((ml.quantity * ml_uom.factor) / pt_uom.factor)
+                        WHEN (m.state = 'done' and pol.date_commitment::date >= m.date::date) THEN ((ml.quantity * ml_uom.factor) / pt_uom.factor)
                         ELSE 0
                     END)                 AS qty_on_time
             FROM stock_move m
@@ -60,7 +60,7 @@ class VendorDelayReport(models.Model):
                     ON ml.move_id = m.id
                 LEFT JOIN uom_uom ml_uom
                     ON ml_uom.id = ml.product_uom_id
-            WHERE pol.date_planned IS NOT NULL
+            WHERE pol.date_commitment IS NOT NULL
             GROUP BY
                 pol.id
             )

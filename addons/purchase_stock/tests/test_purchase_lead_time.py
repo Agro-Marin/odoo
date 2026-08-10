@@ -39,7 +39,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         # Check scheduled date of purchase order
         schedule_date = order_date + timedelta(days=self.product.seller_ids.delay)
         self.assertEqual(
-            purchase.line_ids.date_planned,
+            purchase.line_ids.date_commitment,
             schedule_date,
             "Schedule date should be equal to: Order date of Purchase order + Delivery Lead Time.",
         )
@@ -110,14 +110,14 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
         # Check scheduled date of purchase order line for product_1
         self.assertEqual(
-            order_line_pro_1.date_planned,
+            order_line_pro_1.date_commitment,
             date_planned1,
             "Schedule date of purchase order line for product_1 should be equal to: Order date of purchase order + Delivery Lead Time of product_1.",
         )
 
         # Check scheduled date of purchase order line for product_2
         self.assertEqual(
-            order_line_pro_2.date_planned,
+            order_line_pro_2.date_commitment,
             date_planned2,
             "Schedule date of purchase order line for product_2 should be equal to: Order date of purchase order + Delivery Lead Time of product_2.",
         )
@@ -136,15 +136,15 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         # Check deadline of pickings
         self.assertEqual(
             fields.Date.to_date(purchase2.picking_ids.date_deadline),
-            fields.Date.to_date(purchase1.date_planned),
+            fields.Date.to_date(purchase1.date_commitment),
             "Deadline of pickings should be equals to the receipt date of purchase",
         )
         purchase_form = Form(purchase2)
-        purchase_form.date_planned = purchase2.date_planned + timedelta(days=2)
+        purchase_form.date_commitment = purchase2.date_commitment + timedelta(days=2)
         purchase_form.save()
         self.assertEqual(
             purchase2.picking_ids.date_deadline,
-            purchase2.date_planned,
+            purchase2.date_commitment,
             "Deadline of pickings should be propagate",
         )
 
@@ -208,7 +208,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             lambda r: r.product_id == self.product_2
         )
         self.assertEqual(
-            purchase2.date_planned,
+            purchase2.date_commitment,
             date_planned,
             "planned date should be equal to procurement date",
         )
@@ -223,14 +223,14 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
         # Check scheduled date of purchase order line for product_1
         self.assertEqual(
-            order_line_pro_1.date_planned,
+            order_line_pro_1.date_commitment,
             date_planned,
             "Schedule date of purchase order line for product_1 should be equal to: Order date of purchase order + Delivery Lead Time of product_1.",
         )
 
         # Check scheduled date of purchase order line for product_2
         self.assertEqual(
-            order_line_pro_2.date_planned,
+            order_line_pro_2.date_commitment,
             date_planned,
             "Schedule date of purchase order line for product_2 should be equal to: Order date of purchase order + Delivery Lead Time of product_2.",
         )
@@ -305,7 +305,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
             purchase1,
             [
                 {
-                    "date_planned": date_p,
+                    "date_commitment": date_p,
                     "date_order": date_d,
                 }
             ],
@@ -313,8 +313,8 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         self.assertRecordValues(
             purchase1.line_ids,
             [
-                {"date_planned": date_p},
-                {"date_planned": date_p},
+                {"date_commitment": date_p},
+                {"date_commitment": date_p},
             ],
         )
 
@@ -677,7 +677,7 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
         today = datetime.combine(fields.Datetime.now(), time(12))
         self.assertEqual(purchase_order.date_order, today)
-        self.assertEqual(purchase_order.date_planned, today + timedelta(days=7))
+        self.assertEqual(purchase_order.date_commitment, today + timedelta(days=7))
 
     def test_lead_time_with_no_supplier(self):
         """Test that lead time is incremented by 365 days (1 year) when there

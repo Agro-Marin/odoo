@@ -153,7 +153,7 @@ class TestPurchaseMergeConsolidation(AccountTestInvoicingCommon):
     their expected dates match within the 24h threshold.
     """
 
-    def _rfq_with_date(self, date_planned):
+    def _rfq_with_date(self, date_commitment):
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -164,7 +164,7 @@ class TestPurchaseMergeConsolidation(AccountTestInvoicingCommon):
                 ],
             },
         )
-        po.line_ids.date_planned = date_planned
+        po.line_ids.date_commitment = date_commitment
         return po
 
     def test_same_date_lines_consolidate(self):

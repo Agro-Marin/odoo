@@ -217,9 +217,9 @@ class PurchaseOrder(models.Model):
                 elif current_price_unit == price_unit:
                     product_to_best_price_unit[line.product_id] |= line
 
-            if not product_to_best_date_line[line.product_id] or product_to_best_date_line[line.product_id][0].date_planned > line.date_planned:
+            if not product_to_best_date_line[line.product_id] or product_to_best_date_line[line.product_id][0].date_commitment > line.date_commitment:
                 product_to_best_date_line[line.product_id] = line
-            elif product_to_best_date_line[line.product_id][0].date_planned == line.date_planned:
+            elif product_to_best_date_line[line.product_id][0].date_commitment == line.date_commitment:
                 product_to_best_date_line[line.product_id] |= line
 
         best_price_ids = set()
@@ -254,7 +254,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.price_total_cc = line.price_subtotal / line.order_id.currency_rate
 
-    def _compute_price_unit_and_date_planned_and_name(self):
+    def _compute_price_unit_and_date_commitment_and_name(self):
         po_lines_without_requisition = self.env['purchase.order.line']
         for pol in self:
             if pol.product_id.id not in pol.order_id.requisition_id.line_ids.product_id.ids:
@@ -278,14 +278,14 @@ class PurchaseOrderLine(models.Model):
                 date=pol.order_id.date_order and pol.order_id.date_order.date(),
                 uom_id=line.product_uom_id,
                 params=params)
-            if not pol.date_planned:
-                pol.date_planned = pol._get_date_planned(seller).strftime(DEFAULT_SERVER_DATETIME_FORMAT)
+            if not pol.date_commitment:
+                pol.date_commitment = pol._get_date_commitment(seller).strftime(DEFAULT_SERVER_DATETIME_FORMAT)
             product_ctx = {'seller_id': seller.id, 'lang': get_lang(pol.env, partner.lang).code}
             name = pol._get_product_purchase_description(pol.product_id.with_context(product_ctx))
             if line.product_description_variants:
                 name += '\n' + line.product_description_variants
             pol.name = name
-        super(PurchaseOrderLine, po_lines_without_requisition)._compute_price_unit_and_date_planned_and_name()
+        super(PurchaseOrderLine, po_lines_without_requisition)._compute_price_unit_and_date_commitment_and_name()
 
     def action_clear_quantities(self):
         zeroed_lines = self.filtered(lambda l: l.state not in ['done', 'cancel'])

@@ -212,7 +212,10 @@ class StockRule(models.Model):
         if partner.group_rfq == "day":
             start_dt = datetime.combine(date_planned, datetime.min.time())
             end_dt = datetime.combine(date_planned, datetime.max.time())
-            domain += (("date_planned", ">=", start_dt), ("date_planned", "<=", end_dt))
+            domain += (
+                ("date_commitment", ">=", start_dt),
+                ("date_commitment", "<=", end_dt),
+            )
         if partner.group_rfq == "week":
             if partner.group_on == "default":
                 start_dt = datetime.combine(
@@ -224,8 +227,8 @@ class StockRule(models.Model):
                     datetime.max.time(),
                 )
                 domain += (
-                    ("date_planned", ">=", start_dt),
-                    ("date_planned", "<=", end_dt),
+                    ("date_commitment", ">=", start_dt),
+                    ("date_commitment", "<=", end_dt),
                 )
             else:
                 delta_days = (7 + int(partner.group_on) - date_planned.isoweekday()) % 7
@@ -233,8 +236,8 @@ class StockRule(models.Model):
                 start_dt = datetime.combine(date, datetime.min.time())
                 end_dt = datetime.combine(date, datetime.max.time())
                 domain += (
-                    ("date_planned", ">=", start_dt),
-                    ("date_planned", "<=", end_dt),
+                    ("date_commitment", ">=", start_dt),
+                    ("date_commitment", "<=", end_dt),
                 )
 
         return domain
@@ -514,16 +517,16 @@ class StockRule(models.Model):
                         ),
                     )
                     # Check if we need to advance the order date for the new line
-                    date_planned = po.date_planned or min(
-                        v["date_planned"] for v in po_line_values
+                    date_commitment = po.date_commitment or min(
+                        v["date_commitment"] for v in po_line_values
                     )
-                    order_date_planned = date_planned - relativedelta(
+                    order_date_commitment = date_commitment - relativedelta(
                         days=procurement.values["supplier"].delay,
                     )
-                    if fields.Date.to_date(order_date_planned) < fields.Date.to_date(
+                    if fields.Date.to_date(order_date_commitment) < fields.Date.to_date(
                         po.date_order,
                     ):
-                        po.date_order = order_date_planned
+                        po.date_order = order_date_commitment
 
             self.env["purchase.order.line"].sudo().create(po_line_values)
 
