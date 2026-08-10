@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-25 18:36+0000\n"
-"PO-Revision-Date: 2026-01-25 18:36+0000\n"
+"POT-Creation-Date: 2026-08-10 22:29+0000\n"
+"PO-Revision-Date: 2026-08-10 22:29+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -111,8 +111,20 @@ msgid "Barcode Rule"
 msgstr ""
 
 #. module: barcodes
+#: model_terms:ir.ui.view,arch_db:barcodes.view_barcode_nomenclature_form
+msgid "Barcode Rules"
+msgstr ""
+
+#. module: barcodes
 #: model:ir.model.fields,field_description:barcodes.field_barcodes_barcode_events_mixin___barcode_scanned
 msgid "Barcode Scanned"
+msgstr ""
+
+#. module: barcodes
+#. odoo-python
+#: code:addons/barcodes/models/barcode_rule.py:0
+msgid ""
+"Barcode rule %(name)s is an alias rule, so it needs an alias to point at."
 msgstr ""
 
 #. module: barcodes
@@ -188,14 +200,6 @@ msgid "ID"
 msgstr ""
 
 #. module: barcodes
-#. odoo-python
-#: code:addons/barcodes/models/barcode_events_mixin.py:0
-msgid ""
-"In order to use barcodes.barcode_events_mixin, method on_barcode_scanned "
-"must be implemented"
-msgstr ""
-
-#. module: barcodes
 #: model:ir.model.fields,field_description:barcodes.field_barcode_nomenclature__write_uid
 #: model:ir.model.fields,field_description:barcodes.field_barcode_rule__write_uid
 msgid "Last Updated by"
@@ -250,11 +254,6 @@ msgid "Sequence"
 msgstr ""
 
 #. module: barcodes
-#: model_terms:ir.ui.view,arch_db:barcodes.view_barcode_nomenclature_form
-msgid "Tables"
-msgstr ""
-
-#. module: barcodes
 #. odoo-javascript
 #: code:addons/barcodes/static/src/components/barcode_scanner.xml:0
 msgid "Tap to scan"
@@ -270,6 +269,15 @@ msgstr ""
 #: code:addons/barcodes/models/barcode_rule.py:0
 msgid ""
 "The barcode pattern %(pattern)s does not lead to a valid regular expression."
+msgstr ""
+
+#. module: barcodes
+#. odoo-python
+#: code:addons/barcodes/models/barcode_rule.py:0
+msgid ""
+"The barcode pattern %(pattern)s nests one repetition inside another (for "
+"instance '(x+x+)+'). Such a pattern can take exponentially long to match and"
+" would block the server on every scan."
 msgstr ""
 
 #. module: barcodes
@@ -367,4 +375,12 @@ msgstr ""
 #: code:addons/barcodes/models/barcode_nomenclature.py:0
 msgid ""
 "You cannot delete '%(name)s' because it's the default barcode nomenclature."
+msgstr ""
+
+#. module: barcodes
+#. odoo-python
+#: code:addons/barcodes/models/barcode_nomenclature.py:0
+msgid ""
+"You cannot delete the barcode nomenclature %(names)s because it is still "
+"used by: %(companies)s."
 msgstr ""
