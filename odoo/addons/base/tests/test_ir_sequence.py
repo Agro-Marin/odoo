@@ -629,14 +629,24 @@ class TestIrSequencePatternToRegex(common.TransactionCase):
         with self.assertRaises(ValueError):
             self.env["ir.sequence"]._pattern_to_regex("%(vendor_lot)s")
 
-    def test_placeholders_are_extensible(self):
-        """A caller can declare its own placeholder without patching the parser."""
+    def test_a_caller_can_supply_its_own_vocabulary(self):
+        """A caller that fills placeholders of its own resolves against them."""
+        sequence = self.env["ir.sequence"]
+        extended = dict(sequence._get_pattern_placeholders(), vendor_lot=r"[A-Z0-9]+")
+        match = re.match(
+            sequence._pattern_to_regex("%(y)s-%(vendor_lot)s", extended),
+            "26-AYE4B1501C",
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group("vendor_lot"), "AYE4B1501C")
+
+    def test_the_default_vocabulary_is_the_sequences_own(self):
+        """Without a vocabulary, only what a sequence can interpolate is known."""
         sequence = self.env["ir.sequence"]
         extended = dict(sequence._get_pattern_placeholders(), vendor_lot=r"[A-Z0-9]+")
         with patch.object(
             type(sequence), "_get_pattern_placeholders", return_value=extended
         ):
-            regex = sequence._pattern_to_regex("%(y)s-%(vendor_lot)s")
-        match = re.match(regex, "26-AYE4B1501C")
-        self.assertIsNotNone(match)
-        self.assertEqual(match.group("vendor_lot"), "AYE4B1501C")
+            self.assertIsNotNone(
+                re.match(sequence._pattern_to_regex("%(vendor_lot)s"), "AYE4B1501C")
+            )

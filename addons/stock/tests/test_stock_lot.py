@@ -1,4 +1,4 @@
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form
 
@@ -569,3 +569,98 @@ class TestLotSerial(TestStockCommon):
         default_lot_sequence = self.env.ref("stock.sequence_production_lots")
         product_a.invalidate_recordset()
         self.assertEqual(product_a.lot_sequence_id, default_lot_sequence)
+
+
+class TestLotNameFormat(TestStockCommon):
+    """A product can state the shape its lot names take, rather than only their prefix."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.product = cls.env["product.product"].create(
+            {
+                "name": "Formatted lot product",
+                "is_storable": True,
+                "tracking": "lot",
+                "lot_name_format": "%(y)s%(month)s%(day)s - %(ref)s",
+            }
+        )
+
+    def test_name_is_composed_when_left_empty(self):
+        """A lot created without a name gets one shaped like the format."""
+        lot = self.env["stock.lot"].create(
+            {
+                "product_id": self.product.id,
+                "ref": "AYE4B1501C",
+            }
+        )
+        expected = fields.Datetime.context_timestamp(
+            lot, fields.Datetime.now()
+        ).strftime("%y%m%d")
+        self.assertEqual(lot.name, f"{expected} - AYE4B1501C")
+
+    def test_ref_slot_falls_back_to_the_sequence(self):
+        """With no manufacturer reference, the slot still gets filled.
+
+        Two lots of one product on the same day would otherwise collide on the
+        uniqueness constraint.
+        """
+        first, second = self.env["stock.lot"].create(
+            [
+                {"product_id": self.product.id},
+                {"product_id": self.product.id},
+            ]
+        )
+        self.assertTrue(first.name)
+        self.assertNotEqual(first.name, second.name)
+
+    def test_an_explicit_name_is_never_overwritten(self):
+        """Composition fills a gap; it does not rename what the caller supplied."""
+        lot = self.env["stock.lot"].create(
+            {
+                "product_id": self.product.id,
+                "name": "TYPED-BY-HAND",
+            }
+        )
+        self.assertEqual(lot.name, "TYPED-BY-HAND")
+
+    def test_products_without_a_format_are_untouched(self):
+        """The feature is inert unless a product opts in."""
+        plain = self.env["product.product"].create(
+            {
+                "name": "Plain lot product",
+                "is_storable": True,
+                "tracking": "lot",
+            }
+        )
+        lot = self.env["stock.lot"].create({"product_id": plain.id})
+        self.assertTrue(lot.name)
+        self.assertNotIn(" - ", lot.name)
+
+    def test_a_composed_name_parses_back(self):
+        """Composition and parsing are the same format read in both directions."""
+        lot = self.env["stock.lot"].create(
+            {
+                "product_id": self.product.id,
+                "ref": "AYE4B1501C",
+            }
+        )
+        parsed = lot._parse_name()
+        self.assertIsNotNone(parsed, f"{lot.name!r} does not match its own format")
+        self.assertEqual(parsed["ref"], "AYE4B1501C")
+        self.assertEqual(
+            parsed["y"],
+            fields.Datetime.context_timestamp(lot, fields.Datetime.now()).strftime(
+                "%y"
+            ),
+        )
+
+    def test_a_legacy_name_parses_to_nothing(self):
+        """Names written before the format was set are reported, not crashed on."""
+        lot = self.env["stock.lot"].create(
+            {
+                "product_id": self.product.id,
+                "name": "OLD-STYLE-NAME",
+            }
+        )
+        self.assertIsNone(lot._parse_name())

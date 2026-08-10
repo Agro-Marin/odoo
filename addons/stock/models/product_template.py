@@ -78,6 +78,15 @@ class ProductTemplate(models.Model):
         ),
         help="Technical Field: The Ir.Sequence record that is used to generate serial/lot numbers for this product",
     )
+    lot_name_format = fields.Char(
+        string="Lot/Serial Name Format",
+        help="Shape this product's lot/serial names take, in the same "
+        "placeholder form as a sequence prefix (%(year)s, %(month)s, %(day)s, "
+        "...) plus %(ref)s for the manufacturer's lot number.\n"
+        "Set it when the name has to carry information — a manufacturing date, "
+        "a supplier's own lot number — rather than just be unique. Left empty, "
+        "names are drawn from the sequence as usual.",
+    )
     serial_prefix_format = fields.Char(
         string="Custom Lot/Serial",
         compute="_compute_serial_prefix_format",

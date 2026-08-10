@@ -433,6 +433,15 @@ class IrSequence(models.Model):
         )
 
     @api.model
+    def _get_interpolation_formats(self) -> dict[str, str]:
+        """Placeholder name -> strftime format interpolation substitutes for it.
+
+        The forward half of `_get_pattern_placeholders`, for callers that build a
+        reference themselves rather than drawing one from a sequence.
+        """
+        return dict(_INTERPOLATION_FORMATS)
+
+    @api.model
     def _get_pattern_placeholders(self) -> dict[str, str]:
         """Placeholder name -> regex for what interpolating it can emit.
 
@@ -442,7 +451,9 @@ class IrSequence(models.Model):
         return dict(_INTERPOLATION_REGEXES)
 
     @api.model
-    def _pattern_to_regex(self, pattern: str) -> str:
+    def _pattern_to_regex(
+        self, pattern: str, placeholders: dict[str, str] | None = None
+    ) -> str:
         """Compile a prefix/suffix pattern into an anchored regex with named groups.
 
         `_get_prefix_suffix` runs a pattern forward, turning `%(year)s` into a
@@ -455,11 +466,16 @@ class IrSequence(models.Model):
         where the two copies disagree is not one this pattern produced.
 
         :param str pattern: pattern in `%(name)s` form, as `prefix`/`suffix` hold
+        :param dict placeholders: vocabulary to resolve against, name -> regex.
+            Defaults to `_get_pattern_placeholders`. Pass it when the caller
+            substitutes placeholders of its own: the vocabulary belongs to
+            whoever fills the pattern, not to this model.
         :return: anchored regex, one named group per distinct placeholder
         :rtype: str
         :raises ValueError: if the pattern names a placeholder with no regex
         """
-        placeholders = self._get_pattern_placeholders()
+        if placeholders is None:
+            placeholders = self._get_pattern_placeholders()
         parts = ["^"]
         seen = set()
         position = 0

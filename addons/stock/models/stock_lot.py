@@ -320,15 +320,84 @@ class StockLot(models.Model):
     @api.depends("product_id")
     def _compute_name(self):
         for lot in self:
-            if not lot.name:
-                # Fall back to the global lot/serial sequence when the product
-                # has no dedicated one: leaving `name` empty would surface as an
-                # opaque required-field error at save time.
-                lot.name = (
-                    lot.product_id.lot_sequence_id.next_by_id()
-                    if lot.product_id.lot_sequence_id
-                    else self.env["ir.sequence"].next_by_code("stock.lot.serial")
-                )
+            if lot.name:
+                continue
+            if lot.product_id.lot_name_format:
+                # The product states the shape its lot names take. A bare
+                # sequence number would not have that shape, and any check
+                # enforcing the format would reject the record we just filled in.
+                lot.name = lot._compose_name()
+                continue
+            # Fall back to the global lot/serial sequence when the product
+            # has no dedicated one: leaving `name` empty would surface as an
+            # opaque required-field error at save time.
+            lot.name = (
+                lot.product_id.lot_sequence_id.next_by_id()
+                if lot.product_id.lot_sequence_id
+                else self.env["ir.sequence"].next_by_code("stock.lot.serial")
+            )
+
+    # ------------------------------------------------------------
+    # LOT NAME FORMAT
+    # ------------------------------------------------------------
+
+    @api.model
+    def _get_lot_name_placeholders(self) -> dict[str, str]:
+        """Placeholders a lot name format may use, mapped to their regex.
+
+        The date ones come from `ir.sequence`, so a format written here means the
+        same thing it would as a sequence prefix. `ref` is this model's own: the
+        manufacturer's lot number, which is captured rather than generated.
+
+        Override to add placeholders filled in `_get_lot_name_values`.
+        """
+        return dict(
+            self.env["ir.sequence"]._get_pattern_placeholders(),
+            ref=r".+?",
+        )
+
+    def _get_lot_name_values(self) -> dict:
+        """Values to interpolate into the product's lot name format.
+
+        Dates are taken at composition time, the same instant a sequence would
+        have used. `ref` falls back to the product's sequence: a lot with no
+        manufacturer reference still needs the slot filled, or names would
+        collide between two lots of one product on the same day.
+        """
+        self.ensure_one()
+        now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
+        formats = self.env["ir.sequence"]._get_interpolation_formats()
+        values = {name: now.strftime(fmt) for name, fmt in formats.items()}
+        values["ref"] = self.ref or (
+            self.product_id.lot_sequence_id.next_by_id()
+            if self.product_id.lot_sequence_id
+            else self.env["ir.sequence"].next_by_code("stock.lot.serial")
+        )
+        return values
+
+    def _compose_name(self) -> str:
+        """Build this lot's name from the format its product declares."""
+        self.ensure_one()
+        return self.product_id.lot_name_format % self._get_lot_name_values()
+
+    def _parse_name(self, name=None):
+        """Take a lot name apart into the components its format declares.
+
+        :return: component name -> matched text, or None when the name does not
+            have the shape the product's format defines (including legacy names
+            written before the format was set)
+        :rtype: dict | None
+        """
+        self.ensure_one()
+        lot_format = self.product_id.lot_name_format
+        name = self.name if name is None else name
+        if not lot_format or not name:
+            return None
+        regex = self.env["ir.sequence"]._pattern_to_regex(
+            lot_format, self._get_lot_name_placeholders()
+        )
+        match = re.match(regex, name)
+        return match.groupdict() if match else None
 
     @api.depends("product_id.company_id")
     def _compute_company_id(self):
