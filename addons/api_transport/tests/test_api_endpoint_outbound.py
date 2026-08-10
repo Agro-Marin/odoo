@@ -4,7 +4,9 @@ from psycopg import IntegrityError
 
 from odoo.exceptions import ValidationError
 from odoo.libs.logging import mute_logger
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
+
+from odoo.addons.api_transport.tools.exceptions import CommError
 
 
 class TestApiEndpointOutbound(TransactionCase):
@@ -386,3 +388,65 @@ class TestStatisticsComputation(TransactionCase):
 # oauth_client_secret_encrypted column. The OAuth client secret now lives in
 # credential.credential; key-rotation coverage for it belongs to core
 # (base_credential_manager TestOAuthClientCredentials).
+
+
+@tagged("post_install", "-at_install")
+class TestUnauthenticatedService(TransactionCase):
+    """A service with auth_type 'none' needs no credential.
+
+    Requiring one regardless is why unauthenticated integrations stayed on bare
+    requests calls: there was no credential to invent, so there was no way in.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.service = self.env["api.endpoint.outbound"].create(
+            {
+                "name": "Public Feed",
+                "code": "public_feed_probe",
+                "endpoint_url": "https://example.invalid/live",
+                "endpoint_url_test": "https://example.invalid/test",
+                "auth_type": "none",
+                "environment": "production",
+            }
+        )
+
+    def test_client_builds_without_a_credential(self):
+        client = self.service._get_api_client()
+        self.assertFalse(client.credential)
+
+    def test_no_auth_headers_are_invented(self):
+        client = self.service._get_api_client()
+        headers = client._build_headers()
+        self.assertNotIn("Authorization", headers)
+
+    def test_basic_auth_is_none(self):
+        self.assertIsNone(self.service._get_api_client()._get_auth())
+
+    def test_service_environment_picks_the_base_url(self):
+        """With no credential to carry it, the service's own environment decides.
+
+        Defaulting to the test URL because an absent credential is not
+        "production" would send live traffic somewhere harmless-looking.
+        """
+        self.assertEqual(
+            self.service._get_api_client().base_url, "https://example.invalid/live"
+        )
+
+        self.service.environment = "test"
+        self.assertEqual(
+            self.service._get_api_client().base_url, "https://example.invalid/test"
+        )
+
+    def test_authenticated_service_still_demands_a_credential(self):
+        """The guard must stay for every service that does authenticate."""
+        secured = self.env["api.endpoint.outbound"].create(
+            {
+                "name": "Secured",
+                "code": "secured_probe",
+                "endpoint_url": "https://example.invalid",
+                "auth_type": "bearer",
+            }
+        )
+        with self.assertRaises(CommError):
+            secured._get_api_client()

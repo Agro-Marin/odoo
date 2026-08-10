@@ -231,7 +231,11 @@ class APIGatewayClient:
                 )
             )
 
-        if not self.credential:
+        # A service declaring auth_type 'none' has nothing to authenticate with,
+        # and demanding a credential anyway is what kept unauthenticated
+        # integrations off this transport entirely -- they went back to bare
+        # requests calls rather than invent an empty credential record.
+        if not self.credential and self.service.auth_type != "none":
             raise CommError(
                 _(
                     "No active credentials for service '%(service)s' and company ID %(company)s",
@@ -249,8 +253,12 @@ class APIGatewayClient:
         # Initialize session
         self.session = self._get_or_create_session()
 
-        # Base URL
-        if self.credential.environment == "production":
+        # Base URL. The credential's environment wins where there is one; an
+        # unauthenticated service has only its own, and falling through to the
+        # test URL because an absent credential is not "production" would send
+        # live traffic somewhere harmless-looking and wrong.
+        environment = self.credential.environment if self.credential else self.service.environment
+        if environment == "production":
             self.base_url = self.service.endpoint_url
         else:
             self.base_url = self.service.endpoint_url_test or self.service.endpoint_url
@@ -709,7 +717,7 @@ class APIGatewayClient:
 
     def _build_headers(self, additional_headers=None):
         """Build request headers with authentication"""
-        headers = self.credential.get_auth_headers()
+        headers = self.credential.get_auth_headers() if self.credential else {}
 
         # The generic ``API-Version`` / ``X-API-Version`` headers are only
         # meaningful for services that use that convention. Providers that
@@ -731,7 +739,7 @@ class APIGatewayClient:
 
     def _get_auth(self):
         """Get authentication tuple for basic auth"""
-        return self.credential.get_basic_auth()
+        return self.credential.get_basic_auth() if self.credential else None
 
     def _parse_response(self, response, elapsed_ms):
         """Parse HTTP response into standardized dict"""
