@@ -146,6 +146,12 @@ class TestSignupHttpRoutes(HttpCaseWithUserDemo):
             "auth_signup.invitation_scope",
             scope,
         )
+        # With `website` installed the per-website field wins: its override of
+        # _get_signup_invitation_scope (website/models/res_users.py) only falls
+        # back to the parameter when auth_signup_uninvited is empty, and it
+        # ships set to b2c. Closing only the parameter closes nothing.
+        if "website" in self.env:
+            self.env["website"].sudo().search([]).auth_signup_uninvited = scope
 
     def test_signup_disabled_is_not_found(self):
         """Without b2c and without token the signup page must 404."""
