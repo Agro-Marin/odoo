@@ -261,13 +261,66 @@ class ResourceSchedulingMixin(models.AbstractModel):
                 record.reservation_ids.mapped("allocated_hours")
             )
 
-    @api.depends("reservation_ids.schedule_overlap_count", "reservation_ids.active")
+    def _get_overlap_depends_fields(self):
+        """Fields whose change re-evaluates ``schedule_overlap_count``.
+
+        The reservation aggregates answer for saved records.  The sync
+        triggers are what an *unsaved* record has instead: it owns no
+        reservations, so its count is derived from the very fields that
+        ``_get_reservation_vals_list`` reads, and without them here the
+        warning would never refresh as the user edits the form.
+        """
+        return [
+            "reservation_ids.schedule_overlap_count",
+            "reservation_ids.active",
+            *sorted(self._get_sync_trigger_fields()),
+        ]
+
+    @api.depends(lambda self: self._get_overlap_depends_fields())
     def _compute_schedule_overlap_count(self):
-        """Aggregate overlap counts from linked reservations."""
-        for record in self:
+        """Aggregate overlap counts from linked reservations.
+
+        Unsaved records have no reservations yet, so theirs is swept
+        prospectively from the values ``_get_reservation_vals_list`` would
+        create.  Without that branch a double-booking stays invisible until
+        the record is saved — precisely when the warning stops being useful,
+        because the clash has already been committed to the ledger.
+        """
+        stored = self.filtered(lambda record: isinstance(record.id, int))
+        for record in stored:
             record.schedule_overlap_count = sum(
                 record.reservation_ids.mapped("schedule_overlap_count")
             )
+        for record in self - stored:
+            record.schedule_overlap_count = len(record._get_schedule_conflicts())
+
+    def _get_schedule_conflicts(self):
+        """Return the reservations this record's schedule collides with.
+
+        Saved records are answered from their own reservations' sweep, unsaved
+        ones from a prospective sweep of the bookings they would create.  The
+        record's own reservations are never in the result, and both paths run
+        the same cumulative sweep, so the answer does not change shape at save
+        time — only the ids it is derived from do.
+
+        :return: ``resource.reservation`` recordset
+        """
+        self.ensure_one()
+        reservations = self.env["resource.reservation"].sudo()
+        if isinstance(self.id, int):
+            own = self.reservation_ids
+            if not own:
+                return reservations.browse()
+            conflicts = own.sudo()._conflicting_reservations()
+            found = reservations.browse()
+            for peers in conflicts.values():
+                found |= peers
+            # A multi-resource consumer books several reservations; two of its
+            # own colliding with each other is not a conflict with anything
+            # else, and reporting it would make every such record permanently
+            # self-conflicted.
+            return found - own.sudo()
+        return reservations._prospective_conflicts(self._get_reservation_vals_list())
 
     @api.model
     def _search_schedule_overlap_count(self, operator, value):

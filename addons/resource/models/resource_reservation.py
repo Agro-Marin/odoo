@@ -430,6 +430,18 @@ class ResourceReservation(models.Model):
         reservation is no longer a claim on the resource.  Records without a
         stored id, a resource, or a date range are skipped (count 0).
         """
+        conflicts = self._conflicting_reservations()
+        for record in self:
+            record.schedule_overlap_count = len(conflicts[record.id])
+
+    def _conflicting_reservations(self):
+        """Return ``{id: recordset}`` naming which rows each of ``self`` collides with.
+
+        ``schedule_overlap_count`` answers *how many*; this answers *which*,
+        out of the same sweep, so a view listing the clashes and the badge
+        counting them cannot disagree.  Records without a stored id, a
+        resource or a date range map to an empty recordset.
+        """
         stored = self.filtered(
             lambda r: (
                 r.id
@@ -439,9 +451,10 @@ class ResourceReservation(models.Model):
                 and r.date_end
             )
         )
-        (self - stored).schedule_overlap_count = 0
+        empty = self.browse()
+        result = dict.fromkeys(self._ids, empty)
         if not stored:
-            return
+            return result
 
         # The query below reads sibling rows straight from the table, so every
         # pending change to those columns — not just on ``stored`` — must be
@@ -471,7 +484,10 @@ class ResourceReservation(models.Model):
 
         conflict_partners = self._sweep_overlap_partners(rows_by_resource)
         for record in stored:
-            record.schedule_overlap_count = len(conflict_partners.get(record.id, ()))
+            result[record.id] = self.browse(
+                sorted(conflict_partners.get(record.id, ()))
+            )
+        return result
 
     def _overlap_rows(self, extra_conditions=()):
         """Fetch the candidate rows for the sweep, grouped per resource.
@@ -501,6 +517,75 @@ class ResourceReservation(models.Model):
         for res_id, resource_id, date_start, date_end, pct in self.env.cr.fetchall():
             rows_by_resource[resource_id].append((res_id, date_start, date_end, pct))
         return rows_by_resource
+
+    @api.model
+    def _prospective_conflicts(self, vals_list, ignore_ids=()):
+        """Return the stored reservations that *would* conflict with ``vals_list``.
+
+        ``vals_list`` describes bookings that are not in the table: an unsaved
+        consumer record, or any "what if I booked this?" probe.  Each dict needs
+        ``resource_id``, ``date_start`` and ``date_end``; a missing
+        ``allocated_percentage`` counts as a full 100% claim, matching the
+        column default.
+
+        The prospective rows are swept *together with* the stored ones by the
+        same :meth:`_sweep_overlap_partners`, so this answers with exactly the
+        semantics a saved record gets — including a conflict that only exists
+        cumulatively, where three 50% claims collide although no pair exceeds
+        100%.  A separate pairwise check here would have been the easy version
+        and would have disagreed with the compute, which is the failure mode
+        this model was built to remove.
+
+        :param vals_list: list of dicts describing the hypothetical bookings
+        :param ignore_ids: stored reservation ids to leave out, so a record
+            being edited is not reported as conflicting with its own booking
+        :return: ``resource.reservation`` recordset, conflicting rows only
+        """
+        # Sentinel ids for the hypothetical rows. Negative, so they can never
+        # collide with a real id, and dropped from the result below.
+        prospective = []
+        for index, vals in enumerate(vals_list):
+            resource_id = vals.get("resource_id")
+            date_start, date_end = vals.get("date_start"), vals.get("date_end")
+            if not resource_id or not date_start or not date_end:
+                continue
+            if date_end <= date_start:
+                continue
+            pct = vals.get("allocated_percentage")
+            pct = 100.0 if pct is None else min(100.0, max(0.0, pct))
+            prospective.append((-(index + 1), resource_id, date_start, date_end, pct))
+        if not prospective:
+            return self.browse()
+
+        # Same reason as the compute: the fetch below reads sibling rows
+        # straight from the table, so pending writes to those columns must be
+        # on disk first.
+        self.flush_model(
+            ["date_start", "date_end", "resource_id", "allocated_percentage", "active"]
+        )
+
+        resource_ids = list({row[1] for row in prospective})
+        window_start = min(row[2] for row in prospective)
+        window_end = max(row[3] for row in prospective)
+        conditions = [
+            SQL("AND resource_id = ANY(%s)", resource_ids),
+            SQL("AND date_start < %s", window_end),
+            SQL("AND date_end > %s", window_start),
+        ]
+        if ignore_ids:
+            conditions.append(SQL("AND id != ALL(%s)", list(ignore_ids)))
+        rows_by_resource = self._overlap_rows(tuple(conditions))
+
+        for sentinel, resource_id, date_start, date_end, pct in prospective:
+            rows_by_resource[resource_id].append((sentinel, date_start, date_end, pct))
+
+        partners = self._sweep_overlap_partners(rows_by_resource)
+        conflicting = set()
+        for sentinel, *_rest in prospective:
+            # Keep only real rows: two prospective bookings colliding with each
+            # other is the caller's own doing, not a conflict with the ledger.
+            conflicting.update(peer for peer in partners.get(sentinel, ()) if peer > 0)
+        return self.browse(sorted(conflicting))
 
     @api.model
     def _search_schedule_overlap_count(self, operator, value):

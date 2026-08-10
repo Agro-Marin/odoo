@@ -295,6 +295,125 @@ class TestSchedulingMixin(TransactionCase):
         self.assertEqual(rec2.schedule_overlap_count, 0)
 
     # ------------------------------------------------------------------
+    # Conflicts on unsaved records
+    # ------------------------------------------------------------------
+
+    def _booked_day(self, percentage=100.0, name="Booked"):
+        """Store one reservation covering Mon 2025-01-06, 08:00-17:00."""
+        return self.Model.create(
+            {
+                "name": name,
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 17, 0),
+                "resource_id": self.resource.id,
+                "allocated_percentage": percentage,
+            }
+        )
+
+    def test_unsaved_record_sees_conflict(self):
+        """An unsaved record reports the clash it would create on save."""
+        self._booked_day()
+        self.env.invalidate_all()
+        draft = self.Model.new(
+            {
+                "name": "Draft",
+                "date_start": datetime(2025, 1, 6, 9, 0),
+                "date_end": datetime(2025, 1, 6, 11, 0),
+                "resource_id": self.resource.id,
+                "allocated_percentage": 100.0,
+            }
+        )
+        self.assertGreater(
+            draft.schedule_overlap_count,
+            0,
+            "the warning must appear before the double booking is committed",
+        )
+
+    def test_unsaved_record_free_window_is_clean(self):
+        """An unsaved record outside every booking reports no conflict."""
+        self._booked_day()
+        self.env.invalidate_all()
+        draft = self.Model.new(
+            {
+                "name": "Draft",
+                # Tuesday: the stored booking is Monday.
+                "date_start": datetime(2025, 1, 7, 9, 0),
+                "date_end": datetime(2025, 1, 7, 11, 0),
+                "resource_id": self.resource.id,
+                "allocated_percentage": 100.0,
+            }
+        )
+        self.assertEqual(draft.schedule_overlap_count, 0)
+
+    def test_unsaved_record_conflict_is_cumulative(self):
+        """The unsaved path sweeps cumulatively, exactly like the stored one.
+
+        Two stored 50% bookings plus an unsaved 50% is 150% on one resource,
+        yet no *pair* exceeds 100%. A pairwise check -- the obvious way to
+        answer this for a record with no id -- reports nothing here, and would
+        have disagreed with what the same record is told the moment it is
+        saved.
+        """
+        self._booked_day(percentage=50.0, name="Half A")
+        self._booked_day(percentage=50.0, name="Half B")
+        self.env.invalidate_all()
+        draft = self.Model.new(
+            {
+                "name": "Third half",
+                "date_start": datetime(2025, 1, 6, 9, 0),
+                "date_end": datetime(2025, 1, 6, 11, 0),
+                "resource_id": self.resource.id,
+                "allocated_percentage": 50.0,
+            }
+        )
+        self.assertGreater(draft.schedule_overlap_count, 0)
+
+    def test_unsaved_record_without_resource_is_clean(self):
+        """No resource means no claim on capacity, so nothing to conflict with."""
+        self._booked_day()
+        self.env.invalidate_all()
+        draft = self.Model.new(
+            {
+                "name": "Open",
+                "date_start": datetime(2025, 1, 6, 9, 0),
+                "date_end": datetime(2025, 1, 6, 11, 0),
+                "allocated_percentage": 100.0,
+            }
+        )
+        self.assertEqual(draft.schedule_overlap_count, 0)
+
+    def test_saved_record_conflicts_exclude_its_own_bookings(self):
+        """``_get_schedule_conflicts`` names the peers, never the record itself."""
+        first = self._booked_day(name="First")
+        second = self._booked_day(name="Second")
+        self.env.invalidate_all()
+
+        conflicts = first._get_schedule_conflicts()
+        self.assertTrue(conflicts, "the two full-day bookings collide")
+        self.assertNotIn(
+            first.reservation_ids.id,
+            conflicts.ids,
+            "a record must never be reported as conflicting with itself",
+        )
+        self.assertEqual(conflicts.ids, second.reservation_ids.ids)
+
+    def test_unsaved_record_conflicts_match_once_saved(self):
+        """The prospective answer is the one the record gets after saving."""
+        self._booked_day()
+        self.env.invalidate_all()
+        values = {
+            "name": "Draft",
+            "date_start": datetime(2025, 1, 6, 9, 0),
+            "date_end": datetime(2025, 1, 6, 11, 0),
+            "resource_id": self.resource.id,
+            "allocated_percentage": 100.0,
+        }
+        before = self.Model.new(values).schedule_overlap_count
+        saved = self.Model.create(values)
+        self.env.invalidate_all()
+        self.assertEqual(before, saved.schedule_overlap_count)
+
+    # ------------------------------------------------------------------
     # Calendar change recomputation
     # ------------------------------------------------------------------
 
