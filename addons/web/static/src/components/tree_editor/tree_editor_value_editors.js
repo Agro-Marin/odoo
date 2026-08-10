@@ -131,6 +131,8 @@ const STRING_EDITOR = {
  * @param {Array<[any, string]>} options
  * @param {Object} [params]
  * @param {boolean} [params.addBlankOption]
+ * @param {Object<string, string>} [params.optionGroups] serialized option value
+ *   -> optgroup label, for the options that belong in one
  * @returns {ValueEditorInfo}
  */
 function makeSelectEditor(options, params = {}) {
@@ -262,9 +264,12 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             for (const { id, group } of providerOptions) {
                 optionGroups[JSON.stringify(id)] = group;
             }
+            /** @type {Array<[any, string]>} */
             const valueTypeOptions = [
                 ...InRange.options,
-                ...providerOptions.map(({ id, label }) => [id, label]),
+                ...providerOptions.map(
+                    ({ id, label }) => /** @type {[any, string]} */ ([id, label]),
+                ),
             ];
             return {
                 component: InRange,

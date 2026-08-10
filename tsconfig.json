@@ -137,6 +137,7 @@
             "@crm_enterprise/*": ["../enterprise/crm_enterprise/static/src/*"],
             "@crm_livechat/*": ["addons/crm_livechat/static/src/*"],
             "@data_recycle/*": ["addons/data_recycle/static/src/*"],
+            "@date_range/*": ["addons/date_range/static/src/*"],
             "@delivery/*": ["addons/delivery/static/src/*"],
             "@documents/*": ["addons/documents/static/src/*"],
             "@documents_spreadsheet/*": ["../enterprise/documents_spreadsheet/static/src/*"],
