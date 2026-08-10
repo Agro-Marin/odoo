@@ -322,6 +322,81 @@ TIMEOUT step failed to complete within 111 ms.`,
     ]);
 });
 
+test("a tour action can be contributed through the web_tour.helpers registry", async () => {
+    // TourHelpers lives in the lazily-loaded web_tour.automatic child bundle, so
+    // an addon in another bundle that patches its prototype patches a different
+    // copy of the class and its actions are silently never seen. Registering is
+    // the identity-safe way to add one; this is the contract that makes it work.
+    class Root extends Component {
+        static components = {};
+        static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+    const helpers = registry.category("web_tour.helpers");
+    clearRegistry(helpers);
+    helpers.add("shout", async function (argument) {
+        // `this` must be the TourHelpers instance bound to the step's anchor.
+        expect.step(`shout:${argument}:${this.anchor.className}`);
+    });
+    registry.category("web_tour.tours").add("registry_action_tour", {
+        steps: () => [{ trigger: ".button0", run: "shout hello" }],
+    });
+    await odoo.startTour("registry_action_tour", { mode: "auto" });
+    await waitForMacro();
+    expect.verifySteps(["shout:hello:button0"]);
+});
+
+test("a built-in TourHelpers action wins over a registry entry of the same name", async () => {
+    class Root extends Component {
+        static components = {};
+        static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+    const helpers = registry.category("web_tour.helpers");
+    clearRegistry(helpers);
+    helpers.add("click", async function () {
+        expect.step("registry click must not shadow the built-in one");
+    });
+    registry.category("web_tour.tours").add("shadow_tour", {
+        steps: () => [
+            { trigger: ".button0", run: "click" },
+            { trigger: ".button0", run: () => expect.step("built-in click ran") },
+        ],
+    });
+    await odoo.startTour("shadow_tour", { mode: "auto" });
+    await waitForMacro();
+    expect.verifySteps(["built-in click ran"]);
+});
+
+test("an unknown tour action names the registry in its error", async () => {
+    patchWithCleanup(browser.console, {
+        groupCollapsed: () => {},
+        log: () => {},
+        warn: () => {},
+        error: (msg) =>
+            expect.step(
+                String(msg).includes("web_tour.helpers")
+                    ? "names the registry"
+                    : "unhelpful error",
+            ),
+    });
+    class Root extends Component {
+        static components = {};
+        static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Root);
+    clearRegistry(registry.category("web_tour.helpers"));
+    tourRegistry.add("unknown_action_tour", {
+        steps: () => [{ trigger: ".button0", run: "definitelynotanaction" }],
+    });
+    await odoo.startTour("unknown_action_tour", { mode: "auto" });
+    await waitForMacro();
+    expect.verifySteps(["names the registry"]);
+});
+
 test("check tour with inactive steps", async () => {
     class Root extends Component {
         static components = {};

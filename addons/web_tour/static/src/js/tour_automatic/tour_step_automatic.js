@@ -129,7 +129,22 @@ export class TourStepAutomatic extends TourStep {
                 const m = String(todo)
                     .trim()
                     .match(/^(?<action>\w*) *\(? *(?<arguments>.*?)\)?$/);
-                lastResult = await actionHelper[m.groups?.action](m.groups?.arguments);
+                const action = m.groups?.action;
+                // Resolves built-ins and registry-contributed actions alike:
+                // TourHelpers' proxy falls back to the "web_tour.helpers"
+                // registry (see tour_helpers.js).
+                const method = actionHelper[action];
+                if (typeof method !== "function") {
+                    throw new Error(
+                        `Tour step action "${action}" is unknown. Actions come from ` +
+                            "TourHelpers or from the 'web_tour.helpers' registry; an " +
+                            "addon adding one must register it there, because this " +
+                            "runtime lives in the lazily-loaded 'web_tour.automatic' " +
+                            "bundle and patching its class from another bundle reaches " +
+                            "a different copy.",
+                    );
+                }
+                lastResult = await method.call(actionHelper, m.groups?.arguments);
             }
             return lastResult;
         }
