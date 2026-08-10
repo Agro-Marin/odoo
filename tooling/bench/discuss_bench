@@ -114,7 +114,7 @@ HOOK_JS = """
     id: -424242, body: "bench", thread: {model: "discuss.channel", id: -424242},
   });
   const RI = Object.getPrototypeOf((probe._raw ?? probe)._);
-  const state = {ms: 0, calls: 0, perField: {}, orig: RI.compute, RI};
+  const state = {ms: 0, calls: 0, perField: {}, perFieldCalls: {}, orig: RI.compute, RI};
   RI.compute = function (record, fieldName) {
     const t = performance.now();
     const res = state.orig.call(this, record, fieldName);
@@ -122,6 +122,7 @@ HOOK_JS = """
     state.ms += dt;
     state.calls++;
     state.perField[fieldName] = (state.perField[fieldName] || 0) + dt;
+    state.perFieldCalls[fieldName] = (state.perFieldCalls[fieldName] || 0) + 1;
     return res;
   };
   window.__discussBench = state;
@@ -147,6 +148,14 @@ async (channelId) => {
     }
     stale.delete();
   }
+  // Reset per-field tallies per sample. Reporting the running total instead is
+  // how this script's first version pointed at `firstUnreadMessage` as the most
+  // expensive compute in mail: it had accumulated across warmups, every earlier
+  // sample and the initial Discuss boot (which loads every channel). Measured
+  // per open it runs 7 times for 0.8 ms, not 54. A per-field number that is not
+  // per-run is worse than none -- it sends someone optimising the wrong field.
+  bench.perField = {};
+  bench.perFieldCalls = {};
   const before = {
     records: Object.keys(Message.records).length, ms: bench.ms, calls: bench.calls,
   };
@@ -306,11 +315,12 @@ def main(argv=None):
                 "() => Object.fromEntries("
                 "Object.entries(window.__discussBench.perField)"
                 ".sort((a, b) => b[1] - a[1]).slice(0, 12)"
-                ".map(([k, v]) => [k, +v.toFixed(1)]))"
+                ".map(([k, v]) => [k, [+v.toFixed(1),"
+                " window.__discussBench.perFieldCalls[k] || 0]]))"
             )
-            print("\n  slowest computed fields (cumulative ms over the whole run):")
-            for name, ms in per_field.items():
-                print(f"    {ms:7.1f}  {name}")
+            print("\n  slowest computed fields, for ONE open (ms, calls):")
+            for name, (ms, calls) in per_field.items():
+                print(f"    {ms:7.2f}  x{calls:<4d} {name}")
 
         # Leave the page as we found it: the hook is a prototype patch and would
         # otherwise outlive the run in a non-headless session.
