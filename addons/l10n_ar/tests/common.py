@@ -639,9 +639,16 @@ class TestAr(AccountTestInvoicingCommon):
     def _get_afip_pos_system_real_name(cls):
         return {'PREPRINTED': 'II_IM'}
 
-    def _create_journal(self, afip_ws, data=None):
+    @classmethod
+    def _create_journal(cls, afip_ws, data=None):
         """ Create a journal of a given ARCA ws type.
-        If there is a problem because we are using a ARCA certificate that is already been in use then change the certificate and try again """
+        If there is a problem because we are using a ARCA certificate that is already been in use then change the certificate and try again
+
+        A classmethod because every caller but two invokes it from setUpClass
+        (l10n_ar_edi and l10n_ar_reports), where there is no instance. As a
+        plain method those calls bound `self` to the afip_ws string and raised
+        "missing 1 required positional argument: 'afip_ws'"; test_manual.py
+        had been working around it with `cls._create_journal(cls, ...)`."""
         data = data or {}
         afip_ws = afip_ws.upper()
         pos_number = str(random.randint(0, 99999))
@@ -650,16 +657,16 @@ class TestAr(AccountTestInvoicingCommon):
         values = {'name': '%s %s' % (afip_ws.replace('WS', ''), pos_number),
                   'type': 'sale',
                   'code': pos_number,
-                  'l10n_ar_afip_pos_system': self._get_afip_pos_system_real_name().get(afip_ws),
+                  'l10n_ar_afip_pos_system': cls._get_afip_pos_system_real_name().get(afip_ws),
                   'l10n_ar_afip_pos_number': pos_number,
                   'l10n_latam_use_documents': True,
-                  'company_id': self.env.company.id,
-                  'l10n_ar_afip_pos_partner_id': self.partner_ri.id,
+                  'company_id': cls.env.company.id,
+                  'l10n_ar_afip_pos_partner_id': cls.partner_ri.id,
                   'sequence': 1}
         values.update(data)
 
-        journal = self.env['account.journal'].create(values)
-        _logger.info('Created journal %s for company %s', journal.name, self.env.company.name)
+        journal = cls.env['account.journal'].create(values)
+        _logger.info('Created journal %s for company %s', journal.name, cls.env.company.name)
         return journal
 
     def _create_invoice(self, data=None, invoice_type='out_invoice'):

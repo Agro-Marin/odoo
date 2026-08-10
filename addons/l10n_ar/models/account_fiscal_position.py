@@ -10,9 +10,10 @@ class AccountFiscalPosition(models.Model):
         string='ARCA Responsibility Types', help='List of ARCA responsibilities where this fiscal position '
         'should be auto-detected')
 
-    def _get_fpos_validation_functions(self, partner):
-        functions = super()._get_fpos_validation_functions(partner)
-        if self.env.company.country_id.code != "AR":
+    def _get_fpos_validation_functions(self, partner, company=None):
+        functions = super()._get_fpos_validation_functions(partner, company=company)
+        company = company or self.env.company
+        if company.country_id.code != "AR":
             return functions
         return [
             lambda fpos: partner.l10n_ar_afip_responsibility_type_id in fpos.l10n_ar_afip_responsibility_type_ids,

@@ -12,7 +12,7 @@ class TestManual(common.TestAr):
     @classmethod
     def setUpClass(cls):
         super(TestManual, cls).setUpClass()
-        cls.journal = cls._create_journal(cls, 'preprinted')
+        cls.journal = cls._create_journal('preprinted')
         cls.partner = cls.res_partner_adhoc
         cls._create_test_invoices_like_demo(cls)
 
