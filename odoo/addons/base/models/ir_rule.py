@@ -8,7 +8,11 @@ from odoo.fields import Domain
 from odoo.tools import SQL, config
 from odoo.tools.safe_eval import safe_eval
 
-from .ir_model_common import access_mode_columns, check_access_mode
+from .ir_model_common import (
+    access_mode_columns,
+    check_access_mode,
+    unloaded_module_clause,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -141,17 +145,9 @@ class IrRule(models.Model):
         return self.browse(v for (v,) in self.env.execute_query(sql))
 
     def _unloaded_module_rules_clause(self) -> SQL:
-        loaded_modules = list(self.pool._init_modules)
-        if not self.pool._init or not loaded_modules:
-            return SQL("")
-        return SQL(
-            """AND NOT EXISTS (
-                    SELECT 1 FROM ir_model_data d
-                    WHERE d.model = 'ir.rule' AND d.res_id = r.id
-                      AND d.module <> ALL(%s)
-                )""",
-            loaded_modules,
-        )
+        """See :func:`unloaded_module_clause` for why this exists, and why
+        ``ir.model.access`` applies the same filter."""
+        return unloaded_module_clause(self.pool, "ir.rule", "r")
 
     @api.model
     @tools.conditional(

@@ -13,6 +13,7 @@ from .ir_model_common import (
     ACCESS_ERROR_RESOLUTION,
     access_mode_columns,
     check_access_mode,
+    unloaded_module_clause,
 )
 
 _logger = logging.getLogger(__name__)
@@ -94,7 +95,11 @@ class IrModelAccess(models.Model):
             return group_definitions.universe
         return group_definitions.from_ids(accesses.group_id.ids)
 
-    @tools.ormcache("self.env.user._get_group_ids()", "mode")
+    # ``self.pool._init`` joins the key because the ACL set is partial while the
+    # registry is loading (see ``unloaded_module_clause``) and nothing clears
+    # this cache when loading ends -- without it, a loading-time answer could be
+    # served to a finished registry and leave a module's ACL silently unapplied.
+    @tools.ormcache("self.env.user._get_group_ids()", "mode", "self.pool._init")
     def _get_allowed_models(self, mode: str = "read") -> frozenset[str]:
         self._check_access_mode(mode)
 
@@ -112,10 +117,12 @@ class IrModelAccess(models.Model):
                     a.group_id IS NULL OR
                     a.group_id = ANY(%s)
                 )
+               %s
             GROUP BY m.model
         """,
                 self._PERM_COLUMNS[mode],
                 list(group_ids),
+                unloaded_module_clause(self.pool, "ir.model.access", "a"),
             )
         )
 
