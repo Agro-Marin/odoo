@@ -128,6 +128,17 @@ def timezone(name: str) -> ZoneInfo:
     if name in _timezone_cache:
         return _timezone_cache[name]
 
+    # pytz special-cased UTC before anything else — ``pytz.timezone('utc')``
+    # and ``'Utc'`` both returned the UTC singleton — while zoneinfo's database
+    # lookup is case-sensitive and knows only 'UTC'. Callers written against
+    # pytz still pass the lowercase spelling (l10n_es_edi_sii and
+    # l10n_es_edi_tbai each do, in test setup), and without this they get a
+    # ZoneInfoNotFoundError for the one timezone that cannot be missing.
+    if name.upper() == "UTC":
+        tz = ZoneInfo("UTC")
+        _timezone_cache[name] = tz
+        return tz
+
     if name in _available_timezones:
         tz = ZoneInfo(name)
         _timezone_cache[name] = tz

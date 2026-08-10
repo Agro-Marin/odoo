@@ -15,6 +15,22 @@ class TestTimezone(unittest.TestCase):
     def test_legacy_turkey_alias_resolves(self):
         self.assertIsInstance(timezone("Turkey"), ZoneInfo)
 
+    def test_utc_is_case_insensitive_like_pytz(self):
+        """pytz returned the UTC singleton for any spelling; zoneinfo does not.
+
+        Callers written against pytz still pass 'utc' — l10n_es_edi_sii and
+        l10n_es_edi_tbai both do — and used to get a ZoneInfoNotFoundError for
+        the one timezone that cannot be absent.
+        """
+        for spelling in ("UTC", "utc", "Utc", "uTc"):
+            with self.subTest(spelling=spelling):
+                self.assertEqual(timezone(spelling), ZoneInfo("UTC"))
+
+    def test_case_insensitivity_does_not_leak_to_other_zones(self):
+        """Only UTC was special-cased in pytz; the rest stay case-sensitive."""
+        with self.assertRaises(ZoneInfoNotFoundError):
+            timezone("europe/paris")
+
 
 class TestCountryTimezones(unittest.TestCase):
     def test_lookup(self):
