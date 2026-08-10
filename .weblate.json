@@ -107,11 +107,6 @@
                 "new_base": "addons/auth_passkey/i18n/auth_passkey.pot"
             },
             {
-                "name": "auth_passkey_portal",
-                "filemask": "addons/auth_passkey_portal/i18n/*.po",
-                "new_base": "addons/auth_passkey_portal/i18n/auth_passkey_portal.pot"
-            },
-            {
                 "name": "auth_password_policy",
                 "filemask": "addons/auth_password_policy/i18n/*.po",
                 "new_base": "addons/auth_password_policy/i18n/auth_password_policy.pot"
@@ -125,6 +120,11 @@
                 "name": "auth_password_policy_signup",
                 "filemask": "addons/auth_password_policy_signup/i18n/*.po",
                 "new_base": "addons/auth_password_policy_signup/i18n/auth_password_policy_signup.pot"
+            },
+            {
+                "name": "auth_portal",
+                "filemask": "addons/auth_portal/i18n/*.po",
+                "new_base": "addons/auth_portal/i18n/auth_portal.pot"
             },
             {
                 "name": "auth_signup",
@@ -145,11 +145,6 @@
                 "name": "auth_totp_mail",
                 "filemask": "addons/auth_totp_mail/i18n/*.po",
                 "new_base": "addons/auth_totp_mail/i18n/auth_totp_mail.pot"
-            },
-            {
-                "name": "auth_totp_portal",
-                "filemask": "addons/auth_totp_portal/i18n/*.po",
-                "new_base": "addons/auth_totp_portal/i18n/auth_totp_portal.pot"
             },
             {
                 "name": "barcodes",

@@ -1,0 +1,151 @@
+<odoo>
+
+    <template
+        id="totp_portal_hook"
+        name="TOTP Portal hook"
+        inherit_id="portal.portal_my_security">
+        <xpath expr="//section[@name='portal_change_password']" position="after">
+            <!--
+                portal users don't have access to non-qweb views anymore, so
+                embed the target view as a *data island* of sorts, a JSON embed
+                of the fields_view_get could have been nice but at 14k it'd be a
+                bit ridiculous
+            -->
+            <div class="d-none" id="totp_wizard_view">
+                <t
+                    t-esc="env.ref('auth_totp.view_totp_wizard').sudo().get_combined_arch()" />
+            </div>
+            <section>
+                <h4>
+                    Two-factor authentication
+                    <a
+                        href="https://www.odoo.com/documentation/latest/applications/general/auth/2fa.html"
+                        target="_blank">
+                        <i
+                            title="Documentation"
+                            class="fa-solid fa-info-circle o_button_icon" />
+                    </a>
+                </h4>
+                <t t-if="not user_id.totp_enabled">
+                    <div class="alert alert-secondary" role="status">
+                        <i class="fa-solid fa-triangle-exclamation" />
+                        Two-factor authentication not enabled
+                    </div>
+                    <button
+                        type="button"
+                        class="btn btn-light"
+                        id="auth_portal_totp_enable">
+                        Enable two-factor authentication
+                    </button>
+                </t>
+                <t t-else="">
+                    <span class="text-success">
+                        <i class="fa-solid fa-check-circle" />
+                        Two-factor authentication enabled
+                    </span>
+                    <button
+                        type="button"
+                        class="btn btn-link"
+                        id="auth_portal_totp_disable">
+                        (Disable two-factor authentication)
+                    </button>
+                    <t t-if="len(user_id.totp_trusted_device_ids)">
+                        <table class="table o_main_table">
+                            <thead>
+                                <tr>
+                                    <th><strong>Trusted Device</strong></th>
+                                    <th><strong>Added On</strong></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    t-foreach="user_id.totp_trusted_device_ids"
+                                    t-as="td">
+                                    <td>
+                                        <span t-field="td.name" />
+                                    </td>
+                                    <td>
+                                        <span t-field="td.create_date" />
+                                    </td>
+                                    <td>
+                                        <!--
+                                            o_totp_portal_revoke_device is the interaction's
+                                            hook. Do not select on the fa-* classes: they are
+                                            the icon set's, and renaming them out from under
+                                            the selector is exactly what killed this button
+                                            between FontAwesome 4 and 7.
+                                        -->
+                                        <i
+                                            class="fa-solid fa-trash-can text-danger o_totp_portal_revoke_device"
+                                            type="button"
+                                            t-att-id="td.id" />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <button
+                            class="btn btn-primary"
+                            type="button"
+                            id="auth_portal_revoke_all_devices">
+                            Revoke All
+                        </button>
+                    </t>
+                </t>
+            </section>
+        </xpath>
+    </template>
+
+    <template
+        id="passkeys_portal_hook"
+        name="Passkeys Portal hook"
+        inherit_id="portal.portal_my_security">
+        <xpath
+            expr="//section[@name='portal_revoke_all_devices_popup']"
+            position="before">
+            <section name="portal_passkey_management">
+                <h4>
+                    Passkeys
+                </h4>
+                <div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Created</th>
+                                <th>Last Used</th>
+                                <th />
+                                <th />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="user_id.auth_passkey_key_ids" t-as="key">
+                                <tr class="o_passkey_portal_entry" t-att-id="key.id">
+                                    <td><span t-field="key.name" class="o_passkey_name" /></td>
+                                    <td><span t-field="key.create_date" t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;format&quot;: &quot;short&quot;}" /></td>
+                                    <td><span t-field="key.write_date" t-options="{&quot;widget&quot;: &quot;datetime&quot;, &quot;format&quot;: &quot;short&quot;}" /></td>
+                                    <td>
+                                        <i
+                                            class="fa-solid fa-pencil o_passkey_portal_rename"
+                                            type="button" />
+                                    </td>
+                                    <td>
+                                        <i
+                                            class="fa-solid fa-trash-can text-danger o_passkey_portal_delete"
+                                            type="button" />
+                                    </td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+                <button
+                    type="button"
+                    class="btn btn-light mt-1"
+                    id="portal_passkey_add">
+                    Add Passkey
+                </button>
+            </section>
+        </xpath>
+    </template>
+
+</odoo>

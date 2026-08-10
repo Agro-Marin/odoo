@@ -41,6 +41,7 @@ const COMMUNITY_MODULES = [
     "addons/im_livechat",
     "addons/mail",
     "addons/portal",
+    "addons/auth_portal",
     "addons/snailmail",
     "addons/test_discuss_full",
     "addons/test_mail",
