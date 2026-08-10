@@ -16,5 +16,14 @@ class AccountFiscalPosition(models.Model):
         if company.country_id.code != "AR":
             return functions
         return [
-            lambda fpos: partner.l10n_ar_afip_responsibility_type_id in fpos.l10n_ar_afip_responsibility_type_ids,
+            # `not ... or` on purpose, matching every other validation function:
+            # the responsibility list is a *restriction*, so a fiscal position
+            # that declares none is unrestricted. Without the guard no such
+            # position can ever auto-apply in an AR company — which silently
+            # included l10n_ar_domestic_fiscal_position, the one the chart
+            # template ships and expects to be picked for domestic customers.
+            lambda fpos: (
+                not fpos.l10n_ar_afip_responsibility_type_ids
+                or partner.l10n_ar_afip_responsibility_type_id in fpos.l10n_ar_afip_responsibility_type_ids
+            ),
         ] + functions

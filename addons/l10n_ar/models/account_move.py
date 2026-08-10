@@ -4,6 +4,7 @@ from odoo.exceptions import UserError, RedirectWarning, ValidationError
 from odoo.fields import Domain
 from odoo.tools.misc import formatLang
 from dateutil.relativedelta import relativedelta
+import copy
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -112,6 +113,17 @@ class AccountMove(models.Model):
         and demonstrated. As far as we've checked document types of wsfev1 don't allow negative amounts so, for example
         document 61 could not be used as refunds. """
         return ['99', '186', '188', '189', '60']
+
+    def _l10n_ar_is_refund_invoice(self):
+        """ Whether this move is a refund carrying a document type that ARCA
+        also allows as an invoice.
+
+        Those document types cannot express a negative amount, so a refund on
+        one of them has to be exported with the sign flipped. The pair of
+        conditions was repeated at every site that needed it; keep it here.
+        """
+        return self.l10n_latam_document_type_id.code in self._get_l10n_ar_codes_used_for_inv_and_ref() \
+            and self.move_type in ['in_refund', 'out_refund']
 
     def _get_l10n_latam_documents_domain(self):
         self.ensure_one()
@@ -284,8 +296,7 @@ class AccountMove(models.Model):
         sign = -1 if self.is_inbound() else 1
 
         # if we are on a document that works invoice and refund and it's a refund, we need to export it as negative
-        sign = -sign if self.move_type in ('out_refund', 'in_refund') and\
-            self.l10n_latam_document_type_id.code in self._get_l10n_ar_codes_used_for_inv_and_ref() else sign
+        sign = -sign if self._l10n_ar_is_refund_invoice() else sign
 
         tax_lines = self.line_ids.filtered('tax_line_id')
         vat_taxes = tax_lines.filtered(lambda r: r.tax_line_id.tax_group_id.l10n_ar_vat_afip_code)
@@ -331,8 +342,7 @@ class AccountMove(models.Model):
     def _get_vat(self):
         """ Applies on wsfe web service and in the VAT digital books """
         # if we are on a document that works invoice and refund and it's a refund, we need to export it as negative
-        sign = -1 if self.move_type in ('out_refund', 'in_refund') and\
-            self.l10n_latam_document_type_id.code in self._get_l10n_ar_codes_used_for_inv_and_ref() else 1
+        sign = -1 if self._l10n_ar_is_refund_invoice() else 1
 
         res = []
         vat_taxable = self.env['account.move.line']
@@ -360,27 +370,61 @@ class AccountMove(models.Model):
             return 'l10n_ar.report_invoice_document'
         return super()._get_name_invoice_report()
 
-    def _l10n_ar_get_invoice_totals_for_report(self):
-        """If the invoice document type indicates that vat should not be detailed in the printed report (result of _l10n_ar_include_vat()) then we overwrite tax_totals field so that includes taxes in the total amount, otherwise it would be showing amount_untaxed in the amount_total"""
-        self.ensure_one()
-        tax_totals = self.tax_totals
-        include_vat = self._l10n_ar_include_vat()
-        if not include_vat:
-            return tax_totals
+    def _apply_refund_adjustments(self, tax_totals):
+        """Flip every amount in a tax totals summary in place.
 
-        tax_group_ids = {
-            tax_group['id']
-            for subtotal in tax_totals['subtotals']
-            for tax_group in subtotal['tax_groups']
-        }
-        tax_group_ids_to_exclude = self.env['account.tax.group']\
-            .browse(tax_group_ids)\
-            .filtered(lambda tax_group: (
-                self._l10n_ar_is_tax_group_other_national_ind_tax(tax_group)
-                or self._l10n_ar_is_tax_group_vat(tax_group)
-            )).ids
-        if tax_group_ids_to_exclude:
-            tax_totals = self.env['account.tax']._exclude_tax_groups_from_tax_totals_summary(tax_totals, tax_group_ids_to_exclude)
+        ARCA document types that serve as both invoice and refund cannot carry
+        a negative amount, so a refund on one of them is stored positive and
+        has to be *printed* negative.
+        """
+        for suffix in ('', '_currency'):
+            for prefix in ('base', 'tax', 'total'):
+                field = f'{prefix}_amount{suffix}'
+                if tax_totals[field]:
+                    tax_totals[field] *= -1
+            for subtotal in tax_totals['subtotals']:
+                for prefix in ('base', 'tax'):
+                    field = f'{prefix}_amount{suffix}'
+                    if subtotal[field]:
+                        subtotal[field] *= -1
+                for tax_group in subtotal['tax_groups']:
+                    for prefix in ('display_base', 'base', 'tax'):
+                        field = f'{prefix}_amount{suffix}'
+                        if tax_group[field]:
+                            tax_group[field] *= -1
+
+    def _l10n_ar_get_invoice_totals_for_report(self):
+        """If the invoice document type indicates that vat should not be detailed in the printed report (result of _l10n_ar_include_vat()) then we overwrite tax_totals field so that includes taxes in the total amount, otherwise it would be showing amount_untaxed in the amount_total.
+
+        A refund whose document type is also usable as an invoice is printed
+        with every amount negated -- see _l10n_ar_is_refund_invoice.
+        """
+        self.ensure_one()
+        # deepcopy: tax_totals is a computed field and the adjustment below
+        # rewrites it in place; mutating the cached value would leak the
+        # flipped signs into every other reader in this transaction.
+        tax_totals = copy.deepcopy(self.tax_totals)
+        include_vat = self._l10n_ar_include_vat()
+        if include_vat:
+            tax_group_ids = {
+                tax_group['id']
+                for subtotal in tax_totals['subtotals']
+                for tax_group in subtotal['tax_groups']
+            }
+            tax_group_ids_to_exclude = self.env['account.tax.group']\
+                .browse(tax_group_ids)\
+                .filtered(lambda tax_group: (
+                    self._l10n_ar_is_tax_group_other_national_ind_tax(tax_group)
+                    or self._l10n_ar_is_tax_group_vat(tax_group)
+                )).ids
+            if tax_group_ids_to_exclude:
+                tax_totals = self.env['account.tax']._exclude_tax_groups_from_tax_totals_summary(tax_totals, tax_group_ids_to_exclude)
+
+        # Applied once, and last, so both branches agree on the sign. Upstream
+        # calls this before the include_vat check *and* again inside the
+        # exclusion branch, which negates twice on that path.
+        if self._l10n_ar_is_refund_invoice():
+            self._apply_refund_adjustments(tax_totals)
         return tax_totals
 
     def _l10n_ar_get_invoice_custom_tax_summary_for_report(self):
