@@ -67,11 +67,12 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
             json=payload,
         )
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(self.line.date_planned.date(), date(2026, 9, 15))
+        self.env.invalidate_all()
+        self.assertEqual(self.line.date_commitment.date(), date(2026, 9, 15))
 
     def test_update_line_ignores_invalid_date(self):
         """A malformed date leaves the scheduled date untouched."""
-        before = self.line.date_planned
+        before = self.line.date_commitment
         payload = {
             "jsonrpc": "2.0",
             "method": "call",
@@ -85,7 +86,8 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
             self.base_url() + f"/my/purchase/{self.order.id}/update",
             json=payload,
         )
-        self.assertEqual(self.line.date_planned, before)
+        self.env.invalidate_all()
+        self.assertEqual(self.line.date_commitment, before)
 
     def test_download_edi_serves_xml(self):
         """With the fork's default builder the EDI download serves XML."""
