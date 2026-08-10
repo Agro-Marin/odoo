@@ -37,7 +37,7 @@ before by simply not installing it.
     """,
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",
+    "license": "LGPL-3",
     "depends": ["certificate", "base_credential_manager"],
     "post_init_hook": "post_init_hook",
-    "license": "LGPL-3",
 }

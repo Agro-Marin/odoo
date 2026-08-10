@@ -9,7 +9,7 @@ FLOORS = {
     "missing-gettext": 23,
     "raise-unlink-override": 1,
     "orm-import": 0,
-    "noqa-rationale": 79,
+    "noqa-rationale": 78,
     "onchange-domain": 0,
     "n-plus-one-query": 421,
 }

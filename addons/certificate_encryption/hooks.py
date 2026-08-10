@@ -2,6 +2,7 @@ import logging
 import os
 
 from odoo.exceptions import ValidationError
+from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
 
@@ -58,13 +59,20 @@ def _harvest(env, spec):
     for field in spec["char"]:
         # Read the column directly: the field is a non-stored compute by the
         # time this hook runs, so the ORM would report the (still empty)
-        # decrypted value rather than the legacy plaintext. The interpolated
-        # identifiers come from the module-local _MIGRATIONS literal above and
-        # never from data; the value comparison stays parameterized.
+        # decrypted value rather than the legacy plaintext. Identifiers go
+        # through SQL.identifier rather than an f-string: they come from the
+        # module-local _MIGRATIONS literal and never from data, but quoting
+        # them is what makes that legible to a reader and to the SQL gate.
+        column = SQL.identifier(field)
         env.cr.execute(
-            f'SELECT id, "{field}" FROM "{spec["table"]}" '
-            f'WHERE "{field}" IS NOT NULL AND "{field}" != %s',
-            ("",),
+            SQL(
+                "SELECT id, %s FROM %s WHERE %s IS NOT NULL AND %s != %s",
+                column,
+                SQL.identifier(spec["table"]),
+                column,
+                column,
+                "",
+            )
         )
         for record_id, value in env.cr.fetchall():
             legacy.setdefault(record_id, {})[field] = value
@@ -122,8 +130,14 @@ def post_init_hook(env):
             done._stamp_encryption_key_version(current_version)
         attachments.unlink()
         for field in spec["char"]:
-            # Identifiers from _MIGRATIONS, as in _harvest.
-            env.cr.execute(f'UPDATE "{spec["table"]}" SET "{field}" = NULL')
+            # Identifiers from _MIGRATIONS, quoted as in _harvest.
+            env.cr.execute(
+                SQL(
+                    "UPDATE %s SET %s = NULL",
+                    SQL.identifier(spec["table"]),
+                    SQL.identifier(field),
+                )
+            )
 
         if spec["binary"] or spec["char"]:
             _logger.info(
