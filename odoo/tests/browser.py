@@ -309,6 +309,12 @@ class ChromeBrowser:
         with log_path.open("wb") as log_file:
             proc = subprocess.Popen(
                 cmd,
+                # Both streams, not just stderr. Left to inherit, Chrome and
+                # every process it forks hold the runner's stdout -- the file a
+                # test log is read from -- for the whole life of the browser,
+                # and write into it unattributed. That is the other half of the
+                # output ``err.log`` exists to keep out of the log.
+                stdout=log_file,
                 stderr=log_file,
                 preexec_fn=_preexec,  # noqa: PLW1509  see comment above
                 env={**os.environ, "TMPDIR": self.user_data_dir},
