@@ -62,68 +62,75 @@ class CertificateKey(models.Model):
         ondelete='cascade',
     )
 
+    @api.model
+    def _load_pem_key(self, content, password=None):
+        ''' Parse key material and return it normalized to PEM.
+
+        The whole parse/serialize step of ``_compute_pem_key``, lifted out of
+        the record loop so it can be reused by storage backends that do not
+        keep the key material in this model's own columns (see the
+        ``certificate_encryption`` module, which holds it Fernet-encrypted).
+
+        :param str|bytes|None content: base64-encoded key file, in any of the
+            four accepted shapes (DER/PEM × private/public)
+        :param str|None password: password protecting a private key, if any
+        :return: ``(pem_key, public, loading_error)`` where ``pem_key`` is the
+            base64-encoded PEM form or None, ``public`` is True for a public
+            key / False for a private one / None when nothing loaded, and
+            ``loading_error`` is a user-facing message or ``""``
+        :rtype: tuple(bytes|None, bool|None, str)
+        '''
+        if not content:
+            return None, None, ""
+
+        pkey_content = base64.b64decode(content)
+        pkey_password = password.encode('utf-8') if password else None
+
+        # Try to load the key in different format starting with DER then PEM for private then public keys.
+        # If none succeeded, we report an error.
+        pkey = None
+        public = None
+        for loader, is_public in (
+            (lambda: serialization.load_der_private_key(pkey_content, pkey_password), False),
+            (lambda: serialization.load_pem_private_key(pkey_content, pkey_password), False),
+            (lambda: serialization.load_der_public_key(pkey_content), True),
+            (lambda: serialization.load_pem_public_key(pkey_content), True),
+        ):
+            try:
+                pkey = loader()
+            except ValueError, TypeError:
+                continue
+            public = is_public
+            break
+
+        if not pkey:
+            return None, None, _("This key could not be loaded. Either its content or its password is erroneous.")
+
+        if public:
+            pem_key = base64.b64encode(pkey.public_bytes(
+                encoding=Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ))
+        else:
+            encryption = serialization.BestAvailableEncryption(pkey_password) if pkey_password else serialization.NoEncryption()
+            pem_key = base64.b64encode(pkey.private_bytes(
+                encoding=Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=encryption,
+            ))
+
+        return pem_key, public, ""
+
     @api.depends('content', 'password')
     def _compute_pem_key(self):
         for key in self:
-            content = key.with_context(bin_size=False).content
-            if not content:
-                key.pem_key = None
-                key.public = None
-                key.loading_error = ""
-            else:
-                pkey_content = base64.b64decode(content)
-                pkey_password = key.password.encode('utf-8') if key.password else None
-
-                # Try to load the key in different format starting with DER then PEM for private then public keys.
-                # If none succeeded, we report an error.
-                pkey = None
-                try:
-                    pkey = serialization.load_der_private_key(pkey_content, pkey_password)
-                    key.public = False
-                except (ValueError, TypeError):
-                    pass
-
-                if not pkey:
-                    try:
-                        pkey = serialization.load_pem_private_key(pkey_content, pkey_password)
-                        key.public = False
-                    except (ValueError, TypeError):
-                        pass
-
-                if not pkey:
-                    try:
-                        pkey = serialization.load_der_public_key(pkey_content)
-                        key.public = True
-                    except (ValueError, TypeError):
-                        pass
-
-                if not pkey:
-                    try:
-                        pkey = serialization.load_pem_public_key(pkey_content)
-                        key.public = True
-                    except (ValueError, TypeError):
-                        pass
-
-                if not pkey:
-                    key.pem_key = None
-                    key.public = None
-                    key.loading_error = _("This key could not be loaded. Either its content or its password is erroneous.")
-                    continue
-
-                if key.public:
-                    key.pem_key = base64.b64encode(pkey.public_bytes(
-                        encoding=Encoding.PEM,
-                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-                    ))
-                else:
-                    encryption = serialization.BestAvailableEncryption(pkey_password) if pkey_password else serialization.NoEncryption()
-                    key.pem_key = base64.b64encode(pkey.private_bytes(
-                        encoding=Encoding.PEM,
-                        format=serialization.PrivateFormat.PKCS8,
-                        encryption_algorithm=encryption,
-                    ))
-
-                key.loading_error = ""
+            pem_key, public, loading_error = self._load_pem_key(
+                key.with_context(bin_size=False).content,
+                key.password,
+            )
+            key.pem_key = pem_key
+            key.public = public
+            key.loading_error = loading_error
 
     # -------------------------------------------------------
     #                   Business Methods                    #
@@ -332,7 +339,7 @@ class CertificateKey(models.Model):
 
         match public_key:
             case ec.EllipticCurvePublicKey():
-                check_valid_signature_algorithm(signature_algorithm)
+                check_valid_signature_algorithm()
                 try:
                     public_key.verify(
                         signature,
@@ -343,7 +350,7 @@ class CertificateKey(models.Model):
                 except InvalidSignature:
                     return False
             case rsa.RSAPublicKey():
-                check_valid_signature_algorithm(signature_algorithm)
+                check_valid_signature_algorithm()
                 try:
                     public_key.verify(
                         signature,

@@ -30,7 +30,7 @@ class TestKeySigning(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Key = cls.env["certificate.key"]
-        cls.pem_b64, _pub = _rsa_pems_b64()
+        cls.pem_b64, cls.pub_pem_b64 = _rsa_pems_b64()
 
     def test_unsupported_hash_rejected(self):
         """Only sha1/sha256 are accepted as hashing algorithms (negative)."""
@@ -49,15 +49,38 @@ class TestKeySigning(TransactionCase):
         self.assertIn(b"\n", wrapped)
         self.assertNotIn(b"\n", raw)
 
+    def test_verify_accepts_a_genuine_rsa_signature(self):
+        """RSA/EC verification used to raise TypeError before reaching the key.
+
+        ``_verify_with_key`` called its ``check_valid_signature_algorithm``
+        closure with an argument the closure does not take, so every RSA and EC
+        verification raised instead of returning a verdict — including
+        ``hr_expense_stripe``'s webhook signature check. Only the Ed25519
+        branch, which does not call it, worked.
+        """
+        signature = self.Key._sign_with_key("m", self.pem_b64, formatting="raw")
+        self.assertTrue(
+            self.Key._verify_with_key("m", signature, self.pub_pem_b64),
+        )
+
+    def test_verify_rejects_a_forged_rsa_signature(self):
+        """A verdict, not an exception, is what a bad signature must produce."""
+        signature = self.Key._sign_with_key("m", self.pem_b64, formatting="raw")
+        self.assertFalse(
+            self.Key._verify_with_key("tampered", signature, self.pub_pem_b64),
+        )
+
+    def test_verify_rejects_an_unsupported_hash(self):
+        """The closure's own check must still fire once it is callable."""
+        signature = self.Key._sign_with_key("m", self.pem_b64, formatting="raw")
+        with self.assertRaises(UserError):
+            self.Key._verify_with_key(
+                "m", signature, self.pub_pem_b64, signature_algorithm="md5",
+            )
 
 @tagged("post_install", "-at_install")
 class TestKeyCryptoOperations(TransactionCase):
-    """Record-level sign/verify guards, Ed25519 round-trip and RSA decrypt.
-
-    The RSA/EC verification branches stay untested on purpose: they call the
-    zero-argument nested checker with one argument (t24129) and cannot go
-    green until that bug is fixed.
-    """
+    """Record-level sign/verify guards, Ed25519 round-trip and RSA decrypt."""
 
     @classmethod
     def setUpClass(cls):
