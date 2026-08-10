@@ -1,6 +1,6 @@
 {
-    'name': 'Two-Factor Authentication (TOTP)',
-    'description': """
+    "name": "Two-Factor Authentication (TOTP)",
+    "description": """
 Two-Factor Authentication (TOTP)
 ================================
 Allows users to configure two-factor authentication on their user account
@@ -14,31 +14,31 @@ Note: logically, two-factor prevents password-based RPC access for users
 where it is enabled. In order to be able to execute RPC scripts, the user
 can setup API keys to replace their main password.
     """,
-    'depends': ['web'],
-    'external_dependencies': {
-        'python': ['qrcode'],
-        'apt': {
-            'qrcode': 'python3-qrcode',
+    "depends": ["web"],
+    "external_dependencies": {
+        "python": ["qrcode"],
+        "apt": {
+            "qrcode": "python3-qrcode",
         },
     },
-    'category': 'Extra Tools',
-    'auto_install': True,
-    'data': [
-        'security/security.xml',
-        'security/ir.model.access.csv',
-        'data/ir_action_data.xml',
-        'views/res_users_views.xml',
-        'views/templates.xml',
-        'wizard/auth_totp_wizard_views.xml',
+    "category": "Extra Tools",
+    "auto_install": True,
+    "data": [
+        "security/security.xml",
+        "security/ir.model.access.csv",
+        "data/ir_action_data.xml",
+        "views/res_users_views.xml",
+        "views/templates.xml",
+        "wizard/auth_totp_wizard_views.xml",
     ],
-    'assets': {
-        'web.assets_tests': [
-            'auth_totp/static/tests/**/*',
+    "assets": {
+        "web.assets_tests": [
+            "auth_totp/static/tests/**/*",
         ],
-        'web.assets_backend': [
-            'auth_totp/static/src/**/*',
+        "web.assets_backend": [
+            "auth_totp/static/src/**/*",
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
 }

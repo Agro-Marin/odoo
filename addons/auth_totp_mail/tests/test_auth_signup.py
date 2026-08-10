@@ -6,18 +6,17 @@ from odoo.tests.common import tagged
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUserPortal
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestAuthSignupFlowWith2faEnforced(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
-
     def setUp(self):
         super().setUp()
-        self.env['res.config.settings'].create(
+        self.env["res.config.settings"].create(
             {
                 # Activate free signup
-                'auth_signup_uninvited': 'b2c',
+                "auth_signup_uninvited": "b2c",
                 # Enforce 2FA for all users
-                'auth_totp_enforce': True,
-                'auth_totp_policy': 'all_required',
+                "auth_totp_enforce": True,
+                "auth_totp_policy": "all_required",
             }
         ).execute()
 
@@ -34,15 +33,17 @@ class TestAuthSignupFlowWith2faEnforced(HttpCaseWithUserPortal, HttpCaseWithUser
         csrf_token = http.Request.csrf_token(self)
 
         # Values from login form
-        name = 'toto'
+        name = "toto"
         payload = {
-            'login': 'toto@example.com',
-            'name': name,
-            'password': 'mypassword',
-            'confirm_password': 'mypassword',
-            'csrf_token': csrf_token,
+            "login": "toto@example.com",
+            "name": name,
+            "password": "mypassword",
+            "confirm_password": "mypassword",
+            "csrf_token": csrf_token,
         }
-        response = self.url_open('/web/signup', data=payload)
-        new_user = self.env['res.users'].search([('name', '=', name)])
+        response = self.url_open("/web/signup", data=payload)
+        new_user = self.env["res.users"].search([("name", "=", name)])
         self.assertTrue(new_user)
-        self.assertEqual(response.status_code, 200, "Signup request should succeed with a 200")
+        self.assertEqual(
+            response.status_code, 200, "Signup request should succeed with a 200"
+        )

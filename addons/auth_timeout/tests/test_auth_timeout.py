@@ -1,24 +1,27 @@
 import json
-import lxml.html
 import time
-
-import odoo.http
-
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from odoo.tests import HttpCase, new_test_user, tagged, TransactionCase
+import lxml.html
+
+import odoo.http
+from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
 from odoo.tests.common import HOST
 
-from odoo.addons.auth_totp.models.totp import TOTP
 from odoo.addons.auth_totp.controllers.home import TRUSTED_DEVICE_COOKIE
+from odoo.addons.auth_totp.models.totp import TOTP
 
 
 class TestAuthTimeout(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = new_test_user(cls.env, "foo", groups="base.group_user,base.group_erp_manager,base.group_system")
+        cls.user = new_test_user(
+            cls.env,
+            "foo",
+            groups="base.group_user,base.group_erp_manager,base.group_system",
+        )
 
     def test_user_auth_methods(self):
         # By default the only authentication method of the user is the password
@@ -44,7 +47,9 @@ class TestAuthTimeout(TransactionCase):
                 "create_uid": self.user.id,
             }
         )
-        self.assertEqual(self.user._get_auth_methods(), ["webauthn", "totp", "password"])
+        self.assertEqual(
+            self.user._get_auth_methods(), ["webauthn", "totp", "password"]
+        )
 
     def test_user_lock_timeouts(self):
         group1, group2, group3 = self.user.group_ids[:3]
@@ -192,7 +197,9 @@ class TestAuthTimeoutHttp(HttpCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = new_test_user(
-            cls.env, "foobarbaz", groups="base.group_user,base.group_erp_manager,base.group_system"
+            cls.env,
+            "foobarbaz",
+            groups="base.group_user,base.group_erp_manager,base.group_system",
         )
 
         # Mock TOTP.match to make the code 111111 always valid.
@@ -211,9 +218,13 @@ class TestAuthTimeoutHttp(HttpCase):
 
         # Mock auth.passkey.key._verify_registration_options to accept the hard-coded registration during the tour
         cls.passkey_credential_id = "foo"
-        cls.passkey_credential_id_base64url = "Zm9v"  # bytes_to_base64url(b"foo") == "Zm9v"
+        cls.passkey_credential_id_base64url = (
+            "Zm9v"  # bytes_to_base64url(b"foo") == "Zm9v"
+        )
         PasskeyClass = cls.env.registry["auth.passkey.key"]
-        origin_passkey_verify_registration_options = PasskeyClass._verify_registration_options
+        origin_passkey_verify_registration_options = (
+            PasskeyClass._verify_registration_options
+        )
 
         def _verify_registration_options(self, registration):
             if registration.get("id") == cls.passkey_credential_id:
@@ -223,13 +234,17 @@ class TestAuthTimeoutHttp(HttpCase):
                 }
             return origin_passkey_verify_registration_options(self, registration)
 
-        cls.classPatch(PasskeyClass, "_verify_registration_options", _verify_registration_options)
+        cls.classPatch(
+            PasskeyClass, "_verify_registration_options", _verify_registration_options
+        )
 
         # Mock auth.passkey.key._verify_auth to accept the hard-coded authentication during the tour
         origin_passkey_verify_auth = PasskeyClass._verify_auth
 
         def _verify_auth(self, auth, public_key, sign_count):
-            if auth.get("id") == cls.passkey_credential_id_base64url:  # bytes_to_base64url(b"foo") == "Zm9v"
+            if (
+                auth.get("id") == cls.passkey_credential_id_base64url
+            ):  # bytes_to_base64url(b"foo") == "Zm9v"
                 return 1
             return origin_passkey_verify_auth(self, auth, public_key, sign_count)
 
@@ -237,7 +252,15 @@ class TestAuthTimeoutHttp(HttpCase):
 
     def rpc(self, model, method, *args, **kwargs):
         return self.url_open(
-            "/web/dataset/call_kw", json={"params": {"model": model, "method": method, "args": args, "kwargs": kwargs}}
+            "/web/dataset/call_kw",
+            json={
+                "params": {
+                    "model": model,
+                    "method": method,
+                    "args": args,
+                    "kwargs": kwargs,
+                }
+            },
         ).json()
 
     def set_session_create_time(self, session_id, timestamp):
@@ -262,15 +285,31 @@ class TestAuthTimeoutHttp(HttpCase):
         config.execute()
 
     def set_auth_totp(self):
-        action = self.rpc("res.users", "action_totp_enable_wizard", [self.user.id])["result"]
-        self.rpc(action["res_model"], "enable", [action["res_id"]], context={"code": str(self.totp_code)})
+        action = self.rpc("res.users", "action_totp_enable_wizard", [self.user.id])[
+            "result"
+        ]
+        self.rpc(
+            action["res_model"],
+            "enable",
+            [action["res_id"]],
+            context={"code": str(self.totp_code)},
+        )
 
     def set_auth_passkey(self):
-        wizard_id = self.rpc("auth.passkey.key.create", "create", {"name": "foo"})["result"]
-        self.rpc("auth.passkey.key.create", "make_key", wizard_id, {"id": self.passkey_credential_id})
+        wizard_id = self.rpc("auth.passkey.key.create", "create", {"name": "foo"})[
+            "result"
+        ]
+        self.rpc(
+            "auth.passkey.key.create",
+            "make_key",
+            wizard_id,
+            {"id": self.passkey_credential_id},
+        )
 
     def check_identity(self, credentials):
-        return self.url_open("/auth-timeout/session/check-identity", json={"params": credentials})
+        return self.url_open(
+            "/auth-timeout/session/check-identity", json={"params": credentials}
+        )
 
     def assertMustCheckIdentity(self):
         result = self.rpc("res.users", "read", [self.user.id], ["login"])
@@ -281,7 +320,10 @@ class TestAuthTimeoutHttp(HttpCase):
 
     def assertSessionExpired(self):
         result = self.rpc("res.users", "read", [self.user.id], ["login"])
-        self.assertEqual(result.get("error", {}).get("data", {}).get("name"), "odoo.http.SessionExpiredException")
+        self.assertEqual(
+            result.get("error", {}).get("data", {}).get("name"),
+            "odoo.http.SessionExpiredException",
+        )
 
     def assertMustNotCheckIdentity(self):
         result = self.rpc("res.users", "read", [self.user.id], ["login"])
@@ -350,7 +392,12 @@ class TestAuthTimeoutHttp(HttpCase):
         self.set_session_next_check_identity(session_id, time.time() - 16 * 60)
         self.assertMustCheckIdentity()
         self.check_identity(
-            {"type": "webauthn", "webauthn_response": json.dumps({"id": self.passkey_credential_id_base64url})}
+            {
+                "type": "webauthn",
+                "webauthn_response": json.dumps(
+                    {"id": self.passkey_credential_id_base64url}
+                ),
+            }
         )
         self.assertMustNotCheckIdentity()
 
@@ -406,7 +453,9 @@ class TestAuthTimeoutHttp(HttpCase):
         self.assertMustCheckIdentity()
 
         # Check the identity with TOTP code as 2FA
-        self.check_identity({"type": "totp_mail", "token": self.user._get_totp_mail_code()[0]})
+        self.check_identity(
+            {"type": "totp_mail", "token": self.user._get_totp_mail_code()[0]}
+        )
 
         # Check identity must no longer be checked
         self.assertMustNotCheckIdentity()
@@ -469,7 +518,9 @@ class TestAuthTimeoutHttp(HttpCase):
         self.assertMustCheckIdentity()
 
         # Check the identity with TOTP code as 2FA
-        self.check_identity({"type": "totp_mail", "token": self.user._get_totp_mail_code()[0]})
+        self.check_identity(
+            {"type": "totp_mail", "token": self.user._get_totp_mail_code()[0]}
+        )
 
         # Check identity must no longer be checked
         self.assertMustNotCheckIdentity()
@@ -491,7 +542,9 @@ class TestAuthTimeoutHttp(HttpCase):
 
         # 4. Login again with totp
         csrf_token = (
-            lxml.html.fromstring(self.url_open("/web/login").content).xpath('//input[@name="csrf_token"]')[0].get("value")
+            lxml.html.fromstring(self.url_open("/web/login").content)
+            .xpath('//input[@name="csrf_token"]')[0]
+            .get("value")
         )
         res = self.url_open(
             "/web/login",
@@ -502,7 +555,11 @@ class TestAuthTimeoutHttp(HttpCase):
             },
         )
         self.assertIn("/web/login/totp", res.url)
-        csrf_token = lxml.html.fromstring(res.content).xpath('//input[@name="csrf_token"]')[0].get("value")
+        csrf_token = (
+            lxml.html.fromstring(res.content)
+            .xpath('//input[@name="csrf_token"]')[0]
+            .get("value")
+        )
         res = self.url_open(
             "/web/login/totp",
             data={
@@ -516,16 +573,30 @@ class TestAuthTimeoutHttp(HttpCase):
         )
 
         # 5. Assert the expiration date of the cookie
-        expires = datetime.fromtimestamp(self.opener.cookies._cookies[HOST]["/"][TRUSTED_DEVICE_COOKIE].expires)
+        expires = datetime.fromtimestamp(
+            self.opener.cookies._cookies[HOST]["/"][TRUSTED_DEVICE_COOKIE].expires
+        )
         # Expiration date in less than 1 day
-        self.assertLessEqual(expires, datetime.now() + timedelta(seconds=group.lock_timeout * 60))
+        self.assertLessEqual(
+            expires, datetime.now() + timedelta(seconds=group.lock_timeout * 60)
+        )
         # Expiration date in more than 1 day - 1 minute
-        self.assertGreater(expires, datetime.now() + timedelta(seconds=group.lock_timeout * 60 - 60))
+        self.assertGreater(
+            expires, datetime.now() + timedelta(seconds=group.lock_timeout * 60 - 60)
+        )
 
         # 6. Assert the expiration date of the device in database
-        device = self.env["auth_totp.device"].search([("user_id", "=", self.user.id)], order="id DESC", limit=1)
-        self.assertLessEqual(device.expiration_date, datetime.now() + timedelta(seconds=group.lock_timeout * 60))
-        self.assertGreater(device.expiration_date, datetime.now() + timedelta(seconds=group.lock_timeout * 60 - 60))
+        device = self.env["auth_totp.device"].search(
+            [("user_id", "=", self.user.id)], order="id DESC", limit=1
+        )
+        self.assertLessEqual(
+            device.expiration_date,
+            datetime.now() + timedelta(seconds=group.lock_timeout * 60),
+        )
+        self.assertGreater(
+            device.expiration_date,
+            datetime.now() + timedelta(seconds=group.lock_timeout * 60 - 60),
+        )
 
     def test_auth_timeout_tour(self):
         session_id = self.authenticate(self.user.login, self.user.login).sid
@@ -541,10 +612,16 @@ class TestAuthTimeoutHttp(HttpCase):
             "_get_lock_timeouts",
             return_value={
                 "lock_timeout": [],
-                "lock_timeout_inactivity": [(1, False)],  # 1 second inactivity without MFA
+                "lock_timeout_inactivity": [
+                    (1, False)
+                ],  # 1 second inactivity without MFA
             },
         ):
-            self.start_tour("/odoo", "auth_timeout_tour_lock_timeout_inactivity", login=self.user.login)
+            self.start_tour(
+                "/odoo",
+                "auth_timeout_tour_lock_timeout_inactivity",
+                login=self.user.login,
+            )
 
         # Set a 1 second inactivity timeout with 2fa, with a mock patch because the field `lock_timeout` is in minutes.
         with patch.object(
@@ -555,4 +632,8 @@ class TestAuthTimeoutHttp(HttpCase):
                 "lock_timeout_inactivity": [(1, True)],  # 1 second inactivity with MFA
             },
         ):
-            self.start_tour("/odoo", "auth_timeout_tour_lock_timeout_inactivity_2fa", login=self.user.login)
+            self.start_tour(
+                "/odoo",
+                "auth_timeout_tour_lock_timeout_inactivity_2fa",
+                login=self.user.login,
+            )

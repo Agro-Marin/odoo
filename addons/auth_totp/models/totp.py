@@ -11,9 +11,10 @@ TOTP_SECRET_SIZE = 160
 # The algorithm (and key URI format) allows customising these parameters but
 # google authenticator doesn't support it
 # https://github.com/google/google-authenticator/wiki/Key-Uri-Format
-ALGORITHM = 'sha1'
+ALGORITHM = "sha1"
 DIGITS = 6
 TIMESTEP = 30
+
 
 class TOTP:
     def __init__(self, key):
@@ -34,10 +35,15 @@ class TOTP:
         low = int((t - window) / timestep)
         high = int((t + window) / timestep) + 1
 
-        return next((
-            counter for counter in range(low, high)
-            if hotp(self._key, counter) == code
-        ), None)
+        return next(
+            (
+                counter
+                for counter in range(low, high)
+                if hotp(self._key, counter) == code
+            ),
+            None,
+        )
+
 
 def hotp(secret, counter):
     # C is the 64b counter encoded in big-endian
@@ -49,6 +55,6 @@ def hotp(secret, counter):
     # (31b to avoid sign concerns). This effectively limits digits to 9 and
     # hard-limits it to 10: each digit is normally worth 3.32 bits but the
     # 10th is only worth 1.1 (9 digits encode 29.9 bits).
-    code = struct.unpack_from('>I', mac, offset)[0] & 0x7FFFFFFF
+    code = struct.unpack_from(">I", mac, offset)[0] & 0x7FFFFFFF
     # NOTE: use text / bytes instead of int?
-    return code % (10 ** DIGITS)
+    return code % (10**DIGITS)

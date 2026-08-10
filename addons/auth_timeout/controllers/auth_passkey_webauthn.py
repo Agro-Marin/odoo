@@ -1,4 +1,5 @@
 from odoo import http
+
 from odoo.addons.auth_passkey.controllers import main as auth_passkey_main
 
 

@@ -48,4 +48,8 @@ class ResUsers(models.Model):
         :rtype: float or None
         """
         timeouts = self._get_lock_timeouts()
-        return timeouts.get("lock_timeout_inactivity")[0][0] if timeouts.get("lock_timeout_inactivity") else None
+        return (
+            timeouts.get("lock_timeout_inactivity")[0][0]
+            if timeouts.get("lock_timeout_inactivity")
+            else None
+        )

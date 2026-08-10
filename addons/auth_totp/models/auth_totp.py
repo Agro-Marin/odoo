@@ -8,12 +8,11 @@ _logger = logging.getLogger(__name__)
 
 
 class Auth_TotpDevice(models.Model):
-
     # init is overriden in res.users.apikeys to create a secret column 'key'
     # use a different model to benefit from the secured methods while not mixing
     # two different concepts
 
-    _name = 'auth_totp.device'
+    _name = "auth_totp.device"
     _inherit = ["res.users.apikeys"]
     _description = "Authentication Device"
     _auto = False
@@ -24,16 +23,20 @@ class Auth_TotpDevice(models.Model):
         return self._check_credentials(scope=scope, key=key) == uid
 
     def _get_trusted_device_age(self):
-        ICP = self.env['ir.config_parameter'].sudo()
+        ICP = self.env["ir.config_parameter"].sudo()
         try:
-            nbr_days = int(ICP.get_param('auth_totp.trusted_device_age', TRUSTED_DEVICE_AGE_DAYS))
+            nbr_days = int(
+                ICP.get_param("auth_totp.trusted_device_age", TRUSTED_DEVICE_AGE_DAYS)
+            )
             if nbr_days <= 0:
                 nbr_days = None
         except ValueError:
             nbr_days = None
 
         if nbr_days is None:
-            _logger.warning("Invalid value for 'auth_totp.trusted_device_age', using default value.")
+            _logger.warning(
+                "Invalid value for 'auth_totp.trusted_device_age', using default value."
+            )
             nbr_days = TRUSTED_DEVICE_AGE_DAYS
 
         return nbr_days * 86400  # seconds

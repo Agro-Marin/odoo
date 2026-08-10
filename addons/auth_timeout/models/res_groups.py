@@ -1,7 +1,12 @@
 from odoo import api, fields, models
 from odoo.tools import ormcache
 
-CACHE_INVALIDATE_FIELDS = ("lock_timeout", "lock_timeout_mfa", "lock_timeout_inactivity", "lock_timeout_inactivity_mfa")
+CACHE_INVALIDATE_FIELDS = (
+    "lock_timeout",
+    "lock_timeout_mfa",
+    "lock_timeout_inactivity",
+    "lock_timeout_inactivity_mfa",
+)
 
 
 def human_readable_delay(minutes):
@@ -60,10 +65,17 @@ class ResGroups(models.Model):
         compute="_compute_has_lock_timeout",
         readonly=False,
     )
-    lock_timeout_delay_unit = fields.Selection(DELAY_UNITS, compute="_compute_lock_timeout_delay_unit", readonly=False)
-    lock_timeout_delay_in_unit = fields.Integer(compute="_compute_lock_timeout_delay_unit", readonly=False)
+    lock_timeout_delay_unit = fields.Selection(
+        DELAY_UNITS, compute="_compute_lock_timeout_delay_unit", readonly=False
+    )
+    lock_timeout_delay_in_unit = fields.Integer(
+        compute="_compute_lock_timeout_delay_unit", readonly=False
+    )
     lock_timeout_2fa_selection = fields.Selection(
-        [("without_2fa", "Logout"), ("with_2fa", "Logout with two-factor authentication")],
+        [
+            ("without_2fa", "Logout"),
+            ("with_2fa", "Logout with two-factor authentication"),
+        ],
         compute="_compute_lock_timeout_2fa_selection",
         inverse="_inverse_lock_timeout_2fa_selection",
     )
@@ -83,7 +95,10 @@ class ResGroups(models.Model):
         readonly=False,
     )
     lock_timeout_inactivity_2fa_selection = fields.Selection(
-        [("without_2fa", "Screen lock"), ("with_2fa", "Screen lock with two-factor authentication")],
+        [
+            ("without_2fa", "Screen lock"),
+            ("with_2fa", "Screen lock with two-factor authentication"),
+        ],
         compute="_compute_lock_timeout_inactivity_2fa_selection",
         inverse="_inverse_lock_timeout_inactivity_2fa_selection",
     )
@@ -104,7 +119,9 @@ class ResGroups(models.Model):
     @api.depends("lock_timeout_mfa")
     def _compute_lock_timeout_2fa_selection(self):
         for group in self:
-            group.lock_timeout_2fa_selection = "with_2fa" if group.lock_timeout_mfa else "without_2fa"
+            group.lock_timeout_2fa_selection = (
+                "with_2fa" if group.lock_timeout_mfa else "without_2fa"
+            )
 
     def _inverse_lock_timeout_2fa_selection(self):
         for group in self:
@@ -132,7 +149,9 @@ class ResGroups(models.Model):
 
     def _inverse_lock_timeout_inactivity_2fa_selection(self):
         for group in self:
-            group.lock_timeout_inactivity_mfa = group.lock_timeout_inactivity_2fa_selection == "with_2fa"
+            group.lock_timeout_inactivity_mfa = (
+                group.lock_timeout_inactivity_2fa_selection == "with_2fa"
+            )
 
     @api.onchange("has_lock_timeout")
     def _onchange_has_lock_timeout(self):
@@ -160,9 +179,13 @@ class ResGroups(models.Model):
                 group.lock_timeout_inactivity_mfa = False
             else:
                 group.lock_timeout_inactivity = 15  # 15 minutes by default
-                group.lock_timeout_inactivity_mfa = False  # Do not Require 2FA by default
+                group.lock_timeout_inactivity_mfa = (
+                    False  # Do not Require 2FA by default
+                )
 
-    @api.onchange("lock_timeout_inactivity_delay_unit", "lock_timeout_inactivity_delay_in_unit")
+    @api.onchange(
+        "lock_timeout_inactivity_delay_unit", "lock_timeout_inactivity_delay_in_unit"
+    )
     def _onchange_lock_timeout_inactivity_delay_unit(self):
         for group in self:
             group.lock_timeout_inactivity = human_readable_delay_to_minutes(
@@ -173,7 +196,9 @@ class ResGroups(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """Override to invalidate `_get_lock_timeouts` cache if timeout fields are set on creation."""
-        if any(field in vals for vals in vals_list for field in CACHE_INVALIDATE_FIELDS):
+        if any(
+            field in vals for vals in vals_list for field in CACHE_INVALIDATE_FIELDS
+        ):
             self.env.registry.clear_cache()
         return super().create(vals_list)
 
@@ -204,8 +229,8 @@ class ResGroups(models.Model):
             Example::
 
                 {
-                    'lock_timeout': [(43200, False), (86400, True)],
-                    'lock_timeout_inactivity': [(900, False)]
+                    "lock_timeout": [(43200, False), (86400, True)],
+                    "lock_timeout_inactivity": [(900, False)],
                 }
 
         :rtype: dict
@@ -219,8 +244,14 @@ class ResGroups(models.Model):
             # `with_context({})` because
             # - Same reasons than https://github.com/odoo/odoo/commit/7a0255665714f2c0129d04d4a3f14a3137c159f1
             # - As this method is decorated with `@ormcache('self._ids')`, it cannot depend on the context
-            values = [(g[key], g[mfa_key]) for g in self.with_context({}).all_implied_ids if g[key]]
-            min_non_mfa = min((timeout for timeout, mfa in values if not mfa), default=None)
+            values = [
+                (g[key], g[mfa_key])
+                for g in self.with_context({}).all_implied_ids
+                if g[key]
+            ]
+            min_non_mfa = min(
+                (timeout for timeout, mfa in values if not mfa), default=None
+            )
             min_mfa = min((timeout for timeout, mfa in values if mfa), default=None)
 
             result[key] = []

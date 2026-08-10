@@ -3,7 +3,7 @@ import re
 import time
 
 from odoo import api, models
-from odoo.http import request, root, SessionExpiredException
+from odoo.http import SessionExpiredException, request, root
 
 
 class CheckIdentityException(SessionExpiredException):
@@ -43,14 +43,22 @@ class IrHttp(models.AbstractModel):
         session = request.session
         env = request.env(user=request.session.uid)
         timeouts = env.user._get_lock_timeouts()
-        for timeout_type, reauth_type, session_key, session_key_default, first_timeout in [
+        for (
+            timeout_type,
+            reauth_type,
+            session_key,
+            session_key_default,
+            first_timeout,
+        ) in [
             ("lock_timeout", "logout", "create_time", 0, 0),
             (
                 "lock_timeout_inactivity",
                 "check_identity",
                 "identity-check-next",
                 None,
-                timeouts["lock_timeout_inactivity"][0][0] if timeouts.get("lock_timeout_inactivity") else 0,
+                timeouts["lock_timeout_inactivity"][0][0]
+                if timeouts.get("lock_timeout_inactivity")
+                else 0,
             ),
         ]:
             for timeout, mfa in reversed(timeouts[timeout_type]):
@@ -69,6 +77,7 @@ class IrHttp(models.AbstractModel):
                             if timestamp_1fa > threshold:
                                 res["1fa"] = auth_method_1fa
                     return res
+        return None
 
     @classmethod
     def _check_identity(cls, credential):
@@ -97,7 +106,11 @@ class IrHttp(models.AbstractModel):
         if not credential:
             if first_fa and first_fa in auth_methods:
                 auth_methods.remove(first_fa)
-            return {"user_id": user.id, "login": user.login, "auth_methods": auth_methods}
+            return {
+                "user_id": user.id,
+                "login": user.login,
+                "auth_methods": auth_methods,
+            }
 
         if credential.get("type") in ("totp", "totp_mail"):
             credential["token"] = int(re.sub(r"\s", "", credential["token"]))
@@ -106,13 +119,18 @@ class IrHttp(models.AbstractModel):
 
         if first_fa and first_fa != auth["auth_method"]:
             request.session.pop("identity-check-1fa")
-        elif auth["mfa"] != "skip" and len(auth_methods) > 1 and check_identity.get("mfa"):
+        elif (
+            auth["mfa"] != "skip"
+            and len(auth_methods) > 1
+            and check_identity.get("mfa")
+        ):
             request.session["identity-check-1fa"] = (time.time(), credential["type"])
             auth_methods.remove(credential["type"])
             return {"mfa": True, "auth_methods": auth_methods}
 
         request.session.pop("identity-check-next", None)
         request.session["identity-check-last"] = time.time()
+        return None
 
     def _set_session_inactivity(self, session, inactivity_period=0, force=False):
         """
@@ -138,16 +156,23 @@ class IrHttp(models.AbstractModel):
         :return: None
         """
         # inactivity_period sent by the js is in milliseconds
-        inactivity_period = inactivity_period / 1000
+        inactivity_period /= 1000
         timeout = self.env.user._get_lock_timeout_inactivity()
         inactive = timeout and (force or inactivity_period >= timeout)
         if inactive:
             next_check = time.time() + timeout - inactivity_period
-            if not session.get("identity-check-next") or next_check < session["identity-check-next"]:
+            if (
+                not session.get("identity-check-next")
+                or next_check < session["identity-check-next"]
+            ):
                 session["identity-check-next"] = next_check
                 # Save manually, websocket requests do not save the session automatically
                 root.session_store.save(session)
-        elif not inactive and (timestamp := session.get("identity-check-next")) and timestamp > time.time():
+        elif (
+            not inactive
+            and (timestamp := session.get("identity-check-next"))
+            and timestamp > time.time()
+        ):
             session.pop("identity-check-next")
             # Save manually, websocket requests do not save the session automatically
             root.session_store.save(session)
@@ -174,9 +199,15 @@ class IrHttp(models.AbstractModel):
         if endpoint.routing["auth"] == "user" and request.session.uid is not None:
             if must_check_identity := cls._must_check_identity():
                 if must_check_identity.get("logout"):
-                    raise SessionExpiredException(f"User {request.session.uid} needs to login again")
-                elif endpoint.routing.get("check_identity", True) and must_check_identity.get("check_identity"):
-                    raise CheckIdentityException(f"User {request.session.uid} needs to confirm his identity")
+                    raise SessionExpiredException(
+                        f"User {request.session.uid} needs to login again"
+                    )
+                if endpoint.routing.get(
+                    "check_identity", True
+                ) and must_check_identity.get("check_identity"):
+                    raise CheckIdentityException(
+                        f"User {request.session.uid} needs to confirm his identity"
+                    )
 
     @classmethod
     def _handle_error(cls, exception):
@@ -194,11 +225,13 @@ class IrHttp(models.AbstractModel):
         :return: An HTTP response for identity confirmation, or the default error response.
         :rtype: werkzeug.wrappers.Response
         """
-        if request.dispatcher.routing_type == "http" and isinstance(exception, CheckIdentityException):
-            response = request.redirect_query(
-                "/auth-timeout/check-identity", {"redirect": request.httprequest.full_path}
+        if request.dispatcher.routing_type == "http" and isinstance(
+            exception, CheckIdentityException
+        ):
+            return request.redirect_query(
+                "/auth-timeout/check-identity",
+                {"redirect": request.httprequest.full_path},
             )
-            return response
         return super()._handle_error(exception)
 
     def _session_info_common_auth_timeout(self, session_info):
@@ -213,7 +246,9 @@ class IrHttp(models.AbstractModel):
         :return: The updated session information with inactivity timeout (if applicable).
         :rtype: dict
         """
-        if not self.env.user._is_public() and (timeout := self.env.user._get_lock_timeout_inactivity()):
+        if not self.env.user._is_public() and (
+            timeout := self.env.user._get_lock_timeout_inactivity()
+        ):
             session_info["lock_timeout_inactivity"] = timeout
         return session_info
 

@@ -1,10 +1,11 @@
 import re
-import requests
 from unittest.mock import patch
 
+import requests
+
 import odoo
-from odoo.modules.registry import Registry, DummyRLock
-from odoo.tests.common import BaseCase, tagged, get_db_name
+from odoo.modules.registry import DummyRLock, Registry
+from odoo.tests.common import BaseCase, get_db_name, tagged
 
 
 @tagged("-standard", "-at_install", "post_install", "database_breaking")
@@ -22,6 +23,7 @@ class TestAuthLDAP(BaseCase):
         def remove_ldap_user():
             with self.registry.cursor() as cr:
                 cr.execute("DELETE FROM res_users WHERE login = 'test_ldap_user'")
+
         self.addCleanup(remove_ldap_user)
 
     def test_auth_ldap(self):
@@ -60,8 +62,14 @@ class TestAuthLDAP(BaseCase):
         body = self.url_open("/web/login").text
         csrf = re.search(r'csrf_token: "(\w*?)"', body).group(1)
 
-        with patch.object(self.registry["res.company.ldap"], "_get_ldap_dicts", _get_ldap_dicts),\
-            patch.object(self.registry["res.company.ldap"], "_authenticate", _authenticate):
+        with (
+            patch.object(
+                self.registry["res.company.ldap"], "_get_ldap_dicts", _get_ldap_dicts
+            ),
+            patch.object(
+                self.registry["res.company.ldap"], "_authenticate", _authenticate
+            ),
+        ):
             res = self.url_open(
                 f"{self.base_url()}/web/login",
                 data={
@@ -74,10 +82,12 @@ class TestAuthLDAP(BaseCase):
 
         session = odoo.http.root.session_store.get(res.cookies["session_id"])
         self.assertEqual(
-            session.sid, res.cookies["session_id"], "A session must exist at this point")
+            session.sid, res.cookies["session_id"], "A session must exist at this point"
+        )
 
         with self.registry.cursor() as cr:
             cr.execute(
                 "SELECT id FROM res_users WHERE login = %s and id = %s",
-                ("test_ldap_user", session.uid))
+                ("test_ldap_user", session.uid),
+            )
             self.assertTrue(cr.rowcount, "User should be present")

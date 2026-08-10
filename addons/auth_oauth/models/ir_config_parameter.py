@@ -1,17 +1,18 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models
 
 
 class IrConfig_Parameter(models.Model):
-    _inherit = 'ir.config_parameter'
+    _inherit = "ir.config_parameter"
 
     def init(self, force=False):
         super().init(force=force)
         if force:
-            oauth_oe = self.env.ref('auth_oauth.provider_odoo', raise_if_not_found=False)
+            oauth_oe = self.env.ref(
+                "auth_oauth.provider_odoo", raise_if_not_found=False
+            )
             if not oauth_oe:
                 return
-            dbuuid = self.sudo().get_param('database.uuid')
-            oauth_oe.write({'client_id': dbuuid})
+            dbuuid = self.sudo().get_param("database.uuid")
+            oauth_oe.write({"client_id": dbuuid})
