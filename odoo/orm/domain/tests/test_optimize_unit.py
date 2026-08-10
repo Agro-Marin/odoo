@@ -28,6 +28,27 @@ class _StubField:
         "boolean": False,
     }
 
+    #: ``predicate -> the field types it holds for``.
+    #:
+    #: The optimizers ask a field what it *is* rather than comparing its type
+    #: string, so a stub that carries only ``type`` stops standing in for a
+    #: field: converting ``optimizations.py`` to `is_many2one` failed two cases
+    #: here with ``'_StubField' object has no attribute 'is_many2one'``, which
+    #: is the stub's job done correctly -- it refused to answer a question it
+    #: had not been taught.
+    #:
+    #: These cannot be imported from the real classes: this suite runs under
+    #: ``_testing_bootstrap``'s package stubs, which is what makes it DB-free.
+    #: The authority they must agree with is ``PREDICATE_TYPES`` in
+    #: ``orm/tests/test_field_predicates.py``, which checks the real hierarchy
+    #: against the same literals.
+    _PREDICATES_BY_TYPE = {
+        "is_many2one": frozenset({"many2one"}),
+        "is_x2many": frozenset({"many2many", "one2many"}),
+        "is_temporal": frozenset({"date", "datetime"}),
+        "is_properties": frozenset({"properties"}),
+    }
+
     def __init__(
         self,
         name,
@@ -55,6 +76,8 @@ class _StubField:
             self._FALSY_BY_TYPE.get(ftype) if falsy_value is _UNSET else falsy_value
         )
         self.search = search
+        for predicate, holds_for in self._PREDICATES_BY_TYPE.items():
+            setattr(self, predicate, ftype in holds_for)
 
 
 class _StubEnv:

@@ -72,14 +72,14 @@ PREDICATE_TYPES: dict[str, frozenset[str]] = {
 #: question, and a reader cannot tell which is current. So the sweep below fails
 #: on any survivor that is not listed here, and the list is the remaining work
 #: rather than a place to put inconvenient sites.
-UNCONVERTED: dict[str, str] = {
-    "odoo/orm/domain/optimizations.py": (
-        "another session holds this file with uncommitted work (2026-08-09); "
-        "converting it there would either conflict with them or sweep their "
-        "changes into an unrelated commit. Five sites: is_many2one x4, "
-        "is_x2many x1."
-    ),
-}
+UNCONVERTED: dict[str, str] = {}
+"""Files still comparing `.type` against a migrated set, with the reason.
+
+Empty, and the second test below keeps it that way honestly: an entry naming a
+file with nothing left to convert fails, so this cannot quietly become a place
+to put inconvenient sites. It held ``orm/domain/optimizations.py`` for one
+commit, while another session had uncommitted work in it.
+"""
 
 
 class TestPredicatesMatchTheTypeStrings(unittest.TestCase):

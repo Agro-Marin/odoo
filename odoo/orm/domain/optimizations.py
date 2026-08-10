@@ -829,9 +829,9 @@ def _operator_hierarchy(condition, model):
     if value is True:
         condition._raise("True is not a valid hierarchy value")
     field = condition._field(model)
-    if field.type == "many2one":
+    if field.is_many2one:
         comodel = model.env[field.comodel_name].with_context(active_test=False)
-    elif field.type in ("many2many", "one2many"):
+    elif field.is_x2many:
         comodel = model.env[field.comodel_name].with_context(**field.context)
     elif field.name == "id":
         comodel = model
@@ -844,7 +844,7 @@ def _operator_hierarchy(condition, model):
     if comodel._name == model._name:
         if condition.field_expr != "id":
             parent = condition.field_expr
-        if field.type == "many2one":
+        if field.is_many2one:
             field = model._fields["id"]
     if isinstance(value, (int, str)):
         value = [value]
@@ -1038,7 +1038,7 @@ def _optimize_merge_set_conditions_x2many_not_in(
 @nary_condition_optimization(["any!"], ["many2one", "one2many", "many2many"])
 def _optimize_merge_any(cls, conditions, model):
     field = conditions[0]._field(model)
-    if field.type != "many2one" and cls is DomainAnd:
+    if not field.is_many2one and cls is DomainAnd:
         return conditions
     merge_conditions, other_conditions = partition(
         lambda c: isinstance(c.value, Domain), conditions
@@ -1057,7 +1057,7 @@ def _optimize_merge_any(cls, conditions, model):
 @nary_condition_optimization(["not any!"], ["many2one", "one2many", "many2many"])
 def _optimize_merge_not_any(cls, conditions, model):
     field = conditions[0]._field(model)
-    if field.type != "many2one" and cls is DomainOr:
+    if not field.is_many2one and cls is DomainOr:
         return conditions
     merge_conditions, other_conditions = partition(
         lambda c: isinstance(c.value, Domain), conditions
