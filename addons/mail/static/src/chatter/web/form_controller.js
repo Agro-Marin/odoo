@@ -25,16 +25,31 @@ patch(FormController.prototype, {
     },
     onWillLoadRoot(nextConfiguration) {
         super.onWillLoadRoot(...arguments);
-        // Both mechanisms are load-bearing despite fetching messages twice on a
-        // same-record save: the flags cover renders that follow the reload, while
-        // the bus event reaches the already-mounted Thread whatever the render
-        // timing (e.g. for tracking messages posted BY the save).
-        this.env.chatter.fetchThreadData = true;
-        this.env.chatter.fetchMessages = true;
         const isSameThread =
             this.model.root?.resId === nextConfiguration.resId &&
             this.model.root?.resModel === nextConfiguration.resModel;
+        // `fetchThreadData` means "same thread, its data may be stale after a
+        // save" (@see chatter.js), so it is raised only when the root load
+        // keeps the thread. Raised for every load, it was consumed by a render
+        // that still held the OUTGOING record and re-fetched that record's
+        // activities, attachments, followers and scheduled messages onto a
+        // thread the user had just left — one wasted round trip per "Create"
+        // click and per record switch, on every chatter form. The switch needs
+        // nothing from it: `2b452acb717` made `threadChanged` fetch on its own,
+        // precisely so this flag would stop standing in for two things.
         if (isSameThread) {
+            this.env.chatter.fetchThreadData = true;
+        }
+        // NOT symmetric with the above, and must stay unconditional:
+        // `Thread.onWillUpdateProps` fetches the new thread's messages only
+        // while this flag is up, so gating it on `isSameThread` would leave a
+        // switched-to record showing no messages at all.
+        this.env.chatter.fetchMessages = true;
+        if (isSameThread) {
+            // Both mechanisms are load-bearing despite fetching messages twice
+            // on a same-record save: the flags cover renders that follow the
+            // reload, while the bus event reaches the already-mounted Thread
+            // whatever the render timing (e.g. for messages posted BY the save).
             const { resModel, resId } = this.model.root;
             this.env.bus.trigger("MAIL:RELOAD-THREAD", { model: resModel, id: resId });
         }

@@ -906,3 +906,77 @@ test("composer does not pop up from an earlier failed save", async () => {
     await contains("button[aria-label='Attach files']:enabled");
     await contains(".o-mail-Composer", { count: 0 });
 });
+
+test("leaving a record does not re-fetch the record being left", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John" });
+    /** @type {number[]} thread_id of each mail.thread store fetch, in order */
+    const fetchedThreadIds = [];
+    // Counted straight off the route rather than through `listenStoreFetch`,
+    // whose async steps every caller must then consume: here the fetches are
+    // the assertion, not a synchronisation point.
+    onRpcBefore((route, args) => {
+        if (!STORE_FETCH_ROUTES.includes(route)) {
+            return;
+        }
+        for (const [name, params] of args.fetch_params ?? []) {
+            if (name === "mail.thread") {
+                fetchedThreadIds.push(params.thread_id);
+            }
+        }
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains("button[aria-label='Attach files']");
+    await advanceTime(1000);
+    expect(fetchedThreadIds).toEqual([partnerId]);
+
+    // Switching to the creation form must not fetch anything: the new record
+    // has no id, and the outgoing one is no longer displayed. The chatter's
+    // "data may be stale after a save" flag used to be raised for every root
+    // load, so a render still holding the OUTGOING record consumed it and
+    // re-fetched that record's activities, attachments, followers and
+    // scheduled messages onto a thread the user had just left.
+    await click(".o_control_panel_main_buttons .o_form_button_create");
+    await advanceTime(1000);
+    expect(fetchedThreadIds).toEqual([partnerId]);
+});
+
+test("saving a record still refreshes its chatter data", async () => {
+    // Guards the fix above from being too broad: the stale-data flag has a real
+    // job, and a same-record save is it.
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John" });
+    /** @type {number[]} */
+    const fetchedThreadIds = [];
+    // Counted straight off the route rather than through `listenStoreFetch`,
+    // whose async steps every caller must then consume: here the fetches are
+    // the assertion, not a synchronisation point.
+    onRpcBefore((route, args) => {
+        if (!STORE_FETCH_ROUTES.includes(route)) {
+            return;
+        }
+        for (const [name, params] of args.fetch_params ?? []) {
+            if (name === "mail.thread") {
+                fetchedThreadIds.push(params.thread_id);
+            }
+        }
+    });
+    await start();
+    await openFormView("res.partner", partnerId, {
+        arch: `
+            <form string="Partners">
+                <sheet>
+                    <field name="name"/>
+                </sheet>
+                <chatter/>
+            </form>`,
+    });
+    await contains("button[aria-label='Attach files']");
+    await advanceTime(1000);
+    expect(fetchedThreadIds).toEqual([partnerId]);
+    await insertText(".o_field_widget[name='name'] input", "ny", { replace: true });
+    await click(".o_form_button_save");
+    await advanceTime(1000);
+    expect(fetchedThreadIds).toEqual([partnerId, partnerId]);
+});
