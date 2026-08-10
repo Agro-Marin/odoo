@@ -134,6 +134,20 @@ class OrderMixin(models.AbstractModel):
         index=True,
         help="Date when the order was confirmed.",
     )
+    # Declared here because this mixin already *consumes* it: the ``is_late``
+    # domain (``_get_domain_is_late``) searches ``date_commitment``, so every
+    # consumer has to supply it. Concrete models layer their own attributes on
+    # top — sale leaves it manual, purchase computes it from its lines — but
+    # the field, and the meaning, are the mixin's. See Appendix A of
+    # doc/coding_guidelines.rst for the purchase ``date_planned`` rename that
+    # gave the concept one name across order types.
+    date_commitment = fields.Datetime(
+        string="Commitment Date",
+        copy=False,
+        help="The date somebody committed to: the delivery date promised to "
+        "the customer on a sale, the arrival date promised by the vendor on a "
+        "purchase.",
+    )
     date_validity = fields.Date(
         string="Expiration",
         compute="_compute_date_validity",

@@ -127,7 +127,6 @@ class PurchaseOrder(models.Model):
         compute="_compute_date_commitment",
         store=True,
         readonly=False,
-        copy=False,
         index=True,
         help="Delivery date promised by vendor. "
         "This date is used to determine expected arrival of products.",

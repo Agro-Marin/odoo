@@ -160,7 +160,6 @@ class SaleOrder(models.Model):
     )
     date_commitment = fields.Datetime(
         string="Delivery Date",
-        copy=False,
         help="This is the delivery date promised to the customer. "
         "If set, the delivery order will be scheduled based on "
         "this date rather than product lead times.",
