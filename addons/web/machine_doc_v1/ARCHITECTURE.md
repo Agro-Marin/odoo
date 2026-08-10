@@ -125,8 +125,57 @@ in `public_surface_web.txt` can only shrink), `js_layer_cohesion.py`,
 ESM bridge written over its own source exports only `undefined`, and every
 name-based and graph-based gate above stays green on it),
 `js_suite_parity.py` (every source directory has a matching test directory) and
-`js_function_length.py`. Each gate ships an empty-tree refusal test, so a gate
+`js_function_length.py`, `js_layer_check.py` (the Feature-Sliced layering above),
+`js_registry_layering.py` (the same contract for dependencies mediated by a
+registry rather than an import), `js_deployment_layers.py` (which bundle a module
+may be reached from), `js_extension_surface.py` (the methods downstream
+subclasses override, and the members they `patch()`), `js_forced_render.py` (core
+must not sweep a subtree with `render(true)` — a forced render hides reads that
+subscribe to nothing), `js_patch_blind_facade.py` (a service's own callers go
+through its facade) and `js_service_shape.py` (a service hands back an instance,
+not a literal). Each gate ships an empty-tree refusal test, so a gate
 that scanned nothing fails instead of reporting a pass.
+
+## The contracts this module declares
+
+Four of this addon's widest seams are not imports and not class members, so the
+gates above are blind to every one of them: an object handed across a boundary
+leaves no edge to check. Each is now a declared list in the source, paired with a
+gate that measures who reaches it. `test_web_machine_doc.py` pins that this
+section names every gate scanning `addons/web`, because a map that omits one is
+the failure `doc_symbol_gate.py` exists to prevent, one level up.
+
+| Contract | Declared in | Gate | What it bounds |
+|---|---|---|---|
+| `env.config` | `views/view_config.js` | `js_env_config_surface.py` | The ambient per-action bag `View` installs with `useSubEnv`, inherited by every component beneath it. Five writers in this addon alone; three keys are written only by `enterprise` and are recorded, not owned. |
+| `archInfo` | `views/arch_info.js` | `js_arch_info_surface.py` | The `ArchParser` output. Two of its keys (`fieldNodes`, `widgetNodes`) are compiled into generated OWL template *source*, where no type, linter or member gate can follow them; the gate also holds each view type's parser against what its own directory reads. |
+| `props.record` | `fields/field_record_contract.js` | `js_field_record_surface.py` | What a field widget may reach on the record it is handed — 21 members, measured by resolving the binding rather than by grep. It also classifies each widget by what it *needs*, which is the worklist below. |
+| `SearchModel` / `ListRenderer` mixins | — | `js_mixin_coupling.py` | Two `this`-collaborating compositions. Both are a single strongly-connected component with no acyclic edge; the gate ratchets the shape rather than asking for the decomposition. |
+
+### `fieldHandle` — a field widget's own field
+
+`fields/field_handle.js` gives a widget `field.value`, `field.definition`,
+`field.type` and `field.update(v)` in place of
+`props.record.data[props.name]` and its two siblings. It is a **prototype
+getter**, not a prop and not a `setup()` assignment, and both constraints are
+load-bearing:
+
+- **Not a prop.** OWL keys a subscription on the proxy a read travels through, at
+  the moment of the read, so a handle built by the parent carries the *parent's*
+  subscription — the child renders once with a correct value and never updates.
+  See *There is no free-standing computed* in `STATE_MANAGEMENT.md`.
+- **Not `this.field = ...` in `setup()`.** These widgets are subclassed heavily,
+  and many subclasses override `setup()` without calling `super.setup()`. A
+  prototype getter resolves regardless of what the subclass did.
+
+Both are mounted as tests in `static/tests/fields/field_handle.test.js` rather
+than argued about, because each fails silently.
+
+`standardFieldProps` is deliberately unchanged: 155 widgets live across four
+checkouts that cannot be committed atomically, so a widget adopts the handle one
+at a time and the ones that genuinely need the record keep it. Do not restate the
+counts here — `js_field_record_surface.py --json` reports them, and its MEASURED
+block is the copy that cannot rot.
 
 ## JavaScript Services
 
