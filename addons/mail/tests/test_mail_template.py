@@ -820,6 +820,47 @@ class TestMailTemplateReset(MailCommon):
         )
 
 
+@tagged("mail_template")
+class TestMailTemplateBodyEditorOptions(MailCommon):
+    """The ``body_html`` editor must not offer video embedding.
+
+    ``iframe`` does not survive a write to this field, so a video the editor
+    happily inserts is silently destroyed on save — and it takes its wrapper
+    with it, leaving invalid HTML (opw-4746178). The guard is the ``allowVideo``
+    option on the form view; it is asserted here rather than left to the view
+    alone because the option was once spelled ``allowCommandVideo``, a name the
+    ``html_mail`` widget does not read, which disabled the guard silently for
+    everyone while looking correct in the arch.
+    """
+
+    def test_body_html_strips_iframes(self):
+        """Why video must stay off: the field itself destroys the markup."""
+        template = self.env["mail.template"].create(
+            {
+                "name": "Video template",
+                "model_id": self.env["ir.model"]._get("res.partner").id,
+                "body_html": '<div><iframe src="https://www.youtube.com/embed/x"></iframe></div>',
+            }
+        )
+        self.assertNotIn("iframe", template.body_html)
+
+    def test_form_view_disables_video(self):
+        """The option must carry a name ``html_mail`` actually reads."""
+        arch = self.env.ref("mail.email_template_form").arch
+        self.assertIn(
+            "'allowVideo': false",
+            arch,
+            "mail.template's body_html must disable video embedding through the "
+            "option name the html_mail widget reads (see class docstring).",
+        )
+        self.assertNotIn(
+            "allowCommandVideo",
+            arch,
+            "allowCommandVideo is not an html_mail option; it is ignored, which "
+            "silently re-enables video embedding on body_html.",
+        )
+
+
 @tagged("mail_template", "-at_install", "post_install")
 class TestMailTemplateUI(HttpCase):
     def test_mail_template_dynamic_placeholder_tour(self):
