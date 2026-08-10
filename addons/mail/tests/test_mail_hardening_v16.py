@@ -229,8 +229,12 @@ class TestScheduledNotificationQueueIsFifoV16(MailCommon):
     ``mail.message.schedule`` sets ``_order = 'scheduled_datetime DESC, id DESC'``
     -- sensible for the list view, wrong for a queue -- and
     ``_send_notifications_cron`` searched without an explicit ``order``. With a
-    backlog larger than one batch (500 by default), every tick therefore re-picked
-    the *newest* due schedules and the oldest were never reached.
+    backlog larger than one batch, every tick therefore re-picked the *newest* due
+    schedules.
+
+    A static backlog still drains that way, merely in reverse; the failure that
+    matters is under sustained load, which the second test pins: with arrivals
+    matching the batch size, the oldest schedules are never reached at all.
 
     ``mail.mail.process_email_queue`` already forces ``order="id"`` against the
     same hazard; this is the sibling queue that was missed.
@@ -243,6 +247,11 @@ class TestScheduledNotificationQueueIsFifoV16(MailCommon):
         cls.env["ir.config_parameter"].sudo().set_param(
             "mail.scheduled_notification.batch.size", "2"
         )
+        # The cron takes a global batch, so any schedule left by another test (or
+        # sitting in the database) would decide which rows the window reaches and
+        # these assertions would be measuring that instead. Rolled back with the
+        # test transaction.
+        cls.env["mail.message.schedule"].search([]).unlink()
 
     def _schedule(self, minutes_ago):
         """A due schedule, older the larger ``minutes_ago`` is."""
@@ -285,6 +294,38 @@ class TestScheduledNotificationQueueIsFifoV16(MailCommon):
         )
         self.assertTrue(
             newest.exists(), "the newest schedule waits its turn on the next tick"
+        )
+
+    def test_old_schedules_are_not_starved_by_a_steady_arrival_rate(self):
+        """The condition under which the old order never recovers.
+
+        Two fresh due schedules arrive before every tick and the batch is 2, so
+        a newest-first window is refilled from the top forever. Measured on the
+        pre-fix code: the three old schedules were served 0 times in 6 ticks.
+        """
+        old = [self._schedule(m) for m in (1000, 900, 800)]
+        self.env.flush_all()
+
+        sent = []
+        Schedule = type(self.env["mail.message.schedule"])
+        real_unlink = Schedule.unlink
+
+        def fake_send(records, default_notify_kwargs=None):
+            sent.extend(records.ids)
+            return real_unlink(records)
+
+        for _tick in range(6):
+            self._schedule(2)
+            self._schedule(1)
+            self.env.flush_all()
+            with patch.object(Schedule, "_send_notifications", fake_send):
+                self.env["mail.message.schedule"]._send_notifications_cron()
+            self.env.flush_all()
+
+        self.assertFalse(
+            [schedule for schedule in old if schedule.exists()],
+            "every old schedule must have been served; under the previous order "
+            "none of them ever was, however long the cron ran",
         )
 
 

@@ -46,8 +46,13 @@ class MailMessageSchedule(models.Model):
         # limit + 1: detect whether a follow-up run is needed without a count().
         # Force oldest-due-first: the model default order is
         # ``scheduled_datetime DESC, id DESC`` (right for the list view, wrong for
-        # a queue), so under a backlog larger than one batch every tick would
-        # re-pick the newest due schedules and starve the oldest indefinitely.
+        # a queue). A *static* backlog still drains under that order, merely in
+        # reverse; what it cannot survive is sustained load. Measured with
+        # batch_size 2 and two due arrivals per tick, three old schedules were
+        # served 0 times in 6 ticks and stayed queued indefinitely, because every
+        # tick refilled the top of a DESC window. Oldest-first serves them in the
+        # first two ticks and defers the newest instead -- which is the direction
+        # a delay-then-notify queue should fail in.
         # ``mail.mail.process_email_queue`` forces FIFO for the same reason.
         messages_scheduled = self.env["mail.message.schedule"].search(
             [("scheduled_datetime", "<=", datetime.now(UTC))],
