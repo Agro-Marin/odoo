@@ -209,7 +209,9 @@ class SaleOrderLine(models.Model):
             'product_id': self.product_id.id,
             'product_uom_id': supplierinfo.product_uom_id.id or self.product_id.uom_id.id,
             'price_unit': price_unit,
-            'date_planned': purchase_order.date_order + relativedelta(days=int(supplierinfo.delay)),
+            'date_commitment': self.env['purchase.order.line']._get_date_commitment(
+                supplierinfo, po=purchase_order,
+            ),
             'tax_ids': [(6, 0, taxes.ids)],
             'order_id': purchase_order.id,
             'sale_line_id': self.id,
