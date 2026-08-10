@@ -149,11 +149,17 @@ _PATH_RE = re.compile(r"`([^`]+)`")
 #     the method is the claim.
 #
 # So three more checks, all keyed on tokens an ADR already writes in backticks:
-# ``<module>/<path>.py`` resolved against the addons trees, ``name()`` resolved
-# against every ``def``/``class`` in the tree, and a dotted model name resolved
-# against every ``_name``/``_inherit``. Each is deliberately narrow -- it fires
-# only on an unambiguous shape -- because a doc gate that cries wolf gets
-# disabled, and a disabled gate is the state ADR-0006 was written to end.
+# ``<module>/<path>.py`` resolved against the addons trees (falling back to the
+# core package root, ``odoo/<token>``, when the leading segment is not an addon
+# -- ADRs about the framework core cite its own subtrees the short way, e.g.
+# ``orm/fields/relational.py``, matching how the package reads from inside
+# ``odoo/``; a 2026-08-09 fact-check found three citations this half had
+# already let go stale unnoticed: ADR-0001, ADR-0010, see their Amendments),
+# ``name()`` resolved against every ``def``/``class`` in the tree, and a dotted
+# model name resolved against every ``_name``/``_inherit``. Each is
+# deliberately narrow -- it fires only on an unambiguous shape -- because a doc
+# gate that cries wolf gets disabled, and a disabled gate is the state
+# ADR-0006 was written to end.
 # ---------------------------------------------------------------------------
 
 #: Trees scanned to learn what exists. ``tooling/`` is included because ADRs
@@ -285,7 +291,14 @@ def existence_findings(text: str) -> list[tuple[str, str]]:
         ):
             head, _, tail = token.partition("/")
             module = modules.get(head)
-            if module is not None and not (module / tail).exists():
+            if module is not None:
+                if not (module / tail).exists():
+                    findings.append(("module-path", token))
+            # Not an addon: the fork's ADRs also cite the core *package*'s own
+            # subtrees the short way (`orm/fields/relational.py`, matching how
+            # the package reads from inside `odoo/`), which an addon-relative
+            # resolution never sees `head` for. Fall back to `odoo/<token>`.
+            elif not (ROOT / "odoo" / token).exists():
                 findings.append(("module-path", token))
         elif (
             _MODEL_NAME_RE.match(token)
@@ -489,7 +502,9 @@ class TestReferencedNamesExist(unittest.TestCase):
 
     _ADVICE = {
         "module-path": (
-            "an addon-relative path that does not resolve under odoo/addons/ or addons/"
+            "an addon-relative path that does not resolve under odoo/addons/ or "
+            "addons/, and does not resolve as a core-package path under odoo/ "
+            "either"
         ),
         "symbol": "a callable no def/class in the tree defines",
         "model": "a model name no _name/_inherit in the tree declares",
@@ -538,6 +553,17 @@ class TestExistenceProbes(unittest.TestCase):
     def test_probe_b_rooted_path_is_still_caught(self):
         # Guards the pre-existing check, which lives in TestReferencedPaths.
         self.assertFalse((ROOT / "odoo/db/does_not_exist.py").exists())
+
+    def test_probe_e_core_package_shorthand_path_is_caught(self):
+        # The ADR-0001/0010 shape found 2026-08-09: `orm/...` is neither
+        # `_ROOTED` nor an addon module, so it fell through both existing
+        # checks. `orm` resolves against the core package root now.
+        found = existence_findings("see `orm/fields/does_not_exist.py` for this")
+        self.assertEqual(found, [("module-path", "orm/fields/does_not_exist.py")])
+
+    def test_probe_f_real_core_package_shorthand_path_is_quiet(self):
+        found = existence_findings("see `orm/fields/relational/many2one.py` for this")
+        self.assertEqual(found, [])
 
     def test_probe_c_symbol_in_an_existing_file_is_caught(self):
         # The ADR-0012 shape again: `odoo/http/stream.py` resolves, the method

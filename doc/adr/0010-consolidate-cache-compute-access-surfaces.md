@@ -13,7 +13,7 @@ code* reaches the cache and the compute engine.
 
 | Handle | Level | Used by | Live? |
 |---|---|---|---|
-| `env._core` (`OrmCore`, `components/core.py`) | id-level façade | framework ORM code (~29 call sites; `get_field_data` dominates) | **yes, growing** |
+| `env._core` (`OrmCore`, `orm/components/core.py`) | id-level façade | framework ORM code (~29 call sites; `get_field_data` dominates) | **yes, growing** |
 | `transaction.cache_store` / `transaction.compute_engine` | raw objects | `Transaction` internals (`clear`, building `core`) | public, but **~0 external readers** (the only non-test hits are docstrings) |
 | `env.cache` (`cache_compat.Cache`) | recordset-level wrapper | addons: `contains`/`get_records`/`get_values`/`update`/`update_raw`/`set` (~16 sites across account/hr/sale/calendar) + `check()` in tests | legacy, still patched (`ad0f7064d72` added `update_raw`) |
 | `env`'s recompute/protect adapters (`is_protected`, `add_to_compute`, `protecting`, `records_to_compute`, …) | recordset-level | framework code holding recordsets | yes |
@@ -158,7 +158,7 @@ noise, rather than collapsing or removing the façade.
 Steps 1–3, once landed, are guarded by the new `OrmCore` delegation test and by
 the standing `test_orm` / `base` gates (ADR-0007). A `layer_check.py` contract
 forbidding `_cache_store` / `_compute_engine` access outside
-`runtime/transaction.py` and `components/` could be added (ADR-0005 style) if
+`orm/runtime/transaction.py` and `orm/components/` could be added (ADR-0005 style) if
 the convention proves insufficient; the underscore-private naming is the
 lighter first step.
 
@@ -169,7 +169,7 @@ lighter first step.
   `Transaction.cache_store` / `compute_engine` are now `_cache_store` /
   `_compute_engine`, with the single external reader (an account test) moved to
   `env._core` (step 2); `TestOrmCoreDelegationDrift` in
-  `components/tests/test_core.py` asserts every pass-through delegates to its
+  `orm/components/tests/test_core.py` asserts every pass-through delegates to its
   same-named `FieldCache` / `ComputeEngine` method, plus a guard that the table
   stays complete as `OrmCore` evolves (step 3). Validated: component suite +
   `test_orm` (876) + `profiler` (9).
@@ -205,13 +205,15 @@ qualifying; step 3 is intact and doing its job.
   docstring was removed by the comment/docstring strip of `odoo/`
   (`eff67f80316`, 936 files, −49,443 lines). The strip was deliberate and kept an
   explicit retention list of machine-checked docstrings — `orm/__init__.py`,
-  `service/db.py`, all of `odoo/cli/` and others — but `components/core.py` was
+  service/db.py (deliberately not backticked: real at the time, a flat file
+  packagized away the next day by ADR-0014's `6920d626b7a`), all of
+  `odoo/cli/` and others — but `orm/components/core.py` was
   not on it, because nothing read it. That is the lesson worth keeping: a
   docstring nominated as an ADR deliverable and gated by nothing is not a
   deliverable. `doc/architecture/ARCHITECTURE.md` still carries the
   curated-boundary statement, so the decision survives in prose; the
   class-level comment in
-  `components/core.py` now carries the rest.
+  `orm/components/core.py` now carries the rest.
 
 - **Step 2 was incomplete on the day it landed.** Renaming
   `Transaction.cache_store` → `_cache_store` did not privatise the raw handles,
@@ -277,9 +279,45 @@ Closed as follows, without reopening the decision:
 - `doc/architecture/module.md` states the relationship instead of the label, and says where the
   label came from.
 - `cache_compat.Cache` carries the docstring again.
-- `orm/tests/test_cache_compat_is_not_legacy.py` reads all three: that the class
+- `orm/tests/test_recordset_cache_levels.py` (named
+  orm/tests/test_cache_compat_is_not_legacy.py at the time, deliberately not
+  backticked; renamed by `e7822f78404`, see the 2026-08-09 amendment) reads
+  all three: that the class
   documents itself, that `doc/architecture/module.md` does not carry the label back, that nothing
   marks the class deprecated, and — the property the decision actually rests on —
   that `Cache` methods still take recordsets while `OrmCore`'s take a field and a
   raw id. If those levels ever converge the retire-vs-keep question genuinely
   reopens, and that needs a superseding ADR rather than a quiet migration.
+
+### 2026-08-09 — the renamed module/test, and the docstring finding repeating a third time
+
+The 2026-08-08 amendment closed by giving `cache_compat.Cache` its docstring
+back and pinning it with orm/tests/test_cache_compat_is_not_legacy.py
+(deliberately not backticked: this path no longer exists). Both citations have
+since moved: `e7822f78404` ("cache_compat.py was named for what it is not")
+renamed the module to `orm/runtime/recordset_cache.py` and the test to
+`orm/tests/test_recordset_cache_levels.py`. The `Cache` class keeps its
+docstring at the new path; nothing here reopens the decision. Corrected in
+place above.
+
+The pattern that amendment named — "every deliverable of this record that was
+a docstring has been deleted, and only the ones with tests survived" — has now
+recurred for the *other* half, a third time and on a shorter cycle than the
+first two. Step 1's replacement, "the class-level comment in
+`orm/components/core.py`... carries the rest," was true when the 2026-08-08
+amendment was written: the comment (added `6aef36aa534`, 2026-06-27) had
+already been stripped once by `951226eb3fe` ("strip all Python and JavaScript
+comments", 2026-07-25), then *restored* by `77decb3ab4b` (2026-08-07, the same
+day's fact-check pass that produced this ADR's own 2026-08-07 amendments) —
+so the claim was accurate at the moment it was made. It stopped being true two
+days later: `d17ed6ff736` (2026-08-09, "strip prose comments from odoo/odoo per
+eff67f80316, same sweep as the docstring pass") removed it again.
+`orm/components/core.py` carries zero comments or docstrings at HEAD. The
+doc-level half survives — `doc/architecture/module.md` and
+`doc/architecture/runtime.md` still call `OrmCore` "the curated facade" — so
+the decision is not undocumented, only the code-level comment this record
+specifically named as its step-1 deliverable is gone again, on its third
+add/strip cycle, all three strips being instances of the same class of
+repo-wide comment/docstring sweep. Not corrected in place: a docstring
+nominated as a deliverable and gated by nothing, decaying on a shortening
+cycle, is the fact worth keeping, not a stale pointer.

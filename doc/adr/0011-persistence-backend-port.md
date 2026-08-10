@@ -170,7 +170,16 @@ Two findings the extraction produced that reading had not:
   check reads as the question it was always asking.
 
 What this does **not** do is close the LOSSY notes. Four remain, and the
-differential suite (`test_orm/tests/test_backend_differential.py`, 22 tests) is
-where closing them would be proved. Naming the implementor is what makes that
-suite able to compare two things instead of one thing and a fallthrough.
+differential suite (`odoo/addons/test_orm/tests/test_backend_differential.py`,
+22 tests) is where closing them would be proved. Naming the implementor is what
+makes that suite able to compare two things instead of one thing and a
+fallthrough.
+
+### 2026-08-09 — the differential suite's path was missing its `odoo/addons/` root
+
+The 2026-08-08 amendment cited the suite as `test_orm/tests/test_backend_differential.py`.
+`test_orm` is a bundled addon, not a top-level package; the real path is
+`odoo/addons/test_orm/tests/test_backend_differential.py`. The count stands:
+22 `def test_` methods, confirmed. Corrected in place above — it is a citation,
+not the decision.
 

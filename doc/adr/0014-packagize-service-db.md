@@ -1,4 +1,4 @@
-# ADR-0014: Packagize `service/db.py` into `odoo/service/db/`
+# ADR-0014: Packagize service/db.py into `odoo/service/db/`
 
 - **Status:** Accepted
 - **Date:** 2026-08-08

@@ -18,8 +18,8 @@ Introduce `odoo/libs/` as the home for **dependency-free** utilities — code th
 does not import `odoo.*` — and keep `odoo/tools/` for **Odoo-coupled**
 utilities. Code moved from `tools/` to `libs/` is migrated by relocating the
 implementation and updating callers; where the historical `tools.*` import path
-must keep working, a thin re-export or wrapper is left in `tools/` — e.g.
-`tools/float_utils.py` re-exports `libs/numbers`, and
+must keep working, a thin re-export is kept — e.g. `tools/__init__.py`
+re-exports `libs/numbers`'s `float_compare`/`float_round`/etc. directly, and
 `tools/template_inheritance.py` is a thin Odoo-error-handling wrapper over
 `libs/xml/template_inheritance.py`. These are plain re-exports/wrappers, not
 `DeprecationWarning` shims.
@@ -41,8 +41,9 @@ but exists *only* to instrument the ORM stays in `tools/`. Generic profiling
 and lives in `libs/profiling/`; an ORM-shaped profiler configured on top of it is
 the framework-specific part.
 
-A worked example of splitting a *mixed* module by this rule: `tools/sql.py`
-(2026-08) was three things at once — the general-purpose `SQL` composition
+A worked example of splitting a *mixed* module by this rule: tools/sql.py
+(2026-08, deliberately not backticked — the split below removed the file
+entirely, see Amendments) was three things at once — the general-purpose `SQL` composition
 builder with its string/trigram helpers, ~30 cursor-executing DDL helpers, and
 one recordset operation. The mechanical import test would admit all of it to
 `libs/` (none imports `odoo` at runtime), but the hybrid rule split it by
@@ -74,7 +75,8 @@ The ESM/esbuild **asset pipeline** (`esbuild`, `esm_bridges`, `esm_graph`,
 imports `odoo.api`, `odoo.tools`, `odoo.modules`, and `odoo.addons`. It did
 **not** satisfy the dependency-free contract and has been **relocated to
 `odoo/tools/assets/`**. The dependency-free helpers it builds on
-(`libs/asset_log.py`, `libs/constants.py`) remain in `libs/` (`tools/` may
+(`libs/asset_log.py`, libs/constants.py — deliberately not backticked, see
+Amendments) remain in `libs/` (`tools/` may
 import `libs/`, never the reverse). All in-repo importers
 (`base/models/assetsbundle/`, `base/models/ir_qweb.py`,
 `web/controllers/webclient.py`, and the asset tests) were updated.
@@ -128,3 +130,44 @@ The Enforcement section said the contract was "currently **clean at zero**". A
 status is a fact about the tree at a moment, and this record is immutable, so
 the sentence could only become false. Corrected in place: it is a citation, not
 the decision.
+
+### 2026-08-09 — four more citations aged out, one of them wrong the day it was written
+
+- **The 2026-08-07 amendment's "`nplusone` no longer exists under either name"
+  is false, and was already false in the commit that wrote it.** `025bfb53b19`
+  — the same commit that amendment cites for moving `hashing` — did not delete
+  tools/nplusone.py (deliberately not backticked: this path no longer exists);
+  it renamed it to `odoo/libs/profiling/nplusone.py` (`git show --stat
+  025bfb53b19`: tools/nplusone.py -> libs/profiling/nplusone.py). The file is
+  live at HEAD, gated by `ODOO_NPLUSONE=1`, activated in `681c5f4a342`
+  (2026-07-08), an ancestor of the amendment commit. Not corrected in place,
+  because the amendment being wrong from the day it was written is itself the
+  fact worth keeping: `nplusone` was never an open item awaiting migration by
+  this ADR's own rule (import-clean, framework-specific by purpose — an
+  ORM-only profiler) — it belongs in `libs/profiling/` exactly where it already
+  sat when the amendment claimed otherwise.
+- **tools/float_utils.py no longer exists as a file** (deliberately not
+  backticked) — only a stale `.pyc` remains. The re-export the Decision's
+  worked example points to now happens inline in `tools/__init__.py` (`from
+  odoo.libs.numbers import float_compare, float_round, ...`), not through a
+  dedicated shim module. Corrected in place above; this is a citation, not the
+  decision — the point it illustrates (`tools.*` import paths keep working via
+  a re-export) still holds.
+- **libs/constants.py is deleted, not merely still there** (deliberately not
+  backticked). The Asset
+  pipeline relocation section names it as a dependency-free helper the asset
+  pipeline builds on and that "remain[s] in `libs/`". `4803b9f765c` deleted it
+  outright: "whose every name was framework vocabulary the dependency-free
+  layer had no business holding" — the opposite of the point the sentence uses
+  it to illustrate. `libs/asset_log.py`, the other name in the same sentence,
+  is unaffected and still real. Corrected in place above; this is a citation,
+  not the decision.
+- **tools/sql.py no longer exists at all** (deliberately not backticked), not
+  merely split. The worked
+  example already describes it in the past tense ("was three things at once"),
+  which is correct; what has changed is that after `086585a1731` ("split
+  tools/sql.py by coupling") carried out the split the example argues for, no
+  file remained at that path to re-export from — the `SQL` builder moved to
+  `libs/sql/`, the DDL helpers to `odoo/db/schema.py`, and
+  `increment_fields_skiplock` to `BaseModel`, exactly as the example says.
+  Un-backticked above; the example's argument is unaffected.

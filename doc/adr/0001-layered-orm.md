@@ -39,7 +39,9 @@ an import cycle.
 
 ### Layer-1 → Layer-2 inversion seam (resolved 2026-06)
 
-`orm/domain/ast.py` and `orm/fields/relational.py` previously did a
+`orm/domain/ast.py` and orm/fields/relational.py (now the `orm/fields/relational/`
+package; deliberately not backticked, since that single-file path no longer
+exists) previously did a
 function-local `from ..models import BaseModel` to normalise domain values
 (recognise a stray recordset) and to detect a `_search` override. These deferred
 imports broke the import *cycle* but were still a Layer-1 → Layer-2 runtime
@@ -80,3 +82,12 @@ the sentence could only become false — the same failure the register's
 "never restate a number that lives somewhere else" rule was written for, applied
 to a status rather than a count. Corrected in place: it is a citation, not the
 decision.
+
+### 2026-08-09 — orm/fields/relational.py is a package now
+
+The seam section named a single module. It was itself decomposed into
+`orm/fields/relational/` (`_base.py`, `many2one.py`, `many2many.py`,
+`one2many.py`) after this ADR was written; the seam it describes
+(`is_recordset`/`is_search_overridden` from `orm/_recordset.py`, consumed under
+`TYPE_CHECKING` for the `BaseModel` annotation) still holds in each of those
+files. Corrected in place above: it is a citation, not the decision.
