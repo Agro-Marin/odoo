@@ -23,6 +23,7 @@ import getpass
 import json
 import logging
 import os
+import posixpath
 import re
 import socket
 import subprocess
@@ -1118,6 +1119,16 @@ def _imports_of(path: Path, probe: re.Pattern[str] | None = None) -> set[str]:
     does not match cannot contain a wanted import, and parsing it is wasted
     work. Skipping those is what turns ``--affected`` from a 10-minute scan of
     every addon into a 17-second one.
+
+    Relative specifiers are resolved against ``path``'s own specifier rather
+    than dropped. 602 of ``addons/web``'s 3,422 import edges (17.6%, across 226
+    of its 763 files) are written ``./sibling.js``, concentrated in exactly the
+    subsystems that get edited — ``model/relational_model`` 89, ``views`` 66,
+    ``core/py_js`` 42, ``webclient/actions`` 35. Dropping them broke the "one
+    hop through src" strategy silently: a change to
+    ``core/py_js/py_builtin.js`` selected **1** suite, because the only test
+    reaching it through an ``@``-spelled edge was ``py_type_name``, while the
+    other nine that cover it hop through ``py.js`` -> ``./py_builtin.js``.
     """
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -1125,14 +1136,37 @@ def _imports_of(path: Path, probe: re.Pattern[str] | None = None) -> set[str]:
         return set()
     if probe is not None and not probe.search(text):
         return set()
-    return {spec for spec, _lineno in collect_imports(text) if spec.startswith("@")}
+    own = file_to_specifier(path)
+    base = own.rsplit("/", 1)[0] if own else None
+    specs: set[str] = set()
+    for spec, _lineno in collect_imports(text):
+        if spec.startswith("@"):
+            specs.add(spec)
+        elif spec.startswith(".") and base:
+            resolved = posixpath.normpath(f"{base}/{spec}")
+            # Enough `../` segments consume the `@addon` head — `@web/core` plus
+            # `../../lib/x.js` normalises to `lib/x.js` — and a specifier that
+            # is no longer `@`-rooted matches nothing, which is the same silent
+            # under-selection this resolution exists to remove. Drop it instead.
+            if resolved.startswith("@"):
+                specs.add(re.sub(r"\.js$", "", resolved))
+    return specs
 
 
 def _specifier_probe(specs: set[str]) -> re.Pattern[str] | None:
-    """A literal-alternation matcher for ``specs``, or ``None`` when empty."""
+    """A literal-alternation matcher for ``specs``, or ``None`` when empty.
+
+    Each specifier contributes its full text *and* its last segment: a file
+    reaching ``@web/core/py_js/py_builtin`` as ``"./py_builtin.js"`` does not
+    contain the full specifier anywhere, so a full-text-only probe would skip
+    it before ``_imports_of`` ever resolved the relative form.
+    """
     if not specs:
         return None
-    return re.compile("|".join(re.escape(spec) for spec in sorted(specs)))
+    # A new set, not `|=`: the caller's set is reused for the membership test
+    # that follows, and widening that would admit unrelated specifiers.
+    wanted = specs | {spec.rsplit("/", 1)[-1] for spec in specs}
+    return re.compile("|".join(re.escape(spec) for spec in sorted(wanted)))
 
 
 def _git_toplevels() -> list[Path]:

@@ -235,6 +235,64 @@ class TestImportExtraction:
         f.write_text('const m = await import("@web/core/lazy");\n', encoding="utf-8")
         assert H._imports_of(f) == {"@web/core/lazy"}
 
+    def test_a_relative_import_resolves_to_its_specifier(self, tmp_path):
+        # 602 of addons/web's 3,422 import edges are spelled `./sibling.js`.
+        # Dropping them broke the one-hop walk without reporting anything: a
+        # change to core/py_js/py_builtin.js selected ONE suite, because the
+        # nine other suites covering it hop through py.js -> ./py_builtin.js.
+        src = tmp_path / "web" / "static" / "src" / "core" / "py_js"
+        src.mkdir(parents=True)
+        f = src / "py.js"
+        f.write_text(
+            'import { BUILTINS } from "./py_builtin.js";\n'
+            'import { parse } from "./py_parser.js";\n'
+            'import { registry } from "@web/core/registry";\n',
+            encoding="utf-8",
+        )
+        assert H._imports_of(f) == {
+            "@web/core/py_js/py_builtin",
+            "@web/core/py_js/py_parser",
+            "@web/core/registry",
+        }
+
+    def test_a_parent_relative_import_normalises(self, tmp_path):
+        src = tmp_path / "web" / "static" / "src" / "views" / "list"
+        src.mkdir(parents=True)
+        f = src / "list_renderer.js"
+        f.write_text('import { a } from "../view_utils.js";\n', encoding="utf-8")
+        assert H._imports_of(f) == {"@web/views/view_utils"}
+
+    def test_a_relative_import_that_escapes_the_addon_is_dropped(self, tmp_path):
+        # `@web/core` + `../../lib/x.js` normalises to `lib/x.js`: the addon
+        # head is consumed, and the result would match no specifier at all.
+        src = tmp_path / "web" / "static" / "src" / "core"
+        src.mkdir(parents=True)
+        f = src / "a.js"
+        f.write_text(
+            'import { a } from "../../lib/x.js";\nimport { b } from "./b.js";\n',
+            encoding="utf-8",
+        )
+        assert H._imports_of(f) == {"@web/core/b"}
+
+    def test_a_relative_import_outside_an_addon_is_dropped(self, tmp_path):
+        # No specifier for the importer means no base to resolve against; the
+        # edge is unrepresentable rather than wrong.
+        f = tmp_path / "x.js"
+        f.write_text('import { a } from "./sibling.js";\n', encoding="utf-8")
+        assert H._imports_of(f) == set()
+
+    def test_the_probe_admits_a_relative_spelling_of_a_wanted_specifier(self, tmp_path):
+        # The prefilter looks for literal text, and a file importing
+        # "./py_builtin.js" contains no occurrence of the full specifier. Were
+        # the probe not widened to the last segment, this file would be skipped
+        # before the resolution above ever ran.
+        src = tmp_path / "web" / "static" / "src" / "core" / "py_js"
+        src.mkdir(parents=True)
+        f = src / "py.js"
+        f.write_text('import { B } from "./py_builtin.js";\n', encoding="utf-8")
+        probe = H._specifier_probe({"@web/core/py_js/py_builtin"})
+        assert H._imports_of(f, probe) == {"@web/core/py_js/py_builtin"}
+
 
 class TestSpecifierProbe:
     """The prefilter that makes `--affected` a 0.4 s scan instead of a 6.3 s one.
