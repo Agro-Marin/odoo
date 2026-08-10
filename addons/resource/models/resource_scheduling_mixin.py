@@ -306,21 +306,50 @@ class ResourceSchedulingMixin(models.AbstractModel):
         :return: ``resource.reservation`` recordset
         """
         self.ensure_one()
-        reservations = self.env["resource.reservation"].sudo()
-        if isinstance(self.id, int):
-            own = self.reservation_ids
-            if not own:
-                return reservations.browse()
-            conflicts = own.sudo()._conflicting_reservations()
-            found = reservations.browse()
-            for peers in conflicts.values():
-                found |= peers
-            # A multi-resource consumer books several reservations; two of its
-            # own colliding with each other is not a conflict with anything
-            # else, and reporting it would make every such record permanently
-            # self-conflicted.
-            return found - own.sudo()
-        return reservations._prospective_conflicts(self._get_reservation_vals_list())
+        return self._get_schedule_conflicts_batch()[self.id]
+
+    def _get_schedule_conflicts_batch(self):
+        """Return ``{record id: conflicting reservations}`` for the whole recordset.
+
+        One sweep serves the batch.  Answering per record costs a query each,
+        and the callers that matter — a Gantt row set, a list view's conflict
+        badge — ask for hundreds at a time.
+
+        Unsaved records still cost a query apiece: they have no stored ledger
+        to sweep together, and a form carries one of them, not hundreds.
+        """
+        reservation_model = self.env["resource.reservation"].sudo()
+        empty = reservation_model.browse()
+        result = dict.fromkeys(self._ids, empty)
+
+        stored = self.filtered(lambda record: isinstance(record.id, int))
+        own_by_record = {record.id: record.reservation_ids.sudo() for record in stored}
+        all_own = empty
+        for own in own_by_record.values():
+            all_own |= own
+        if all_own:
+            partners = all_own._conflicting_reservations()
+            for record_id, own in own_by_record.items():
+                found = empty
+                for reservation in own:
+                    found |= partners.get(reservation.id, empty)
+                # A multi-resource consumer books several reservations; two of
+                # its own colliding with each other is not a conflict with
+                # anything else, and reporting it would leave every such record
+                # permanently self-conflicted.
+                result[record_id] = found - own
+
+        for record in self - stored:
+            # A form editing a *saved* record hands the compute a virtual
+            # record carrying an ``_origin``. Its stored bookings are the very
+            # ones this edit would replace, so counting them would report every
+            # edited record as conflicting with itself.  ``_origin`` is an empty
+            # recordset for a genuinely new record, yielding no ids to ignore.
+            result[record.id] = reservation_model._prospective_conflicts(
+                record._get_reservation_vals_list(),
+                ignore_ids=record._origin.reservation_ids.ids,
+            )
+        return result
 
     @api.model
     def _search_schedule_overlap_count(self, operator, value):

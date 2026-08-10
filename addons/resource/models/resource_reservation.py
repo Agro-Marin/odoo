@@ -260,14 +260,25 @@ class ResourceReservation(models.Model):
 
     @api.depends("resource_id", "resource_id.calendar_id", "company_id")
     def _compute_resource_calendar_id(self):
-        """Use the resource's calendar, falling back to the company calendar."""
+        """Use the resource's calendar, falling back to the company calendar.
+
+        The resource's calendar is only taken when it belongs to this
+        reservation's company, or to none.  ``resource.resource`` does not
+        enforce that its own calendar shares its company, so moving a resource
+        between companies leaves it pointing at the previous company's
+        calendar — legal data that other modules work with happily.  Copying it
+        here would produce a reservation whose ``check_company`` on this very
+        field rejects it, so the booking would fail on a resource its consumer
+        considers perfectly bookable.  A foreign calendar is not usable for
+        this reservation in any case; the company's own is the meaningful
+        fallback.
+        """
         for record in self:
-            if record.resource_id and record.resource_id.calendar_id:
-                record.resource_calendar_id = record.resource_id.calendar_id
-            elif record.company_id:
-                record.resource_calendar_id = record.company_id.resource_calendar_id
-            else:
-                record.resource_calendar_id = record.env.company.resource_calendar_id
+            calendar = record.resource_id.calendar_id
+            company = record.company_id or record.env.company
+            if calendar and calendar.company_id and calendar.company_id != company:
+                calendar = calendar.browse()
+            record.resource_calendar_id = calendar or company.resource_calendar_id
 
     @api.depends(
         "date_start",
