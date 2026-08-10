@@ -102,7 +102,9 @@ def base_db(odoo_config):
     )
     if proc.returncode != 0:
         subprocess.run(["dropdb", "--if-exists", "--force", name], check=False)
-        pytest.fail(f"could not install base:\n{proc.stdout[-4000:]}\n{proc.stderr[-4000:]}")
+        pytest.fail(
+            f"could not install base:\n{proc.stdout[-4000:]}\n{proc.stderr[-4000:]}"
+        )
     try:
         yield name
     finally:

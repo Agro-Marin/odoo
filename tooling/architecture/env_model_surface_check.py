@@ -349,9 +349,7 @@ class _EnvModelCollector(ast.NodeVisitor):
             and func.attr == "get"
             and _is_model_container(func.value)
         )
-        is_comodel_arg = (
-            isinstance(func, ast.Name) and func.id in _COMODEL_CONSTRUCTORS
-        )
+        is_comodel_arg = isinstance(func, ast.Name) and func.id in _COMODEL_CONSTRUCTORS
         if is_container_get or is_comodel_arg:
             self._add_if_model(node.args[0], node.lineno)
 

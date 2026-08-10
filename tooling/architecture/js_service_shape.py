@@ -161,7 +161,9 @@ def main(argv: list[str] | None = None) -> int:
 
     files = iter_service_files()
     if not files:
-        parser.error(f"no service registrations under {WEB_SRC} — the scan reached nothing")
+        parser.error(
+            f"no service registrations under {WEB_SRC} — the scan reached nothing"
+        )
 
     services = analyse(files)
     if not services:
@@ -197,7 +199,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {s.lines:5d}  {s.service:<22}{s.file}")
     print(f"\n  subtotal: {sum(s.lines for s in big)} lines behind a closure wall")
 
-    print(f"\n{len(instances)} service(s) already instance-shaped — the pattern to copy:\n")
+    print(
+        f"\n{len(instances)} service(s) already instance-shaped — the pattern to copy:\n"
+    )
     for s in instances:
         print(f"  {s.lines:5d}  {s.service:<22}{s.file}")
 

@@ -663,7 +663,9 @@ class TestUnownedSharedState(unittest.TestCase):
             src = (runtime / f"{module}.py").read_text(encoding="utf-8")
             self.assertIn(f"def {hook}(", src, f"{module} lost its init hook")
             self.assertIn(
-                f"self.{hook}(" if hook != "_probe_capabilities" else "_probe_capabilities(",
+                f"self.{hook}("
+                if hook != "_probe_capabilities"
+                else "_probe_capabilities(",
                 (runtime / "registry.py").read_text(encoding="utf-8"),
                 f"Registry.init no longer calls {hook}",
             )

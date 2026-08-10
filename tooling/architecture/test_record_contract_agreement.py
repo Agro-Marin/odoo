@@ -35,7 +35,12 @@ WEB_SRC = ROOT / "addons/web/static/src"
 # vacuously true, which is the failure mode this whole directory exists to
 # refuse.
 CONTRACTS = [
-    ("model/relational_model/record_contract.js", "RECORD_CONTRACT_SURFACE", "RecordContract", 20),
+    (
+        "model/relational_model/record_contract.js",
+        "RECORD_CONTRACT_SURFACE",
+        "RecordContract",
+        20,
+    ),
     (
         "model/relational_model/record_contract.js",
         "RECORD_OWNER_SURFACE",
@@ -92,9 +97,7 @@ def _typedef_members(src: str, name: str) -> set[str]:
     # not hypothetical — `record_contract.js` grew a second typedef and this
     # test failed on itself, reporting the owner surface's members as the
     # satellite surface's. The inner guard stops the match at the first closer.
-    body = re.search(
-        rf"@typedef \{{\{{((?:(?!\}}\}} )[\s\S])*?)\}}\}} {name}", src
-    )
+    body = re.search(rf"@typedef \{{\{{((?:(?!\}}\}} )[\s\S])*?)\}}\}} {name}", src)
     assert body, f"{name} typedef not found"
     # Property names at the start of a line, before their `:` type.
     return set(re.findall(r"^\s*\*\s+([A-Za-z_$][\w$]*):", body.group(1), re.MULTILINE))

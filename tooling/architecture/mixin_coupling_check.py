@@ -1127,8 +1127,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {label}.{key}: {floor} -> {actual}", file=sys.stderr)
             return 1
         print(
-            f"Mixin coupling within baseline, all {len(COMPOSITIONS)} "
-            f"compositions. ✓"
+            f"Mixin coupling within baseline, all {len(COMPOSITIONS)} compositions. ✓"
         )
     return 0
 

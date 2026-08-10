@@ -82,6 +82,7 @@ def test_a_violation_of_each_new_contract_would_be_caught():
         assert jlc._matches_path(module, c.source), name
         assert jlc._matches_spec(spec, c.forbidden), name
 
+
 # --- relative specifiers resolve to the same module the contracts name ---
 
 

@@ -121,6 +121,7 @@ def _sentences(text: str) -> list[str]:
     flat = " ".join(text.split())
     return [s for s in re.split(r"(?<=[.;:])\s+|(?=\|)", flat) if s.strip()]
 
+
 #: Top-level directories that make a backticked token an unambiguous repo path.
 _ROOTED = ("odoo/", "tooling/", "addons/", "doc/", "crates/", ".github/")
 
@@ -181,8 +182,23 @@ _MODEL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]+)+$")
 
 #: Suffixes that mark a token as a file rather than a model or a symbol.
 _SRC_SUFFIXES = (
-    ".py", ".js", ".mjs", ".xml", ".md", ".rst", ".yml", ".yaml",
-    ".json", ".toml", ".ini", ".cfg", ".txt", ".sh", ".lock", ".scss", ".css",
+    ".py",
+    ".js",
+    ".mjs",
+    ".xml",
+    ".md",
+    ".rst",
+    ".yml",
+    ".yaml",
+    ".json",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".txt",
+    ".sh",
+    ".lock",
+    ".scss",
+    ".css",
 )
 
 #: Characters that mark a backticked token as prose: template placeholders
@@ -473,8 +489,7 @@ class TestReferencedNamesExist(unittest.TestCase):
 
     _ADVICE = {
         "module-path": (
-            "an addon-relative path that does not resolve under odoo/addons/ "
-            "or addons/"
+            "an addon-relative path that does not resolve under odoo/addons/ or addons/"
         ),
         "symbol": "a callable no def/class in the tree defines",
         "model": "a model name no _name/_inherit in the tree declares",
@@ -642,7 +657,9 @@ class TestLiveStatusProbes(unittest.TestCase):
         self.assertEqual(len(found), 1, found)
 
     def test_probe_undated_now_walks_is_caught(self):
-        self.assertEqual(len(live_status_findings("The checker now walks 6,069 files.")), 1)
+        self.assertEqual(
+            len(live_status_findings("The checker now walks 6,069 files.")), 1
+        )
 
     def test_probe_a_dated_measurement_is_allowed(self):
         quiet = "Measured 2074 on 2026-06-25, against a floor of 1972."

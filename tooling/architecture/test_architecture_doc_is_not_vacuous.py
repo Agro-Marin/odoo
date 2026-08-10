@@ -199,8 +199,7 @@ class TestDocSuiteIsNotVacuous(unittest.TestCase):
 
     def test_every_expected_survivor_has_a_known_reason(self) -> None:
         self.assertEqual(
-            set(EXPECTED_SURVIVORS.values())
-            - {"code-only", "negative", "conditional"},
+            set(EXPECTED_SURVIVORS.values()) - {"code-only", "negative", "conditional"},
             set(),
         )
 

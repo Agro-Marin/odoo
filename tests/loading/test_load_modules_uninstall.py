@@ -94,7 +94,9 @@ def _state(dbname: str) -> str:
 
 
 def _mark_to_remove(dbname: str) -> None:
-    _psql(dbname, f"UPDATE ir_module_module SET state='to remove' WHERE name='{VICTIM}'")
+    _psql(
+        dbname, f"UPDATE ir_module_module SET state='to remove' WHERE name='{VICTIM}'"
+    )
 
 
 def _run_update(dbname: str):

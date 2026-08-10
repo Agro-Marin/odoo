@@ -254,7 +254,9 @@ class TestTheAccessorChannel(unittest.TestCase):
             and isinstance(node.slice.value, str)
             and emsc._MODEL_RE.match(node.slice.value)
         }
-        declared = set(emsc.ENV_MODEL_ACCESSORS.values()) | emsc.ENV_INTERNAL_MODEL_LOOKUPS
+        declared = (
+            set(emsc.ENV_MODEL_ACCESSORS.values()) | emsc.ENV_INTERNAL_MODEL_LOOKUPS
+        )
         uncovered = looked_up - declared
         self.assertEqual(
             uncovered,
@@ -267,7 +269,9 @@ class TestTheAccessorChannel(unittest.TestCase):
 
     def test_the_two_declarations_do_not_overlap(self):
         """A model is either exposed or merely consulted, not both."""
-        overlap = set(emsc.ENV_MODEL_ACCESSORS.values()) & emsc.ENV_INTERNAL_MODEL_LOOKUPS
+        overlap = (
+            set(emsc.ENV_MODEL_ACCESSORS.values()) & emsc.ENV_INTERNAL_MODEL_LOOKUPS
+        )
         self.assertEqual(overlap, set(), f"declared both ways: {sorted(overlap)}")
 
 

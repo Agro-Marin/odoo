@@ -178,9 +178,7 @@ def test_a_pinned_inversion_does_not_fail_the_gate(monkeypatch, tmp_path):
     assert [i.module for i in known] == ["core/consumer.js"]
 
 
-def test_a_pin_does_not_cover_the_same_pair_at_different_layers(
-    monkeypatch, tmp_path
-):
+def test_a_pin_does_not_cover_the_same_pair_at_different_layers(monkeypatch, tmp_path):
     """A pinned file that MOVES layer is a new inversion, not a covered one."""
     monkeypatch.setattr(
         jrl,
@@ -258,9 +256,7 @@ def _keyed(monkeypatch, tmp_path, files):
     return _tree(monkeypatch, tmp_path, files)
 
 
-def test_a_keyed_get_naming_a_higher_layer_item_is_an_inversion(
-    monkeypatch, tmp_path
-):
+def test_a_keyed_get_naming_a_higher_layer_item_is_an_inversion(monkeypatch, tmp_path):
     new, _ = _keyed(
         monkeypatch,
         tmp_path,
@@ -296,9 +292,7 @@ def test_enumerating_a_category_is_not_an_inversion(monkeypatch, tmp_path):
     assert (new, known) == ([], [])
 
 
-def test_a_keyed_get_through_a_bound_category_variable_resolves(
-    monkeypatch, tmp_path
-):
+def test_a_keyed_get_through_a_bound_category_variable_resolves(monkeypatch, tmp_path):
     """8 of the 14 real sites are only reachable through this form."""
     new, _ = _keyed(
         monkeypatch,
@@ -328,7 +322,9 @@ def test_a_downward_keyed_get_is_not_an_inversion(monkeypatch, tmp_path):
 
 def test_a_keyed_get_with_no_known_registrar_yields_no_edge(monkeypatch, tmp_path):
     new, known = _keyed(
-        monkeypatch, tmp_path, {"core/x.js": 'registry.category("dialogs").get("ghost");'}
+        monkeypatch,
+        tmp_path,
+        {"core/x.js": 'registry.category("dialogs").get("ghost");'},
     )
     assert (new, known) == ([], [])
 

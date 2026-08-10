@@ -117,7 +117,7 @@ CATEGORY_GET_RE = re.compile(
 # `const views = registry.category("views")` … later `views.get("form")`. Eight
 # of the fourteen pinned keyed inversions are only reachable through this form.
 CATEGORY_BIND_RE = re.compile(
-    r'(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*'
+    r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
     r'registry\s*\.\s*category\(\s*"([^"]+)"\s*\)'
 )
 # The third form, and the one that hid an entire seam. `core/shared_components.js`
@@ -133,7 +133,7 @@ CATEGORY_BIND_RE = re.compile(
 # would have read as a way to *fix* an inversion when it only hides one. The
 # entries this now reports are real, and are pinned as deliberate seams below.
 CATEGORY_EXPORT_BIND_RE = re.compile(
-    r'export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*'
+    r"export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*"
     r'registry\s*\.\s*category\(\s*"([^"]+)"\s*\)'
 )
 NAMED_IMPORT_RE = re.compile(r'import\s*\{([^}]*)\}\s*from\s*"([^"]+)"')
@@ -202,17 +202,31 @@ KNOWN_INVERSIONS: tuple[Known, ...] = (
 # open a form/select-create dialog. The same shape as `action` in contract A,
 # and retired by the same move: a port published at the consumer's layer.
 KNOWN_KEYED_INVERSIONS: tuple[KnownKeyed, ...] = (
-    KnownKeyed("fields/relational/x2many/x2many_field.js", "views", "kanban", "fields", "views"),
-    KnownKeyed("fields/relational/x2many/x2many_field.js", "views", "list", "fields", "views"),
-    KnownKeyed("fields/relational/x2many_dialog.js", "views", "form", "fields", "views"),
-    KnownKeyed("fields/specialized/user_groups/res_user_group_ids_field.js", "views", "form", "fields", "views"),
+    KnownKeyed(
+        "fields/relational/x2many/x2many_field.js", "views", "kanban", "fields", "views"
+    ),
+    KnownKeyed(
+        "fields/relational/x2many/x2many_field.js", "views", "list", "fields", "views"
+    ),
+    KnownKeyed(
+        "fields/relational/x2many_dialog.js", "views", "form", "fields", "views"
+    ),
+    KnownKeyed(
+        "fields/specialized/user_groups/res_user_group_ids_field.js",
+        "views",
+        "form",
+        "fields",
+        "views",
+    ),
     # The record-dialog seam. Was 5 entries across 5 files in `components/` and
     # `fields/`, each naming a `views/` dialog directly; `@web/core/record_dialog_port`
     # collapsed those into the two deliberate edges below — one per dialog, in one
     # reviewable file. Same move as `action_port`, and the one this module's
     # docstring prescribes. Retiring these last two means inverting the
     # registration itself, which is a different and much larger change.
-    KnownKeyed("core/record_dialog_port.js", "dialogs", "select_create", "core", "views"),
+    KnownKeyed(
+        "core/record_dialog_port.js", "dialogs", "select_create", "core", "views"
+    ),
     KnownKeyed("core/record_dialog_port.js", "dialogs", "form_view", "core", "views"),
     # The `shared_components` seam, revealed 2026-08-04 by CATEGORY_EXPORT_BIND_RE.
     # These 8 are NOT new debt and NOT a regression: they are edges this gate could
@@ -227,14 +241,62 @@ KNOWN_KEYED_INVERSIONS: tuple[KnownKeyed, ...] = (
     # syntax — which is exactly the rule this module states for `.get("select_create")`.
     # Retiring them means giving `fields/` its own copy of these helpers or moving
     # them below both layers; neither is a port, so neither belongs to P-1.
-    KnownKeyed("fields/relational/x2many/x2many_field.js", "shared_components", "ViewButton", "fields", "views"),
-    KnownKeyed("fields/relational/x2many/x2many_field.js", "shared_components", "computeViewClassName", "fields", "views"),
-    KnownKeyed("fields/relational/x2many_dialog.js", "shared_components", "ViewButton", "fields", "views"),
-    KnownKeyed("fields/relational/x2many_dialog.js", "shared_components", "computeViewClassName", "fields", "views"),
-    KnownKeyed("fields/relational/x2many_dialog.js", "shared_components", "useViewButtons", "fields", "views"),
-    KnownKeyed("fields/relational/x2many_dialog.js", "shared_components", "useFormViewInDialog", "fields", "views"),
-    KnownKeyed("fields/relational/x2many_dialog.js", "shared_components", "executeButtonCallback", "fields", "views"),
-    KnownKeyed("fields/relational/x2many_dialog.js", "shared_components", "loadSubViews", "fields", "views"),
+    KnownKeyed(
+        "fields/relational/x2many/x2many_field.js",
+        "shared_components",
+        "ViewButton",
+        "fields",
+        "views",
+    ),
+    KnownKeyed(
+        "fields/relational/x2many/x2many_field.js",
+        "shared_components",
+        "computeViewClassName",
+        "fields",
+        "views",
+    ),
+    KnownKeyed(
+        "fields/relational/x2many_dialog.js",
+        "shared_components",
+        "ViewButton",
+        "fields",
+        "views",
+    ),
+    KnownKeyed(
+        "fields/relational/x2many_dialog.js",
+        "shared_components",
+        "computeViewClassName",
+        "fields",
+        "views",
+    ),
+    KnownKeyed(
+        "fields/relational/x2many_dialog.js",
+        "shared_components",
+        "useViewButtons",
+        "fields",
+        "views",
+    ),
+    KnownKeyed(
+        "fields/relational/x2many_dialog.js",
+        "shared_components",
+        "useFormViewInDialog",
+        "fields",
+        "views",
+    ),
+    KnownKeyed(
+        "fields/relational/x2many_dialog.js",
+        "shared_components",
+        "executeButtonCallback",
+        "fields",
+        "views",
+    ),
+    KnownKeyed(
+        "fields/relational/x2many_dialog.js",
+        "shared_components",
+        "loadSubViews",
+        "fields",
+        "views",
+    ),
 )
 
 
@@ -314,7 +376,7 @@ def resolve_keyed(
         rel = path.relative_to(WEB_SRC).as_posix()
         try:
             src = strip_comments(path.read_text(encoding="utf-8"))
-        except (UnicodeDecodeError, OSError):  # pragma: no cover
+        except UnicodeDecodeError, OSError:  # pragma: no cover
             continue
         texts.append((rel, src))
         for m in CATEGORY_ADD_RE.finditer(src):
@@ -327,9 +389,7 @@ def resolve_keyed(
     # and read as "nobody registered this key".
     for rel, src in texts:
         for local, category in imported_category_aliases(src, exported).items():
-            for m in re.finditer(
-                re.escape(local) + r'\s*\.\s*add\(\s*"([^"]+)"', src
-            ):
+            for m in re.finditer(re.escape(local) + r'\s*\.\s*add\(\s*"([^"]+)"', src):
                 registrars[(category, m.group(1))] = rel
 
     for rel, src in texts:
@@ -388,12 +448,16 @@ def check(files: list[Path] | None = None) -> tuple[list[Inversion], list[Invers
             continue
         seen_keyed.add((rel, category, key))
         inv = Inversion(
-            rel, f"{category}:{key}", c_layer, p_layer, registrar, lineno, "keyed-lookup"
+            rel,
+            f"{category}:{key}",
+            c_layer,
+            p_layer,
+            registrar,
+            lineno,
+            "keyed-lookup",
         )
         bucket = (
-            known
-            if (rel, category, key, c_layer, p_layer) in pinned_keyed
-            else new
+            known if (rel, category, key, c_layer, p_layer) in pinned_keyed else new
         )
         bucket.append(inv)
     return new, known
@@ -457,9 +521,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"New: {len(new)}   Pinned: {len(known)}")
 
     if args.check and new:
-        print(
-            f"\nFAILED: {len(new)} new registry layer inversion(s).", file=sys.stderr
-        )
+        print(f"\nFAILED: {len(new)} new registry layer inversion(s).", file=sys.stderr)
         return 1
     return 0
 

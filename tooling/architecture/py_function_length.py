@@ -183,7 +183,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n{len(found)} function(s) over {MAX_LINES} lines")
     print(f"  over 150: {over[150]}   over 250: {over[250]}   over 400: {over[400]}")
     print(f"  longest: {found[0].lines if found else 0}")
-    print(f"\nexcess lines above budget: {excess_lines(found)}   <- the ratcheted number")
+    print(
+        f"\nexcess lines above budget: {excess_lines(found)}   <- the ratcheted number"
+    )
     print("\nRatchet it:")
     print("  python tooling/architecture/py_function_length.py --count \\")
     print("      | xargs python tooling/ratchet/ratchet.py pyfunclen --count")

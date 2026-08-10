@@ -615,8 +615,12 @@ class TestCompositionTable(unittest.TestCase):
     def test_the_ratchet_backs_every_column_that_can_regress(self) -> None:
         """A number the page presents as held must actually be held."""
         for comp in self.mcc.COMPOSITIONS:
-            for key in ("max_scc", "cyclic_edges", "scc_without_base",
-                        "unowned_shared_state"):
+            for key in (
+                "max_scc",
+                "cyclic_edges",
+                "scc_without_base",
+                "unowned_shared_state",
+            ):
                 self.assertIn(key, comp.baseline, f"{comp.label} does not pin {key}")
             self.assertEqual(
                 self.mcc.measure(comp=comp)["unowned_shared_state"],
@@ -633,8 +637,7 @@ class TestCompositionTable(unittest.TestCase):
         named = {
             "BaseModel": {"env", "_ids", "_prefetch_ids", "_log_access"},
             "Field": {"description_attrs"},
-            "Cursor": {"_cnx", "_obj", "_thread", "_schema_cache",
-                       "_before_statement"},
+            "Cursor": {"_cnx", "_obj", "_thread", "_schema_cache", "_before_statement"},
         }
         self.assertTrue(
             self.rows, "the composition table is gone; nothing left to name"
@@ -682,21 +685,24 @@ class TestCompositionTable(unittest.TestCase):
     def test_units_are_file_level_not_bases(self) -> None:
         """31 units against 26 bases — the page states why, so check the why."""
         units = self.mcc.collect_units()
-        bases = _class_bases(
-            ROOT / "odoo" / "orm" / "models" / "base.py", "BaseModel"
-        )
+        bases = _class_bases(ROOT / "odoo" / "orm" / "models" / "base.py", "BaseModel")
         self.assertGreater(len(units), len(bases))
         read_group = {n for n in units if n.startswith("read_group/")}
         self.assertEqual(
-            {"read_group/_empty", "read_group/fill", "read_group/format",
-             "read_group/mixin", "read_group/sql"},
+            {
+                "read_group/_empty",
+                "read_group/fill",
+                "read_group/format",
+                "read_group/mixin",
+                "read_group/sql",
+            },
             read_group,
         )
         self.assertIn("base.py", units)
 
 
 class TestCompositionDesignRule(unittest.TestCase):
-    """"A leaf nothing depends on cannot close a cycle" — the rule, measured.
+    """ "A leaf nothing depends on cannot close a cycle" — the rule, measured.
 
     The page states this as the design rule for new mixins and offers
     ``base.py`` as the worked result. Both halves are checkable: the leaves it
@@ -714,7 +720,9 @@ class TestCompositionDesignRule(unittest.TestCase):
 
     def test_base_py_is_isolated_in_both_views(self) -> None:
         self.assertIn("in-degree 0, out-degree 0, in\nboth views", DOC)
-        self.assertEqual({}, self.edges.get("base.py", {}), "base.py gained an out-edge")
+        self.assertEqual(
+            {}, self.edges.get("base.py", {}), "base.py gained an out-edge"
+        )
         inbound = [n for n, t in self.edges.items() if "base.py" in t]
         self.assertEqual([], inbound, f"base.py gained in-edges from {inbound}")
         wide, _ = self.mcc.build_edges(self.units, through_recordsets=True)
@@ -822,6 +830,7 @@ class TestCompositionDesignRule(unittest.TestCase):
         Both figures re-derived: the page carried "six of twelve", which no
         scoping of the two classes produces.
         """
+
         def cache_methods(path: Path, cls: str) -> set[str]:
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
@@ -944,7 +953,9 @@ class TestToolsIsTheFacadeForLibs(unittest.TestCase):
         self.assertIn(f"of its {len(self.exported)} `__all__` symbols", DOC_FLAT)
 
     def test_the_direct_reexport_count_is_live(self) -> None:
-        direct = {n for n in self.exported if self.top.get(n, "").startswith("odoo.libs")}
+        direct = {
+            n for n in self.exported if self.top.get(n, "").startswith("odoo.libs")
+        }
         self.assertIn(
             f"re-exports **{len(direct)} of its {len(self.exported)} `__all__` "
             f"symbols straight from `odoo.libs`**",
@@ -1024,10 +1035,7 @@ class TestLayerProse(unittest.TestCase):
         for package in ("fields", "domain", "models", "runtime"):
             with self.subTest(package=package):
                 self.assertTrue(
-                    any(
-                        i.startswith("odoo.tools")
-                        for i in self._orm_imports(package)
-                    ),
+                    any(i.startswith("odoo.tools") for i in self._orm_imports(package)),
                     f"orm/{package} no longer imports odoo.tools; the "
                     f"whole-table claim needs narrowing",
                 )
@@ -1416,23 +1424,50 @@ class TestReferencedArtifacts(unittest.TestCase):
                 name, DOC, f"the base suite excludes {name}; the page does not say so"
             )
 
+    @staticmethod
+    def _gates_the_workflows_drive() -> set[str]:
+        """Gate names actually piped into ``ratchet.py`` by a workflow."""
+        driven: set[str] = set()
+        for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
+            driven.update(
+                re.findall(
+                    r"ratchet\.py (\w+) --count",
+                    workflow.read_text(encoding="utf-8"),
+                )
+            )
+        return driven
+
     def test_ratchet_baselines_match_documented_gates(self) -> None:
+        """Three statements of one set: the page, the directory, the workflows.
+
+        The first two were compared and the third was not, which leaves the
+        inverse-direction hole this suite keeps finding: a baseline **no
+        workflow drives** is not failed, it is inert, and inert is
+        indistinguishable from held. ``ruff_docstring`` sat that way after
+        pydocstyle was retired from ``ruff.toml`` and its step deleted from
+        ``ruff.yml`` — a floor of 746 that nothing measured and nothing could
+        move. Deriving the expected set from the workflows is what makes the
+        next one fail instead of linger.
+        """
         match = re.search(
             r"turns (\w+) tool\s+counts into one-way contracts: "
-            r"\*\*mypy, ruff, ruff_docstring, c901, c901_addons, eslint, tsc, "
-            r"jsfunclen, pyfunclen, jsprivate, jsserviceshape, jsforcedrender and naming\*\*",
+            r"\*\*([^*]+)\*\*",
             DOC,
         )
         self.assertIsNotNone(match, "the ratchet gate list is no longer stated")
+        listed = {n.strip() for n in match.group(2).replace(" and ", ", ").split(",")}
         on_disk = {
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
+        driven = self._gates_the_workflows_drive()
+        self.assertTrue(driven, "no workflow drives ratchet.py; the regex has rotted")
         self.assertEqual(
-            {"mypy", "ruff", "ruff_docstring", "c901", "c901_addons", "eslint",
-             "tsc", "jsfunclen", "pyfunclen", "jsprivate", "jsserviceshape", "jsforcedrender",
-             "naming"},
+            driven,
             on_disk,
+            "a baseline exists that no workflow drives, or a workflow drives a "
+            "gate with no baseline",
         )
+        self.assertEqual(listed, on_disk, "the page's gate list is stale")
         # The prose count is now captured too. It read "four" against a list of
         # eight for as long as this assertion has existed, because the regex
         # matched only the names -- a gate that pins a list and skips the number
@@ -1754,10 +1789,52 @@ class TestSeams(unittest.TestCase):
             (p.relative_to(ROOT), needle)
             for directory in scopes
             for p in directory.rglob("*.py")
-            for needle in ("transaction.storage", "backend is None", "backend is not None")
+            for needle in (
+                "transaction.storage",
+                "backend is None",
+                "backend is not None",
+            )
             if needle in p.read_text(encoding="utf-8")
         ]
         self.assertEqual([], offenders)
+
+    def test_the_capability_figures_state_their_denominator(self) -> None:
+        """Three numbers, three denominators — the page must give all three.
+
+        The module view carried a bare "Three sites still branch". True, of the
+        fifteen pinned dispatch sites; false of the obvious measurement, which
+        is ``backend.supports_*`` in the ORM and answers six. Nothing read
+        either, so the sentence was reproducible only by someone who already
+        knew which of the two it meant. A count whose denominator is unstated is
+        not a measurement.
+        """
+        backend = (ROOT / "odoo" / "orm" / "runtime" / "backend.py").read_text(
+            encoding="utf-8"
+        )
+        protocol = backend.split("class ", 2)[1]
+        declared = set(re.findall(r"^\s+(supports_\w+): bool$", protocol, re.MULTILINE))
+
+        reads: set[tuple[str, str]] = set()
+        for path in sorted((ROOT / "odoo" / "orm").rglob("*.py")):
+            if "tests" in path.parts or path.name.startswith("test_"):
+                continue
+            rel = str(path.relative_to(ROOT / "odoo" / "orm"))
+            reads.update(
+                (rel, cap)
+                for cap in re.findall(
+                    r"backend\.(supports_\w+)", path.read_text("utf-8")
+                )
+            )
+
+        self.assertIn(f"{len(declared)} declared", DOC_FLAT)
+        self.assertIn(f"{len(reads)} read sites", DOC_FLAT)
+        for cap in declared:
+            self.assertIn(f"`{cap}`", DOC, f"{cap} is declared and undocumented")
+        self.assertEqual(
+            {cap for _, cap in reads},
+            declared,
+            "a capability is read that the Protocol does not declare, or vice versa",
+        )
 
     def test_no_view_still_teaches_the_null_backend(self) -> None:
         """The sentinel must be gone from the prose too, not only the code.
@@ -2025,8 +2102,7 @@ class TestRuntimeSurfaceFigures(unittest.TestCase):
         for label in self.INVERSION_ROWS:
             with self.subTest(row=label):
                 line = next(
-                    ln for ln in DOC.splitlines()
-                    if ln.startswith(f"| {label} |")
+                    ln for ln in DOC.splitlines() if ln.startswith(f"| {label} |")
                 )
                 cells = [c.strip() for c in line.split("|")[2:4]]
                 layer1, layer2 = measured[label]
@@ -2125,6 +2201,44 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
     def test_table_matches_the_workflow(self) -> None:
         self.assertEqual(set(self._table_gates()), set(self._workflow_gates()))
 
+    def test_the_reproduce_loop_is_exactly_the_contract_gates(self) -> None:
+        """The ``for gate in …`` loop must be the contract gates, by membership.
+
+        The count was derived and the membership was not, so the loop held the
+        right *number* of the wrong names: it listed ``js_forced_render`` (a
+        count ratchet, already driven by the loop below it, so it ran twice) and
+        omitted ``js_deployment_layers`` entirely, which therefore appeared in no
+        reproduce loop on the page. Twenty-three names, twenty-three contract
+        gates, one of each swapped -- the shape ``test_the_cli_split_adds_up``
+        cannot see, because both lists are the right length.
+
+        This is the rule the page states two sections down, applied to the page:
+        an enumerated list is a gate only when something derives the enumeration.
+        """
+        ratchets = set(
+            re.findall(r"python tooling/architecture/([\w.]+\.py) --count", self.yaml)
+        )
+        contract = {
+            gate.removesuffix(".py") for gate in set(self._workflow_gates()) - ratchets
+        }
+        loop = re.search(r"for gate in (.*?); do", DOC, re.DOTALL)
+        self.assertIsNotNone(loop, "the reproduce loop is no longer on the page")
+        listed = set(loop.group(1).replace("\\", "").split())
+        self.assertEqual(
+            listed,
+            contract,
+            "the reproduce loop and the workflow's contract gates disagree — "
+            f"missing from the loop: {sorted(contract - listed)}; "
+            f"in the loop but not a contract gate: {sorted(listed - contract)}",
+        )
+
+        # The ratchet loop is derived the same way, from the same yaml.
+        ratchet_block = DOC.split("while read -r gate floor; do", 1)[1].split(
+            "EOF\n```", 1
+        )[0]
+        piped = set(re.findall(r"^(\w+)\s+\w+$", ratchet_block, re.MULTILINE))
+        self.assertEqual(piped, {r.removesuffix(".py") for r in ratchets})
+
     def test_stated_count_matches_both(self) -> None:
         words = NUMBER_WORD_BY_VALUE
         count = len(self._workflow_gates())
@@ -2175,9 +2289,7 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         # A ratchet is a gate CI drives through tooling/ratchet, whether or not
         # it also implements --check: js_private_access has both.
         ratchets = set(
-            re.findall(
-                r"python tooling/architecture/([\w.]+\.py) --count", self.yaml
-            )
+            re.findall(r"python tooling/architecture/([\w.]+\.py) --count", self.yaml)
         )
         contract = total - len(ratchets)
         self.assertEqual(
@@ -2246,10 +2358,19 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         from ``NUMBER_WORD_BY_VALUE``'s "thirty" by any rule worth writing.
         """
         ordinals = {
-            12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth",
-            23: "twenty-third", 24: "twenty-fourth", 25: "twenty-fifth",
-            26: "twenty-sixth", 27: "twenty-seventh", 28: "twenty-eighth",
-            29: "twenty-ninth", 30: "thirtieth", 31: "thirty-first",
+            12: "twelfth",
+            13: "thirteenth",
+            14: "fourteenth",
+            15: "fifteenth",
+            23: "twenty-third",
+            24: "twenty-fourth",
+            25: "twenty-fifth",
+            26: "twenty-sixth",
+            27: "twenty-seventh",
+            28: "twenty-eighth",
+            29: "twenty-ninth",
+            30: "thirtieth",
+            31: "thirty-first",
             32: "thirty-second",
         }
         expected = ordinals[len(self._workflow_gates()) + 1]
@@ -2619,6 +2740,22 @@ class TestEdgeCountConventions(unittest.TestCase):
     import *statement*. Both digits are right and neither is reproducible without
     knowing which — a reader who picks the other convention gets 5 and 39. The
     page now says which, and this recomputes both.
+
+    **``TIERS`` below is deliberately the PRE-FIX bracket assignment**, with
+    ``errors``/``dsn``/``utils`` in ``connectivity`` rather than in the
+    ``[foundation]`` tier the subsystem map now documents. The figures on the
+    page are the measurement that *justified* the two contracts, taken before
+    those modules moved; reproducing them needs the map of that day. Do not
+    "correct" this dict against the subsystem map — that measures a different
+    claim, and all four numbers move. If the current-state figures are wanted,
+    add them as their own rows with their own assertion rather than editing
+    these.
+
+    Two further traps this method already handles, both of which silently
+    deflate a hand-rolled re-measurement: ``from . import x`` names its targets
+    in ``node.names`` (skip it and ``db``'s back-edge vanishes), and imports
+    under ``if TYPE_CHECKING:`` are excluded (count them and ``http``'s
+    ``_protocols`` reads as five violations of a contract that is clean).
     """
 
     TIERS = {
@@ -2727,6 +2864,81 @@ class TestEdgeCountConventions(unittest.TestCase):
             f"{per_symbol[('features', 'serving')]}",
             DOC_FLAT,
         )
+
+
+class TestAddonSuiteFigures(unittest.TestCase):
+    """Sizes ``gates.md`` quotes to argue what belongs in the integration lane.
+
+    These are the numbers the lane's scope is argued from — "the largest thing
+    outside the lane", "the next two worth taking" — so a stale one weakens a
+    live decision rather than a historical note. Three of them were pinned by
+    nothing and found by mutation: changing 613 to 999, 26,579 to 99,999 and
+    9,203 to 9,999 left the whole suite green.
+
+    Counted the way the page states its scope: the addon's ``tests/``
+    directory, ``*.py``, ``def test*`` for methods. Stating the scope is what
+    makes the figure a claim — the same lesson ``_metadata.py``'s call-site
+    numbers taught, where a count sat between every candidate scope and could
+    be neither confirmed nor refuted.
+    """
+
+    @staticmethod
+    def _suite(module: str) -> tuple[int, int]:
+        """``(test methods, lines)`` under ``<module>/tests/``."""
+        for tree in ("addons", "odoo/addons"):
+            base = ROOT / tree / module / "tests"
+            if base.is_dir():
+                break
+        else:
+            raise AssertionError(f"{module}/tests not found in either addon tree")
+        methods = lines = 0
+        for path in sorted(base.rglob("*.py")):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            lines += len(text.splitlines())
+            methods += sum(
+                isinstance(n, ast.FunctionDef) and n.name.startswith("test")
+                for n in ast.walk(ast.parse(text))
+            )
+        return methods, lines
+
+    def test_the_test_orm_figure_is_measured(self) -> None:
+        methods, _lines = self._suite("test_orm")
+        self.assertIn(f"**{methods:,} test methods**", DOC_FLAT)
+
+    def test_the_suites_still_outside_the_lane_are_measured(self) -> None:
+        read_group, _ = self._suite("test_read_group")
+        access_rights, _ = self._suite("test_access_rights")
+        self.assertIn(f"`test_read_group` ({read_group} test", DOC_FLAT)
+        self.assertIn(f"`test_access_rights` ({access_rights},", DOC_FLAT)
+
+    def test_line_counts_are_not_quoted_for_these_suites(self) -> None:
+        """The page says why it counts methods; hold it to that.
+
+        A raw line count churns on every edit inside a suite without moving the
+        argument the figure is making — `test_orm` lost 68 lines between two
+        runs an hour apart while its method count did not move. This is the
+        same call the composition table makes when it reports "root dominates
+        its leaves" instead of two line counts.
+        """
+        self.assertIn("Method counts, not line counts.", DOC_FLAT)
+        for module in ("test_orm", "test_read_group"):
+            _methods, lines = self._suite(module)
+            self.assertNotIn(f"{lines:,} lines", DOC_FLAT)
+
+    def test_the_bundled_module_count_is_measured(self) -> None:
+        """613, and it must mean manifests.
+
+        ``ls -d addons/*/`` answers 615 — ``__pycache__`` and the
+        manifest-less ``cloud_storage_migration`` are not addons. The page
+        argues ``c901_addons``' existence from "where the N bundled modules and
+        most business logic live", so N has to be modules.
+        """
+        modules = sum(
+            1
+            for path in (ROOT / "addons").iterdir()
+            if (path / "__manifest__.py").is_file()
+        )
+        self.assertIn(f"the {modules} bundled modules", DOC_FLAT)
 
 
 class TestTheEnforcedClaimIsBounded(unittest.TestCase):
@@ -2971,7 +3183,7 @@ class TestDeploymentLimits(unittest.TestCase):
             return None
         try:
             return ast.literal_eval(node)
-        except (ValueError, SyntaxError):
+        except ValueError, SyntaxError:
             return None
 
     def _defaults(self) -> dict[str, object]:
@@ -3032,7 +3244,9 @@ class TestDeploymentLimits(unittest.TestCase):
         self.assertIn("enforced by nothing in-process", DOC_FLAT)
         self.assertIn("There is one memory limit, not a pair", DOC_FLAT)
         # config.py must keep saying so too, or the page is the only warning.
-        self.assertIn("not enforced in-process", self.CONFIG.read_text(encoding="utf-8"))
+        self.assertIn(
+            "not enforced in-process", self.CONFIG.read_text(encoding="utf-8")
+        )
 
 
 class TestQualityFigureArithmetic(unittest.TestCase):
@@ -3189,9 +3403,14 @@ class TestLifecycleSketches(unittest.TestCase):
         must fail with its own message, not inside a patched import), so a
         reordering here is a real regression rather than a wording change.
         """
-        self.assertIn("`MIN_PY_VERSION`, probe the mandatory `odoo_rust`", DOC_FLAT)
         src = (ROOT / "odoo" / "init.py").read_text(encoding="utf-8")
-        marks = ["MIN_PY_VERSION", "import odoo_rust", "gc.set_threshold", "patch_init"]
+        marks = [
+            "MIN_PY_VERSION",
+            "import odoo_rust",
+            "__source_crc__",
+            "gc.set_threshold",
+            "patch_init",
+        ]
         positions = []
         for mark in marks:
             index = src.find(mark)
@@ -3200,6 +3419,39 @@ class TestLifecycleSketches(unittest.TestCase):
         self.assertEqual(
             positions, sorted(positions), f"odoo/init.py reordered: {marks}"
         )
+
+        # The page must list the same steps in the same order. Matching one
+        # prose sentence instead only pinned the wording, so rewriting the
+        # paragraph as a table -- same claim, better shape -- read as a
+        # regression while a genuine reordering of the tail would not have.
+        # The whole section, not self._block() -- that returns the fenced
+        # sketch, and the bootstrap steps sit in a table beside it.
+        section = DOC.split("### Process boot", 1)[1].split("\n### ", 1)[0]
+        shown = [
+            token
+            for token in (
+                "MIN_PY_VERSION",
+                "odoo_rust",
+                "__source_crc__",
+                "GC threshold",
+                "patch_init",
+            )
+            if token in section
+        ]
+        block = section
+        self.assertEqual(
+            shown,
+            [
+                "MIN_PY_VERSION",
+                "odoo_rust",
+                "__source_crc__",
+                "GC threshold",
+                "patch_init",
+            ],
+            "the boot sketch dropped a step or lists them out of order",
+        )
+        at = [block.index(token) for token in shown]
+        self.assertEqual(at, sorted(at), "the boot sketch is out of init.py's order")
 
     @staticmethod
     def _loader_call_order() -> list[str]:
@@ -3258,7 +3510,9 @@ class TestLifecycleSketches(unittest.TestCase):
         order = self._loader_call_order()
         self.assertGreater(len(order), 15, "load_modules no longer calls phases")
 
-        table = DOC.split("## Scenario A — installing a module", 1)[1].split("\n\n##", 1)[0]
+        table = DOC.split("## Scenario A — installing a module", 1)[1].split(
+            "\n\n##", 1
+        )[0]
         named = [n for n in re.findall(r"\| `(\w+)\(\)`", table) if n in order]
         self.assertGreater(len(named), 5, "the scenario table names no phases")
         positions = [order.index(n) for n in named]

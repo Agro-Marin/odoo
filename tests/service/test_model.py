@@ -1199,9 +1199,7 @@ class TestRetryParticipantHooks:
         assert len(participant.rollbacks) == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE
         assert len(participant.retries) == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE - 1
 
-    def test_no_participant_means_no_hooks_and_no_http_import(
-        self, mod, tx, mock_env
-    ):
+    def test_no_participant_means_no_hooks_and_no_http_import(self, mod, tx, mock_env):
         """The RPC and cron paths install nothing and must still retry.
 
         They used to opt out implicitly, by ``http.request`` being falsy.

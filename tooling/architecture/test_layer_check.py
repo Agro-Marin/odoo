@@ -913,6 +913,8 @@ def test_tests_exemption_is_recorded_and_documented():
         "odoo.tests is exempt via CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT; "
         "listing it in source too would make the exemption ambiguous"
     )
+
+
 def test_the_gate_refuses_a_tree_it_cannot_find(tmp_path, monkeypatch):
     # "0 violations" and "0 files examined" print the same and both exit 0.
     # cross_repo_coherence shipped that fault three times (1cd6f1667ba), so
