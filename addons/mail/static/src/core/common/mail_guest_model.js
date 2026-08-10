@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { IM_STATUS_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";
-import { Store } from "@mail/core/common/store_service";
 import { luxon } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network";
 import { debounce } from "@web/core/utils/timing";
@@ -25,7 +25,7 @@ export class MailGuest extends Record {
         const record = super.new(...arguments);
         record.debouncedSetImStatus = debounce(
             (newStatus) => record.updateImStatus(newStatus),
-            Store.IM_STATUS_DEBOUNCE_DELAY,
+            IM_STATUS_DEBOUNCE_DELAY,
         );
         return record;
     }

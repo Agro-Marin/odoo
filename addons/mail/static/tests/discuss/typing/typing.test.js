@@ -9,7 +9,10 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { Store } from "@mail/core/common/store_service";
+import {
+    FETCH_DATA_DEBOUNCE_DELAY,
+    OTHER_LONG_TYPING,
+} from "@mail/core/common/constants";
 import { LONG_TYPING, SHORT_TYPING } from "@mail/discuss/typing/common/composer_patch";
 import { animationFrame, describe, test } from "@odoo/hoot";
 import { advanceTime, mockDate } from "@odoo/hoot-mock";
@@ -160,7 +163,7 @@ test('[text composer] assume other member typing status becomes "no longer is ty
     });
     await start();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     await contains(".o-discuss-Typing");
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
     // simulate receive typing notification from demo "is typing"
@@ -171,7 +174,7 @@ test('[text composer] assume other member typing status becomes "no longer is ty
         }),
     );
     await contains(".o-discuss-Typing", { text: "Demo is typing..." });
-    await advanceTime(Store.OTHER_LONG_TYPING);
+    await advanceTime(OTHER_LONG_TYPING);
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
 });
 
@@ -191,7 +194,7 @@ test('assume other member typing status becomes "no longer is typing" after long
     const composerService = getService("mail.composer");
     composerService.setHtmlComposer();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     await contains(".o-discuss-Typing");
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
     withUser(userId, () =>
@@ -201,7 +204,7 @@ test('assume other member typing status becomes "no longer is typing" after long
         }),
     );
     await contains(".o-discuss-Typing", { text: "Demo is typing..." });
-    await advanceTime(Store.OTHER_LONG_TYPING);
+    await advanceTime(OTHER_LONG_TYPING);
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
 });
 
@@ -218,7 +221,7 @@ test('"is typing" timeout should work even when 2 notify_typing happen at the ex
     });
     await start();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     mockDate("2024-01-01 12:00:00");
     await withUser(userId, () =>
         rpc("/discuss/channel/notify_typing", {
@@ -233,7 +236,7 @@ test('"is typing" timeout should work even when 2 notify_typing happen at the ex
         }),
     );
     await contains(".o-discuss-Typing", { text: "Demo is typing..." });
-    await advanceTime(Store.OTHER_LONG_TYPING);
+    await advanceTime(OTHER_LONG_TYPING);
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing..." });
 });
 
@@ -250,7 +253,7 @@ test('[text composer] other member typing status "is typing" refreshes of assumi
     });
     await start();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     await contains(".o-discuss-Typing");
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
     // simulate receive typing notification from demo "is typing"
@@ -271,7 +274,7 @@ test('[text composer] other member typing status "is typing" refreshes of assumi
     );
     await advanceTime(LONG_TYPING);
     await contains(".o-discuss-Typing", { text: "Demo is typing..." });
-    await advanceTime(Store.OTHER_LONG_TYPING - LONG_TYPING);
+    await advanceTime(OTHER_LONG_TYPING - LONG_TYPING);
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
 });
 
@@ -291,7 +294,7 @@ test('other member typing status "is typing" refreshes of assuming no longer typ
     const composerService = getService("mail.composer");
     composerService.setHtmlComposer();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     await contains(".o-discuss-Typing");
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
     withUser(userId, () =>
@@ -310,7 +313,7 @@ test('other member typing status "is typing" refreshes of assuming no longer typ
     );
     await advanceTime(LONG_TYPING);
     await contains(".o-discuss-Typing", { text: "Demo is typing..." });
-    await advanceTime(Store.OTHER_LONG_TYPING - LONG_TYPING);
+    await advanceTime(OTHER_LONG_TYPING - LONG_TYPING);
     await contains(".o-discuss-Typing", { count: 0, text: "Demo is typing...)" });
 });
 
@@ -513,7 +516,7 @@ test("[text composer] current partner notify is typing again to other members fo
     });
     await start();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     await insertText(".o-mail-Composer-input", "a");
     await waitForSteps(["notify_typing:true"]);
     // simulate current partner typing a character for a long time.
@@ -541,7 +544,7 @@ test("current partner notify is typing again to other members for long continuou
     composerService.setHtmlComposer();
     await openDiscuss(channelId);
     await contains(".o-mail-Composer-html.odoo-editor-editable");
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     const editor = {
         document,
         editable: document.querySelector(".o-mail-Composer-html.odoo-editor-editable"),
@@ -565,7 +568,7 @@ test("[text composer] current partner notify no longer is typing to thread membe
     );
     await start();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     await insertText(".o-mail-Composer-input", "a");
     await waitForSteps(["notify_typing:true"]);
     await advanceTime(SHORT_TYPING);
@@ -584,7 +587,7 @@ test("[text composer] stop still notifies is_typing:false when it lands after th
     );
     await start();
     await openDiscuss(channelId);
-    await advanceTime(Store.FETCH_DATA_DEBOUNCE_DELAY);
+    await advanceTime(FETCH_DATA_DEBOUNCE_DELAY);
     await insertText(".o-mail-Composer-input", "a");
     await waitForSteps(["notify_typing:true"]);
     // type every <5s (so the stop debounce keeps re-arming) up to just
@@ -854,7 +857,7 @@ test("[text composer] show typing in member list", async () => {
         `.o-discuss-ChannelMemberList [title='${serverState.partnerName} is typing...']`,
         { count: 0 },
     );
-    await advanceTime(Store.OTHER_LONG_TYPING);
+    await advanceTime(OTHER_LONG_TYPING);
     await contains(".o-discuss-ChannelMemberList [title='Other 10 is typing...']", {
         count: 0,
     });
@@ -921,7 +924,7 @@ test("show typing in member list", async () => {
         `.o-discuss-ChannelMemberList [title='${serverState.partnerName} is typing...']`,
         { count: 0 },
     );
-    await advanceTime(Store.OTHER_LONG_TYPING);
+    await advanceTime(OTHER_LONG_TYPING);
     await contains(".o-discuss-ChannelMemberList [title='Other 10 is typing...']", {
         count: 0,
     });

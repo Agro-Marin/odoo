@@ -77,28 +77,14 @@ class KnownCycle:
 
 
 KNOWN_CYCLES: tuple[KnownCycle, ...] = (
-    KnownCycle(
-        modules=frozenset(
-            {
-                "mail/core/common/_models",
-                "mail/core/common/store_service",
-                "mail/core/common/res_partner_model",
-                "mail/core/common/mail_guest_model",
-            }
-        ),
-        reason=(
-            "Barrel-induced: `store_service` imports `_models` for its side "
-            "effects, `_models` pulls in every record model, and two of those "
-            "models import `Store` back. Safe under every entry order, and the "
-            "argument is exhaustive rather than a spot check: `_models` has no "
-            "named imports at all and `store_service` takes no binding from the "
-            "component, so `Store` is the ONLY cycle-internal binding. It "
-            "occurs exactly twice — `res_partner_model.js:16` and "
-            "`mail_guest_model.js:28` — both inside `static new()`, a method "
-            "body evaluated when a record is built, never while the module "
-            "evaluates. Re-run that grep before adding a fifth module here."
-        ),
-    ),
+    # (Retired) The mail barrel cycle — `_models` <-> `res_partner_model` /
+    # `mail_guest_model` <-> `store_service` — is gone. Both models imported the
+    # whole `Store` class to read one number, `IM_STATUS_DEBOUNCE_DELAY`; the
+    # three timing constants now live in the leaf module
+    # `mail/core/common/constants.js` and nothing in the model layer imports
+    # `store_service` any more. Do not re-pin it: the fix is structural, and a
+    # new edge here means someone reintroduced the import, not that the debt
+    # came back.
     KnownCycle(
         modules=frozenset(
             {

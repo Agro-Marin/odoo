@@ -15,6 +15,7 @@
 import "@mail/core/common/im_status_service";
 import "./_models.js";
 
+import { FETCH_DATA_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, makeStore, Store as BaseStore } from "@mail/core/common/record";
 import { threadCompareRegistry } from "@mail/core/common/thread_compare";
 import {
@@ -78,10 +79,6 @@ export class Store extends BaseStore {
     _insertExtraFields(pyOrJsModelName) {
         return addFieldsByPyModel[pyOrJsModelName];
     }
-
-    static FETCH_DATA_DEBOUNCE_DELAY = 1;
-    static OTHER_LONG_TYPING = 60000;
-    static IM_STATUS_DEBOUNCE_DELAY = 1000;
 
     FETCH_LIMIT = 30;
     DEFAULT_AVATAR = "/mail/static/src/img/smiley/avatar.jpg";
@@ -667,7 +664,7 @@ export class Store extends BaseStore {
         this._temporaryIdOffset = 0.01;
         this._fetchStoreDataDebounced = debounce(
             this._fetchStoreDataDebounced,
-            Store.FETCH_DATA_DEBOUNCE_DELAY,
+            FETCH_DATA_DEBOUNCE_DELAY,
         );
     }
 

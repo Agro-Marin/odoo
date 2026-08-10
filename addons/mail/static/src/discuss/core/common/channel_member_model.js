@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { OTHER_LONG_TYPING } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";
-import { Store } from "@mail/core/common/store_service";
 import { browser } from "@web/core/browser/browser";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
@@ -93,8 +93,7 @@ export class ChannelMember extends Record {
             browser.clearTimeout(this.typingTimeoutId);
             if (
                 !this.is_typing_dt ||
-                DateTime.now().diff(this.is_typing_dt).milliseconds >
-                    Store.OTHER_LONG_TYPING
+                DateTime.now().diff(this.is_typing_dt).milliseconds > OTHER_LONG_TYPING
             ) {
                 this.isTyping = false;
             }
@@ -106,7 +105,7 @@ export class ChannelMember extends Record {
     registerTypingTimeout() {
         this.typingTimeoutId = browser.setTimeout(
             () => (this.isTyping = false),
-            Store.OTHER_LONG_TYPING,
+            OTHER_LONG_TYPING,
         );
     }
     threadAsTyping = fields.One("Thread", {

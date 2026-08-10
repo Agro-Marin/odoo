@@ -10,7 +10,7 @@ import { useDebounced } from "@web/core/utils/timing";
 const commandRegistry = registry.category("discuss.channel_commands");
 
 export const SHORT_TYPING = 5000;
-// Must stay well below Store.OTHER_LONG_TYPING (60s, the receiving side's
+// Must stay well below OTHER_LONG_TYPING (60s, the receiving side's
 // expiry, see channel_member_model.js): the re-notification below is what
 // keeps a continuously-typing user's indicator alive on the other clients.
 export const LONG_TYPING = 50000;
