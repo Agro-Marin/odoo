@@ -2407,6 +2407,7 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
             30: "thirtieth",
             31: "thirty-first",
             32: "thirty-second",
+            33: "thirty-third",
         }
         expected = ordinals[len(self._workflow_gates()) + 1]
         self.assertIn(f"is a {expected} checker and the only one outside CI", DOC_FLAT)

@@ -6,10 +6,10 @@
 
 ## Running the checks
 
-The twenty-nine blocking checkers do **not** share one CLI, and a loop that
+The thirty-two blocking checkers do **not** share one CLI, and a loop that
 assumes they do fails on four of them.
 
-**Twenty-three are contract gates.** Each takes bare for a human-readable
+**Twenty-six are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
 machine-readable one:
 
@@ -27,7 +27,7 @@ to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access` and
 they belong to this group. Run any of the six bare and it reports without
 enforcing.
 
-Twenty-three plus six is twenty-nine. All three figures derive from the
+Twenty-six plus six is thirty-two. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) — an
 enumerated list is a gate only when something independently derives the
@@ -84,7 +84,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **twenty-nine** blocking checkers, after
+`Architecture Boundaries` workflow runs **thirty-two** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -169,7 +169,7 @@ name rather than by count. A backticked path in this repo asserts the file
 exists, so only *where on the page* a name sits distinguishes a citation from an
 assertion.
 
-### Checkers outside the twenty-nine
+### Checkers outside the thirty-two
 
 Three more block without appearing in the table, enforced by the
 `pytest tooling/architecture/` step rather than a `--check` invocation of their
@@ -179,7 +179,7 @@ real-tree test — `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline` — so a violation fails the
 self-test step, which is blocking.
 
-`cross_repo_coherence.py` is a thirtieth checker and the only one outside CI: it
+`cross_repo_coherence.py` is a thirty-third checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
@@ -319,9 +319,9 @@ argument — `test_orm` lost 68 lines between two runs an hour apart while its
 
 ### The limits of "enforced"
 
-**The integration gate is the only lane that runs addon tests.** All twenty-nine
+**The integration gate is the only lane that runs addon tests.** All thirty-two
 boundary checkers are structural and DB-free: they read import graphs, call
-graphs, reached-member sets and documents. A change can satisfy all twenty-nine,
+graphs, reached-member sets and documents. A change can satisfy all thirty-two,
 and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
 (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green. Read a green
