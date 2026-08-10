@@ -1,6 +1,5 @@
 /** @odoo-module native */
 
-import { Macro } from "@web/core/utils/macro";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame, press } from "@odoo/hoot-dom";
 import {
@@ -13,6 +12,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { Macro } from "@web/core/utils/macro";
 
 async function simulateBarCode(chars) {
     for (const char of chars) {
@@ -160,7 +160,21 @@ test("pager buttons", async () => {
     expect(".o_field_widget input").toHaveValue("Large Cabinet");
 
     // OCDPAGERLAST
-    await simulateBarCode(["O", "C", "D", "P", "A", "G", "E", "R", "L", "A", "S", "T", "Enter"]);
+    await simulateBarCode([
+        "O",
+        "C",
+        "D",
+        "P",
+        "A",
+        "G",
+        "E",
+        "R",
+        "L",
+        "A",
+        "S",
+        "T",
+        "Enter",
+    ]);
     // need to await 2 macro steps
     await macroIsComplete();
     await animationFrame();

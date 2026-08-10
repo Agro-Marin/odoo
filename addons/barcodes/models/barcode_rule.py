@@ -3,6 +3,22 @@ import re
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+# A group that is itself quantified and whose body contains an unbounded
+# quantifier -- `(x+x+)+`, `(a+)*`, `(\d{2,})+` -- is the shape that turns a
+# linear match into an exponential one. Patterns run on every scan, so they are
+# rejected on write rather than relied upon to be well-behaved.
+_NESTED_QUANTIFIER = re.compile(
+    r"""\(                          # a group -- capturing, (?:...), either way
+        [^()]*
+        (?: [+*] | \{\d+,\d*\} )    # whose body contains an unbounded repetition
+        [^()]*
+        \)
+        \s*
+        (?: [+*] | \{\d+,\d*\} )    # and which is itself repeated
+    """,
+    re.VERBOSE,
+)
+
 
 class BarcodeRule(models.Model):
     _name = "barcode.rule"
@@ -50,10 +66,19 @@ class BarcodeRule(models.Model):
     )
     alias = fields.Char(
         string="Alias",
-        default="0",
         help="The matched pattern will alias to this barcode",
-        required=True,
     )
+
+    @api.constrains("type", "alias")
+    def _check_alias(self):
+        for rule in self:
+            if rule.type == "alias" and not rule.alias:
+                raise ValidationError(
+                    _(
+                        "Barcode rule %(name)s is an alias rule, so it needs an alias to point at.",
+                        name=rule.name,
+                    )
+                )
 
     @api.constrains("pattern")
     def _check_pattern(self):
@@ -90,8 +115,9 @@ class BarcodeRule(models.Model):
                 raise ValidationError(
                     _(" '*' is not a valid Regex Barcode Pattern. Did you mean '.*'?")
                 )
+            bare_pattern = re.sub(r"{N*D*}", "", p)
             try:
-                re.compile(re.sub(r"{N+D*}", "", p))
+                re.compile(bare_pattern)
             except re.error as e:
                 raise ValidationError(
                     _(
@@ -99,3 +125,11 @@ class BarcodeRule(models.Model):
                         pattern=rule.pattern,
                     )
                 ) from e
+            if _NESTED_QUANTIFIER.search(bare_pattern):
+                raise ValidationError(
+                    _(
+                        "The barcode pattern %(pattern)s nests one repetition inside another (for instance '(x+x+)+'). "
+                        "Such a pattern can take exponentially long to match and would block the server on every scan.",
+                        pattern=rule.pattern,
+                    )
+                )

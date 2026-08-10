@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-import { scanBarcode, isBarcodeScannerSupported } from "@web/components/barcode";
 import { Component } from "@odoo/owl";
+import { isBarcodeScannerSupported, scanBarcode } from "@web/components/barcode";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 export class BarcodeScanner extends Component {

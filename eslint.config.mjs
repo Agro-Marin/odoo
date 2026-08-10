@@ -8,6 +8,7 @@ import globals from "globals";
 // Add new modules here as they are onboarded to ESLint.
 // ─────────────────────────────────────────────────────────────────────────────
 const COMMUNITY_MODULES = [
+    "addons/barcodes",
     "addons/web",
     "addons/board",
     "addons/base_import",

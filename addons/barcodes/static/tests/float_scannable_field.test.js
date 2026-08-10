@@ -1,8 +1,9 @@
 /** @odoo-module native */
 
+import { barcodeService } from "@barcodes/barcode_service";
 import { beforeEach, expect, test } from "@odoo/hoot";
+import { press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { FormController } from "@web/views/form";
 import {
     contains,
     defineModels,
@@ -12,8 +13,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { barcodeService } from "@barcodes/barcode_service";
-import { press } from "@odoo/hoot-dom";
+import { FormController } from "@web/views/form";
 
 async function simulateBarCode(chars) {
     for (const char of chars) {
@@ -78,7 +78,10 @@ test("widget field_float_scannable", async () => {
     await animationFrame();
     expect.verifySteps([]);
 
-    view.env.services.barcode.bus.removeEventListener("barcode_scanned", onBarcodeScanned);
+    view.env.services.barcode.bus.removeEventListener(
+        "barcode_scanned",
+        onBarcodeScanned,
+    );
 });
 
 test.tags("mobile");

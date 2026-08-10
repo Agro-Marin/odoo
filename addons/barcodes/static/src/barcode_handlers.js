@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { getVisibleElements } from "@web/core/utils/dom/ui";
 import { Macro } from "@web/core/utils/macro";
 
@@ -40,7 +40,7 @@ function updatePager(position) {
     } else {
         next = parseInt(pager.querySelector(".o_pager_limit").textContent, 10);
     }
-    let current = parseInt(pager.innerText.split('/')[0], 10);
+    const current = parseInt(pager.innerText.split("/")[0], 10);
     if (current === next) {
         return;
     }
@@ -65,32 +65,35 @@ function updatePager(position) {
 }
 
 export const COMMANDS = {
-    "OCDEDIT": () => clickOnButton(".o_form_button_edit"),
-    "OCDDISC": () => clickOnButton(".o_form_button_cancel"),
-    "OCDSAVE": () => clickOnButton(".o_form_button_save"),
-    "OCDPREV": () => clickOnButton(".o_pager_previous"),
-    "OCDNEXT": () => clickOnButton(".o_pager_next"),
-    "OCDPAGERFIRST": () => updatePager("first"),
-    "OCDPAGERLAST": () => updatePager("last"),
+    // There is no OCDEDIT: the form view has had no explicit edit mode since
+    // Odoo 17, so `.o_form_button_edit` no longer exists anywhere. Keeping the
+    // key mapped to a selector that matches nothing made the scan a silent
+    // no-op; unmapped, it now reports "Unknown barcode command".
+    OCDDISC: () => clickOnButton(".o_form_button_cancel"),
+    OCDSAVE: () => clickOnButton(".o_form_button_save"),
+    OCDPREV: () => clickOnButton(".o_pager_previous"),
+    OCDNEXT: () => clickOnButton(".o_pager_next"),
+    OCDPAGERFIRST: () => updatePager("first"),
+    OCDPAGERLAST: () => updatePager("last"),
 };
 
 export const barcodeGenericHandlers = {
     dependencies: ["ui", "barcode", "notification"],
     start(env, { ui, barcode, notification }) {
-
         barcode.bus.addEventListener("barcode_scanned", (ev) => {
             const barcode = ev.detail.barcode;
             if (barcode.startsWith("OBT")) {
-                let targets = [];
-                try {
-                    // the scanned barcode could be anything, and could crash the queryselectorall
-                    // function
-                    targets = getVisibleElements(ui.activeElement, `[barcode_trigger=${barcode.slice(3)}]`);
-                } catch {
-                    console.warn(`Barcode '${barcode}' is not valid`);
-                }
-                for (let elem of targets) {
-                    elem.click();
+                // A barcode is untrusted input, so its text is escaped rather
+                // than interpolated: `OBTa], [class` would otherwise build the
+                // selector `[barcode_trigger=a], [class]` and click every
+                // visible element on the page. A try/catch is not enough --
+                // that payload is a *valid* selector, just not the intended one.
+                const trigger = `[barcode_trigger=${CSS.escape(barcode.slice(3))}]`;
+                // Only the first match is activated: a trigger is one command,
+                // and clicking every match compounds a mis-scan.
+                const [target] = getVisibleElements(ui.activeElement, trigger);
+                if (target) {
+                    target.click();
                 }
             }
             if (barcode.startsWith("OCD")) {
@@ -100,12 +103,12 @@ export const barcodeGenericHandlers = {
                 } else {
                     notification.add(_t("Barcode: %(barcode)s", { barcode }), {
                         title: _t("Unknown barcode command"),
-                        type: "danger"
+                        type: "danger",
                     });
                 }
             }
         });
-    }
+    },
 };
 
 registry.category("services").add("barcode_handlers", barcodeGenericHandlers);

@@ -1,10 +1,10 @@
 /** @odoo-module native */
 
-import { beforeEach, expect, test } from "@odoo/hoot";
-import { getActiveElement, queryFirst, keyDown, click } from "@odoo/hoot-dom";
-import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { barcodeService } from "@barcodes/barcode_service";
+import { beforeEach, expect, test } from "@odoo/hoot";
+import { click, getActiveElement, keyDown, queryFirst } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 beforeEach(() => {
     patchWithCleanup(barcodeService, {
@@ -52,7 +52,14 @@ test("barcode field automatically focus behavior", async () => {
 
     // Those elements absolutely need to keep the focus:
     // inputs elements:
-    const keepFocusedElements = ["email", "number", "password", "tel", "text", "explicit_text"];
+    const keepFocusedElements = [
+        "email",
+        "number",
+        "password",
+        "tel",
+        "text",
+        "explicit_text",
+    ];
     for (let i = 0; i < keepFocusedElements.length; ++i) {
         element = queryFirst(`input[name=${keepFocusedElements[i]}]`);
         await click(element);

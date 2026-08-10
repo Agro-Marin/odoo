@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { BarcodeDialog } from "@web/components/barcode";
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { BarcodeDialog } from "@web/components/barcode";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { _t } from "@web/core/translation";
 
@@ -15,25 +15,31 @@ export class BarcodeInput extends Component {
     };
     setup() {
         this.state = useState({
-            barcode: false,
+            barcode: "",
         });
         this.barcodeManual = useRef("manualBarcode");
         // Autofocus processing was blocked because a document already has a focused element.
         onMounted(() => {
-            this.barcodeManual.el.focus();
+            this.barcodeManual.el?.focus();
         });
+    }
+
+    submit() {
+        // Typed by hand, so it can carry the stray whitespace a scanner would not.
+        const barcode = this.state.barcode.trim();
+        if (barcode) {
+            this.props.onSubmit(barcode);
+        }
     }
 
     /**
      * Called when press Enter after filling barcode input manually.
      *
-     * @private
      * @param {KeyboardEvent} ev
      */
-    _onKeydown(ev) {
-        const hotkey = getActiveHotkey(ev);
-        if (hotkey === "enter" && this.state.barcode) {
-            this.props.onSubmit(this.state.barcode);
+    onKeydown(ev) {
+        if (getActiveHotkey(ev) === "enter") {
+            this.submit();
         }
     }
 }

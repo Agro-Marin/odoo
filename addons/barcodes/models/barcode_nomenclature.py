@@ -15,6 +15,26 @@ UPC_EAN_CONVERSIONS = [
     ("always", "Always"),
 ]
 
+# Number of dot-separated data fields each supported EPC URI scheme carries.
+# The "-96"/"-198" tag encodings prefix the same data with a filter value.
+URI_DATA_FIELDS = {
+    "lgtin": 3,
+    "sgtin": 3,
+    "sgtin-96": 4,
+    "sgtin-198": 4,
+    "sscc": 2,
+    "sscc-96": 3,
+}
+
+_ASCII_DIGITS = re.compile(r"\A[0-9]*\Z")
+_NUMERIC_GROUP = re.compile(r"[{](?P<whole>N*)(?P<decimal>D*)[}]")
+
+# `_match_pattern` runs a user-authored regex on every scan. Patterns are
+# validated against catastrophic backtracking on write (`barcode.rule.
+# _check_pattern`), but the subject is capped as well so that a pattern which
+# slips through cannot turn one scan into unbounded CPU.
+MAX_BARCODE_LENGTH = 256
+
 
 class BarcodeNomenclature(models.Model):
     _name = "barcode.nomenclature"
@@ -39,8 +59,7 @@ class BarcodeNomenclature(models.Model):
         help="UPC Codes can be converted to EAN by prefixing them with a zero. This setting determines if a UPC/EAN barcode should be automatically converted in one way or another when trying to match a rule with the other encoding.",
     )
 
-    @api.model
-    def sanitize_ean(self, ean):
+    def _sanitize_ean(self, ean):
         """Returns a valid zero padded EAN-13 from an EAN prefix.
 
         :type ean: str
@@ -48,15 +67,14 @@ class BarcodeNomenclature(models.Model):
         ean = ean[0:13].zfill(13)
         return ean[0:-1] + str(get_barcode_check_digit(ean))
 
-    @api.model
-    def sanitize_upc(self, upc):
+    def _sanitize_upc(self, upc):
         """Returns a valid zero padded UPC-A from a UPC-A prefix.
 
         :type upc: str
         """
-        return self.sanitize_ean("0" + upc)[1:]
+        return self._sanitize_ean("0" + upc)[1:]
 
-    def match_pattern(self, barcode, pattern):
+    def _match_pattern(self, barcode, pattern):
         """Checks barcode matches the pattern and retrieves the optional numeric value in barcode.
 
         :param barcode:
@@ -74,68 +92,53 @@ class BarcodeNomenclature(models.Model):
             "base_code": barcode,
             "match": False,
         }
+        if len(barcode) > MAX_BARCODE_LENGTH:
+            return match
 
-        barcode = (
-            barcode.replace("\\", "\\\\")
-            .replace("{", "\\{")
-            .replace("}", "\\}")
-            .replace(".", "\\.")
-        )
-        numerical_content = re.search(
-            r"[{][N]*[D]*[}]", pattern
-        )  # look for numerical content in pattern
+        numeric_group = _NUMERIC_GROUP.search(pattern)
+        if numeric_group:
+            start = numeric_group.start()
+            whole_size = len(numeric_group.group("whole"))
+            decimal_size = len(numeric_group.group("decimal"))
+            digits = barcode[start : start + whole_size + decimal_size]
+            whole, decimal = digits[:whole_size], digits[whole_size:]
+            # The slot must be filled with exactly as many ASCII digits as the
+            # pattern declares. `str.isdigit` is not enough: it accepts
+            # superscripts and other numerals that `int()` then rejects.
+            if len(digits) != whole_size + decimal_size or not (
+                _ASCII_DIGITS.match(whole) and _ASCII_DIGITS.match(decimal)
+            ):
+                return match
+            match["value"] = int(whole or 0) + float(f"0.{decimal}" if decimal else 0)
+            match["base_code"] = (
+                barcode[:start]
+                + (whole_size + decimal_size) * "0"
+                + barcode[start + whole_size + decimal_size :]
+            )
+            pattern = (
+                pattern[:start]
+                + (whole_size + decimal_size) * "0"
+                + pattern[numeric_group.end() :]
+            )
 
-        if numerical_content:  # the pattern encodes a numerical content
-            num_start = numerical_content.start()  # start index of numerical content
-            num_end = numerical_content.end()  # end index of numerical content
-            value_string = barcode[
-                num_start : num_end - 2
-            ]  # numerical content in barcode
-
-            whole_part_match = re.search(
-                r"[{][N]*[D}]", numerical_content.group()
-            )  # looks for whole part of numerical content
-            decimal_part_match = re.search(
-                r"[{N][D]*[}]", numerical_content.group()
-            )  # looks for decimal part
-            whole_part = value_string[
-                : whole_part_match.end() - 2
-            ]  # retrieve whole part of numerical content in barcode
-            decimal_part = (
-                "0."
-                + value_string[
-                    decimal_part_match.start() : decimal_part_match.end() - 1
-                ]
-            )  # retrieve decimal part
-            if whole_part == "":
-                whole_part = "0"
-            if whole_part.isdigit():
-                match["value"] = int(whole_part) + float(decimal_part)
-
-                match["base_code"] = (
-                    barcode[:num_start]
-                    + (num_end - num_start - 2) * "0"
-                    + barcode[num_end - 2 :]
-                )  # replace numerical content by 0's in barcode
-                match["base_code"] = (
-                    match["base_code"]
-                    .replace("\\\\", "\\")
-                    .replace("\\{", "{")
-                    .replace("\\}", "}")
-                    .replace("\\.", ".")
-                )
-                pattern = (
-                    pattern[:num_start]
-                    + (num_end - num_start - 2) * "0"
-                    + pattern[num_end:]
-                )  # replace numerical content by 0's in pattern to match
-        match["match"] = re.match(pattern, match["base_code"][: len(pattern)])
-
+        match["match"] = bool(re.match(pattern, match["base_code"]))
         return match
 
     def parse_barcode(self, barcode):
-        if re.match(r"^urn:", barcode):
-            return self.parse_uri(barcode)
+        """Parse a scanned barcode against this nomenclature.
+
+        :param barcode:
+        :type barcode: str
+        :return: for an EPC URI, the list of data dicts it decodes to;
+            otherwise a single dict, see :meth:`parse_nomenclature_barcode`.
+        :rtype: dict | list[dict]
+        """
+        if len(self) > 1:
+            raise ValueError(
+                f"parse_barcode expects a single nomenclature, got {len(self)}"
+            )
+        if barcode.startswith("urn:"):
+            return self._parse_uri(barcode)
         return self.parse_nomenclature_barcode(barcode)
 
     def parse_nomenclature_barcode(self, barcode):
@@ -153,6 +156,33 @@ class BarcodeNomenclature(models.Model):
 
         :rtype: dict
         """
+        # An `alias` rule restates the scan as another barcode, which must then
+        # be parsed from the first rule again -- resuming at the next rule would
+        # make the outcome depend on the alias rule's own sequence. `seen`
+        # stops a cycle of aliases from looping forever.
+        seen = set()
+        while True:
+            parsed_result = self._match_rules(barcode)
+            if parsed_result["type"] != "alias":
+                return parsed_result
+            seen.add(barcode)
+            barcode = parsed_result["code"]
+            if barcode in seen:
+                _logger.warning(
+                    "Barcode nomenclature %r: alias cycle on %r, giving up.",
+                    self.display_name,
+                    barcode,
+                )
+                parsed_result["type"] = "error"
+                return parsed_result
+
+    def _match_rules(self, barcode):
+        """Match `barcode` against this nomenclature's rules, once.
+
+        Returns the same dict as :meth:`parse_nomenclature_barcode`, except that
+        a matched ``alias`` rule yields ``type == "alias"`` with ``code`` set to
+        the aliased barcode, for the caller to resolve.
+        """
         parsed_result = {
             "encoding": "",
             "type": "error",
@@ -162,86 +192,104 @@ class BarcodeNomenclature(models.Model):
         }
 
         for rule in self.rule_ids:
-            cur_barcode = barcode
+            cur_barcode, converted = barcode, False
+            # A UPC-A restated as EAN-13 always gains a leading zero, and
+            # `check_barcode_encoding` reads a leading zero as "this is really a
+            # UPC-A". So the converted code can never validate as EAN-13: the
+            # conversion has to stand in for the encoding check, not precede it.
             if (
                 rule.encoding == "ean13"
+                and self.upc_ean_conv in ("upc2ean", "always")
                 and check_barcode_encoding(barcode, "upca")
-                and self.upc_ean_conv in ["upc2ean", "always"]
             ):
-                cur_barcode = "0" + cur_barcode
+                cur_barcode, converted = "0" + barcode, True
             elif (
                 rule.encoding == "upca"
-                and check_barcode_encoding(barcode, "ean13")
-                and barcode[0] == "0"
-                and self.upc_ean_conv in ["ean2upc", "always"]
+                and self.upc_ean_conv in ("ean2upc", "always")
+                and barcode[:1] == "0"
+                and check_barcode_encoding(barcode[1:], "upca")
             ):
-                cur_barcode = cur_barcode[1:]
+                cur_barcode, converted = barcode[1:], True
 
-            if not check_barcode_encoding(barcode, rule.encoding):
+            if not converted and not check_barcode_encoding(barcode, rule.encoding):
                 continue
 
-            match = self.match_pattern(cur_barcode, rule.pattern)
-            if match["match"]:
-                if rule.type == "alias":
-                    barcode = rule.alias
-                    parsed_result["code"] = barcode
-                else:
-                    parsed_result["encoding"] = rule.encoding
-                    parsed_result["type"] = rule.type
-                    parsed_result["value"] = match["value"]
-                    parsed_result["code"] = cur_barcode
-                    if rule.encoding == "ean13":
-                        parsed_result["base_code"] = self.sanitize_ean(
-                            match["base_code"]
-                        )
-                    elif rule.encoding == "upca":
-                        parsed_result["base_code"] = self.sanitize_upc(
-                            match["base_code"]
-                        )
-                    else:
-                        parsed_result["base_code"] = match["base_code"]
-                    return parsed_result
+            match = self._match_pattern(cur_barcode, rule.pattern)
+            if not match["match"]:
+                continue
+
+            if rule.type == "alias":
+                parsed_result["type"] = "alias"
+                parsed_result["code"] = rule.alias
+                return parsed_result
+
+            parsed_result["encoding"] = rule.encoding
+            parsed_result["type"] = rule.type
+            parsed_result["value"] = match["value"]
+            parsed_result["code"] = cur_barcode
+            if rule.encoding == "ean13":
+                parsed_result["base_code"] = self._sanitize_ean(match["base_code"])
+            elif rule.encoding == "upca":
+                parsed_result["base_code"] = self._sanitize_upc(match["base_code"])
+            else:
+                parsed_result["base_code"] = match["base_code"]
+            return parsed_result
 
         return parsed_result
 
     # RFID/URI stuff.
     @api.model
-    def parse_uri(self, barcode):
+    def _parse_uri(self, barcode):
         """Convert supported URI format (lgtin, sgtin, sgtin-96, sgtin-198,
         sscc and sscc-96) into a GS1 barcode.
+
+        Every branch returns a list of data dicts -- callers rely on that shape
+        (``len()``, ``[0]["type"]``, ...). A URI this method cannot decode is a
+        failed parse, reported as an empty list rather than a raised exception:
+        the argument is scanned input, so a malformed one is expected traffic.
+
         :param barcode str: the URI as a string.
-        :rtype: str
+        :rtype: list[dict]
         """
-        if not re.match(r"^urn:", barcode):
-            return barcode
-        identifier, data = (bc_part.strip() for bc_part in barcode.split(r":")[-2:])
-        data = re.split(r"\.", data)
-        match identifier:
-            case "lgtin" | "sgtin":
-                barcode = self._convert_uri_gtin_data_into_tracking_number(
-                    barcode, data
-                )
-            case "sgtin-96" | "sgtin-198":
-                # Same as SGTIN but we have to remove the filter.
-                barcode = self._convert_uri_gtin_data_into_tracking_number(
-                    barcode, data[1:]
-                )
-            case "sscc":
-                barcode = self._convert_uri_sscc_data_into_package(barcode, data)
-            case "sscc-96":
-                # Same as SSCC but we have to remove the filter.
-                barcode = self._convert_uri_sscc_data_into_package(barcode, data[1:])
-            case _:
-                # Every matched case above returns a list of result dicts
-                # (see the tests) - callers rely on that shape (len(),
-                # [0]['type'], etc). Returning the raw urn: string here for
-                # an unrecognized identifier would silently break that
-                # contract downstream, so return an empty list instead.
-                _logger.info(
-                    "Unrecognized URI identifier %r in barcode %r", identifier, barcode
-                )
-                barcode = []
-        return barcode
+        parts = [part.strip() for part in barcode.split(":")]
+        # urn:<namespace>:<type>:<identifier>:<data>
+        if len(parts) != 5:
+            _logger.info(
+                "Malformed EPC URI %r: expected 5 ':'-separated parts.", barcode
+            )
+            return []
+        identifier, data = parts[3], parts[4].split(".")
+
+        expected = URI_DATA_FIELDS.get(identifier)
+        if expected is None:
+            _logger.info(
+                "Unrecognized URI identifier %r in barcode %r", identifier, barcode
+            )
+            return []
+        if len(data) != expected:
+            _logger.info(
+                "Malformed EPC URI %r: %r expects %d '.'-separated fields, got %d.",
+                barcode,
+                identifier,
+                expected,
+                len(data),
+            )
+            return []
+        # The "-96"/"-198" tag encodings prefix the data with a filter value.
+        if identifier in ("sgtin-96", "sgtin-198", "sscc-96"):
+            data = data[1:]
+        # Only the two leading fields feed the check-digit computation; an
+        # SGTIN-198 serial is legitimately alphanumeric and is passed through.
+        if not all(field and _ASCII_DIGITS.match(field) for field in data[:2]):
+            _logger.info(
+                "Malformed EPC URI %r: company prefix and reference must be digits.",
+                barcode,
+            )
+            return []
+
+        if identifier.startswith("sscc"):
+            return self._convert_uri_sscc_data_into_package(barcode, data)
+        return self._convert_uri_gtin_data_into_tracking_number(barcode, data)
 
     @api.model
     def _convert_uri_gtin_data_into_tracking_number(self, base_code, data):
