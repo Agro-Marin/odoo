@@ -179,7 +179,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/discuss/**/common/**/*",
             "mail/static/src/discuss/**/public_web/**/*",
             "mail/static/src/discuss/**/web/**/*",
-            "mail/static/src/views/fields/**/*",
             "mail/static/src/views/web/activity/**",
         ],
         "web.assets_frontend": [

@@ -2,7 +2,7 @@
 import {
     StatusBarDurationField,
     statusBarDurationField,
-} from "@mail/views/fields/statusbar_duration/statusbar_duration_field";
+} from "@mail/views/web/fields/statusbar_duration/statusbar_duration_field";
 import { registry } from "@web/core/registry";
 
 import { getRottingDaysTitle } from "./rotting_widget.js";
