@@ -166,9 +166,7 @@ class TestSignupUrl(TransactionCase):
 
     def test_signup_url_builds_action_fragment(self):
         """Action, view and record data land urlencoded in the redirect."""
-        urls = self.partner.with_context(
-            signup_valid=True
-        )._get_signup_url_for_action(
+        urls = self.partner.with_context(signup_valid=True)._get_signup_url_for_action(
             action="base.action_partner_form",
             view_type="form",
             menu_id=7,
@@ -186,16 +184,16 @@ class TestSignupUrl(TransactionCase):
 
     def test_signup_url_mail_view_action(self):
         """The /mail/view action uses its own redirect base."""
-        urls = self.partner.with_context(
-            signup_valid=True
-        )._get_signup_url_for_action(action="/mail/view", res_id=42)
+        urls = self.partner.with_context(signup_valid=True)._get_signup_url_for_action(
+            action="/mail/view", res_id=42
+        )
         self.assertIn("redirect=%2Fmail%2Fview%3F", urls[self.partner.id])
 
     def test_signup_url_explicit_redirect(self):
         """An explicit url wins over any fragment building."""
-        urls = self.partner.with_context(
-            signup_valid=True
-        )._get_signup_url_for_action(url="/my/custom")
+        urls = self.partner.with_context(signup_valid=True)._get_signup_url_for_action(
+            url="/my/custom"
+        )
         self.assertIn("redirect=%2Fmy%2Fcustom", urls[self.partner.id])
 
     def test_auth_param_token_for_userless_partner(self):
