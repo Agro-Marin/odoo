@@ -981,8 +981,11 @@ assert_eq "kanban renderer wraps the quick-create state in useState" \
     "$(grep -c 'this.quickCreateState = useState(' "$WEB/static/src/views/kanban/kanban_renderer.js")" "1"
 assert_eq "kanban renderer re-targets progressBarState with useState" \
     "$(grep -c 'useState(this.props.progressBarState)' "$WEB/static/src/views/kanban/kanban_renderer.js")" "1"
+# Anchored to the SECTION, not to any mention of it: the rule is documented
+# once, but prose elsewhere in the file legitimately points at that section, and
+# counting bare mentions turned a useful cross-reference into a gate failure.
 assert_eq "STATE_MANAGEMENT documents the bare-reactive-as-prop rule" \
-    "$(grep -c 'subscribes NOBODY' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
+    "$(grep -c '^### .*subscribes NOBODY' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 
 # 25. _updateConfig is now _patchConfig / _reloadWithConfig.
 assert_eq "no _updateConfig left in model/" \
