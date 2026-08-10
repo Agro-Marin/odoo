@@ -490,6 +490,19 @@ class Registry(
         context: dict[str, typing.Any],
         install: bool = True,
     ):
+        # Materialised once, because this body consumes `model_names` FIVE
+        # times -- the comprehension below plus four `_reflect_*` calls -- and
+        # the parameter is annotated `Iterable[str]`. Given a generator the old
+        # code did two wrong things silently: `if not model_names` is False for
+        # any generator, so the early return never fired, and the comprehension
+        # exhausted it, so every `_reflect_*` reflected NOTHING into ir_model,
+        # ir_model_fields, ir_model_constraint and ir_model_inherit. Latent
+        # rather than live -- all three call sites pass a list today, and one of
+        # them already spells `list(models_to_untranslate)` defensively -- but
+        # the signature promised something the body could not honour. Surfaced
+        # by mypy once `env["ir.model"]` typed as a Protocol declaring
+        # `_reflect_models(list[str])` instead of as `BaseModel`.
+        model_names = list(model_names)
         if not model_names:
             return
 

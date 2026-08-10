@@ -1,4 +1,4 @@
 {
-  "count": 1087,
-  "note": "1147 -> 1087: odoo/libs reaches ZERO -- 154 files, no exceptions, second package after odoo/db. The last 24 came out on the same four shapes as the previous batch plus one new one: a plain int used as a tuple index (arabic_reshaper's LETTER/FORM), which widened every (letter, form) read to str|int and produced all eight of that module's errors from one missing Final. No mypy.ini exemption was needed for it after all."
+  "count": 1072,
+  "note": "Typed accessors for the framework->addon seam: 1093 -> 1072, twenty-one errors resolved and none added (error sets diffed line by line). Every one was `\"BaseModel\" has no attribute X` at a site where the core calls an addon-owned model through a string key -- _reflect_models, _check_uid_passwd, authenticate, _filestore, _compute_session_token and sixteen more -- which mypy could not see because Environment.__getitem__ returned BaseModel for every key. Literal overloads now return the model's Protocol. Note the floor was 1087 against a tree measuring 1093: six errors arrived between the last floor update and this one, from commits that are not part of this change, and are included in the 1072 rather than resolved by it."
 }

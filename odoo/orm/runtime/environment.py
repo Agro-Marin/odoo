@@ -35,6 +35,20 @@ from .transaction import Transaction
 if typing.TYPE_CHECKING:
     from datetime import tzinfo
 
+    from .._protocols import (
+        IrAttachmentProtocol,
+        IrDefaultProtocol,
+        IrModelAccessProtocol,
+        IrModelConstraintProtocol,
+        IrModelDataProtocol,
+        IrModelFieldsProtocol,
+        IrModelProtocol,
+        IrModuleModuleProtocol,
+        IrRuleProtocol,
+        IrUiViewProtocol,
+        ResLangProtocol,
+        ResUsersProtocol,
+    )
     from .._typing import BaseModel, Field
     from ..components.core import OrmCore
     from ..primitives import IdType
@@ -110,7 +124,89 @@ class Environment(Mapping[str, "BaseModel"]):
     def __contains__(self, model_name) -> bool:
         return model_name in self.registry
 
-    def __getitem__(self, model_name: str) -> BaseModel:
+    # A `Literal` overload per model whose contract the framework declares, so
+    # mypy checks the CALL SITES and not only the Protocol. Before these, every
+    # `env["ir.model.data"]._load_xmlid(...)` in the core typed as `BaseModel`
+    # and the contract was enforced by one test rather than by the compiler.
+    #
+    # Each returns a Protocol that extends `RecordsetProtocol`, which is how a
+    # single return type satisfies both halves of what these values are.
+    # Python has no intersection type -- `BaseModel & IrModelDataProtocol` is
+    # unspellable -- and Protocol inheritance is what stands in for one.
+    #
+    # The fallback below still returns `BaseModel`, so the several hundred
+    # subscripts on models with no declared contract are unaffected.
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.attachment"]
+    ) -> IrAttachmentProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.default"]
+    ) -> IrDefaultProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model"]
+    ) -> IrModelProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model.access"]
+    ) -> IrModelAccessProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model.constraint"]
+    ) -> IrModelConstraintProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model.data"]
+    ) -> IrModelDataProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.model.fields"]
+    ) -> IrModelFieldsProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.module.module"]
+    ) -> IrModuleModuleProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.rule"]
+    ) -> IrRuleProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.ui.view"]
+    ) -> IrUiViewProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["res.lang"]
+    ) -> ResLangProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["res.users"]
+    ) -> ResUsersProtocol: ...
+
+    # `overload-overlap` is inherent to refining on a literal and is suppressed
+    # here rather than at thirteen call sites. `Literal["ir.model.data"]` is a
+    # subtype of `str`, so every overload above overlaps this one while
+    # returning an unrelated type, and mypy says so once per pair. That is the
+    # pattern working: when the key IS a literal the caller gets the model's
+    # contract, and when it is a `str` variable no one can know which model it
+    # names, so `BaseModel` is the only honest answer.
+    @typing.overload
+    def __getitem__(self, model_name: str) -> BaseModel: ...
+
+    def __getitem__(self, model_name: str) -> typing.Any:
         rs = object.__new__(self.registry[model_name])
         rs.env = self
         rs._ids = ()

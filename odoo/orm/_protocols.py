@@ -35,6 +35,7 @@ same thing for ``ir.http``, next to the code that calls it, and stays there.
 
 from __future__ import annotations
 
+from collections.abc import Collection, Sequence
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -43,7 +44,79 @@ if TYPE_CHECKING:
     from .domain import Domain
 
 
-class IrModelDataProtocol(Protocol):
+class RecordsetProtocol(Protocol):
+    """The `BaseModel` surface the core uses *on addon-owned models*.
+
+    Every Protocol below extends this one, which is what lets a typed accessor
+    return a single type that satisfies both halves of what these values are: a
+    recordset, and an implementor of an addon contract. Python has no
+    intersection type -- there is no way to spell ``BaseModel & IrModelDataProtocol``
+    -- but Protocol inheritance composes, so the intersection is expressed by
+    construction instead of by an operator the language lacks.
+
+    **Eleven members, and the number is measured rather than chosen.** It is
+    exactly what the core calls on the thirteen models in
+    :data:`FRAMEWORK_MODEL_PROTOCOLS`, derived by running
+    ``model_member_surface_check``'s collector with the ``BaseModel``
+    subtraction turned off. `BaseModel` has 216 non-dunder members; restating
+    them here would be absurd and would also be a second copy of an interface
+    that already exists.
+
+    The narrowness is the point, and it is the same point the member gate
+    makes one direction over: this bounds the *recordset* surface used on
+    addon-owned models, as that bounds the *addon* surface used by the core. A
+    twelfth member is a type error naming this class, which is a decision to
+    take rather than a fact to discover later.
+    """
+
+    id: Any
+    _fields: Any
+
+    def browse(self, ids: Any = ()) -> Any: ...
+
+    def create(self, vals_list: Any) -> Any: ...
+
+    def invalidate_model(
+        self, fnames: Collection[str] | None = None, flush: bool = True
+    ) -> None: ...
+
+    def search(
+        self,
+        domain: Any,
+        offset: int = 0,
+        limit: int | None = None,
+        order: str | None = None,
+    ) -> Any: ...
+
+    def search_count(self, domain: Any, limit: int | None = None) -> int: ...
+
+    def search_fetch(
+        self,
+        domain: Any,
+        field_names: Sequence[str] | None = None,
+        offset: int = 0,
+        limit: int | None = None,
+        order: str | None = None,
+    ) -> Any: ...
+
+    def search_read(
+        self,
+        domain: Any = None,
+        fields: Sequence[str] | None = None,
+        offset: int = 0,
+        limit: int | None = None,
+        order: str | None = None,
+        **read_kwargs: Any,
+    ) -> list[Any]: ...
+
+    def sudo(self, flag: bool = True) -> Any: ...
+
+    def with_context(self, ctx: Any = None, /, **overrides: Any) -> Any: ...
+
+    def with_user(self, user: Any) -> Any: ...
+
+
+class IrModelDataProtocol(RecordsetProtocol, Protocol):
     """``ir.model.data`` -- the xml-id table, reached by `Environment.ref`."""
 
     def _load_xmlid(self, xml_id: str) -> Any: ...
@@ -59,7 +132,7 @@ class IrModelDataProtocol(Protocol):
     ) -> tuple[Any, Any]: ...
 
 
-class IrModelProtocol(Protocol):
+class IrModelProtocol(RecordsetProtocol, Protocol):
     """``ir.model`` -- the model meta-table the registry reflects into."""
 
     def _get(self, name: str) -> Any: ...
@@ -69,7 +142,7 @@ class IrModelProtocol(Protocol):
     def _reflect_models(self, model_names: list[str]) -> None: ...
 
 
-class IrModelFieldsProtocol(Protocol):
+class IrModelFieldsProtocol(RecordsetProtocol, Protocol):
     """``ir.model.fields`` -- the field meta-table, and the manual-field source."""
 
     def _get(self, model_name: str, name: str) -> Any: ...
@@ -93,7 +166,7 @@ class IrModelFieldsProtocol(Protocol):
     def get_field_string(self, model_name: str) -> dict[str, str]: ...
 
 
-class IrModelConstraintProtocol(Protocol):
+class IrModelConstraintProtocol(RecordsetProtocol, Protocol):
     """``ir.model.constraint`` -- where schema constraints are reflected."""
 
     def _reflect_constraint(
@@ -112,7 +185,7 @@ class IrModelConstraintProtocol(Protocol):
     def _reflect_constraints(self, model_names: list[str]) -> None: ...
 
 
-class IrModelAccessProtocol(Protocol):
+class IrModelAccessProtocol(RecordsetProtocol, Protocol):
     """``ir.model.access`` -- the model-level half of access control.
 
     Reached only through a local binding in ``orm/models/mixins/access.py``
@@ -128,7 +201,7 @@ class IrModelAccessProtocol(Protocol):
     def _make_access_error(self, model: str, mode: str) -> AccessError: ...
 
 
-class IrRuleProtocol(Protocol):
+class IrRuleProtocol(RecordsetProtocol, Protocol):
     """``ir.rule`` -- the record-level half of access control."""
 
     def _compute_domain(self, model_name: str, mode: str = "read") -> Domain | None: ...
@@ -136,7 +209,7 @@ class IrRuleProtocol(Protocol):
     def _make_access_error(self, operation: str, records: Any) -> AccessError: ...
 
 
-class IrDefaultProtocol(Protocol):
+class IrDefaultProtocol(RecordsetProtocol, Protocol):
     """``ir.default`` -- user/company defaults and company-dependent fallbacks."""
 
     def _evaluate_condition_with_fallback(
@@ -150,7 +223,7 @@ class IrDefaultProtocol(Protocol):
     ) -> dict[str, Any]: ...
 
 
-class IrAttachmentProtocol(Protocol):
+class IrAttachmentProtocol(RecordsetProtocol, Protocol):
     """``ir.attachment`` -- the filestore, reached by `Binary` fields."""
 
     def _content_checksum(self, bin_data: bytes) -> str: ...
@@ -160,7 +233,7 @@ class IrAttachmentProtocol(Protocol):
     def _unsized(self) -> Any: ...
 
 
-class IrUiViewProtocol(Protocol):
+class IrUiViewProtocol(RecordsetProtocol, Protocol):
     """``ir.ui.view`` -- template rendering and view validation."""
 
     def _render_template(
@@ -172,7 +245,7 @@ class IrUiViewProtocol(Protocol):
     def _validate_module_views(self, module: str) -> None: ...
 
 
-class IrModuleModuleProtocol(Protocol):
+class IrModuleModuleProtocol(RecordsetProtocol, Protocol):
     """``ir.module.module`` -- the module table the loader and CLI drive."""
 
     def _extract_resource_attachment_translations(
@@ -186,7 +259,7 @@ class IrModuleModuleProtocol(Protocol):
     def update_list(self) -> Any: ...
 
 
-class ResLangProtocol(Protocol):
+class ResLangProtocol(RecordsetProtocol, Protocol):
     """``res.lang`` -- language data, reached by every translated field."""
 
     def _get_data(self, **kwargs: Any) -> Any: ...
@@ -196,7 +269,7 @@ class ResLangProtocol(Protocol):
     def get_installed(self) -> list[tuple[str, str]]: ...
 
 
-class ResUsersProtocol(Protocol):
+class ResUsersProtocol(RecordsetProtocol, Protocol):
     """``res.users`` -- the widest of them, and the one with fields in it.
 
     ``company_id``, ``company_ids``, ``lang`` and ``tz`` are *fields*, not
@@ -210,6 +283,8 @@ class ResUsersProtocol(Protocol):
     company_ids: Any
     lang: Any
     tz: Any
+
+    def _check_uid_passwd(self, uid: int, passwd: str) -> None: ...
 
     def _compute_session_token(self, sid: str) -> str | bool: ...
 

@@ -20,6 +20,7 @@ contribution, and an addon that overrides one of these members with an
 incompatible signature is exactly the failure worth catching.
 """
 
+import annotationlib
 import inspect
 
 from odoo.orm._protocols import FRAMEWORK_MODEL_PROTOCOLS
@@ -43,8 +44,21 @@ def _positional_capacity(func, *, drop_self: bool = False) -> tuple[int, float]:
 
     ``drop_self`` is for an unbound protocol function, where ``self`` is still
     in the signature; a bound method has already lost it.
+
+    ``FORWARDREF`` for the same reason ``orm/models/metaclass.py`` uses it: under
+    PEP 649 the default VALUE format EVALUATES annotations, and three of the
+    members declared here -- ``browse``, ``search_read``, ``search_fetch`` --
+    are annotated with names that exist only under ``if TYPE_CHECKING``
+    (``IdType``, ``Sequence``, ``ValuesType``). Evaluating them raises
+    ``NameError`` inside ``inspect.signature``, so a *diagnostic* would abort
+    instead of reporting. The DB-backed run is what surfaced it; no unit test
+    could, because the failure needs the real model classes.
     """
-    params = list(inspect.signature(func).parameters.values())
+    params = list(
+        inspect.signature(
+            func, annotation_format=annotationlib.Format.FORWARDREF
+        ).parameters.values()
+    )
     if drop_self:
         params = params[1:]
     required = 0
