@@ -1,5 +1,7 @@
 {
     "name": "Attribute Mixins",
+    "version": "19.0.1.1.0",
+    "category": "Hidden",
     "summary": "Reusable EAV mixins: attribute, attribute value and attribute line.",
     "description": """
 Abstract building blocks for an Entity-Attribute-Value family: an attribute
@@ -15,7 +17,7 @@ product templates can carry an attribute set.
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",
     "license": "LGPL-3",
-    "category": "Hidden",
-    "version": "19.0.1.1.0",
-    "depends": ["base"],
+    "depends": [
+        "base",
+    ],
 }

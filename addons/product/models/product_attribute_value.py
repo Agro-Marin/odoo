@@ -1,5 +1,4 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
 
 
 class ProductAttributeValue(models.Model):
@@ -65,26 +64,19 @@ class ProductAttributeValue(models.Model):
 
     # === CRUD METHODS === #
 
-    def write(self, vals):
-        if "attribute_id" in vals:
-            for pav in self:
-                if (
-                    pav.attribute_id.id != vals["attribute_id"]
-                    and pav.is_used_on_products
-                ):
-                    raise UserError(
-                        _(
-                            "You cannot change the attribute of the value %(value)s because it is used"
-                            " on the following products: %(products)s",
-                            value=pav.display_name,
-                            products=", ".join(
-                                pav.pav_attribute_line_ids.product_tmpl_id.mapped(
-                                    "display_name",
-                                ),
-                            ),
-                        ),
-                    )
+    # The re-home guard ("cannot change the attribute of a value in use") and
+    # the delete guard both live on attribute.value.mixin now; _used_records
+    # and _usage_label below narrow "in use" to active templates.
 
+    def _used_records(self):
+        return self.filtered("is_used_on_products")
+
+    def _usage_label(self):
+        return ", ".join(
+            self.pav_attribute_line_ids.product_tmpl_id.mapped("display_name")
+        )
+
+    def write(self, vals):
         invalidate = "sequence" in vals and any(
             record.sequence != vals["sequence"] for record in self
         )
@@ -125,7 +117,7 @@ class ProductAttributeValue(models.Model):
             # and the active `product.template.attribute.value` keep counting
             # it) and the next `_create_variant_ids` resurrects the very variant
             # the user archived. Such a value must keep raising the explanatory
-            # UserError from `_unlink_except_used_on_product`, exactly like the
+            # UserError from `_unlink_except_in_use`, exactly like the
             # archived-template case handled below.
             if (
                 linked_products
@@ -135,8 +127,9 @@ class ProductAttributeValue(models.Model):
                 pavs_to_archive |= pav
         # A value still referenced by an attribute line cannot be deleted:
         # `product_attribute_value_product_template_attribute_line_rel` is a
-        # restrict FK. `_unlink_except_used_on_product` only looks at lines of
-        # *active* templates, so a value used solely on an archived template
+        # restrict FK. `_unlink_except_in_use` only sees what `_used_records`
+        # reports, and that is narrowed here to lines of *active* templates, so
+        # a value used solely on an archived template
         # passed every Python guard and surfaced as a raw RestrictViolation
         # traceback. Archive it instead, consistently with the archived-variant
         # case handled above.
@@ -145,7 +138,7 @@ class ProductAttributeValue(models.Model):
             # Only for values whose *sole* remaining usage is on archived
             # templates: a value still used on an active product must keep
             # raising the explanatory UserError from
-            # `_unlink_except_used_on_product` rather than being archived.
+            # `_unlink_except_in_use` rather than being archived.
             still_referenced = remaining.with_context(active_test=False).filtered(
                 lambda pav: pav.pav_attribute_line_ids and not pav.is_used_on_products
             )
@@ -153,11 +146,6 @@ class ProductAttributeValue(models.Model):
         if pavs_to_archive:
             pavs_to_archive.action_archive()
         return super(ProductAttributeValue, self - pavs_to_archive).unlink()
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_used_on_product(self):
-        if is_used_on_products := self.check_is_used_on_products():
-            raise UserError(is_used_on_products)
 
     # === COMPUTE METHODS === #
 
@@ -235,12 +223,10 @@ class ProductAttributeValue(models.Model):
         )
 
     def check_is_used_on_products(self):
-        for pav in self.filtered("is_used_on_products"):
-            return _(
-                "You cannot delete the value %(value)s because it is used on the following products:\n%(products)s\n",
-                value=pav.display_name,
-                products=", ".join(
-                    pav.pav_attribute_line_ids.product_tmpl_id.mapped("display_name")
-                ),
-            )
-        return False
+        """Message naming the products blocking a delete, or False.
+
+        Called over RPC by the attribute-value list
+        (``static/src/js/product_attribute_value_list.js``), so the shape of
+        the return value -- message-or-False -- is a public contract.
+        """
+        return self._in_use_message()

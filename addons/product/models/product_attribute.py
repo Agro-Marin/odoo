@@ -122,18 +122,16 @@ class ProductAttribute(models.Model):
             self.env.invalidate_all()
         return res
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_used_on_product(self):
-        for pa in self:
-            if pa.count_product_tmpl:
-                raise UserError(
-                    _(
-                        "You cannot delete the attribute %(attribute)s because it is used on the"
-                        " following products:\n%(products)s",
-                        attribute=pa.display_name,
-                        products=", ".join(pa.product_tmpl_ids.mapped("display_name")),
-                    )
-                )
+    # The delete and archive guards live on attribute.mixin; these two hooks
+    # narrow "in use" to what it means here. count_product_tmpl only counts
+    # lines of *active* templates, so an attribute whose only trace is an
+    # archived product stays deletable -- the generic rule would keep it.
+
+    def _used_records(self):
+        return self.filtered("count_product_tmpl")
+
+    def _usage_label(self):
+        return ", ".join(self.product_tmpl_ids.mapped("display_name"))
 
     # === COMPUTE METHODS === #
 
@@ -180,16 +178,6 @@ class ProductAttribute(models.Model):
             self.create_variant = "no_variant"
 
     # === ACTION METHODS === #
-
-    def action_archive(self):
-        for attribute in self:
-            if attribute.count_product_tmpl:
-                raise UserError(
-                    _(
-                        "You cannot archive this attribute as there are still products linked to it",
-                    )
-                )
-        return super().action_archive()
 
     @api.readonly
     def action_view_product_template_attribute_lines(self):

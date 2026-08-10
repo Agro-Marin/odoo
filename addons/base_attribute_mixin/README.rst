@@ -70,6 +70,39 @@ Hooks a consumer can set
   Palette index for a new value. Defaults to a random 1-11 so values are
   visually distinguishable; ``0`` means "no colour" and is not drawn.
 
+``_used_records()`` (on the attribute and value mixins)
+  Which of ``self`` is already bound to a subject. The default answers "some
+  attribute line references it". Override to narrow it -- ``product`` counts
+  only lines of *active* templates, so an attribute whose sole trace is an
+  archived product stays deletable.
+
+``_usage_label()`` (on the attribute and value mixins)
+  Names the subjects holding the record, used to qualify the guard messages
+  ("... because it is used on: *Chair*"). Empty by default, which selects a
+  shorter sentence.
+
+In-use protection
+=================
+
+Deleting an attribute cascades its values away and takes every captured line
+with them; archiving one hides it from the pickers while the lines holding it
+stay live. Both are silent data loss, so the mixins refuse:
+
+* ``attribute.mixin`` -- ``@api.ondelete`` and ``action_archive`` guards.
+* ``attribute.value.mixin`` -- an ``@api.ondelete`` guard, and a ``write``
+  guard refusing to re-home a value in use (the lines point at the value, not
+  at the attribute/value pair, so moving it leaves every one of them stray --
+  a violation ``_check_values`` cannot see, because the write lands on the
+  value).
+
+All of them resolve "in use" through ``_used_records()``, so a consumer tunes
+the policy in one place. ``_in_use_message()`` returns the same sentence
+without raising, for a UI that wants to grey out a button rather than fail the
+click; ``product`` exposes it over RPC as ``check_is_used_on_products``.
+
+The guards are inert until ``_attribute_line_model`` is set -- with no line
+model there is nothing to be in use *by*.
+
 Name uniqueness
 ===============
 

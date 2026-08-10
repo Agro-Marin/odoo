@@ -1,4 +1,5 @@
-from odoo import fields, models
+from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 
 class AttributeMixin(models.AbstractModel):
@@ -22,12 +23,13 @@ class AttributeMixin(models.AbstractModel):
     _order = "sequence, name"
 
     # Concrete model carrying the lines that bind this attribute to a subject,
-    # e.g. "product.template.attribute.line". Setting it makes a change of
-    # ``value_type`` re-validate the lines already using the attribute; leaving
-    # it None skips that check.
+    # e.g. "product.template.attribute.line". Setting it enables two things:
+    # a change of ``value_type`` re-validates the lines already using the
+    # attribute, and the in-use guards below can see whether anything holds it.
+    # Leaving it None disables both.
     #
-    # It is needed because ``attribute.line.mixin._check_values`` is an
-    # ``@api.constrains`` on the *line* and the ORM has no cross-model
+    # The re-validation is needed because ``attribute.line.mixin._check_values``
+    # is an ``@api.constrains`` on the *line* and the ORM has no cross-model
     # constrains: nothing re-runs it when the *attribute* moves. Without this,
     # flipping value_type from 'multi' to 'single' left every existing
     # multi-value line silently violating the very rule the constraint exists
@@ -71,6 +73,41 @@ class AttributeMixin(models.AbstractModel):
         help="Widget used to pick values of this attribute.",
     )
 
+    # ------------------------------------------------------------
+    # USAGE
+    # ------------------------------------------------------------
+
+    def _used_records(self):
+        """Return the subset of ``self`` already bound to a subject.
+
+        "Bound" means some attribute line references it. Consumers with a
+        narrower notion of in-use override this -- product only counts lines of
+        *active* templates, so an attribute left over on an archived product
+        stays deletable.
+
+        :return: the attributes that are in use
+        """
+        if not self._attribute_line_model:
+            return self.browse()
+        lines = self.env[self._attribute_line_model].search(
+            [("attribute_id", "in", self.ids)]
+        )
+        return lines.attribute_id & self
+
+    def _usage_label(self):
+        """Name where these attributes are in use, for error messages.
+
+        Empty by default, which yields a shorter message. Concrete models
+        override it to name the subjects holding them.
+
+        :return: human-readable list of subjects, or ""
+        """
+        return ""
+
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
+
     def write(self, vals):
         """Re-validate existing lines when the cardinality rule changes.
 
@@ -83,3 +120,55 @@ class AttributeMixin(models.AbstractModel):
                 [("attribute_id", "in", self.ids)]
             )._check_values()
         return result
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_in_use(self):
+        """Refuse to delete an attribute a subject still carries.
+
+        Deleting it would cascade its values away and take the captured lines
+        with them -- silent data loss that no later pass can reconstruct.
+        """
+        used = self._used_records()
+        if not used:
+            return
+        names = ", ".join(used.mapped("display_name"))
+        usage = used._usage_label()
+        raise UserError(
+            self.env._(
+                "You cannot delete the attribute %(names)s because it is used "
+                "on: %(usage)s",
+                names=names,
+                usage=usage,
+            )
+            if usage
+            else self.env._(
+                "You cannot delete the attribute %(names)s because it is still in use.",
+                names=names,
+            )
+        )
+
+    def action_archive(self):
+        """Refuse to archive an attribute a subject still carries.
+
+        Archiving hides it from the pickers while the lines holding it stay
+        live, so the records keep a value the configuration no longer offers.
+        """
+        used = self._used_records()
+        if used:
+            names = ", ".join(used.mapped("display_name"))
+            usage = used._usage_label()
+            raise UserError(
+                self.env._(
+                    "You cannot archive the attribute %(names)s because it is "
+                    "used on: %(usage)s",
+                    names=names,
+                    usage=usage,
+                )
+                if usage
+                else self.env._(
+                    "You cannot archive the attribute %(names)s because it is "
+                    "still in use.",
+                    names=names,
+                )
+            )
+        return super().action_archive()
