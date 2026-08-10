@@ -1,12 +1,26 @@
 <odoo>
-    <template id="portal_my_security" inherit_id="portal.portal_my_security"
-              name="Password policy data for portal">
+
+    <template
+        id="portal_my_security"
+        inherit_id="portal.portal_my_security"
+        name="Password policy data for portal">
         <!-- only put meter on first "new password" field since both must be identical -->
+        <!--
+            `password_meter` is registered, and put in the frontend bundle, by
+            auth_password_policy_signup. That is why this module depends on
+            that bridge rather than on auth_password_policy directly. The
+            dependency was always satisfied in practice (portal implies
+            auth_signup, which with auth_password_policy auto-installs it) but
+            went undeclared, so nothing held it true.
+        -->
         <xpath expr="//label[@for='new']" position="after">
-            <owl-component name="password_meter" props='{"selector": "input[name=new1]"}'/>
+            <owl-component
+                name="password_meter"
+                props="{&quot;selector&quot;: &quot;input[name=new1]&quot;}" />
         </xpath>
         <xpath expr="//input[@name='new1']" position="attributes">
             <attribute name="t-att-minlength">password_minimum_length</attribute>
         </xpath>
     </template>
+
 </odoo>

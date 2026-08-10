@@ -28,4 +28,4 @@ class PrettyXmlLinter(LintCase):
         )
 
 
-UNFORMATTED_FLOOR = 3824
+UNFORMATTED_FLOOR = 3823
