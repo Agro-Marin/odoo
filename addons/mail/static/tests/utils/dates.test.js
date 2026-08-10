@@ -1,11 +1,22 @@
 import { computeDelay, getMsToTomorrow, isToday } from "@mail/utils/common/dates";
-import { describe, expect, mockDate, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, mockDate, test } from "@odoo/hoot";
+import { freezeTime } from "@odoo/hoot-dom";
 import { DateTime, FixedOffsetZone, Settings } from "@web/core/l10n/luxon";
 
 /** Odoo user timezone as a fixed offset, in hours. */
 const userZone = (hours) => FixedOffsetZone.instance(hours * 60);
 
 describe.current.tags("headless");
+
+/**
+ * `mockDate` anchors the clock, it does not stop it: hoot's `getDateParams`
+ * adds `Date.now() - <anchor>` to every read unless time is frozen. Tests below
+ * read the clock more than once — `getMsToTomorrow()` reads it internally, and
+ * the assertion reads it again to build the expected instant — so unfrozen,
+ * `now₂ + (midnight − now₁)` overshoots midnight by however many milliseconds
+ * elapsed between the two reads. That made this file fail about half the time.
+ */
+beforeEach(freezeTime);
 
 /**
  * Run `fn` with luxon's default zone forced to `zone`, i.e. with the Odoo user
