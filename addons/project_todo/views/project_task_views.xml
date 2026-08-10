@@ -97,15 +97,18 @@
                     <widget name="web_ribbon" class="todo_archived" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="d-flex justify-content-between align-items-center">
                         <h1 class="d-flex w-100">
-                            <field name="name" options="{'line_breaks': False}" widget="text" class="o_task_name text-truncate w-md-75 w-100 pe-2" placeholder="Task Title..."/>
+                            <field name="name" default_focus="1" options="{'line_breaks': False}" widget="text" class="o_task_name text-truncate w-md-75 w-100 pe-2" placeholder="Task Title..."/>
                         </h1>
+                        <!-- autosave is off here: the form owns saving through its
+                             own buttons, so ticking the checkmark must not commit
+                             the rest of the record behind the user's back. -->
                         <div class="d-flex justify-content-end align-items-center px-1" invisible="not active">
                             <field name="priority" class="h3 pe-2" widget="priority_switch"/>
-                            <field name="state" widget="todo_done_checkmark" class="o_task_state_widget" />
+                            <field name="state" widget="todo_done_checkmark" options="{'autosave': False}" class="o_task_state_widget" />
                         </div>
                         <div class="d-flex justify-content-start align-items-center w-100 w-md-50 w-lg-25" invisible="active">
                             <field name="priority" class="h3 pe-2" widget="priority_switch"/>
-                            <field name="state" widget="todo_done_checkmark" class="o_task_state_widget" />
+                            <field name="state" widget="todo_done_checkmark" options="{'autosave': False}" class="o_task_state_widget" />
                         </div>
                     </div>
                     <group>
@@ -124,7 +127,11 @@
                                 decoration-danger="date_end &lt; current_date"/>
                         </group>
                     </group>
-                    <field name="description" type="html" class="oe_description" default_focus="1" options="{'resizable': false, 'collaborative': true}"
+                    <!-- No default_focus: the html field has no id for the form
+                         renderer's autofocus lookup to resolve, so it silently
+                         falls through to the first textarea (the title) anyway.
+                         The declaration is on `name` above, where it holds. -->
+                    <field name="description" type="html" class="oe_description" options="{'resizable': false, 'collaborative': true}"
                         placeholder="Type Here..."/>
                 </sheet>
                 <widget name="todo_chatter_panel"/>

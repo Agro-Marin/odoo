@@ -4,7 +4,12 @@ import { FormController } from "@web/views/form";
 
 export class TodoConversionFormController extends FormController {
     /**
-     * Allows to autofocus the first element of the conversion form
+     * Focus the first field of the conversion dialog.
+     *
+     * The renderer's own autofocus only runs for new records, and this dialog
+     * edits the existing to-do, so it has to be done here. Scoped to this
+     * controller's own root: a document-wide lookup would resolve against the
+     * view sitting behind the dialog.
      *
      * @override
      * @private
@@ -12,8 +17,7 @@ export class TodoConversionFormController extends FormController {
     setup() {
         super.setup();
         onMounted(() => {
-            const firstConversionInput = document.querySelector('div.o_todo_conversion_form_view input');
-            firstConversionInput.focus();
+            this.rootRef.el?.querySelector(".o_content .o_field_widget input")?.focus();
         });
     }
 }

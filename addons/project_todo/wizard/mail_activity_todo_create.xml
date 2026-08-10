@@ -4,9 +4,9 @@
         <field name="name">mail.activity.todo.create.popup</field>
         <field name="model">mail.activity.todo.create</field>
         <field name="arch" type="xml">
-            <form js_class="todo_activity_wizard">
+            <form>
                 <group>
-                    <field name="summary" placeholder="Reminder to..." required="1"/>
+                    <field name="summary" default_focus="1" placeholder="Reminder to..." required="1"/>
                     <field name="date_deadline"/>
                     <field name="user_id" widget="many2one_avatar_user" options="{'no_open': 1}"/>
                 </group>

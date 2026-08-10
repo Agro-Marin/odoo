@@ -21,18 +21,19 @@ patch(ActivityMenu.prototype, {
                 category: "activity",
                 hotkey: "alt+shift+t",
                 global: true,
-            }
+            },
         );
     },
 
-    async createActivityTodo() {
-        const wizard = await this.orm.call("mail.activity.todo.create", "create", [{
-            "user_id": this.userId,
-        }]);
+    createActivityTodo() {
+        // Opened on a *new* record rather than one pre-created over RPC: a
+        // cancelled dialog then leaves no orphan transient row behind, it costs
+        // one round trip less, and the form renderer only autofocuses records it
+        // considers new. `user_id` is readonly with a default of the current
+        // user, so it needs no context.
         this.dialogService.add(FormViewDialog, {
             title: _t("Add a To-Do"),
             resModel: "mail.activity.todo.create",
-            resId: wizard,
             preventCreate: true,
             size: "md",
         });
@@ -46,18 +47,10 @@ patch(ActivityMenu.prototype, {
     },
 
     async loadTodoViews() {
-        this.todoViews = await this.orm.call(
-            "project.task",
-            "get_todo_views_id",
-            [],
-        );
-    },
-
-    async onClickAction(action, group) {
-        if (group.is_todo) {
-            await this.loadTodoViews();
-        }
-        return super.onClickAction(...arguments);
+        // The To-Do views are xmlids resolved server-side; they cannot change
+        // within a session, so resolve them once instead of on every click.
+        this.todoViews ??= await this.orm.call("project.task", "get_todo_views_id", []);
+        return this.todoViews;
     },
 
     async openActivityGroup(group) {

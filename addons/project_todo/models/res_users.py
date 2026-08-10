@@ -1,89 +1,122 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import json
+from odoo import SUPERUSER_ID, api, fields, models, modules
+from odoo.tools import clean_context
 
-from odoo import SUPERUSER_ID, _, api, fields, models, modules
+# One row per task, so the caller can drop the ones the user may not read
+# before any counting happens. The earliest deadline decides the bucket, which
+# reproduces the base implementation's "overdue beats today beats planned"
+# precedence over a record's activities.
+_TASK_ACTIVITY_QUERY = """
+    SELECT t.project_id IS NOT NULL AS is_task,
+           act.res_id AS res_id,
+           CASE
+               WHEN MIN(act.date_deadline) < %(today)s THEN 'overdue'
+               WHEN MIN(act.date_deadline) = %(today)s THEN 'today'
+               ELSE 'planned'
+           END AS state
+      FROM mail_activity AS act
+      JOIN project_task AS t ON t.id = act.res_id
+     WHERE act.res_model = 'project.task'
+       AND act.user_id = %(user_id)s
+       AND act.active
+     GROUP BY is_task, act.res_id
+     ORDER BY act.res_id DESC
+     LIMIT %(limit)s
+"""
 
 
 class ResUsers(models.Model):
+    _name = 'res.users'
     _inherit = 'res.users'
 
     @api.model
     def _get_activity_groups(self):
-        """ Split To-do and Project activities in systray by removing
-            the single project.task activity represented and doing a
-            new query to split them between private/non-private tasks.
-        """
-        activity_groups = super()._get_activity_groups()
-        # 1. removing project.task activity group
-        to_remove = next((g for g in activity_groups if g.get('model') == 'project.task'), None)
-        if to_remove:
-            activity_groups.remove(to_remove)
+        """Split the systray's ``project.task`` entry into "Task" and "To-Do".
 
-        # 2. Splitting tasks in 'regular-task' (is_task=TRUE) and 'to-do' (is_task=False)
-        #    Counting max 1 activity per task
-        query = """
-            WITH task_states AS (
-                SELECT BOOL(t.project_id) AS is_task, act.res_id,
-                    CASE
-                        WHEN %(date)s - MIN(act.date_deadline)::date = 0 THEN 'today'
-                        WHEN %(date)s - MIN(act.date_deadline)::date > 0 THEN 'overdue'
-                        WHEN %(date)s - MIN(act.date_deadline)::date < 0 THEN 'planned'
-                    END AS states
-                FROM mail_activity AS act
-                JOIN project_task AS t ON act.res_id = t.id
-                WHERE act.res_model = 'project.task' AND act.user_id = %(user_id)s AND act.active in (TRUE, %(active)s)
-                GROUP BY is_task, act.res_id
-            )
-            SELECT is_task, states, array_agg(res_id) AS res_ids, COUNT(res_id) AS count
-            FROM task_states
-            GROUP BY is_task, states
-        """
+        The base implementation emits one group per model, but a to-do *is* a
+        ``project.task`` with no project, so both would be counted together.
+        Drop the base group and rebuild the two halves from a single query.
 
-        self.env.cr.execute(query, {
-            'date': str(fields.Date.context_today(self)),
+        The base guarantees three things this override has to reproduce rather
+        than inherit, because it no longer goes through ``search``: the
+        ``mail.activity.systray.limit`` cap, ``exists()`` against rows lost to
+        a database cascade, and record-rule filtering. A group whose badge
+        counts a record the user cannot read is a badge that opens an empty
+        list.
+        """
+        activity_groups = [
+            group for group in super()._get_activity_groups()
+            if group.get('model') != 'project.task'
+        ]
+
+        limit = self.env['ir.config_parameter']._get_int_param(
+            'mail.activity.systray.limit', 1000
+        )
+        self.env.cr.execute(_TASK_ACTIVITY_QUERY, {
+            'today': fields.Date.context_today(self),
             'user_id': self.env.uid,
-            'active': self.env.context.get('active_test', True),
+            'limit': limit,
         })
-        activity_data = self.env.cr.dictfetchall()
-        view_type = self.env['project.task']._systray_view
+        state_by_res_id = {
+            row['res_id']: (row['is_task'], row['state'])
+            for row in self.env.cr.dictfetchall()
+        }
+        if not state_by_res_id:
+            return activity_groups
 
-        user_activities = {}
-        for activity in activity_data:
-            is_task = activity['is_task']
-            if is_task not in user_activities:
-                if not is_task:
-                    module_name = 'project_todo'
-                    name = _('To-Do')
-                else:
-                    module_name = 'project'
-                    name = _('Task')
-                icon = modules.Manifest.for_addon(module_name).icon
-                user_activities[is_task] = {
-                    'id': self.env['ir.model']._get('project.task').id,
-                    'name': name,
-                    'is_todo': not is_task,
-                    'model': 'project.task',
-                    'type': 'activity',
-                    'icon': icon,
-                    'domain': [('active', 'in', [True, False])],
-                    'total_count': 0, 'today_count': 0, 'overdue_count': 0, 'planned_count': 0,
-                    'res_ids': set(),
-                    'view_type': view_type,
-                }
-            user_activities[is_task]['res_ids'].update(activity['res_ids'])
-            user_activities[is_task][f"{activity['states']}_count"] += activity['count']
-            if activity['states'] in ('today', 'overdue'):
-                user_activities[is_task]['total_count'] += activity['count']
+        Task = self.env['project.task']
+        if Task.has_access('read'):
+            # exists() also drops rows the database cascaded away under us.
+            readable = Task.browse(state_by_res_id).exists()._filtered_access('read')
+        else:
+            readable = Task
 
-        for group in user_activities.values():
-            group.update({
-                'domain': json.dumps([
-                    ['active', 'in', [True, False]],
-                    ['activity_ids.res_id', 'in', list(group['res_ids'])]
-                ])
+        buckets = {}
+        for task_id in readable._ids:
+            is_task, state = state_by_res_id[task_id]
+            bucket = buckets.setdefault(is_task, {
+                'res_ids': [],
+                'overdue_count': 0, 'today_count': 0, 'planned_count': 0, 'total_count': 0,
             })
-        activity_groups.extend(list(user_activities.values()))
+            bucket['res_ids'].append(task_id)
+            bucket[f'{state}_count'] += 1
+            if state in ('overdue', 'today'):
+                bucket['total_count'] += 1
+
+        model_id = self.env['ir.model']._get('project.task').id
+        view_type = Task._systray_view
+        # Emit in a fixed order: both groups carry the same ``id`` (the
+        # project.task ir.model), so the client's sort-by-id is a tie and would
+        # otherwise inherit whatever order the query happened to return.
+        for is_task, module_name, name in (
+            (True, 'project', self.env._("Task")),
+            (False, 'project_todo', self.env._("To-Do")),
+        ):
+            bucket = buckets.get(is_task)
+            if not bucket:
+                continue
+            activity_groups.append({
+                'id': model_id,
+                'name': name,
+                'is_todo': not is_task,
+                'model': 'project.task',
+                'type': 'activity',
+                'icon': modules.Manifest.for_addon(module_name).icon,
+                # Plain id membership, like every other systray group: a
+                # traversal through ``activity_ids`` would re-apply that
+                # comodel's own active test and silently drop records the
+                # badge just counted.
+                'domain': [
+                    ('active', 'in', [True, False]),
+                    ('id', 'in', bucket['res_ids']),
+                ],
+                'total_count': bucket['total_count'],
+                'today_count': bucket['today_count'],
+                'overdue_count': bucket['overdue_count'],
+                'planned_count': bucket['planned_count'],
+                'view_type': view_type,
+            })
 
         return activity_groups
 
@@ -91,6 +124,7 @@ class ResUsers(models.Model):
         res = super()._onboard_users_into_project(users)
         if res:
             res._generate_onboarding_todo()
+        return res
 
     def _generate_onboarding_todo(self):
         create_vals = []
@@ -111,4 +145,10 @@ class ResUsers(models.Model):
                 "name": title,
             })
         if create_vals:
-            self.env["project.task"].with_user(SUPERUSER_ID).with_context({'mail_auto_subscribe_no_notify': True}).create(create_vals)
+            # clean_context, not a bare dict: the onboarding to-do must not
+            # inherit a ``default_project_id`` from whatever created the user,
+            # but it does want the environment's language and company scope.
+            self.env["project.task"].with_user(SUPERUSER_ID).with_context(
+                clean_context(self.env.context),
+                mail_auto_subscribe_no_notify=True,
+            ).create(create_vals)

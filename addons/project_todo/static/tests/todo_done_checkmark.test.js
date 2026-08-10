@@ -27,7 +27,7 @@ beforeEach(() => {
         form: `
             <form string="To-do" class="o_todo_form_view" js_class="todo_form">
                 <field name="name"/>
-                <field name="state" widget="todo_done_checkmark"/>
+                <field name="state" widget="todo_done_checkmark" options="{'autosave': False}"/>
             </form>`,
         search: `
             <search/>`,
@@ -64,7 +64,8 @@ test("Check clicking on todo_done_checkmark in kanban view with initial state is
     task1.click();
     await animationFrame();
     expect(task1).toHaveClass("done_button_enabled", {
-        message: "The checkmark on this task should be displayed as done as its state is done",
+        message:
+            "The checkmark on this task should be displayed as done as its state is done",
     });
     expect.verifySteps(["web_save"]);
 });
@@ -84,7 +85,8 @@ test("Check clicking on todo_done_checkmark in kanban view with initial state is
 
     const task2 = queryAll(".o_kanban_record .o_todo_done_button")[1];
     expect(task2).toHaveClass("done_button_enabled", {
-        message: "The checkmark on this task should be displayed as done as its state is done",
+        message:
+            "The checkmark on this task should be displayed as done as its state is done",
     });
     task2.click();
     await animationFrame();
@@ -116,7 +118,8 @@ test("Check clicking on todo_done_checkmark in list view with initial state is i
     task1.click();
     await animationFrame();
     expect(task1).toHaveClass("done_button_enabled", {
-        message: "The checkmark on this task should be displayed as done as its state is done",
+        message:
+            "The checkmark on this task should be displayed as done as its state is done",
     });
     expect.verifySteps(["web_save"]);
 });
@@ -136,7 +139,8 @@ test("Check clicking on todo_done_checkmark in list view with initial state is d
 
     const task2 = queryAll(".o_todo_done_button")[1];
     expect(task2).toHaveClass("done_button_enabled", {
-        message: "The checkmark on this task should be displayed as done as its state is done",
+        message:
+            "The checkmark on this task should be displayed as done as its state is done",
     });
     task2.click();
     await animationFrame();
@@ -175,7 +179,12 @@ test("Check clicking on todo_done_checkmark in form view with initial state is i
     task1.click();
     await animationFrame();
     expect(task1).toHaveClass("done_button_enabled", {
-        message: "The checkmark on this task should be displayed as done as its state is done",
+        message:
+            "The checkmark on this task should be displayed as done as its state is done",
+    });
+    expect.verifySteps([], {
+        message:
+            "the form view sets autosave:False, so ticking must not commit the record",
     });
 });
 
@@ -201,12 +210,17 @@ test("Check clicking on todo_done_checkmark in form view with initial state is d
     await contains(queryAll(".o_data_cell")[2]).click();
     const task2 = queryOne(".o_todo_done_button");
     expect(task2).toHaveClass("done_button_enabled", {
-        message: "The checkmark on this task should be displayed as done as its state is done",
+        message:
+            "The checkmark on this task should be displayed as done as its state is done",
     });
     task2.click();
     await animationFrame();
     expect(task2).not.toHaveClass("done_button_enabled", {
         message:
             "The checkmark on this task should be displayed as undone as its state is in_progress",
+    });
+    expect.verifySteps([], {
+        message:
+            "the form view sets autosave:False, so ticking must not commit the record",
     });
 });
