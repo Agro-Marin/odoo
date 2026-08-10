@@ -3,12 +3,19 @@
 # Deliberately MINIMAL for an upstream-code repo:
 #
 # - ruff-check --fix, pinned to the SAME ruff the CI ratchet measures with
-#   (0.16.2 — requirements-dev.txt / .github/workflows/ruff.yml). NO
-#   ruff-format: formatting is whole-file and would rewrite upstream files
-#   on touch. Note: --fix repairs every fixable finding in a STAGED file,
-#   so touching one of the ~632 baseline-carrying files may shrink the
-#   ratchet floor — after such a cleanup run:
+#   (0.16.2 — requirements-dev.txt / .github/workflows/ruff.yml). --fix
+#   repairs every fixable finding in a STAGED file, so touching one of the
+#   ~632 baseline-carrying files may shrink the ratchet floor — after such a
+#   cleanup run:
 #     python tooling/ratchet/ratchet.py ruff --count <N> --update
+# - ruff-format, same pin, runs after ruff-check. It formats whole files, not
+#   diffs — staging one line of an unformatted upstream file reformats the
+#   whole thing. That cost is accepted deliberately (2026-08-09): it is
+#   opt-in (only contributors with hooks installed reformat on touch), it
+#   only ever reaches files someone is already committing, and there is no
+#   CI job re-checking format — `ruff format --check` does not run in
+#   ruff.yml or anywhere else, so an existing unformatted file that nobody
+#   touches stays exactly as it is. This is not a repo-wide reformat.
 # - Safe file hygiene checks (line/EOF, syntax, merge markers).
 # - agromarin-commit-format: canonical §7.1 commit-message gate. Requires:
 #     pre-commit install && pre-commit install --hook-type commit-msg
@@ -27,12 +34,13 @@ default_language_version:
   python: python3
 
 repos:
-  # === Ruff (lint only — never format upstream code) ===
+  # === Ruff (lint + format, staged files only — see header) ===
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.2 # keep in lockstep with requirements-dev.txt + ruff.yml ratchet
     hooks:
       - id: ruff-check
         args: [--fix]
+      - id: ruff-format
 
   # === File checks ===
   - repo: https://github.com/pre-commit/pre-commit-hooks
