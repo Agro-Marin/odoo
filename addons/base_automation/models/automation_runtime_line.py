@@ -84,7 +84,6 @@ class AutomationRuntimeLine(models.Model):
         help="Completing this action enables these successors",
     )
 
-
     # =========================================================================
     # Results Tracking
     # =========================================================================

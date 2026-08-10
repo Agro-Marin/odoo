@@ -288,12 +288,9 @@ class StockScrap(models.Model):
         for scrap in self:
             # Draw from the scrap's own company sequence, not `env.company`'s:
             # each company provisions its own `stock.scrap` sequence.
-            scrap.name = (
-                self.env["ir.sequence"]
-                .with_company(scrap.company_id)
-                .next_by_code("stock.scrap")
-                or _("New")
-            )
+            scrap.name = self.env["ir.sequence"].with_company(
+                scrap.company_id
+            ).next_by_code("stock.scrap") or _("New")
             move = scrap._create_scrap_move()
             # master: replace context by cancel_backorder
             move.with_context(is_scrap=True)._action_done()

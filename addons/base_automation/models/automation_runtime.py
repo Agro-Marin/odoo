@@ -375,17 +375,21 @@ class AutomationRuntime(models.Model):
 
         # Pass 1: create all lines in 'waiting' state (one batched create, not
         # one INSERT per node)
-        lines = self.env["automation.runtime.line"].create([
-            {
-                "runtime_id": self.id,
-                "action_id": action.id,
-                "name": action.name,
-                "sequence": action.sequence,
-                "state": "waiting",
-            }
-            for action in actions
-        ])
-        line_by_action: dict[int, models.Model] = dict(zip(actions.ids, lines, strict=True))
+        lines = self.env["automation.runtime.line"].create(
+            [
+                {
+                    "runtime_id": self.id,
+                    "action_id": action.id,
+                    "name": action.name,
+                    "sequence": action.sequence,
+                    "state": "waiting",
+                }
+                for action in actions
+            ]
+        )
+        line_by_action: dict[int, models.Model] = dict(
+            zip(actions.ids, lines, strict=True)
+        )
 
         # Pass 2: wire predecessor relationships using the definition topology
         for action in actions:
