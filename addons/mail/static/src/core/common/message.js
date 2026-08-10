@@ -103,6 +103,7 @@ export class Message extends Component {
     setup() {
         super.setup();
         this.store = useService("mail.store");
+        this.linkNavigation = useService("mail.link_navigation");
         this.popover = usePopover(this.constructor.components.Popover, {
             position: "top",
         });
@@ -496,7 +497,7 @@ export class Message extends Component {
      * @param {MouseEvent} ev
      */
     async onClick(ev) {
-        if (this.store.handleClickOnLink(ev, this.props.thread)) {
+        if (this.linkNavigation.handleClickOnLink(ev, this.props.thread)) {
             return;
         }
         if (

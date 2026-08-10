@@ -28,6 +28,7 @@ export class ScheduledMessage extends Component {
         });
         this.avatarCard = usePopover(AvatarCardPopover);
         this.dialogService = useService("dialog");
+        this.linkNavigation = useService("mail.link_navigation");
     }
 
     get isShort() {
@@ -59,10 +60,7 @@ export class ScheduledMessage extends Component {
     }
 
     onClick(ev) {
-        this.props.scheduledMessage.store.handleClickOnLink(
-            ev,
-            this.props.scheduledMessage.thread,
-        );
+        this.linkNavigation.handleClickOnLink(ev, this.props.scheduledMessage.thread);
     }
 
     async onClickAttachmentUnlink(attachment) {

@@ -193,25 +193,5 @@ const StorePatch = {
             throw error;
         }
     },
-    handleClickOnLink(ev, thread) {
-        const model = ev.target.dataset.oeModel;
-        const id = Number(ev.target.dataset.oeId);
-        const isLinkHandledBySuper = super.handleClickOnLink(...arguments);
-        if (!isLinkHandledBySuper && ev.target.tagName === "A" && id && model) {
-            ev.preventDefault();
-            Promise.resolve(
-                this.env.services.action.doAction({
-                    type: "ir.actions.act_window",
-                    res_model: model,
-                    views: [[false, "form"]],
-                    res_id: id,
-                }),
-            ).then(() => this.onLinkFollowed(thread));
-            return true;
-        }
-        return false;
-    },
-    /** @param {import("models").Thread} fromThread */
-    onLinkFollowed(fromThread) {},
 };
 patch(Store.prototype, StorePatch);

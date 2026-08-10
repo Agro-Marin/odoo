@@ -25,6 +25,7 @@ export class Activity extends Component {
     setup() {
         super.setup();
         this.storeService = useService("mail.store");
+        this.linkNavigation = useService("mail.link_navigation");
         this.state = useState({ showDetails: false });
         this.markDonePopover = usePopover(ActivityMarkAsDone, { position: "right" });
         // Registered by the discuss web layer, which is always bundled with
@@ -122,6 +123,6 @@ export class Activity extends Component {
      * @param {MouseEvent} ev
      */
     async onClick(ev) {
-        this.storeService.handleClickOnLink(ev, this.thread);
+        this.linkNavigation.handleClickOnLink(ev, this.thread);
     }
 }

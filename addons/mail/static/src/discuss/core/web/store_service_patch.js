@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
-import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";
 /** @type {import("models").Store} */
@@ -73,23 +72,6 @@ const StorePatch = {
         if (this.discuss.isActive) {
             this.channels.fetch();
         }
-    },
-    onLinkFollowed(fromThread) {
-        super.onLinkFollowed(...arguments);
-        if (!this.env.isSmall && fromThread?.model === "discuss.channel") {
-            fromThread.open({ focus: false });
-        }
-    },
-    /**
-     * @override
-     * @param {MouseEvent} ev
-     * @param {number} id
-     */
-    onClickPartnerMention(ev, id) {
-        this.env.services.popover.add(ev.target, AvatarCardPopover, {
-            id,
-            model: "res.partner",
-        });
     },
 };
 patch(Store.prototype, StorePatch);

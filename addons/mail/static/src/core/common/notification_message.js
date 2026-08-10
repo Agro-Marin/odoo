@@ -26,13 +26,14 @@ export class NotificationMessage extends Component {
         onWillDestroy(() => this.props.registerMessageRef?.(this.props.message, null));
         this.escape = escape;
         this.store = useService("mail.store");
+        this.linkNavigation = useService("mail.link_navigation");
     }
 
     /**
      * @param {MouseEvent} ev
      */
     async onClickNotificationMessage(ev) {
-        this.store.handleClickOnLink(ev, this.props.thread);
+        this.linkNavigation.handleClickOnLink(ev, this.props.thread);
         const { oeType, oeId } = ev.target.dataset;
         if (oeType === "highlight") {
             await this.env.messageHighlight?.highlightMessage(

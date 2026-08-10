@@ -35,7 +35,6 @@ import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
-import { getOrigin } from "@web/core/utils/urls";
 import { session } from "@web/session";
 
 /**
@@ -559,101 +558,6 @@ export class Store extends BaseStore {
      */
     tabToThreadType(tab) {
         return tab === "chat" ? ["chat", "group"] : [tab];
-    }
-
-    handleClickOnLink(ev, thread) {
-        const link = ev.target.closest("a");
-        if (!link) {
-            return;
-        }
-        const model = link.dataset.oeModel;
-        const id = Number(link.dataset.oeId);
-        if (link.classList.contains("o_channel_redirect") && model && id) {
-            ev.preventDefault();
-            this.Thread.getOrFetch({ model, id }).then((thread) => {
-                if (thread) {
-                    thread.open({ focus: true });
-                } else {
-                    this.env.services.notification.add(
-                        _t("This thread is no longer available."),
-                        {
-                            type: "danger",
-                        },
-                    );
-                }
-            });
-            return true;
-        } else if (link.classList.contains("o_mail_redirect") && id) {
-            ev.preventDefault();
-            this.onClickPartnerMention(ev, id);
-            return true;
-        } else if (link.classList.contains("o_message_redirect")) {
-            const message = this["mail.message"].get(id);
-            const targetThread = message?.thread;
-            const showAccessError = () =>
-                this.env.services.notification.add(
-                    _t("This conversation isn’t available."),
-                    {
-                        type: "danger",
-                    },
-                );
-            if (targetThread) {
-                targetThread.checkReadAccess().then((hasAccess) => {
-                    if (hasAccess) {
-                        targetThread.highlightMessage = message;
-                        let isOpen = targetThread.eq(thread);
-                        if (!isOpen) {
-                            isOpen = targetThread.open({
-                                focus: true,
-                                swapOpened: false,
-                            });
-                        }
-                        if (!isOpen) {
-                            window.open(link.href);
-                        }
-                    } else {
-                        if (this.self_partner) {
-                            showAccessError();
-                        } else {
-                            window.open(link.href);
-                        }
-                    }
-                });
-                ev.preventDefault();
-                return true;
-            } else if (
-                link.href &&
-                new URL(link.href, getOrigin()).origin === getOrigin()
-            ) {
-                // link.href (not the raw attribute): a relative
-                // /mail/message/... href is same-origin by definition but a
-                // raw-attribute startsWith(origin) check never matched it,
-                // navigating away instead of showing the access error
-                showAccessError();
-                ev.preventDefault();
-                return true;
-            }
-        } else if (
-            this.env.services.ui.isSmall &&
-            ev.target.closest(".o-mail-ChatWindow") &&
-            link.href &&
-            !link.href.startsWith("#")
-        ) {
-            let url;
-            try {
-                url = new URL(link.href);
-            } catch {
-                // Ignore invalid URLs
-                return false;
-            }
-            if (
-                browser.location.host === url.host &&
-                browser.location.pathname.startsWith("/odoo")
-            ) {
-                this.ChatWindow.get({ thread })?.fold();
-            }
-        }
-        return false;
     }
 
     setup() {

@@ -82,7 +82,6 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "Store.prototype :: _hasFullscreenUrlOnUpdate",
     "Store.prototype :: computeGlobalCounter",
     "Store.prototype :: getMessagePostParams",
-    "Store.prototype :: onLinkFollowed",
     "Store.prototype :: onStarted",
     "Store.prototype :: onUpdateActivityGroups",
     "Store.prototype :: onlineMemberStatuses",
