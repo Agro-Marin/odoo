@@ -51,8 +51,8 @@ paths from the `odoo-bin` marker at the repo root rather than by climbing above 
   declare in their `external_dependencies`. A development checkout wants both;
   only a deployment that knows which modules it loads wants the first alone.
   `requirements-test.txt` pulls in both, so every test lane is unaffected.
-- **psycopg 3** (`psycopg[c,binary]>=3.3.2`) is the only driver `odoo/db/` uses.
-  Never add a `psycopg2` import.
+- **psycopg 3** (`psycopg[binary]>=3.3.4`, with `psycopg-pool>=3.3.1`) is the only
+  driver `odoo/db/` uses. Never add a `psycopg2` import.
 - **`crates/odoo_rust` must be built into the environment.** with a Rust toolchain on `PATH`:
 
   ```bash
@@ -185,15 +185,15 @@ Related:
   every suppression. Note `ruff check` is **not** expected to be clean: CI runs it
   as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a
   ratchet fails in both directions** — lowering a count without committing the new
-  floor fails the build too. Ruff is one of eleven ratcheted gates; the baselines
-  directory is the list. Per-gate scope, commands and the `--update` recipe are
+  floor fails the build too. Ruff is one of several ratcheted gates; **the
+  baselines directory is the list and `tooling/ratchet/ratchet.py --list` is the
+  reading — no file states how many there are or what they hold**, because a
+  restated floor is a second copy that drifts, and this line said "eleven" against
+  thirteen baseline files. Per-gate scope, commands and the `--update` recipe are
   *The ratchets* in the guide, the canonical account; it also covers the trap that
-  the ruff floor measures `odoo/` and not `addons/`. Two things the guide does not:
+  the ruff floor measures `odoo/` and not `addons/`. One thing the guide does not:
   `.github/workflows/ruff.yml` lints **`tooling/` and `tests/` at a hard zero** in
-  a separate blocking step, with no floor to absorb a new finding — and it carries
-  a **second** floor, `c901` (cyclomatic complexity, `--select C901`, threshold
-  `[lint.mccabe] max-complexity = 20`), deliberately not folded into the ruff
-  aggregate so a complexity fix cannot be masked by an unrelated new finding.
+  a separate blocking step, with no floor to absorb a new finding.
 - `odoo/addons/test_lint/` — the fork's own AST checkers and registry gates: SQL
   built from non-constant values, gettext misuse, N+1 queries, ORM-facade imports,
   XML/manifest canonical form, asset bundles that do not assemble. Each is an

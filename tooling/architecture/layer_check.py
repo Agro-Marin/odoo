@@ -302,6 +302,7 @@ CONTRACTS: tuple[Contract, ...] = (
             "odoo.orm.validation",
             "odoo.orm.constants",
             "odoo.orm._typing",
+            "odoo.orm._protocols",
         ),
         forbidden=(
             "odoo.orm.fields",
@@ -316,10 +317,12 @@ CONTRACTS: tuple[Contract, ...] = (
         ),
         allow=(),
         rationale=(
-            "Layer 0 (primitives, parsing, validation, constants, _typing) is the "
-            "zero-dependency foundation: it may not import any higher ORM layer "
-            "(nor its public shims odoo.fields / odoo.models / odoo.api). "
-            ""
+            "Layer 0 (primitives, parsing, validation, constants, _typing, "
+            "_protocols) is the zero-dependency foundation: it may not import "
+            "any higher ORM layer (nor its public shims odoo.fields / "
+            "odoo.models / odoo.api). _protocols declares what the framework "
+            "requires of addon-owned models and is typing-only at runtime, "
+            "which is why its reach for orm.domain is TYPE_CHECKING-guarded."
         ),
     ),
     Contract(

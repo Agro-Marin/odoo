@@ -3,19 +3,19 @@
 > One of the views indexed by [`ARCHITECTURE.md`](ARCHITECTURE.md).
 > This view answers *where does code live and what may it import*. For *what runs
 > when*, see [`runtime.md`](runtime.md); for the checkers that hold these rules
-> shut, [`gates.md`](gates.md); for how they were arrived at,
-> [`findings.md`](findings.md).
+> shut, [`gates.md`](gates.md); for why a given rule exists, `doc/adr/` and the
+> gate's own module docstring.
 
-This is the view the CI gates are built around, and the most mechanically
-verified thing in the repository: the map below is checked against the tree, and
-every contract in the table is a program that runs on each push.
+The map below is checked against the tree; every contract in the table is a
+program that runs on each push.
 
 ## Subsystem map
 
 ```
 odoo/
 ├── orm/            The ORM, as an explicit 4-layer architecture (see below)
-│   ├── primitives, parsing, validation, constants, _typing   (Layer 0)
+│   ├── primitives, parsing, validation, constants, _typing,
+│   │   _protocols                                            (Layer 0)
 │   ├── fields/, domain/                                       (Layer 1)
 │   ├── models/  (BaseModel + 26 mixins, metaclass)            (Layer 2)
 │   ├── runtime/ (Environment, Registry, Transaction, backend) (Layer 3)
@@ -88,6 +88,20 @@ odoo/
 > `db/` and is used by both tiers, so it is `[foundation]`, not
 > `[connectivity]`; `http/helpers.py` imports `core` and is imported by
 > `dispatcher`/`_serve`/`request_class`, so it is `[serving]`, not `[features]`.
+>
+**Both tiers were documentation only until they were measured**, and both turned
+out already layered:
+
+| Tier pair | Downward | Back-edges | Convention |
+|---|---:|---:|---|
+| `db/` `[connectivity]` → `[resilience]` | had 6 connectivity → resilience edges | 1 | counting imported *symbols*, as `layer_check` does |
+| `http/` `[serving]` → `[features]` | 22 serving → features | 1 | counting import *statements*; by symbol it is 44 against 2 |
+
+Each back-edge was a module filed in the wrong bracket, not a genuine cycle.
+Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to `[serving]`
+took both directions to zero, which is what made them contracts. **The two
+counting conventions are not interchangeable** — a figure quoted without saying
+which one it uses cannot be reproduced.
 
 ### Ownership and legal direction
 
@@ -112,39 +126,52 @@ only.
 
 ### `tools/` has a third role: it is the façade for part of `libs/`
 
-The split above says `libs/` is Odoo-agnostic and `tools/` is Odoo-coupled. In
-practice `tools/__init__.py` also re-exports **23 of its 101 `__all__` symbols
-straight from `odoo.libs`** — `SQL`, `float_round`, `float_compare`,
-`classproperty`, `lazy`, `parse_version`, `SetDefinitions`, `pg_varchar`,
-`make_index_name` and 14 more.
+`tools/__init__.py` re-exports **22 of its 101 `__all__` symbols straight from
+`odoo.libs`** — `SQL`, `float_round`, `float_compare`, `classproperty`, `lazy`,
+`parse_version`, `SetDefinitions`, `pg_varchar`, `make_index_name` and 13 more.
+Sanctioned: `libs_facade_check.py` polices *how* `libs` is imported, and a
+re-export layer is the door it sanctions.
 
-This is deliberate (`libs_facade_check.py` polices *how* `libs` is imported, so
-a re-export layer is the sanctioned door) but it was written down nowhere, and
-it has one real cost: at the point of use, `from odoo.tools import float_round`
-and `from odoo.tools import config` are indistinguishable, though one is a pure
-function and the other reaches the whole runtime. The distinction the
-`libs`/`tools` split exists to express is erased by the façade that publishes
-it.
+Cost: at the point of use `from odoo.tools import float_round` and `from
+odoo.tools import config` are indistinguishable, though one is a pure function
+and the other reaches the whole runtime. The façade erases the distinction the
+split exists to express.
 
-**The rule that follows:** addon code may keep using `odoo.tools` for either
-kind. **Core code should import from the owning package** — `odoo.libs.sql`,
-not `odoo.tools`, for `SQL` — so that a module's imports state which layer it
-actually depends on. That is not cosmetic: Layer 0 of the ORM reached for
-`odoo.tools` solely because it was the advertised door to `SQL`, and taking it
-from `odoo.libs.sql` instead is what allowed `orm-layer0-is-foundational` to be
-tightened (see the Layer 0 bullet under *The ORM layer model*).
+**22 understates the exposure, because it counts one file's import statements.**
+Following each exported symbol one hop further — into the `tools` submodule that
+supplies it — **58 of the 101 come from `odoo.libs`**, the other 43 arriving
+from `tools`' own modules: 22 imported by `tools/__init__.py` itself and 36
+through submodules that re-export from `libs` in turn. So the erasure covers
+more than half the façade, not a fifth of it, and no reading of
+`tools/__init__.py` alone will show that.
+
+Resolve it by *import*, not by `__module__`: two of the 58 (`html_escape`,
+`single_email_re`) report `markupsafe` and `re` at run time, being a
+re-exported third-party alias and a compiled pattern rather than functions
+`libs` defines. A live-attribute sweep therefore answers 56 and looks
+authoritative doing it.
+
+| Caller | Import | Why |
+|---|---|---|
+| addon code | `odoo.tools`, either kind | the façade is the published surface |
+| core code | the owning package — `odoo.libs.sql`, not `odoo.tools`, for `SQL` | a module's imports must state which layer it depends on |
+
+Not cosmetic: ORM Layer 0 reached for `odoo.tools` only because it was the
+advertised door to `SQL`. Taking it from `odoo.libs.sql` is what let
+`orm-layer0-is-foundational` be tightened.
 
 ### Public import surface
 
-Addon code imports from the stable façades — **`odoo.api`, `odoo.fields`,
-`odoo.models`** — never from `odoo.orm.*` directly. These `__init__.py` re-export
-shims let the ORM's internal layout evolve without breaking addon imports. Each
-declares an explicit `__all__`, and the boundary is **enforced**: the
-`facade-boundary` contract fails CI if any file under either addon tree imports
-`odoo.orm.*` at runtime (`if TYPE_CHECKING:` exempt). Both trees live inside this
-checkout: `odoo/addons/` (module name `odoo.addons.*`) and the repo-root
-`addons/` (module name `addons.*`, mounted at `odoo.addons.*` by the addons-path
-loader at runtime). See ADR-0008.
+Addon code imports **`odoo.api`, `odoo.fields`, `odoo.models`** — never
+`odoo.orm.*`. Each is an `__init__.py` re-export shim with an explicit
+`__all__`, which is what lets the ORM's internal layout move without breaking
+addon imports. `facade-boundary` fails CI on any runtime `odoo.orm.*` import
+under either addon tree (`if TYPE_CHECKING:` exempt). ADR-0008.
+
+| Tree | Module name | Note |
+|---|---|---|
+| `odoo/addons/` | `odoo.addons.*` | `base` plus the `test_*` suites |
+| repo-root `addons/` | `addons.*` | mounted at `odoo.addons.*` by the addons-path loader at run time |
 
 ## The ORM layer model
 
@@ -157,7 +184,7 @@ without forming import cycles.
 Layer 3  runtime/      Environment, Registry, Transaction        ─┐ imports
 Layer 2  models/       BaseModel, mixins, metaclass, table objs   │ downward
 Layer 1  fields/ domain/   Field types, domain AST + optimizer    │ only
-Layer 0  primitives parsing validation constants _typing         ─┘
+Layer 0  primitives parsing validation constants _typing _protocols ─┘
 
          components/   FieldCache · ComputeEngine · UnitOfWork · ModelGraph
                        Beside the stack, not under it: Layers 2 and 3 import
@@ -166,66 +193,61 @@ Layer 0  primitives parsing validation constants _typing         ─┘
                        injected.
 ```
 
-- **Layer 0** imports no higher *ORM* layer (the enforced
-  `orm-layer0-is-foundational` rule). It may still use dependency-free helpers
-  from `odoo.tools` and `odoo_rust`: the invariant is "nothing from the ORM
-  above it", not "nothing from `odoo`". Read that precisely — the contract
-  forbids `orm.fields`, `orm.domain`, `orm.models`, `orm.runtime` **and**
-  `orm.components`, plus the three façades `odoo.fields`, `odoo.models` and
-  `odoo.api`, because re-export shims are the obvious way round a rule written
-  only against `odoo.orm.*`. Of that permission it currently exercises only the
-  first — `primitives.py` takes the `SQL` builder from `odoo.tools`, and no
-  Layer-0 module imports `odoo_rust` at all (it enters the ORM at `helpers.py`,
-  `models/mixins/read.py` and `runtime/environment.py`). Both halves are
-  permission, not practice; do not read the pairing as a claim that Layer 0
-  depends on the Rust extension.
-- **Layer 1** (`fields`, `domain`) uses no higher ORM layer, and Layer 1
-  imports `components/` nowhere. As with Layer 0 the rule is about *ORM*
-  layers: both packages import `odoo.tools`, `odoo.libs` and `odoo.exceptions`
-  freely.
-- **Layer 2** (`models`) builds on Layers 0–1, plus `components/`
-  (`mixins/recompute.py` → `components.recompute.RecomputeScheduler`).
-- **Layer 3** (`runtime`) builds on Layers 0–2 and owns the `components/`
-  instances — `Transaction` constructs `FieldCache`, `ComputeEngine`,
-  `UnitOfWork` and `OrmCore`.
-- **`components/`** is the cache/compute/unit-of-work engine — pure Python apart
-  from `odoo.libs` (which is itself dependency-free; `model_graph.py` imports
-  `Collector` from it), so it is unit-testable without an `Environment`,
-  `Registry`, or database. Collaborators are injected (ADR-0002). Framework code
-  reaches the per-transaction `FieldCache`/`ComputeEngine` through the curated
-  id-level facade **`env._core`** (`OrmCore`, defined in `components/core.py`);
-  the raw objects stay private to `Transaction` (`_cache_store`/
-  `_compute_engine`). **`env.cache` is the recordset-level cache API** — not a
-  legacy wrapper over `_core`, which is what this page called it until
-  2026-08-08. The two are different abstraction levels and both are sanctioned:
-  `OrmCore.get_value(field, record_id)` takes a raw id, while
-  `Cache.get_values(records, field)` takes a *recordset* and resolves the field
-  cache through its `env`, so the caller never has to know that a
-  context-dependent field is stored `{cache_key: {id: value}}` rather than
-  `{id: value}`, or that a term-translated one is reached through a
-  `LangProxyDict`. That is exactly why ADR-0010 **dropped** its own step 4
-  (retire `env.cache`) on reassessment: the migration target was wrong, and a
-  mechanical rewrite onto `_core` would have mishandled those layouts and
-  coupled addon code to private field helpers. The label here was inherited from
-  the ADR's *Context* section, written before that reassessment; its
-  *Implementation status* says the opposite, and the code agrees with the
-  Implementation status.
-  > **What "pure" does and does not mean.** The contract is about *this
-  > package's* imports, and it holds. It does **not** mean a component can be
-  > imported in isolation: `import odoo.orm.components.model_graph` executes the
-  > parent package first, and `orm/__init__.py`'s last line is `import
-  > odoo.init` — the framework bootstrap, which applies the `_monkeypatches` and
-  > so loads `babel` (and, through the patched modules, `lxml`). That is why
-  > `components/tests/conftest.py` stubs the `odoo` / `odoo.orm` /
-  > `odoo.orm.components` namespace packages rather than importing them. The
-  > purity that is real is *dependency direction*, not import isolation; treat
-  > "unit-testable" as "needs no ORM runtime objects", not "costs nothing to
-  > import".
+| Layer | May import | Notes |
+|---|---|---|
+| **0** `primitives` `parsing` `validation` `constants` `_typing` `_protocols` | no higher *ORM* layer | Forbidden set is `orm.fields`, `orm.domain`, `orm.models`, `orm.runtime`, `orm.components` **and** the façades `odoo.fields`/`odoo.models`/`odoo.api` — a re-export shim is the obvious way round a rule written only against `odoo.orm.*` |
+| **1** `fields/` `domain/` | Layer 0 | Imports `components/` nowhere |
+| **2** `models/` | Layers 0–1, `components/` | `mixins/recompute.py` → `components.recompute.RecomputeScheduler` |
+| **3** `runtime/` | Layers 0–2, `components/` | Owns the instances: `Transaction` constructs `FieldCache`, `ComputeEngine`, `UnitOfWork`, `OrmCore` |
 
-`orm/__init__.py`'s docstring states this same layer model in code, member by
-member. Both now name every member at the layer the gate enforces, and where a
-doc and the gate ever differ, `layer_check.py`'s `CONTRACTS` wins — it is the
-definition that actually runs.
+The invariant at every layer is "nothing from the ORM above it", not "nothing
+from `odoo`": all four import `odoo.tools`, `odoo.libs` and `odoo.exceptions`
+freely.
+
+**Layer 0's permissions are wider than its practice**, and the pairing must not
+be read as a dependency claim. It may use `odoo.tools` and `odoo_rust`; it
+exercises only the first — `primitives.py` takes the `SQL` builder from
+`odoo.tools`, and **no Layer-0 module imports `odoo_rust` at all**. The
+extension enters the ORM at `helpers.py`, `models/mixins/read.py` and
+`runtime/environment.py`.
+
+### `components/` — the two cache APIs
+
+The cache/compute/unit-of-work engine. Pure Python apart from `odoo.libs`
+(`model_graph.py` imports `Collector`), collaborators injected (ADR-0002).
+
+Two cache APIs, at different abstraction levels. **Both are sanctioned.**
+
+| API | Key | Reached as | Owner |
+|---|---|---|---|
+| `OrmCore.get_value(field, record_id)` | raw id | `env._core` (`components/core.py`) | curated façade over the raw objects |
+| `Cache.get_values(records, field)` | *recordset* | `env.cache` | resolves the field cache through the recordset's `env` |
+
+`env.cache` is **not** a legacy wrapper over `_core`. It is what saves a caller
+from knowing that a context-dependent field is stored `{cache_key: {id: value}}`
+rather than `{id: value}`, or that a term-translated one is reached through a
+`LangProxyDict`. ADR-0010 **dropped** its own step 4 (retire `env.cache`) for
+that reason: a mechanical rewrite onto `_core` would have mishandled those
+layouts and coupled addon code to private field helpers. Where the ADR's
+*Context* and its *Implementation status* disagree, the code agrees with the
+Implementation status.
+
+The raw objects stay private to `Transaction` (`_cache_store`,
+`_compute_engine`).
+
+> **"Pure" is a direction claim, not an isolation claim.** The contract is about
+> this package's imports and it holds. A component still cannot be imported
+> alone: `import odoo.orm.components.model_graph` executes the parent package,
+> and `orm/__init__.py`'s last line is `import odoo.init` — the bootstrap, which
+> applies `_monkeypatches` and so loads `babel` (and `lxml` through it). Hence
+> `components/tests/conftest.py` stubs the `odoo` / `odoo.orm` /
+> `odoo.orm.components` namespace packages instead of importing them. Read
+> "unit-testable" as "needs no ORM runtime objects", not "costs nothing to
+> import".
+
+`orm/__init__.py`'s docstring states the same layer model member by member.
+Where a doc and the gate differ, `layer_check.py`'s `CONTRACTS` wins — it is the
+definition that runs.
 
 ## Enforced dependency rules
 
@@ -236,7 +258,7 @@ definition that actually runs.
 | `tools-does-not-reach-the-orm-runtime` | `odoo/tools/**` must not import `odoo.orm.runtime` (Layers 0–1 stay allowed) | ✅ clean |
 | `orm-helpers-and-registration-stay-below-runtime` | `orm/helpers.py` & `orm/registration.py` must not import `orm/runtime` | ✅ clean |
 | `orm-components-are-pure-python` | `odoo/orm/components/**` must not import `odoo.*` (except `odoo.libs`) | ✅ clean |
-| `orm-layer0-is-foundational` | Layer-0 (`primitives`, `parsing`, `validation`, `constants`, `_typing`) imports no higher ORM layer | ✅ clean |
+| `orm-layer0-is-foundational` | Layer-0 (`primitives`, `parsing`, `validation`, `constants`, `_typing`, `_protocols`) imports no higher ORM layer | ✅ clean |
 | `orm-layer1-below-models-and-runtime` | `orm/fields` & `orm/domain` must not import `orm/models` or `orm/runtime` | ✅ clean |
 | `orm-models-below-runtime` | `orm/models` (Layer 2) must not import `orm/runtime` (Layer 3) | ✅ clean |
 | `orm-seams-stay-below-models-and-runtime` | `orm/_recordset` & `orm/decorators` must not import `orm/models` or `orm/runtime` | ✅ clean |
@@ -258,121 +280,104 @@ Three scope caveats the "✅ clean" column does not show, all by design:
 - **Every contract is a DIRECT-edge rule, never transitive.**
   `orm-layer1-below-models-and-runtime` stops `odoo/orm/fields` importing
   `odoo.orm.runtime`; it says nothing about `odoo/orm/fields` →
-  `odoo.tools.something` → `odoo.orm.runtime`. Transitivity is deliberately
-  *not* the fix: `tools/` is the Odoo-coupled utility layer by design, so in a
-  transitive graph everything reaches everything through it, and the rule would
-  need a large, low-signal pinned baseline. The useful invariant is narrower —
-  utilities may use ORM *values and types*, but must not reach the *runtime* —
-  and it is enforced as `tools-does-not-reach-the-orm-runtime`, which holds at
-  zero and rejects that exploit. Read the contracts as "no direct edge", and add
-  a targeted contract when a conduit matters.
+  `odoo.tools.something` → `odoo.orm.runtime`. Transitivity is deliberately not
+  the fix — `tools/` is the Odoo-coupled utility layer, so transitively
+  everything reaches everything through it and the rule would need a large,
+  low-signal baseline. The narrower invariant is the useful one and holds at
+  zero: `tools-does-not-reach-the-orm-runtime`. Add a targeted contract when a
+  conduit matters.
 - **Test files are not scanned — but `odoo/tests/` is not test files.**
   `layer_check.iter_source_files()` drops any path with a `tests` component,
-  plus `conftest.py` and `test_*.py`, because tests legitimately import across
-  boundaries for fixtures and bootstrap. The one carve-out is
-  `_CORE_TEST_FRAMEWORK_PACKAGE = ("odoo", "tests")`: that package is the
-  shipped test *framework*, so inside it only its own `test_*.py` and
-  `conftest.py` are dropped and `case.py`, `common.py`, `http.py` and the rest
-  **are** scanned. The next bullet is the proof — if the package were skipped
-  wholesale, its exemption from `core-does-not-depend-on-addons` would be dead
-  code. (`py_cycle_check.py` carried the uncarved version of this filter and
-  reported on 323 modules instead of 338; see its bullet below.)
-- **`odoo.tests` is exempt from `core-does-not-depend-on-addons`** (via
-  `CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT`): the test *framework*'s job is to
-  drive application code, and its one addon reach (`tests/http.py` →
-  `odoo.addons.bus`) is already deferred and guarded by
-  `if "bus.bus" in self.env.registry:`. Every other core package is in scope,
-  asserted by `test_core_source_covers_every_core_package`.
+  plus `conftest.py` and `test_*.py`. The one carve-out is
+  `_CORE_TEST_FRAMEWORK_PACKAGE = ("odoo", "tests")`, the shipped test
+  *framework*: inside it only its own `test_*.py` and `conftest.py` are dropped,
+  and `case.py`, `common.py`, `http.py` and the rest **are** scanned. The next
+  bullet is the proof — skipped wholesale, its addon-contract exemption would be
+  dead code.
+- **`odoo.tests` is exempt from `core-does-not-depend-on-addons`**
+  (`CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT`): the framework's job is to drive
+  application code, and its one addon reach (`tests/http.py` →
+  `odoo.addons.bus`) is deferred and guarded by
+  `if "bus.bus" in self.env.registry:`. Every other core package is in scope
+  (`test_core_source_covers_every_core_package`).
 
 `core-does-not-depend-on-addons` is the mirror of `facade-boundary`: that one
 stops addons reaching into ORM internals, this one stops the framework depending
-on its own consumer. It ships with **two pinned `KNOWN_VIOLATIONS` rules**
+on its own consumer. It ships **two pinned `KNOWN_VIOLATIONS` rules**
 (`odoo.service` → `odoo.addons.base.models.ir_cron` / `…ir_job`), which the
-report expands to **4 tolerated edges** — one per call site. Both are intentional
-rather than debt, and the reasoning is in **Known boundary exceptions** below.
+report expands to **4 tolerated edges**, one per call site. Both intentional;
+reasoning in **Known boundary exceptions** below.
 
 ## Coupling the import graph cannot see
 
-`layer_check.py` reasons about **import** edges. `BaseModel` is composed from 26
+`layer_check.py` reasons about **import** edges. Four coupling surfaces in this
+tree produce none. Each has its own gate.
+
+| Surface | Spelled as | Gate |
+|---|---|---|
+| mixin composition | `self.<sibling>` | `mixin_coupling_check.py` |
+| Layer → runtime | `self.env.<m>`, `self.pool.<m>` | `env_surface_check.py`, `pool_surface_check.py` |
+| framework → addon models | `env["res.users"]` — a string | `env_model_surface_check.py`, `model_member_surface_check.py` |
+| cycles inside one layer | every edge stays in-layer, so no direction rule sees it | `py_cycle_check.py` |
+
+### The five mixin compositions
+
+A root class over `__slots__ = ()` mixins collaborating through `self`.
+`BaseModel` is the largest, composed from 26
 `__slots__ = ()` mixins by multiple inheritance — 18 public (`CreateMixin` …
 `AccessMixin`) plus 8 private (`_PropertiesMixin`, `_QueryMixin`,
 `_ConstraintsMixin`, `_DisplayNameMixin`, `_FieldComputeMixin`, `_HooksMixin`,
-`_MagicFieldsMixin`, `_ModelMetadataMixin`) — and they
-collaborate through `self`, which produces no import at all. The framework's most
-intricate coupling surface therefore moves no import gate.
-`tooling/architecture/mixin_coupling_check.py` reconstructs that call graph and
-ratchets it (`max_scc`, `cyclic_edges`, `scc_without_base`) exact-mode like
-`tooling/ratchet/` — **twice**, because there are two graphs and they disagree.
+`_MagicFieldsMixin`, `_ModelMetadataMixin`).
 
-**Through `self`, the graph is a DAG.** `cyclic_edges` is 0. The four private
-mixins are what got it there: the metadata/properties/magic-field split took
-`base.py` out of a nine-unit cycle, and `_QueryMixin` broke the last one by
-giving *query construction* a home of its own. Note what that did and did not
-do: the cycle was `read` ⇄ `search`, and only the **back-edge `read → search` is
-gone** — `read` now reaches query construction through `_query` instead.
-`search → read` is still there, and is fine: one direction is a DAG edge. Five
-units depend on `_query` (`read`, `search`, `recompute`, and two of the
-`read_group` units).
+`mixin_coupling_check.py` reconstructs the call graph and ratchets it exact-mode,
+per composition. Measured by a live run of that gate:
 
-**Through the model, it is too.** A mixin is a fragment of *one class*, so
-calling a sibling's method on another recordset of the same model couples
-exactly as much as calling it on `self`, and a `self`-only collector cannot see
-it. Following locals bound from `self.browse(…)`, `self.filtered(…)`,
-`self.sudo()` and the rest (`RECORDSET_PRODUCERS`) adds 8 edges — and the first
-such measurement found a cycle the `self`-only view could not: **`base.py` ⇄
-`create`**, where `base.py` called `self.create(…)` in `name_create` while
-`create.py` called `_validate_fields` on recordsets `self` never names.
-(No line citation: `name_create` has since moved to `_DisplayNameMixin`, and a
-pinned line number in a file that shrank by 87 lines is how
-`test_line_number_citations_resolve` earns its keep.)
+| Composition | Units | Edges | `cyclic_edges` | `unowned_shared_state` | Root dominates its leaves? |
+|---|---:|---:|---:|---:|---|
+| `BaseModel` (`orm/models/`) | 31 | 104 | 0 | 4 | no |
+| `Field` (`orm/fields/`) | 5 | 8 | 0 | 1 | **yes** |
+| `Registry` (`orm/runtime/`) | 6 | 9 | 0 | 0 | **yes** |
+| `Request` (`http/request_class.py`) | 4 | 1 | 0 | 8 | no |
+| `Cursor` (`db/cursor.py`) | 3 | 3 | 0 | 5 | **yes** |
 
-It was broken the same way its predecessors were, by moving behaviour off the
-composition root: `_constraint_methods` and `_validate_fields` live on a
-`_ConstraintsMixin` leaf (`mixins/_constraints.py`), so `create` and `write`
-reach the constraint machinery without touching `base.py`. **A leaf that nothing
-in the composition depends on cannot close a cycle** — that is the design rule
-for new mixins.
+The last column is the shape claim, not a line count: a root larger than all its
+leaves put together is a composition that has not actually been decomposed.
+`BaseModel` is the target — its root is a fraction of its leaves — and three of
+the other four still invert it. Line counts are deliberately not tabulated: they
+move on every edit to the file and carry no architectural signal that the
+direction does not.
 
-**`base.py` is now a root with no edges at all**, which is what that rule was
-aimed at and what this page and the checker both previously claimed while it was
-not true. It kept six members after the metadata split, and measured through the
-checker's own collector they gave it out-edges to `create` (`name_create`'s
-`self.create(…)`), `_metadata`, `traversal` and `_magic_fields`, and — the part
-that settles it — **in-edges from `lifecycle` and `unlink`**, each reaching it
-for one thing: the `_onchange_methods` / `_ondelete_methods` registries. A
-composition root that two units depend on is a participant.
+**Read `cyclic_edges` and `unowned_shared_state` as a pair, never `cyclic_edges`
+alone.** An edge is recorded only where the reached member is bound in some
+unit's **class body**. State assigned in a constructor and declared only in the
+typing stub is read by everyone and owned by nobody, so it produces no edge —
+and the stub is excluded from being a unit precisely so it cannot absorb them.
+Deleting one line (`models: dict[str, type[BaseModel]]`) from `Registry`'s class
+body, with no behaviour change, once took `cyclic_edges` from 4 to 2. The two
+numbers move in opposite directions, so hiding an edge fails the ratchet twice.
 
-Three more leaves finished it. `_HooksMixin` (`mixins/_hooks.py`) takes the two
-registries, joining `_constraint_methods` as the third `own_class_memo`
-decorator scan — `helpers.ORM_CLASS_MEMOS` lists all three memo keys side by
-side, while their owners had been split across three files.
-`_DisplayNameMixin` takes `_compute_display_name`, `_rec_name_fallback` and
-`name_create` — `orm/models/mixins/_display_name.py:51` calls `self.create(…)`,
-which is the same edge as before, now travelling with the behaviour that needs
-it instead of sitting at the root.
-`_FieldComputeMixin` (`mixins/_field_compute.py`) takes `_compute_field_value`,
-whose only caller is Layer 1 (`Field.compute_value`).
+`unowned_shared_state` is what each root still holds without an owner:
+`BaseModel` 4 (`env`, `_ids`, `_prefetch_ids`, `_log_access` — the recordset's
+identity, assigned by `IterationMixin.__init__`), `Field` 1
+(`description_attrs`), `Request` 8 (the request's identity, declared on
+`RequestState`), `Cursor` 5 (`_cnx`, `_obj`, `_thread`, `_schema_cache`,
+`_before_statement`). Under assignment-site ownership `BaseModel` still shows a
+2-cycle, `_metadata` ⇄ `iteration`; that one is open.
 
-That last one is a worked example of the design rule. The obvious home was
-`RecomputeMixin` — and it is wrong: `traversal` already reaches `recompute`
-through `flush_model`, so `_compute_field_value`'s `self.filtered("id")` added
-`recompute → traversal` and made a 2-cycle. The gate reported it on the first
-run. On its own leaf, which nothing in the composition depends on, the same
-three dependencies (`traversal`, `_constraints`, `_metadata`) close nothing.
+**`BaseModel` is measured on two graphs, not one.** A mixin is a fragment of
+*one class*, so calling a sibling's method on another recordset of the same
+model couples exactly as much as calling it on `self`. Following locals bound
+from `self.browse(…)`, `self.filtered(…)`, `self.sudo()` and the rest
+(`RECORDSET_PRODUCERS`) adds 8 edges — 104 → 112 — and is ratcheted separately
+(`recordset_max_scc` 1, `recordset_cyclic_edges` 0,
+`recordset_scc_without_base` 1). A cycle spelled through a recordset therefore
+fails CI even where the `self`-only numbers stay clean. The other four are
+`self`-only: a `Field` holds no recordset of itself.
 
-`base.py` now holds `__slots__`, `_register`, two setup hooks, `get_base_url`,
-the deprecated `_cr`, and the three registration calls — in-degree 0, out-degree
-0, in both views.
-
-Both views are ratcheted at zero (`recordset_max_scc` 1,
-`recordset_cyclic_edges` 0, `recordset_scc_without_base` 1), so a cycle spelled
-through a recordset fails CI even though the `self`-only numbers would stay
-clean.
-
-The checker's numbers are cross-checked against the runtime
-`BaseModel.__mro__`, not just against themselves. It counts *file-level*
-units — 31, since `read_group/` contributes five (`_empty`, `fill`, `format`,
-`mixin`, `sql`) and `base.py` is itself a unit — not the 26 bases.
+Units are **file-level**, cross-checked against the runtime `BaseModel.__mro__`
+rather than against themselves — and they are not the bases. It counts
+*file-level* units — 31, since `read_group/` contributes five (`_empty`, `fill`,
+`format`, `mixin`, `sql`) and `base.py` is itself a unit — not the 26 bases.
 
 ```bash
 python tooling/architecture/mixin_coupling_check.py            # report
@@ -382,252 +387,170 @@ python tooling/architecture/mixin_coupling_check.py --composition Field \
     --explain _field_convert base.py
 ```
 
-**`BaseModel` is not the only composition, and the gate now measures all five —
-three in the ORM, two outside it.**
-`Field` is `Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`
-over a `_FieldStubs` typing declaration and `Registry` is
-`Registry(_RegistryFieldsMixin, _RegistrySchemaMixin, …)` over a
-`_RegistryStubs` one — the same construction, equally invisible to
-`layer_check`. `Field` was measured by nothing until 2026-08-08 while being 1401
-lines against 628 in its three mixins, the inverse of the ratio `models/`
-reached; `Registry` until 2026-08-09, at 1018 lines against 461 in its two, a
-worse ratio still. Each composition carries its own floors and a drift in any of
-them fails.
+#### The design rule for a new mixin
 
-**Each generalisation found the new composition to be the worst of the set.**
-`Field`'s first run found a 2-cycle (below). `Registry`'s first run found a
-**3-unit cycle over 4 edges — every unit in one component**, the only one of the
-three that was not a DAG: `registry.py` reached `_registry_fields`
-(`_ensure_field_triggers`, `field_depends`, `field_depends_context`) and
-`_registry_schema` (`check_foreign_keys`, `check_indexes`, `check_tables_exist`),
-while both reached back into the root for `models`, and `_registry_schema` for
-`init_phase` as well. `scc_without_base` was already 1, which named the cause:
-every back-edge landed on the composition **root**.
+**A leaf that nothing in the composition depends on cannot close a cycle.** Put
+new behaviour on one.
 
-It was broken the way its two predecessors were — by moving the clusters the
-mixins reach for off the root onto leaves that reach nothing back.
-`_RegistryModelsMixin` (`orm/runtime/_registry_models.py`) takes the `models`
-container and the `Mapping` protocol over it; `_RegistryInitPhaseMixin`
-(`_registry_init_phase.py`) takes the `init_models()` window accessor.
-`cyclic_edges` 4 → 0, `max_scc` 3 → 1.
+Every tangle found so far was closed the same way — by moving the cluster the
+mixins reach for off the composition **root** onto such a leaf. What moves the
+graph is the *declaration*, not the methods: a unit owns what its class body
+binds. Moving `Registry`'s methods without the container left `cyclic_edges` at
+6, worse than the original 4, because the new leaf then reached the root for the
+state it was supposed to own.
 
-**That was half the job, and the first write-up of it was wrong.** `cyclic_edges`
-records an edge only where the reached member is bound in some unit's **class
-body**; state assigned in a constructor and declared only in the typing stub is
-read by everyone, owned by nobody, and produces no edge — the stub is excluded
-from being a unit precisely so it cannot absorb them. Two consequences, both
-measured 2026-08-09:
+`_FieldComputeMixin` is the worked example of the rule. The obvious home for
+`_compute_field_value` was `RecomputeMixin` — and it is wrong: `traversal`
+already reaches `recompute` through `flush_model`, so the method's
+`self.filtered("id")` would add `recompute → traversal` and make a 2-cycle. The
+gate reported it on the first run. On its own leaf the same three dependencies
+(`traversal`, `_constraints`, `_metadata`) close nothing.
 
-- **It hid coupling.** Eight `Registry` members were assigned in `Registry.init`
-  and read by `_registry_schema` / `_registry_fields` — `_constraint_queue`,
-  `_ordinary_tables`, `field_setup_dependents`, `has_trigram`, `has_unaccent`,
-  `model_graph`, `not_null_fields`, `unaccent`. Attributed to the unit that
-  *assigns* them, the composition was **still a 3-unit SCC after the extraction
-  above**.
-- **A declaration could switch the gate off.** Deleting the one line
-  `models: dict[str, type[BaseModel]]` from `Registry`'s class body — no
-  behaviour change, the attribute still assigned in `init`, still read by both
-  mixins — took `cyclic_edges` from 4 to 2 on the pre-split tree.
+`base.py` is the state that rule is aimed at: **in-degree 0, out-degree 0, in
+both views.** It holds `__slots__`, `_register`, two setup hooks,
+`get_base_url`, the deprecated `_cr`, and the three registration calls. Five
+units depend on `_query` (`read`, `search`, `recompute`, `read_group/mixin`,
+`read_group/sql`), which is where query construction went when it was taken off
+the root.
 
-So the gate carries a fourth ratcheted number, `unowned_shared_state`: members
-read by two or more units that no unit owns. The two move in opposite
-directions, so hiding an edge fails the ratchet twice.
+#### Discovery is part of the gate
 
-**All eight then got real owners.** Each is now declared *and* initialised by the
-mixin whose concern it is, called from `Registry.init` through one
-`_init_*_state()` hook each; the unaccent/trigram cluster went to a new
-`_RegistryCapabilitiesMixin` (`orm/runtime/_registry_capabilities.py`) because a
-database *capability* is not a schema fact — `check_indexes` is one consumer and
-the domain optimiser's `pool.unaccent` is another. Inter-unit edges rose 7 → 9,
-because the coupling became **visible**, and `unowned_shared_state` fell 8 → 0.
-
-**`Registry` is now a DAG under the assignment-site model as well as this gate's**
-— the property the first round claimed and did not have. The other two are
-unchanged and still carry theirs: **BaseModel 4** (`env`, `_ids`,
-`_prefetch_ids`, `_log_access` — the recordset's own identity, assigned by
-`IterationMixin.__init__`) and **Field 1** (`description_attrs`). Read the pair,
-never `cyclic_edges` alone. Under assignment-site ownership `BaseModel` still
-shows a 2-cycle, `_metadata` ⇄ `iteration`; that one is open.
-
-The move that mattered was the *declaration*, not the methods: a unit owns what
-its **class body** binds, so `models` had to leave `Registry`'s body for the
-leaf's. Moving the methods alone left `cyclic_edges` at 6 — worse than the
-original 4, because the new leaf then reached the root for the container it was
-supposed to own.
-
-**The gate has now been blind twice, and that is itself the finding.** Both
-misses were caught by someone recognising the construction by eye, which is not
-a gate. `test_mixin_coupling_check.py` therefore discovers composition roots
-from the tree — a class in `odoo/orm` with two or more `*Mixin` bases whose own
-name does not end in `Mixin` — and fails if one is absent from `COMPOSITIONS`.
-It finds exactly `BaseModel`, `Field` and `Registry`; `ReadGroupMixin` is three
-mixins wide but is a *unit* of `BaseModel`, which is what the name test
+The gate has been blind twice, and both misses were caught by a person
+recognising the construction by eye. `test_mixin_coupling_check.py` therefore
+**discovers composition roots from the tree** — a class with two or more
+`*Mixin` bases whose own name does not end in `Mixin` — and fails if one is
+absent from `COMPOSITIONS`. It finds exactly the five above. `ReadGroupMixin` is
+three mixins wide but is a *unit* of `BaseModel`, which is what the name test
 excludes.
 
-**Two more compositions live outside `odoo/orm`, and they are gated now too.**
-`Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin)` over
-`RequestState` (`http/request_class.py`) and `Cursor(_BulkAccessMixin,
-_MetricsMixin, BaseCursor)` (`db/cursor.py`). They were recorded here as
-out-of-scope on the day the gate was generalised to `Registry`, which was the
-wrong call: **`Cursor` had a 2-cycle in it.**
-
-`cursor.py` reached `_MetricsMixin` for `_format` / `_record_metrics` /
-`_record_sql_log` / `print_log`, and the mixin reached back for `sql_from_log`,
-`sql_into_log` and `sql_log_count` — the three counters it exists to maintain,
-declared on `Cursor`. `metrics.py` carried the proof in its own source: a
-`_MetricsHost` Protocol under `TYPE_CHECKING` naming exactly those three. **A
-declaration of what a mixin reaches back for is a declaration that the state has
-no owner** — the same tell `_RegistryStubs` was. The counters moved onto
-`_MetricsMixin` behind an `_init_metrics_state()` hook; `cyclic_edges` 2 → 0,
-and the Protocol is down to `_thread`.
-
-Two filter changes were needed to see it, both neutral for the existing three
-(verified by measuring all of them across the change): `_is_composed_class` now
-also matches a class by its **own** `*Mixin` name, because `db/`'s two mixins
-are bare classes with no stub to inherit; and `collect_units` skips `tests`
-packages, because `db/` and `http/` carry test doubles that inherit the real
-mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`) and would enter the
-graph as units.
-
-`Request` was the only one of the five that was a DAG on first measurement — one
-inter-unit edge, `_serve` → `request_class.py`. Its `unowned_shared_state` is 8
-(`app`, `db`, `dispatcher`, `env`, `httprequest`, `params`, `registry`,
-`session`: the request's identity, declared on `RequestState`), and `Cursor`'s is
-5 (`_cnx`, `_obj`, `_thread`, `_schema_cache`, `_before_statement`).
-
-**The score across five compositions: four were tangled the first time anything
-looked, and each was found by a person, not a gate.** That is what
-`test_mixin_coupling_check`'s discovery test now exists to end — and its own
-scope was `odoo/orm` until `Cursor` showed why a coverage list narrower than the
-thing it guards reproduces the bug it exists to catch.
-
-The first run found what the absence of a gate had allowed: a 2-cycle,
-`_field_convert` ⇄ `base.py`. `base.py` reached conversion from the descriptor
-protocol (`convert_to_cache` / `convert_to_record` / `convert_to_write`) and
-conversion reached back for *declared attributes* (`column_type`,
-`company_dependent`, `translate`, `_is_context_dependent`,
-`_company_dependent_fallback_raw`) — it had been there, unmeasured, for as long
-as the split existed.
-
-It was the shape `BaseModel` had before 2026-08a, and it was broken the same
-way: by moving the declarations off the composition root. `_FieldMetadataMixin`
-(`fields/_field_metadata.py`) holds the **column-shape** cluster — what a field
-*is*, as a column, and what derives from that — so conversion, SQL generation
-and description can ask that question without reaching the root.
-`cyclic_edges` 2 → 0, `max_scc` 2 → 1. **Both ORM compositions are now DAGs**,
-and both gates forbid a cycle rather than bounding one.
-
-The leaf is deliberately the column shape rather than all ~40 of `Field`'s
-declared attributes: that cluster is what conversion, SQL and description
-actually ask for, and it is the only one whose removal moves the graph. Widening
-it further would be a larger move with no gate movement to show for it.
+Its scope was `odoo/orm` until `Cursor` showed why a coverage list narrower than
+the thing it guards reproduces the bug it exists to catch. Two filter changes
+were needed to see `db/`'s pair, both verified neutral for the other four:
+`_is_composed_class` also matches a class by its **own** `*Mixin` name, because
+`db/`'s mixins are bare classes with no stub to inherit; and `collect_units`
+skips `tests` packages, because `db/` and `http/` carry test doubles that
+inherit the real mixins (`_FakeRequest`, `_FractionOnly`, `_MetricsCursor`).
 
 For `Field` the units are the mixin composition only. Concrete field types are
-*subclasses*, and they override base methods freely — `BaseString` overrides six
-of `Field`'s twelve cache methods — but that is the override surface, a
-different graph.
+*subclasses* and override base methods freely — `BaseString` overrides 4 of
+`Field`'s 10 cache methods — but that is the override surface, a different
+graph.
 
-The mixin call graph is the largest such surface but not the only one. What
-follows carries coupling no import edge records either — and the first of it
-inverts the layering this view has just described.
+### The layering is true of imports and false of the runtime graph
 
-**Layers 1 and 2 reach the runtime through `self.env` and `self.pool`, not
-through imports — and Layer 1 reaches harder.** The direction contracts
-`orm-layer1-below-models-and-runtime` and `orm-models-below-runtime` are clean
-and always will be, because that reach produces no import edge at all.
-Measured, Layer 1 (`orm/fields`) is the heavier consumer on both channels: it
-is wider into `Environment`'s privates than Layer 2 (4 unsanctioned private
-members against 2, 10 accesses against 3); **it touches the Registry at 30
-sites against `orm/models`' 28**, and uses 5 `pool[<model>]` subscripts against
-Layer 2's 3. Be precise about the rest, because the inversion is one of volume
-and not of kind: Layer 2 reaches *more distinct* members than Layer 1 (15
-against 9), and has private reaches of its own — `_ensure_field_triggers`,
+Layers 1 and 2 reach the runtime through `self.env` and `self.pool`, not through
+imports. `orm-layer1-below-models-and-runtime` and `orm-models-below-runtime`
+are clean and always will be, because that reach produces no import edge.
+
+**Layer 1 is the heavier consumer on both channels.** Measured:
+
+| Channel | Layer 1 (`orm/fields`, `orm/domain`) | Layer 2 (`orm/models`, `orm/registration.py`) |
+|---|---:|---:|
+| `Registry` accesses | **30** | 28 |
+| `pool[<model>]` subscripts | **5** | 3 |
+| distinct `Registry` members | 9 | **15** |
+| unsanctioned `Environment` privates | **4** | 2 |
+| accesses to those privates | **10** | 3 |
+
+The inversion is one of volume, not of kind: Layer 2 reaches more *distinct*
+members, and has private reaches of its own (`_ensure_field_triggers`,
 `_init_modules`, `_database_translated_fields`,
-`_database_company_dependent_fields`. **So the
-layering story is true of the import graph and false of the runtime graph.** A
-reader who takes the contracts above as the whole picture will predict the wrong
-blast radius for a change to `Environment` or `Registry`. Pinned by
-`env_surface_check.py` and `pool_surface_check.py`; both draw their layer scope
-from the shared `tooling/architecture/_orm_layer_scope.py`, so the two cannot
-drift apart.
+`_database_company_dependent_fields`).
 
-**Four runtime members existed only inside a single call, and Layer 1 mutated
-one of them.** Until 2026-08-09 `Registry` created `_post_init_queue`,
-`_foreign_keys`, `_relation_reflections` and `_is_install` inside `init_models`'
-`try:` and `del`-eted them in its `finally:`, so they existed only for the
-duration of that call — and `fields/relational/many2many.py` wrote to the third
-from Layer 1, which worked solely because `update_db` runs inside that window.
-Nothing declared the ordering, and nothing but an `AttributeError` during module
-installation would have caught a violation. This page documented one of the
-four; `pool_surface_check.py` pinned that one as a known violation, and the
-other three were reached only through public methods, which is what made them
-look unremarkable.
+**Consequence:** a reader who takes the contracts as the whole picture predicts
+the wrong blast radius for a change to `Environment` or `Registry`. Recorded as
+[`risks.md`](risks.md) R2. Both gates draw their layer scope from the shared
+`tooling/architecture/_orm_layer_scope.py`, so the two cannot drift apart, and a
+new ORM module must be given a layer there or an argued exemption.
 
-They are now one `InitModelsPhase` (`orm/runtime/_init_phase.py`) behind
-`Registry.init_phase`, a property that raises a `RuntimeError` naming the window
-when it is closed, and Layer 1 calls `pool.add_relation_reflection(...)`. The
-lifetime is one nullable attribute that can be declared, so
-`orm/runtime/_registry_stubs.py` — the `if TYPE_CHECKING:`-only class that
-existed partly to give those attributes a definition site — no longer carries
-them. See [`risks.md`](risks.md) R1, the register's first closed entry.
+Two counting traps in that table, both of which produced a wrong figure before
+they were named:
 
-**The temporal-coupling shape itself is not gone**, which is the part worth
-keeping: `registration.py` still reads `Registry._init_modules` for the same
-reason (model setup asking whether an install is in flight), pinned in
-`pool_surface_check.py` with the same remediation — a public predicate.
+- A run's own header prints the **raw** private width (6 and 4), which includes
+  the members `SANCTIONED_PRIVATE` blesses. The table is the *unsanctioned*
+  count the gate pins, so a run and this page will not show the same pair.
+- **4 is Layer 1's share, not the union.** The distinct private set across the
+  whole ORM is 5, because `_field_depends_context` is reached from both
+  packages. Quoting the union as one layer's figure is the slip that had this
+  page and `env_surface_check.py`'s own docstring agreeing with each other while
+  neither agreed with the checker.
 
-**The set of addon-owned models the framework may name is closed.** The
-framework's largest real coupling to its consumer produces no import edge
-either, because it is spelled as a string (`env["res.users"]`, see *Models are
-assembled per database* in
-[`ARCHITECTURE.md`](ARCHITECTURE.md)).
-`env_model_surface_check.py` ratchets *which* models are reached, as an exact
-set, and pins seven subtrees at zero reaches — `orm/components`, `libs`, `db`,
-the `api`/`fields`/`models` shims, `_monkeypatches` — each of which already
-claims that property for an independent reason, so a first reach there is a
-contradiction rather than a cost.
+**The `init_models` window: closed, but the shape is not.**
 
-**Direction rules are blind to cycles.** Every edge of a cycle can sit inside
-one layer and cross no boundary, so the contracts above cannot see one. Python
-hides this better than ESM, which is what lets it accumulate: a
-partially-initialised module is a live object, so a cycle usually *works* until
-an entry point changes. `py_cycle_check.py` reconstructs the import graph to
-find them. Four are pinned (`service`, `modules`, `cli`, `tests` — all the
-benign package↔submodule shape); **the ORM has none.** Function-local imports
-are deliberately not counted as edges, since a deferred import is the
-sanctioned way to break a cycle.
+| | |
+|---|---|
+| Was | `_post_init_queue`, `_foreign_keys`, `_relation_reflections`, `_is_install` created in `init_models`' `try:` and `del`-eted in its `finally:` — alive only for that call. Layer 1 (`fields/relational/many2many.py`) wrote to the third, which worked solely because `update_db` runs inside the window. |
+| Caught by | nothing. No declaration of the ordering; an `AttributeError` at module-install time was the only signal. |
+| Now | one `InitModelsPhase` (`orm/runtime/_init_phase.py`) behind `Registry.init_phase`, a property that raises a `RuntimeError` naming the window when closed. Layer 1 calls `pool.add_relation_reflection(...)`. |
+| Still open | `registration.py` reads `Registry._init_modules` to ask whether an install is in flight — same shape, pinned in `pool_surface_check.py`, same remediation: a public predicate. |
+
+[`risks.md`](risks.md) R1, the register's first closed entry.
+
+### The set of addon-owned models the framework may name is closed
+
+The framework's largest real coupling to its consumer is spelled as a string
+(`env["res.users"]`) and produces no import edge. Two gates bound it:
+
+| Gate | Bounds | Pinned as |
+|---|---|---|
+| `env_model_surface_check.py` | *which models* are reached | an exact set, plus **7 subtrees at zero reaches** |
+| `model_member_surface_check.py` | *which members* of them are called | against the `Protocol`s in `orm/_protocols.py` |
+
+The seven zero-reach subtrees — `orm/components`, `libs`, `db`, the
+`api`/`fields`/`models` shims, `_monkeypatches` — each already claim that
+property for an independent reason, so a first reach there is a contradiction
+rather than a cost.
+
+`orm/_protocols.py` is the third leg: it declares what the framework *requires*
+of those models, narrowly. `ResUsersProtocol` names the members the core cannot
+work without, not the hundreds `res.users` has —
+`addons/base/tests/test_framework_contracts.py` checks each Protocol against the
+live model, which is what catches `base` renaming a member under the framework.
+
+### Direction rules are blind to cycles
+
+Every edge of a cycle can sit inside one layer and cross no boundary. Python
+hides this better than ESM does — a partially-initialised module is a live
+object, so a cycle usually *works* until an entry point changes.
+`py_cycle_check.py` reconstructs the import graph to find them. **The ORM has
+none.** Four are pinned, all the benign package↔submodule shape:
+
+```
+odoo.modules <-> odoo.modules.db
+odoo.cli     <-> odoo.cli.command
+odoo.service <-> odoo.service._prefork <-> odoo.service._threaded <-> odoo.service.server
+odoo.tests   <-> odoo.tests.common <-> odoo.tests.http
+```
+
+Function-local imports are deliberately not counted as edges: a deferred import
+is the sanctioned way to break a cycle.
+
 
 ## Seams that keep the layers decoupled
 
-Every downward-only rule above has a counterpart seam that lets the lower layer
-still be *driven* by the upper one. These are the extension points; adding a new
-cross-layer dependency means adding a seam, not an import.
+Every downward-only rule has a counterpart seam that lets the lower layer still
+be *driven* by the upper one. **Adding a cross-layer dependency means adding a
+seam, not an import.**
 
-- **`db/` ↔ ORM:** the cursor's flushing savepoint is injected via
-  `BaseCursor._flushing_savepoint_cls` (`orm/runtime/savepoint.py` assigns
-  `_OrmFlushingSavepoint` at import), so `db/` never imports the ORM (ADR-0003).
-- **`components/` ↔ runtime:** `FieldCache`/`ComputeEngine` take callbacks for
-  SQL and recompute, so the engine never imports `Environment`.
-- **Layer 1 ↔ `BaseModel`:** `fields/` and `domain/` recognise recordsets and
-  `_search` overrides through `orm/_recordset.py`, into which the model layer
-  injects `BaseModel` at import time via `set_base_model()` — so Layer 1 never
-  imports Layer 2 (ADR-0001).
-- **CRUD ↔ persistence backend:** the model mixins (`create`/`write`/`read`/
-  `search`/`unlink`) dispatch row I/O through `env.backend`, which is
-  **non-optional** and has two implementors: `PostgresBackend` adapts the port to
-  the model's own `_*_sql` methods and `runtime/backend.py::InMemoryBackend`
-  adapts it to `DictBackend` (ADR-0011 and its 2026-08-08 amendment). Production
-  CRUD no longer sniffs the test backend via `transaction.storage`, and since
-  2026-08-08 it does not sniff it via a null check either. Until then `env.backend is None` *was*
-  the PostgreSQL implementation — an unnamed branch at fifteen sites across nine
-  files, which meant the Protocol described only the test double and a
-  differential suite had one object to compare against. Three sites still branch,
-  on declared capabilities rather than a null check, because there the two
-  backends run different algorithms rather than two implementations of one; the
-  sharpest is `Many2many.read`, where the SQL path fuses a JOIN into the comodel's
-  `Query` and the port's signature has nowhere to put it.
-- **Framework ↔ addon-owned models:** the core reaches application models by
-  string key (`env["res.users"]`), never by import. That is deliberate, and it is
-  the one seam with no import edge at all, so it has its own gate — see
-  `env_model_surface_check.py` below.
+| Seam | Mechanism | ADR |
+|---|---|---|
+| `db/` ↔ ORM | `orm/runtime/savepoint.py` assigns `_OrmFlushingSavepoint` to `BaseCursor._flushing_savepoint_cls` at import, so `db/` never imports the ORM | 0003 |
+| `components/` ↔ runtime | `FieldCache`/`ComputeEngine` take callbacks for SQL and recompute, so the engine never imports `Environment` | 0002 |
+| Layer 1 ↔ `BaseModel` | the model layer injects `BaseModel` into `orm/_recordset.py` via `set_base_model()`, so `fields/` and `domain/` recognise recordsets without importing Layer 2 | 0001 |
+| CRUD ↔ persistence | the model mixins dispatch row I/O through `env.backend` | 0011 |
+| framework ↔ addon models | string key (`env["res.users"]`), never an import | — |
+
+**`env.backend` is non-optional and has two implementors**: `PostgresBackend`
+adapts the port to the model's own `_*_sql` methods; `runtime/backend.py`'s
+`InMemoryBackend` adapts it to `DictBackend` (ADR-0011 + its 2026-08-08
+amendment). Production CRUD sniffs the test backend neither via
+`transaction.storage` nor via a null check. Until 2026-08-08 a null
+`env.backend` *was* the PostgreSQL implementation — an unnamed branch at fifteen
+sites across nine files, which left the Protocol describing only the test double
+and a differential suite with one object to compare against.
+
+**Three sites still branch**, on declared capabilities rather than a null check,
+because there the two backends run different *algorithms* rather than two
+implementations of one. The sharpest is `Many2many.read`: the SQL path fuses a
+JOIN into the comodel's `Query`, and the port's signature has nowhere to put it.
 

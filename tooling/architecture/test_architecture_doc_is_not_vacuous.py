@@ -27,6 +27,12 @@ Some survivors are correct and expected:
 * **negative** -- ``assertNotIn("...", DOC)`` is vacuously true of empty text by
   construction. Those are "the page must not say X" guards; their teeth are
   proven by mutating the text *in*, not out.
+* **conditional** -- the test iterates a construct the page is ALLOWED to carry
+  none of, so an empty match set is a legitimate state rather than a rotted
+  pattern. Guarding it with "assert we found at least one" would force the
+  document to keep carrying the construct, which for line-number citations is
+  the opposite of what we want. These must instead self-test their extractor
+  against a synthetic subject, so a broken pattern is still caught.
 
 Both kinds are listed below by name. A new one must be added deliberately, which
 is the point: adding a name here is a claim that the test does not read the page,
@@ -53,6 +59,8 @@ EMPTY_DOC = "# Nothing\n\nThis page makes no claims.\n"
 #: ``code-only``: asserts an invariant of the tree, a workflow, a README or a
 #: count restated in another file, and never reads ``DOC``.
 #: ``negative``: an ``assertNotIn`` on ``DOC``, which empty text satisfies.
+#: ``conditional``: iterates a construct the page may legitimately carry none
+#: of; its extractor is self-tested instead of hit-counted.
 EXPECTED_SURVIVORS: dict[str, str] = {
     # counts this page restates elsewhere -- checked against the code, not the page
     "TestCountsRestatedElsewhere.test_checker_docstring": "code-only",
@@ -70,8 +78,22 @@ EXPECTED_SURVIVORS: dict[str, str] = {
     # the DB-backed lifecycle tests must exist and be imported
     "TestHttpLifecycle.test_ordering_claims_have_a_runtime_test": "code-only",
     "TestHttpLifecycle.test_the_runtime_test_is_registered": "code-only",
-    # two measurements compared to each other
-    "TestMixinGraphProse.test_the_recordset_graph_is_strictly_wider": "code-only",
+    # the composition table's cells that are properties of the gate, not the
+    # page: the table's own rows are asserted by test_every_cell_re_derives,
+    # which does read DOC and does fail against an empty page.
+    "TestCompositionTable.test_only_basemodel_is_recordset_aware": "code-only",
+    "TestCompositionTable.test_the_ratchet_backs_every_column_that_can_regress": "code-only",
+    "TestCompositionTable.test_units_are_file_level_not_bases": "code-only",
+    # the design rule's mechanics: leaves, owners and declarations in the tree
+    "TestCompositionDesignRule.test_the_cursor_counters_have_an_owner": "code-only",
+    "TestCompositionDesignRule.test_the_declaration_is_what_moves_the_graph": "code-only",
+    "TestCompositionDesignRule.test_the_registry_leaves_are_leaves": "code-only",
+    # The document deliberately carries no ``file.py:N`` citation -- a pinned
+    # line number in a file that keeps being refactored is the drift this test
+    # exists to catch, so the last one was removed rather than repaired. The
+    # loop is therefore empty against the real page as well as an empty one;
+    # its vacuity guard is a self-test of the regex, not a count of hits.
+    "TestCitationsResolve.test_line_number_citations_resolve": "conditional",
     # orm/__init__.py's docstring against the gate
     "TestOrmDocstringAgreesWithGate.test_every_orm_member_is_documented": "code-only",
     "TestOrmDocstringAgreesWithGate.test_layer0_section_matches_the_contract": "code-only",
@@ -162,7 +184,7 @@ class TestDocSuiteIsNotVacuous(unittest.TestCase):
         import inspect
 
         for short, why in EXPECTED_SURVIVORS.items():
-            if why == "negative":
+            if why in ("negative", "conditional"):
                 continue
             cls_name, method_name = short.split(".")
             method = getattr(getattr(doc_suite, cls_name), method_name)
@@ -177,9 +199,34 @@ class TestDocSuiteIsNotVacuous(unittest.TestCase):
 
     def test_every_expected_survivor_has_a_known_reason(self) -> None:
         self.assertEqual(
-            set(EXPECTED_SURVIVORS.values()) - {"code-only", "negative"},
+            set(EXPECTED_SURVIVORS.values())
+            - {"code-only", "negative", "conditional"},
             set(),
         )
+
+    def test_conditional_survivors_self_test_their_extractor(self) -> None:
+        """A ``conditional`` entry is excused the hit count, not the guard.
+
+        It must still prove its pattern matches a synthetic subject, or a
+        rotted regex and an empty document are indistinguishable — which is the
+        exact confusion this whole file exists to prevent.
+        """
+        import inspect
+
+        for short, why in EXPECTED_SURVIVORS.items():
+            if why != "conditional":
+                continue
+            cls_name, method_name = short.split(".")
+            source = inspect.getsource(
+                getattr(getattr(doc_suite, cls_name), method_name)
+            )
+            self.assertIn(
+                "has rotted",
+                source,
+                f"{short} is listed as conditional but does not self-test its "
+                f"extractor; an empty match set is then indistinguishable from "
+                f"a broken pattern",
+            )
 
 
 if __name__ == "__main__":

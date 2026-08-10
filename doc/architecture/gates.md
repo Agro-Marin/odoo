@@ -12,10 +12,10 @@ instead of describing its own compliance.
 
 ## Running the checks
 
-The twenty-seven blocking checkers do **not** share one CLI, and a loop that
-assumes they do fails on three of them.
+The twenty-nine blocking checkers do **not** share one CLI, and a loop that
+assumes they do fails on four of them.
 
-**Twenty are contract gates.** Each takes bare for a human-readable report,
+**Twenty-three are contract gates.** Each takes bare for a human-readable report,
 `--check` for CI (exit 1 on a new violation), `--json` for a machine-readable
 one:
 
@@ -27,13 +27,32 @@ python tooling/architecture/layer_check.py --json     # machine-readable
 python tooling/architecture/subsystem_map_check.py --check   # the subsystem map vs the tree
 ```
 
-**Five are count ratchets** — `js_function_length`, `py_function_length`,
-`naming_vocabulary`,
-`js_service_shape` implement no `--check` at all. They print a number under
+**Six are count ratchets.** Four of them — `js_function_length`,
+`py_function_length`, `naming_vocabulary` and
+`js_service_shape` — implement no `--check` at all, and are the four a
+`--check` loop breaks on. They print a number under
 `--count` and hand it to `tooling/ratchet/ratchet.py`, which owns the floor;
-`js_private_access` has both, and CI drives it as a ratchet because the pytest
-step already exercises its cross-layer verdict. Run one of these bare and it
-reports without enforcing anything.
+`js_private_access` and `js_forced_render` are the other two and have both, CI
+driving them as ratchets because the pytest step already exercises their
+verdicts. Run one of these bare and it reports without enforcing anything.
+
+Twenty-three plus six is twenty-nine, and that arithmetic is the point of stating
+all three. This page carried `Twenty` beside a loop of twenty-one names for as
+long as nothing added them up, then `twenty-seven` on a day the workflow ran
+twenty-nine. All three now derive from the workflow, by the assertion that
+divides its own list.
+
+A fourth number, **thirty, was never a state of this tree at all** — it was
+produced during that same correction by measuring with an ad-hoc
+`python tooling/([\w/]+)\.py` instead of the assertion's
+`tooling/architecture/(\w+\.py)`, which sweeps in `tooling/ratchet/ratchet.py`:
+the harness the six ratchet-driven gates pipe their counts *into*, not a
+checker. It was believed and passed between sessions as fact for about an hour.
+Keep it on the page as the sharpest case the rule has: a number can look
+defensible, survive review, and be an artifact of the instrument that produced
+it. The commit that removed the missing gate got it right for the opposite
+reason — it read the count off the failing assertion's own strings rather than
+counting by hand.
 
 To reproduce the whole job, self-test first — a blocking step, because a checker
 whose own logic is broken reports green over code it never read — then run both
@@ -79,7 +98,7 @@ finding that belongs to a sibling repo's own architecture workflow. Read the
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **twenty-seven** blocking checkers — it first
+`Architecture Boundaries` workflow runs **twenty-nine** blocking checkers — it first
 runs `pytest tooling/architecture/` to self-test them, then:
 
 | Gate | What it locks |
@@ -96,6 +115,7 @@ runs `pytest tooling/architecture/` to self-test them, then:
 | `subsystem_map_check.py` | the **subsystem map above** against the actual tree |
 | `package_index_check.py` | a package README's module index against the package |
 | `js_layer_check.py` | the web addon's Feature-Sliced JS layers |
+| `js_deployment_layers.py` | a *different* layering, in a different set of addons: `mail` files its client code by **where it runs** (`core/common/`, `discuss/core/public/`), the path segment deciding which asset bundles it lands in — so `common/` must never import from a higher layer |
 | `js_cycle_check.py` | ESM import cycles across **every** addon's client source |
 | `named_export_coherence.py` | `import { x }` with no matching `export` |
 | `js_suite_parity.py` | the web addon's test tree against its source tree — a moved test must move with what it tests |
@@ -187,10 +207,39 @@ those names are backticked like every other path in the tree, so a gate that
 reads a backticked path as an assertion cannot tell a citation from an assertion.
 The only thing that can tell them apart is *where on the page they are*.
 
-(`cross_repo_coherence.py` is a twenty-eighth checker and the only one outside CI: it
+(`cross_repo_coherence.py` is a thirtieth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub checks
 out this repo alone and the check needs the sibling checkouts to compare against.
 It is opt-in per clone — `pre-commit install --hook-type pre-push`.)
+
+**Three more block without appearing above**, because they are enforced by the
+`pytest tooling/architecture/` step rather than by a `--check` invocation of
+their own: `js_face_boundary.py` (a specifier stepping over a face),
+`js_registry_layering.py`, and `model_member_surface_check.py` (which members
+the core calls on addon-owned models — the companion to
+`env_model_surface_check.py`'s *which models*). Each carries a real-tree test —
+`test_the_real_tree_holds_the_property_today`,
+`test_the_surface_matches_the_committed_baseline` — so a violation fails the
+self-test step, which is blocking. Counting them here would be a different
+sentence, not a bigger number: **twenty-nine** is how many checkers CI runs as
+their own step, and the self-test is the step above them.
+
+Those three are one instance of a shape worth naming, because a second instance
+turned up the same evening: `tooling/test_repo_root.py`'s `ROOT_ATTRS` was three
+short — `doc_symbol_gate`, `js_deployment_layers` and `js_extension_surface` all
+resolve a checkout root and were asserted by nothing. **An enumerated list is
+only a gate if something independently derives the enumeration.** Both trios
+were modules participating in an invariant while appearing in no list that
+claimed to enumerate the participants, and neither list could report its own
+gap: a hand-maintained roster is complete by assumption, and says so in exactly
+the voice it would use if it were complete in fact. `subsystem_map_check.py` is
+the pattern done right — it derives the tree and compares.
+
+That distinction is worth stating rather than assuming, because it is the whole
+reason the self-test runs first. `js_imports.py` is neither: it has no `main()`
+and no flags, being the JS tokenizer nine of the gates above parse with — the
+easiest thing in this directory to mistake for a gate, since it sits beside them
+and has a `test_js_imports.py`.
 
 Two further mechanisms keep the *non-structural* quality signals from
 regressing:
@@ -210,7 +259,7 @@ regressing:
   `C90` family while ignoring `C901`, its only rule.
 
   `c901_addons` is the tenth. Every floor above it measures
-  `odoo/`, the core *package*; none measured `addons/`, where the 615 bundled
+  `odoo/`, the core *package*; none measured `addons/`, where the 613 bundled
   modules and most of the business logic live, so complexity there was
   unbounded. It is a separate floor rather than a widened scope on `c901` for
   the same reason `c901` is separate from `ruff`: the two trees move for
@@ -243,14 +292,16 @@ regressing:
   ```
 
 - **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
-  ADR-0007) — boots PostgreSQL 18 and runs three suites, **each against its own
+  ADR-0007) — boots PostgreSQL 18 and runs four suites, **each against its own
   database**: `base` (less the excluded `TestReportsRendering` and
-  `TestIrModelFieldsTranslation`), `test_http`, and `test_orm`. So the decomposed
-  pieces are verified to *behave*, not just to import cleanly.
+  `TestIrModelFieldsTranslation`) on `ci_smoke`, `test_http` on `ci_http`,
+  `test_orm` on `ci_orm`, and `mrp` on `ci_mrp`. So the decomposed pieces are
+  verified to *behave*, not just to import cleanly.
 
   `test_orm` was added on 2026-08-08, the broadening this workflow's own header
   had asked for since it landed. It was by far the largest thing outside the
-  lane — **1,104 test methods over 26,467 lines**, and the addon written to test
+  lane — **1,110 test methods over 26,579 lines** under its `tests/` directory,
+  and the addon written to test
   the ORM. Most of what it covers no other lane can reach, above all
   `test_domain_evaluator_parity.py`: the only check that a `Domain` means the
   same to both of its consumers, `search()` (SQL) and `filtered_domain()` (the
@@ -266,6 +317,18 @@ regressing:
   it was the one that never ran it. It now skips on
   `registry.has_unaccent`, matching `base`'s existing idiom.
 
+  `mrp` is the fourth, and the first suite here that is not a `test_*` addon.
+  The argument for it is the one this section keeps making: a suite nobody runs
+  rots silently. `3bcf5d144f9` deleted `stock.move.availability` having found
+  "no consumer anywhere in the workspace", missed
+  `addons/mrp/tests/test_order.py`, which asserts on it, and left that test
+  erroring — every assertion after the failing line unexecuted — for as long as
+  nothing ran it. It also earns its place on coverage rather than on repair:
+  recursive BoM explosion, backorder splitting, multi-level procurement and
+  compute chains across four models make it the deepest ORM consumer among the
+  bundled addons, and installing it gives `stock`, `product`, `uom` and
+  `resource` their first DB-backed exercise through a real consumer.
+
   What remains outside the lane is still most of the bundled test surface —
   `test_read_group` (9,203 lines, the only coverage of the five `read_group/`
   units) and `test_access_rights` (record rules and ACLs) are the next two worth
@@ -275,9 +338,9 @@ regressing:
 
 **The integration gate is the only lane that runs addon tests, and that is the
 sharpest limit on the word "enforced" at the top of this page.** Every one of the
-twenty-five boundary checkers is structural and DB-free: they read import graphs,
+twenty-nine boundary checkers is structural and DB-free: they read import graphs,
 call graphs, reached-member sets and documents. A change can satisfy all
-twenty-five, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s
+twenty-nine, and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s
 slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green, because nothing
 those gates read had changed. Read a green boundary job as "the structure holds", never as "the

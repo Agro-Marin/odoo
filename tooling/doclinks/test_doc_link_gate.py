@@ -81,7 +81,13 @@ class TestScanCoverage:
         # glob the whole story -- no front-door special case any more.
         files = set(gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES))
         on_disk = set((gate.REPO_ROOT / "doc" / "architecture").glob("**/*.md"))
-        assert len(on_disk) >= 10, (
+        # A floor, not a count: the guard exists so an empty or relocated glob
+        # cannot make the assertion below vacuously true, and pinning the exact
+        # size would instead fail every time a view is added or retired. It
+        # was `>= 10` and the set is 9 -- the findings page was deleted, being
+        # a record of how each rule was arrived at rather than part of the
+        # spec.
+        assert len(on_disk) >= 5, (
             f"the architecture set has shrunk to {len(on_disk)} files; if it "
             f"moved, point this test at its new home -- an empty glob would "
             f"make every assertion below vacuously true"

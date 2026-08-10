@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.8
+:Version: 5.9
 :Date: 2026-08-08
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -85,12 +85,20 @@ unless the floor moved with it.
      - Scope
      - Workflow
    * - ruff
-     - ``ruff check odoo/ --no-cache --statistics``
-     - ``odoo/`` only
+     - ``ruff check odoo/ --no-cache --ignore D --statistics``
+     - ``odoo/`` only, docstrings excluded — a **hard zero**
+     - ``.github/workflows/ruff.yml``
+   * - ruff_docstring
+     - ``ruff check odoo/ --no-cache --select D --statistics``
+     - ``odoo/`` only, docstrings alone
      - ``.github/workflows/ruff.yml``
    * - c901
      - ``ruff check odoo/ --no-cache --select C901 --statistics``
      - ``odoo/``, complexity > 20
+     - ``.github/workflows/ruff.yml``
+   * - c901_addons
+     - ``ruff check addons/ --no-cache --select C901 --statistics``
+     - ``addons/``, complexity > 20
      - ``.github/workflows/ruff.yml``
    * - mypy
      - ``mypy -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules``
@@ -108,6 +116,10 @@ unless the floor moved with it.
      - ``tooling/architecture/naming_vocabulary.py``
      - §2.4 abolished verbs
      - ``architecture.yml``, ``unit_tests.yml``
+   * - Python function length
+     - ``tooling/architecture/py_function_length.py``
+     - core Python, **excess lines** over 80
+     - ``architecture.yml``
    * - JS function length
      - ``tooling/architecture/js_function_length.py``
      - ``web`` JS
@@ -120,22 +132,43 @@ unless the floor moved with it.
      - ``tooling/architecture/js_service_shape.py``
      - ``web`` JS services
      - ``architecture.yml``
-   * - layer boundaries
-     - ``tooling/`` layer, import-cycle + named-export checks
-     - **drift-zero**
+   * - JS forced render
+     - ``tooling/architecture/js_forced_render.py``
+     - ``web`` JS
      - ``architecture.yml``
 
-``tooling/ratchet/baselines/`` is the authoritative list — nine floors today.
-The ``test_lint`` ratchets are counted separately, inside the module's own
-``assert_ratchet`` (see below), and are not baselined here.
+``tooling/ratchet/baselines/`` is the authoritative list: **one JSON per gate,
+and the directory is the count.** No number is written here on purpose. This
+paragraph said "nine floors today" beside a table of ten rows, one of which was
+not a ratchet at all, while the directory held thirteen — the same drift the
+ratchets exist to stop, in the document that defines them. Read the floors and
+their number off the tool:
 
-Four consequences you must internalise:
+.. code-block:: bash
+
+   python tooling/ratchet/ratchet.py --list
+
+The layer-boundary gate is **not** a ratchet and is no longer listed above:
+crossings are held at exactly zero and any new one fails outright, so there is
+no floor and no baseline file. It is described under the fourth consequence
+below. The ``test_lint`` ratchets are counted separately, inside the module's
+own ``assert_ratchet`` (see below), and are not baselined here either.
+
+Five consequences you must internalise:
 
 * **The ruff ratchet measures ``odoo/``, not ``addons/``.** Addon code — including
   every ``agromarin`` module — is outside the counted scope. For addons, ``ruff``
   is a local discipline enforced by pre-commit and review, not by the ratchet.
 * **A finding on a file you touched may predate you.** Compare against ``git diff``,
   not against a whole-file lint report.
+* **``ruff`` is measured with ``--ignore D``, at a hard zero.** Docstring debt
+  was split into its own ``ruff_docstring`` floor on 2026-08-08 because an
+  exact-match ratchet over one integer cannot tell "someone added a docstring"
+  from "someone introduced a real defect": 758 of the aggregate's 759 findings
+  were D1xx, so every added docstring bought room for an unrelated new finding.
+  One genuine defect had been hiding there for exactly that reason. A gate whose
+  floor is nonzero can always launder a regression against an unrelated
+  improvement — split it before that matters, not after.
 * **``ruff`` and ``c901`` are two floors over one command.** ``ruff.toml``
   ignores ``C901`` so it stays out of the aggregate, and the ``c901`` step
   re-selects it on the CLI, which overrides that ignore. Its threshold is
@@ -3380,6 +3413,21 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.9
+     - 2026-08-09
+     - **The ratchets table listed nine floors over ten rows against thirteen
+       baseline files, and one of the ten was not a ratchet.** Missing:
+       ``ruff_docstring``, ``c901_addons``, ``pyfunclen`` and
+       ``jsforcedrender``; miscounted: "nine floors today"; misfiled: the
+       layer-boundary gate, which is drift-zero with no baseline file and is
+       now described only under the consequences. ``ruff``'s command was also
+       written without ``--ignore D``, which is how CI has measured it since
+       the 2026-08-08 docstring split — following the guide as written
+       reproduced neither floor. **No count is stated in this section any
+       more**: the directory is the list and ``ratchet.py --list`` is the
+       reading. Both ``CLAUDE.md`` files updated in the same change, per the
+       change protocol; the workspace root's copy of the table dropped its
+       Floor column for the same reason.
    * - 5.8
      - 2026-08-09
      - **§12.2 named a module that does not exist.** The pre-migrate SQL

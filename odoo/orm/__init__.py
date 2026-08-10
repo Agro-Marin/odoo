@@ -12,6 +12,8 @@ Layer 0 — Zero-dependency foundations:
   validation.py    Name-checking helpers (pg, object, method)
   constants.py     Read group constants (granularity, aggregates, display)
   _typing.py       Composite type aliases (DomainType, ModelType)
+  _protocols.py    What the framework requires of the addon-owned models it
+                   reaches by string key; typing-only at runtime
 
 Layer 1 — Field & domain system:
   fields/          Field type definitions

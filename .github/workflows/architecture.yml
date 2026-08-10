@@ -708,7 +708,8 @@ jobs:
       # the commit that removes it, and 72c0bff4c39 carries the original. To
       # restore, revert this hunk once the checker lands; it also needs a
       # `steps.js_env_config_surface.outputs.exit_code` term in the annotate
-      # condition and a row in `gates.md`, neither of which it ever had.
+      # condition and a row in doc/architecture/gates.md, neither of which it
+      # ever had.
 
       - name: Run XML reference-coherence check
         id: xml_refs

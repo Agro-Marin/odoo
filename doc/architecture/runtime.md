@@ -129,6 +129,11 @@ Registry.new(db)
    └─ register_model_hooks() · check_null_constraints()
 ```
 
+Fourteen of the 22 calls, in call order; the sketch selects, it does not
+enumerate. [`scenarios.md`](scenarios.md#scenario-a--installing-a-module)
+selects thirteen for a different purpose, so the two lists differ — read either
+as an ordering claim, never as the full sequence, which is `loading.py`'s.
+
 Two consequences worth knowing before touching this path:
 
 - **The graph is iterated by phase, then dependency depth, then name** — never by
@@ -203,7 +208,7 @@ Cursor ──── transaction ────┬─ registry          the model c
                             ├─ _compute_engine   ComputeEngine (pending recomputes)
                             ├─ core              OrmCore  ← the curated facade, env._core
                             ├─ unit_of_work      UnitOfWork (the fixpoint loops)
-                            ├─ backend           None = PostgreSQL · InMemoryBackend = DB-free
+                            ├─ backend           PostgresBackend · InMemoryBackend = DB-free
                             └─ envs              interned Environments
 ```
 
@@ -234,5 +239,10 @@ both short-circuit when nothing is pending or dirty.
 
 Row I/O at the bottom of all of this goes through `env.backend`, the ADR-0011
 port described under **Seams** — which is what lets the whole ORM run against
-`InMemoryBackend` with no database at all.
+`InMemoryBackend` with no database at all. **`backend` is non-optional and has
+two implementors**, which is why the row above names one rather than leaving it
+unset: until 2026-08-08 a null `env.backend` *was* the PostgreSQL
+implementation, an unnamed branch at fifteen sites, and this sketch went on
+teaching that sentinel after `PostgresBackend` had a name. A diagram is where a
+reader learns the shape, so it is the worst place for a retired one to survive.
 

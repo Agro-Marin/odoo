@@ -18,7 +18,7 @@ the subject, under *what this view does not cover*.
 | R1 | `Registry._relation_reflections` has an undeclared lifetime | High | 2026-08-08 | **2026-08-09** |
 | R2 | The layering is true of imports and false of the runtime graph | Medium | 2026-08-08 | — |
 | R3 | Migration stage (`pre`/`post`) is unenforced and unrecoverable | High | 2026-08-08 | — |
-| R4 | "Enforced" means structural only — 26 gates cannot see behaviour | High | 2026-08-08 | — |
+| R4 | "Enforced" means structural only — 29 gates cannot see behaviour | High | 2026-08-08 | — |
 | R5 | Two ADRs describe a subsystem the repository has never contained | Low | 2026-08-08 | — |
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process; contention is unmeasured | Medium | 2026-08-08 | — |
@@ -109,16 +109,32 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 27 are structural and DB-free — and not caught by either DB-free test
+gate — all 29 are structural and DB-free — and not caught by either DB-free test
 tier.
 
+**Narrowed 2026-08-09: the syntactic half is now caught, the semantic half is
+the risk.** The two were being treated as one. Nothing can know that a script
+reading the old schema was filed as `post-` — that is the entry. But
+`_get_migration_files` selects on `name.startswith(f"{stage}-")`, so a script
+named `pre_01.py` or `Pre-01.py` (the match is case-sensitive) matches no stage
+at all: globbed, collected, then dropped by every stage without a word. On an
+upgrade of a populated database that is a migration nobody notices did not
+happen, and it needed no schema knowledge to detect.
+`modules/migration.py::_warn_unstaged_scripts` now logs one, as a warning rather
+than an error, because an addon may legitimately keep a helper module beside its
+scripts. Measured across this workspace's five addon trees: 235 scripts (228 in
+`migrations/`, 7 in `upgrades/`), all correctly prefixed, none dropped.
+
+That is the shape worth taking from this entry: a risk stated at the level of
+its hardest half hides the half that is cheap to close.
+
 **What would close it.** A DB-backed upgrade test on a populated fixture, in the
-integration lane. Nothing cheaper can see it.
+integration lane. Nothing cheaper can see the semantic half.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 27 boundary checkers read import graphs, call graphs, reached-member
-sets and documents. None executes the framework. A change can satisfy all 27 and
+**What.** The 29 boundary checkers read import graphs, call graphs, reached-member
+sets and documents. None executes the framework. A change can satisfy all 29 and
 both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
@@ -127,7 +143,7 @@ addon tests in 2026-08 while every gate and both tiers stayed green.
 
 **Cost.** A green boundary job reads as "the framework works" when it means "the
 structure holds". The integration lane is the only one that runs addon tests,
-and it runs two suites.
+and it runs four suites.
 
 **What would close it.** Broadening the integration lane is the only lever;
 adding structural gates cannot reach this class of defect by construction.

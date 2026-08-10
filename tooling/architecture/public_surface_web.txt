@@ -224,7 +224,7 @@
 @web/views/view_hook  odoo enterprise
 @web/views/view_measurements  enterprise
 @web/views/view_utils  odoo enterprise agromarin
-@web/views/widgets  odoo enterprise agromarin
+@web/views/widgets  odoo enterprise
 @web/webclient/actions  odoo enterprise agromarin
 @web/webclient/burger_menu/burger_menu  odoo enterprise
 @web/webclient/clickbot/clickbot  enterprise

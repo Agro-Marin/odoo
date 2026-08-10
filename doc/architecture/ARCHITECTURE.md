@@ -12,7 +12,7 @@ per-addon `addons/*/machine_doc_v1/ARCHITECTURE.md` maps.
 | placing new code | *Where to add code* below |
 | debugging a runtime path | [`runtime.md`](runtime.md) |
 | changing a boundary | [`gates.md`](gates.md), then `doc/adr/` |
-| wondering why a rule exists | `doc/adr/`, then [`findings.md`](findings.md) |
+| wondering why a rule exists | `doc/adr/`, then the gate's own module docstring |
 | judging a change's cost | [`qualities.md`](qualities.md) |
 
 ## Context
@@ -173,8 +173,18 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`scenarios.md`](scenarios.md) |
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
-| **Findings** | how these rules were arrived at, and what each cost to learn | [`findings.md`](findings.md) |
-| **Decisions** | why the architecture is this way, dated and immutable | `doc/adr/` |
+| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0016 | `doc/adr/` |
+
+**Where a rule came from is not a view.** A findings page carried that for a
+while — the investigation notes behind each gate — and it was the one page here
+that described *the work*, not the system. It is deleted; the name is written
+unbackticked because in this repo a backticked path asserts the file exists, and
+`test_named_source_paths_exist` reads that. An architecture spec
+says what holds and what enforces it; how it was arrived at belongs with the
+thing it explains. Each gate's own module docstring carries its rationale and
+its `MEASURED` block, which `doc_measured.py` keeps fresh; the decisions are in
+`doc/adr/`; the investigation write-ups are in
+`agromarin-knowledge/research/`.
 
 Two subsystems document themselves in more depth than any view does:
 `odoo/db/README.md` and `odoo/http/README.md` — the latter carries the canonical,
@@ -192,8 +202,10 @@ unflattened HTTP call graph.
 > produces it rather than restated.
 >
 > **If you add a number to this page, add the assertion with it.** Prose that no
-> test reads is prose that has already drifted —
-> `findings.md` records what that cost when it was learned.
+> test reads is prose that has already drifted, and this set has paid for that
+> repeatedly: a mixin count copied into three files and stale in all three, an
+> `env` surface figure that two documents agreed on and no run reproduced, a
+> ratchet table stating nine floors against thirteen baseline files.
 >
 > That rule has a failure mode worth naming, because this page is the correction
 > for it: it selects for claims that are *checkable*, not claims that are

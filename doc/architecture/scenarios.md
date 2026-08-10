@@ -33,6 +33,12 @@ The thread that makes *"the schema is data"* concrete. Entry point is
 | 12 | `uninstall_removed_modules()` | data + module |
 | 13 | `reinit_models_to_check()` | runtime |
 
+Thirteen of `load_modules`' 22 calls, in call order — the nine left out are
+reporting and bookkeeping (`report_modules_that_never_loaded`,
+`log_assertion_report`, `flag_partially_updated_database` and the rest), which
+cross no view. The numbering is this table's, not the loader's; what is pinned
+is the *order*, by `test_scenario_a_phase_table_is_ordered_and_says_it_is_partial`.
+
 Three things this ordering encodes that no other view states:
 
 **Metadata is captured before it is mutated (3 before 7).** The comparison that

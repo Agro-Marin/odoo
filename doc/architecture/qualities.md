@@ -113,6 +113,27 @@ odoo-bin -c <conf> -d <db> --stop-after-init                # warm
 
 and read `Registry loaded in …s` from the log.
 
+**Re-measured 2026-08-09**, same machine, same four modules, but with ~20 other
+sessions live on the box — so read the cold figures as an upper bound and the
+warm ones as a clean repeat:
+
+| | 2026-08-08 | 2026-08-09 |
+|---|---|---|
+| models installed by those 105 modules | 529 | **531** |
+| Install + build, registry | 35.85 s | 42.92 s |
+| Install peak RSS | 508 MB | 519 MB |
+| Warm registry load | 0.72 s | 0.746 / 0.765 s |
+| Warm boot, wall | 1.78 s | 1.82 / 1.84 s |
+| Warm steady RSS | 224 MB | 228 MB |
+| **cold ÷ warm** | **50×** | **58×** |
+
+The warm column repeats to within a few percent; the cold one is ~20% slower
+under load, which is what "moving the environment invalidates the absolute
+values" means in practice. **The ratio survived both** — that is the claim this
+scenario is actually making, and the reason the page says the ratios are the
+portable part. The `base` column repeated exactly (7.36 s cold, 0.185/0.185/0.188 s
+warm).
+
 ## Scenario 3 — Multi-tenancy cost
 
 > **Stimulus** One process is asked to serve a second database.
@@ -136,6 +157,14 @@ saying how much of that generalises.
 Method caveat: both are deltas of `ru_maxrss`, which is a *peak* and never
 falls. They are therefore lower bounds on growth and cannot be used to observe
 memory being released.
+
+**The duplicate-schema row re-measured 2026-08-09 at +8 MB** (0.052 MB/model
+against 0.045), loading two independently-installed `base` databases into one
+process: 74 MB baseline, 165 after the first registry, 173 after the second. The
+two registries are distinct objects, which is the property the row is really
+about. The distinct-schema +62 MB has not been re-measured — it needs the
+105-module database resident beside another, and the caveat above means a run on
+a loaded box would only inflate it.
 
 **What would falsify this:** a shared, copy-on-write or interned representation
 of field/model metadata across distinct registries would collapse the 62 MB; a

@@ -114,7 +114,8 @@ Resolved three ways:
   internal layout keep moving — the same bargain ADR-0008 makes for the ORM.
 - **Bracketed tiers with a `layer_check` contract**, as `db/` and `http/` have.
   Not done *yet*: those contracts were added after their tiers had been measured
-  and found already-layered (see `doc/architecture/findings.md`). The direction here is asserted
+  and found already-layered; the measurement lives in the tier gates' own
+  docstrings. The direction here is asserted
   by construction and documented in the package `__init__`; a contract should
   follow a measurement, not precede one.
 

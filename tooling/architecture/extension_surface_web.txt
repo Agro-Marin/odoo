@@ -146,8 +146,8 @@ Dialog.onEscape  odoo
 Dialog.setup  odoo
 DomainSelector.getOperatorEditorInfo  agromarin
 DomainSelector.getShowArchivedCheckBox  odoo
+DomainSelector.onPropsUpdated  agromarin
 DomainSelector.setup  agromarin
-DomainSelectorDialog.dialogTitle  agromarin
 Dropdown.isBottomSheet  odoo
 Dropdown.popoverCloseOnClickAway  enterprise
 Dropdown.setup  odoo

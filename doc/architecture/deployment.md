@@ -61,17 +61,33 @@ Defaults, from `odoo/tools/config.py`:
 | `workers` | `0` | HTTP worker processes; `0` selects threaded |
 | `max_cron_threads` | `2` | cron workers |
 | `limit_request` | `65536` | requests a worker serves before it is recycled |
-| `limit_memory_soft` | `2048 MB` | worker recycles *after* finishing the current request |
-| `limit_memory_hard` | `2560 MB` | worker is killed |
+| `limit_memory_soft` | `2048 MB` | RSS above this stops the worker *after* the current request; the only memory limit the process enforces |
+| `limit_memory_hard` | `2560 MB` | **deprecated, enforced by nothing in-process** — see below |
 | `limit_time_cpu` | `60 s` | CPU time per request |
 | `limit_time_real` | `120 s` | wall time per request |
 | `limit_time_real_cron` | `-1` | wall time per cron job; `-1` defers to `limit_time_real` |
 | `db_maxconn` | `64` | checked-out connections, **per PostgreSQL server** |
 
-The two memory limits are a pair with different semantics — soft lets the
-current request finish, hard does not — and the gap between them (512 MB by
-default) is the headroom a request has to complete once it has already crossed
-the recycle threshold. A deployment whose steady-state RSS is near the soft
+**There is one memory limit, not a pair.** `limit_memory_soft` is read at three
+sites — `_worker.py`'s `check_limits`, and `_threaded.py` for the HTTP and cron
+paths — each calling `over_memory_soft_limit()` on the process's RSS and, above
+it, clearing `alive` so the worker stops after the current request.
+`limit_memory_hard` is read **nowhere in `odoo/service/`**. The in-process
+`RLIMIT_AS` that once enforced it was removed because the allocator and gevent
+reserve multi-GB of never-resident virtual address space, which that rlimit
+counts and RSS does not; `config.py`'s own help now says "Deprecated/not
+enforced in-process" and directs the hard cap to a cgroup v2 limit on the
+systemd unit (`MemoryMax=` with `MemorySwapMax=0`).
+
+This page previously described the two as "a pair with different semantics" and
+sold the 512 MB between them as headroom. Nothing implements that. A deployment
+sized on it has **no** hard ceiling unless the unit file supplies one: past the
+soft limit a worker finishes its request and exits, and a single request that
+allocates without bound is bounded by the OOM killer, not by Odoo. It is the
+sharpest example on these pages of a number that reads as a guarantee because it
+has a default and a row in a table.
+
+A deployment whose steady-state RSS is near the soft
 limit recycles constantly and pays a registry rebuild each time.
 
 `limit_request` exists because a long-lived Python process accumulates; recycling
@@ -100,6 +116,10 @@ independent servers under-used both.
 **The replica is optional and self-demoting.** Lag is sampled, and reads that
 would be too stale go to the primary instead of being served wrong. The breaker
 backs off exponentially to a ceiling of `_REPLICA_RETRY_TIME` (20 minutes) —
+which the table above does not list because it is not `db/`'s: `db/breaker.py`
+owns the `CircuitBreaker`, and `orm/runtime/registry.py` owns the constant and
+constructs the breaker with it, so the mechanism and the policy sit either side
+of the boundary —
 which was previously a *flat* 20-minute window, so a single transient failure
 cost 20 minutes of full primary load with nothing re-checking. It is now the
 maximum a doubling backoff reaches, so a blip recovers in about a second while

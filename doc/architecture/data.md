@@ -158,9 +158,11 @@ The question to ask of any change: *if these disagreed, which one wins?*
 
 ## What this view does not cover
 
-- **Replica topology.** `db/` carries a read-only replica path with a breaker
-  (`_REPLICA_RETRY_TIME`); which data may be read from a replica, and the
-  staleness window, are not described here.
+- **Replica topology.** There is a read-only replica path with a breaker —
+  `db/breaker.py` owns the mechanism, `orm/runtime/registry.py` the policy
+  (`_REPLICA_RETRY_TIME`, the cooldown ceiling it constructs the breaker with).
+  Which data may be read from a replica, and the staleness window, are not
+  described here.
 - **Retention.** Nothing here says how long sessions, attachments or log-like
   tables are kept.
 - **Encryption at rest**, for any of the four stores.

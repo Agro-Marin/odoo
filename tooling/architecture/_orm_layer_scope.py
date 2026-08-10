@@ -57,6 +57,7 @@ from pathlib import Path
 SCOPE: dict[str, str] = {
     "orm/__init__.py": "Layer 0",
     "orm/_typing.py": "Layer 0",
+    "orm/_protocols.py": "Layer 0",
     "orm/constants.py": "Layer 0",
     "orm/primitives.py": "Layer 0",
     "orm/parsing.py": "Layer 0",
