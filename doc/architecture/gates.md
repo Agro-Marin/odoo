@@ -47,7 +47,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_deployment_layers named_export_coherence js_suite_parity \
             js_layer_cohesion js_import_resolution js_self_bridge \
             js_patch_blind_facade js_public_surface js_extension_surface \
-            js_env_config_surface js_arch_info_surface \
+            js_env_config_surface js_arch_info_surface js_field_record_surface \
             xml_reference_coherence js_mixin_coupling; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
 done
@@ -110,6 +110,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `js_public_surface.py` | the web addon's published JS surface, as a ratchet |
 | `js_extension_surface.py` | the web addon's inheritance surface — the methods downstream subclasses override, as a ratchet |
 | `js_arch_info_surface.py` | the `archInfo` keys the view compiler writes into *generated template source*, where they are strings until OWL compiles them and no type, linter or member gate can follow them; plus each view type's parser against what its own directory reads |
+| `js_field_record_surface.py` | what field widgets reach through `props.record` — `standardFieldProps` hands all 83 members of a live `RelationalRecord` to 155 widgets, and a prop read is neither an import nor a class member, so no other gate sees it |
 | `js_env_config_surface.py` | the keys read out of `env.config`, web's ambient per-action bag — inherited through the component tree, so it is neither an import nor a class member and the two surface gates above are blind to it |
 | `naming_vocabulary.py` | the §2.4 method-naming verb vocabulary |
 | `xml_reference_coherence.py` | view-arch strings (`widget=`, `js_class=`, `t-call`) against the JS registries and templates |

@@ -164,6 +164,7 @@ NUMBER_WORDS = {
     "thirty": 30,
     "thirty-one": 31,
     "thirty-two": 32,
+    "thirty-three": 33,
 }
 
 #: The same map, value -> word, for the assertions that go the other way: they
