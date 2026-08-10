@@ -2408,6 +2408,25 @@ class IrUiView(models.Model):
                     )
                     self._raise_view_error(msg, node)
 
+    def _get_client_button_types(self, view_type: str) -> set[str]:
+        """Button ``type`` values a view of ``view_type`` handles in the client,
+        without a server call — as opposed to ``object`` / ``action``, which name
+        something the server must resolve and are validated separately.
+
+        A module that implements its own button type in a view controller (the
+        ``beforeExecuteAction`` hook of ``useViewButtons`` returning ``False`` to
+        swallow the click) declares it here, so ``_validate_tag_button`` does not
+        report the type it deliberately introduced as unknown.
+        """
+        types = set()
+        if self._is_qweb_based_view(view_type):
+            types.update(
+                ("open", "archive", "unarchive", "delete", "set_cover", "button")
+            )
+        if view_type in ("list", "groupby"):
+            types.add("edit")
+        return types
+
     def _validate_tag_button(
         self,
         node: _Element,
@@ -2452,13 +2471,8 @@ class IrUiView(models.Model):
             if name:
                 name_manager.must_exist_action(name, node)
                 name_manager.has_action(name)
-        elif type_ and not (
-            (
-                self._is_qweb_based_view(node_info["view_type"])
-                and type_
-                in ("open", "archive", "unarchive", "delete", "set_cover", "button")
-            )
-            or (node_info["view_type"] in ("list", "groupby") and type_ == "edit")
+        elif type_ and type_ not in self._get_client_button_types(
+            node_info["view_type"]
         ):
             self._log_view_warning(f"Unknown button type {type_!r}", node)
 

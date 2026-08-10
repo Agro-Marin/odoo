@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from freezegun import freeze_time
 
 from odoo import fields, tests
-from odoo.fields import Command
+from odoo.fields import Command, Domain
 from odoo.tests import Form
 
 
@@ -311,7 +311,7 @@ class TestReportStockQuantity(tests.TransactionCase):
                 for product in self.env[r["res_model"]]
                 .with_context(r["context"])
                 .search_read(
-                    domain=(r["domain"] + [("id", "=", product_id)]),
+                    domain=Domain(r["domain"]) & Domain("id", "=", product_id),
                     fields=["qty_available", "qty_available_virtual"],
                 )
             )

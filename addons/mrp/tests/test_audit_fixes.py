@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
-from odoo.tests import tagged
+from odoo.tests import Form, tagged
 
 from .common import TestMrpCommon
 
@@ -1379,3 +1379,41 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertAlmostEqual(bom_cost, order_currency.round(10.4833), places=2)
         # The value the double rounding produced.
         self.assertNotAlmostEqual(bom_cost, 10.0, places=2)
+
+    def test_split_wizard_bounds_the_batch_count_on_the_onchange_path(self):
+        """mrp.production.split._compute_num_splits
+
+        The MAX_SPLITS bound has to hold on the path the wizard's own form uses.
+        That path is onchange, not write: it runs the computes and builds one
+        `mrp.production.split.line` per batch. An @api.constrains on
+        `max_batch_size` / `num_splits` cannot cover it — both are computed,
+        non-stored and inverse-less, so a constraint only sees a direct write(),
+        by which point the records it exists to prevent already exist.
+        """
+        product = self.env["product.product"].create(
+            {"name": "Split bound", "is_storable": True}
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": product.id, "product_qty": 100000.0}
+        )
+        wizard = self.env["mrp.production.split"].create(
+            {"production_id": production.id}
+        )
+        max_splits = wizard.MAX_SPLITS
+        # The default batch size is the whole order, i.e. a single batch.
+        self.assertEqual(len(wizard.production_detailed_vals_ids), 1)
+
+        # 100000 / 20 = 5000 batches, five times the bound.
+        with self.assertRaises(ValidationError), Form(wizard) as form:
+            form.max_batch_size = 20.0
+        # The refused batch size built nothing: the wizard still holds only the
+        # single default line, not 5000.
+        self.assertEqual(len(wizard.production_detailed_vals_ids), 1)
+
+        # The bound itself is still reachable: exactly MAX_SPLITS is accepted.
+        # `num_splits` is asserted inside the form — it is not stored, so a read
+        # after the save recomputes it from the default batch size.
+        with Form(wizard) as form:
+            form.max_batch_size = production.product_qty / max_splits
+            self.assertEqual(form.num_splits, max_splits)
+        self.assertEqual(len(wizard.production_detailed_vals_ids), max_splits)

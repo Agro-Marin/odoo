@@ -65,27 +65,35 @@ class MrpProductionSplit(models.TransientModel):
     def _compute_num_splits(self):
         self.num_splits = 0
         for wizard in self:
-            if wizard.product_uom_id.compare(wizard.max_batch_size, 0) > 0:
-                wizard.num_splits = float_round(
-                    wizard.product_qty / wizard.max_batch_size,
-                    precision_digits=0,
-                    rounding_method="UP",
-                )
-
-    @api.constrains("max_batch_size", "num_splits")
-    def _check_num_splits(self):
-        for wizard in self:
-            if wizard.num_splits > wizard.MAX_SPLITS:
+            if wizard.product_uom_id.compare(wizard.max_batch_size, 0) <= 0:
+                continue
+            num_splits = float_round(
+                wizard.product_qty / wizard.max_batch_size,
+                precision_digits=0,
+                rounding_method="UP",
+            )
+            # Refuse here rather than in an @api.constrains. `max_batch_size` and
+            # `num_splits` are computed, non-stored and have no inverse, so a
+            # constraint on them only ever validates a direct write() — the ORM
+            # says as much at registry load ("@constrains parameter is not
+            # writeable"). The wizard's own form never takes that path: it edits
+            # the field through onchange, which runs this compute and then
+            # `_compute_details`, so the records the bound exists to prevent were
+            # already built by the time a constraint could object. This compute is
+            # the one place every path (onchange, create, write) passes through,
+            # and it sits upstream of the build.
+            if num_splits > wizard.MAX_SPLITS:
                 raise ValidationError(
                     wizard.env._(
                         "A batch size of %(size)s would split this order into"
                         " %(count)s manufacturing orders, more than the"
                         " %(maximum)s allowed. Use a larger batch size.",
                         size=wizard.max_batch_size,
-                        count=wizard.num_splits,
+                        count=num_splits,
                         maximum=wizard.MAX_SPLITS,
                     )
                 )
+            wizard.num_splits = num_splits
 
     @api.depends("num_splits")
     def _compute_details(self):

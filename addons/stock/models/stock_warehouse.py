@@ -1348,6 +1348,14 @@ class StockWarehouse(models.Model):
         }
 
     def _valid_barcode(self, barcode, company_id):
+        # Under the structural probe the caller only reads the shape of
+        # `_get_locations_values` — which sub-locations exist and what they are
+        # called — and creates nothing. Hand back the intended barcode without
+        # resolving it: the search would cost a query per sub-location and the
+        # answer would be discarded, and a caller that goes on to create a
+        # location resolves it itself (see `_create_missing_locations`).
+        if self.env.context.get("stock_warehouse_probe"):
+            return barcode
         location = (
             self.env["stock.location"]
             .with_context(active_test=False)
@@ -1357,16 +1365,13 @@ class StockWarehouse(models.Model):
         )
         if location:
             # Don't silently swallow the collision: a sub-location left without
-            # a barcode is easy to miss and confusing to debug later. Stay
-            # silent under the structural probe though — no location is being
-            # created there, so the warning would be misleading noise.
-            if not self.env.context.get("stock_warehouse_probe"):
-                _logger.warning(
-                    "Barcode %s is already used by location %s; the new warehouse "
-                    "location will be created without a barcode.",
-                    barcode,
-                    location.display_name,
-                )
+            # a barcode is easy to miss and confusing to debug later.
+            _logger.warning(
+                "Barcode %s is already used by location %s; the new warehouse "
+                "location will be created without a barcode.",
+                barcode,
+                location.display_name,
+            )
             return False
         return barcode
 
@@ -1385,9 +1390,13 @@ class StockWarehouse(models.Model):
             if all(warehouse[field] or field in vals for field in location_fields):
                 continue
             company_id = vals.get("company_id", warehouse.company_id.id)
-            sub_locations = warehouse._get_locations_values(
-                dict(vals, company_id=company_id), warehouse.code
-            )
+            # Probe the shape only. Most entries describe locations that already
+            # exist and are not touched below, so resolving their barcodes here
+            # would both cost a query each and warn ("will be created without a
+            # barcode") about locations nothing is about to create.
+            sub_locations = warehouse.with_context(
+                stock_warehouse_probe=True
+            )._get_locations_values(dict(vals, company_id=company_id), warehouse.code)
             missing_location = {}
             for location, location_values in sub_locations.items():
                 if not warehouse[location] and location not in vals:
@@ -1395,6 +1404,12 @@ class StockWarehouse(models.Model):
                         "view_location_id", warehouse.view_location_id.id
                     )
                     location_values["company_id"] = company_id
+                    # This one *is* being created, so resolve its barcode for
+                    # real — collision warning included.
+                    if location_values.get("barcode"):
+                        location_values["barcode"] = warehouse._valid_barcode(
+                            location_values["barcode"], company_id
+                        )
                     missing_location[location] = (
                         self.env["stock.location"].create(location_values).id
                     )
