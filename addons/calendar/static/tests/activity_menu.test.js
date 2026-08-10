@@ -15,15 +15,29 @@ preloadFullCalendar();
 
 // Known: this test fails when it runs after `@calendar/activity` in the *same*
 // page load, and passes isolated -- which is how CI runs suites, so CI is green.
-// Ruled out, so nobody re-derives it: the server side is not the cause. Probed in
-// both orders, `_systray_get_calendar_event_domain()` matches the same two events
-// and `_get_activity_groups()` returns the same "Today's Meetings" group; only the
-// rendering differs. It is also not `registerArchs`, the one global that
-// `@calendar/activity` touches (removing it changes nothing here). The remaining
-// suspect is state the mail Store keeps across a page load. Note this is a
-// different problem from the `FIXME` in the mock server's
+// It is not a calendar bug, and the diagnosis is written down here so nobody
+// spends the afternoon re-deriving it.
+//
+// Instrumenting the mock's `_get_activity_groups` shows that in the failing
+// order it is called exactly twice during this test's `start()`, and both calls
+// see the *previous* test's server state: one `calendar.event` (activity.test's
+// "meeting1"), one `calendar.attendee` whose partner is activity.test's freshly
+// created partner rather than `serverState.partnerId`. This test's own two
+// events and its attendee -- which exist, `startServer()` having created them
+// before `start()` -- are never queried at all. The client store therefore ends
+// up with `activityGroups == []` and the systray has nothing to render.
+//
+// So the second test's boot fetch is served against the first test's server
+// state, and the second store's `systray_get_activities` fetch never reaches the
+// server. That is an isolation defect in the mail store / test harness, above
+// this module. Ruled out on the way: the calendar mock itself (called directly
+// at the end of the test, `_systray_get_calendar_event_domain()` matches both
+// events and `_get_activity_groups()` returns the group, in both orders), and
+// `registerArchs`, the single global `@calendar/activity` touches.
+//
+// Unrelated to the `FIXME` in the mock server's
 // `_systray_get_calendar_event_domain`, which is about its commented-out allday
-// clause.
+// clause and is easy to mistake for this.
 test("activity menu widget:today meetings", async () => {
     // `mockDate(date, tz)`, not `mockDate(y, m, d, h, m, s)`: the old signature
     // is silently accepted -- a non-string first argument has no `.year`, so
