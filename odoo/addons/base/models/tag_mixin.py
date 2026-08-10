@@ -3,9 +3,12 @@ from random import randint
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from odoo.addons.base.models.catalog_mixin import name_uniq_index
+
 
 class TagMixin(models.AbstractModel):
     _name = "tag.mixin"
+    _inherit = ["catalog.mixin"]
     _description = "Tag Mixin"
     _order = "name, id"
     _parent_store = True
@@ -13,9 +16,8 @@ class TagMixin(models.AbstractModel):
     def _get_default_color(self):
         return randint(1, 11)
 
-    name = fields.Char(string="Tag Name", required=True, translate=True)
+    name = fields.Char(string="Tag Name")
     active = fields.Boolean(
-        default=True,
         help="Archive a tag to hide it without deleting it.",
     )
     color = fields.Integer(
@@ -24,6 +26,11 @@ class TagMixin(models.AbstractModel):
         aggregator=False,
     )
     parent_path = fields.Char(index=True)
+
+    _name_src_uniq = name_uniq_index(
+        "parent_id",
+        message="A tag with this name already exists under the same parent.",
+    )
 
     @api.constrains("parent_id")
     def _check_parent_id(self):

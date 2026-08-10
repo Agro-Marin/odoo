@@ -60,6 +60,7 @@ from . import report_paperformat
 from . import ir_profile
 from . import image_mixin
 from . import avatar_mixin
+from . import catalog_mixin
 from . import tag_mixin
 from . import tag_tag
 
