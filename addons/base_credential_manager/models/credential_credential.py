@@ -1,5 +1,3 @@
-import base64
-import contextlib
 import hashlib
 import ipaddress
 import json
@@ -7,11 +5,7 @@ import logging
 import re
 from typing import Any, Self
 
-from cryptography import x509
 from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
-from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
 from psycopg import errors as psycopg_errors
 
 from odoo import api, fields, models
@@ -120,10 +114,9 @@ CATEGORY_REQUIRED_FIELDS = {
         "fields": ["api_key", "api_secret"],
         "message": "AWS IAM credentials require Access Key ID and Secret Access Key.",
     },
-    "certificate": {
-        "fields": ["certificate_content"],
-        "message": "Certificate credentials require a certificate file.",
-    },
+    # X.509 material is not stored here — it belongs to certificate.certificate
+    # / certificate.key, which own the parsing, the key/cert compatibility
+    # constraint and the signing API. See the certificate module.
     # 'custom' has no required fields - it's flexible
 }
 
@@ -138,7 +131,6 @@ class CredentialCredential(models.Model):
     - Credential validation framework
     - Health monitoring
     - Audit logging
-    - Certificate/key management for certificate-type credentials
     """
 
     _name = "credential.credential"
@@ -302,123 +294,6 @@ class CredentialCredential(models.Model):
         groups="base.group_system",
         help="JSON storage for complex multi-value credentials (e.g., OAuth2). "
         "Example: {'access_token': '...', 'refresh_token': '...'}",
-    )
-
-    # ==================== Certificate Fields (for certificate category) ====================
-
-    # Encrypted storage for certificate file (security: PKCS12 files contain private keys)
-    certificate_content_encrypted = fields.Binary(
-        string="Certificate (Encrypted)",
-        copy=False,
-        attachment=False,
-        groups="base.group_system",
-        help="Encrypted storage for certificate file content",
-    )
-    certificate_content = fields.Binary(
-        string="Certificate",
-        compute="_compute_certificate_content",
-        inverse="_inverse_certificate_content",
-        store=False,
-        copy=False,
-        attachment=False,
-        groups="base.group_system",
-        help="Certificate file content (DER, PEM, or PKCS12 format)",
-    )
-    certificate_filename = fields.Char(
-        help="Original filename of the uploaded certificate",
-    )
-    certificate_password_encrypted = fields.Binary(
-        string="Certificate Password (Encrypted)",
-        copy=False,
-        attachment=False,
-        groups="base.group_system",
-        help="Encrypted storage for certificate/PKCS12 password",
-    )
-    certificate_password = fields.Char(
-        compute="_compute_certificate_password",
-        inverse="_inverse_certificate_password",
-        store=False,
-        copy=False,
-        groups="base.group_system",
-        help="Password for encrypted certificate/PKCS12 file",
-    )
-    certificate_pem = fields.Binary(
-        string="Certificate (PEM)",
-        compute="_compute_certificate_pem",
-        store=False,  # SECURITY: Don't store - compute from encrypted source on demand
-        help="Certificate in PEM format (computed from encrypted content)",
-    )
-    certificate_format = fields.Selection(
-        selection=[
-            ("der", "DER"),
-            ("pem", "PEM"),
-            ("pkcs12", "PKCS12"),
-        ],
-        compute="_compute_certificate_data",
-        store=True,
-        help="Detected format of the uploaded certificate",
-    )
-    certificate_subject = fields.Char(
-        string="Subject",
-        compute="_compute_certificate_data",
-        store=True,
-        help="Certificate subject common name",
-    )
-    certificate_serial = fields.Char(
-        string="Serial Number",
-        compute="_compute_certificate_data",
-        store=True,
-        help="Certificate serial number",
-    )
-    certificate_date_start = fields.Datetime(
-        string="Valid From",
-        compute="_compute_certificate_data",
-        store=True,
-        help="Certificate validity start date",
-    )
-    certificate_date_end = fields.Datetime(
-        string="Valid Until",
-        compute="_compute_certificate_data",
-        store=True,
-        help="Certificate validity end date",
-    )
-    certificate_is_valid = fields.Boolean(
-        string="Certificate Valid",
-        compute="_compute_certificate_is_valid",
-        store=False,
-        help="Whether the certificate is currently valid (within date range)",
-    )
-    certificate_loading_error = fields.Text(
-        string="Certificate Error",
-        compute="_compute_certificate_data",
-        store=True,
-        help="Error message if certificate could not be loaded",
-    )
-    private_key_content_encrypted = fields.Binary(
-        string="Private Key (Encrypted)",
-        copy=False,
-        attachment=False,
-        groups="base.group_system",
-        help="Encrypted storage for private key file content",
-    )
-    private_key_content = fields.Binary(
-        string="Private Key",
-        compute="_compute_private_key_content",
-        inverse="_inverse_private_key_content",
-        store=False,
-        copy=False,
-        groups="base.group_system",
-        help="Private key file content (auto-extracted from PKCS12 or uploaded separately)",
-    )
-    private_key_filename = fields.Char(
-        help="Original filename of the uploaded private key",
-    )
-    private_key_pem = fields.Binary(
-        string="Private Key (PEM)",
-        compute="_compute_private_key_pem",
-        store=False,  # SECURITY: NEVER store private keys unencrypted!
-        groups="base.group_system",
-        help="Private key in PEM format (computed from encrypted source on demand)",
     )
 
     # ==================== Health & Monitoring ====================
@@ -911,9 +786,6 @@ class CredentialCredential(models.Model):
     _ENCRYPTED_PAYLOAD_FIELDS = (
         "credential_value",
         "credential_data",
-        "certificate_content",
-        "certificate_password",
-        "private_key_content",
         "username",
         "password",
         "api_key",
@@ -1042,271 +914,6 @@ class CredentialCredential(models.Model):
         """Determine if this is a system-wide credential (no company assigned)."""
         for record in self:
             record.is_system_wide = not record.company_id
-
-    def _parse_certificate(self):
-        """Parse certificate content and return cert object, private key, and format.
-
-        :return: tuple ``(cert, private_key, format_str, error_msg)`` where
-            ``cert`` is an x509 certificate object or None, ``private_key`` is a
-            private key object or None (from PKCS12), ``format_str`` is 'der',
-            'pem', 'pkcs12', or None, and ``error_msg`` is an error message
-            string or empty string
-        :rtype: tuple
-        """
-        self.ensure_one()
-        content = self.with_context(bin_size=False).certificate_content
-
-        if not content:
-            return None, None, None, ""
-
-        content = base64.b64decode(content)
-        cert = None
-        private_key = None
-        format_str = None
-        password = (
-            self.certificate_password.encode("utf-8")
-            if self.certificate_password
-            else None
-        )
-
-        # Try DER format
-        try:
-            cert = x509.load_der_x509_certificate(content)
-            format_str = "der"
-        except ValueError:
-            pass
-
-        # Try PKCS12 format
-        if not cert:
-            try:
-                private_key, cert, _additional_certs = pkcs12.load_key_and_certificates(
-                    content, password
-                )
-                format_str = "pkcs12"
-            except ValueError:
-                pass
-
-        # Try PEM format
-        if not cert:
-            try:
-                cert = x509.load_pem_x509_certificate(content)
-                format_str = "pem"
-            except ValueError:
-                pass
-
-        if not cert:
-            return (
-                None,
-                None,
-                None,
-                self.env._(
-                    "Could not load certificate. Check content or password.",
-                ),
-            )
-
-        return cert, private_key, format_str, ""
-
-    @api.depends(
-        "certificate_content_encrypted",
-        "certificate_password_encrypted",
-    )
-    def _compute_certificate_data(self):
-        """Parse certificate and extract stored metadata fields only.
-
-        Preserves last-known-good metadata on parse failure. If the user
-        uploads a bad cert (or enters the wrong PKCS12 password for a
-        previously valid cert), we keep the stored subject/serial/dates
-        and only surface certificate_loading_error. Without this, a typo
-        in the password blanks all visible cert state, which is indistin-
-        guishable from "no cert loaded" in the UI.
-        """
-        for record in self:
-            cert, _private_key, format_str, error_msg = record._parse_certificate()
-
-            if error_msg:
-                # Parse failed. Keep previously stored metadata (if any) so
-                # the user can still see what was there before the bad edit.
-                # Re-assigning the current value is a no-op to the ORM but
-                # makes intent explicit.
-                record.certificate_loading_error = error_msg
-                record.certificate_format = record.certificate_format
-                record.certificate_subject = record.certificate_subject
-                record.certificate_serial = record.certificate_serial
-                record.certificate_date_start = record.certificate_date_start
-                record.certificate_date_end = record.certificate_date_end
-                continue
-
-            if not cert:
-                # No content at all (uploaded cert was cleared). Legitimate
-                # blank state — wipe metadata to match.
-                record.certificate_format = None
-                record.certificate_subject = None
-                record.certificate_serial = None
-                record.certificate_date_start = None
-                record.certificate_date_end = None
-                record.certificate_loading_error = ""
-                continue
-
-            # Extract certificate metadata (stored fields only)
-            record.certificate_loading_error = ""
-            record.certificate_format = format_str
-            record.certificate_serial = str(cert.serial_number)
-
-            try:
-                common_name = cert.subject.get_attributes_for_oid(
-                    x509.NameOID.COMMON_NAME,
-                )
-                record.certificate_subject = common_name[0].value if common_name else ""
-            except ValueError:
-                record.certificate_subject = None
-
-            # cryptography >= 42 is the minimum supported on Odoo 19 / Py3.14,
-            # so the legacy not_valid_before / not_valid_after accessors are
-            # gone — always read the UTC-aware variants and strip tzinfo.
-            record.certificate_date_start = cert.not_valid_before_utc.replace(
-                tzinfo=None,
-            )
-            record.certificate_date_end = cert.not_valid_after_utc.replace(
-                tzinfo=None,
-            )
-
-    @api.depends("certificate_content_encrypted", "certificate_password_encrypted")
-    def _compute_certificate_pem(self):
-        """Compute certificate PEM (non-stored, on-demand)."""
-        for record in self:
-            cert, _private_key, _format_str, _error_msg = record._parse_certificate()
-            if cert:
-                record.certificate_pem = base64.b64encode(
-                    cert.public_bytes(Encoding.PEM)
-                )
-            else:
-                record.certificate_pem = None
-
-    @api.depends(
-        "certificate_content_encrypted",
-        "certificate_password_encrypted",
-        "private_key_content_encrypted",
-    )
-    def _compute_private_key_pem(self):
-        """Compute private key PEM (non-stored, on-demand).
-
-        SECURITY: producing the private key PEM is a genuine plaintext-access
-        event (the crown-jewel secret). Every record that actually yields key
-        material is rate-limited and audited as a 'use' at this single
-        private-key choke point — unless called on an internal path
-        (``_credential_internal_access`` context, set by ``_sign`` which does
-        its own single enforcement to avoid double counting).
-
-        This field is store=False and is never eagerly recomputed by the
-        encryption-key migration (which re-encrypts ciphertext directly via the
-        mixin, without reading private_key_pem), so re-encryption paths do not
-        trip the rate limiter / audit log.
-        """
-        internal = self.env.context.get("_credential_internal_access")
-        for record in self:
-            _cert, private_key, _format_str, _error_msg = record._parse_certificate()
-            password = (
-                record.certificate_password.encode("utf-8")
-                if record.certificate_password
-                else None
-            )
-
-            pk_pem = None
-            # Handle private key from PKCS12
-            if private_key:
-                pk_pem = base64.b64encode(
-                    private_key.private_bytes(
-                        encoding=Encoding.PEM,
-                        format=serialization.PrivateFormat.PKCS8,
-                        encryption_algorithm=serialization.NoEncryption(),
-                    ),
-                )
-            elif record.private_key_content:
-                # Try to load separately uploaded private key
-                try:
-                    pk_content = base64.b64decode(
-                        record.with_context(bin_size=False).private_key_content,
-                    )
-                    pk = None
-                    try:
-                        pk = serialization.load_pem_private_key(pk_content, password)
-                    except ValueError, TypeError:
-                        with contextlib.suppress(ValueError, TypeError):
-                            pk = serialization.load_der_private_key(
-                                pk_content,
-                                password,
-                            )
-                    if pk:
-                        pk_pem = base64.b64encode(
-                            pk.private_bytes(
-                                encoding=Encoding.PEM,
-                                format=serialization.PrivateFormat.PKCS8,
-                                encryption_algorithm=serialization.NoEncryption(),
-                            ),
-                        )
-                except Exception as e:
-                    _logger.warning(
-                        "Failed to load private key for credential %s: %s",
-                        record.id or "new",
-                        e,
-                    )
-
-            # Rate-limit + audit only when we are actually exposing key
-            # material to an external caller. Enforcement (may raise) happens
-            # before the value is assigned/exposed.
-            if pk_pem and record.id and not internal:
-                record._enforce_access_rate_limit()
-                record._log_access_guarded("use")
-
-            record.private_key_pem = pk_pem
-
-    @api.depends(
-        "certificate_date_start",
-        "certificate_date_end",
-        "certificate_loading_error",
-    )
-    def _compute_certificate_is_valid(self):
-        """Check if certificate is currently valid."""
-        now = fields.Datetime.now()
-        for record in self:
-            if (
-                not record.certificate_date_start
-                or not record.certificate_date_end
-                or record.certificate_loading_error
-            ):
-                record.certificate_is_valid = False
-            else:
-                record.certificate_is_valid = (
-                    record.certificate_date_start <= now <= record.certificate_date_end
-                )
-
-    @api.depends("certificate_password_encrypted")
-    def _compute_certificate_password(self):
-        """Decrypt certificate password for use."""
-        self._compute_encrypted_char_field(
-            "certificate_password_encrypted",
-            "certificate_password",
-        )
-
-    @api.depends("certificate_content_encrypted")
-    def _compute_certificate_content(self):
-        """Decrypt certificate content for use.
-
-        Security: Certificate files (especially PKCS12) may contain private keys
-        and must be stored encrypted.
-        """
-        self._compute_encrypted_binary_field(
-            "certificate_content_encrypted",
-            "certificate_content",
-        )
-
-    @api.depends("private_key_content_encrypted")
-    def _compute_private_key_content(self):
-        """Decrypt private key content for use."""
-        self._compute_encrypted_binary_field(
-            "private_key_content_encrypted",
-            "private_key_content",
-        )
 
     @api.depends("credential_value_encrypted")
     def _compute_cached_plaintext(self):
@@ -1756,30 +1363,6 @@ class CredentialCredential(models.Model):
         """Store oauth_client_secret in JSON credential data."""
         self._inverse_credential_json_field("oauth_client_secret")
 
-    def _inverse_certificate_password(self):
-        """Encrypt certificate password when set."""
-        self._inverse_encrypted_char_field(
-            "certificate_password",
-            "certificate_password_encrypted",
-        )
-
-    def _inverse_certificate_content(self):
-        """Encrypt certificate content when uploaded.
-
-        Security: PKCS12 files contain private keys and must be encrypted at rest.
-        """
-        self._inverse_encrypted_binary_field(
-            "certificate_content",
-            "certificate_content_encrypted",
-        )
-
-    def _inverse_private_key_content(self):
-        """Encrypt private key content when uploaded."""
-        self._inverse_encrypted_binary_field(
-            "private_key_content",
-            "private_key_content_encrypted",
-        )
-
     def _inverse_credential_field_bearer_token(self) -> None:
         """Store bearer_token in JSON credential data."""
         self._inverse_credential_json_field("bearer_token")
@@ -1816,9 +1399,6 @@ class CredentialCredential(models.Model):
     # ad-hoc writes in the action.
     _ENCRYPTED_FIELD_PAIRS = (
         ("credential_value", "credential_value_encrypted", False),
-        ("certificate_content", "certificate_content_encrypted", True),
-        ("certificate_password", "certificate_password_encrypted", False),
-        ("private_key_content", "private_key_content_encrypted", True),
     )
 
     def action_migrate_encryption_keys(self) -> dict[str, Any]:
@@ -2035,7 +1615,6 @@ class CredentialCredential(models.Model):
     def action_validate_credential(self) -> dict[str, Any]:
         """Validate credential by calling appropriate validation method.
 
-        For certificate credentials, validates certificate is valid.
         Override in inheriting models for service-specific validation.
         """
         self.ensure_one()
@@ -2046,46 +1625,21 @@ class CredentialCredential(models.Model):
             self.category_code,
         )
 
-        # Certificate-specific validation is the only built-in check. For any
-        # other category, we have nothing to validate against here — inheriting
-        # modules override this method to add service-specific probes. Stamping
-        # 'healthy' on an unprobed credential is misleading, so we leave
-        # health_status at 'unknown' and return a clearly-labeled result.
-        if self.category_code == "certificate":
-            if self.certificate_loading_error:
-                result = {
-                    "success": False,
-                    "error": self.certificate_loading_error,
-                }
-            elif not self.certificate_is_valid:
-                result = {
-                    "success": False,
-                    "error": self.env._("Certificate is expired or not yet valid"),
-                }
-            elif not self.private_key_pem:
-                result = {
-                    "success": False,
-                    "error": self.env._("No private key available for signing"),
-                }
-            else:
-                result = {
-                    "success": True,
-                    "message": self.env._("Certificate is valid until %s")
-                    % self.certificate_date_end,
-                }
-            new_status = "healthy" if result["success"] else "error"
-        else:
-            result = {
-                "success": False,
-                "not_implemented": True,
-                "message": self.env._(
-                    "No built-in validation for category '%s'. "
-                    "Override action_validate_credential in an inheriting "
-                    "module to add a service-specific probe."
-                )
-                % (self.category_code or "unknown"),
-            }
-            new_status = "unknown"
+        # There is nothing to validate a generic secret against from here —
+        # inheriting modules override this method to add service-specific
+        # probes. Stamping 'healthy' on an unprobed credential is misleading,
+        # so health_status stays 'unknown' and the result says so plainly.
+        result = {
+            "success": False,
+            "not_implemented": True,
+            "message": self.env._(
+                "No built-in validation for category '%s'. "
+                "Override action_validate_credential in an inheriting "
+                "module to add a service-specific probe."
+            )
+            % (self.category_code or "unknown"),
+        }
+        new_status = "unknown"
 
         self.with_context(**{self._INTERNAL_STATS_UPDATE_KEY: True}).write(
             {
@@ -2177,32 +1731,6 @@ class CredentialCredential(models.Model):
     # ------------------------------------------------------------
     # HELPER METHODS
     # ------------------------------------------------------------
-
-    def _format_bytes(self, data, formatting="encodebytes"):
-        """Format binary data according to requested format."""
-        if formatting == "encodebytes":
-            return base64.encodebytes(data)
-        if formatting == "base64":
-            return base64.b64encode(data)
-        return data
-
-    def _get_certificate_der_bytes(self, formatting="encodebytes"):
-        """Get the DER bytes of the certificate.
-
-        :param formatting: 'encodebytes' (base64 with newlines), 'base64' (raw),
-            or 'raw'
-        :return: formatted certificate DER bytes
-        :rtype: bytes
-        """
-        self.ensure_one()
-        if not self.certificate_pem:
-            raise UserError(self.env._("No certificate loaded"))
-
-        cert = x509.load_pem_x509_certificate(
-            base64.b64decode(self.with_context(bin_size=False).certificate_pem),
-        )
-        der_bytes = cert.public_bytes(serialization.Encoding.DER)
-        return self._format_bytes(der_bytes, formatting)
 
     @api.model
     def _get_active_for_category(self, code: str) -> Self:
@@ -2508,87 +2036,3 @@ class CredentialCredential(models.Model):
             self.credential_value_encrypted = self._encrypt_value(json_str)
         else:
             self.credential_value_encrypted = False
-
-    def _sign(self, message, hashing_algorithm="sha256", formatting="encodebytes"):
-        """Sign a message using the certificate's private key.
-
-        :param message: message to sign (str or bytes)
-        :param hashing_algorithm: 'sha256' or 'sha1'
-        :param formatting: output format
-        :return: formatted signature
-        :rtype: bytes
-        """
-        self.ensure_one()
-
-        if self.category_code != "certificate":
-            raise UserError(
-                self.env._("Signing is only available for certificate credentials")
-            )
-
-        # Rate-limit + audit the signing operation exactly once here. Reading
-        # private_key_pem below is done with _credential_internal_access=True so
-        # _compute_private_key_pem does NOT re-enforce (which would double-count
-        # the rate limiter and emit a second audit row for the same operation).
-        self._enforce_access_rate_limit()
-
-        if not self.certificate_is_valid:
-            raise UserError(
-                self.certificate_loading_error
-                or self.env._("Certificate is not valid, its validity has expired."),
-            )
-
-        # Single decrypt of the private key (flagged internal so the compute
-        # skips its own enforcement; bin_size=False to get the full value).
-        pk_pem = self.with_context(
-            _credential_internal_access=True,
-            bin_size=False,
-        ).private_key_pem
-        if not pk_pem:
-            raise UserError(
-                self.env._(
-                    "No private key linked to the certificate, it is required to sign documents.",
-                ),
-            )
-
-        # Audit the actual signing use (rate limit already enforced above).
-        self._log_access_guarded("use")
-
-        # Import signing utilities from cryptography
-
-        if not isinstance(message, bytes):
-            message = message.encode("utf-8")
-
-        hash_algorithms = {
-            # SHA1 is kept for interop with legacy signature formats (e.g. CFDI
-            # 3.3, older SAT endpoints); callers select sha256 when available.
-            "sha1": hashes.SHA1(),  # noqa: S303
-            "sha256": hashes.SHA256(),
-        }
-        if hashing_algorithm not in hash_algorithms:
-            raise UserError(
-                self.env._(
-                    "Unsupported hashing algorithm '%s'. Use 'sha1' or 'sha256'."
-                )
-                % hashing_algorithm,
-            )
-
-        private_key = serialization.load_pem_private_key(
-            base64.b64decode(pk_pem),
-            None,
-        )
-
-        if isinstance(private_key, rsa.RSAPrivateKey):
-            signature = private_key.sign(
-                message,
-                padding.PKCS1v15(),
-                hash_algorithms[hashing_algorithm],
-            )
-        elif isinstance(private_key, ec.EllipticCurvePrivateKey):
-            signature = private_key.sign(
-                message,
-                ec.ECDSA(hash_algorithms[hashing_algorithm]),
-            )
-        else:
-            raise UserError(self.env._("Unsupported key type. Supported: RSA, EC"))
-
-        return self._format_bytes(signature, formatting)

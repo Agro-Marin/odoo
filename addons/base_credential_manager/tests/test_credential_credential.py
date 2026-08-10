@@ -1,16 +1,10 @@
 """Tests for credential.credential model."""
 
 import base64
-import datetime as dt
 import os
 from unittest.mock import patch
 
-from cryptography import x509
 from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography.x509.oid import NameOID
 from psycopg.errors import UniqueViolation
 
 from odoo import Command
@@ -40,9 +34,6 @@ class TestCredentialCredential(TransactionCase):
         # Get API Key category
         cls.category_api_key = cls.env.ref(
             "base_credential_manager.credential_category_api_key"
-        )
-        cls.category_certificate = cls.env.ref(
-            "base_credential_manager.credential_category_certificate"
         )
 
         cls.credential = cls.env["credential.credential"].create(
@@ -538,12 +529,10 @@ class TestCredentialCategory(TransactionCase):
     def test_default_categories_exist(self):
         """Test that default categories are created."""
         api_key = self.env.ref("base_credential_manager.credential_category_api_key")
-        certificate = self.env.ref(
-            "base_credential_manager.credential_category_certificate"
-        )
+        oauth2 = self.env.ref("base_credential_manager.credential_category_oauth2")
 
         self.assertEqual(api_key.code, "api_key")
-        self.assertEqual(certificate.code, "certificate")
+        self.assertEqual(oauth2.code, "oauth2")
 
     def test_category_unique_code(self):
         """Test that category codes are unique."""
@@ -872,152 +861,6 @@ class TestAuditLogImmutability(TransactionCase):
         self.assertTrue(
             surviving.filtered(lambda log: log.operation == "delete"),
             "unlink() must emit a 'delete' audit entry",
-        )
-
-
-class TestCredentialCertificates(TransactionCase):
-    """Test certificate handling functionality."""
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        # Mock encryption key for tests
-        cls.test_key = "7ftr9ALjwK7f4IqWwnpFxWx4Wn8vetsznoGT3Oh46eU="
-        cls.env_patcher = patch.dict(
-            os.environ, {"ODOO_API_ENCRYPTION_KEY": cls.test_key}
-        )
-        cls.env_patcher.start()
-
-        cls.category_certificate = cls.env.ref(
-            "base_credential_manager.credential_category_certificate"
-        )
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.env_patcher.stop()
-        super().tearDownClass()
-
-    def test_certificate_pem_not_stored(self):
-        """Test that certificate_pem is computed but not stored."""
-        field = self.env["credential.credential"]._fields["certificate_pem"]
-        self.assertFalse(field.store, "certificate_pem should not be stored")
-        self.assertTrue(field.compute, "certificate_pem should be computed")
-
-    def test_private_key_pem_not_stored(self):
-        """Test that private_key_pem is computed but not stored."""
-        field = self.env["credential.credential"]._fields["private_key_pem"]
-        self.assertFalse(field.store, "private_key_pem should not be stored")
-        self.assertTrue(field.compute, "private_key_pem should be computed")
-
-    def _build_self_signed_pkcs12(self, password: str) -> bytes:
-        """Build a self-signed RSA cert wrapped in PKCS12 protected by password."""
-        private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-        )
-        subject = issuer = x509.Name(
-            [x509.NameAttribute(NameOID.COMMON_NAME, "m6-regression-test")],
-        )
-        now = dt.datetime.now(dt.UTC)
-        cert = (
-            x509.CertificateBuilder()
-            .subject_name(subject)
-            .issuer_name(issuer)
-            .public_key(private_key.public_key())
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(now)
-            .not_valid_after(now + dt.timedelta(days=30))
-            .sign(private_key, hashes.SHA256())
-        )
-        pkcs12_bytes = pkcs12.serialize_key_and_certificates(
-            name=b"m6-regression-test",
-            key=private_key,
-            cert=cert,
-            cas=None,
-            encryption_algorithm=serialization.BestAvailableEncryption(
-                password.encode("utf-8"),
-            ),
-        )
-        return base64.b64encode(pkcs12_bytes)
-
-    def test_certificate_metadata_preserved_on_wrong_password(self):
-        """Wrong password must not wipe previously loaded cert metadata."""
-        pkcs12_bytes = self._build_self_signed_pkcs12("correct-horse")
-
-        credential = self.env["credential.credential"].create(
-            {
-                "name": "M6 regression cert",
-                "category_id": self.category_certificate.id,
-                "certificate_content": pkcs12_bytes,
-                "certificate_password": "correct-horse",
-            },
-        )
-
-        # First: with the correct password, metadata is populated.
-        self.assertEqual(credential.certificate_format, "pkcs12")
-        self.assertEqual(credential.certificate_subject, "m6-regression-test")
-        self.assertTrue(credential.certificate_serial)
-        self.assertTrue(credential.certificate_date_start)
-        self.assertTrue(credential.certificate_date_end)
-        self.assertFalse(credential.certificate_loading_error)
-
-        subject_before = credential.certificate_subject
-        serial_before = credential.certificate_serial
-        start_before = credential.certificate_date_start
-        end_before = credential.certificate_date_end
-
-        # Break the password — parse now fails.
-        credential.certificate_password = "battery-staple-wrong"
-
-        # Error is surfaced...
-        self.assertTrue(credential.certificate_loading_error)
-        # ...but previously-stored metadata is preserved.
-        self.assertEqual(credential.certificate_subject, subject_before)
-        self.assertEqual(credential.certificate_serial, serial_before)
-        self.assertEqual(credential.certificate_date_start, start_before)
-        self.assertEqual(credential.certificate_date_end, end_before)
-
-        # Clearing the cert content entirely DOES blank metadata.
-        credential.certificate_content = False
-        self.assertFalse(credential.certificate_subject)
-        self.assertFalse(credential.certificate_serial)
-        self.assertFalse(credential.certificate_date_start)
-        self.assertFalse(credential.certificate_date_end)
-
-    def test_sign_emits_use_audit_entry(self):
-        """Signing audits exactly one 'use' access via the private-key choke point."""
-        pkcs12_bytes = self._build_self_signed_pkcs12("s3cr3t-pass")
-        credential = self.env["credential.credential"].create(
-            {
-                "name": "Sign Audit Cert",
-                "category_id": self.category_certificate.id,
-                "certificate_content": pkcs12_bytes,
-                "certificate_password": "s3cr3t-pass",
-            },
-        )
-        self.assertTrue(credential.certificate_is_valid)
-
-        baseline = self.env["credential.access.log"].search_count(
-            [
-                ("credential_id", "=", credential.id),
-                ("operation", "=", "use"),
-            ],
-        )
-
-        signature = credential._sign(b"hello world", "sha256")
-        self.assertTrue(signature)
-
-        after = self.env["credential.access.log"].search_count(
-            [
-                ("credential_id", "=", credential.id),
-                ("operation", "=", "use"),
-            ],
-        )
-        self.assertEqual(
-            after - baseline,
-            1,
-            "Signing must emit exactly one 'use' audit entry",
         )
 
 
@@ -1575,7 +1418,7 @@ class TestBinaryWireFormatCompat(TransactionCase):
 
     def test_canonical_shape_roundtrip(self):
         """Write via the current _encrypt_binary_value, read, match plaintext."""
-        plaintext = b"certificate-file-bytes-123"
+        plaintext = b"binary-payload-bytes-123"
         # Simulate an Odoo Binary field upload: base64-encoded plaintext.
         upload = base64.b64encode(plaintext)
         ciphertext = self.Model._encrypt_binary_value(upload)
@@ -1625,38 +1468,6 @@ class TestBinaryWireFormatCompat(TransactionCase):
         legacy = base64.b64encode(token)
         self.assertEqual(self.Model._decrypt_value(legacy), plaintext_str)
 
-    def test_full_orm_roundtrip_legacy_shape_binary_field(self):
-        """Plant legacy-shape bytes via raw SQL; the full compute chain reads them.
-
-        This simulates a real customer database upgraded from a pre-19.0.1.0.2
-        release: certificate_content_encrypted rows contain base64(token), not
-        raw tokens. The ORM compute for certificate_content must decrypt them
-        without complaint and hand the plaintext base64 back through the
-        certificate parser.
-        """
-        plaintext = b"legacy-upgrade-bytes-" + b"A" * 100
-        cipher = Fernet(self.test_key)
-        legacy_stored = base64.b64encode(cipher.encrypt(plaintext))
-
-        cred = self.Model.create(
-            {
-                "name": "legacy-shape-binary",
-                "category_id": self.env.ref(
-                    "base_credential_manager.credential_category_custom"
-                ).id,
-            }
-        )
-        self.env.cr.execute(
-            "UPDATE credential_credential "
-            "SET certificate_content_encrypted = %s WHERE id = %s",
-            [legacy_stored, cred.id],
-        )
-        cred.invalidate_recordset(["certificate_content_encrypted"])
-
-        got_b64 = cred.with_context(bin_size=False).certificate_content
-        self.assertTrue(got_b64)
-        self.assertEqual(base64.b64decode(got_b64), plaintext)
-
     def test_cron_cleanup_old_logs_works_under_non_superuser(self):
         """cron_cleanup_old_logs must not depend on uid == SUPERUSER_ID.
 
@@ -1704,73 +1515,6 @@ class TestBinaryWireFormatCompat(TransactionCase):
             "cron_cleanup_old_logs must clean up old rows even when "
             "invoked by a non-superuser cron runner",
         )
-
-    def test_migration_action_rewrites_legacy_binary_to_canonical(self):
-        """action_migrate_encryption_keys promotes legacy-shape binary columns.
-
-        This closes the test gap at the one seam where a key migration could
-        silently corrupt: ``_ENCRYPTED_FIELD_PAIRS`` binary fields flowing through
-        ``_decrypt_binary_value → _encrypt_binary_value`` during a key
-        migration. Existing tests only exercised the char-field half of the
-        pairs list, so a mistake in the binary half would have slipped.
-        """
-        plaintext = b"pkcs12-like-bytes-" + b"B" * 200
-        cipher = Fernet(self.test_key)
-        legacy_stored = base64.b64encode(cipher.encrypt(plaintext))
-
-        cred = self.Model.create(
-            {
-                "name": "migrate-legacy-binary",
-                "category_id": self.env.ref(
-                    "base_credential_manager.credential_category_custom"
-                ).id,
-            }
-        )
-        self.env.cr.execute(
-            "UPDATE credential_credential SET "
-            "certificate_content_encrypted = %s, "
-            "encryption_key_version = 0 WHERE id = %s",
-            [legacy_stored, cred.id],
-        )
-        cred.invalidate_recordset(
-            ["certificate_content_encrypted", "encryption_key_version"]
-        )
-
-        # Admin group is required by the action.
-        self.env.user.group_ids |= self.env.ref(
-            "base_credential_manager.group_credential_admin"
-        )
-
-        # action_migrate_encryption_keys walks the entire table (admin
-        # batch op, ignores self). On a cloned marin190 there can be
-        # pre-existing credentials at encryption_key_version=0 written
-        # with the production key, which this test environment can't
-        # decrypt (test env uses a throwaway Fernet key). Park them at
-        # the current version so they are skipped by the eligibility
-        # filter and only our fixture record is migrated.
-        current_version = self.Model._get_current_encryption_key_version()
-        self.env.cr.execute(
-            "UPDATE credential_credential "
-            "SET encryption_key_version = %s WHERE id != %s",
-            [current_version, cred.id],
-        )
-        self.Model.invalidate_model(["encryption_key_version"])
-
-        result = self.Model.action_migrate_encryption_keys()
-        self.assertGreaterEqual(result["migrated"], 1)
-        self.assertEqual(result["failed"], 0)
-
-        cred.invalidate_recordset()
-        after = bytes(cred.with_context(bin_size=False).certificate_content_encrypted)
-        # Canonical shape after migration: raw Fernet token, starts with gAAAAA.
-        self.assertTrue(
-            after.startswith(b"gAAAAA"),
-            f"Post-migration ciphertext must be canonical shape, got {after[:16]!r}",
-        )
-        # Plaintext survives the format transition.
-        got_b64 = cred.with_context(bin_size=False).certificate_content
-        self.assertEqual(base64.b64decode(got_b64), plaintext)
-
 
 class TestOAuthClientCredentials(TransactionCase):
     """OAuth client_id/client_secret JSON accessors and oauth2 validation."""

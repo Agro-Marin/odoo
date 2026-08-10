@@ -2,7 +2,7 @@ from odoo import api, fields, models
 
 
 class CredentialCategory(models.Model):
-    """Credential category defining the type of credentials (API key, bearer token, OAuth 2.0, certificate, etc.)."""
+    """Credential category defining the type of credentials (API key, bearer token, OAuth 2.0, etc.)."""
 
     _name = "credential.category"
     _description = "Credential Category"
@@ -18,7 +18,7 @@ class CredentialCategory(models.Model):
         string="Technical Code",
         required=True,
         index=True,
-        help="Technical identifier (e.g., 'api_key', 'certificate'). Used for programmatic access.",
+        help="Technical identifier (e.g., 'api_key', 'oauth2'). Used for programmatic access.",
     )
     description = fields.Text(
         translate=True,
@@ -36,15 +36,13 @@ class CredentialCategory(models.Model):
         selection=[
             ("simple", "Simple Value"),
             ("json", "JSON Data"),
-            ("certificate", "Certificate/Key"),
         ],
         string="Storage Type",
         default="simple",
         required=True,
         help="Recommended storage method for credentials of this type:\n"
         "• Simple Value: Single string (API keys, tokens)\n"
-        "• JSON Data: Multiple key-value pairs (OAuth2, Basic Auth)\n"
-        "• Certificate/Key: Binary certificate and key data",
+        "• JSON Data: Multiple key-value pairs (OAuth2, Basic Auth)",
     )
     icon = fields.Char(
         default="fa-key",

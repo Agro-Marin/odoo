@@ -1,6 +1,6 @@
 {
     "name": "Base Credential Manager",
-    "version": "19.0.1.0.4",
+    "version": "19.0.1.1.0",
     "category": "Technical",
     "sequence": 5,
     "summary": "Foundation module for secure credential management across all external integrations",
@@ -17,6 +17,12 @@ Key Features
 * Environment variable key management (ODOO_API_ENCRYPTION_KEY)
 * Support for multiple credential types (API Key, OAuth, AWS IAM, etc.)
 * Credential validation framework
+
+X.509 material is deliberately out of scope: certificates and private keys
+belong to ``certificate.certificate`` / ``certificate.key`` in the
+``certificate`` module, which own the parsing, the cert/key compatibility
+constraint and the signing API. Install ``certificate_encryption`` to hold
+those encrypted at rest with the same mixin used here.
 
 **Multi-Tenancy:**
 * Company-scoped credentials with automatic isolation
