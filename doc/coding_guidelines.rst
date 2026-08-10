@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.7
+:Version: 5.8
 :Date: 2026-08-08
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -3226,9 +3226,10 @@ commented reference code by nature.
        ...
 
 The framework passes a **cursor**, not an environment. Guard ``pre-migrate`` SQL with
-the helpers in ``odoo.tools.sql`` — ``table_exists``, ``column_exists``,
+the helpers in ``odoo.db.schema`` — ``table_exists``, ``column_exists``,
 ``index_exists``, ``create_column``, ``convert_column``, ``drop_constraint`` — rather
-than hand-written ``information_schema`` queries. ``openupgradelib`` is available but
+than hand-written ``information_schema`` queries. (There is no ``odoo.tools.sql`` in
+this fork; the module is ``odoo/db/schema.py``.) ``openupgradelib`` is available but
 is not the house default.
 
 12.3 When one is required
@@ -3379,6 +3380,15 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.8
+     - 2026-08-09
+     - **§12.2 named a module that does not exist.** The pre-migrate SQL
+       helpers were credited to ``odoo.tools.sql``; there is no such module in
+       this fork — ``table_exists``, ``column_exists``, ``index_exists``,
+       ``create_column``, ``convert_column`` and ``drop_constraint`` all live in
+       ``odoo.db.schema``. Following the guideline as written raised
+       ModuleNotFoundError. Revision 5.0 had already struck one dead reference
+       under that path (``rename_column``) without correcting the path itself.
    * - 5.7
      - 2026-08-09
      - **Appendix A records the purchase ``date_planned`` ->
