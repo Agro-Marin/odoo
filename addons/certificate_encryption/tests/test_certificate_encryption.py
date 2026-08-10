@@ -208,7 +208,9 @@ class TestCertificateEncryption(TransactionCase):
         to stay copyable too or duplication silently loses the material.
         """
         key = self.env["certificate.key"]._generate_rsa_private_key(
-            self.company, name="original", password="dup-pw",
+            self.company,
+            name="original",
+            password="dup-pw",
         )
         duplicate = key.copy()
         duplicate.invalidate_recordset()
@@ -263,6 +265,88 @@ class TestCertificateEncryption(TransactionCase):
 
         key.write({"password": "now-encrypted"})
         self.assertEqual(key.encryption_key_version, 1)
+
+    def test_legacy_wire_format_still_decrypts(self):
+        """Rows written before 19.0.1.0.2 hold base64(token), not a raw token.
+
+        Moved here from base_credential_manager: after the certificate fields
+        were dropped from credential.credential, certificate.key.content is the
+        binary encrypted column in the suite, so this is where the legacy shape
+        has to keep being exercised.
+        """
+        plaintext = b"legacy-upgrade-bytes-" + b"A" * 100
+        legacy_stored = base64.b64encode(Fernet(self.test_key).encrypt(plaintext))
+
+        key = self.env["certificate.key"].create(
+            {
+                "name": "legacy shape",
+                "content": base64.b64encode(b"placeholder"),
+                "company_id": self.company.id,
+            }
+        )
+        self.env.cr.execute(
+            "UPDATE certificate_key SET content_encrypted = %s WHERE id = %s",
+            [legacy_stored, key.id],
+        )
+        # Whole recordset, not just content_encrypted: `content` is a
+        # non-stored compute that already cached the placeholder, and
+        # invalidate_recordset does not cascade to dependent computes.
+        key.invalidate_recordset()
+
+        self.assertEqual(
+            base64.b64decode(key.with_context(bin_size=False).content),
+            plaintext,
+        )
+
+    def test_rotation_promotes_legacy_binary_to_canonical(self):
+        """The binary half of _ENCRYPTED_FIELD_PAIRS must survive a rotation.
+
+        Also moved from base_credential_manager, and the reason it matters:
+        rotation runs _decrypt_binary_value -> _encrypt_binary_value, a seam
+        where a mistake corrupts silently rather than raising.
+        """
+        plaintext = b"pkcs12-like-bytes-" + b"B" * 200
+        legacy_stored = base64.b64encode(Fernet(self.test_key).encrypt(plaintext))
+
+        key = self.env["certificate.key"].create(
+            {
+                "name": "legacy rotation",
+                "content": base64.b64encode(b"placeholder"),
+                "company_id": self.company.id,
+            }
+        )
+        self.env.cr.execute(
+            "UPDATE certificate_key SET content_encrypted = %s, "
+            "encryption_key_version = 0 WHERE id = %s",
+            [legacy_stored, key.id],
+        )
+        # Park every other row at the current version so the eligibility filter
+        # leaves only the fixture — a shared database can hold rows encrypted
+        # with a key this test environment does not have.
+        current_version = self.env[
+            "credential.credential"
+        ]._get_current_encryption_key_version()
+        self.env.cr.execute(
+            "UPDATE certificate_key SET encryption_key_version = %s WHERE id != %s",
+            [current_version, key.id],
+        )
+        self.env["certificate.key"].invalidate_model()
+
+        result = self.env["credential.credential"].action_migrate_encryption_keys()
+        self.assertEqual(result["failed"], 0, result["errors"])
+
+        key.invalidate_recordset()
+        self.env.cr.execute(
+            "SELECT content_encrypted FROM certificate_key WHERE id = %s", (key.id,)
+        )
+        self.assertTrue(
+            bytes(self.env.cr.fetchone()[0]).startswith(b"gAAAAA"),
+            "post-rotation ciphertext must be the canonical raw-token shape",
+        )
+        self.assertEqual(
+            base64.b64decode(key.with_context(bin_size=False).content),
+            plaintext,
+        )
 
     def test_rotation_reencrypts_certificate_material(self):
         """A rotated key must leave every certificate secret readable."""

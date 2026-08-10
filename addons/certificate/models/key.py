@@ -235,6 +235,41 @@ class CertificateKey(models.Model):
             formatting=formatting,
         )
 
+    def _get_unencrypted_pem_key(self, formatting='base64'):
+        ''' Get the private key PEM with any password protection stripped.
+
+        ``pem_key`` re-serializes a password-protected key *under that same
+        password* (BestAvailableEncryption), so consumers that hand the PEM to
+        something which cannot prompt for one — an SSL context, paho's
+        ``tls_set(keyfile=...)``, an external signer — need this instead.
+
+        :param optional,default='base64' formatting: The formatting of the returned bytes
+            - 'encodebytes' returns a base64-encoded block of 76 characters lines
+            - 'base64' returns the raw base64-encoded data
+            - other returns non-encoded data
+        :return: The formatted unencrypted private key PEM bytes
+        :rtype: bytes
+        '''
+        self.ensure_one()
+
+        if self.public:
+            raise UserError(_("A private key is required."))
+        if self.loading_error:
+            raise UserError(self.name + " - " + self.loading_error)
+
+        private_key = serialization.load_pem_private_key(
+            base64.b64decode(self.with_context(bin_size=False).pem_key),
+            self.password.encode() if self.password else None,
+        )
+        return _get_formatted_value(
+            private_key.private_bytes(
+                encoding=Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            ),
+            formatting=formatting,
+        )
+
     def _decrypt(self, message, hashing_algorithm='sha256'):
         ''' Decrypt the given message using the provided digest.
 
