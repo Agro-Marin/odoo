@@ -161,6 +161,11 @@ class MailActivity(models.Model):
         "Activities must be assigned if not attached to a document.",
     )
 
+    # Also declared as a dependency, not only an onchange: the method backs the
+    # ``has_recommended_activities`` compute, so without it the field is computed
+    # once and never invalidated -- correct in a form (the onchange fires) and
+    # stale everywhere else.
+    @api.depends("previous_activity_type_id.suggested_next_type_ids")
     @api.onchange("previous_activity_type_id")
     def _compute_has_recommended_activities(self):
         for record in self:
@@ -207,14 +212,23 @@ class MailActivity(models.Model):
             for activity in activities:
                 activity.res_name = name_by_id.get(activity.res_id, False)
 
-    @api.depends("active", "date_deadline")
+    @api.depends("active", "date_deadline", "user_tz")
     def _compute_state(self):
+        # Read the stored ``user_tz`` (related to ``user_id.tz``) rather than
+        # ``user_id.sudo().tz``: it is the very column ``_search_activity_state``
+        # and ``_read_group_activity_state`` evaluate in SQL, so compute and
+        # search now answer from the same value instead of agreeing by
+        # coincidence. It also makes the dependency declarable -- depending on
+        # ``user_id.tz`` through a sudo() read left ``state`` stale after a
+        # reassignment, so a web_save that changed the assignee returned the
+        # previous assignee's state to the client. And it costs no res.users
+        # read (nor the sudo() that only existed to bypass its ACL).
         today_by_tz = {}
         for record in self.filtered(lambda activity: activity.date_deadline):
             if not record.active:
                 record.state = "done"
                 continue
-            tz = record.user_id.sudo().tz
+            tz = record.user_tz
             if tz not in today_by_tz:
                 today_by_tz[tz] = self._compute_today_for_tz(tz)
             today = today_by_tz[tz]

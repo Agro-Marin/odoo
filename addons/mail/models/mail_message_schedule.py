@@ -25,6 +25,7 @@ class MailMessageSchedule(models.Model):
     scheduled_datetime = fields.Datetime(
         "Scheduled Send Date",
         required=True,
+        index=True,  # the cron selects and orders the due queue by this column
         help="Datetime at which notification should be sent.",
     )
 
@@ -42,10 +43,16 @@ class MailMessageSchedule(models.Model):
         batch_size = self.env["ir.config_parameter"]._get_int_param(
             "mail.scheduled_notification.batch.size", 500
         )
-        # limit + 1: detect whether a follow-up run is needed without a count()
+        # limit + 1: detect whether a follow-up run is needed without a count().
+        # Force oldest-due-first: the model default order is
+        # ``scheduled_datetime DESC, id DESC`` (right for the list view, wrong for
+        # a queue), so under a backlog larger than one batch every tick would
+        # re-pick the newest due schedules and starve the oldest indefinitely.
+        # ``mail.mail.process_email_queue`` forces FIFO for the same reason.
         messages_scheduled = self.env["mail.message.schedule"].search(
             [("scheduled_datetime", "<=", datetime.now(UTC))],
             limit=batch_size + 1,
+            order="scheduled_datetime, id",
         )
         has_more = len(messages_scheduled) > batch_size
         messages_scheduled = messages_scheduled[:batch_size]

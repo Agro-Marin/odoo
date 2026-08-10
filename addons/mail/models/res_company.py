@@ -34,7 +34,10 @@ class ResCompany(models.Model):
         "Email Button Color", default="#875A7B", readonly=False
     )
 
-    @api.depends("alias_domain_id", "name")
+    # The alias itself, not just which domain is selected: renaming a domain's
+    # bounce/catchall alias in Settings otherwise left these stale, and they are
+    # what outgoing mail carries as Return-Path and Reply-To.
+    @api.depends("alias_domain_id.bounce_email", "name")
     def _compute_bounce(self):
         self.bounce_email = ""
         self.bounce_formatted = ""
@@ -44,7 +47,7 @@ class ResCompany(models.Model):
             company.bounce_email = bounce_email
             company.bounce_formatted = tools.formataddr((company.name, bounce_email))
 
-    @api.depends("alias_domain_id", "name")
+    @api.depends("alias_domain_id.catchall_email", "name")
     def _compute_catchall(self):
         self.catchall_email = ""
         self.catchall_formatted = ""

@@ -138,6 +138,10 @@ class MailActivityType(models.Model):
             self.initial_res_model and self.initial_res_model != self.res_model
         )
 
+    # No @api.depends on purpose: this snapshots res_model as it was when the
+    # form opened, so that _compute_res_model_change can spot a pending change.
+    # Declaring the dependency would refresh the snapshot to the new value and
+    # the comparison would never fire.
     def _compute_initial_res_model(self):
         for activity_type in self:
             activity_type.initial_res_model = activity_type.res_model

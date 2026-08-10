@@ -142,6 +142,9 @@ class DiscussChannelMember(models.Model):
             if any(user._is_public() for user in member.partner_id.user_ids):
                 raise ValidationError(_("Channel members cannot include public users."))
 
+    # Only the context: partner_id and guest_id are read below but never declared
+    # because write() refuses both outright, so a member's persona cannot change
+    # under a computed value.
     @api.depends_context("uid", "guest")
     def _compute_is_self(self):
         if not self:

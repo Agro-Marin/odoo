@@ -170,10 +170,12 @@ class MailMail(models.Model):
                     _("You may not create a message using another user's mail server.")
                 )
 
+    @api.depends("body_html")
     def _compute_body_content(self):
         for mail in self:
             mail.body_content = mail.body_html
 
+    @api.depends("mail_message_id")
     def _compute_mail_message_id_int(self):
         for mail in self:
             mail.mail_message_id_int = mail.mail_message_id.id
