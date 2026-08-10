@@ -43,7 +43,7 @@
 @web/components/select_menu/select_menu  odoo enterprise
 @web/components/signature  odoo enterprise
 @web/components/tags_list/tags_list  odoo enterprise
-@web/components/tree_editor  agromarin
+@web/components/tree_editor  odoo
 @web/components/user_switch/user_switch  odoo
 @web/core/action_hook  odoo enterprise
 @web/core/assets  odoo enterprise

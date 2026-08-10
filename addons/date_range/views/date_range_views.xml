@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_date_range_search" model="ir.ui.view">
+        <field name="model">date.range</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="parent_id" />
+                <field name="type_id" />
+                <separator />
+                <filter name="date_start" date="date_start" />
+                <separator />
+                <filter name="date_end" date="date_end" />
+                <separator />
+                <filter
+                    name="main_ranges"
+                    string="Main Ranges"
+                    domain="[('parent_id', '=', False)]" />
+                <filter
+                    name="sub_ranges"
+                    string="Sub-ranges"
+                    domain="[('is_sub_range', '=', True)]" />
+                <separator />
+                <filter
+                    name="inactive"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
+                <group name="groupby">
+                    <filter
+                        name="date_start_groupby"
+                        string="Start Date"
+                        context="{'group_by': 'date_start'}" />
+                    <filter
+                        name="date_end_groupby"
+                        string="End Date"
+                        context="{'group_by': 'date_end'}" />
+                    <filter
+                        name="company_groupby"
+                        string="Company"
+                        context="{'group_by': 'company_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_date_range_list" model="ir.ui.view">
+        <field name="name">date.range.list</field>
+        <field name="model">date.range</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name" />
+                <field name="type_id" />
+                <field name="parent_id" optional="hide" />
+                <field name="date_start" />
+                <field name="date_end" />
+                <field name="duration_days" optional="show" />
+                <field name="business_days" optional="show" />
+                <field name="weekend_days" optional="hide" />
+                <field name="is_sub_range" column_invisible="1" />
+                <!-- pylint : oca-disable=duplicate-xml-fields -->
+                <field name="company_id" column_invisible="1" />
+                <field
+                    name="company_id"
+                    groups="base.group_multi_company"
+                    options="{'no_create': True}" />
+                <field name="active" widget="boolean_toggle" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_date_range_form_view" model="ir.ui.view">
+        <field name="name">date.range.form</field>
+        <field name="model">date.range</field>
+        <field name="arch" type="xml">
+            <form>
+                <widget
+                    name="web_ribbon"
+                    title="Archived"
+                    bg_color="bg-danger"
+                    invisible="active" />
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Date Range Name" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="type_id" />
+                            <field
+                                name="parent_id"
+                                domain="[('type_id', '=', type_id), ('id', '!=', id)]"
+                                context="{'default_type_id': type_id}" />
+                            <field name="is_sub_range" invisible="1" />
+                        </group>
+                        <group>
+                            <field name="date_start" />
+                            <field name="date_end" />
+                            <field name="duration_days" />
+                            <field name="business_days" />
+                            <field name="weekend_days" />
+                        </group>
+                    </group>
+                    <group>
+                        <group>
+                            <!-- pylint : oca-disable=duplicate-xml-fields -->
+                            <field name="company_id" invisible="1" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                                options="{'no_create': True}" />
+                            <field name="active" invisible="1" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Sub-ranges" invisible="not child_ids">
+                            <field
+                                name="child_ids"
+                                context="{'default_parent_id': id, 'default_type_id': type_id, 'default_company_id': company_id}">
+                                <list editable="bottom">
+                                    <field name="name" />
+                                    <field name="date_start" />
+                                    <field name="date_end" />
+                                    <field name="duration_days" />
+                                    <field name="business_days" />
+                                    <field name="weekend_days" optional="hide" />
+                                    <field name="active" widget="boolean_toggle" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="date_range_action" model="ir.actions.act_window">
+        <field name="name">Date Ranges</field>
+        <field name="res_model">date.range</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_date_range_list" />
+        <field name="domain">[]</field>
+        <field name="context">{}</field>
+    </record>
+
+</odoo>
