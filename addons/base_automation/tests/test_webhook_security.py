@@ -40,9 +40,7 @@ class TestWebhookSecurity(TransactionCase):
         cls.body = b'{"event": "test", "x": 1}'
 
     def _sig(self, key):
-        return "sha256=" + hmac.new(
-            key.encode(), self.body, hashlib.sha256
-        ).hexdigest()
+        return "sha256=" + hmac.new(key.encode(), self.body, hashlib.sha256).hexdigest()
 
     def test_hmac_valid(self):
         ok, status, _msg = self.rule._verify_webhook_request(
@@ -66,7 +64,9 @@ class TestWebhookSecurity(TransactionCase):
     def test_ip_allowlist(self):
         self.rule.webhook_ip_allowlist = "10.0.0.0/8, 192.168.1.5"
         sig = {"X-Hub-Signature-256": self._sig(self.secret)}
-        self.assertTrue(self.rule._verify_webhook_request(sig, self.body, "10.5.5.5")[0])
+        self.assertTrue(
+            self.rule._verify_webhook_request(sig, self.body, "10.5.5.5")[0]
+        )
         blocked = self.rule._verify_webhook_request(sig, self.body, "1.2.3.4")
         self.assertFalse(blocked[0])
         self.assertEqual(blocked[1], 403)

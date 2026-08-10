@@ -24,11 +24,13 @@ class TestWorkflowDAG(TransactionCase):
         self.model_partner = self.env["ir.model"]._get("res.partner")
         self.test_partner = self.Partner.create({"name": "Test Partner"})
 
-        self.automation = self.Automation.create({
-            "name": "Test DAG Workflow",
-            "model_id": self.model_partner.id,
-            "trigger": "on_hand",
-        })
+        self.automation = self.Automation.create(
+            {
+                "name": "Test DAG Workflow",
+                "model_id": self.model_partner.id,
+                "trigger": "on_hand",
+            }
+        )
 
     def _create_action(self, name, code="pass", predecessors=None):
         """Create a server action under self.automation."""
@@ -47,11 +49,13 @@ class TestWorkflowDAG(TransactionCase):
     def _make_runtime(self, automation=None):
         """Create and start a runtime for the given automation (default: self.automation)."""
         auto = automation or self.automation
-        runtime = self.Runtime.create({
-            "automation_id": auto.id,
-            "res_model": "res.partner",
-            "res_id": self.test_partner.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": auto.id,
+                "res_model": "res.partner",
+                "res_id": self.test_partner.id,
+            }
+        )
         runtime.action_start()
         return runtime
 
@@ -216,16 +220,20 @@ class TestWorkflowDAG(TransactionCase):
     def test_run_all_simple_chain(self):
         """action_run_all executes A → B → C in order."""
         action_a = self._create_action("A", code="record.write({'comment': 'A'})")
-        action_b = self._create_action("B", code="record.write({'comment': 'B'})",
-                                       predecessors=[action_a])
-        self._create_action("C", code="record.write({'comment': 'C'})",
-                                       predecessors=[action_b])
+        action_b = self._create_action(
+            "B", code="record.write({'comment': 'B'})", predecessors=[action_a]
+        )
+        self._create_action(
+            "C", code="record.write({'comment': 'C'})", predecessors=[action_b]
+        )
 
-        runtime = self.Runtime.create({
-            "automation_id": self.automation.id,
-            "res_model": "res.partner",
-            "res_id": self.test_partner.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": self.automation.id,
+                "res_model": "res.partner",
+                "res_id": self.test_partner.id,
+            }
+        )
         runtime.action_start()
         final_state = runtime.action_run_all()
 
@@ -243,11 +251,13 @@ class TestWorkflowDAG(TransactionCase):
         action_c = self._create_action("C", predecessors=[action_a])
         self._create_action("D", predecessors=[action_b, action_c])
 
-        runtime = self.Runtime.create({
-            "automation_id": self.automation.id,
-            "res_model": "res.partner",
-            "res_id": self.test_partner.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": self.automation.id,
+                "res_model": "res.partner",
+                "res_id": self.test_partner.id,
+            }
+        )
         runtime.action_start()
         final_state = runtime.action_run_all()
 
@@ -264,14 +274,18 @@ class TestWorkflowDAG(TransactionCase):
         action_a = self._create_action("A")
         self._create_action("B", predecessors=[action_a])
 
-        before_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+        before_count = self.Runtime.search_count(
+            [("automation_id", "=", self.automation.id)]
+        )
 
         self.automation.with_context(
             active_model="res.partner",
             active_ids=self.test_partner.ids,
         ).action_manual_trigger()
 
-        after_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+        after_count = self.Runtime.search_count(
+            [("automation_id", "=", self.automation.id)]
+        )
         self.assertEqual(after_count, before_count + 1)
 
     def test_manual_trigger_no_dag_direct_process(self):
@@ -279,14 +293,18 @@ class TestWorkflowDAG(TransactionCase):
         # Simple action, no predecessor_ids
         self._create_action("A", code="record.write({'comment': 'triggered'})")
 
-        before_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+        before_count = self.Runtime.search_count(
+            [("automation_id", "=", self.automation.id)]
+        )
 
         result = self.automation.with_context(
             active_model="res.partner",
             active_ids=self.test_partner.ids,
         ).action_manual_trigger()
 
-        after_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+        after_count = self.Runtime.search_count(
+            [("automation_id", "=", self.automation.id)]
+        )
         # No runtime created for simple automations
         self.assertEqual(after_count, before_count)
         self.assertEqual(result["type"], "ir.actions.client")
@@ -294,11 +312,13 @@ class TestWorkflowDAG(TransactionCase):
 
     def test_manual_trigger_wrong_trigger_raises(self):
         """action_manual_trigger on non-on_hand automation raises ValidationError."""
-        auto = self.Automation.create({
-            "name": "Write Automation",
-            "model_id": self.model_partner.id,
-            "trigger": "on_write",
-        })
+        auto = self.Automation.create(
+            {
+                "name": "Write Automation",
+                "model_id": self.model_partner.id,
+                "trigger": "on_write",
+            }
+        )
 
         with self.assertRaises(ValidationError):
             auto.action_manual_trigger()
@@ -306,7 +326,9 @@ class TestWorkflowDAG(TransactionCase):
     def test_manual_trigger_no_matching_records(self):
         """action_manual_trigger returns warning when filter excludes all records."""
         # Filter that no record can match
-        self.automation.filter_domain = "[('name', '=', '__no_record_will_ever_match__')]"
+        self.automation.filter_domain = (
+            "[('name', '=', '__no_record_will_ever_match__')]"
+        )
         self._create_action("A")
 
         result = self.automation.with_context(
@@ -334,11 +356,13 @@ class TestWorkflowDAG(TransactionCase):
 
     def test_runtime_res_model_res_id_set(self):
         """Runtime records the target model and record ID."""
-        runtime = self.Runtime.create({
-            "automation_id": self.automation.id,
-            "res_model": "res.partner",
-            "res_id": self.test_partner.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": self.automation.id,
+                "res_model": "res.partner",
+                "res_id": self.test_partner.id,
+            }
+        )
 
         self.assertEqual(runtime.res_model, "res.partner")
         self.assertEqual(runtime.res_id, self.test_partner.id)
@@ -353,38 +377,48 @@ class TestWorkflowDAGExecution(TransactionCase):
         self.Action = self.env["ir.actions.server"]
         self.Runtime = self.env["automation.runtime"]
         self.model_partner = self.env["ir.model"]._get("res.partner")
-        self.test_partner = self.env["res.partner"].create({"name": "Exec Test Partner"})
+        self.test_partner = self.env["res.partner"].create(
+            {"name": "Exec Test Partner"}
+        )
 
     def test_code_execution_writes_to_target_record(self):
         """Server action code runs against the runtime's res_model/res_id record."""
-        automation = self.Automation.create({
-            "name": "Email Setter",
-            "model_id": self.model_partner.id,
-            "trigger": "on_hand",
-        })
-        action_a = self.Action.create({
-            "name": "Set Email",
-            "model_id": self.model_partner.id,
-            "state": "code",
-            "code": "record.write({'email': 'dag@example.com'})",
-            "base_automation_id": automation.id,
-            "usage": "base_automation",
-        })
-        self.Action.create({
-            "name": "Set Phone",
-            "model_id": self.model_partner.id,
-            "state": "code",
-            "code": "record.write({'phone': '999-888-7777'})",
-            "base_automation_id": automation.id,
-            "usage": "base_automation",
-            "predecessor_ids": [Command.link(action_a.id)],
-        })
+        automation = self.Automation.create(
+            {
+                "name": "Email Setter",
+                "model_id": self.model_partner.id,
+                "trigger": "on_hand",
+            }
+        )
+        action_a = self.Action.create(
+            {
+                "name": "Set Email",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "record.write({'email': 'dag@example.com'})",
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+            }
+        )
+        self.Action.create(
+            {
+                "name": "Set Phone",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "record.write({'phone': '999-888-7777'})",
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+                "predecessor_ids": [Command.link(action_a.id)],
+            }
+        )
 
-        runtime = self.Runtime.create({
-            "automation_id": automation.id,
-            "res_model": "res.partner",
-            "res_id": self.test_partner.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": automation.id,
+                "res_model": "res.partner",
+                "res_id": self.test_partner.id,
+            }
+        )
         runtime.action_start()
         runtime.action_run_all()
 
@@ -401,25 +435,31 @@ class TestWorkflowDAGExecution(TransactionCase):
         message. assertRaises would not even be able to observe the old
         behaviour, since its savepoint reverted the error write too.
         """
-        automation = self.Automation.create({
-            "name": "Failing Workflow",
-            "model_id": self.model_partner.id,
-            "trigger": "on_hand",
-        })
-        action = self.Action.create({
-            "name": "Failing Action",
-            "model_id": self.model_partner.id,
-            "state": "code",
-            "code": "raise Exception('deliberate test error')",
-            "base_automation_id": automation.id,
-            "usage": "base_automation",
-        })
+        automation = self.Automation.create(
+            {
+                "name": "Failing Workflow",
+                "model_id": self.model_partner.id,
+                "trigger": "on_hand",
+            }
+        )
+        action = self.Action.create(
+            {
+                "name": "Failing Action",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": "raise Exception('deliberate test error')",
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+            }
+        )
 
-        runtime = self.Runtime.create({
-            "automation_id": automation.id,
-            "res_model": "res.partner",
-            "res_id": self.test_partner.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": automation.id,
+                "res_model": "res.partner",
+                "res_id": self.test_partner.id,
+            }
+        )
         runtime.action_start()
 
         line = runtime.line_ids.filtered(lambda l: l.action_id == action)

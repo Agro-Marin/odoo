@@ -6,7 +6,6 @@ from odoo.addons.base_automation.models.base_automation import (
 
 
 class BaseAutomationController(Controller):
-
     @route(
         ["/web/hook/<string:rule_uuid>"],
         type="http",

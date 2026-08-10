@@ -1426,7 +1426,9 @@ class TestMailThreadTriggers(TransactionCase):
         # Simulate incoming message from an external partner (no backend user).
         # Partners without users have partner_share=True, which triggers
         # on_message_received (vs on_message_sent for internal users).
-        external = self.Partner.create({"name": "External Customer", "email": "ext@example.com"})
+        external = self.Partner.create(
+            {"name": "External Customer", "email": "ext@example.com"}
+        )
         self.test_partner.sudo().message_post(
             body="Incoming message from customer",
             message_type="comment",

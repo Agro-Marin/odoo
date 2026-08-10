@@ -364,12 +364,11 @@ class BaseAutomation(models.Model):
     )
     webhook_rate_limit = fields.Boolean(string="Rate Limit")
     rate_limit_requests = fields.Integer(
-        string="Requests / Window", default=100,
+        string="Requests / Window",
+        default=100,
         help="Token-bucket capacity (read by the rate-limit bucket).",
     )
-    webhook_rate_limit_window = fields.Integer(
-        string="Rate Window (s)", default=60
-    )
+    webhook_rate_limit_window = fields.Integer(string="Rate Window (s)", default=60)
 
     trigger = fields.Selection(
         selection=[
@@ -487,7 +486,6 @@ class BaseAutomation(models.Model):
         help="The automation rule will be triggered if and only if one of these fields is updated."
         "If empty, all fields are watched.",
     )
-
 
     # ------------------------------------------------------------
     # CONSTRAINT METHODS
@@ -678,10 +676,12 @@ class BaseAutomation(models.Model):
         target.ensure_one()
         new_by_old = {}
         for action in self.action_server_ids:
-            new_by_old[action.id] = action.copy({
-                "base_automation_id": target.id,
-                "predecessor_ids": [fields.Command.clear()],
-            })
+            new_by_old[action.id] = action.copy(
+                {
+                    "base_automation_id": target.id,
+                    "predecessor_ids": [fields.Command.clear()],
+                }
+            )
         for action in self.action_server_ids:
             # keep only edges internal to the copied set; a predecessor from
             # another automation cannot exist (see _check_predecessors_scope)
@@ -703,7 +703,9 @@ class BaseAutomation(models.Model):
             if automation.trigger != "on_webhook":
                 automation.url = ""
             else:
-                automation.url = f"{automation.get_base_url()}/web/hook/{automation.webhook_uuid}"
+                automation.url = (
+                    f"{automation.get_base_url()}/web/hook/{automation.webhook_uuid}"
+                )
 
     def _inverse_model_name(self):
         for rec in self:
@@ -764,9 +766,11 @@ class BaseAutomation(models.Model):
     @api.depends("trigger", "trg_date_id", "trg_date_range_type")
     def _compute_trg_date_calendar_id(self):
         to_reset = self.filtered(
-            lambda a: a.trigger not in TIME_TRIGGERS
-            or not a.trg_date_id
-            or a.trg_date_range_type != "day",
+            lambda a: (
+                a.trigger not in TIME_TRIGGERS
+                or not a.trg_date_id
+                or a.trg_date_range_type != "day"
+            ),
         )
         to_reset.trg_date_calendar_id = False
 
@@ -781,8 +785,10 @@ class BaseAutomation(models.Model):
     @api.depends("trigger", "trg_field_ref")
     def _compute_trg_field_ref_model_name(self):
         to_compute = self.filtered(
-            lambda a: a.trigger in ["on_stage_set", "on_tag_set"]
-            and a.trg_field_ref is not False,
+            lambda a: (
+                a.trigger in ["on_stage_set", "on_tag_set"]
+                and a.trg_field_ref is not False
+            ),
         )
         # wondering why we check based on 'is not'? Because the ref could be an empty recordset
         # and we still need to introspec on the model in that case - not just ignore it
@@ -1054,11 +1060,13 @@ class BaseAutomation(models.Model):
         if has_dag:
             runtimes = self.env["automation.runtime"]
             for record in filtered_records:
-                runtime = self.env["automation.runtime"].create({
-                    "automation_id": self.id,
-                    "res_model": active_model,
-                    "res_id": record.id,
-                })
+                runtime = self.env["automation.runtime"].create(
+                    {
+                        "automation_id": self.id,
+                        "res_model": active_model,
+                        "res_id": record.id,
+                    }
+                )
                 runtime.action_start()
                 runtime.action_run_all()
                 runtimes |= runtime
@@ -1189,10 +1197,7 @@ class BaseAutomation(models.Model):
         if self.webhook_ip_allowlist and not self._webhook_ip_allowed(remote_addr):
             return (False, 403, "IP address not allowed")
 
-        if (
-            self.webhook_max_payload_size
-            and len(body) > self.webhook_max_payload_size
-        ):
+        if self.webhook_max_payload_size and len(body) > self.webhook_max_payload_size:
             return (False, 413, "Payload too large")
 
         # --- authentication -------------------------------------------------
@@ -1798,8 +1803,9 @@ class BaseAutomation(models.Model):
                 # stored computed fields are populated during create().
                 stored_fnames_set = set(stored_fnames)
                 automations = automations.filtered(
-                    lambda a: stored_fnames_set
-                    & set(a.trigger_field_ids.mapped("name"))
+                    lambda a: (
+                        stored_fnames_set & set(a.trigger_field_ids.mapped("name"))
+                    )
                 )
                 records = self.filtered("id").with_env(automations.env)
                 if not (automations and records):
@@ -1807,9 +1813,13 @@ class BaseAutomation(models.Model):
                     return True
                 # check preconditions on records
                 # changed fields are all fields computed by the function
-                changed_fields = [f for f in records._fields.values() if f.compute == field.compute]
+                changed_fields = [
+                    f for f in records._fields.values() if f.compute == field.compute
+                ]
                 pre = {
-                    a: a.with_context(changed_fields=changed_fields)._filter_pre(records)
+                    a: a.with_context(changed_fields=changed_fields)._filter_pre(
+                        records
+                    )
                     for a in automations
                 }
                 # read old values before the update

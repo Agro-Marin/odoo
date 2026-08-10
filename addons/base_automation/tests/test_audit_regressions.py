@@ -6,6 +6,7 @@ webhook cases run through a real HTTP request on purpose: the pre-existing
 webhook tests call ``_verify_webhook_request`` with a plain ``dict``, which is
 exactly why a case-sensitive header lookup survived them.
 """
+
 import hashlib
 import hmac
 import json
@@ -25,16 +26,27 @@ class AutomationAuditCommon(TransactionCase):
         cls.model_partner = cls.env["ir.model"]._get("res.partner")
 
     def _automation(self, name, trigger="on_hand", **kw):
-        return self.Automation.create({
-            "name": name, "model_id": self.model_partner.id, "trigger": trigger, **kw,
-        })
+        return self.Automation.create(
+            {
+                "name": name,
+                "model_id": self.model_partner.id,
+                "trigger": trigger,
+                **kw,
+            }
+        )
 
     def _action(self, automation, name, code="pass", **kw):
-        return self.Action.create({
-            "name": name, "model_id": self.model_partner.id, "state": "code",
-            "code": code, "base_automation_id": automation.id,
-            "usage": "base_automation", **kw,
-        })
+        return self.Action.create(
+            {
+                "name": name,
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "code": code,
+                "base_automation_id": automation.id,
+                "usage": "base_automation",
+                **kw,
+            }
+        )
 
 
 @tagged("post_install", "-at_install")
@@ -63,12 +75,15 @@ class TestCopyKeepsGraphLocal(AutomationAuditCommon):
     def test_copy_does_not_touch_the_source_graph(self):
         source = self._automation("source")
         first = self._action(source, "first")
-        second = self._action(source, "second", predecessor_ids=[Command.link(first.id)])
+        second = self._action(
+            source, "second", predecessor_ids=[Command.link(first.id)]
+        )
 
         source.copy()
 
         self.assertEqual(
-            first.successor_ids, second,
+            first.successor_ids,
+            second,
             "the copy leaked into the source automation's successors",
         )
 
@@ -104,7 +119,9 @@ class TestDagIntegrity(AutomationAuditCommon):
         automation = self._automation("blocked")
         first = self._action(automation, "first")
         second = self._action(
-            automation, "second", predecessor_ids=[Command.link(first.id)],
+            automation,
+            "second",
+            predecessor_ids=[Command.link(first.id)],
         )
         runtime = self.Runtime.create({"automation_id": automation.id})
         runtime.action_start()
@@ -135,20 +152,25 @@ class TestFailureIsRecorded(AutomationAuditCommon):
         partner = self.env["res.partner"].create({"name": "target", "ref": "before"})
         automation = self._automation("half-write")
         self._action(
-            automation, "writes then raises",
+            automation,
+            "writes then raises",
             code="record.write({'ref': 'after'})\nraise Exception('too late')",
         )
-        runtime = self.Runtime.create({
-            "automation_id": automation.id,
-            "res_model": "res.partner", "res_id": partner.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": automation.id,
+                "res_model": "res.partner",
+                "res_id": partner.id,
+            }
+        )
         runtime.action_start()
         runtime.action_run_all()
 
         self.assertEqual(runtime.state, "error")
         partner.invalidate_recordset(["ref"])
         self.assertEqual(
-            partner.ref, "before",
+            partner.ref,
+            "before",
             "the savepoint must discard the failing action's partial write",
         )
 
@@ -156,7 +178,9 @@ class TestFailureIsRecorded(AutomationAuditCommon):
         automation = self._automation("failing")
         ok = self._action(automation, "ok")
         self._action(
-            automation, "boom", code="raise Exception('deliberate')",
+            automation,
+            "boom",
+            code="raise Exception('deliberate')",
             predecessor_ids=[Command.link(ok.id)],
         )
         runtime = self.Runtime.create({"automation_id": automation.id})
@@ -177,11 +201,15 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
     def test_actions_run_in_dependency_order_not_sequence_order(self):
         automation = self._automation("ordered", trigger="on_create")
         first = self._action(
-            automation, "first", sequence=50,
+            automation,
+            "first",
+            sequence=50,
             code="record.write({'ref': (record.ref or '') + 'A'})",
         )
         self._action(
-            automation, "second", sequence=10,
+            automation,
+            "second",
+            sequence=10,
             code="record.write({'ref': (record.ref or '') + 'B'})",
             predecessor_ids=[Command.link(first.id)],
         )
@@ -194,11 +222,15 @@ class TestProcessRespectsDependencies(AutomationAuditCommon):
     def test_sequence_still_orders_independent_actions(self):
         automation = self._automation("independent", trigger="on_create")
         self._action(
-            automation, "late", sequence=50,
+            automation,
+            "late",
+            sequence=50,
             code="record.write({'ref': (record.ref or '') + 'A'})",
         )
         self._action(
-            automation, "early", sequence=10,
+            automation,
+            "early",
+            sequence=10,
             code="record.write({'ref': (record.ref or '') + 'B'})",
         )
         self.Automation._update_registry()
@@ -247,14 +279,17 @@ class TestRuleLookupCache(AutomationAuditCommon):
                 partner.write({"comment": "x"})
 
         self.assertEqual(
-            self._count_rule_lookups(loop), 0,
+            self._count_rule_lookups(loop),
+            0,
             "the rule set must be served from the registry cache",
         )
 
     def test_cache_is_invalidated_when_a_rule_changes(self):
         automation = self._automation("toggles", trigger="on_create")
         self._action(
-            automation, "stamp", code="record.write({'ref': 'fired'})",
+            automation,
+            "stamp",
+            code="record.write({'ref': 'fired'})",
         )
         self.Automation._update_registry()
         self.addCleanup(self.Automation._update_registry)
@@ -266,19 +301,25 @@ class TestRuleLookupCache(AutomationAuditCommon):
         self.Automation._update_registry()
         second = self.env["res.partner"].create({"name": "after"})
         self.assertNotEqual(
-            second.ref, "fired", "deactivating a rule must invalidate the cache",
+            second.ref,
+            "fired",
+            "deactivating a rule must invalidate the cache",
         )
 
     def test_sequence_change_reorders_execution(self):
         """The cache stores order as well as membership."""
         automation = self._automation("resequenced", trigger="on_create")
         self._action(
-            automation, "a", sequence=10,
+            automation,
+            "a",
+            sequence=10,
             code="record.write({'ref': (record.ref or '') + 'A'})",
         )
         second = self._automation("resequenced-2", trigger="on_create", sequence=20)
         self._action(
-            second, "b", code="record.write({'ref': (record.ref or '') + 'B'})",
+            second,
+            "b",
+            code="record.write({'ref': (record.ref or '') + 'B'})",
         )
         self.Automation._update_registry()
         self.addCleanup(self.Automation._update_registry)
@@ -287,7 +328,8 @@ class TestRuleLookupCache(AutomationAuditCommon):
 
         second.sequence = 1
         self.assertEqual(
-            self.env["res.partner"].create({"name": "p2"}).ref, "BA",
+            self.env["res.partner"].create({"name": "p2"}).ref,
+            "BA",
             "a plain sequence edit must invalidate the cached order",
         )
 
@@ -305,25 +347,44 @@ class TestBookkeepingWriteIsSilent(AutomationAuditCommon):
 
         counter = self.env["ir.config_parameter"].sudo()
         counter.set_param("base_automation.bookkeeping_probe", "0")
-        observer = self.Automation.create({
-            "name": "observer", "model_id": lead_model.id, "trigger": "on_write",
-        })
-        self.Action.create({
-            "name": "count", "model_id": lead_model.id, "state": "code",
-            "usage": "base_automation", "base_automation_id": observer.id,
-            "code": (
-                "p = env['ir.config_parameter'].sudo()\n"
-                "p.set_param('base_automation.bookkeeping_probe',"
-                " str(int(p.get_param('base_automation.bookkeeping_probe', '0')) + 1))"
-            ),
-        })
-        stamper = self.Automation.create({
-            "name": "stamper", "model_id": lead_model.id, "trigger": "on_create",
-        })
-        self.Action.create({
-            "name": "noop", "model_id": lead_model.id, "state": "code", "code": "pass",
-            "usage": "base_automation", "base_automation_id": stamper.id,
-        })
+        observer = self.Automation.create(
+            {
+                "name": "observer",
+                "model_id": lead_model.id,
+                "trigger": "on_write",
+            }
+        )
+        self.Action.create(
+            {
+                "name": "count",
+                "model_id": lead_model.id,
+                "state": "code",
+                "usage": "base_automation",
+                "base_automation_id": observer.id,
+                "code": (
+                    "p = env['ir.config_parameter'].sudo()\n"
+                    "p.set_param('base_automation.bookkeeping_probe',"
+                    " str(int(p.get_param('base_automation.bookkeeping_probe', '0')) + 1))"
+                ),
+            }
+        )
+        stamper = self.Automation.create(
+            {
+                "name": "stamper",
+                "model_id": lead_model.id,
+                "trigger": "on_create",
+            }
+        )
+        self.Action.create(
+            {
+                "name": "noop",
+                "model_id": lead_model.id,
+                "state": "code",
+                "code": "pass",
+                "usage": "base_automation",
+                "base_automation_id": stamper.id,
+            }
+        )
         self.Automation._update_registry()
         self.addCleanup(self.Automation._update_registry)
 
@@ -331,7 +392,8 @@ class TestBookkeepingWriteIsSilent(AutomationAuditCommon):
         self.env.flush_all()
 
         self.assertEqual(
-            counter.get_param("base_automation.bookkeeping_probe"), "0",
+            counter.get_param("base_automation.bookkeeping_probe"),
+            "0",
             "the internal date_automation_last write fired a user rule",
         )
 
@@ -341,10 +403,13 @@ class TestRuntimeCreatePrivileges(AutomationAuditCommon):
     """company_id in vals used to elevate the whole create to superuser."""
 
     def test_company_id_does_not_bypass_access_rights(self):
-        employee = self.env["res.users"].create({
-            "name": "audit employee", "login": "audit_employee",
-            "group_ids": [Command.set([self.env.ref("base.group_user").id])],
-        })
+        employee = self.env["res.users"].create(
+            {
+                "name": "audit employee",
+                "login": "audit_employee",
+                "group_ids": [Command.set([self.env.ref("base.group_user").id])],
+            }
+        )
         automation = self._automation("acl")
         Runtime = self.Runtime.with_user(employee)
 
@@ -352,18 +417,24 @@ class TestRuntimeCreatePrivileges(AutomationAuditCommon):
             Runtime.create({"automation_id": automation.id})
 
         with self.assertRaises(
-            Exception, msg="company_id must not grant a create the user lacks",
+            Exception,
+            msg="company_id must not grant a create the user lacks",
         ):
-            Runtime.create({
-                "automation_id": automation.id,
-                "company_id": self.env.company.id,
-            })
+            Runtime.create(
+                {
+                    "automation_id": automation.id,
+                    "company_id": self.env.company.id,
+                }
+            )
 
     def test_sequence_is_still_assigned(self):
         automation = self._automation("seq")
-        runtime = self.Runtime.create({
-            "automation_id": automation.id, "company_id": self.env.company.id,
-        })
+        runtime = self.Runtime.create(
+            {
+                "automation_id": automation.id,
+                "company_id": self.env.company.id,
+            }
+        )
         self.assertTrue(runtime.name.startswith("BAR/"), runtime.name)
 
 
@@ -374,18 +445,23 @@ class TestRuntimeVisibility(AutomationAuditCommon):
     def test_other_company_runs_are_not_readable(self):
         automation = self._automation("multico")
         other_company = self.env["res.company"].create({"name": "audit other co"})
-        theirs = self.Runtime.sudo().create({
-            "automation_id": automation.id,
-            "company_id": other_company.id,
-            "currency_id": other_company.currency_id.id,
-            "reference": "CONFIDENTIAL",
-        })
-        employee = self.env["res.users"].create({
-            "name": "single co", "login": "audit_singleco",
-            "company_id": self.env.company.id,
-            "company_ids": [Command.set([self.env.company.id])],
-            "group_ids": [Command.set([self.env.ref("base.group_user").id])],
-        })
+        theirs = self.Runtime.sudo().create(
+            {
+                "automation_id": automation.id,
+                "company_id": other_company.id,
+                "currency_id": other_company.currency_id.id,
+                "reference": "CONFIDENTIAL",
+            }
+        )
+        employee = self.env["res.users"].create(
+            {
+                "name": "single co",
+                "login": "audit_singleco",
+                "company_id": self.env.company.id,
+                "company_ids": [Command.set([self.env.company.id])],
+                "group_ids": [Command.set([self.env.ref("base.group_user").id])],
+            }
+        )
         self.env.flush_all()
 
         visible = self.Runtime.with_user(employee).search([("id", "=", theirs.id)])
@@ -426,16 +502,21 @@ class TestConstraintMessages(AutomationAuditCommon):
     def test_multi_record_validation_reports_instead_of_crashing(self):
         good = self._automation("good")
         bad = self._automation("bad")
-        self.Action.create({
-            "name": "wrong model",
-            "model_id": self.env["ir.model"]._get("res.users").id,
-            "state": "code", "code": "pass", "usage": "base_automation",
-            "base_automation_id": bad.id,
-        })
+        self.Action.create(
+            {
+                "name": "wrong model",
+                "model_id": self.env["ir.model"]._get("res.users").id,
+                "state": "code",
+                "code": "pass",
+                "usage": "base_automation",
+                "base_automation_id": bad.id,
+            }
+        )
         with self.assertRaises(Exception) as caught:
             (good | bad).write({"model_id": self.model_partner.id})
         self.assertNotIsInstance(
-            caught.exception, ValueError,
+            caught.exception,
+            ValueError,
             "the error path itself raised Expected singleton",
         )
 
@@ -449,33 +530,48 @@ class TestWebhookOverHttp(HttpCase):
         super().setUpClass()
         cls.model_partner = cls.env["ir.model"]._get("res.partner")
         cls.secret = "audit-secret"
-        category = (
-            cls.env["credential.category"].search([], limit=1)
-            or cls.env["credential.category"].create({"name": "A", "code": "audit"})
+        category = cls.env["credential.category"].search([], limit=1) or cls.env[
+            "credential.category"
+        ].create({"name": "A", "code": "audit"})
+        cls.credential = cls.env["credential.credential"].create(
+            {
+                "name": "audit secret",
+                "category_id": category.id,
+                "credential_value": cls.secret,
+            }
         )
-        cls.credential = cls.env["credential.credential"].create({
-            "name": "audit secret", "category_id": category.id,
-            "credential_value": cls.secret,
-        })
         cls.body = b'{"audit": true}'
-        cls.signature = "sha256=" + hmac.new(
-            cls.secret.encode(), cls.body, hashlib.sha256,
-        ).hexdigest()
+        cls.signature = (
+            "sha256="
+            + hmac.new(
+                cls.secret.encode(),
+                cls.body,
+                hashlib.sha256,
+            ).hexdigest()
+        )
 
     def _rule(self, name, **kw):
-        rule = self.env["base.automation"].create({
-            "name": name, "model_id": self.model_partner.id,
-            "trigger": "on_webhook", **kw,
-        })
-        self.env["ir.actions.server"].create({
-            "name": f"{name}-action", "model_id": self.model_partner.id,
-            "state": "code", "usage": "base_automation",
-            "base_automation_id": rule.id,
-            "code": (
-                "env['ir.config_parameter'].sudo()"
-                ".set_param('base_automation.webhook_probe', 'fired')"
-            ),
-        })
+        rule = self.env["base.automation"].create(
+            {
+                "name": name,
+                "model_id": self.model_partner.id,
+                "trigger": "on_webhook",
+                **kw,
+            }
+        )
+        self.env["ir.actions.server"].create(
+            {
+                "name": f"{name}-action",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "usage": "base_automation",
+                "base_automation_id": rule.id,
+                "code": (
+                    "env['ir.config_parameter'].sudo()"
+                    ".set_param('base_automation.webhook_probe', 'fired')"
+                ),
+            }
+        )
         return rule
 
     def _post(self, rule, headers=None):
@@ -487,22 +583,27 @@ class TestWebhookOverHttp(HttpCase):
 
     def test_signature_header_name_is_case_insensitive(self):
         for configured in (
-            "x-hub-signature-256", "X-HUB-SIGNATURE-256", "X-Hub-Signature-256",
+            "x-hub-signature-256",
+            "X-HUB-SIGNATURE-256",
+            "X-Hub-Signature-256",
         ):
             rule = self._rule(
-                f"hdr-{configured}", webhook_auth_type="hmac_sha256",
+                f"hdr-{configured}",
+                webhook_auth_type="hmac_sha256",
                 webhook_credential_id=self.credential.id,
                 webhook_signature_header=configured,
             )
             response = self._post(rule, {"X-Hub-Signature-256": self.signature})
             self.assertEqual(
-                response.status_code, 200,
+                response.status_code,
+                200,
                 f"a valid request was rejected for header spelling {configured!r}",
             )
 
     def test_bad_signature_is_still_rejected(self):
         rule = self._rule(
-            "bad-sig", webhook_auth_type="hmac_sha256",
+            "bad-sig",
+            webhook_auth_type="hmac_sha256",
             webhook_credential_id=self.credential.id,
         )
         response = self._post(rule, {"X-Hub-Signature-256": "sha256=deadbeef"})
@@ -510,36 +611,48 @@ class TestWebhookOverHttp(HttpCase):
 
     def test_unauthenticated_calls_cannot_exhaust_the_rate_limit(self):
         rule = self._rule(
-            "rate", webhook_auth_type="hmac_sha256",
+            "rate",
+            webhook_auth_type="hmac_sha256",
             webhook_credential_id=self.credential.id,
-            webhook_rate_limit=True, rate_limit_requests=3,
+            webhook_rate_limit=True,
+            rate_limit_requests=3,
             webhook_rate_limit_window=60,
         )
         for _ in range(6):
             self.assertEqual(
-                self._post(rule, {"X-Hub-Signature-256": "sha256=deadbeef"}).status_code,
+                self._post(
+                    rule, {"X-Hub-Signature-256": "sha256=deadbeef"}
+                ).status_code,
                 401,
                 "unsigned calls must be refused before they spend a token",
             )
         self.assertEqual(
-            self._post(rule, {"X-Hub-Signature-256": self.signature}).status_code, 200,
+            self._post(rule, {"X-Hub-Signature-256": self.signature}).status_code,
+            200,
             "the legitimate sender was locked out by unauthenticated traffic",
         )
 
     def test_non_webhook_rule_is_not_reachable(self):
-        rule = self.env["base.automation"].create({
-            "name": "not a webhook", "model_id": self.model_partner.id,
-            "trigger": "on_create",
-        })
-        self.env["ir.actions.server"].create({
-            "name": "should not run", "model_id": self.model_partner.id,
-            "state": "code", "usage": "base_automation",
-            "base_automation_id": rule.id,
-            "code": (
-                "env['ir.config_parameter'].sudo()"
-                ".set_param('base_automation.webhook_probe', 'fired')"
-            ),
-        })
+        rule = self.env["base.automation"].create(
+            {
+                "name": "not a webhook",
+                "model_id": self.model_partner.id,
+                "trigger": "on_create",
+            }
+        )
+        self.env["ir.actions.server"].create(
+            {
+                "name": "should not run",
+                "model_id": self.model_partner.id,
+                "state": "code",
+                "usage": "base_automation",
+                "base_automation_id": rule.id,
+                "code": (
+                    "env['ir.config_parameter'].sudo()"
+                    ".set_param('base_automation.webhook_probe', 'fired')"
+                ),
+            }
+        )
         parameters = self.env["ir.config_parameter"].sudo()
         parameters.set_param("base_automation.webhook_probe", "no")
 
@@ -550,12 +663,14 @@ class TestWebhookOverHttp(HttpCase):
         )
 
         self.assertEqual(
-            response.status_code, 404,
+            response.status_code,
+            404,
             "a non-webhook rule must not resolve to an endpoint at all",
         )
         self.env.invalidate_all()
         self.assertEqual(
-            parameters.get_param("base_automation.webhook_probe"), "no",
+            parameters.get_param("base_automation.webhook_probe"),
+            "no",
             "a non-webhook rule ran over HTTP",
         )
 
@@ -571,10 +686,15 @@ class TestFirstRunIsAnnounced(AutomationAuditCommon):
 
     def test_first_run_warns_and_names_the_volume(self):
         model = self.env["ir.model"]._get("res.partner")
-        automation = self.Automation.create({
-            "name": "sweeper", "model_id": model.id, "trigger": "on_time_created",
-            "trg_date_range": 1, "trg_date_range_type": "hour",
-        })
+        automation = self.Automation.create(
+            {
+                "name": "sweeper",
+                "model_id": model.id,
+                "trigger": "on_time_created",
+                "trg_date_range": 1,
+                "trg_date_range_type": "hour",
+            }
+        )
         self._action(automation, "noop")
         self.assertFalse(automation.last_run, "precondition: unscoped")
 
@@ -600,7 +720,8 @@ class TestFirstRunIsAnnounced(AutomationAuditCommon):
         with (
             patch.object(IrCron, "_commit_progress", return_value=float("inf")),
             self.assertLogs(
-                "odoo.addons.base_automation.models.base_automation", "WARNING",
+                "odoo.addons.base_automation.models.base_automation",
+                "WARNING",
             ) as captured,
         ):
             self.Automation._cron_process_time_based_actions()
@@ -611,12 +732,18 @@ class TestFirstRunIsAnnounced(AutomationAuditCommon):
 
     def test_scoped_rule_does_not_warn(self):
         model = self.env["ir.model"]._get("res.partner")
-        automation = self.Automation.create({
-            "name": "scoped", "model_id": model.id, "trigger": "on_time_created",
-            "trg_date_range": 1, "trg_date_range_type": "hour",
-            "last_run": self.env.cr.now(),
-        })
+        automation = self.Automation.create(
+            {
+                "name": "scoped",
+                "model_id": model.id,
+                "trigger": "on_time_created",
+                "trg_date_range": 1,
+                "trg_date_range_type": "hour",
+                "last_run": self.env.cr.now(),
+            }
+        )
         self._action(automation, "noop")
         self.assertTrue(
-            automation.last_run, "last_run must be settable, not readonly",
+            automation.last_run,
+            "last_run must be settable, not readonly",
         )

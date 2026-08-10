@@ -13,6 +13,7 @@ one is logged so the administrator can see which automations were affected.
 
 Idempotent: after the delete there is nothing left to match.
 """
+
 import logging
 
 _logger = logging.getLogger(__name__)

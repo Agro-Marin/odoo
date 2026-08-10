@@ -8,7 +8,6 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 @tagged("post_install", "-at_install")
 class TestAutomation(TransactionCaseWithUserDemo):
-
     def test_01_on_create_or_write(self):
         """Simple on_create with admin user"""
         model = self.env.ref("base.model_res_partner")
