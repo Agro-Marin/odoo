@@ -19,7 +19,7 @@ cache  web
 currentEmbeddedActionId  web
 disableSearchBarAutofocus  web enterprise
 embeddedActions  web
-getDisplayName  web odoo enterprise agromarin
+getDisplayName  web odoo enterprise
 historyBack  web odoo enterprise
 isReloadingController  web
 limit  enterprise

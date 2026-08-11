@@ -1,14 +1,14 @@
 # The `@web/*` specifiers imported from outside the web addon: web's
-# public surface, as it is rather than as anyone designed it. Each
-# entry names the consumer checkout(s) importing it — its provenance —
-# and the gate judges only the scopes present in the environment, so
-# a repo-alone CI checkout validates the `odoo` scope and the sibling
+# public surface, as it is rather than as anyone designed it. Each entry
+# names the consumer checkout(s) importing it — its provenance — and the
+# gate judges only the scopes present in the environment, so a
+# repo-alone CI checkout validates the `odoo` scope and the sibling
 # repos' workflows validate theirs.
 #
-# Shrink-only, per scope. A specifier pinned for a scope that no
-# longer imports it fails the gate until the entry is shrunk, so
-# giving up surface is recorded; one imported from a scope it is not
-# pinned for fails as new exposure there.
+# Shrink-only, per scope. A specifier pinned for a scope that no longer
+# imports it fails the gate until the entry is shrunk, so giving up
+# surface is recorded; one imported from a scope it is not pinned for
+# fails as new exposure there.
 #
 # Every entry is deliberately unclassified beyond provenance — see the
 # module docstring on why most of this surface has no defensible tier
@@ -223,7 +223,7 @@
 @web/views/view_hook  odoo enterprise
 @web/views/view_measurements  enterprise
 @web/views/view_utils  odoo enterprise agromarin
-@web/views/widgets  odoo enterprise agromarin
+@web/views/widgets  odoo enterprise
 @web/webclient/actions  odoo enterprise agromarin
 @web/webclient/burger_menu/burger_menu  odoo enterprise
 @web/webclient/clickbot/clickbot  enterprise

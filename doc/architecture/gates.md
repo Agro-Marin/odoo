@@ -263,7 +263,7 @@ bucket lets one mask the other.
 | Floor | Split off because |
 |---|---|
 | `c901` | cyclomatic complexity in `odoo/`, threshold `[lint.mccabe] max-complexity = 20`. In the `ruff` aggregate a complexity fix could be masked by an unrelated new finding. It gated nothing before: `ruff.toml` selected the `C90` family while ignoring `C901`, its only rule |
-| `c901_addons` | the same gate over `addons/`, where the 617 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
+| `c901_addons` | the same gate over `addons/`, where the 618 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
 
 **A third floor, `ruff_docstring`, existed and is retired.** It is the worked
 example of why the split is worth making and of what to do when the question

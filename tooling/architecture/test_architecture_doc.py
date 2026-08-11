@@ -3061,7 +3061,7 @@ class TestAddonSuiteFigures(unittest.TestCase):
             self.assertNotIn(f"{lines:,} lines", DOC_FLAT)
 
     def test_the_bundled_module_count_is_measured(self) -> None:
-        """617, and it must mean manifests.
+        """618, and it must mean manifests.
 
         ``ls -d addons/*/`` answers one more in any tree that has been run:
         ``__pycache__`` is a build artifact, not an addon. The page
