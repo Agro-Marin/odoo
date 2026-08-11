@@ -145,6 +145,27 @@ def _format_exception(exc: BaseException) -> str:
     return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
 
 
+def _current_job() -> dict | None:
+    """The job this thread is executing, if any.
+
+    Set by :meth:`IrJob._run_claimed` around the body call so a job can ask
+    for its own deferral without being handed a handle to itself.
+    """
+    return getattr(threading.current_thread(), "ir_job", None)
+
+
+@contextmanager
+def _running_job(job: dict[str, Any]) -> Iterator[None]:
+    """Mark this thread as executing ``job`` for the duration of the body."""
+    thread = threading.current_thread()
+    previous = getattr(thread, "ir_job", None)
+    thread.ir_job = job
+    try:
+        yield
+    finally:
+        thread.ir_job = previous
+
+
 def _job_config_of(model_cls: type, method_name: str) -> dict | None:
     for klass in model_cls.__mro__:
         func = klass.__dict__.get(method_name)
@@ -318,6 +339,17 @@ class IrJob(models.Model):
 
     retry = fields.Integer(default=0, readonly=True)
     max_retries = fields.Integer(default=5, readonly=True)
+    defer_count = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Times the job asked to be run again later. A deferral is not a "
+        "failure, so it has its own budget and does not consume a retry.",
+    )
+    max_defers = fields.Integer(default=100, readonly=True)
+    defer_reason = fields.Char(
+        readonly=True,
+        help="Why the job last asked to be run again later.",
+    )
     exc_name = fields.Char(readonly=True)
     exc_message = fields.Char(readonly=True)
     exc_info = fields.Text(readonly=True)
@@ -457,11 +489,13 @@ class IrJob(models.Model):
                     name, uuid, channel, state, priority, eta, identity_key,
                     model_name, method_name, record_ids, args, kwargs,
                     user_id, company_id, context, retry, max_retries,
+                    defer_count, max_defers,
                     create_uid, create_date, write_uid, write_date
                 ) VALUES (
                     %s, gen_random_uuid()::varchar, %s, %s, %s, %s, %s,
                     %s, %s, %s::jsonb, %s::jsonb, %s::jsonb,
                     %s, %s, %s::jsonb, 0, %s,
+                    0, %s,
                     %s, %s, %s, %s
                 )
                 ON CONFLICT (identity_key)
@@ -485,6 +519,7 @@ class IrJob(models.Model):
                 env.company.id,
                 json.dumps(context),
                 max_retries if max_retries is not None else job_config["max_retries"],
+                job_config["max_defers"],
                 env.uid,
                 now,
                 env.uid,
@@ -525,6 +560,54 @@ class IrJob(models.Model):
         if state == JobState.PENDING:
             self._notify_after_commit(env.cr)
         return self.browse(row[0])
+
+    @api.model
+    def _defer(self, seconds: int, reason: str = "") -> None:
+        """Ask the queue to run this job again later, keeping what it did.
+
+        For a job whose work is not finished because something *outside* it is
+        not ready yet -- polling a remote service that is still preparing an
+        answer, waiting on a file that has not landed. That is not a failure,
+        and it must not be reported as one:
+
+        - the body's writes are kept and committed, because a poll that
+          learned something should not throw the answer away;
+        - ``retry`` is untouched, so the tolerance that exists for genuine
+          errors is not eaten by a service that is merely slow;
+        - nothing is recorded in ``exc_*``, because nothing went wrong;
+        - the job keeps its ``identity_key`` throughout, so a caller cannot
+          queue a duplicate for the same work while it waits.
+
+        Raising :class:`RetryableJobError` is the wrong tool for this: it is
+        an exception, so the transaction is rolled back and the poll's
+        findings are lost, and it spends a retry per attempt.
+
+        Deferrals have their own budget, ``max_defers`` on ``@api.job``. A job
+        that exhausts it fails, because a job that never stops asking for more
+        time is stuck.
+
+        :param int seconds: how long to wait before running again
+        :param str reason: shown on the job, for whoever looks at the queue
+        :raises UserError: if called outside a running job
+        :raises TerminalJobError: if the deferral budget is spent
+        """
+        job = _current_job()
+        if job is None:
+            raise UserError(
+                self.env._(
+                    "_defer() can only be called from inside a running job."
+                )
+            )
+        if job["defer_count"] >= job["max_defers"]:
+            raise TerminalJobError(
+                self.env._(
+                    "Job %(id)s asked to be deferred %(count)s times, its "
+                    "whole budget, and is still not finished.",
+                    id=job["id"],
+                    count=job["defer_count"],
+                )
+            )
+        job["defer"] = {"seconds": max(int(seconds), 0), "reason": reason or ""}
 
     @api.model
     def _clock_now(self) -> datetime:
@@ -776,7 +859,7 @@ class IrJob(models.Model):
                         RETURNING id, uuid, channel, priority, model_name,
                                   method_name, record_ids, args, kwargs,
                                   user_id, company_id, context, retry,
-                                  max_retries
+                                  max_retries, defer_count, max_defers
                         """,
                         worker_ident,
                         (
@@ -842,10 +925,15 @@ class IrJob(models.Model):
             job["retry"],
             job["max_retries"],
         )
-        getattr(records, job["method_name"])(
-            *(job["args"] or []), **(job["kwargs"] or {})
-        )
+        job.pop("defer", None)
+        with _running_job(job):
+            getattr(records, job["method_name"])(
+                *(job["args"] or []), **(job["kwargs"] or {})
+            )
         env.flush_all()
+        if defer := job.get("defer"):
+            IrJob._record_deferral(cr, job, defer)
+            return
         cr.execute(
             SQL(
                 "UPDATE ir_job SET state = 'done',"
@@ -865,6 +953,50 @@ class IrJob(models.Model):
         if IrJob._release_dependents(cr, job["id"]):
             IrJob._notify_after_commit(cr)
         _logger.info("Job %s: done", job["id"])
+
+    @staticmethod
+    def _record_deferral(cr, job: dict[str, Any], defer: dict[str, Any]) -> None:
+        """Put a job that asked for more time back on the clock.
+
+        Deliberately not :meth:`_record_failure`: ``retry`` is untouched and
+        ``exc_*`` is cleared, because a deferral says the job made progress
+        and is not finished, not that anything went wrong. Dependents stay
+        blocked, which is correct -- the job has not delivered yet.
+        """
+        seconds = defer["seconds"]
+        cr.execute(
+            SQL(
+                """
+                UPDATE ir_job
+                SET state = CASE WHEN %s > 0 THEN 'scheduled' ELSE 'pending' END,
+                    eta = (now() AT TIME ZONE 'UTC') + %s * interval '1 second',
+                    defer_count = defer_count + 1,
+                    defer_reason = %s,
+                    exc_name = NULL, exc_message = NULL, exc_info = NULL,
+                    started_at = NULL, worker_ident = NULL,
+                    write_date = (now() AT TIME ZONE 'UTC')
+                WHERE id = %s AND state = 'started'
+                """,
+                seconds,
+                seconds,
+                (defer["reason"] or None) and defer["reason"][:1000],
+                job["id"],
+            )
+        )
+        if not cr.rowcount:
+            _logger.error(
+                "Job %s: asked to be deferred but its row was no longer"
+                " 'started'; the work commits and the job may run again",
+                job["id"],
+            )
+        _logger.info(
+            "Job %s: deferred %ss (%s/%s), %s",
+            job["id"],
+            seconds,
+            job["defer_count"] + 1,
+            job["max_defers"],
+            defer["reason"] or "no reason given",
+        )
 
     @staticmethod
     def _narrow_company_scope(env, job: dict[str, Any]):
@@ -1172,7 +1304,8 @@ class IrJob(models.Model):
                     WHERE id = %s AND state IN %s
                     RETURNING id, uuid, channel, priority, model_name,
                               method_name, record_ids, args, kwargs, user_id,
-                              company_id, context, retry, max_retries
+                              company_id, context, retry, max_retries,
+                              defer_count, max_defers
                     """,
                     f"manual:{self.env.uid}",
                     self.id,

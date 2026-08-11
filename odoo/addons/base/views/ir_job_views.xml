@@ -50,6 +50,7 @@
                        decoration-warning="state in ('wait_deps', 'scheduled')"
                        decoration-danger="state == 'failed'" />
                 <field name="retry" optional="show" />
+                <field name="defer_count" optional="hide" />
                 <field name="eta" optional="show" />
                 <field name="create_date" />
                 <field name="started_at" optional="hide" />
@@ -100,6 +101,9 @@
                         <group string="Execution">
                             <field name="retry" />
                             <field name="max_retries" />
+                            <field name="defer_count" />
+                            <field name="max_defers" />
+                            <field name="defer_reason" invisible="not defer_reason" />
                             <field name="worker_ident" />
                             <field name="create_date" />
                             <field name="started_at" />

@@ -1576,13 +1576,38 @@ retries" ``[review]``.
   job's writes, so partial effects never survive a crash — but external side
   effects (HTTP calls, mail) need their own guards.
 * Transient failures raise ``RetryableJobError(seconds=...)``; any other exception
-  also consumes one of ``max_retries`` before the job is marked failed.
+  also consumes one of ``max_retries`` before the job is marked failed. Both roll
+  the job's transaction back.
+* **Not finished is not failed.** When the body cannot complete because something
+  outside it is not ready yet — a remote service still preparing an answer, a file
+  that has not landed — call ``self.env["ir.job"]._defer(seconds, reason=...)`` and
+  return normally. The job's writes are kept and committed, ``retry`` is untouched,
+  nothing is recorded in ``exc_*``, and the job keeps its ``identity_key`` so a
+  caller cannot queue a duplicate while it waits. Deferrals have their own budget,
+  ``max_defers`` ``[review]``:
+
+  .. code-block:: python
+
+     @api.job(channel="sat", max_retries=3, max_defers=24)
+     def _poll_remote_package(self):
+         self._record_progress()          # kept, whatever happens next
+         if not self._package_ready():
+             self.env["ir.job"]._defer(600, reason="still preparing")
+
+  Do not reach for ``RetryableJobError`` here: it is an exception, so the progress
+  the poll just recorded is rolled back, and it spends a retry per attempt — an
+  hour of honest polling would report a healthy request as a permanent failure.
+  Re-enqueueing a fresh job from inside the body does not work either: a running
+  job is in a queued state and still holds its ``identity_key``, so the enqueue is
+  silently dropped and the chain ends after one attempt.
 * Concurrency is bounded per **channel**. A channel absent from ``ir.job.channel``
   has an implicit capacity of 1 — give heavy integrations their own channel
   instead of tuning priorities.
 * Chain with ``delayed(after=job)``, fan in by passing a union, and collapse bursts
-  with ``identity_key``.
-* Defaults: ``channel="root"``, ``priority=10``, ``max_retries=5``.
+  with ``identity_key``. A deferral does **not** release dependents: the job has
+  not delivered yet.
+* Defaults: ``channel="root"``, ``priority=10``, ``max_retries=5``,
+  ``max_defers=100``.
 * Ops surface: Settings → Technical → Automation → Background Jobs. Smoke-test a
   deployment with ``env["ir.job"].delayed()._job_ping()``.
 
@@ -3469,6 +3494,21 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.13
+     - 2026-08-11
+     - **§2.9.14 gains ``_defer()``**: a job saying "not finished, and nothing
+       went wrong". The queue had two ways out of a body — done, or an
+       exception — so a job polling a remote service had to report progress as
+       failure: ``RetryableJobError`` rolls back what the poll learned and
+       spends a retry per attempt, and a package the SAT legitimately takes an
+       hour to prepare exhausted ``max_retries`` and was marked failed.
+       Re-enqueueing from inside the body silently does nothing, because a
+       running job is in a queued state and still holds the ``identity_key``
+       its replacement would need. ``_defer(seconds, reason=)`` keeps the
+       body's writes, leaves ``retry`` and ``exc_*`` alone, holds the identity
+       key, and draws on its own ``max_defers`` budget. Added to the framework
+       in the same series (odoo ``ir.job``/``@api.job``), first consumer
+       ``documents_l10n_mx_edi``'s SAT verify phase.
    * - 5.12
      - 2026-08-10
      - **§2.9.8 forbids UNIQUE over a translated column**, gated at a hard zero

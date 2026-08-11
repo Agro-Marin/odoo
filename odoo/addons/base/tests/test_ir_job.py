@@ -35,6 +35,15 @@ def _ir_job_test_boom(self, retryable=False, seconds=None):
     raise ValueError("boom")
 
 
+@api.job(max_defers=3)
+def _ir_job_test_poll(self, ready=False, seconds=60):
+    """A job whose work depends on something outside it being ready."""
+    for record in self:
+        record.name += "."
+    if not ready:
+        self.env["ir.job"]._defer(seconds, reason="not ready yet")
+
+
 def _isolate_queue(env):
     env.cr.execute(
         "UPDATE ir_job SET state = 'cancelled'"
@@ -48,7 +57,7 @@ class TestIrJob(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.partner_cls = type(cls.env["res.partner"])
-        for func in (_ir_job_test_append, _ir_job_test_boom):
+        for func in (_ir_job_test_append, _ir_job_test_boom, _ir_job_test_poll):
             setattr(cls.partner_cls, func.__name__, func)
             cls.addClassCleanup(delattr, cls.partner_cls, func.__name__)
         cls.partner = cls.env["res.partner"].create({"name": "job target"})
@@ -575,7 +584,12 @@ class TestIrJob(TransactionCase):
         )
         self.assertEqual(
             ir_job._job_config_of(Extending, "_sync"),
-            {"channel": "heavy", "priority": 10, "max_retries": 3},
+            {
+                "channel": "heavy",
+                "priority": 10,
+                "max_retries": 3,
+                "max_defers": 100,
+            },
             "the declaration is still reachable along the MRO",
         )
 
@@ -636,6 +650,90 @@ class TestIrJob(TransactionCase):
         record = self.env["ir.job"].browse(job["id"])
         self.assertEqual(record.state, "pending")
         self.assertLess(record.eta - fields.Datetime.now(), timedelta(seconds=5))
+
+    # ------------------------------------------------------------------
+    # Deferral: "not finished, and nothing went wrong"
+    # ------------------------------------------------------------------
+
+    def test_a_deferred_job_goes_back_on_the_clock(self):
+        self.partner.delayed()._ir_job_test_poll(seconds=90)
+        job = self._claim()
+        IrJob._run_claimed(self.env.cr, job)
+        self.env.invalidate_all()
+        record = self.env["ir.job"].browse(job["id"])
+        self.assertEqual(record.state, "scheduled")
+        self.assertEqual(record.defer_count, 1)
+        self.assertEqual(record.defer_reason, "not ready yet")
+        self.assertGreater(record.eta - fields.Datetime.now(), timedelta(seconds=60))
+
+    def test_a_deferral_keeps_what_the_job_already_did(self):
+        """The whole point: a poll that learned something keeps it."""
+        before = self.partner.name
+        self.partner.delayed()._ir_job_test_poll()
+        job = self._claim()
+        IrJob._run_claimed(self.env.cr, job)
+        self.assertEqual(self.partner.name, before + ".")
+
+    def test_a_deferral_is_not_a_retry(self):
+        self.partner.delayed()._ir_job_test_poll()
+        job = self._claim()
+        IrJob._run_claimed(self.env.cr, job)
+        self.env.invalidate_all()
+        record = self.env["ir.job"].browse(job["id"])
+        self.assertEqual(record.retry, 0, "a deferral must not spend a retry")
+        self.assertFalse(record.exc_name, "nothing went wrong")
+        self.assertFalse(record.exc_info)
+
+    def test_a_deferred_job_keeps_its_identity_key(self):
+        """So a caller cannot queue a duplicate while the job waits."""
+        first = self.partner.delayed(identity_key="poll-1")._ir_job_test_poll()
+        job = self._claim()
+        IrJob._run_claimed(self.env.cr, job)
+        again = self.partner.delayed(identity_key="poll-1")._ir_job_test_poll()
+        self.assertEqual(again, first)
+
+    def test_a_deferred_job_runs_again_and_can_finish(self):
+        self.partner.delayed()._ir_job_test_poll(seconds=0)
+        job = self._claim()
+        IrJob._run_claimed(self.env.cr, job)
+        # The queue writes job rows with raw SQL, so drop the cached record
+        # before reading it back.
+        self.env.invalidate_all()
+        self.assertEqual(self.env["ir.job"].browse(job["id"]).state, "pending")
+        # The queue hands it back; this time whatever it waits on is ready.
+        job = self._claim()
+        job["kwargs"] = {"ready": True}
+        IrJob._run_claimed(self.env.cr, job)
+        self.env.invalidate_all()
+        record = self.env["ir.job"].browse(job["id"])
+        self.assertEqual(record.state, "done")
+        self.assertEqual(record.defer_count, 1)
+
+    def test_a_job_that_never_finishes_deferring_fails(self):
+        """Its own budget, separate from the retry budget."""
+        self.partner.delayed()._ir_job_test_poll(seconds=0)
+        for expected in (1, 2, 3):
+            job = self._claim()
+            IrJob._run_claimed(self.env.cr, job)
+            self.env.invalidate_all()
+            self.assertEqual(self.env["ir.job"].browse(job["id"]).defer_count, expected)
+        job = self._claim()
+        with self.assertRaises(TerminalJobError):
+            IrJob._run_claimed(self.env.cr, job)
+
+    def test_defer_outside_a_job_is_a_programming_error(self):
+        with self.assertRaises(UserError):
+            self.env["ir.job"]._defer(60)
+
+    def test_a_deferral_does_not_release_dependents(self):
+        """The job has not delivered yet, so nothing waiting on it may start."""
+        first = self.partner.delayed()._ir_job_test_poll()
+        second = self.partner.delayed(after=first)._ir_job_test_append()
+        self.assertEqual(second.state, "wait_deps")
+        job = self._claim()
+        IrJob._run_claimed(self.env.cr, job)
+        self.env.invalidate_all()
+        self.assertEqual(second.state, "wait_deps")
 
     def test_failure_records_the_traceback_of_the_exception(self):
         self.partner.delayed()._ir_job_test_boom()
