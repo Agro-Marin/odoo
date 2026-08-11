@@ -32,3 +32,4 @@ from . import test_crm_team_sales
 from . import test_partner_sale_guards
 from . import test_utm_campaign_revenue
 from . import test_expense_reinvoice_price
+from . import test_expense_reinvoice_lines
