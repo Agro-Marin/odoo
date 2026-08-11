@@ -201,6 +201,16 @@ class ApiEndpointOutbound(models.Model):
         default=90,
         help="Delete logs older than this. 0 = keep forever.",
     )
+    log_request_payload = fields.Boolean(
+        default=True,
+        help="Store the request body on each api.event.log row.\n\n"
+        "Turn this off for a service whose payload is secret by construction "
+        "rather than by field name — signing and cancellation calls that carry "
+        "a private key, for instance. Redaction matches key names, so it cannot "
+        "protect a payload whose names it does not know, and these rows are "
+        "readable by everyone with API Gateway access. The exchange is still "
+        "recorded: URL, status, timing, error and trace id are unaffected.",
+    )
     allow_multiple_credentials = fields.Boolean(
         default=False,
         help="Allow multiple active credentials per company/environment. "

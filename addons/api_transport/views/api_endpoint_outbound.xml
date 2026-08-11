@@ -241,6 +241,7 @@
                                 </group>
                                 <group>
                                     <field name="log_retention_days" />
+                                    <field name="log_request_payload" />
                                 </group>
                             </group>
                         </page>

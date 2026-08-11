@@ -69,6 +69,26 @@ _SENSITIVE_FIELD_PATTERNS = (
 _MAX_LOGGED_PAYLOAD = 10000
 
 
+def _error_type_for_status(status_code):
+    """Map an HTTP status onto the ``api.event.log.error_type`` selection.
+
+    The historical ``"http"`` value was not in the selection and broke the
+    precommit batch insert (ValueError, rolling back the whole transaction),
+    so every status has to land on one of the declared values.
+
+    :param int status_code: the HTTP response status
+    :return: one of auth / rate_limit / validation / server
+    :rtype: str
+    """
+    if status_code == 401:
+        return "auth"
+    if status_code == 429:
+        return "rate_limit"
+    if 400 <= status_code < 500:
+        return "validation"
+    return "server"
+
+
 def _mask_sensitive_url(url: str) -> str:
     """Mask sensitive data in a URL for safe logging.
 
@@ -296,12 +316,22 @@ class APIGatewayClient:
             ``iter_content()`` themselves). Rate limiting, retries (via the
             session adapter), authentication and headers all still apply.
             When False (default) the body is parsed and a dict is returned.
+        :param raise_for_status: When False, a 4xx/5xx is returned to the caller
+            like any other response instead of being raised as a ClientError or
+            ServerError. For APIs that answer with a *useful* body under an
+            error status: SW, the Mexican PAC, reports a CFDI already stamped as
+            HTTP 400 whose ``messageDetail`` carries the signed XML, so raising
+            throws away the very thing the caller came for. ``_extract_error``
+            keeps only ``message``, which is not enough. The exchange is still
+            logged as failed and still counted against the credential — only the
+            control flow changes. Check ``["status_code"]`` on the way out.
         """
         method = method.upper()
         trace_id = kwargs.pop("trace_id", str(uuid.uuid4()))
         skip_cache = kwargs.pop("skip_cache", False)
         skip_rate_limit = kwargs.pop("skip_rate_limit", False)
         skip_logging = kwargs.pop("skip_logging", False)
+        raise_for_status = kwargs.pop("raise_for_status", True)
 
         url = self._build_url(endpoint)
 
@@ -367,16 +397,34 @@ class APIGatewayClient:
 
             elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
 
-            response.raise_for_status()
+            if raise_for_status:
+                response.raise_for_status()
+
+            # Only reachable with raise_for_status=False: the caller wants the
+            # body of a 4xx/5xx. The exchange is still a failure for the audit
+            # trail and the credential's success rate; it just does not raise.
+            failed = response.status_code >= 400
+            status_error = self._extract_error(response) if failed else None
+            status_error_type = (
+                _error_type_for_status(response.status_code) if failed else None
+            )
 
             # Streaming / raw passthrough: hand the live Response back to the
             # caller without consuming or parsing the body. Used by the AI
             # clients' streaming_* methods, which iterate the response
             # themselves. The body must not be touched here.
             if raw:
-                self._track_usage(True)
+                self._track_usage(not failed)
                 if not skip_logging:
-                    self._log_request(method, url, kwargs, None, trace_id)
+                    self._log_request(
+                        method,
+                        url,
+                        kwargs,
+                        None,
+                        trace_id,
+                        error=status_error,
+                        error_type=status_error_type,
+                    )
                 return response
 
             response_data = self._parse_response(response, elapsed_ms)
@@ -400,11 +448,19 @@ class APIGatewayClient:
                     self._increment_cache_error()
 
             # Update credential usage
-            self._track_usage(True)
+            self._track_usage(not failed)
 
             # Log request
             if not skip_logging:
-                self._log_request(method, url, kwargs, response_data, trace_id)
+                self._log_request(
+                    method,
+                    url,
+                    kwargs,
+                    response_data,
+                    trace_id,
+                    error=status_error,
+                    error_type=status_error_type,
+                )
 
             return response_data
 
@@ -431,20 +487,8 @@ class APIGatewayClient:
             _logger.error("API HTTP Error: %s - %s", url, error)
             self._track_usage(False)
 
-            # Map HTTP status into the ``api.event.log.error_type``
-            # selection (network/timeout/auth/validation/rate_limit/
-            # server/duplicate/other).  The historical ``"http"`` value
-            # was not in the selection and broke the precommit batch
-            # insert (ValueError → whole transaction rolled back).
             status_code = e.response.status_code
-            if status_code == 401:
-                event_error_type = "auth"
-            elif status_code == 429:
-                event_error_type = "rate_limit"
-            elif 400 <= status_code < 500:
-                event_error_type = "validation"
-            else:
-                event_error_type = "server"
+            event_error_type = _error_type_for_status(status_code)
 
             # Persist the HTTP status code on the audit row so dashboards
             # can filter / count by status — earlier ``response_data=None``
@@ -866,7 +910,10 @@ class APIGatewayClient:
 
         A body that will not parse is recorded by size only: one we cannot
         inspect is one we cannot show to be free of secrets, and these rows are
-        readable by everyone in ``group_api_gateway_user``. Response bodies keep
+        readable by everyone in ``group_api_gateway_user``. Redaction matches
+        key *names*, though, so a service whose payload is secret whatever it
+        calls its fields can opt out of storing bodies altogether with
+        ``log_request_payload``. Response bodies keep
         their existing treatment -- they are what the far side sent us, not what
         we sent it, and an unparseable one is usually the error page you need.
 
@@ -876,6 +923,11 @@ class APIGatewayClient:
         """
         if not body:
             return ""
+
+        if not self.service.log_request_payload:
+            # The service has declared its bodies unfit to store. Say so rather
+            # than leaving the column empty, which reads as "there was no body".
+            return "<suppressed by service configuration>"
 
         if isinstance(body, (bytes, bytearray)):
             try:

@@ -1,8 +1,9 @@
 """Tests for what APIGatewayClient writes to api.event.log.
 
 The rows are readable by everyone in ``group_api_gateway_user``, so what lands
-in them is a security boundary, not a debugging convenience. Two failures are
-pinned here:
+in them is a security boundary, not a debugging convenience.
+
+Fixed behaviour pinned here:
 
 * a ``data=`` body bypassed redaction entirely, because the redactor walks
   dicts and lists and hands every other type straight back -- so a serialized
@@ -10,9 +11,18 @@ pinned here:
 * that TypeError escaped ``_log_request`` into ``request``'s bare
   ``except Exception``, which counted the *successful* call as a credential
   failure and then re-entered the same failing code with nothing left to catch
-  it.
+  it;
+* ``increment_usage`` calls ``ensure_one``, so the same double-fault fired one
+  line earlier for any service with no credential to increment.
+
+Behaviour that exists for callers whose APIs do not fit the happy path:
+
+* ``raise_for_status=False``, for a 4xx whose body is what you came for;
+* ``log_request_payload``, for a body that is secret whatever it names its
+  fields.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -21,9 +31,18 @@ from odoo.libs.logging import mute_logger
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.api_transport.tools.api_client import _MAX_LOGGED_PAYLOAD
-from odoo.addons.api_transport.tools.exceptions import CommError
+from odoo.addons.api_transport.tools.exceptions import ClientError, CommError
 
 SECRET_KEY = "-----BEGIN PRIVATE KEY-----MIIEvQIBADANBg"
+
+# What SW answers with when the CFDI was already stamped: HTTP 400, and the
+# signed XML the caller wanted sitting in messageDetail.
+SW_ALREADY_STAMPED = {
+    "status": "error",
+    "message": "307 - El comprobante contiene un timbre previo",
+    "messageDetail": "<cfdi:Comprobante>…already signed…</cfdi:Comprobante>",
+    "data": None,
+}
 
 
 def _ok_response():
@@ -34,6 +53,19 @@ def _ok_response():
     response.json.return_value = {"status": "success"}
     response.text = '{"status": "success"}'
     response.raise_for_status.return_value = None
+    return response
+
+
+def _error_response(status_code, json_data):
+    """A 4xx/5xx carrying a JSON body, whose raise_for_status really raises."""
+    response = MagicMock()
+    response.status_code = status_code
+    response.headers = {}
+    response.json.return_value = json_data
+    response.text = json.dumps(json_data)
+    response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        f"{status_code} Client Error", response=response
+    )
     return response
 
 
@@ -213,3 +245,143 @@ class TestLoggingCannotFailTheRequest(ClientLoggingCommon):
         self.assertEqual(len(rows), 1)
         self.assertIn("abc-123", rows[0]["request_payload"])
         self.assertNotIn("s3cr3t", rows[0]["request_payload"])
+
+
+@tagged("post_install", "-at_install")
+class TestRaiseForStatus(ClientLoggingCommon):
+    """``raise_for_status=False``: a 4xx whose body is the point.
+
+    SW, the Mexican PAC, reports an already-stamped CFDI as HTTP 400 with the
+    signed XML in ``messageDetail``. Raising discards it -- ``_extract_error``
+    keeps ``message`` alone -- so the caller loses the document it asked for.
+    """
+
+    def _queued(self):
+        return self.env.cr.precommit.data.get("api.event.log.values") or []
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_4xx_still_raises_by_default(self, mock_request):
+        """The default is unchanged: nothing existing has to opt back in."""
+        mock_request.return_value = _error_response(400, SW_ALREADY_STAMPED)
+
+        with self.assertRaises(ClientError):
+            self._client().post("/stamp", json={})
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_4xx_is_returned_when_asked(self, mock_request):
+        mock_request.return_value = _error_response(400, SW_ALREADY_STAMPED)
+
+        result = self._client().post("/stamp", json={}, raise_for_status=False)
+
+        self.assertEqual(result["status_code"], 400)
+        self.assertEqual(result["body"]["status"], "error")
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_the_recoverable_detail_survives(self, mock_request):
+        """The whole point: ``messageDetail`` is what raising threw away."""
+        mock_request.return_value = _error_response(400, SW_ALREADY_STAMPED)
+
+        result = self._client().post("/stamp", json={}, raise_for_status=False)
+
+        self.assertIn("already signed", result["body"]["messageDetail"])
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_not_raising_is_still_a_failure_in_the_audit_trail(self, mock_request):
+        """Control flow changes; the record of what happened does not."""
+        mock_request.return_value = _error_response(400, SW_ALREADY_STAMPED)
+
+        self._client().post("/stamp", json={}, raise_for_status=False)
+
+        rows = self._queued()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["state"], "failed")
+        self.assertEqual(rows[0]["error_type"], "validation")
+        self.assertEqual(rows[0]["status_code"], 400)
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_status_maps_onto_the_declared_error_types(self, mock_request):
+        """``error_type`` is a selection; an undeclared value rolls the batch back."""
+        for status, expected in ((401, "auth"), (429, "rate_limit"), (503, "server")):
+            with self.subTest(status=status):
+                self.env.cr.precommit.data.pop("api.event.log.values", None)
+                mock_request.return_value = _error_response(status, {"m": "no"})
+
+                self._client().get("/probe", raise_for_status=False)
+
+                self.assertEqual(self._queued()[-1]["error_type"], expected)
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_2xx_is_unaffected_by_the_flag(self, mock_request):
+        mock_request.return_value = _ok_response()
+
+        result = self._client().post("/stamp", json={}, raise_for_status=False)
+
+        self.assertEqual(result["status_code"], 200)
+        self.assertEqual(self._queued()[0]["state"], "success")
+
+
+@tagged("post_install", "-at_install")
+class TestSuppressedRequestPayload(ClientLoggingCommon):
+    """``log_request_payload = False`` for bodies that are secret by shape.
+
+    Redaction matches key *names*, so it cannot protect a payload whose names
+    it has never seen -- ``l10n_mx_edi`` posts the unencrypted CSD private key
+    as ``b64Key``, which matches nothing in ``_SENSITIVE_FIELD_PATTERNS``. A
+    service whose bodies are key material by construction opts out instead of
+    hoping the pattern list keeps up.
+    """
+
+    def _queued(self):
+        return self.env.cr.precommit.data.get("api.event.log.values") or []
+
+    def test_the_flag_defaults_to_storing_bodies(self):
+        self.assertTrue(self.service.log_request_payload)
+
+    @patch("requests.Session.request")
+    def test_the_body_is_not_stored_when_suppressed(self, mock_request):
+        mock_request.return_value = _ok_response()
+        self.service.log_request_payload = False
+
+        self._client().post("/cancel", json={"b64Key": SECRET_KEY, "uuid": "abc-123"})
+
+        payload = self._queued()[0]["request_payload"]
+        self.assertNotIn(SECRET_KEY, payload)
+        self.assertIn("suppressed", payload)
+
+    @patch("requests.Session.request")
+    def test_the_rest_of_the_exchange_is_still_recorded(self, mock_request):
+        """Suppressing the body must not cost the audit trail everything else."""
+        mock_request.return_value = _ok_response()
+        self.service.log_request_payload = False
+
+        self._client().post("/cancel", json={"b64Key": SECRET_KEY})
+
+        row = self._queued()[0]
+        self.assertEqual(row["status_code"], 200)
+        self.assertEqual(row["request_method"], "POST")
+        self.assertIn("/cancel", row["request_url"])
+        self.assertTrue(row["trace_id"])
+
+    @patch("requests.Session.request")
+    def test_known_gap_the_name_based_redactor_does_not_catch_b64key(
+        self, mock_request
+    ):
+        """Characterises the limitation the flag exists to work around.
+
+        This asserts today's behaviour, not desired behaviour: ``b64Key`` is
+        real key material and it does reach the row. Widening
+        ``_SENSITIVE_FIELD_PATTERNS`` would break this test, which is the point
+        -- it should be a deliberate change, not a silent one, and the opt-out
+        above is what protects the payload meanwhile.
+        """
+        mock_request.return_value = _ok_response()
+
+        self._client().post("/cancel", json={"b64Key": SECRET_KEY})
+
+        self.assertIn(SECRET_KEY, self._queued()[0]["request_payload"])
