@@ -22,7 +22,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
         for wizard in self:
             wizard.invoicing_timesheet_enabled = bool(
                 wizard.sale_order_ids.line_ids.filtered(
-                    lambda sol: sol.invoice_state == 'to invoice'
+                    lambda sol: sol.invoice_state == 'to do'
                 ).product_id.filtered(
                     lambda p: p._is_delivered_timesheet()
                 )

@@ -55,7 +55,7 @@ class SaleOrder(models.Model):
         # Get SOs which their state is not equal to upselling and if at least a SOL has warning prepaid service upsell set to True and the warning has not already been displayed
         upsellable_orders = self.filtered(lambda so:
             so.state == 'done'
-            and so.invoice_state != 'upselling'
+            and so.invoice_state != 'over done'
             and so.id
             and (so.user_id or so.partner_id.user_id)  # salesperson needed to assign upsell activity
         )
@@ -104,7 +104,7 @@ class SaleOrder(models.Model):
         precision = self.env['decimal.precision'].precision_get('Product Unit')
         return self.line_ids.filtered(lambda sol:
             sol.is_service
-            and sol.invoice_state != "invoiced"
+            and sol.invoice_state != "done"
             and not sol.has_displayed_warning_upsell  # we don't want to display many times the warning each time we timesheet on the SOL
             and sol.product_id.service_policy == 'ordered_prepaid'
             and float_compare(

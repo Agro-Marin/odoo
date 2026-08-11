@@ -232,7 +232,7 @@ class ProjectTask(models.Model):
         sql = SQL("""(
             SELECT so.id
             FROM sale_order so
-            WHERE so.invoice_state != 'invoiced'
+            WHERE so.invoice_state != 'done'
                 AND so.invoice_state != 'no'
         )""")
         return [('sale_order_id', 'in', sql)]
