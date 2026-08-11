@@ -307,10 +307,18 @@ registry
             {
                 trigger: "body:not(:has(.o-mail-Composer-suggestion))",
                 run: async () => {
+                    // `DELAY_FETCH` is the debounce before the request is sent,
+                    // not the round trip. Waiting only that long lets the empty
+                    // "xxx" response land *after* the "Georges" one and clear
+                    // the list that had just been filled -- and since the search
+                    // term does not change again, nothing re-fetches and the
+                    // dropdown stays empty for good. Observed as roughly a
+                    // one-in-three failure of the step below. Give the first
+                    // request time to come back before typing over it.
                     const delay_fetch = odoo.loader.modules.get(
                         "@mail/core/common/suggestion_hook",
                     ).DELAY_FETCH;
-                    await delay(delay_fetch);
+                    await delay(delay_fetch * 8);
                 },
             },
             { trigger: ".o-mail-Composer-input", run: "edit @George" },
