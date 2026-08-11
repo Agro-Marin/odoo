@@ -1,10 +1,8 @@
 import ipaddress
 import json
 import logging
-import math
 import re
 import uuid
-from collections import deque
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -23,6 +21,7 @@ from .exceptions import (
     RateLimitError,
     ServerError,
 )
+from .payload import split_large_payload
 from odoo.addons.base_credential_manager.tools import (
     EndpointRateLimiter as RateLimiter,
 )
@@ -120,65 +119,6 @@ def _mask_sensitive_url(url: str) -> str:
 # ==================== Payload Splitting (Pattern: bus module) ====================
 
 
-def split_large_payload(data, max_size=1024 * 1024):  # 1MB default
-    """Split a large payload into chunks that fit APIs with size limits.
-
-    Iterative binary split (explicit queue, no recursion) to avoid stack
-    overflow on very large datasets.
-
-    :param data: list of items, or a single dict, to split
-    :param max_size: maximum payload size in bytes
-    :return: payloads that each fit within max_size
-    :rtype: list
-    """
-    if not data:
-        return []
-
-    # Handle single dict (not a list)
-    if not isinstance(data, list):
-        payload = json.dumps(data)
-        payload_size = len(payload.encode())
-        if payload_size >= max_size:
-            raise ClientError(
-                f"Single payload exceeds max size: {payload_size} bytes (limit: {max_size} bytes)"
-            )
-        return [data]
-
-    # Iterative binary split using explicit queue
-    # Start with full data in queue
-    queue = deque([data])
-    results = []
-
-    while queue:
-        chunk = queue.popleft()
-
-        # Empty chunk - skip
-        if not chunk:
-            continue
-
-        # Single item - check size
-        if len(chunk) == 1:
-            payload = json.dumps(chunk)
-            payload_size = len(payload.encode())
-            if payload_size >= max_size:
-                raise ClientError(
-                    f"Single item in list exceeds max size: {payload_size} bytes "
-                    f"(limit: {max_size} bytes). Cannot split further.",
-                )
-            results.append(chunk)
-            continue
-
-        # Multiple items - check if entire chunk fits
-        payload = json.dumps(chunk)
-        if len(payload.encode()) < max_size:
-            results.append(chunk)
-        else:
-            # Doesn't fit - split in half and add back to queue
-            pivot = math.ceil(len(chunk) / 2)
-            queue.append(chunk[:pivot])
-            queue.append(chunk[pivot:])
-
-    return results
 
 
 # ==================== Main API Client ====================

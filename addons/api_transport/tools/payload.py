@@ -189,7 +189,8 @@ def split_large_payload(
         payload_size = len(payload.encode())
         if payload_size >= max_size:
             raise ClientError(
-                f"Single payload exceeds max size: {payload_size} bytes (limit: {max_size})",
+                f"Single payload exceeds max size: {payload_size} bytes "
+                f"(limit: {max_size} bytes)",
             )
         return [data]
 
@@ -209,7 +210,8 @@ def split_large_payload(
             payload_size = len(payload.encode())
             if payload_size >= max_size:
                 raise ClientError(
-                    f"Single item exceeds max size: {payload_size} bytes (limit: {max_size})",
+                    f"Single item in list exceeds max size: {payload_size} bytes "
+                    f"(limit: {max_size} bytes). Cannot split further.",
                 )
             results.append(chunk)
             continue
