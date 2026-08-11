@@ -11,3 +11,4 @@ from . import (
     test_second_pass_consumers,
     test_timezones,
 )
+from . import test_scheduling_calendar_resolution
