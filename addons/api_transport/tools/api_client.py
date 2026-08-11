@@ -64,6 +64,10 @@ _SENSITIVE_FIELD_PATTERNS = (
     "x-amz-signature",
 )
 
+# Ceiling on a single payload stored in api.event.log, request or response.
+# The rows are an audit trail, not a body archive.
+_MAX_LOGGED_PAYLOAD = 10000
+
 
 def _mask_sensitive_url(url: str) -> str:
     """Mask sensitive data in a URL for safe logging.
@@ -370,7 +374,7 @@ class APIGatewayClient:
             # clients' streaming_* methods, which iterate the response
             # themselves. The body must not be touched here.
             if raw:
-                self.credential.increment_usage(success=True)
+                self._track_usage(True)
                 if not skip_logging:
                     self._log_request(method, url, kwargs, None, trace_id)
                 return response
@@ -396,7 +400,7 @@ class APIGatewayClient:
                     self._increment_cache_error()
 
             # Update credential usage
-            self.credential.increment_usage(success=True)
+            self._track_usage(True)
 
             # Log request
             if not skip_logging:
@@ -407,7 +411,7 @@ class APIGatewayClient:
         except requests.exceptions.Timeout as e:
             error = str(e)
             _logger.error("API Timeout: %s - %s", url, error)
-            self.credential.increment_usage(success=False)
+            self._track_usage(False)
 
             if not skip_logging:
                 self._log_request(
@@ -425,7 +429,7 @@ class APIGatewayClient:
         except requests.exceptions.HTTPError as e:
             error = self._extract_error(e.response)
             _logger.error("API HTTP Error: %s - %s", url, error)
-            self.credential.increment_usage(success=False)
+            self._track_usage(False)
 
             # Map HTTP status into the ``api.event.log.error_type``
             # selection (network/timeout/auth/validation/rate_limit/
@@ -473,7 +477,7 @@ class APIGatewayClient:
         except requests.exceptions.RequestException as e:
             error = str(e)
             _logger.error("API Request Error: %s - %s", url, error)
-            self.credential.increment_usage(success=False)
+            self._track_usage(False)
 
             if not skip_logging:
                 self._log_request(
@@ -491,7 +495,7 @@ class APIGatewayClient:
         except Exception as e:
             error = str(e)
             _logger.exception("Unexpected API error")
-            self.credential.increment_usage(success=False)
+            self._track_usage(False)
 
             if not skip_logging:
                 self._log_request(
@@ -794,12 +798,128 @@ class APIGatewayClient:
 
         Uses api.event.log from api_communication module with direction='outbound'.
         Pattern from bus module: Queue log in precommit for batch creation.
+
+        Never raises. This runs *after* the exchange has already happened, so a
+        failure here cannot undo the call it is describing -- and letting one
+        escape would surface as a failure of the request itself. It previously
+        did: a ``data=`` body reached ``json.dumps`` unserialized, the TypeError
+        was caught by ``request``'s bare ``except Exception``, the successful
+        call was counted against the credential, and the retry from that handler
+        raised the same TypeError again with nothing left to catch it. A logging
+        problem belongs in the server log.
+        """
+        try:
+            self._queue_event_log(
+                method,
+                url,
+                request_kwargs,
+                response_data,
+                trace_id,
+                cache_hit=cache_hit,
+                error=error,
+                error_type=error_type,
+            )
+        except Exception:
+            _logger.exception(
+                "Could not record an api.event.log row for %s %s (trace %s); "
+                "the exchange itself is unaffected.",
+                method,
+                _mask_sensitive_url(url),
+                trace_id,
+            )
+
+    def _track_usage(self, success):
+        """Record the outcome against the credential, if there is one.
+
+        A service declaring ``auth_type = 'none'`` carries no credential, so
+        ``self.credential`` is an empty recordset and ``increment_usage``'s
+        ``ensure_one`` rejects it. That is bookkeeping raising on the way out of
+        a call that already succeeded -- and, being inside ``request``'s bare
+        ``except Exception``, it took the same double-fault route the payload
+        serializer did: the handler called this again and the second failure had
+        nothing left to catch it. Every unauthenticated service was affected on
+        its success path, which is every call any of them ever makes.
+
+        :param bool success: whether the exchange succeeded
+        """
+        if not self.credential:
+            return
+        try:
+            self.credential.increment_usage(success=success)
+        except Exception:
+            _logger.exception(
+                "Could not record credential usage for service '%s'; "
+                "the exchange itself is unaffected.",
+                self.service_code,
+            )
+
+    def _serialize_payload_for_log(self, body):
+        """Render a request body as a redacted string safe to persist.
+
+        Structured bodies (``json=``) are redacted key by key. Bodies handed to
+        ``requests`` as ``data=`` arrive as ``str`` or ``bytes`` instead, and
+        those used to bypass redaction entirely: ``_redact_sensitive_data``
+        walks dicts and lists and returns every other type untouched, so a
+        serialized JSON body was stored verbatim -- secrets and all -- while a
+        binary one raised TypeError in ``json.dumps``. Both are parsed back into
+        structure here so the same key-level redaction applies.
+
+        A body that will not parse is recorded by size only: one we cannot
+        inspect is one we cannot show to be free of secrets, and these rows are
+        readable by everyone in ``group_api_gateway_user``. Response bodies keep
+        their existing treatment -- they are what the far side sent us, not what
+        we sent it, and an unparseable one is usually the error page you need.
+
+        :param body: the request body as passed to ``requests``
+        :return: a redacted, length-capped string ready for api.event.log
+        :rtype: str
+        """
+        if not body:
+            return ""
+
+        if isinstance(body, (bytes, bytearray)):
+            try:
+                body = body.decode("utf-8")
+            except UnicodeDecodeError:
+                return f"<{len(body)} bytes, binary, not logged>"
+
+        if isinstance(body, str):
+            length = len(body)
+            try:
+                body = json.loads(body)
+            except ValueError:
+                return f"<{length} chars, unparseable, not logged>"
+            if not isinstance(body, (dict, list)):
+                return f"<{length} chars, unparseable, not logged>"
+
+        if not isinstance(body, (dict, list)):
+            # A stream, a file handle, a generator: not inspectable, and
+            # reading it here would consume the body.
+            return f"<{type(body).__name__}, not logged>"
+
+        return json.dumps(self._redact_sensitive_data(body))[:_MAX_LOGGED_PAYLOAD]
+
+    def _queue_event_log(
+        self,
+        method,
+        url,
+        request_kwargs,
+        response_data,
+        trace_id,
+        cache_hit=False,
+        error=None,
+        error_type=None,
+    ):
+        """Build the api.event.log values and queue them for the precommit insert.
+
+        Split out of ``_log_request`` so that method is nothing but the
+        guarantee that this one cannot take the request down with it.
         """
         # Ensure hooks are registered
         self._ensure_log_hooks()
 
         safe_headers = self._redact_sensitive_data(request_kwargs.get("headers", {}))
-        safe_body = self._redact_sensitive_data(
+        safe_body = self._serialize_payload_for_log(
             request_kwargs.get("json") or request_kwargs.get("data"),
         )
 
@@ -821,7 +941,7 @@ class APIGatewayClient:
             "request_method": method,
             "request_url": safe_url,
             "request_headers": safe_headers,
-            "request_payload": json.dumps(safe_body) if safe_body else "",
+            "request_payload": safe_body,
             "trace_id": trace_id,
             "cache_hit": cache_hit,
         }
@@ -841,7 +961,9 @@ class APIGatewayClient:
                 {
                     "status_code": response_data.get("status_code"),
                     "response_headers": safe_response_headers,
-                    "response_payload": json.dumps(safe_response_body)[:10000],
+                    "response_payload": json.dumps(safe_response_body)[
+                        :_MAX_LOGGED_PAYLOAD
+                    ],
                     "duration_ms": response_data.get("elapsed_ms", 0),
                     "date_completed": fields.Datetime.now(),
                     "state": "success",
