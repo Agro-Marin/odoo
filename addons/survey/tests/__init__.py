@@ -24,3 +24,4 @@ from . import test_scoring_engine
 from . import test_question_validators
 from . import test_conditional_triggers
 from . import test_submit_guards
+from . import test_short_links
