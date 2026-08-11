@@ -22,3 +22,4 @@ from . import test_analytic_purchase_button
 from . import test_partner_buyer
 from . import test_tax_usage
 from . import test_bill_line_match
+from . import test_product_uom_guard
