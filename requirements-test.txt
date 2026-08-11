@@ -1,3 +1,16 @@
+# Needed to RUN the suites, not to run the server. See requirements.txt for
+# what belongs in which file.
+#
+# Both runtime files are pulled in, and must stay pulled in: the suites import
+# the framework and install the bundled addons, so a test lane needs every
+# dependency either owns. A test lane is exactly the case where the
+# server/addons split must NOT apply. Three CI lanes install this file and
+# nothing else -- unit_tests, integration_tests, service_suites -- so dropping
+# these two lines leaves each of them with pytest and no Odoo, which is what
+# happened between 2026-08-08 and this commit.
+-r requirements.txt
+-r requirements-addons.txt
+
 aiosmtpd==1.4.6
 freezegun==1.5.5
 Jinja2==3.1.6

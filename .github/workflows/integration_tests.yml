@@ -187,7 +187,7 @@ jobs:
           # lxml / Pillow / python-ldap build deps; most wheels are prebuilt but
           # these cover the source-build fallbacks.
           sudo apt-get install -y --no-install-recommends \
-            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libcairo2-dev
           pip install --quiet -r requirements-test.txt
 
       - name: Run base test suite

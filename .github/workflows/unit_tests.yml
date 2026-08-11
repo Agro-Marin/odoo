@@ -98,7 +98,15 @@ jobs:
           python -m pip install --no-index --find-links dist odoo_rust
 
       - name: Install runtime requirements
-        run: pip install --quiet -r requirements-test.txt
+        # requirements-test.txt pulls in both runtime files, so this lane builds
+        # whatever has no wheel for 3.14 — pycairo (rlPyCairo's dependency)
+        # never has one, and these cover lxml / Pillow / python-ldap should
+        # their prebuilt wheels not apply.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libcairo2-dev
+          pip install --quiet -r requirements-test.txt
 
       - name: Run _field_access (Tier-1, Rust-backed)
         run: python -m pytest odoo/libs/_field_access/tests -q

@@ -112,7 +112,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libcairo2-dev
           # Both runtime files: this lane loads the registry, so it needs the
           # bundled addons' dependencies too. requirements.txt alone stopped
           # being the full runtime when requirements-addons.txt was split out.

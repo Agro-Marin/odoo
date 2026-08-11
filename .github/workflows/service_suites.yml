@@ -128,7 +128,7 @@ jobs:
       - name: Install system + Python dependencies
         run: |
           sudo apt-get install -y --no-install-recommends \
-            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libcairo2-dev
           pip install --quiet -r requirements-test.txt
 
       - name: Contract suite (psycopg / psql / pg_dump)
