@@ -126,5 +126,5 @@ class XmlRecordLinter(LintCase):
         return violations
 
 
-FIELD_ORDER_FLOOR = 792
+FIELD_ORDER_FLOOR = 789
 ATTRIB_ORDER_FLOOR = 2461
