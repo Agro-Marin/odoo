@@ -1794,6 +1794,20 @@ class CredentialCredential(models.Model):
         data = self.get_credential_dict()
         return data.get(key, default)
 
+    def get_basic_auth(self):
+        """Return an HTTP basic-auth pair, or None when one is not configured.
+
+        Reads only this model's own fields, unlike get_auth_headers, which needs
+        the service's auth_type and therefore lives in api_transport.
+
+        :return: ``(username, password)`` or None
+        :rtype: tuple | None
+        """
+        self.ensure_one()
+        if self.username and self.password:
+            return (self.username, self.password)
+        return None
+
     def increment_usage(self, success: bool = True):
         """Increment credential usage statistics.
 
