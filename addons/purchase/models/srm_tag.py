@@ -3,7 +3,7 @@ from odoo import fields, models
 
 class SrmTag(models.Model):
     _name = "srm.tag"
-    _inherit = ["tag.mixin"]
+    _inherit = ["tag.nested.mixin"]
     _description = "SRM Tag"
 
     parent_id = fields.Many2one(

@@ -121,7 +121,7 @@ class CatalogMixin(models.AbstractModel):
     """
 
     _name = "catalog.mixin"
-    _description = "Catalog Mixin"
+    _description = "Catalog Entry (unique translated name, archivable)"
 
     name = fields.Char(
         required=True,

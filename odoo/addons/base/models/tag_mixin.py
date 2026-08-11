@@ -11,11 +11,26 @@ _CODE_SEPARATORS = re.compile(r"[^A-Z0-9]+")
 
 
 class TagMixin(models.AbstractModel):
+    """A colour-coded label with a stable code: the flat tag.
+
+    ``catalog.mixin`` (translated unique name, archivable) plus the two things
+    every tag in the tree adds to it by hand: a colour index -- the same
+    ``randint(1, 11)`` default written out about thirty times -- and a ``code``
+    for anything that has to *match* the tag rather than display it.
+
+    Flat on purpose. This mixin used to be the hierarchical one, and its name
+    said nothing about that: a model inheriting "tag.mixin" silently acquired
+    ``_parent_store``, a ``parent_path`` column, a recursion constraint and a
+    name rule scoped to a parent it had never heard of. Nesting now lives in
+    :class:`tag.nested.mixin`, and the plain name means the plain thing.
+
+    Roughly seventeen tag models in the tree are flat; two are nested.
+    """
+
     _name = "tag.mixin"
     _inherit = ["catalog.mixin"]
-    _description = "Tag Mixin"
+    _description = "Tag (coloured label with a stable code)"
     _order = "name, id"
-    _parent_store = True
 
     def _get_default_color(self):
         return randint(1, 11)
@@ -41,12 +56,6 @@ class TagMixin(models.AbstractModel):
             "name it is never translated, so it means the same thing to every "
             "reader."
         ),
-    )
-    parent_path = fields.Char(index=True)
-
-    _name_src_uniq = name_uniq_index(
-        "parent_id",
-        message="A tag with this name already exists under the same parent.",
     )
     # Plain UNIQUE over a plain column, which is the whole point of the field.
     # `name` is `translate=True`, hence jsonb, hence a rule that has to index an
@@ -110,6 +119,36 @@ class TagMixin(models.AbstractModel):
         that is the one term it has.
         """
         return _CODE_SEPARATORS.sub("_", (name or "").upper()).strip("_")[:64]
+
+
+class TagNestedMixin(models.AbstractModel):
+    """A tag that nests: parent, children, and a path for a display name.
+
+    Everything :class:`tag.mixin` gives, plus the hierarchy — so a model opts
+    into a tree by asking for one, rather than by inheriting the word "tag".
+
+    The inheriting model declares its own ``parent_id`` and ``child_ids``,
+    because a self-reference cannot name its comodel from here.
+
+    Name uniqueness is re-scoped to the parent: two branches may each hold a
+    "North", which is the point of a tree, and the flat rule would refuse the
+    second. The derived declaration replaces the inherited one under the same
+    attribute name — see :class:`catalog.mixin` for why that is the supported
+    way to change it. ``code`` stays globally unique regardless: identity is
+    not a per-branch question.
+    """
+
+    _name = "tag.nested.mixin"
+    _inherit = ["tag.mixin"]
+    _description = "Nested Tag (tag with a parent/child hierarchy)"
+    _parent_store = True
+
+    parent_path = fields.Char(index=True)
+
+    _name_src_uniq = name_uniq_index(
+        "parent_id",
+        message="A tag with this name already exists under the same parent.",
+    )
 
     @api.constrains("parent_id")
     def _check_parent_id(self):
