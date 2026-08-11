@@ -25,6 +25,44 @@ class TagMixin(models.AbstractModel):
     :class:`tag.nested.mixin`, and the plain name means the plain thing.
 
     Roughly seventeen tag models in the tree are flat; two are nested.
+
+    **When you need ``code``, and when you do not.** Not every name-based
+    lookup is unsafe, and the distinction is worth stating because the safe
+    case is the common one.
+
+    *Resolve-or-create is fine on ``name``.* Creating a tag writes the term
+    into every active language at once, so two callers running under different
+    languages converge on one row rather than making two::
+
+        es_MX creates "Periodo 2027"  ->  {"en_US": "Periodo 2027",
+                                           "es_MX": "Periodo 2027"}
+        en_US searches "Periodo 2027" ->  finds that same row
+
+    That pattern is self-consistent by construction, and a cron in ``en_US``
+    racing a user in ``es_MX`` does not duplicate.
+
+    *Looking up a tag you did not create is what needs ``code``.* Once anyone
+    edits the label, the term you were matching on may be gone -- and **how**
+    it was edited decides which languages lose it, which is why no single
+    "search in language X" rule saves you. Both paths measured on a tag created
+    as "3001" with ``es_MX`` active::
+
+        plain write in es_MX ("rename this tag")
+            {"en_US": "Periodo tres mil uno", "es_MX": "Periodo tres mil uno"}
+            search "3001" -> nothing, in either language
+
+        translation dialog (update_field_translations)
+            {"en_US": "3001", "es_MX": "Periodo tres mil uno"}
+            search "3001" -> found in en_US, nothing in es_MX
+
+    A plain write to a field carrying no distinct translations yet is taken as
+    correcting the term itself, so it moves every language; the dialog is taken
+    as translating, so it moves one. Pinning a lookup to the source term
+    therefore survives the second and not the first.
+
+    ``code`` survives both, because nothing about renaming a label touches it.
+    So: an import keyed on a label, a filter, a server action, an XML record
+    pointing at a tag someone else maintains -- those match on ``code``.
     """
 
     _name = "tag.mixin"
