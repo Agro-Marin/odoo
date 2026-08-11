@@ -4,10 +4,11 @@ from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import Form, TransactionCase, users
 
 from .test_project_base import TestProjectCommon
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 class TestProjectRecurrence(TransactionCase):
@@ -702,3 +703,143 @@ class TestRecurrenceDefaults(TestProjectCommon):
             created,
             "boundary occurrence must be created (compared in user tz, not UTC)",
         )
+
+
+class TestRecurrenceUpdateScope(TestProjectCommon):
+    """`recurrence_update` — which occurrences an edit reaches.
+
+    `calendar.event` and `planning.slot` both had this; `project.task` had no
+    notion of it at all, so every edit was implicitly "this task only" and there
+    was no way to correct a whole series.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.step = cls.env["project.workflow.step"].create(
+            {"name": "S", "project_ids": [Command.link(cls.project_pigs.id)]}
+        )
+        cls.recurrence = cls.env["project.task.recurrence"].create(
+            {"repeat_interval": 1, "repeat_unit": "week", "repeat_type": "forever"}
+        )
+        # Three occurrences a week apart, oldest first.
+        cls.first, cls.second, cls.third = cls.env["project.task"].create(
+            [
+                {
+                    "name": "Occurrence",
+                    "project_id": cls.project_pigs.id,
+                    "step_id": cls.step.id,
+                    "recurrence_id": cls.recurrence.id,
+                    "recurring_task": True,
+                    "date_end": datetime(2035, 3, 1, 12, 0) + timedelta(weeks=i),
+                }
+                for i in range(3)
+            ]
+        )
+
+    def test_this_touches_only_the_edited_task(self) -> None:
+        self.second.write({"name": "Renamed", "recurrence_update": "this"})
+        self.assertEqual(self.second.name, "Renamed")
+        self.assertEqual(self.first.name, "Occurrence")
+        self.assertEqual(self.third.name, "Occurrence")
+
+    def test_this_is_the_default_when_the_key_is_absent(self) -> None:
+        self.second.write({"name": "Renamed"})
+        self.assertEqual(self.first.name, "Occurrence")
+        self.assertEqual(self.third.name, "Occurrence")
+
+    def test_subsequent_reaches_this_task_and_the_later_ones(self) -> None:
+        self.second.write({"name": "Renamed", "recurrence_update": "subsequent"})
+        self.assertEqual(
+            self.first.name, "Occurrence", "an earlier occurrence must be left alone"
+        )
+        self.assertEqual(self.second.name, "Renamed")
+        self.assertEqual(self.third.name, "Renamed")
+
+    def test_all_reaches_every_occurrence(self) -> None:
+        self.second.write({"name": "Renamed", "recurrence_update": "all"})
+        self.assertEqual(self.first.name, "Renamed")
+        self.assertEqual(self.second.name, "Renamed")
+        self.assertEqual(self.third.name, "Renamed")
+
+    def test_a_deadline_shifts_the_series_instead_of_flattening_it(self) -> None:
+        """The one case a naive implementation gets wrong: writing the same
+        `date_end` to every occurrence would collapse a series onto one day."""
+        original = {task: task.date_end for task in (self.first, self.third)}
+        self.second.write(
+            {
+                "date_end": self.second.date_end + timedelta(days=2),
+                "recurrence_update": "subsequent",
+            }
+        )
+        self.assertEqual(
+            self.first.date_end, original[self.first], "earlier occurrence unmoved"
+        )
+        self.assertEqual(
+            self.third.date_end,
+            original[self.third] + timedelta(days=2),
+            "a later occurrence moves by the same delta, keeping the spacing",
+        )
+
+    def test_an_undated_occurrence_is_not_shifted(self) -> None:
+        self.third.date_end = False
+        self.second.write(
+            {
+                "date_end": self.second.date_end + timedelta(days=2),
+                "recurrence_update": "all",
+            }
+        )
+        self.assertFalse(
+            self.third.date_end, "nothing to shift, and nothing invented either"
+        )
+
+    def test_changing_the_rule_for_part_of_the_series_is_refused(self) -> None:
+        """`repeat_*` live on the one shared recurrence record, so a partial
+        scope cannot be honoured. Refuse rather than silently apply it to all."""
+        with self.assertRaises(UserError):
+            self.second.write({"repeat_interval": 3, "recurrence_update": "subsequent"})
+        self.assertEqual(self.recurrence.repeat_interval, 1)
+
+    def test_changing_the_rule_for_all_is_allowed(self) -> None:
+        self.second.write({"repeat_interval": 3, "recurrence_update": "all"})
+        self.assertEqual(self.recurrence.repeat_interval, 3)
+
+    def test_scope_needs_a_single_task(self) -> None:
+        """Following is only defined relative to a single occurrence."""
+        with self.assertRaises(ValueError):
+            (self.first | self.third).write(
+                {"name": "Renamed", "recurrence_update": "all"}
+            )
+
+    def test_create_tolerates_the_scope_key(self) -> None:
+        """The field carries a default, so a form saving a *new* task sends it
+        to `create` as well -- where it means nothing and must not raise."""
+        task = self.env["project.task"].create(
+            {
+                "name": "Fresh",
+                "project_id": self.project_pigs.id,
+                "recurrence_update": "all",
+            }
+        )
+        self.assertEqual(task.name, "Fresh")
+
+    def test_a_portal_user_may_not_scope_an_edit(self) -> None:
+        """The key is popped before `super().write()`, so the ORM never runs
+        its per-field access check on it -- a portal collaborator would
+        otherwise silently gain an edit reaching tasks they never opened."""
+        portal = mail_new_test_user(
+            self.env, "recurrence_portal", groups="base.group_portal"
+        )
+        self.project_pigs.privacy_visibility = "portal"
+        self.project_pigs.message_subscribe(partner_ids=[portal.partner_id.id])
+        with self.assertRaises(AccessError):
+            self.second.with_user(portal).write(
+                {"name": "Renamed", "recurrence_update": "all"}
+            )
+
+    def test_a_task_outside_any_recurrence_ignores_the_scope(self) -> None:
+        loner = self.env["project.task"].create(
+            {"name": "Alone", "project_id": self.project_pigs.id}
+        )
+        loner.write({"name": "Still alone", "recurrence_update": "all"})
+        self.assertEqual(loner.name, "Still alone")

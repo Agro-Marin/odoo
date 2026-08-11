@@ -9,7 +9,7 @@ from lxml import html
 
 from odoo import SUPERUSER_ID, _, api, fields, models, tools
 from odoo.api import ValuesType
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Date, Domain
 from odoo.libs.intervals import Intervals
 from odoo.tools import (
@@ -877,6 +877,20 @@ class ProjectTask(models.Model):
         compute="_compute_repeat",
         compute_sudo=True,
         readonly=False,
+    )
+    # Which occurrences an edit reaches. Not stored: it qualifies one write and
+    # is meaningless afterwards, exactly like `planning.slot.recurrence_update`
+    # -- whose vocabulary this reuses rather than inventing a third spelling of
+    # the same three choices (`calendar.event` has its own, tied to iCal).
+    recurrence_update = fields.Selection(
+        [
+            ("this", "This task"),
+            ("subsequent", "This and following tasks"),
+            ("all", "All tasks"),
+        ],
+        default="this",
+        store=False,
+        help="Which tasks of the recurrence this change applies to.",
     )
 
     allow_milestones = fields.Boolean(
@@ -2632,6 +2646,10 @@ class ProjectTask(models.Model):
             # Captured before the write: after it, every task has assignees.
             task_ids_without_user_set = {task.id for task in self if not task.user_ids}
 
+        # Before _write_sync_recurrence: that phase pushes the repeat_* values
+        # onto the shared recurrence record, and the scope decision is about
+        # which *tasks* the rest of the write reaches.
+        recurrence_scope = self._write_capture_recurrence_scope(vals)
         self._write_sync_recurrence(vals)
 
         # Track user_ids to send assignment notifications. Only when the write
@@ -2664,6 +2682,11 @@ class ProjectTask(models.Model):
             "skip_dependency_sync"
         ):
             self._sync_dependency_rows()
+
+        # After super(): the siblings are written with the values this task has
+        # just taken, and a deadline shift is measured against the value that
+        # was captured before it changed.
+        self._write_propagate_recurrence(recurrence_scope, vals)
 
         self._write_apply_assignment(vals, now, task_ids_without_user_set)
         self._write_send_step_rating(vals)
@@ -2857,6 +2880,116 @@ class ProjectTask(models.Model):
                 self.filtered(
                     lambda t: t.state in STATES_RESET_ON_STEP_CHANGE
                 ).state = "in_progress"
+
+    def _recurrence_sort_key(self) -> tuple:
+        """Order occurrences of one recurrence among themselves.
+
+        ``date_end`` is the field the recurrence postpones from occurrence to
+        occurrence, so it is what "following" means. It is optional, though, and
+        a task without a deadline has no position of its own -- those sort last
+        and then by id, which is the order they were generated in. The id is
+        also the tie-break for two occurrences sharing a deadline.
+
+        The leading flag carries "has no deadline" instead of substituting
+        ``datetime.max`` for one: ``date_end`` is a naive UTC datetime, and a
+        sentinel would have to be naive to compare with it at all.
+        """
+        self.ensure_one()
+        dated = bool(self.date_end)
+        return (not dated, self.date_end if dated else None, self.id)
+
+    def _write_capture_recurrence_scope(self, vals: dict[str, Any]) -> dict | None:
+        """Resolve which sibling occurrences a scoped edit reaches.
+
+        Runs *before* ``super().write()`` for two reasons: the key has to leave
+        ``vals`` before the ORM sees a field with no column, and the old value
+        of every postponed date has to be read while it is still the old one --
+        propagating a deadline means shifting each sibling by the same delta,
+        not stamping them all with one date, which would collapse the series
+        onto a single day.
+
+        Returns ``None`` when there is nothing to do, which is the common case.
+        """
+        if "recurrence_update" in vals:
+            # Ask the model's own access machinery before taking the key out of
+            # `vals`. Popping it early is what makes the scope work at all --
+            # the field has no column, so `super().write()` would choke on it --
+            # but it also means the ORM never runs its per-field check, and a
+            # portal collaborator would silently gain an edit that reaches
+            # tasks beyond the one they opened. `TASK_PORTAL_WRITABLE_FIELDS`
+            # does not list it, so this refuses them by default rather than by
+            # a rule spelled out a second time here.
+            field = self._fields["recurrence_update"]
+            if not self._has_field_access(field, "write"):
+                raise AccessError(
+                    _("You are not allowed to update all tasks of a recurrence.")
+                )
+
+        scope = vals.pop("recurrence_update", "this")
+        if scope == "this" or not self.recurrence_id:
+            return None
+        # Same rule as planning: a scoped edit is a single-record operation,
+        # because "following" is only defined relative to one occurrence.
+        self.ensure_one()
+
+        rule_fields = vals.keys() & set(self._get_recurrence_fields())
+        if rule_fields and scope != "all":
+            # The repeat_* fields live on the one shared recurrence record, so
+            # writing them reaches every occurrence whatever this field says.
+            # Refuse rather than silently contradict the choice -- the honest
+            # answer needs the series split in two, which is a feature of its
+            # own. `calendar.event` refuses its mirror-image case the same way.
+            raise UserError(
+                _(
+                    "Changing how often a task repeats applies to the whole "
+                    "recurrence. Select 'All tasks' to confirm."
+                )
+            )
+
+        siblings = self.recurrence_id.task_ids - self
+        if scope == "subsequent":
+            mine = self._recurrence_sort_key()
+            siblings = siblings.filtered(lambda t: t._recurrence_sort_key() > mine)
+        if not siblings:
+            return None
+        postponed = set(self.recurrence_id._get_recurring_fields_to_postpone())
+        return {
+            "targets": siblings,
+            "shift_from": {fname: self[fname] for fname in postponed & vals.keys()},
+        }
+
+    def _write_propagate_recurrence(
+        self, scope: dict | None, vals: dict[str, Any]
+    ) -> None:
+        """Apply a scoped edit to the sibling occurrences it reached."""
+        if not scope:
+            return
+        # `exists()`: an earlier phase of this same write may have unlinked
+        # occurrences (turning `recurring_task` off drops the recurrence).
+        targets = scope["targets"].exists()
+        if not targets:
+            return
+
+        shifted = scope["shift_from"]
+        # The repeat_* fields are excluded because they are not per-task at all:
+        # `_write_sync_recurrence` has already put them on the shared record.
+        plain = {
+            fname: value
+            for fname, value in vals.items()
+            if fname not in shifted and fname not in self._get_recurrence_fields()
+        }
+        if plain:
+            targets.write(plain)
+
+        for fname, old_value in shifted.items():
+            new_value = fields.Datetime.to_datetime(vals[fname])
+            if not old_value or not new_value:
+                # Setting or clearing a deadline says nothing about how far the
+                # others should move.
+                continue
+            delta = new_value - old_value
+            for task in targets.filtered(fname):
+                task.write({fname: task[fname] + delta})
 
     def _write_sync_recurrence(self, vals: dict[str, Any]) -> None:
         """Mirror the recurrence fields onto the recurrence record, creating or
