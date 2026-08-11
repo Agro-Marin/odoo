@@ -1,22 +1,15 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from random import randint
-
-from odoo import fields, models
+from odoo import models
 
 
 class CalendarEventType(models.Model):
     _name = 'calendar.event.type'
-
     _description = 'Event Meeting Type'
-
-    def _default_color(self):
-        return randint(1, 11)
-
-    name = fields.Char('Name', required=True)
-    color = fields.Integer('Color', default=_default_color)
-
-    _name_uniq = models.Constraint(
-        'unique (name)',
-        'Tag name already exists!',
-    )
+    # `name`, `active`, `color` and `code` come from the mixin, flat: meeting
+    # types do not nest. `name` becomes translatable in the process, which is
+    # why the old `unique (name)` goes -- over a jsonb column it compares whole
+    # translation documents and enforces nothing once a second language is
+    # active. The mixin indexes the source term instead, and identity moves to
+    # `code`.
+    _inherit = ['tag.mixin']

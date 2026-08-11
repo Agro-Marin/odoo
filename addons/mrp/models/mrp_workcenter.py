@@ -3,7 +3,6 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import partial
-from random import randint
 
 from babel.dates import format_date
 from dateutil import relativedelta
@@ -786,19 +785,14 @@ class MrpWorkcenter(models.Model):
 
 class MrpWorkcenterTag(models.Model):
     _name = "mrp.workcenter.tag"
-    _description = "Add tag for the workcenter"
-    _order = "name"
-
-    def _get_default_color(self):
-        return randint(1, 11)
-
-    name = fields.Char("Tag Name", required=True)
-    color = fields.Integer("Color Index", default=_get_default_color)
-
-    _tag_name_unique = models.Constraint(
-        "unique(name)",
-        "The tag name must be unique.",
-    )
+    _description = "Work Center Tag"
+    # `name`, `active`, `color` and `code` come from the mixin, flat: work
+    # center tags do not nest. `name` becomes translatable in the process,
+    # which is why the old `unique(name)` goes -- over a jsonb column it
+    # compares whole translation documents and enforces nothing once a second
+    # language is active. The mixin indexes the source term instead, and
+    # identity moves to `code`.
+    _inherit = ["tag.mixin"]
 
 
 class MrpWorkcenterProductivityLossType(models.Model):

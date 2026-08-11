@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import api, fields, models
 from odoo.api import DomainType, ValuesType
 from odoo.fields import Domain
@@ -11,17 +9,11 @@ class ProjectTags(models.Model):
 
     _name = "project.tags"
     _description = "Project Tags"
-    _order = "name"
+    # `name` (translated, unique on the source term), `active`, `color` and
+    # `code` come from the mixin, which already carried the hand-rolled index
+    # this model declared. Flat: project tags do not nest.
+    _inherit = ["tag.mixin"]
 
-    def _get_default_color(self) -> int:
-        return randint(1, 11)
-
-    name = fields.Char("Name", required=True, translate=True)
-    color = fields.Integer(
-        string="Color",
-        default=_get_default_color,
-        help="Transparent tags are not visible in the kanban view of your projects and tasks.",
-    )
     is_strategic = fields.Boolean(
         "Strategic Objective",
         help="Mark this tag as representing a strategic objective for portfolio alignment.",
@@ -34,17 +26,6 @@ class ProjectTags(models.Model):
     )
     task_ids = fields.Many2many(
         "project.task", string="Tasks", export_string_translation=False
-    )
-
-    # ``name`` is ``translate=True``, so PostgreSQL stores it as jsonb and a
-    # plain ``UNIQUE (name)`` compares whole translation documents: once a
-    # second language exists, {"en_US": "Bug", "fr_FR": "Bogue"} and
-    # {"en_US": "Bug"} are different values and both are accepted, leaving two
-    # tags called "Bug". Index the source term instead, which is the one the
-    # user types and the one ``name_create`` de-duplicates against.
-    _name_uniq = models.UniqueIndex(
-        "((name ->> 'en_US'))",
-        "A tag with the same name already exists.",
     )
 
     def _get_project_tags_domain(self, domain: list, project_id: int) -> list:

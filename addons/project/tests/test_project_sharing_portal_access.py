@@ -200,7 +200,15 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
                 value = dummy_value(field_name)
                 task.write({field_name: value})
                 actual_value = task[field_name]
-                expected_value = field.convert_to_record(value, task)
+                # `dummy_value` hands x2many a *list*, which `write` accepts and
+                # `convert_to_record` does not: it assigns the value straight to
+                # `_ids`, which must be a tuple. The mismatch was invisible until
+                # a comodel gained an `active` field -- that is what makes
+                # `_make_corecords` filter the recordset it just built, and the
+                # filter is where a list stops being tolerated.
+                expected_value = field.convert_to_record(
+                    tuple(value) if isinstance(value, list) else value, task
+                )
                 self.assertEqual(
                     actual_value,
                     expected_value,
