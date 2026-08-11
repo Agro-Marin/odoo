@@ -8,8 +8,6 @@ from urllib.parse import urlparse
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from odoo.addons.api_transport.tools import get_event_queue
-
 _logger = logging.getLogger(__name__)
 
 
@@ -597,17 +595,11 @@ class ApiEventLog(models.Model):
 
         if self.direction == "inbound":
             channel = self.channel_id
-            if hasattr(channel, "_get_event_handler_callback"):
-                queue = get_event_queue()
-                handler = channel._get_event_handler_callback()
-                event_id = self.id
-                db_name = self.env.cr.dbname
-                # Enqueue post-commit so the worker's fresh cursor sees the
-                # pending-state write above (see queue_event for the rationale).
-                # ``db_name`` is what routes the worker to _process_queued_event.
-                self.env.cr.postcommit.add(
-                    lambda: queue.queue(event_id, handler, db_name=db_name)
-                )
+            if hasattr(channel, "_run_queued_event"):
+                # ir.job runs after this transaction commits, so the
+                # pending-state write above is visible to the job by
+                # construction — no postcommit hook or db_name routing needed.
+                channel.delayed()._run_queued_event(self.id)
             else:
                 raise ValidationError(
                     self.env._("Channel does not support event processing")
@@ -696,12 +688,10 @@ class ApiEventLog(models.Model):
 
         _logger.info("Retrying %d failed events", len(events_to_retry))
 
-        queue = get_event_queue()
-
         for event in events_to_retry:
             try:
                 channel = event.channel_id
-                if hasattr(channel, "_get_event_handler_callback"):
+                if hasattr(channel, "_run_queued_event"):
                     # Push date_next_retry forward before enqueuing so the next
                     # cron tick (every minute) does not re-enqueue an event that
                     # is still being processed — that would double-dispatch the
@@ -710,20 +700,10 @@ class ApiEventLog(models.Model):
                     # reclaim it. The worker's own mark_success/mark_failed sets
                     # the terminal state well before this window elapses.
                     event.date_next_retry = now + timedelta(seconds=processing_timeout)
-                    handler = channel._get_event_handler_callback()
-                    event_id = event.id
-                    db_name = self.env.cr.dbname
-                    # ``db_name`` routes the worker through _run_with_cursor and
-                    # on to _process_queued_event; without it the retry re-runs
-                    # the raw callback, which for most channels only logs.
-                    self.env.cr.postcommit.add(
-                        lambda h=handler, eid=event_id, db=db_name: queue.queue(
-                            eid, h, db_name=db
-                        )
-                    )
+                    channel.delayed()._run_queued_event(event.id)
                 else:
                     _logger.warning(
-                        "Channel %s does not implement _get_event_handler_callback()",
+                        "Channel %s does not implement _run_queued_event()",
                         channel,
                     )
                     event.mark_failed(

@@ -1,6 +1,5 @@
 import json
 import logging
-from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
@@ -8,10 +7,8 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 from odoo.addons.api_transport.tools import (
-    get_event_queue,
     verify_signature,
     verify_timestamp,
-    worker_env,
 )
 from odoo.addons.base_credential_manager.tools import ip_in_allowlist
 
@@ -510,46 +507,40 @@ class ApiEndpointInbound(models.AbstractModel):
             f"unauthenticated request for {self.display_name} from {remote_addr}",
         )
 
-    def _get_event_handler_callback(self) -> Callable[[int], None]:
-        """Return the handler callback for async event processing.
+    # max_retries=0 on purpose: retry policy for inbound events belongs to
+    # _cron_retry_failed_events, which leases each event via date_next_retry to
+    # avoid double-dispatching a handler (posting a webhook payment twice, in
+    # its own words). Letting the job retry as well would stack a second,
+    # unleased retry loop on top of a deliberate one. The move to ir.job is
+    # about durability, not about changing how often an event is attempted.
+    @api.job(channel="api_transport_inbound", max_retries=0)
+    def _run_queued_event(self, event_id):
+        """Process one queued inbound event, as a background job.
 
-        The callback runs in a worker thread; since Odoo's ORM is not
-        thread-safe, an overriding handler that needs DB access MUST create its
-        own cursor (Odoo 19+: ``from odoo.modules.registry import Registry``,
-        as ``odoo.registry()`` was removed). Prefer overriding
-        :meth:`_process_queued_event`. See ``remote.models.remote_device`` for
-        a working example.
+        The job runner gives this its own transaction and environment, so the
+        handler below needs no cursor management of its own.
 
-        :return: a function taking ``event_id``
-        :rtype: Callable
+        Replaces an in-process thread pool (``InboundEventQueue``). That queue
+        was per worker process and held events in memory: a restart, crash or
+        worker recycle dropped every event still in it, leaving rows pending
+        until a recovery cron noticed. ``ir.job`` persists the work, retries it,
+        and survives all three.
+
+        :param int event_id: api.event.log id to process
         """
-        # The default is NOT a placeholder: it opens its own worker environment
-        # and dispatches to :meth:`_process_queued_event`, the documented
-        # extension point. It used to only log, which meant any caller that
-        # enqueued without ``db_name`` — and therefore missed the queue's
-        # _run_with_cursor bridge — discarded the payload while the controller
-        # answered "202 Accepted". Both routes now end in the same handler, so
-        # forgetting ``db_name`` costs an extra cursor, not the data.
-        db_name = self.env.cr.dbname
-        model_name = self._name
-        record_id = self.id
-
-        def _handle(event_id):
-            with worker_env(db_name) as worker:
-                event = worker["api.event.log"].browse(event_id).exists()
-                if not event:
-                    _logger.warning("Queued event %s no longer exists", event_id)
-                    return
-                worker[model_name].browse(record_id)._process_queued_event(event)
-
-        return _handle
+        self.ensure_one()
+        event = self.env["api.event.log"].browse(event_id).exists()
+        if not event:
+            _logger.warning("Queued event %s no longer exists", event_id)
+            return
+        self._process_queued_event(event)
 
     def _process_queued_event(self, event):
         """Process a queued event with a thread-safe Environment (override this).
 
         Called by the queue worker with an ``api.event.log`` record that already
         has a valid cursor/Environment. Preferred async extension point over
-        :meth:`_get_event_handler_callback` (no manual cursor management).
+        :meth:`_run_queued_event`, which the job runner calls.
 
         :param event: api.event.log record (with a valid env)
         """
@@ -597,34 +588,11 @@ class ApiEndpointInbound(models.AbstractModel):
             )
 
         if self.processing_mode == "async":
-            # Enqueue only AFTER the current transaction commits. Worker threads
-            # open their own cursor and re-read the event by id; if we enqueued
-            # here, a worker could dequeue and browse(event_id) before this
-            # transaction commits — the row would not yet be visible, the
-            # handler would no-op ("event not found"), and the event would stay
-            # pending until the recovery cron. A rollback would likewise leave a
-            # stale id in the queue. Post-commit enqueue makes the row visible
-            # the instant it is queued.
-            # ``db_name`` is REQUIRED, not optional: it is what selects the
-            # worker's _run_with_cursor branch, which re-browses the event on a
-            # fresh cursor and dispatches to :meth:`_process_queued_event`.
-            # Omitting it makes the worker call the raw callback instead — and
-            # the default callback below only logs, so every payload of every
-            # endpoint that overrides _process_queued_event (rather than
-            # _get_event_handler_callback) was silently discarded while the
-            # controller answered "202 Accepted".
-            # No ``uid``: the worker environment defaults to SUPERUSER_ID. The
-            # request that queued the event is usually the public user (inbound
-            # routes are auth="public"), and worker_env() builds a plain
-            # Environment with no ``su`` flag — handing it that uid would make
-            # every handler fail on access rights.
-            queue = get_event_queue()
-            callback = self._get_event_handler_callback()
-            event_id = event.id
-            db_name = self.env.cr.dbname
-            self.env.cr.postcommit.add(
-                lambda: queue.queue(event_id, callback, db_name=db_name)
-            )
+            # ir.job enqueues in this transaction and runs after it commits, so
+            # the event row is visible to the job by construction. The previous
+            # thread queue needed a postcommit hook and an explicit db_name to
+            # avoid dequeuing before the row existed.
+            self.delayed()._run_queued_event(event.id)
 
         self.update_date_last_activity()
 
