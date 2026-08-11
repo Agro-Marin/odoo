@@ -12,3 +12,4 @@ from . import test_collaboration_channels
 from . import test_attachment_media_urls
 from . import test_field_from_html
 from . import test_view_save_helpers
+from . import test_field_converters_typed
