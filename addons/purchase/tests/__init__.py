@@ -20,3 +20,4 @@ from . import test_product_purchase_stats
 from . import test_partner_purchase_stats
 from . import test_analytic_purchase_button
 from . import test_partner_buyer
+from . import test_tax_usage
