@@ -430,10 +430,18 @@ class BaseCase(case.TestCase):
 
         def check_remaining_patchers():
             for patcher in list(_patch._active_patches):
+                # mock.patch.dict instances live in _active_patches too but
+                # describe themselves with `in_dict`, not `target`/`attribute`.
+                # Reaching for those raised AttributeError here, which aborted
+                # the cleanup *before* stop() -- so the patcher leaked as well,
+                # and the whole test class errored in teardown.
+                if hasattr(patcher, "target"):
+                    description = f"{patcher.target}.{patcher.attribute}"
+                else:
+                    description = f"dict {getattr(patcher, 'in_dict', patcher)!r}"
                 _logger.warning(
-                    "A patcher (targeting %s.%s) was remaining active at the end of %s, disabling it...",
-                    patcher.target,
-                    patcher.attribute,
+                    "A patcher (targeting %s) was remaining active at the end of %s, disabling it...",
+                    description,
                     cls.__name__,
                 )
                 patcher.stop()
