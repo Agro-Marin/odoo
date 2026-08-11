@@ -385,3 +385,50 @@ class TestSuppressedRequestPayload(ClientLoggingCommon):
         self._client().post("/cancel", json={"b64Key": SECRET_KEY})
 
         self.assertIn(SECRET_KEY, self._queued()[0]["request_payload"])
+
+
+@tagged("post_install", "-at_install")
+class TestRawPassthroughLogging(ClientLoggingCommon):
+    """``raw=True`` hands the caller the live Response; the row is metadata.
+
+    The body is deliberately absent -- reading it would consume the stream the
+    caller asked for intact -- but everything around it must still be there.
+    Passing no response at all left the row on its "pending" default, so a
+    completed exchange was recorded as one that never came back.
+    """
+
+    def _queued(self):
+        return self.env.cr.precommit.data.get("api.event.log.values") or []
+
+    @patch("requests.Session.request")
+    def test_a_raw_call_records_status_and_timing(self, mock_request):
+        mock_request.return_value = _ok_response()
+
+        self._client().request("GET", "/stream", raw=True)
+
+        row = self._queued()[0]
+        self.assertEqual(row["state"], "success")
+        self.assertEqual(row["status_code"], 200)
+        self.assertIn("duration_ms", row)
+
+    @patch("requests.Session.request")
+    def test_a_raw_call_does_not_read_the_body(self, mock_request):
+        response = _ok_response()
+        mock_request.return_value = response
+
+        self._client().request("GET", "/stream", raw=True)
+
+        response.json.assert_not_called()
+        self.assertEqual(self._queued()[0]["response_payload"], "null")
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_raw_4xx_is_recorded_as_failed(self, mock_request):
+        mock_request.return_value = _error_response(503, {"m": "down"})
+
+        self._client().request("GET", "/stream", raw=True, raise_for_status=False)
+
+        row = self._queued()[0]
+        self.assertEqual(row["state"], "failed")
+        self.assertEqual(row["status_code"], 503)
+        self.assertEqual(row["error_type"], "server")

@@ -416,11 +416,22 @@ class APIGatewayClient:
             if raw:
                 self._track_usage(not failed)
                 if not skip_logging:
+                    # Metadata only: status, headers and timing, never the body.
+                    # Reading the body here would consume the stream the caller
+                    # asked to be handed intact. Passing None instead left the
+                    # row at its "pending" default with no status and no
+                    # duration -- a completed exchange recorded as one that
+                    # never came back.
                     self._log_request(
                         method,
                         url,
                         kwargs,
-                        None,
+                        {
+                            "status_code": response.status_code,
+                            "headers": dict(response.headers),
+                            "body": None,
+                            "elapsed_ms": elapsed_ms,
+                        },
                         trace_id,
                         error=status_error,
                         error_type=status_error_type,
