@@ -3,6 +3,7 @@ import unittest
 from datetime import date, datetime
 from unittest.mock import patch
 
+from odoo.libs.collections import OrderedSet
 from odoo.libs.datetime import utc
 from odoo.orm.domain import optimizations
 from odoo.orm.domain.ast import (
@@ -12,7 +13,6 @@ from odoo.orm.domain.ast import (
     OptimizationLevel,
 )
 from odoo.orm.primitives import NewId
-from odoo.tools import OrderedSet
 
 _UNSET = object()
 

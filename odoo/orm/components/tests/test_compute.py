@@ -68,7 +68,7 @@ class TestComputeScheduling(unittest.TestCase):
         self.assertEqual(self.engine.pending_real_fields(), [])
 
     def test_schedule_preserves_factory_ordering(self) -> None:
-        from odoo.tools import OrderedSet
+        from odoo.libs.collections import OrderedSet
 
         engine = ComputeEngine(pending_factory=OrderedSet)
         engine.schedule("total", [3, 1, 2])

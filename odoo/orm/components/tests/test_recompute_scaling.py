@@ -1,8 +1,8 @@
 import unittest
 
+from odoo.libs.collections import OrderedSet
 from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.recompute import RecomputeScheduler
-from odoo.tools import OrderedSet
 
 
 class _MockField:

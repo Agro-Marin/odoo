@@ -272,7 +272,7 @@ class TestOrmCoreConstructor(unittest.TestCase):
         self.assertIsInstance(core._engine, ComputeEngine)
 
     def test_custom_components(self) -> None:
-        from odoo.tools import OrderedSet
+        from odoo.libs.collections import OrderedSet
 
         cache = FieldCache(dirty_factory=OrderedSet)
         engine = ComputeEngine(pending_factory=OrderedSet)

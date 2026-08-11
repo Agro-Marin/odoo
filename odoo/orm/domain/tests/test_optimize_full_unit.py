@@ -2,9 +2,9 @@ import types
 import unittest
 
 from odoo.exceptions import UserError
+from odoo.libs.collections import OrderedSet
 from odoo.orm.domain import optimizations
 from odoo.orm.domain.ast import Domain, DomainCondition
-from odoo.tools import OrderedSet
 
 
 class _StubField:

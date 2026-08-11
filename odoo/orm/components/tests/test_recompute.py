@@ -365,7 +365,7 @@ class TestInlineScheduling(unittest.TestCase):
 
 class TestDeterministicOrder(unittest.TestCase):
     def test_insertion_order_preserved_end_to_end(self) -> None:
-        from odoo.tools import OrderedSet
+        from odoo.libs.collections import OrderedSet
 
         engine = ComputeEngine(pending_factory=OrderedSet)
         field = _MockField("total", stored_computed=True)
@@ -380,7 +380,7 @@ class TestDeterministicOrder(unittest.TestCase):
         self.assertEqual(list(engine.pending_ids(field)), [7, 3, 9, 1, 8])
 
     def test_order_survives_protection_subtraction(self) -> None:
-        from odoo.tools import OrderedSet
+        from odoo.libs.collections import OrderedSet
 
         engine = ComputeEngine(pending_factory=OrderedSet)
         engine.push_protection()

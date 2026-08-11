@@ -3,7 +3,7 @@ import unittest
 from odoo.db import metrics
 from odoo.db.cursor import BaseCursor
 from odoo.db.savepoint import Savepoint, _FlushingSavepoint
-from odoo.tools import SQL
+from odoo.libs.sql import SQL
 
 
 class _Cursor(BaseCursor):
