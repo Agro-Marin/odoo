@@ -1,7 +1,5 @@
 from typing import Self
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -9,37 +7,30 @@ from odoo.exceptions import ValidationError
 class ProjectTaskRecurrence(models.Model):
     _name = "project.task.recurrence"
     _description = "Task Recurrence"
+    # `repeat_interval`, `repeat_unit`, `repeat_type` and `_get_recurrence_delta`
+    # are the mixin's. A task's recurrence ends on a *day* the user picks, so
+    # `repeat_until` stays a Date here and is declared below -- see the mixin
+    # for why it does not own that field.
+    _inherit = ["recurrence.rule.mixin"]
 
     task_ids = fields.One2many("project.task", "recurrence_id", copy=False)
 
-    repeat_interval = fields.Integer(string="Repeat Every", default=1)
-    repeat_unit = fields.Selection(
-        [
-            ("day", "Days"),
-            ("week", "Weeks"),
-            ("month", "Months"),
-            ("year", "Years"),
-        ],
-        default="week",
-        export_string_translation=False,
-    )
-    repeat_type = fields.Selection(
-        [
-            ("forever", "Forever"),
-            ("until", "Until"),
-        ],
-        default="forever",
-        string="Until",
-    )
     repeat_until = fields.Date(string="End Date")
-
-    @api.constrains("repeat_interval")
-    def _check_repeat_interval(self) -> None:
-        if self.filtered(lambda t: t.repeat_interval <= 0):
-            raise ValidationError(_("The interval should be greater than 0"))
 
     @api.constrains("repeat_type", "repeat_until")
     def _check_repeat_until_date(self) -> None:
+        """Reject an 'until' recurrence that names no date, or a past one.
+
+        The first half overlaps the mixin's ``_until_required_check`` on
+        purpose, and the two are not redundant: the CHECK is the *invariant*,
+        held by the database against a raw write or a bad migration, while this
+        is the *error quality*. A CHECK surfaces as a ``CheckViolation`` from
+        the INSERT, and callers here are entitled to a ``ValidationError``
+        naming the field -- which is what
+        ``test_recurrence_until_requires_valid_future_date`` pins.
+
+        The second half no CHECK can express at all, because "today" moves.
+        """
         today = fields.Date.today()
         if self.filtered(lambda t: t.repeat_type == "until" and not t.repeat_until):
             raise ValidationError(_("The end date is required for 'Until' recurrence."))
@@ -77,9 +68,6 @@ class ProjectTaskRecurrence(models.Model):
                 )
             }
         )
-
-    def _get_recurrence_delta(self) -> relativedelta:
-        return relativedelta(**{f"{self.repeat_unit}s": self.repeat_interval})
 
     @api.model
     def _create_next_occurrences(self, occurrences_from: Self) -> Self:

@@ -7,6 +7,7 @@
     "summary": "Organize and plan your projects",
     "depends": [
         "analytic",
+        "base_recurrence",
         "rating",
         "resource",
         "digest",
