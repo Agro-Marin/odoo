@@ -35,6 +35,16 @@ from odoo.addons.api_transport.tools.exceptions import ClientError, CommError
 
 SECRET_KEY = "-----BEGIN PRIVATE KEY-----MIIEvQIBADANBg"
 
+# Deliberately long and distinctive. These tests assert a secret appears nowhere
+# in a serialized payload, and a short needle finds itself by chance in anything
+# high-entropy the payload also carries -- a two-character passphrase turned up
+# inside a base64 certificate in about a third of runs of a sibling test, failing
+# it as a key leak while the redaction was working perfectly. The haystacks here
+# are small and deterministic, so this is insurance rather than a fix; the reason
+# it matters is that these are the tests someone copies to prove their own
+# payload is redacted, and theirs may not be.
+SECRET_VALUE = "redaction-probe-must-never-appear"
+
 # What SW answers with when the CFDI was already stamped: HTTP 400, and the
 # signed XML the caller wanted sitting in messageDetail.
 SW_ALREADY_STAMPED = {
@@ -94,27 +104,27 @@ class TestPayloadSerialization(ClientLoggingCommon):
     def test_dict_body_is_redacted_key_by_key(self):
         """A ``json=`` body: the pre-existing behaviour, unchanged."""
         out = self._client()._serialize_payload_for_log(
-            {"rfc": "XAXX010101000", "password": "s3cr3t"},
+            {"rfc": "XAXX010101000", "password": SECRET_VALUE},
         )
         self.assertIn("XAXX010101000", out)
-        self.assertNotIn("s3cr3t", out)
+        self.assertNotIn(SECRET_VALUE, out)
         self.assertIn("***REDACTED***", out)
 
     def test_json_bytes_body_is_parsed_and_redacted(self):
         """``data=<bytes>`` used to raise TypeError instead of being redacted."""
         out = self._client()._serialize_payload_for_log(
-            b'{"uuid": "abc-123", "password": "s3cr3t"}',
+            json.dumps({"uuid": "abc-123", "password": SECRET_VALUE}).encode(),
         )
         self.assertIn("abc-123", out)
-        self.assertNotIn("s3cr3t", out)
+        self.assertNotIn(SECRET_VALUE, out)
 
     def test_json_str_body_is_parsed_and_redacted(self):
         """``data=<str>`` used to be stored verbatim, secrets included."""
         out = self._client()._serialize_payload_for_log(
-            '{"uuid": "abc-123", "password": "s3cr3t"}',
+            json.dumps({"uuid": "abc-123", "password": SECRET_VALUE}),
         )
         self.assertIn("abc-123", out)
-        self.assertNotIn("s3cr3t", out)
+        self.assertNotIn(SECRET_VALUE, out)
 
     def test_key_material_under_an_unmatched_name_is_still_not_stored(self):
         """The redactor matches key *names*, and real payloads invent their own.
@@ -239,12 +249,15 @@ class TestLoggingCannotFailTheRequest(ClientLoggingCommon):
         mock_request.return_value = _ok_response()
 
         client = self._client()
-        client.post("/cancel", data=b'{"uuid": "abc-123", "password": "s3cr3t"}')
+        client.post(
+            "/cancel",
+            data=json.dumps({"uuid": "abc-123", "password": SECRET_VALUE}).encode(),
+        )
 
         rows = self._queued()
         self.assertEqual(len(rows), 1)
         self.assertIn("abc-123", rows[0]["request_payload"])
-        self.assertNotIn("s3cr3t", rows[0]["request_payload"])
+        self.assertNotIn(SECRET_VALUE, rows[0]["request_payload"])
 
 
 @tagged("post_install", "-at_install")
