@@ -121,7 +121,7 @@ class ProjectProject(models.Model):
     def _get_profitability_aal_domain(self):
         return Domain.AND([
             super()._get_profitability_aal_domain(),
-            ['|', ('move_line_id', '=', False), ('move_line_id.purchase_line_id', '=', False)],
+            ['|', ('move_line_id', '=', False), ('move_line_id.purchase_line_ids', '=', False)],
         ])
 
     def _add_purchase_items(self, profitability_items, with_action=True):
