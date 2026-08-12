@@ -345,13 +345,15 @@ class StockWarehouse(models.Model):
             if vals.get("partner_id"):
                 self._update_partner_data(vals["partner_id"], vals.get("company_id"))
 
-            view_location_id = self.env["stock.location"].browse(
+            # `warehouse_id` could not resolve while these locations were being
+            # created — the warehouse did not exist yet — so the whole subtree is
+            # recomputed now. Not just the direct children: since `create` honours
+            # a caller-supplied `view_location_id`, that view can be an existing
+            # location with a tree of any depth under it, and `warehouse_id`
+            # follows `parent_path`, which @api.depends cannot track.
+            self.env["stock.location"].browse(
                 vals.get("view_location_id")
-            )
-            (
-                view_location_id
-                | view_location_id.with_context(active_test=False).child_ids
-            ).write({"warehouse_id": warehouse.id})
+            )._recompute_descendants_warehouse()
 
         self._check_multiwarehouse_group()
 
@@ -2084,28 +2086,35 @@ class StockWarehouse(models.Model):
         ``_format_resupply_routename`` rather than patched, so the template stays
         in one place and a rename of *either* endpoint lands.
         """
-        Route = self.env["stock.route"].with_context(active_test=False)
+        new_prefix = "%s: " % new_name
         for warehouse in self:
             old_prefix = "%s: " % warehouse.name
-            new_prefix = "%s: " % new_name
             for route in warehouse.route_ids:
                 if route.name and route.name.startswith(old_prefix):
                     route.name = new_prefix + route.name[len(old_prefix) :]
-            resupply_routes = Route.search(
+        # One search for the whole recordset, not one per warehouse: a resupply
+        # route names both endpoints, so it is rebuilt from whichever of them is
+        # being renamed — membership in `self` is the test, and that works for a
+        # route joining two warehouses of the same batch.
+        resupply_routes = (
+            self.env["stock.route"]
+            .with_context(active_test=False)
+            .search(
                 [
                     "|",
-                    ("supplied_wh_id", "=", warehouse.id),
-                    ("supplier_wh_id", "=", warehouse.id),
+                    ("supplied_wh_id", "in", self.ids),
+                    ("supplier_wh_id", "in", self.ids),
                 ]
             )
-            for route in resupply_routes:
-                supplied, supplier = route.supplied_wh_id, route.supplier_wh_id
-                if not (supplied and supplier):
-                    continue
-                route.name = self._format_resupply_routename(
-                    new_name if supplied == warehouse else supplied.name,
-                    new_name if supplier == warehouse else supplier.name,
-                )
+        )
+        for route in resupply_routes:
+            supplied, supplier = route.supplied_wh_id, route.supplier_wh_id
+            if not (supplied and supplier):
+                continue
+            route.name = self._format_resupply_routename(
+                new_name if supplied in self else supplied.name,
+                new_name if supplier in self else supplier.name,
+            )
 
     def _update_rule_names(self, new_code):
         """Swap ``new_code`` into every rule name built from this warehouse's
@@ -2121,20 +2130,21 @@ class StockWarehouse(models.Model):
         the rebuild is idempotent *including* the stale name. Archived rules are
         renamed too — they come back on unarchive.
         """
-        for warehouse in self:
-            old_prefix = "%s: " % warehouse.code
-            new_prefix = "%s: " % new_code
-            # No name pattern in the domain: `code` is free text and would carry
-            # its own LIKE metacharacters. A warehouse holds a couple of dozen
-            # rules at most, so filtering in Python is both cheaper and exact.
-            rules = (
-                self.env["stock.rule"]
-                .with_context(active_test=False)
-                .search([("warehouse_id", "=", warehouse.id)])
-            )
-            for rule in rules:
-                if rule.name and rule.name.startswith(old_prefix):
-                    rule.name = new_prefix + rule.name[len(old_prefix) :]
+        # One search for the whole recordset, indexed in memory. No name pattern
+        # in the domain either: `code` is free text and would carry its own LIKE
+        # metacharacters, and a warehouse holds a couple of dozen rules at most,
+        # so the prefix test is both cheaper and exact in Python.
+        rules = (
+            self.env["stock.rule"]
+            .with_context(active_test=False)
+            .search([("warehouse_id", "in", self.ids)])
+        )
+        new_prefix = "%s: " % new_code
+        old_prefixes = {warehouse.id: "%s: " % warehouse.code for warehouse in self}
+        for rule in rules:
+            old_prefix = old_prefixes.get(rule.warehouse_id.id)
+            if old_prefix and rule.name and rule.name.startswith(old_prefix):
+                rule.name = new_prefix + rule.name[len(old_prefix) :]
 
     def _update_location_reception(self, new_reception_step):
         self.mapped("wh_qc_stock_loc_id").write(

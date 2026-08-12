@@ -11,7 +11,7 @@ FLOORS = {
     "orm-import": 0,
     "noqa-rationale": 78,
     "onchange-domain": 0,
-    "n-plus-one-query": 421,
+    "n-plus-one-query": 420,
 }
 
 
