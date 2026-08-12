@@ -3,6 +3,7 @@
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import py_function_length as pfl
 
@@ -112,6 +113,41 @@ class TestExcessIsTheRatchetedMetric(unittest.TestCase):
         bigger = [pfl.LongFunction("a.py", 1, 120, "f")]
         self.assertEqual(len(smaller), len(bigger), "the count cannot see this")
         self.assertGreater(pfl.excess_lines(bigger), pfl.excess_lines(smaller))
+
+
+class TestAddonScope(unittest.TestCase):
+    """`--addon` selects the tree, the same way `js_function_length.py` does."""
+
+    def test_the_default_addon_is_the_core_package(self):
+        self.assertEqual(pfl.addon_src(), pfl.SCOPE)
+        self.assertEqual(pfl.addon_src(pfl.DEFAULT_ADDON), pfl.SCOPE)
+
+    def test_the_default_reads_the_module_level_scope(self):
+        """So the suite's monkeypatching of `SCOPE` still bites."""
+        sentinel = Path("/nowhere/at/all")
+        with mock.patch.object(pfl, "SCOPE", sentinel):
+            self.assertEqual(pfl.addon_src(), sentinel)
+
+    def test_a_named_addon_resolves_under_addons(self):
+        src = pfl.addon_src("stock")
+        self.assertEqual(src, pfl.ROOT / "addons" / "stock")
+        self.assertNotEqual(src, pfl.SCOPE)
+
+    def test_scanning_an_addon_stays_inside_it_and_skips_tests(self):
+        src = pfl.addon_src("stock")
+        files = pfl.iter_source_files(src)
+        self.assertTrue(files, "the gate scanned nothing under addons/stock")
+        self.assertTrue(all(f.is_relative_to(src) for f in files))
+        self.assertFalse(
+            [f for f in files if "tests" in f.parts or f.name.startswith("test_")]
+        )
+
+    def test_an_addon_scan_is_not_the_core_scan(self):
+        """A flag that silently measured core would read as a passing floor."""
+        self.assertNotEqual(
+            pfl.iter_source_files(pfl.addon_src("stock")),
+            pfl.iter_source_files(),
+        )
 
 
 class TestRealTree(unittest.TestCase):

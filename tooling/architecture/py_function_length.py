@@ -64,8 +64,23 @@ from _repo_root import find_odoo_root
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_function_length")
 
 #: The core package, matching `ruff` and `c901`'s scope. `addons/` is budgeted
-#: separately or not at all, exactly as `c901`/`c901_addons` split it.
+#: separately, exactly as `c901`/`c901_addons` split it -- and, since this gate
+#: grew `--addon`, one baseline per addon rather than one for all of `addons/`.
 SCOPE = ROOT / "odoo"
+
+# Addon-parameterised the same way `js_function_length.py` is, defaulting to the
+# core package so the existing `pyfunclen` baseline keeps its meaning. `stock` is
+# the first addon onboarded: `stock_move.py` alone carries a 2698-line helper
+# section, and nothing bounded it -- `pyfunclen` stops at core and `c901_addons`
+# runs at complexity 20, which a long straight-line method never reaches.
+DEFAULT_ADDON = "core"
+
+
+def addon_src(addon: str = DEFAULT_ADDON) -> Path:
+    """The tree a run measures. Returns the module-level `SCOPE` for the default
+    so the suite's monkeypatching of that name still bites."""
+    return SCOPE if addon == DEFAULT_ADDON else ROOT / "addons" / addon
+
 
 MAX_LINES = 80
 
@@ -93,15 +108,18 @@ def _is_test_path(path: Path) -> bool:
     return "tests" in path.parts or path.name.startswith("test_")
 
 
-def iter_source_files() -> list[Path]:
+def iter_source_files(src: Path | None = None) -> list[Path]:
     return sorted(
         p
-        for p in SCOPE.rglob("*.py")
+        for p in (SCOPE if src is None else src).rglob("*.py")
         if "__pycache__" not in p.parts and not _is_test_path(p)
     )
 
 
-def measure(files: list[Path] | None = None) -> list[LongFunction]:
+def measure(
+    files: list[Path] | None = None,
+    src: Path | None = None,
+) -> list[LongFunction]:
     """Every function over :data:`MAX_LINES`, longest first.
 
     Raises when a *scan of the real tree* finds no source at all: an excess of
@@ -111,11 +129,11 @@ def measure(files: list[Path] | None = None) -> list[LongFunction]:
     ``files`` list is a caller passing nothing on purpose, and is not an error.
     """
     if files is None:
-        files = iter_source_files()
+        files = iter_source_files(src)
         if not files:
             raise RuntimeError(
-                f"no Python sources under {SCOPE} -- the scan found nothing, "
-                f"which is not the same as finding nothing wrong"
+                f"no Python sources under {SCOPE if src is None else src} -- the "
+                f"scan found nothing, which is not the same as finding nothing wrong"
             )
     found: list[LongFunction] = []
     for path in files:
@@ -156,10 +174,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true", help="machine-readable")
     parser.add_argument("--top", type=int, default=20, help="0 for all")
+    parser.add_argument(
+        "--addon",
+        default=DEFAULT_ADDON,
+        help=f"which addon to measure (default: {DEFAULT_ADDON}, the odoo/ package)",
+    )
     args = parser.parse_args(argv)
 
     try:
-        found = measure()
+        found = measure(src=addon_src(args.addon))
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -171,7 +194,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(f) for f in found], indent=2))
         return 0
 
-    print(f"Python function-length budget (> {MAX_LINES} lines, odoo/)")
+    where = "odoo/" if args.addon == DEFAULT_ADDON else f"addons/{args.addon}/"
+    print(f"Python function-length budget (> {MAX_LINES} lines, {where})")
     print("=" * 72)
     shown = found if args.top == 0 else found[: args.top]
     for item in shown:
@@ -186,9 +210,11 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"\nexcess lines above budget: {excess_lines(found)}   <- the ratcheted number"
     )
+    suffix = "" if args.addon == DEFAULT_ADDON else f" --addon {args.addon}"
+    name = "pyfunclen" if args.addon == DEFAULT_ADDON else f"pyfunclen_{args.addon}"
     print("\nRatchet it:")
-    print("  python tooling/architecture/py_function_length.py --count \\")
-    print("      | xargs python tooling/ratchet/ratchet.py pyfunclen --count")
+    print(f"  python tooling/architecture/py_function_length.py --count{suffix} \\")
+    print(f"      | xargs python tooling/ratchet/ratchet.py {name} --count")
     return 0
 
 
