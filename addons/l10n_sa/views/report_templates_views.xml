@@ -3,13 +3,19 @@
     <template id="l10n_sa_additional_footer">
         <span t-if="report_type == 'pdf' and additional_footer_text" class="text-muted text-center" t-out="additional_footer_text"/><br/>
     </template>
+    <!-- standard, boxed, bold, striped and folder render their page counter through
+         web.external_layout_footer; a per-layout xpath cannot see into a t-called
+         template, so one override on the footer serves all five. wave and bubble keep
+         theirs: their footers are inline. -->
+    <template id="l10n_sa_external_layout_footer" inherit_id="web.external_layout_footer">
+        <xpath expr="//span[hasclass('page')]/.." position="before">
+            <t t-call="l10n_sa.l10n_sa_additional_footer"/>
+        </xpath>
+    </template>
     <template id="l10n_sa_external_layout_standard" inherit_id="web.external_layout_standard">
         <!-- support for custom header -->
         <xpath expr="//img" position="after">
             <t t-if="custom_header_sa" t-out="custom_header_sa"/>
-        </xpath>
-        <xpath expr="//span[hasclass('page')]/.." position="before">
-            <t t-call="l10n_sa.l10n_sa_additional_footer"/>
         </xpath>
     </template>
     <template id="l10n_sa_external_layout_boxed" inherit_id="web.external_layout_boxed">
@@ -17,17 +23,11 @@
         <xpath expr="//img" position="after">
             <t t-if="custom_header_sa" t-out="custom_header_sa"/>
         </xpath>
-        <xpath expr="//span[hasclass('page')]/.." position="before">
-            <t t-call="l10n_sa.l10n_sa_additional_footer"/>
-        </xpath>
     </template>
     <template id="l10n_sa_external_layout_bold" inherit_id="web.external_layout_bold">
         <!-- support for custom header -->
         <xpath expr="//img" position="after">
             <t t-if="custom_header_sa" t-out="custom_header_sa"/>
-        </xpath>
-        <xpath expr="//span[hasclass('page')]/.." position="before">
-            <t t-call="l10n_sa.l10n_sa_additional_footer"/>
         </xpath>
     </template>
     <template id="l10n_sa_external_layout_striped" inherit_id="web.external_layout_striped">
@@ -35,17 +35,11 @@
         <xpath expr="//img" position="after">
             <t t-if="custom_header_sa" t-out="custom_header_sa"/>
         </xpath>
-        <xpath expr="//span[hasclass('page')]/.." position="before">
-            <t t-call="l10n_sa.l10n_sa_additional_footer"/>
-        </xpath>
     </template>
     <template id="l10n_sa_external_layout_folder" inherit_id="web.external_layout_folder">
         <!-- support for custom header -->
         <xpath expr="//img" position="after">
             <t t-if="custom_header_sa" t-out="custom_header_sa"/>
-        </xpath>
-        <xpath expr="//span[hasclass('page')]/.." position="before">
-            <t t-call="l10n_sa.l10n_sa_additional_footer"/>
         </xpath>
         <t t-set="header_shape_height" position="after">
             <t t-set="header_shape_height" t-if="o and o._name == 'account.move' and o.country_code == 'SA'">215</t>
