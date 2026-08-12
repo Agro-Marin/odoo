@@ -56,7 +56,7 @@ class TestKitQtyTransferred(AccountTestInvoicingCommon):
                             "product_qty": 1,
                             "product_uom_id": self.kit.uom_id.id,
                             "price_unit": 60.0,
-                            "date_planned": fields.Datetime.now(),
+                            "date_commitment": fields.Datetime.now(),
                         }
                     )
                 ],
@@ -150,7 +150,7 @@ class TestMoPurchaseLinks(AccountTestInvoicingCommon):
                             "product_qty": 1,
                             "product_uom_id": product.uom_id.id,
                             "price_unit": 10.0,
-                            "date_planned": fields.Datetime.now(),
+                            "date_commitment": fields.Datetime.now(),
                         }
                     )
                 ],
