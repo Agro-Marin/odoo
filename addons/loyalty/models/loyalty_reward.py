@@ -217,7 +217,12 @@ class LoyaltyReward(models.Model):
             reward.reward_product_ids = (reward.reward_type == 'product' and products) or self.env['product.product']
 
     def _search_reward_product_ids(self, operator, value):
-        if operator != 'in':
+        # 'any' as well as 'in': the ORM optimizes a relational condition into 'any'
+        # (an active_test on the products is enough to produce one), and both operators
+        # are delegated unchanged to two relational fields that accept either. The
+        # negative forms are not passed through -- the '|' below would have to become a
+        # '&' for them.
+        if operator not in ('in', 'any'):
             return NotImplemented
         return [
             '&', ('reward_type', '=', 'product'),
