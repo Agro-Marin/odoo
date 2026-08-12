@@ -749,3 +749,69 @@ class TestDigestAuthAndTlsVerification(TransactionCase):
         # CommError would otherwise report this as "cannot connect".
         with self.assertRaises(UserError):
             client._get_tls_verification("https://api.example.com/v1/things")
+
+
+@tagged("post_install", "-at_install")
+class TestRawResponsesBypassTheCache(ClientLoggingCommon):
+    """A raw caller must never be handed a cached dict.
+
+    The cache stores parsed bodies. Serving one to a caller that asked for the
+    live response returns a dict where the contract promises a Response, and its
+    ``.content`` / ``.iter_lines()`` raises AttributeError.
+
+    The asymmetry is what made this hard to see: the raw branch returns before
+    the cache is written, so a raw call never populates the cache -- it could
+    only ever be poisoned by a *non-raw* call to the same URL, which means it
+    surfaces once two callers share a service and then looks like their fault.
+    Telegram is exactly that shape: JSON API calls and binary file downloads,
+    one service record.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.cached_service = cls.env["api.endpoint.outbound"].create(
+            {
+                "name": "Cached probe",
+                "code": "cached_probe",
+                "endpoint_url": "https://example.invalid/live",
+                "auth_type": "none",
+                "environment": "production",
+                "cache_enabled": True,
+                "cache_ttl": 300,
+            }
+        )
+
+    def _client(self):
+        return self.cached_service._get_api_client()
+
+    @patch("requests.Session.request")
+    def test_a_raw_get_is_not_served_a_cached_dict(self, mock_request):
+        mock_request.return_value = _ok_response()
+
+        # Populate the cache the only way it can be populated: a parsed call.
+        first = self._client().get("/thing")
+        self.assertEqual(first["status_code"], 200)
+
+        raw = self._client().get("/thing", raw=True)
+
+        self.assertFalse(
+            isinstance(raw, dict),
+            "a raw caller was handed the cached parsed body",
+        )
+        self.assertTrue(hasattr(raw, "content"), "raw must return a live response")
+
+    @patch("requests.Session.request")
+    def test_the_cache_still_works_for_parsed_callers(self, mock_request):
+        """The guard against fixing this by disabling the cache."""
+        mock_request.return_value = _ok_response()
+
+        self._client().get("/cached-thing")
+        calls_after_first = mock_request.call_count
+        self._client().get("/cached-thing")
+
+        self.assertEqual(
+            mock_request.call_count,
+            calls_after_first,
+            "the second parsed call should have been served from cache",
+        )

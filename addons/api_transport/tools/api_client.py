@@ -407,8 +407,17 @@ class APIGatewayClient:
 
         url = self._build_url(endpoint)
 
-        # Check cache - failures shouldn't break the API call
-        if method == "GET" and not skip_cache and self.service.cache_enabled:
+        # Check cache - failures shouldn't break the API call.
+        #
+        # `not raw` is load-bearing, not an optimisation. The cache stores
+        # parsed bodies, so serving one to a raw caller returns a dict where the
+        # documented return type is a live Response, and the caller's
+        # `.content` / `.iter_lines()` raises AttributeError. The asymmetry made
+        # it worse: the raw branch returns before the write below, so a raw call
+        # never populates the cache but could be served an entry a non-raw call
+        # to the same URL had left there -- a bug that only appears once two
+        # callers share a service, and then looks like a caller's fault.
+        if method == "GET" and not skip_cache and not raw and self.service.cache_enabled:
             try:
                 cached = self._get_from_cache(url, kwargs.get("params"))
                 if cached:
