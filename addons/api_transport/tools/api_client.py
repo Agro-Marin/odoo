@@ -417,7 +417,12 @@ class APIGatewayClient:
         # never populates the cache but could be served an entry a non-raw call
         # to the same URL had left there -- a bug that only appears once two
         # callers share a service, and then looks like a caller's fault.
-        if method == "GET" and not skip_cache and not raw and self.service.cache_enabled:
+        if (
+            method == "GET"
+            and not skip_cache
+            and not raw
+            and self.service.cache_enabled
+        ):
             try:
                 cached = self._get_from_cache(url, kwargs.get("params"))
                 if cached:

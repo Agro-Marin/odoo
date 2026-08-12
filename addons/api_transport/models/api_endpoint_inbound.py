@@ -147,9 +147,7 @@ class ApiEndpointInbound(models.AbstractModel):
         max_window = int(
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param(
-                "api_transport.max_duplicate_window_seconds", default="3600"
-            ),
+            .get_param("api_transport.max_duplicate_window_seconds", default="3600"),
         )
 
         for record in self:

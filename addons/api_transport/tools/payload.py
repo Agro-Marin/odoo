@@ -28,8 +28,10 @@ def validate_payload_size(
     if payload_size > max_size_bytes:
         return (
             False,
-            f"Payload too large: {payload_size} bytes exceeds maximum of {max_size_bytes} bytes "
-            f"({max_size_bytes // 1024}KB)",
+            (
+                f"Payload too large: {payload_size} bytes exceeds maximum of "
+                f"{max_size_bytes} bytes ({max_size_bytes // 1024}KB)"
+            ),
         )
 
     return True, None

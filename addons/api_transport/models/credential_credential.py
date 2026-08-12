@@ -54,7 +54,9 @@ class CredentialCredential(models.Model):
                 ) from err
             if not isinstance(parsed, dict):
                 raise ValidationError(
-                    self.env._("Custom headers must be a JSON object of header names to values.")
+                    self.env._(
+                        "Custom headers must be a JSON object of header names to values."
+                    )
                 )
 
     def get_auth_headers(self):
@@ -97,7 +99,7 @@ class CredentialCredential(models.Model):
         if self.custom_headers:
             try:
                 headers.update(json.loads(self.custom_headers))
-            except (json.JSONDecodeError, ValueError, TypeError):
+            except json.JSONDecodeError, ValueError, TypeError:
                 # Constrained on write, so this only fires for rows written
                 # before that constraint existed.
                 _logger.warning(
