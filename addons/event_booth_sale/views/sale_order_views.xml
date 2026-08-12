@@ -21,7 +21,7 @@
                 <field name="event_booth_category_id" column_invisible="True"/>
                 <field name="event_booth_pending_ids" column_invisible="True"/>
             </xpath>
-            <xpath expr="//field[@name='line_ids']//list//field[@name='product_uom_qty']" position="attributes">
+            <xpath expr="//field[@name='line_ids']//list//field[@name='product_qty']" position="attributes">
                 <attribute name="readonly" separator="or" add="service_tracking == 'event_booth'"/>
             </xpath>
         </field>
