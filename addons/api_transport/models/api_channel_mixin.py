@@ -217,7 +217,7 @@ class ApiChannelMixin(models.AbstractModel):
         # password.
         return hashlib.sha256(token.encode()).hexdigest() if token else False
 
-    def verify_token(self, token):
+    def is_valid_token(self, token):
         """Return whether ``token`` is this channel's shared secret.
 
         Compares digests, so no decryption happens and no credential-manager

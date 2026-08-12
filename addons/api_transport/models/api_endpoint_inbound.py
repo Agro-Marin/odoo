@@ -358,10 +358,10 @@ class ApiEndpointInbound(models.AbstractModel):
         # same public user — so decrypting here throttled a correctly
         # provisioned device to 100 requests/hour and answered the 101st with
         # "Invalid credentials", 60x tighter than the endpoint's own configured
-        # limit and reported as the wrong failure. ``verify_token`` compares
+        # limit and reported as the wrong failure. ``is_valid_token`` compares
         # ``credential_fingerprint`` instead: no decryption, no budget spent.
         if self.auth_type in ("bearer", "api_key"):
-            is_valid = self._verify_bearer_headers(headers)
+            is_valid = self._is_valid_bearer(headers)
             if is_valid and self.credential_id:
                 self.credential_id.mark_as_used()
             return is_valid
@@ -388,8 +388,8 @@ class ApiEndpointInbound(models.AbstractModel):
 
         return is_valid
 
-    def _verify_bearer_headers(self, headers: dict[str, Any]) -> bool:
-        """Verify the bearer/api-key token carried by ``headers``.
+    def _is_valid_bearer(self, headers: dict[str, Any]) -> bool:
+        """Return whether the bearer/api-key token carried by ``headers`` matches.
 
         :param headers: HTTP request headers.
         :return: True when the presented token is this endpoint's secret.
@@ -402,7 +402,7 @@ class ApiEndpointInbound(models.AbstractModel):
                 "No bearer token presented for endpoint %s", self.display_name
             )
             return False
-        return self.verify_token(token)
+        return self.is_valid_token(token)
 
     @api.model
     def _presented_token(self, headers: dict[str, Any]) -> str:
@@ -482,7 +482,7 @@ class ApiEndpointInbound(models.AbstractModel):
         if mode == self.AUTH_MODE_OFF:
             return True, ""
 
-        if self.ip_whitelist and not self.validate_ip_address(remote_addr):
+        if self.ip_whitelist and not self.is_ip_allowed(remote_addr):
             return False, f"IP {remote_addr} not allowed for {self.display_name}"
 
         if self.rate_limit_enabled and not self.check_rate_limit():
@@ -490,7 +490,7 @@ class ApiEndpointInbound(models.AbstractModel):
 
         # Digest comparison — see _compute_credential_fingerprint for why this
         # must never become a decryption.
-        if self.verify_token(self._presented_token(headers)):
+        if self.is_valid_token(self._presented_token(headers)):
             return True, ""
 
         if mode == self.AUTH_MODE_AUDIT:
@@ -635,7 +635,7 @@ class ApiEndpointInbound(models.AbstractModel):
 
         return self.env["api.event.log"].sudo().search_count(domain) > 0
 
-    def validate_ip_address(self, source_ip: str) -> bool:
+    def is_ip_allowed(self, source_ip: str) -> bool:
         """Return whether the source IP is allowed by the whitelist.
 
         The check is shared with base_automation's webhook rules (see

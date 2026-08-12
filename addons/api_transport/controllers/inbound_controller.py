@@ -126,7 +126,7 @@ class InboundController(BaseCommController):
 
         # 3. Check IP whitelist (before auth: don't reveal auth outcome to
         #    unauthorized sources, and don't spend auth work on them).
-        if endpoint.ip_whitelist and not endpoint.validate_ip_address(remote_addr):
+        if endpoint.ip_whitelist and not endpoint.is_ip_allowed(remote_addr):
             _logger.warning(
                 "IP not allowed: %s for endpoint %s",
                 remote_addr,
