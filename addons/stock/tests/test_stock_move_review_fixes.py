@@ -47,7 +47,7 @@ class TestStockMoveReviewFixes(TestStockCommon):
         """
         lot = self.env["stock.lot"].create(
             {"name": "REVIEW-NOSTOCK", "product_id": self.lot_product.id},
-        )  # deliberately no quant
+        )
 
         picking_c = self._out_picking()
         move_c = self.env["stock.move"].create(
@@ -659,6 +659,67 @@ class TestStockMoveReviewFixes(TestStockCommon):
             changed_calls,
             2,
             "a real location change must refresh both the old and the new scope",
+        )
+
+    def test_pasted_lot_list_may_repeat_a_name(self):
+        """A repeated lot name in a pasted list maps to one lot, not to a crash.
+
+        `_create_lot_ids_from_move_line_vals` built its create values from a list
+        that still held the repeats, so it asked for two `stock.lot` records with
+        the same (product, name) and hit the model's own uniqueness constraint --
+        telling the user their paste contained duplicates when the duplicate was
+        this method's. Two move lines of one lot is a legitimate thing to paste.
+        """
+        vals_list = [
+            {"lot_name": "REVIEW-DUP-A", "quantity": 1},
+            {"lot_name": "REVIEW-DUP-B", "quantity": 1},
+            {"lot_name": "REVIEW-DUP-A", "quantity": 1},
+        ]
+        Lot = self.env["stock.lot"]
+        before = Lot.search_count([("product_id", "=", self.lot_product.id)])
+
+        self.env["stock.move"]._create_lot_ids_from_move_line_vals(
+            vals_list,
+            self.lot_product.id,
+            self.env.company.id,
+        )
+        self.env.flush_all()
+
+        created = Lot.search_count([("product_id", "=", self.lot_product.id)]) - before
+        self.assertEqual(created, 2, "one lot per distinct name, not per line")
+        self.assertEqual(
+            vals_list[0]["lot_id"],
+            vals_list[2]["lot_id"],
+            "both lines carrying the same name must point at the same lot",
+        )
+        self.assertNotEqual(vals_list[0]["lot_id"], vals_list[1]["lot_id"])
+        self.assertTrue(all(v["lot_name"] is False for v in vals_list))
+
+    def test_generate_lot_line_vals_import_tolerates_a_repeated_name(self):
+        """The same thing through the RPC entry point the paste dialog calls."""
+        self.picking_type_in.write(
+            {"use_create_lots": True, "use_existing_lots": True},
+        )
+        context_data = {
+            "default_product_id": self.lot_product.id,
+            "default_tracking": "lot",
+            "default_location_dest_id": self.stock_location.id,
+            "default_company_id": self.env.company.id,
+            "default_picking_type_id": self.picking_type_in.id,
+            "default_quantity": 3,
+        }
+        vals = self.env["stock.move"].action_generate_lot_line_vals(
+            context_data,
+            "import",
+            "",
+            0,
+            "REVIEW-PASTE-1\nREVIEW-PASTE-2\nREVIEW-PASTE-1",
+        )
+        self.assertEqual(len(vals), 3, "every pasted line still yields a move line")
+        self.assertEqual(
+            vals[0]["lot_id"]["id"],
+            vals[2]["lot_id"]["id"],
+            "the repeated name must resolve to the one lot",
         )
 
     def test_generated_lot_split_rejects_non_numeric_quantity(self):

@@ -2781,11 +2781,18 @@ Please change the quantity done or the rounding precision of your unit of measur
             ],
         )
         lot_id_names = set(lot_ids.mapped("name"))
-        lot_names = [
+        # `dict.fromkeys` dedupes while preserving order. The same lot name may
+        # legitimately appear on several of the pasted lines -- two move lines of
+        # one lot -- and creating a `stock.lot` per occurrence tripped the model's
+        # own uniqueness constraint, reporting the user's paste as containing
+        # duplicates when it was this method that made them. A repeated *serial*
+        # is still a real mistake; it is now caught by `check_quantity` at
+        # validation, which says so, instead of here, which did not.
+        missing_names = dict.fromkeys(
             lot_name for lot_name in lot_names if lot_name not in lot_id_names
-        ]  # lot_names not found to create
+        )
         lots_to_create_vals = [
-            {"product_id": product_id, "name": lot_name} for lot_name in lot_names
+            {"product_id": product_id, "name": lot_name} for lot_name in missing_names
         ]
         lot_ids |= self.env["stock.lot"].create(lots_to_create_vals)
 
