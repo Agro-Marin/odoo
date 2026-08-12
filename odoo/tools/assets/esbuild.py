@@ -346,34 +346,9 @@ class EsbuildCompiler:
         out_path = str(Path(tmp_dir) / "bundle.out.js")
         metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
 
-        alias_flags = list(alias_flags)
-        if secondary_parent_stubs:
-            stub_flags = self._write_stub_mirror(
-                Path(tmp_dir) / "stubs",
-                secondary_parent_stubs,
-                alias_flags,
-                odoo_root,
-            )
-            if stub_flags:
-                # A stub's alias must *replace* any alias the addon scan already
-                # emitted for the same specifier, not sit beside it — with two
-                # `--alias:` flags for one specifier which of them wins is
-                # esbuild's business, not ours. This is what a bare package
-                # (`@spreadsheet`, aliased to its `static/src`) always hits, and
-                # what a `_LIB_CANDIDATES` entry aliased straight to a file
-                # (`@odoo/hoot-dom`) would hit too. A plain sub-path specifier
-                # (`@web/core/network`) has no scanned alias, so nothing is
-                # dropped for it.
-                stubbed = {
-                    flag.removeprefix("--alias:").partition("=")[0]
-                    for flag in stub_flags
-                }
-                alias_flags = [
-                    flag
-                    for flag in alias_flags
-                    if flag.removeprefix("--alias:").partition("=")[0] not in stubbed
-                ]
-                alias_flags.extend(stub_flags)
+        alias_flags = self._esbuild_stub_aliases(
+            list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
+        )
 
         log_event(
             _esbuild_log,
@@ -418,6 +393,40 @@ class EsbuildCompiler:
             return EsbuildResult(code, self._last_metafile, self._last_sourcemap)
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def _esbuild_stub_aliases(
+        self,
+        alias_flags: list[str],
+        secondary_parent_stubs: dict[str, str] | None,
+        tmp_dir: str,
+        odoo_root: Path,
+    ) -> list[str]:
+        """Return ``alias_flags`` with the secondary-parent stub mirror applied.
+
+        A stub's alias must *replace* any alias the addon scan already emitted
+        for the same specifier, not sit beside it — with two ``--alias:`` flags
+        for one specifier, which of them wins is esbuild's business, not ours.
+        That is what a bare package (``@spreadsheet``, aliased to its
+        ``static/src``) always hits, and what a ``_LIB_CANDIDATES`` entry aliased
+        straight to a file (``@odoo/hoot-dom``) would hit too. A plain sub-path
+        specifier (``@web/core/network``) has no scanned alias, so nothing is
+        dropped for it.
+        """
+        if not secondary_parent_stubs:
+            return alias_flags
+        stub_flags = self._write_stub_mirror(
+            Path(tmp_dir) / "stubs", secondary_parent_stubs, alias_flags, odoo_root
+        )
+        if not stub_flags:
+            return alias_flags
+        stubbed = {
+            flag.removeprefix("--alias:").partition("=")[0] for flag in stub_flags
+        }
+        return [
+            flag
+            for flag in alias_flags
+            if flag.removeprefix("--alias:").partition("=")[0] not in stubbed
+        ] + stub_flags
 
     def _esbuild_resolve_opts(
         self,
