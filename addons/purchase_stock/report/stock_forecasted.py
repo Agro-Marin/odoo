@@ -8,7 +8,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         res = super()._get_report_header(
             product_template_ids, product_ids, wh_location_ids
         )
-        domain = [("state", "in", ["draft", "sent", "to approve"])]
+        domain = [("state", "=", "draft")]
         domain += self._product_purchase_domain(product_template_ids, product_ids)
         warehouse_id = self.env.context.get("warehouse_id", False)
         if warehouse_id:

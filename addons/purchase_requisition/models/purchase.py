@@ -32,7 +32,7 @@ class PurchaseOrder(models.Model):
         "purchase.order",
         related="purchase_group_id.order_ids",
         readonly=False,
-        domain="[('id', '!=', id), ('state', 'in', ['draft', 'sent', 'to approve'])]",
+        domain="[('id', '!=', id), ('state', '=', 'draft')]",
         string="Alternative POs",
         check_company=True,
         help="Other potential purchase orders for purchasing products",
@@ -118,7 +118,7 @@ class PurchaseOrder(models.Model):
         ):
             alternative_po_ids = self.alternative_po_ids.filtered(
                 lambda po: (
-                    po.state in ["draft", "sent", "to approve"]
+                    po.state == "draft"
                     and po.id not in self.ids
                 )
             )

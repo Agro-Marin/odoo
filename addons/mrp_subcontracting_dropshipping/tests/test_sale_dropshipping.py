@@ -44,7 +44,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'partner_id': self.customer.id,
             'picking_policy': 'direct',
             'line_ids': [
-                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_uom_qty': 1}),
+                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_qty': 1}),
             ],
         })
         sale_order.action_confirm()
@@ -93,7 +93,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'partner_id': self.customer.id,
             'picking_policy': 'direct',
             'line_ids': [
-                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_uom_qty': 1}),
+                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_qty': 1}),
             ],
         })
         sale_order.action_confirm()
@@ -151,7 +151,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'partner_id': self.customer.id,
             'picking_policy': 'direct',
             'line_ids': [
-                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_uom_qty': 1}),
+                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_qty': 1}),
             ],
         })
         sale_order.action_confirm()
@@ -236,7 +236,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'partner_id': self.customer.id,
             'picking_policy': 'direct',
             'line_ids': [
-                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_uom_qty': 1}),
+                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_qty': 1}),
             ],
         })
         sale_order.action_confirm()
@@ -275,7 +275,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'partner_id': self.customer.id,
             'picking_policy': 'direct',
             'line_ids': [
-                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_uom_qty': 1}),
+                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_qty': 1}),
             ],
         })
         sale_order.action_confirm()
@@ -324,11 +324,11 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'name': "Order line",
             'product_id': final_product.id,
             'order_id': so.id,
-            'product_uom_qty': 25,
+            'product_qty': 25,
         })
         so.action_confirm()
-        sol.write({'product_uom_qty': 10})
-        self.assertEqual(sol.purchase_line_ids.mapped('product_uom_qty'), [10, 10])
+        sol.write({'product_qty': 10})
+        self.assertEqual(sol.purchase_line_ids.mapped('product_qty'), [10, 10])
 
     def test_dropship_move_lines_have_bom_line_id(self):
         """ When selling a dropshipped kit, ensure that the move lines have a correctly
@@ -354,7 +354,7 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
             'partner_id': self.customer.id,
             'picking_policy': 'direct',
             'line_ids': [
-                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_uom_qty': 1}),
+                (0, 0, {'name': kit.name, 'product_id': kit.id, 'product_qty': 1}),
             ],
         })
         sale_order.action_confirm()
@@ -362,8 +362,6 @@ class TestSaleDropshippingFlows(TestMrpSubcontractingCommon):
 
         picking = sale_order.picking_ids
         picking.button_validate()
-        purchase_order = sale_order._get_purchase_orders()
-        purchase_order.action_confirm()
         # The bom_line_id on the stock move should be set
         compo_move = sale_order.line_ids.move_ids.filtered(lambda sm: sm.product_id == compo)
         compo_bom_line = kit_bom.bom_line_ids.filtered(lambda bl: bl.product_id == compo)

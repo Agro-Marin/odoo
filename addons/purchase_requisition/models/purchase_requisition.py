@@ -239,7 +239,7 @@ class PurchaseRequisition(models.Model):
         Generate all purchase order based on selected lines, should only be called on one agreement at a time
         """
         if any(
-            purchase_order.state in ["draft", "sent", "to approve"]
+            purchase_order.state == "draft"
             for purchase_order in self.mapped("purchase_ids")
         ):
             raise UserError(

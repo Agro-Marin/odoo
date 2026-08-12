@@ -104,7 +104,7 @@ class SaleOrderLine(models.Model):
         """
         for line in self:
             last_purchase_line = self.env['purchase.order.line'].search([('sale_line_id', '=', line.id)], order='create_date DESC', limit=1)
-            if last_purchase_line.state in ['draft', 'sent', 'to approve']:  # update qty for draft PO lines
+            if last_purchase_line.state == 'draft':  # update qty for RFQ lines
                 quantity = line.product_uom_id._compute_quantity(new_qty, last_purchase_line.product_uom_id)
                 last_purchase_line.write({'product_qty': quantity})
             elif last_purchase_line.state in ['done', 'cancel']:  # create new PO, by forcing the quantity as the difference from SO line

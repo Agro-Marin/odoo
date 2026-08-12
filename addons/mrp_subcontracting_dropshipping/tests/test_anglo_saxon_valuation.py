@@ -174,7 +174,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
             'line_ids': [(0, 0, {
                 'product_id': final_product.id,
                 'route_ids': [Command.link(self.dropship_route.id)],
-                'product_uom_qty': 100,
+                'product_qty': 100,
             })],
         })
         sale_order.action_confirm()
@@ -263,7 +263,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
                 'price_unit': 900,
                 'product_id': kit_final_prod.id,
                 'route_ids': [Command.link(self.dropship_route.id)],
-                'product_uom_qty': 2.0,
+                'product_qty': 2.0,
             })],
         })
         sale_order.action_confirm()

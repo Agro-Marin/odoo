@@ -41,7 +41,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
         so_form.warehouse_id = self.warehouse
         with so_form.line_ids.new() as line:
             line.product_id = self.finished
-            line.product_uom_qty = 1
+            line.product_qty = 1
         so = so_form.save()
         so.action_confirm()
 
@@ -49,7 +49,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
         po = self.env['purchase.order'].search([('origin', 'ilike', so.name)])
         self.assertTrue(po)
 
-        po.button_approve()
+        po.action_confirm()
 
         picking_finished = po.picking_ids
         self.assertEqual(len(picking_finished), 1.0)
@@ -109,7 +109,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
         self.assertTrue(picking_deliveries.state != 'cancel')
         move1 = picking_deliveries.move_ids[0]
         self.assertEqual(move1.product_id, self.comp1)
-        self.assertEqual(move1.product_uom_qty, 1)
+        self.assertEqual(move1.product_qty, 1)
 
     def test_dropshipped_component_and_sub_location(self):
         """
@@ -395,13 +395,13 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
                 Command.create({
                     'product_id': finished_products[0].id,
                     'name': finished_products[0].name,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                     'product_uom_id': uom_unit.id,
                 }),
                 Command.create({
                     'product_id': finished_products[1].id,
                     'name': finished_products[1].name,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                     'product_uom_id': uom_unit.id,
                 }),
             ],
