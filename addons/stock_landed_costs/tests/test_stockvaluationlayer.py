@@ -341,7 +341,7 @@ class TestStockValuationLCAVCO(TestStockValuationLCCommon):
         receipt.move_line_ids.quantity = 1
         receipt.button_validate()
 
-        bill_form = Form.from_action(self.env, po.action_create_invoice())
+        bill_form = Form(po.create_invoice())
         bill_form.invoice_date = bill_form.date
         with bill_form.invoice_line_ids.new() as inv_line:
             inv_line.product_id = self.productlc1
@@ -404,8 +404,7 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(valuation_aml.credit, 0)
 
         # Create a vendor bill for the RFQ
-        action = rfq.action_create_invoice()
-        vb = self.env['account.move'].browse(action['res_id'])
+        vb = rfq.create_invoice()
         vb.invoice_date = vb.date
         vb.action_post()
 
@@ -543,8 +542,7 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         self.assertEqual(valuation_aml.credit, 0)
 
         # Create a vebdor bill for the RFQ
-        action = rfq.action_create_invoice()
-        vb = self.env['account.move'].browse(action['res_id'])
+        vb = rfq.create_invoice()
         vb.invoice_date = vb.date
         vb.action_post()
 
@@ -645,8 +643,7 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         receipt.move_line_ids.quantity = 1
         receipt.button_validate()
 
-        action = po.action_create_invoice()
-        bill = self.env['account.move'].browse(action['res_id'])
+        bill = po.create_invoice()
         bill_form = Form(bill)
         bill_form.invoice_date = invoice_date
         bill_form.date = accounting_date
@@ -685,8 +682,7 @@ class TestAccountInvoicingWithCOA(TestStockValuationLCCommon):
         })
 
     def _bill(self, po, qty=None, price=None):
-        action = po.action_create_invoice()
-        bill = self.env["account.move"].browse(action["res_id"])
+        bill = po.create_invoice()
         bill.invoice_date = fields.Date.today()
         if qty is not None:
             bill.invoice_line_ids.quantity = qty

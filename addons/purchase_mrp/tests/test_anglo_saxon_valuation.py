@@ -45,8 +45,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
 
         po.picking_ids.button_validate()
 
-        action = po.action_create_invoice()
-        invoice = self.env['account.move'].browse(action['res_id'])
+        invoice = po.create_invoice()
         invoice.invoice_date = Date.today()
         invoice.action_post()
 

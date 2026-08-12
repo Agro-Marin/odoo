@@ -205,7 +205,7 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
             receipt.button_validate()
             po.line_ids[1].qty_transferred = 1
 
-            po.action_create_invoice()
+            po.create_invoice()
             bill = po.invoice_ids
             bill.invoice_date = fields.Date.today()
 

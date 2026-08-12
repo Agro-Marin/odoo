@@ -1369,7 +1369,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             ],
         })
         purchase_order.action_confirm()
-        purchase_order.action_create_invoice()
+        purchase_order.create_invoice()
         bill = purchase_order.invoice_ids
         bill.invoice_date = fields.Date.today()
         bill.action_post()

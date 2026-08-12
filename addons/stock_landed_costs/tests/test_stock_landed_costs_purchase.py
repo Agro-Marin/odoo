@@ -462,7 +462,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
             })],
         })
         purchase_order.action_confirm()
-        purchase_order.action_create_invoice()
+        purchase_order.create_invoice()
         bill = purchase_order.invoice_ids[0]
         receipt = purchase_order.picking_ids[0]
         receipt.picking_type_id.create_backorder = 'always'
@@ -530,7 +530,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         receipt.button_validate()
         po.line_ids[1].qty_transferred = 1
 
-        po.action_create_invoice()
+        po.create_invoice()
         bill = po.invoice_ids
 
         # Create and validate LC
@@ -590,7 +590,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
             })],
         })
         purchase_order.action_confirm()
-        purchase_order.action_create_invoice()
+        purchase_order.create_invoice()
         bill = purchase_order.invoice_ids[0]
         bill.invoice_line_ids[0].quantity = 23000
         receipt = purchase_order.picking_ids[0]
@@ -613,7 +613,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         lc.button_validate()
         self.assertEqual(product.standard_price, 2.35)
 
-        purchase_order.action_create_invoice()
+        purchase_order.create_invoice()
         bill2 = purchase_order.invoice_ids.filtered(lambda b: b.state == 'draft')
         bill2.invoice_line_ids[0].quantity = 27000
         bill2.invoice_date = Date.today()
@@ -651,7 +651,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
             })],
         })
         purchase_order.action_confirm()
-        purchase_order.action_create_invoice()
+        purchase_order.create_invoice()
         bill = purchase_order.invoice_ids[0]
         bill.invoice_line_ids[0].quantity = 1
         bill.invoice_date = '2000-05-05'
@@ -719,7 +719,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         picking = po.picking_ids
         picking.move_ids.quantity = 1
         picking.button_validate()
-        po.action_create_invoice()
+        po.create_invoice()
         bill = po.invoice_ids[0]
         bill.invoice_date = fields.Date.today()
         bill.action_post()
@@ -794,7 +794,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         backorder_picking = purchase_order.picking_ids.filtered(lambda p: p.backorder_id == picking)
         self.assertTrue(backorder_picking, "Backorder picking was not created or not found.")
 
-        bill = self.env["account.move"].browse(purchase_order.action_create_invoice()["res_id"])
+        bill = purchase_order.create_invoice()
         bill.invoice_date = fields.Date.today()
         bill.invoice_line_ids.quantity = 70
         bill.action_post()
@@ -825,7 +825,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         landed_cost.button_validate()
 
         # Create a draft bill for the remaining 120 units
-        bill2 = self.env["account.move"].browse(purchase_order.action_create_invoice()["res_id"])
+        bill2 = purchase_order.create_invoice()
         bill2.invoice_date = fields.Date.today()
         self.assertAlmostEqual(bill2.invoice_line_ids[0].quantity, 120, msg="Bill 2 should be for the remaining 120 units.")
         self.assertAlmostEqual(bill2.invoice_line_ids[0].price_unit, 110, msg="Bill 2 unit price should match PO price.")

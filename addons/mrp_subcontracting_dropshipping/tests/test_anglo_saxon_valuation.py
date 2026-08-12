@@ -272,7 +272,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         dropship_transfer = purchase_order.picking_ids[0]
         dropship_transfer.button_validate()
 
-        purchase_order.action_create_invoice()
+        purchase_order.create_invoice()
         bill = purchase_order.invoice_ids
         bill.action_post()
         invoice = sale_order._create_invoices()

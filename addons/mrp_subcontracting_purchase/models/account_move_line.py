@@ -8,9 +8,9 @@ class AccountMoveLine(models.Model):
 
     def _get_price_unit_val_dif_and_relevant_qty(self):
         price_unit_val_dif, relevant_qty = super()._get_price_unit_val_dif_and_relevant_qty()
-        if self.product_id.cost_method == 'standard' and self.purchase_line_id:
+        if self.product_id.cost_method == 'standard' and self.purchase_line_ids:
             components_cost = 0
-            subcontract_production = self.purchase_line_id.move_ids._get_subcontract_production()
+            subcontract_production = self.purchase_line_ids.move_ids._get_subcontract_production()
             valuation_date = subcontract_production.move_raw_ids and max(subcontract_production.move_raw_ids.mapped('date')) or self.date
             components_cost = self.company_currency_id._convert(
                 sum(subcontract_production.move_raw_ids.mapped('value')),

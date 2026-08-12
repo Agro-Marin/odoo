@@ -86,7 +86,7 @@ class TestStockLandedCostsBranches(TestStockValuationLCCommon):
         receipt.move_line_ids.quantity = 1
         receipt.button_validate()
 
-        bill_form = Form.from_action(self.env, po.action_create_invoice())
+        bill_form = Form(po.create_invoice())
         bill_form.invoice_date = bill_form.date
         with bill_form.invoice_line_ids.new() as inv_line:
             inv_line.product_id = self.productlc1

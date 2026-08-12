@@ -254,8 +254,8 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         po = po_form.save()
         po.action_confirm()
         # create bill
-        po.action_create_invoice()
-        aml = self.env['account.move.line'].search([('purchase_line_id', '=', po.line_ids.id)])
+        po.create_invoice()
+        aml = self.env['account.move.line'].search([('purchase_line_ids', 'in', po.line_ids.ids)])
         # add 50 per unit ( 50 x 1 ) = 50 extra valuation
         aml.price_unit = 60
         aml.move_id.invoice_date = Date.today()
@@ -327,8 +327,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         final_picking.move_ids.picked = True
         final_picking.button_validate()
 
-        action = po.action_create_invoice()
-        invoice = self.env['account.move'].browse(action['res_id'])
+        invoice = po.create_invoice()
         invoice.invoice_date = Date.today()
         invoice.invoice_line_ids.quantity = 1
         invoice.action_post()
@@ -393,8 +392,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         final_picking.move_ids.picked = True
         final_picking.button_validate()
 
-        action = po.action_create_invoice()
-        invoice = self.env['account.move'].browse(action['res_id'])
+        invoice = po.create_invoice()
         invoice.invoice_date = Date.today()
         invoice.invoice_line_ids.quantity = 1
         invoice.action_post()
@@ -427,8 +425,8 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         receipt.button_validate()
         self.assertEqual(self.finished.total_value, 130)
         # create bill
-        purchase.action_create_invoice()
-        aml = self.env['account.move.line'].search([('purchase_line_id', '=', purchase.line_ids.id)])
+        purchase.create_invoice()
+        aml = self.env['account.move.line'].search([('purchase_line_ids', 'in', purchase.line_ids.ids)])
         # add 50 per unit ( 50 x 1 ) = 50 extra valuation
         aml.price_unit = 150
         aml.move_id.invoice_date = Date.today()
@@ -913,7 +911,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
                 ('product_id', '=', self.finished.id),
             ]),
         ], limit=1)
-        self.assertEqual(purchase_order.date_planned.date(), Date.today())
+        self.assertEqual(purchase_order.date_commitment.date(), Date.today())
 
     @freeze_time('2000-05-01')
     def test_mrp_subcontract_modify_date(self):
@@ -988,6 +986,6 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         picking_receipt.button_validate()
         self.assertEqual(picking_receipt.state, 'done')
 
-        po.action_create_invoice()
+        po.create_invoice()
         invoice = po.invoice_ids
         self.assertTrue(invoice)
