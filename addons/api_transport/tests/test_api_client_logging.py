@@ -528,3 +528,70 @@ class TestErrorMessagesDoNotLeakCredentials(ClientLoggingCommon):
         log = self._last_log()
         self.assertNotIn("SUPERSECRETKEY", log.error_message or "")
         self.assertIn("page=2", log.error_message or "", "only the secret goes")
+
+
+@tagged("post_install", "-at_install")
+class TestExternalExchangeLogging(ClientLoggingCommon):
+    """``log_external_exchange``: an exchange the client did not itself make.
+
+    zeep drives its own SOAP envelopes over ``self.session``, so ``request``
+    never sees them and everything inside it is bypassed. This is how such a
+    caller puts the row back, and it must produce the same row a ``request``
+    would — same redaction vocabulary, same schema — or the two paths drift and
+    the one that drifts is the one that leaks.
+    """
+
+    def _queued(self):
+        return self.env.cr.precommit.data.get("api.event.log.values") or []
+
+    def test_it_records_a_successful_exchange(self):
+        self._client().log_external_exchange(
+            "POST", "https://pac.invalid/stamp", status_code=200, elapsed_ms=42
+        )
+
+        row = self._queued()[0]
+        self.assertEqual(row["direction"], "outbound")
+        self.assertEqual(row["status_code"], 200)
+        self.assertEqual(row["state"], "success")
+        self.assertEqual(row["duration_ms"], 42)
+
+    def test_a_failure_is_recorded_as_failed(self):
+        self._client().log_external_exchange(
+            "POST", "https://pac.invalid/stamp", status_code=503, elapsed_ms=1
+        )
+
+        row = self._queued()[0]
+        self.assertEqual(row["state"], "failed")
+        self.assertEqual(row["error_type"], "server")
+
+    def test_a_transport_error_with_no_status_is_a_network_failure(self):
+        self._client().log_external_exchange(
+            "POST", "https://pac.invalid/stamp", error="connection refused"
+        )
+
+        row = self._queued()[0]
+        self.assertEqual(row["state"], "failed")
+        self.assertEqual(row["error_type"], "network")
+
+    def test_the_body_goes_through_the_same_redaction(self):
+        """Not a parallel path: the same serializer, so the same guarantees."""
+        self._client().log_external_exchange(
+            "POST",
+            "https://pac.invalid/stamp",
+            request_body=json.dumps({"uuid": "abc-123", "password": SECRET_VALUE}),
+            status_code=200,
+        )
+
+        payload = self._queued()[0]["request_payload"]
+        self.assertIn("abc-123", payload)
+        self.assertNotIn(SECRET_VALUE, payload)
+
+    def test_a_credential_in_the_error_text_is_masked(self):
+        """Error strings from another library carry whatever URL they were given."""
+        self._client().log_external_exchange(
+            "POST",
+            "https://pac.invalid/stamp",
+            error="failed calling https://pac.invalid/x?token=supersecrettoken",
+        )
+
+        self.assertNotIn("supersecrettoken", self._queued()[0]["error_message"])

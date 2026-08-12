@@ -882,6 +882,94 @@ class APIGatewayClient:
                     self.env["api.event.log"].sudo().create(logs)
                     _logger.debug("Batch created %d API event logs", len(logs))
 
+    def log_external_exchange(
+        self,
+        method,
+        url,
+        *,
+        request_body=None,
+        status_code=None,
+        elapsed_ms=0,
+        error=None,
+        trace_id=None,
+    ):
+        """Record an exchange this client did not itself perform.
+
+        Some protocols cannot be driven through ``request``. zeep builds and
+        sends its own SOAP envelopes, and giving it ``self.session`` — which is
+        public for exactly this — buys connection pooling and the retry adapter,
+        but everything inside ``request`` is bypassed: the rate-limit check, the
+        ``api.event.log`` row and the redaction. The Mexican PAC is the concrete
+        case; Finkok and Solución Factible are SOAP and only SW is REST.
+
+        This closes the logging half. It deliberately goes through
+        ``_log_request`` rather than writing a row directly, so the redaction
+        vocabulary and the row schema stay in one place — a second copy would
+        drift, and the copy that drifts is the one that leaks.
+
+        Rate limiting is *not* applied here: this is called after the exchange
+        has happened, and a limiter consulted after the fact would only ever
+        report. Call ``check_rate_limit`` before handing the session over if the
+        caller needs it enforced.
+
+        :param str method: the HTTP verb actually used, usually "POST"
+        :param str url: the absolute URL called
+        :param request_body: the request payload, for redacted storage
+        :param int status_code: the HTTP status, when the caller knows it
+        :param float elapsed_ms: measured duration
+        :param str error: an error description, when the exchange failed
+        :param str trace_id: correlation id; generated when omitted
+        """
+        failed = bool(error) or (status_code is not None and status_code >= 400)
+        if failed and not error:
+            # `_log_request` derives `state` from the error *text*, not from the
+            # status, so a failing status with no message would be recorded as a
+            # success. Give it something true to say rather than widen the
+            # contract of a method four other paths depend on.
+            error = f"HTTP {status_code}"
+        self._track_usage(not failed)
+        response_data = {
+            "status_code": status_code or 0,
+            "headers": {},
+            "body": None,
+            "elapsed_ms": elapsed_ms,
+        }
+        self._log_request(
+            method,
+            url,
+            {"data": request_body} if request_body is not None else {},
+            response_data,
+            trace_id or str(uuid.uuid4()),
+            # Not masked here on purpose. `_queue_event_log` masks every
+            # `error` it stores, so the sink guarantees it for any caller —
+            # masking again at this call site would be harmless (the pass is
+            # idempotent) but would imply the guarantee lives with the caller,
+            # which is how the gap this closes came to exist.
+            error=error,
+            error_type=(
+                _error_type_for_status(status_code)
+                if status_code and status_code >= 400
+                else ("network" if error else None)
+            ),
+        )
+
+    def check_rate_limit(self):
+        """Consult the limiter for an exchange made outside ``request``.
+
+        Separate from the logging call because it has to happen *before* the
+        exchange, and because a caller handing the session to another library
+        may make several calls over one client.
+
+        :raises RateLimitError: the service's bucket is empty
+        """
+        if not self.service.rate_limit_enabled:
+            return
+        if not self.rate_limiter.check_limit():
+            raise RateLimitError(
+                _("Rate limit exceeded for service '%s'. Please try again later.")
+                % self.service_code,
+            )
+
     def _log_request(
         self,
         method,
@@ -1078,9 +1166,18 @@ class APIGatewayClient:
             )
 
         if error:
+            # Masked again here, not only where ``request`` assigns it. That is
+            # deliberate belt-and-braces: masking at the source also covers the
+            # raised exception and the server log, which this cannot reach, but
+            # it only protects errors that came from ``request``. Anything
+            # calling ``_log_request`` from outside that method -- logging an
+            # exchange some other library performed, say -- would otherwise hand
+            # a raw exception string straight to a stored row. The pass is
+            # idempotent: a redacted value contains no key=value pair to match,
+            # and a masked Telegram token no longer matches the token pattern.
             vals.update(
                 {
-                    "error_message": error,
+                    "error_message": _mask_sensitive_text(error),
                     "error_type": error_type,
                     "state": "failed",
                 },
