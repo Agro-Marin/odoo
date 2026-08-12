@@ -1,9 +1,12 @@
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+
+from ..tools.api_client import is_private_host
 
 _logger = logging.getLogger(__name__)
 
@@ -87,10 +90,56 @@ class ApiEndpointOutbound(models.Model):
     auth_type = fields.Selection(
         selection_add=[
             ("basic", "Basic Authentication"),
+            ("digest", "Digest Authentication"),
             ("oauth2", "OAuth 2.0"),
         ],
-        ondelete={"basic": "set default", "oauth2": "set default"},
+        ondelete={
+            "basic": "set default",
+            "digest": "set default",
+            "oauth2": "set default",
+        },
     )
+    verify_tls = fields.Boolean(
+        string="Verify TLS certificate",
+        default=True,
+        help=(
+            "Uncheck only for an endpoint presenting a certificate this server "
+            "cannot validate — typically a device on the local network with a "
+            "self-signed certificate. Unchecking makes the connection "
+            "interceptable; it is not a way to silence a certificate warning "
+            "from a public endpoint."
+        ),
+    )
+
+    @api.constrains("verify_tls", "endpoint_url")
+    def _check_tls_disabled_only_off_public_internet(self):
+        """Refuse to disable verification for a public endpoint.
+
+        The legitimate case is a LAN device whose certificate is self-signed
+        and unverifiable by construction. Turning it off for a name that
+        resolves on the public internet does not fix a certificate problem, it
+        removes the only defence against someone answering in its place -- and
+        the credential is sent to whoever does.
+
+        Deliberately checked against the *hostname* rather than trusting the
+        operator's intent: this is the setting most likely to be flipped once
+        during a debugging session and never flipped back.
+        """
+        for endpoint in self:
+            if endpoint.verify_tls or not endpoint.endpoint_url:
+                continue
+            host = urlparse(endpoint.endpoint_url).hostname or ""
+            if not host or is_private_host(host):
+                continue
+            raise ValidationError(
+                self.env._(
+                    "TLS verification can only be disabled for an endpoint on a "
+                    "private network. '%(host)s' is not one, so disabling it "
+                    "would expose this endpoint's credential to anyone able to "
+                    "answer in its place.",
+                    host=host,
+                )
+            )
 
     # ==================== Odoo Database Configuration ====================
 

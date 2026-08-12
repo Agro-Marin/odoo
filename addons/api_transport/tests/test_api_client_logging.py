@@ -26,7 +26,9 @@ import json
 from unittest.mock import MagicMock, patch
 
 import requests
+from requests.auth import HTTPDigestAuth
 
+from odoo.exceptions import ValidationError
 from odoo.libs.logging import mute_logger
 from odoo.tests.common import TransactionCase, tagged
 
@@ -659,3 +661,89 @@ class TestFailedExchangesAreRecordedAsFailed(ClientLoggingCommon):
         log = self._last_log()
         self.assertEqual(log.state, "success")
         self.assertFalse(log.error_type)
+
+
+@tagged("post_install", "-at_install")
+class TestDigestAuthAndTlsVerification(TransactionCase):
+    """Auth that needs a challenge, and where verification may be turned off.
+
+    Digest cannot be a header: the server replies 401 with a nonce and the
+    client hashes the credential against it. So it is the one auth type that
+    has to reach requests as an ``auth`` object rather than through
+    ``get_auth_headers``.
+
+    TLS verification is a paired concern because the endpoint that needs digest
+    here is the one that also cannot present a verifiable certificate -- a
+    Hikvision access-control panel on a LAN, self-signed by construction.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.credential = cls.env["credential.credential"].create(
+            {
+                "name": "Device operator",
+                "category_id": cls.env.ref(
+                    "base_credential_manager.credential_category_basic_auth"
+                ).id,
+                "username": "admin",
+                "password": "device-pass",
+            }
+        )
+
+    def _service(self, **overrides):
+        vals = {
+            "name": "Device probe",
+            "code": "device_probe",
+            "endpoint_url": "https://192.168.1.50",
+            "auth_type": "digest",
+            "environment": "production",
+            **overrides,
+        }
+        service = self.env["api.endpoint.outbound"].create(vals)
+        self.credential.service_id = service
+        return service
+
+    def test_digest_auth_reaches_requests_as_a_challenge_handler(self):
+        """Not a header: a tuple would silently do basic auth instead."""
+        client = self._service()._get_api_client()
+
+        self.assertIsInstance(client._get_auth(), HTTPDigestAuth)
+
+    def test_a_non_digest_service_is_unaffected(self):
+        """The pre-existing basic-auth pair, unchanged."""
+        client = self._service(code="basic_probe", auth_type="basic")._get_api_client()
+
+        self.assertEqual(client._get_auth(), ("admin", "device-pass"))
+
+    def test_verification_stays_on_by_default(self):
+        self.assertTrue(self._service(code="default_probe").verify_tls)
+
+    def test_verification_may_be_disabled_for_a_private_host(self):
+        service = self._service(code="lan_probe", verify_tls=False)
+
+        self.assertFalse(
+            service._get_api_client()._get_tls_verification(
+                "https://192.168.1.50/ISAPI/System/deviceInfo"
+            )
+        )
+
+    def test_verification_may_not_be_disabled_for_a_public_host(self):
+        """The setting flipped once while debugging and never flipped back."""
+        with self.assertRaises(ValidationError):
+            self._service(
+                code="public_probe",
+                endpoint_url="https://api.example.com",
+                verify_tls=False,
+            )
+
+    def test_a_public_host_is_refused_at_request_time_too(self):
+        """The record's URL is a placeholder when callers pass absolute ones.
+
+        The constraint can only ever inspect the placeholder, so the guard has
+        to run again where the real host is known.
+        """
+        client = self._service(code="lan_probe2", verify_tls=False)._get_api_client()
+
+        with self.assertRaises(CommError):
+            client._get_tls_verification("https://api.example.com/v1/things")

@@ -8,6 +8,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import requests
 from requests.adapters import HTTPAdapter
+from requests.auth import HTTPDigestAuth
 from urllib3.util.retry import Retry
 
 from odoo import _, fields
@@ -87,6 +88,38 @@ def _error_type_for_status(status_code):
     if 400 <= status_code < 500:
         return "validation"
     return "server"
+
+
+def is_private_host(host):
+    """Whether a host is on a private network.
+
+    Used to bound where TLS verification may be turned off: a self-signed
+    certificate is unverifiable by construction on a LAN device, but on a
+    public name it is a defence being removed rather than a defect being
+    accommodated -- and what leaks is the credential, to whoever answered.
+
+    An IP literal is classified from the address itself. A DNS name is treated
+    as public unless it carries a private-use suffix; deliberately no lookup,
+    because resolving at validation time makes the answer depend on the
+    resolver, and an attacker who controls DNS could make a public name test
+    private exactly when it mattered.
+
+    :param str host: hostname or IP literal, no scheme or port
+    :return: True when disabling verification is defensible
+    :rtype: bool
+    """
+    if not host:
+        return False
+    host = host.strip("[]").lower()
+    if host == "localhost" or host.endswith((".local", ".lan", ".internal", ".home")):
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return bool(
+        address.is_private or address.is_loopback or address.is_link_local,
+    )
 
 
 def _mask_telegram_token(match):
@@ -426,6 +459,11 @@ class APIGatewayClient:
         try:
             _logger.info("API Request: %s %s", method, _mask_sensitive_url(url))
 
+            # setdefault, not an override: a caller passing verify explicitly
+            # has said something more specific than the record's default. The
+            # public-host guard inside still applies to the record's setting,
+            # which is the one an operator can flip without reading any code.
+            kwargs.setdefault("verify", self._get_tls_verification(url))
             response = self.session.request(
                 method=method,
                 url=url,
@@ -781,8 +819,57 @@ class APIGatewayClient:
         return headers
 
     def _get_auth(self):
-        """Get authentication tuple for basic auth"""
-        return self.credential.get_basic_auth() if self.credential else None
+        """Build the ``auth`` object requests should use, if any.
+
+        Digest cannot be expressed as a header the way bearer and api_key are:
+        the server answers the first request with a 401 carrying a nonce, and
+        the client has to hash the credential against it and repeat the
+        request. ``HTTPDigestAuth`` is what performs that exchange, so this is
+        the only auth type that has to arrive as an ``auth`` object.
+
+        Everything else keeps its existing behaviour, including the quirk that
+        a credential carrying username and password contributes a basic-auth
+        pair whatever the service's ``auth_type`` says. That predates this
+        method being auth-type aware at all; narrowing it now would silently
+        stop sending basic auth for any service that has been relying on the
+        accident, which is not a change to make from here.
+
+        :return: an auth object, a ``(user, password)`` pair, or None
+        """
+        if not self.credential:
+            return None
+        pair = self.credential.get_basic_auth()
+        if self.service.auth_type == "digest":
+            return HTTPDigestAuth(*pair) if pair else None
+        return pair
+
+    def _get_tls_verification(self, url):
+        """Whether to verify the TLS certificate for this URL.
+
+        Enforced per request rather than only by the constraint on the service
+        record, because a record whose callers pass absolute URLs -- a device
+        per row, a host per tenant -- has a placeholder ``endpoint_url`` that
+        the constraint can only ever check instead of the real target. This is
+        the point where the actual host is known.
+
+        :param str url: the absolute URL about to be called
+        :return: the value to pass to requests as ``verify``
+        :rtype: bool
+        :raises CommError: if verification is off for a public host
+        """
+        if self.service.verify_tls:
+            return True
+        host = urlparse(url).hostname or ""
+        if not is_private_host(host):
+            raise CommError(
+                _(
+                    "Refusing to call '%(host)s' with TLS verification disabled: "
+                    "it is not a private-network host, so the credential for "
+                    "service '%(service)s' would be exposed to whoever answers.",
+                )
+                % {"host": host, "service": self.service_code},
+            )
+        return False
 
     def _parse_response(self, response, elapsed_ms):
         """Parse HTTP response into standardized dict"""
