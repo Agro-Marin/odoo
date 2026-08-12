@@ -778,3 +778,157 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 f"precomputed cannot be inserted. Check whether a dependency was "
                 f"added that is a stored compute without precompute=True.",
             )
+
+
+@tagged("post_install", "-at_install")
+class TestStockMoveLotInvariants(TestStockCommon):
+    """Three properties every lot/serial reservation path must leave standing.
+
+    The individual regressions above each pin one defect. These pin the
+    invariants those defects broke, across the paths that reach them, so the
+    next change to lot placement fails here rather than in a customer's
+    warehouse:
+
+      P1  ``move.quantity`` equals the sum of its lines, in the move's UoM
+      P2  ``move.lot_ids`` equals the lots its non-empty lines actually carry
+      P3  a serial-tracked move never carries one serial on two lines
+
+    Written as a sweep rather than one test per path because the properties are
+    the point: a new path is one more scenario, not one more test.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        for picking_type in (cls.picking_type_in, cls.picking_type_out):
+            picking_type.write({"use_create_lots": True, "use_existing_lots": True})
+
+    def _product(self, name, tracking):
+        return self.env["product.product"].create(
+            {
+                "name": name,
+                "type": "consu",
+                "is_storable": True,
+                "tracking": tracking,
+            },
+        )
+
+    def _stock_in(self, product, qty, lot_name):
+        lot = self.env["stock.lot"].search(
+            [("product_id", "=", product.id), ("name", "=", lot_name)],
+            limit=1,
+        ) or self.env["stock.lot"].create(
+            {"product_id": product.id, "name": lot_name},
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            product,
+            self.stock_location,
+            qty,
+            lot_id=lot,
+        )
+        return lot
+
+    def _outgoing(self, product, qty):
+        move = self.MoveObj.create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": qty,
+                "product_uom_id": product.uom_id.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "picking_type_id": self.picking_type_out.id,
+            },
+        )
+        move._action_confirm()
+        return move
+
+    def _assert_invariants(self, move, label):
+        move.invalidate_recordset()
+        lines = move.move_line_ids
+        summed = sum(
+            ml.product_uom_id._compute_quantity(
+                ml.quantity,
+                move.product_uom_id,
+                round=False,
+            )
+            for ml in lines
+        )
+        self.assertEqual(
+            move.product_uom_id.compare(move.quantity, summed),
+            0,
+            f"{label}: quantity {move.quantity} != sum of lines {summed}",
+        )
+        self.assertEqual(
+            move.lot_ids,
+            lines.filtered(lambda ml: ml.quantity).lot_id,
+            f"{label}: lot_ids disagrees with the lots the lines carry",
+        )
+        if move.product_id.tracking == "serial":
+            names = [ml.lot_id.name for ml in lines if ml.lot_id]
+            self.assertEqual(
+                len(names),
+                len(set(names)),
+                f"{label}: a serial number is carried by two lines: {names}",
+            )
+
+    def test_lot_reservation_paths_hold_the_invariants(self):
+        product = self._product("Invariant Lot", "lot")
+        lot_a = self._stock_in(product, 6, "INV-A")
+        lot_b = self._stock_in(product, 6, "INV-B")
+
+        move = self._outgoing(product, 8)
+        move._action_assign()
+        self._assert_invariants(move, "assign across two lots")
+
+        move.lot_ids = lot_a | lot_b
+        self._assert_invariants(move, "lot_ids set to both lots")
+
+        move.lot_ids = lot_a
+        self._assert_invariants(move, "lot_ids narrowed to one")
+
+    def test_a_lot_without_stock_still_leaves_the_invariants_standing(self):
+        product = self._product("Invariant Ghost", "lot")
+        self._stock_in(product, 5, "INV-HAS")
+        ghost = self.env["stock.lot"].create(
+            {"product_id": product.id, "name": "INV-GHOST"},
+        )
+        move = self._outgoing(product, 3)
+        move._action_assign()
+        move.lot_ids = ghost
+        self._assert_invariants(move, "lot_ids set to a lot with no stock")
+
+    def test_serial_reservation_paths_hold_the_invariants(self):
+        product = self._product("Invariant Serial", "serial")
+        serials = [self._stock_in(product, 1, f"INV-S{i}") for i in range(3)]
+
+        move = self._outgoing(product, 2)
+        move._action_assign()
+        self._assert_invariants(move, "serial assign")
+
+        move.lot_ids = serials[0] | serials[1]
+        self._assert_invariants(move, "lot_ids set to the reserved serials")
+
+        move.lot_ids = serials[0] | serials[2]
+        self._assert_invariants(move, "one serial swapped for another")
+
+    def test_a_bypassing_move_holds_the_invariants(self):
+        """An incoming move reserves nothing, so lots are placed freely."""
+        product = self._product("Invariant Incoming", "lot")
+        move = self.MoveObj.create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 5,
+                "product_uom_id": product.uom_id.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+                "picking_type_id": self.picking_type_in.id,
+            },
+        )
+        move._action_confirm()
+        move._action_assign()
+        self._assert_invariants(move, "incoming assign")
+
+        move.lot_ids = self.env["stock.lot"].create(
+            {"product_id": product.id, "name": "INV-IN"},
+        )
+        self._assert_invariants(move, "incoming lot_ids set")
