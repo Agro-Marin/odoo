@@ -1628,3 +1628,92 @@ class TestWarehouse(TestStockCommon):
                 {key: {} for key in codes},
                 dict(codes, unregistered_type_id="ZZZ"),
             )
+
+    # ------------------------------------------------------------
+    # Partner location resolution
+    # ------------------------------------------------------------
+
+    def _drop_partner_location_xmlid(self, name):
+        self.env["ir.model.data"].search(
+            [("module", "=", "stock"), ("name", "=", name)]
+        ).unlink()
+        self.env.registry.clear_cache()
+
+    def test_incoming_picking_type_survives_a_missing_supplier_xmlid(self):
+        """`default_location_src_id` resolves through
+        `stock.warehouse._get_partner_location`, which falls back to any
+        supplier-usage location when the xml-id is gone.
+
+        It used to be a bare `env.ref`, so a database that had lost the record
+        died with `ValueError: External ID not found in the system` three frames
+        below anything naming a location — in the middle of picking-type
+        creation, which is where warehouse creation trips it.
+        """
+        supplier_loc = self.env.ref("stock.stock_location_suppliers")
+        self._drop_partner_location_xmlid("stock_location_suppliers")
+
+        picking_type = self.env["stock.picking.type"].create(
+            {
+                "name": "Fallback receipt",
+                "code": "incoming",
+                "sequence_code": "FBR",
+                "warehouse_id": self.warehouse_1.id,
+                "company_id": self.warehouse_1.company_id.id,
+            }
+        )
+        self.assertEqual(picking_type.default_location_src_id, supplier_loc)
+
+    def test_outgoing_picking_type_survives_a_missing_customer_xmlid(self):
+        """Same for the outgoing type's destination."""
+        customer_loc = self.env.ref("stock.stock_location_customers")
+        self._drop_partner_location_xmlid("stock_location_customers")
+
+        picking_type = self.env["stock.picking.type"].create(
+            {
+                "name": "Fallback delivery",
+                "code": "outgoing",
+                "sequence_code": "FBD",
+                "warehouse_id": self.warehouse_1.id,
+                "company_id": self.warehouse_1.company_id.id,
+            }
+        )
+        self.assertEqual(picking_type.default_location_dest_id, customer_loc)
+
+    def test_missing_supplier_location_is_reported_as_itself(self):
+        """With no supplier location at all, creating an incoming type must fail
+        with a UserError naming what is missing — not with the ValueError a bare
+        `env.ref` raised from wherever the caller happened to stand.
+        """
+        self._drop_partner_location_xmlid("stock_location_suppliers")
+        self.env["stock.location"].with_context(active_test=False).search(
+            [("usage", "=", "supplier")]
+        ).usage = "transit"
+
+        with self.assertRaises(UserError):
+            self.env["stock.picking.type"].create(
+                {
+                    "name": "Doomed receipt",
+                    "code": "incoming",
+                    "sequence_code": "DMR",
+                    "warehouse_id": self.warehouse_1.id,
+                    "company_id": self.warehouse_1.company_id.id,
+                }
+            )
+
+    def test_partner_location_names_the_missing_side(self):
+        """`_get_partner_location` is the one resolver; its error says which of
+        the two is gone, where the pair's message could only say "or".
+        """
+        Warehouse = self.env["stock.warehouse"]
+        self.assertTrue(Warehouse._get_partner_location("customer"))
+        self.assertTrue(Warehouse._get_partner_location("supplier"))
+
+        self._drop_partner_location_xmlid("stock_location_suppliers")
+        self.env["stock.location"].with_context(active_test=False).search(
+            [("usage", "=", "supplier")]
+        ).usage = "transit"
+        # the customer side is untouched and must still resolve
+        self.assertTrue(Warehouse._get_partner_location("customer"))
+        with self.assertRaises(UserError) as caught:
+            Warehouse._get_partner_location("supplier")
+        self.assertIn("supplier", str(caught.exception))

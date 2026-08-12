@@ -35,6 +35,14 @@ ROUTE_NAMES = {
     "pick_pack_ship": _lt("Deliver in 3 steps (pick + pack + ship)"),
 }
 
+# The data records naming where goods come from and go to. Resolved through
+# `stock.warehouse._get_partner_location`, never by a bare `env.ref`, so a
+# database that lost one still reports it as itself.
+PARTNER_LOCATION_XML_IDS = {
+    "customer": "stock.stock_location_customers",
+    "supplier": "stock.stock_location_suppliers",
+}
+
 WAREHOUSE_PICKING_TYPE_CODES = {
     "in_type_id": "IN",
     "qc_type_id": "QC",
@@ -1672,25 +1680,49 @@ class StockWarehouse(models.Model):
         )
 
     @api.model
+    def _get_partner_location(self, usage):
+        """Return the ``customer`` or ``supplier`` partner location.
+
+        The single place that answers "where do goods come from / go to" for a
+        whole database. The xml-id first, since that is the record the data files
+        ship; any location of that usage otherwise, because the xml-id can be
+        gone while the location it named is still there; and a ``UserError``
+        naming the missing side if neither turns one up.
+
+        Callers must go through this rather than ``env.ref`` on the xml-id. A
+        bare ref has no fallback and reports its absence as
+        ``ValueError: External ID not found in the system``, raised wherever the
+        caller happened to stand — which is how a database missing one record
+        used to fail in the middle of ``stock.picking.type`` creation, three
+        frames below anything that mentions locations.
+        """
+        location = self.env.ref(
+            PARTNER_LOCATION_XML_IDS[usage], raise_if_not_found=False
+        )
+        if not location:
+            location = self.env["stock.location"].search(
+                [("usage", "=", usage)], limit=1
+            )
+        if location:
+            return location
+        # Spelled out per usage rather than interpolated: the extractor needs a
+        # literal, and "supplier" is a field value, not a translated word.
+        if usage == "customer":
+            raise UserError(_("Can't find any customer location."))
+        raise UserError(_("Can't find any supplier location."))
+
+    @api.model
     def _get_partner_locations(self):
-        """returns a tuple made of the browse record of customer location and the browse record of supplier location"""
-        Location = self.env["stock.location"]
-        customer_loc = self.env.ref(
-            "stock.stock_location_customers", raise_if_not_found=False
+        """The ``(customer, supplier)`` pair, for the callers that need both.
+
+        Raises when *either* is missing — every one of them goes on to build
+        rules from both, and a missing supplier used to yield rules with no
+        source location instead of an error.
+        """
+        return (
+            self._get_partner_location("customer"),
+            self._get_partner_location("supplier"),
         )
-        supplier_loc = self.env.ref(
-            "stock.stock_location_suppliers", raise_if_not_found=False
-        )
-        if not customer_loc:
-            customer_loc = Location.search([("usage", "=", "customer")], limit=1)
-        if not supplier_loc:
-            supplier_loc = Location.search([("usage", "=", "supplier")], limit=1)
-        # `or`, not `and`: the message promises a raise when *either* is missing,
-        # and every caller goes on to build rules from both. With `and` a missing
-        # supplier location silently yielded rules with no source location.
-        if not customer_loc or not supplier_loc:
-            raise UserError(_("Can't find any customer or supplier location."))
-        return customer_loc, supplier_loc
 
     def _get_route_name(self, route_type):
         if route_type not in ROUTE_NAMES:
