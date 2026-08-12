@@ -445,3 +445,86 @@ class TestRawPassthroughLogging(ClientLoggingCommon):
         self.assertEqual(row["state"], "failed")
         self.assertEqual(row["status_code"], 503)
         self.assertEqual(row["error_type"], "server")
+
+
+@tagged("post_install", "-at_install")
+class TestErrorMessagesDoNotLeakCredentials(ClientLoggingCommon):
+    """``error_message`` was the one field on the row that was not masked.
+
+    ``request_url``, request/response headers and both payloads are all
+    redacted before they are stored. The error text was not, and for a
+    connection or timeout failure ``requests`` builds that text out of the full
+    request URL -- so a credential carried in the URL landed verbatim in a row
+    that every monitoring user can read.
+
+    Telegram is the concrete case: the bot token is a path segment, which is
+    why the module bypassed the transport for downloads rather than route them
+    through it.
+    """
+
+    TOKEN = "AAHsecretTOKENvalue"
+    URL = f"https://api.telegram.org/file/bot123456:{TOKEN}/photo.jpg"
+
+    def _last_log(self):
+        self.env.cr.precommit.run()
+        return self.env["api.event.log"].search([], order="id desc", limit=1)
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_connection_error_does_not_store_the_token(self, mock_request):
+        """The message shape requests really produces, reproduced offline.
+
+        Transcribed from an actual failed ``requests.get`` to this URL rather
+        than invented -- note the credential appears as a bare *path*, with no
+        scheme, which is what makes it invisible to any masking that expects to
+        parse a whole URL. Built here instead of by calling out, so the test
+        neither needs the network nor passes vacuously when there isn't any.
+        """
+        mock_request.side_effect = requests.exceptions.ConnectionError(
+            "HTTPSConnectionPool(host='api.telegram.org', port=443): "
+            f"Max retries exceeded with url: /file/bot123456:{self.TOKEN}"
+            "/photo.jpg (Caused by NewConnectionError('failed to establish'))"
+        )
+        self.assertIn(
+            self.TOKEN,
+            str(mock_request.side_effect),
+            "the fixture must actually carry the token, or this proves nothing",
+        )
+
+        with self.assertRaises(CommError) as caught:
+            self._client().get(self.URL)
+
+        self.assertNotIn(self.TOKEN, str(caught.exception))
+        log = self._last_log()
+        self.assertTrue(log, "the failure must still be recorded")
+        self.assertNotIn(self.TOKEN, log.error_message or "")
+        self.assertNotIn(self.TOKEN, log.request_url or "")
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_timeout_does_not_store_the_token(self, mock_request):
+        mock_request.side_effect = requests.exceptions.ReadTimeout(
+            f"HTTPSConnectionPool: Read timed out for url: {self.URL}"
+        )
+
+        with self.assertRaises(CommError) as caught:
+            self._client().get(self.URL)
+
+        self.assertNotIn(self.TOKEN, str(caught.exception))
+        self.assertNotIn(self.TOKEN, self._last_log().error_message or "")
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_query_string_credential_is_masked_too(self, mock_request):
+        """Not Telegram-specific: the same holds for a key in the query."""
+        url = "https://example.invalid/live?api_key=SUPERSECRETKEY&page=2"
+        mock_request.side_effect = requests.exceptions.ConnectionError(
+            f"Max retries exceeded with url: {url}"
+        )
+
+        with self.assertRaises(CommError):
+            self._client().get(url)
+
+        log = self._last_log()
+        self.assertNotIn("SUPERSECRETKEY", log.error_message or "")
+        self.assertIn("page=2", log.error_message or "", "only the secret goes")

@@ -89,6 +89,56 @@ def _error_type_for_status(status_code):
     return "server"
 
 
+def _mask_telegram_token(match):
+    """Mask a Telegram bot token, keeping a short tail for debugging."""
+    bot_id = match.group(1)
+    secret = match.group(2)
+    suffix = match.group(3)
+    if len(secret) > 4:
+        return f"/bot{bot_id}:***...{secret[-4:]}{suffix}"
+    return f"/bot{bot_id}:****{suffix}"
+
+
+# A URL sitting inside a longer string. Deliberately stops at whitespace and at
+# the quoting characters an exception message wraps a URL in, so the trailing
+# ")" of "(Caused by ...)" is not swallowed into the host.
+_URL_IN_TEXT_PATTERN = re.compile(r"https?://[^\s'\"<>]+")
+
+# ``key=value`` where the key looks sensitive. Catches a bare query string
+# quoted in an error message, which never reaches urlparse as a URL.
+_SENSITIVE_KV_PATTERN = re.compile(
+    r"(?i)("
+    + "|".join(re.escape(p) for p in _SENSITIVE_FIELD_PATTERNS)
+    + r")(\s*=\s*)([^\s&;'\"<>]+)",
+)
+
+
+def _mask_sensitive_text(text):
+    """Mask credentials embedded in free text, for error messages.
+
+    ``_mask_sensitive_url`` only helps when the whole string is a URL. An
+    exception message is a sentence with a URL somewhere inside it, and
+    ``requests`` builds those from the full request URL -- verified: the
+    ``str()`` of a ConnectionError to ``/file/bot<token>/x`` contains the token
+    verbatim. That string is what lands in ``api.event.log.error_message``,
+    which every monitoring user can read, so it has to be masked like the
+    ``request_url`` beside it already is.
+
+    Telegram is the concrete case (the token is a path segment, not a query
+    param), but any credential-in-URL scheme is covered by the same three
+    passes. Request and response *headers* are redacted separately.
+
+    :param text: arbitrary text, typically ``str(exception)``
+    :return: the text with credentials masked
+    :rtype: str
+    """
+    if not text:
+        return text
+    masked = _TELEGRAM_TOKEN_PATTERN.sub(_mask_telegram_token, str(text))
+    masked = _URL_IN_TEXT_PATTERN.sub(lambda m: _mask_sensitive_url(m.group(0)), masked)
+    return _SENSITIVE_KV_PATTERN.sub(r"\1\2***REDACTED***", masked)
+
+
 def _mask_sensitive_url(url: str) -> str:
     """Mask sensitive data in a URL for safe logging.
 
@@ -99,19 +149,8 @@ def _mask_sensitive_url(url: str) -> str:
     :return: the URL with sensitive parts masked, or the original if unparseable
     :rtype: str
     """
-
-    def mask_telegram_token(match):
-        bot_id = match.group(1)
-        secret = match.group(2)
-        suffix = match.group(3)
-        if len(secret) > 4:
-            masked = f"/bot{bot_id}:***...{secret[-4:]}{suffix}"
-        else:
-            masked = f"/bot{bot_id}:****{suffix}"
-        return masked
-
     # Step 1: Telegram-specific token masking (keeps tail for debugging)
-    masked = _TELEGRAM_TOKEN_PATTERN.sub(mask_telegram_token, url)
+    masked = _TELEGRAM_TOKEN_PATTERN.sub(_mask_telegram_token, url)
 
     # Step 2: generic URL masking (userinfo + sensitive query params)
     try:
@@ -141,8 +180,6 @@ def _mask_sensitive_url(url: str) -> str:
 
 
 # ==================== Payload Splitting (Pattern: bus module) ====================
-
-
 
 
 # ==================== Main API Client ====================
@@ -221,7 +258,9 @@ class APIGatewayClient:
         # unauthenticated service has only its own, and falling through to the
         # test URL because an absent credential is not "production" would send
         # live traffic somewhere harmless-looking and wrong.
-        environment = self.credential.environment if self.credential else self.service.environment
+        environment = (
+            self.credential.environment if self.credential else self.service.environment
+        )
         if environment == "production":
             self.base_url = self.service.endpoint_url
         else:
@@ -476,8 +515,11 @@ class APIGatewayClient:
             return response_data
 
         except requests.exceptions.Timeout as e:
-            error = str(e)
-            _logger.error("API Timeout: %s - %s", url, error)
+            # Masked at the source, so every downstream use -- this log line, the
+            # api.event.log row, and the exception raised below -- is safe by
+            # construction rather than by each site remembering to.
+            error = _mask_sensitive_text(str(e))
+            _logger.error("API Timeout: %s - %s", _mask_sensitive_url(url), error)
             self._track_usage(False)
 
             if not skip_logging:
@@ -491,11 +533,13 @@ class APIGatewayClient:
                     error_type="timeout",
                 )
 
-            raise CommTimeoutError(_("Request timed out: %s") % url) from e
+            raise CommTimeoutError(
+                _("Request timed out: %s") % _mask_sensitive_url(url)
+            ) from e
 
         except requests.exceptions.HTTPError as e:
-            error = self._extract_error(e.response)
-            _logger.error("API HTTP Error: %s - %s", url, error)
+            error = _mask_sensitive_text(self._extract_error(e.response))
+            _logger.error("API HTTP Error: %s - %s", _mask_sensitive_url(url), error)
             self._track_usage(False)
 
             status_code = e.response.status_code
@@ -530,8 +574,8 @@ class APIGatewayClient:
             raise ServerError(_("Server error: %s") % error) from e
 
         except requests.exceptions.RequestException as e:
-            error = str(e)
-            _logger.error("API Request Error: %s - %s", url, error)
+            error = _mask_sensitive_text(str(e))
+            _logger.error("API Request Error: %s - %s", _mask_sensitive_url(url), error)
             self._track_usage(False)
 
             if not skip_logging:
@@ -548,7 +592,7 @@ class APIGatewayClient:
             raise CommError(_("Request failed: %s") % error) from e
 
         except Exception as e:
-            error = str(e)
+            error = _mask_sensitive_text(str(e))
             _logger.exception("Unexpected API error")
             self._track_usage(False)
 
