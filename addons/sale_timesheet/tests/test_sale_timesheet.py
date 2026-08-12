@@ -76,12 +76,12 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         so_line_ordered_project_only = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet4.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
             'order_id': sale_order.id,
         })
         so_line_ordered_global_project = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet2.id,
-            'product_uom_qty': 50,
+            'product_qty': 50,
             'order_id': sale_order.id,
         })
         sale_order.action_confirm()
@@ -144,11 +144,11 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         # add so line with produdct "create task in new project".
         so_line_ordered_task_in_project = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet3.id,
-            'product_uom_qty': 3,
+            'product_qty': 3,
             'order_id': sale_order.id,
         })
 
-        self.assertEqual(sale_order.invoice_state, 'to invoice', 'Sale Timesheet: Adding a new service line (so line) should put the SO in "to invocie" state.')
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: Adding a new service line (so line) should put the SO in "to invocie" state.')
         self.assertEqual(sale_order.tasks_count, 2, "Two tasks (1 per SO line) should have been created on SO confirmation")
         self.assertEqual(len(sale_order.project_ids), 2, "No new project should have been created by the SO, when selling 'new task in new project' product, since it reuse the one from 'project only'.")
 
@@ -202,12 +202,12 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         so_line_deliver_global_project = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 50,
+            'product_qty': 50,
             'order_id': sale_order.id,
         })
         so_line_deliver_task_project = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet3.id,
-            'product_uom_qty': 20,
+            'product_qty': 20,
             'order_id': sale_order.id,
         })
 
@@ -234,9 +234,9 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'unit_amount': 10.5,
             'employee_id': self.employee_manager.id,
         })
-        self.assertEqual(so_line_deliver_global_project.invoice_state, 'to invoice', 'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged')
+        self.assertEqual(so_line_deliver_global_project.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged')
         self.assertEqual(so_line_deliver_task_project.invoice_state, 'no', 'Sale Timesheet: so line invoice status should not change when no timesheet linked to the line')
-        self.assertEqual(sale_order.invoice_state, 'to invoice', 'Sale Timesheet: "invoice on delivery" timesheets should set the so in "to invoice" status when logged')
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should set the so in "to invoice" status when logged')
         self.assertEqual(timesheet1.timesheet_invoice_type, 'billable_time', "Timesheets linked to SO line with delivered product shoulbe be billable time")
         self.assertFalse(timesheet1.timesheet_invoice_id, "The timesheet1 should not be linked to the invoice yet")
 
@@ -255,9 +255,9 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'unit_amount': 39.5,
             'employee_id': self.employee_user.id,
         })
-        self.assertEqual(so_line_deliver_global_project.invoice_state, 'to invoice', 'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged')
+        self.assertEqual(so_line_deliver_global_project.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged')
         self.assertEqual(so_line_deliver_task_project.invoice_state, 'no', 'Sale Timesheet: so line invoice status should not change when no timesheet linked to the line')
-        self.assertEqual(sale_order.invoice_state, 'to invoice', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
         self.assertEqual(timesheet2.timesheet_invoice_type, 'billable_time', "Timesheets linked to SO line with delivered product shoulbe be billable time")
         self.assertFalse(timesheet2.timesheet_invoice_id, "The timesheet2 should not be linked to the invoice yet")
 
@@ -273,7 +273,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         # add a line on SO
         so_line_deliver_only_project = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet4.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
             'order_id': sale_order.id,
         })
         self.assertEqual(len(sale_order.project_ids), 2, "No new project should have been created by the SO, when selling 'project only' product, since it reuse the one from 'new task in new project'.")
@@ -286,7 +286,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
         self.assertTrue(float_is_zero(so_line_deliver_only_project.qty_transferred, precision_digits=2), "Timesheeting on project should not incremented the delivered quantity on the SO line")
-        self.assertEqual(sale_order.invoice_state, 'to invoice', 'Sale Timesheet: "invoice on delivery" timesheets should have quantity to invoice')
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should have quantity to invoice')
         self.assertEqual(timesheet3.timesheet_invoice_type, 'billable_time', "Timesheets with an amount > 0 should be 'billable time'")
         self.assertFalse(timesheet3.timesheet_invoice_id, "The timesheet3 should not be linked to the invoice yet")
 
@@ -324,12 +324,12 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         so_line_manual_global_project = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_manual2.id,
-            'product_uom_qty': 50,
+            'product_qty': 50,
             'order_id': sale_order.id,
         })
         so_line_manual_only_project = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_manual4.id,
-            'product_uom_qty': 20,
+            'product_qty': 20,
             'order_id': sale_order.id,
         })
 
@@ -410,17 +410,17 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         so_line_deliver_global_project = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 50,
+            'product_qty': 50,
             'order_id': sale_order.id,
         })
         so_line_deliver_task_project = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet3.id,
-            'product_uom_qty': 20,
+            'product_qty': 20,
             'order_id': sale_order.id,
         })
         so_line_deliver_timesheet = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet1.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
             'order_id': sale_order.id,
         })
 
@@ -480,9 +480,9 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'so_line': so_line_deliver_timesheet.id,
         })
 
-        self.assertEqual(so_line_deliver_global_project.invoice_state, 'to invoice')
-        self.assertEqual(so_line_deliver_task_project.invoice_state, 'to invoice')
-        self.assertEqual(sale_order.invoice_state, 'to invoice')
+        self.assertEqual(so_line_deliver_global_project.invoice_state, 'to do')
+        self.assertEqual(so_line_deliver_task_project.invoice_state, 'to do')
+        self.assertEqual(sale_order.invoice_state, 'to do')
 
         # Context for sale.advance.payment.inv wizard
         self.context = {
@@ -633,12 +633,12 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         so1_product_global_project_so_line = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 50,
+            'product_qty': 50,
             'order_id': sale_order1.id,
         })
         so2_product_global_project_so_line = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 20,
+            'product_qty': 20,
             'order_id': sale_order2.id,
         })
 
@@ -870,7 +870,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         so_line = self.env['sale.order.line'].create({
             'name': self.product_delivery_timesheet2.name,
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 50,
+            'product_qty': 50,
             'price_unit': self.product_delivery_timesheet2.list_price,
             'order_id': sale_order.id,
         })
@@ -906,7 +906,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         so_line = self.env['sale.order.line'].create({
             'name': self.product_order_timesheet3.name,
             'product_id': self.product_order_timesheet3.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'price_unit': product_price,
             'order_id': sale_order.id,
         })
@@ -964,13 +964,13 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 'order_id': sale_order.id,
                 'name': product_1.name,
                 'product_id': product_1.id,
-                'product_uom_qty': 10,
+                'product_qty': 10,
                 'price_unit': product_1.list_price,
             }, {
                 'order_id': sale_order.id,
                 'name': product_2.name,
                 'product_id': product_2.id,
-                'product_uom_qty': 5,
+                'product_qty': 5,
                 'price_unit': product_2.list_price,
             },
         ])
@@ -1042,7 +1042,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'order_id': sale_order.id,
             'name': product.name,
             'product_id': product.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
             'price_unit': product.list_price,
         })
         project = sale_order_line._timesheet_create_project()
@@ -1118,7 +1118,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         so_line = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'order_id': sale_order.id,
         })
         sale_order.action_confirm()
@@ -1153,12 +1153,12 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         so_line1 = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'order_id': sale_order2.id,
         })
         so_line2 = self.env['sale.order.line'].create({
             'product_id': self.product_delivery_timesheet3.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'order_id': sale_order2.id,
         })
         sale_order2.action_confirm()
@@ -1232,7 +1232,7 @@ class TestSaleTimesheetAnalyticPlan(TestCommonSaleTimesheet):
         })
         so_line1 = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet4.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
             'order_id': sale_order.id,
             'analytic_distribution': {f'{analytic_account1.id}, {analytic_account2.id}': 100},
         })
@@ -1254,7 +1254,7 @@ class TestSaleTimesheetAnalyticPlan(TestCommonSaleTimesheet):
         })
         so_line2 = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet4.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
             'order_id': sale_order.id,
             'analytic_distribution': {f'{analytic_account1.id}, {analytic_account3.id}': 100},
         })
@@ -1312,7 +1312,7 @@ class TestSaleTimesheetAnalyticPlan(TestCommonSaleTimesheet):
         })
         so_line = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet4.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
             'order_id': sale_order.id,
             'analytic_distribution': {f'{analytic_account.id}': 100},
         })
