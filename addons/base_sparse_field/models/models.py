@@ -16,9 +16,11 @@ class Base(models.AbstractModel):
 class IrModelFields(models.Model):
     _inherit = 'ir.model.fields'
 
-    ttype = fields.Selection(selection_add=[
-        ('serialized', 'serialized'),
-    ], ondelete={'serialized': 'cascade'})
+    # No `selection_add` for 'serialized': this fork builds ir.model.fields.ttype
+    # from the field-type registry (`_field_types` reads `Field._by_type__`), so
+    # defining the Serialized class above is what puts the value in the list.
+    # Declaring it again raised "selection_add=... on non-list selection" at
+    # registry build and made this module impossible to install.
     serialization_field_id = fields.Many2one('ir.model.fields', string='Serialization Field',
         ondelete='cascade', domain="[('ttype','=','serialized'), ('model_id', '=', model_id)]",
         help="If set, this field will be stored in the sparse structure of the "

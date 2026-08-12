@@ -19,7 +19,10 @@ def monkey_patch(cls):
 # Implement sparse fields by monkey-patching fields.Field
 #
 
-fields.Field.__doc__ += """
+# `odoo/` is docstring-stripped on purpose (see ruff.toml and the commit that did
+# it), so `Field.__doc__` is None and `+=` raised TypeError at import -- this module
+# could not be installed at all. Append to whatever is there, including nothing.
+fields.Field.__doc__ = (fields.Field.__doc__ or "") + """
 
         .. _field-sparse:
 
