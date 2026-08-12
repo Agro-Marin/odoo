@@ -586,7 +586,7 @@ def test_the_pin_matches_the_tree():
 def test_the_docstring_measurements_are_fresh():
     import doc_measured
 
-    problems = doc_measured.check(Path(jes.__file__), jes.metrics())
+    problems = doc_measured.check(Path(jes.__file__), jes.repo_metrics())
     assert not problems, "\n".join(problems) + (
         "\n\n  python tooling/architecture/js_extension_surface.py --update-doc"
     )

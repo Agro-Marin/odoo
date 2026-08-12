@@ -77,7 +77,7 @@ def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
     worse failure than the one being reported.
 
     Measured over **this repository's two addon trees** (``odoo/addons`` and
-    ``addons``): 131 migration scripts, all correctly prefixed, 0 skipped —
+    ``addons``): 132 migration scripts, all correctly prefixed, 0 skipped —
     re-derived by ``test_migration_stages.test_the_measured_script_count_is_current``.
     The scope is this repo on purpose. The figure here read "223 across this
     workspace's five addon trees", which CI could never reproduce because it

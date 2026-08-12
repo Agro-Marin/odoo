@@ -168,9 +168,16 @@ class TestLiveTree:
         assert gate.main(["--check"]) == 2
 
     def test_the_needs_record_worklist_is_derivable(self):
-        """The point of the gate: the conversion list is produced, not guessed."""
-        files = gate.measure()["needs_record_files"]
-        assert files and len(files) == gate.measure()["metrics"]["needs_record"]
+        """The point of the gate: the conversion list is produced, not guessed.
+
+        Against ``scanned_metrics``, not ``metrics``: the worklist names every
+        file to convert in every checkout present, while ``metrics`` is the
+        repo-only scope the MEASURED block pins. Comparing across the two makes
+        this assertion depend on which checkouts happen to be on disk.
+        """
+        state = gate.measure()
+        files = state["needs_record_files"]
+        assert files and len(files) == state["scanned_metrics"]["needs_record"]
 
 
 if __name__ == "__main__":
