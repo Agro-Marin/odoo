@@ -1,0 +1,175 @@
+name: Module Installability
+
+# THE gate this fork was missing. Every other DB-backed lane installs a named
+# handful — integration_tests.yml installs `base`, `test_http`, `test_orm` and
+# `mrp`; the enterprise repo installs the marketing_automation family and a
+# palette lane. Nothing loaded the other ~630 modules, so nothing noticed when a
+# core change left one of them unable to install at all.
+#
+# What that cost, measured on 2026-08-12 by installing every installable module
+# once: eight modules could not be installed, and two had been dead long enough
+# that renamed fields inside them had gone unfixed for as long again.
+#
+#   base_sparse_field   `Field.__doc__ +=` — odoo/ is docstring-stripped, so
+#                       __doc__ is None and the module raised at import
+#   base_sparse_field   selection_add on ir.model.fields.ttype, which this fork
+#                       builds from the field-type registry, not a list
+#   l10n_in_stock       xpath into stock.report_picking, a wrapper; the anchor
+#                       lives in the report_picking_document it t-calls
+#   l10n_gcc_invoice    xpath expecting <td>s in a block account rebuilt as divs
+#   l10n_ca, l10n_cz,   xpath into the layouts for a <ul> that moved into
+#   l10n_sk,            web.company_address_block
+#   l10n_my_ubl_pint
+#   l10n_ph, l10n_hu_edi,  same, for the page counter and footer that moved into
+#   l10n_sa             web.external_layout_footer, plus hasclass() against a
+#                       t-attf-class it cannot see
+#
+# None of these is subtle. All of them were invisible because no lane installed
+# the module. This lane installs all of them and nothing else: no tests, no demo
+# assertions — just "does the module graph still assemble". That is cheap, and
+# it is the failure mode the fork actually has.
+#
+# Why the convergence loop: a single `-i <642 modules>` does NOT install all of
+# them. The loader converges on a subgraph and exits 0 having silently left ~190
+# modules `uninstalled` — website_sale, pos_sale and event_sale among them, each
+# of which installs without complaint when named directly. A lane that ran one
+# `-i` and checked the exit code would therefore report success while skipping a
+# third of the tree, which is the same blindness in a new costume. So we install,
+# re-read what is still uninstalled, install that, and repeat until the set stops
+# shrinking — then assert it is empty.
+#
+# Why template0 + C collation: same reason as integration_tests.yml — Odoo only
+# creates the database with `LC_COLLATE 'C'` when db_template is template0.
+
+on:
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    # No `paths:` filter on purpose. The breakages above were caused by changes
+    # to web, account and odoo/ core — none of which names the module it broke.
+    # A filter here would reproduce exactly the blind spot this lane closes.
+
+permissions:
+  contents: read
+
+jobs:
+  install-every-module:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build + install the odoo_rust extension
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Install system + Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libcairo2-dev postgresql-client
+          pip install --quiet -r requirements-test.txt
+
+      - name: Collect every installable module
+        # Read the manifests rather than keeping a list in this file: a list here
+        # would drift the moment a module is added, and the drift would look like
+        # a pass.
+        run: |
+          python - <<'PY' > /tmp/modules.txt
+          import ast, pathlib
+          mods = set()
+          for root in ("odoo/addons", "addons"):
+              for manifest in pathlib.Path(root).glob("*/__manifest__.py"):
+                  try:
+                      data = ast.literal_eval(manifest.read_text())
+                  except Exception:
+                      continue
+                  if data.get("installable", True):
+                      mods.add(manifest.parent.name)
+          print(",".join(sorted(mods)))
+          PY
+          echo "requested: $(tr ',' '\n' < /tmp/modules.txt | wc -l) modules"
+
+      - name: Install them all, until the set converges
+        env:
+          PGURL: postgresql://odoo:odoo@localhost:5432/ci_installability
+        run: |
+          set -o pipefail
+          run_install() {
+            python odoo-bin \
+              --addons-path=odoo/addons,addons \
+              -d ci_installability \
+              --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+              --db-template=template0 \
+              -i "$1" \
+              --stop-after-init \
+              --max-cron-threads=0 --no-http \
+              --log-level=warn --logfile=/dev/stdout 2>&1 | tee -a /tmp/install.log
+          }
+          run_install "$(cat /tmp/modules.txt)"
+          PREV=0
+          for round in 1 2 3 4 5 6; do
+            REMAINING=$(psql "$PGURL" -tAc \
+              "select string_agg(name, ',') from ir_module_module
+               where state = 'uninstalled'
+                 and name = any(string_to_array('$(cat /tmp/modules.txt)', ','));")
+            [ -z "$REMAINING" ] && { echo "converged: every requested module installed"; break; }
+            COUNT=$(echo "$REMAINING" | tr ',' '\n' | wc -l)
+            echo "round $round: $COUNT requested module(s) still uninstalled"
+            if [ "$COUNT" -eq "$PREV" ]; then
+              echo "::error::the set stopped shrinking at $COUNT — these cannot be installed:"
+              echo "$REMAINING" | tr ',' '\n' | sed 's/^/::error::  /'
+              exit 1
+            fi
+            PREV=$COUNT
+            run_install "$REMAINING"
+          done
+
+      - name: Assert nothing was left behind
+        env:
+          PGURL: postgresql://odoo:odoo@localhost:5432/ci_installability
+        run: |
+          LEFT=$(psql "$PGURL" -tAc \
+            "select count(*) from ir_module_module
+             where state = 'uninstalled'
+               and name = any(string_to_array('$(cat /tmp/modules.txt)', ','));")
+          INSTALLED=$(psql "$PGURL" -tAc \
+            "select count(*) from ir_module_module where state = 'installed';")
+          echo "installed: $INSTALLED, requested-but-uninstalled: $LEFT"
+          if [ "$LEFT" -ne 0 ]; then
+            echo "::error::$LEFT requested module(s) never installed. A clean exit code does"
+            echo "::error::not mean the graph was fully attempted — see the convergence note"
+            echo "::error::at the top of this workflow."
+            exit 1
+          fi
