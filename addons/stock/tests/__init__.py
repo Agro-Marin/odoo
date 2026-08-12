@@ -45,3 +45,4 @@ from . import test_audit_fixes_v2
 from . import test_generate_lot_line_vals
 from . import test_reservation_batching
 from . import test_picking_audit_fixes
+from . import test_stock_location

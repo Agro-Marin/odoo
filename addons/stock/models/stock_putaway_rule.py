@@ -11,10 +11,6 @@ class StockPutawayRule(models.Model):
     _description = "Putaway Rule"
     _check_company_auto = True
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     company_id = fields.Many2one(
         comodel_name="res.company",
         string="Company",
@@ -88,10 +84,6 @@ class StockPutawayRule(models.Model):
         default="no",
     )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     def write(self, vals):
         if "company_id" in vals:
             for rule in self:
@@ -103,19 +95,11 @@ class StockPutawayRule(models.Model):
                     )
         return super().write(vals)
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     @api.depends("sublocation")
     def _compute_storage_category(self):
         for rule in self:
             if rule.sublocation != "closest_location":
                 rule.storage_category_id = False
-
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("sublocation", "location_out_id", "storage_category_id")
     def _onchange_sublocation(self):
@@ -142,10 +126,6 @@ class StockPutawayRule(models.Model):
         loc_in, loc_out = self.location_in_id, self.location_out_id
         if not loc_out or (loc_in and not loc_out._child_of(loc_in)):
             self.location_out_id = self.location_in_id
-
-    # ------------------------------------------------------------
-    # DEFAULT METHODS
-    # ------------------------------------------------------------
 
     def _default_category_id(self):
         if self.env.context.get("active_model") == "product.category":
@@ -179,10 +159,6 @@ class StockPutawayRule(models.Model):
         elif self.env.context.get("active_model") == "product.product":
             return self.env.context.get("active_id")
         return None
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_last_used_search_domain(self, product):
         self.ensure_one()
@@ -222,8 +198,6 @@ class StockPutawayRule(models.Model):
         qty_by_location=None,
     ):
         if qty_by_location is None:
-            # The default must be subscriptable: the checks below read
-            # `qty_by_location[location.id]` for every candidate location.
             qty_by_location = defaultdict(float)
         package_type = self.env["stock.package.type"]
         if package:
@@ -243,12 +217,10 @@ class StockPutawayRule(models.Model):
             if not putaway_rule.storage_category_id:
                 if location_out in checked_locations:
                     continue
-                if location_out._check_can_be_used(
+                if location_out._can_be_used(
                     product, quantity, package, qty_by_location[location_out.id]
                 ):
                     return location_out
-                # Memoize the failure so consecutive rules pointing at the same
-                # location don't re-run the check (and its weight queries).
                 checked_locations.add(location_out)
                 continue
             child_locations = child_locations.filtered(
@@ -257,14 +229,16 @@ class StockPutawayRule(models.Model):
                 )
             )
 
-            # Compute the forecasted weight of every candidate location in one
-            # batch (3 aggregate queries) instead of letting _check_can_be_used
-            # recompute it per location inside the loops below.
+            # The two per-location aggregates `_can_be_used` needs, resolved for
+            # the whole candidate set in one query each instead of once per
+            # location inside the loops below.
             forecast_weight_by_location = child_locations._get_weight(
                 self.env.context.get("exclude_sml_ids", set())
             )
+            foreign_inbound_ids = child_locations._get_foreign_inbound_location_ids(
+                child_locations, product
+            )
 
-            # Prefer a location that already holds this product/package type
             for location in child_locations:
                 if location in checked_locations:
                     continue
@@ -278,33 +252,33 @@ class StockPutawayRule(models.Model):
                             and q.package_id.package_type_id == package_type
                         )
                     ):
-                        if location._check_can_be_used(
+                        if location._can_be_used(
                             product,
                             quantity,
                             package=package,
                             location_qty=qty_by_location[location.id],
                             forecast_weight=forecast_weight,
+                            foreign_inbound_ids=foreign_inbound_ids,
                         ):
                             return location
                         else:
                             checked_locations.add(location)
                 elif product.uom_id.compare(qty_by_location[location.id], 0) > 0:
-                    if location._check_can_be_used(
+                    if location._can_be_used(
                         product,
                         quantity,
                         location_qty=qty_by_location[location.id],
                         forecast_weight=forecast_weight,
+                        foreign_inbound_ids=foreign_inbound_ids,
                     ):
                         return location
                     else:
                         checked_locations.add(location)
 
-            # Fall back to any location of the matching storage category, stocked
-            # or not (child_locations is already filtered to that category above).
             for location in child_locations:
                 if location in checked_locations:
                     continue
-                if location._check_can_be_used(
+                if location._can_be_used(
                     product,
                     quantity,
                     package,
@@ -312,6 +286,7 @@ class StockPutawayRule(models.Model):
                     forecast_weight=forecast_weight_by_location[location][
                         "forecast_weight"
                     ],
+                    foreign_inbound_ids=foreign_inbound_ids,
                 ):
                     return location
                 checked_locations.add(location)

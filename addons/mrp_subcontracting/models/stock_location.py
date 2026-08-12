@@ -17,12 +17,12 @@ class StockLocation(models.Model):
             if location.is_subcontract() and location.usage != 'internal':
                 raise ValidationError(_("In order to manage stock accurately, subcontracting locations must be type Internal, linked to the appropriate company."))
 
-    def _check_access_putaway(self):
+    def _filter_putaway_access(self):
         """ Use sudo mode for subcontractor """
         if self.env.user.partner_id.is_subcontractor:
             return self.sudo()
         else:
-            return super()._check_access_putaway()
+            return super()._filter_putaway_access()
 
     def is_subcontract(self):
         subcontracting_location = self.company_id.subcontracting_location_id
