@@ -70,7 +70,7 @@ class SaleOrder(models.Model):
                 ._fetch_valid_declaration_of_intent(order.company_id, partner, order.currency_id, order.l10n_it_edi_doi_date)
             order.l10n_it_edi_doi_id = declaration
 
-    @api.depends('l10n_it_edi_doi_id', 'tax_totals', 'line_ids', 'line_ids.qty_invoiced_posted')
+    @api.depends('l10n_it_edi_doi_id', 'tax_totals', 'line_ids', 'line_ids.qty_invoiced')
     def _compute_l10n_it_edi_doi_not_yet_invoiced(self):
         for order in self:
             declaration = order.l10n_it_edi_doi_id
@@ -215,7 +215,7 @@ class SaleOrder(models.Model):
         For each sales order we compute the amount that is tax exempt due to the declaration of intent
         (line has special declaration of intent tax applied) but not yet invoiced.
         For each line of the SO we i.e. use the not yet invoiced quantity to compute this amount.
-        The aforementioned quantity is computed from field `qty_invoiced_posted` and parameter `additional_invoiced_qty`
+        The aforementioned quantity counts posted invoice lines only, plus parameter `additional_invoiced_qty`
         Return the sum of all these amounts on the SOs.
         :param declaration:             We only consider sales orders using Declaration of Intent `declaration`.
         :param additional_invoiced_qty: Dictionary (sale order line id -> float)
@@ -245,10 +245,25 @@ class SaleOrder(models.Model):
             order_not_yet_invoiced = 0
             for line in order_lines:
                 price_reduce = line.price_unit * (1 - (line.discount or 0.0) / 100.0)
-                qty_invoiced = line.qty_invoiced_posted
+                # A declaration of intent is consumed by invoices that exist in
+                # law, so this counts posted lines only. `qty_invoiced` is not that
+                # -- it includes drafts -- and the `qty_invoiced_posted` field this
+                # used to read no longer exists; `_get_posted_invoice_lines()` is the
+                # supported way to ask the question.
+                invoice_type, refund_type = line._get_invoice_move_types()
+                qty_invoiced = sum(
+                    inv_line.product_uom_id._compute_quantity(
+                        inv_line.quantity, line.product_uom_id
+                    )
+                    * (1 if inv_line.move_id.move_type == invoice_type else -1)
+                    for inv_line in line._get_posted_invoice_lines()
+                    if inv_line.move_id.move_type in (invoice_type, refund_type)
+                )
                 if line.ids and additional_invoiced_qty:
                     qty_invoiced += additional_invoiced_qty.get(line.ids[0], 0)
-                qty_to_invoice = line.product_uom_qty - qty_invoiced
+                # `product_qty` is the ordered quantity in the line's own UoM, which
+                # is what the invoiced quantity above is expressed in.
+                qty_to_invoice = line.product_qty - qty_invoiced
                 order_not_yet_invoiced += price_reduce * qty_to_invoice
             if declaration.currency_id.compare_amounts(order_not_yet_invoiced, 0) > 0:
                 not_yet_invoiced += order_not_yet_invoiced

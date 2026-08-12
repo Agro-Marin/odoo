@@ -28,7 +28,9 @@
                 <field name="grid_product_tmpl_id" invisible="1"/>
                 <field name="grid_update" invisible="1"/>
             </field>
-            <group name="other_info" position="inside">
+            <!-- purchase's "Other Information" page was split into named groups;
+                 report_grids is a purchasing option, so it goes with the rest of them. -->
+            <group name="responsible_info" position="inside">
                 <field name="report_grids" groups="base.group_no_one"/>
             </group>
         </field>
