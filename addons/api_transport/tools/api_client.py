@@ -456,14 +456,18 @@ class APIGatewayClient:
         response_data = None
         error = None
 
+        # Resolved BEFORE the try, deliberately. This is a configuration check,
+        # not an exchange: inside, the broad `except Exception` below would turn
+        # its refusal into a CommError, and a caller mapping CommError to
+        # "cannot connect" would report a security misconfiguration as a network
+        # fault. Nothing has been sent at this point, and nothing will be.
+        #
+        # setdefault, not an override: a caller passing verify explicitly has
+        # said something more specific than the record's default.
+        kwargs.setdefault("verify", self._get_tls_verification(url))
+
         try:
             _logger.info("API Request: %s %s", method, _mask_sensitive_url(url))
-
-            # setdefault, not an override: a caller passing verify explicitly
-            # has said something more specific than the record's default. The
-            # public-host guard inside still applies to the record's setting,
-            # which is the one an operator can flip without reading any code.
-            kwargs.setdefault("verify", self._get_tls_verification(url))
             response = self.session.request(
                 method=method,
                 url=url,
@@ -853,15 +857,22 @@ class APIGatewayClient:
         the point where the actual host is known.
 
         :param str url: the absolute URL about to be called
+        Raised as a UserError, not a CommError, and that matters: callers wrap
+        this transport in their own error ladders, and a module catching
+        CommError to say "cannot connect to the device" would report a security
+        misconfiguration as a network fault -- sending an operator to debug
+        cabling instead of fixing the record. It is not a communication
+        failure; nothing was sent, and deliberately so.
+
         :return: the value to pass to requests as ``verify``
         :rtype: bool
-        :raises CommError: if verification is off for a public host
+        :raises UserError: if verification is off for a public host
         """
         if self.service.verify_tls:
             return True
         host = urlparse(url).hostname or ""
         if not is_private_host(host):
-            raise CommError(
+            raise UserError(
                 _(
                     "Refusing to call '%(host)s' with TLS verification disabled: "
                     "it is not a private-network host, so the credential for "

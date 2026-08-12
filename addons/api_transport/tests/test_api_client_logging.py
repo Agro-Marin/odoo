@@ -28,7 +28,7 @@ from unittest.mock import MagicMock, patch
 import requests
 from requests.auth import HTTPDigestAuth
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.libs.logging import mute_logger
 from odoo.tests.common import TransactionCase, tagged
 
@@ -745,5 +745,7 @@ class TestDigestAuthAndTlsVerification(TransactionCase):
         """
         client = self._service(code="lan_probe2", verify_tls=False)._get_api_client()
 
-        with self.assertRaises(CommError):
+        # UserError, not CommError: nothing was sent, and a caller wrapping
+        # CommError would otherwise report this as "cannot connect".
+        with self.assertRaises(UserError):
             client._get_tls_verification("https://api.example.com/v1/things")
