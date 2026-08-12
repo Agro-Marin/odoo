@@ -45,9 +45,9 @@ class _LeastPackagesPriorityQueue:
 class _LeastPackagesNode(typing.NamedTuple):
     """A node of the least_packages A* search."""
 
-    count_remaining: float  # quantity still to cover
-    taken_packages: tuple  # (key, available_qty) pairs chosen so far
-    next_index: int  # index of the next candidate package to consider
+    count_remaining: float
+    taken_packages: tuple
+    next_index: int
 
 
 def _least_packages_search(qty_by_package, qty):
@@ -88,8 +88,6 @@ def _least_packages_search(qty_by_package, qty):
         if current.count_remaining <= 0:
             return current.taken_packages
 
-        # Generate only one branch per distinct amount (the list is grouped by
-        # amount).
         last_count = None
         i = current.next_index
         while i < size:
@@ -104,7 +102,6 @@ def _least_packages_search(qty_by_package, qty):
             node = _LeastPackagesNode(count, taken, i)
 
             if count < 0:
-                # Overselect case: keep the fewest-package / tightest leaf.
                 if (
                     best_leaf.count_remaining > 0
                     or len(node.taken_packages) < len(best_leaf.taken_packages)
@@ -117,14 +114,12 @@ def _least_packages_search(qty_by_package, qty):
                 continue
 
             if i >= size and count != 0:
-                # Not enough packages case: keep the closest leaf.
                 if node.count_remaining < best_leaf.count_remaining:
                     best_leaf = node
                 continue
 
             frontier.put(node, heuristic(node))
 
-    # No exact matching possible, use best leaf.
     return best_leaf.taken_packages
 
 
@@ -152,10 +147,7 @@ class _ReservationLedger:
     __slots__ = ("_pending", "move_line_vals")
 
     def __init__(self, move_line_vals=None):
-        # quant id -> quantity claimed in this run and not yet on the quant row
         self._pending = defaultdict(float)
-        # shared with `_action_assign`, so the bypass path (which never touches a
-        # quant, hence never records a take) appends to the very same list.
         self.move_line_vals = move_line_vals if move_line_vals is not None else []
 
     def pending(self, quant):
@@ -174,10 +166,10 @@ class _ReservationLedger:
 class _ReservationCandidate(typing.NamedTuple):
     """One candidate row offered to :func:`_distribute_reservation`."""
 
-    handle: object  # echoed back verbatim (a stock.quant in production)
+    handle: object
     on_hand: float
     reserved: float
-    key: object  # characteristics grouping interchangeable candidates
+    key: object
 
 
 def _distribute_reservation(candidates, quantity, precision_digits):
@@ -226,8 +218,6 @@ def _distribute_reservation(candidates, quantity, precision_digits):
     if float_compare(quantity, 0, precision_digits=precision_digits) <= 0:
         return reserved
 
-    # Group already-over-reserved (negative available) quantity by characteristics
-    # so it is absorbed first, not spread as more over-reservation in the group.
     negative_available = defaultdict(float)
     for cand in candidates:
         slack = cand.on_hand - cand.reserved
@@ -279,14 +269,9 @@ class _QuantsCache:
 
     def __init__(self, empty, product_ids=(), location_paths=(), lot_scope=None):
         self._data = {}
-        self._empty = empty  # empty stock.quant recordset returned on a miss
+        self._empty = empty
         self._product_ids = frozenset(product_ids)
-        # parent_path prefixes of the root locations the scan descended from; a
-        # gathered location is covered iff its parent_path starts with one of them.
         self._location_paths = tuple(p for p in location_paths if p)
-        # None: unfiltered scan, authoritative for every lot. A frozenset: the scan
-        # was filtered to these lot ids (untracked stock, lot_id=False, is always
-        # scanned), so only those lots are authoritative.
         self._lot_scope = None if lot_scope is None else frozenset(lot_scope)
 
     def __getitem__(self, key):
@@ -303,8 +288,6 @@ class _QuantsCache:
         path = location_id.parent_path or ""
         if not any(path.startswith(root) for root in self._location_paths):
             return False
-        # A lot-filtered cache is authoritative only for its seeded lots (untracked
-        # stock is always scanned, so lot_id=False is fine).
         return self._lot_scope is None or not lot_id or lot_id.id in self._lot_scope
 
 
@@ -313,10 +296,6 @@ class StockQuant(models.Model):
     _description = "Quants"
     _rec_name = "product_id"
     _rec_names_search = ["location_id", "lot_id", "package_id", "owner_id"]
-
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     location_id = fields.Many2one(
         comodel_name="stock.location",
@@ -350,8 +329,6 @@ class StockQuant(models.Model):
         check_company=True,
         domain=lambda self: self._domain_product_id(),
         ondelete="restrict",
-        # No standalone index: product_id leads _quant_merge_idx below, so a
-        # dedicated single-column btree is pure write overhead on this hot table.
     )
     product_tmpl_id = fields.Many2one(
         related="product_id.product_tmpl_id",
@@ -440,7 +417,6 @@ class StockQuant(models.Model):
         search="_search_on_hand",
     )
 
-    # Inventory Fields
     inventory_quantity = fields.Float(
         string="Counted",
         digits="Product Unit",
@@ -491,22 +467,18 @@ class StockQuant(models.Model):
         help="User assigned to do product count.",
     )
 
-    # ------------------------------------------------------------
-    # INDEXES
-    # ------------------------------------------------------------
-
     # Serves _gather()'s lookups, _merge_quants()'s GROUP BY and
     # _get_quants_by_products_locations()'s _read_group. Column order matches the
-    # common _read_group groupby: product, location, lot, package, owner. company_id
-    # is last since those _read_group calls don't include it in their groupby.
+    # common groupby: product, location, lot, package, owner. company_id is last
+    # since the _read_group calls don't include it.
     #
     # There is deliberately no narrower (product_id, location_id) index beside it:
     # that pair is this index's own leading prefix, so Postgres serves a prefix
-    # lookup from here and never chose the narrow one even when both existed
-    # (measured at 200k rows / 20k lots: 2400 _gather calls -> 2400 scans here, 0
-    # there). The extra columns are a bonus, not a cost -- the strict gather's
+    # lookup from here and never chose the narrow one when both existed (measured
+    # at 200k rows / 20k lots: 2400 _gather calls, 2400 scans here, 0 there). The
+    # extra columns are a bonus, not a cost -- the strict gather's
     # lot/package/owner IS NULL predicates move out of a heap Filter and into the
-    # Index Cond.
+    # Index Cond. Same reasoning as the standalone product_id index dropped below.
     _quant_merge_idx = models.Index(
         "(product_id, location_id, lot_id, package_id, owner_id, company_id)"
     )
@@ -521,10 +493,6 @@ class StockQuant(models.Model):
         # underneath us.
         self.env.cr.execute("DROP INDEX IF EXISTS stock_quant__product_id_index")
         self.env.cr.execute("DROP INDEX IF EXISTS stock_quant_product_location_idx")
-
-    # ------------------------------------------------------------
-    # CONSTRAINT METHODS
-    # ------------------------------------------------------------
 
     @api.constrains("location_id")
     def check_location_id(self):
@@ -559,10 +527,6 @@ class StockQuant(models.Model):
                     )
                 )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         """Override to handle "inventory mode": create/update the matching quant as
@@ -581,18 +545,8 @@ class StockQuant(models.Model):
 
         is_inventory_mode = self._is_inventory_mode()
         allowed_fields = self._get_inventory_fields_create()
-        # `results[i]` holds the quant for `vals_list[i]`, preserving order. Inventory-
-        # mode rows are handled one at a time (each gathers/merges against existing
-        # quants); other rows are deferred to one batched super().create() so
-        # @api.model_create_multi issues a single INSERT instead of N.
-        #
-        # Inventory-mode rows resolve to an *existing* quant when one matches, so two
-        # vals with the same characteristics can map to the same record and the result
-        # is then shorter than `vals_list`. That coalescing is intended (one physical
-        # quant per characteristics tuple) -- callers must not positionally zip the
-        # result against the input.
         results = [self.env["stock.quant"]] * len(vals_list)
-        plain_vals = []  # list of (index, vals) for the batched, non-inventory create
+        plain_vals = []
         for index, vals in enumerate(vals_list):
             if is_inventory_mode and any(
                 f in vals
@@ -613,11 +567,6 @@ class StockQuant(models.Model):
             for (index, _vals), quant in zip(plain_vals, plain_records, strict=True):
                 _add_to_cache(quant)
                 results[index] = quant
-                # stock.quant omits `_check_company_auto`, so the ORM never auto-runs
-                # `_check_company` on create/write (unlike stock.lot, stock.location).
-                # The engine path is trusted (company_id is a stored related off
-                # location_id), so this explicit call on the user-input (inventory)
-                # path is the *only* company consistency check.
                 if is_inventory_mode and quant.company_id:
                     quant._check_company()
         return self.env["stock.quant"].union(*results)
@@ -637,9 +586,6 @@ class StockQuant(models.Model):
             raise UserError(
                 _("Quant's creation is restricted, you can't do this operation.")
             )
-        # Decide the mode by which *key* is present, not by truthiness: a counted
-        # quantity of 0 is a valid value, and passing both keys must not let one
-        # field's value leak into the other.
         if "inventory_quantity_auto_apply" in vals:
             auto_apply = True
             inventory_quantity = vals.pop("inventory_quantity_auto_apply") or 0
@@ -647,7 +593,6 @@ class StockQuant(models.Model):
         else:
             auto_apply = False
             inventory_quantity = vals.pop("inventory_quantity", False) or 0
-        # Create an empty quant or write on a similar one.
         product = self.env["product.product"].browse(vals["product_id"])
         location = self.env["stock.location"].browse(vals["location_id"])
         lot_id = self.env["stock.lot"].browse(vals.get("lot_id"))
@@ -655,7 +600,6 @@ class StockQuant(models.Model):
         owner_id = self.env["res.partner"].browse(vals.get("owner_id"))
         quant = self.env["stock.quant"]
         if not self.env.context.get("import_file"):
-            # Merge quants later, to make sure one line = one record during batch import
             quant = self._gather(
                 product,
                 location,
@@ -691,7 +635,6 @@ class StockQuant(models.Model):
         if auto_apply:
             quant.write({"inventory_quantity_auto_apply": inventory_quantity})
         else:
-            # Set the `inventory_quantity` field to create the necessary move.
             quant.inventory_quantity = inventory_quantity
             quant.user_id = vals.get("user_id", self.env.user.id)
             quant.inventory_date = fields.Date.today()
@@ -703,12 +646,6 @@ class StockQuant(models.Model):
         if self._is_inventory_mode() and any(
             field in vals for field in forbidden_fields
         ):
-            # Quants in an inventory-adjustment location can't be meaningfully edited,
-            # so a forbidden write on them is silently ignored (returning True honours
-            # write()'s contract: a no-op still "succeeded"). Don't extend that leniency
-            # to a mixed recordset: if a real quant is also being written the operation
-            # is restricted, and swallowing it would drop the caller's change. So
-            # partition on the location's usage rather than gate on `any(...)`.
             if self.filtered(lambda quant: quant.location_id.usage != "inventory"):
                 raise UserError(
                     _("Quant's editing is restricted, you can't do this operation.")
@@ -731,10 +668,6 @@ class StockQuant(models.Model):
             self = self.with_context(inventory_mode=True)
             self.inventory_quantity = 0
             self._apply_inventory()
-
-    # ------------------------------------------------------------
-    # DEFAULT METHODS
-    # ------------------------------------------------------------
 
     def _stock_user_domain(self, domain):
         """Return field-``domain`` expression ``domain`` for stock users, ``"[]"``
@@ -766,10 +699,6 @@ class StockQuant(models.Model):
             " [('is_storable', '=', True), ('product_tmpl_id', 'in', context.get('product_tmpl_ids', []) + [context.get('product_tmpl_id', 0)])] if context.get('product_tmpl_ids') or context.get('product_tmpl_id') else"
             " [('is_storable', '=', True)]"
         )
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("quantity", "reserved_quantity")
     def _compute_available_quantity(self):
@@ -829,10 +758,6 @@ class StockQuant(models.Model):
             ["date:max"],
         )
 
-        # A move line can be the "last count" for a quant on either end of the move
-        # (source/dest location) reached through either package slot (package/result
-        # package): the 2x2 cross product below is those four (location, package)
-        # tuples. Keep the newest date per tuple.
         date_by_quant = {}
         for (
             product,
@@ -895,9 +820,6 @@ class StockQuant(models.Model):
             ("location_id.usage", "in", ["internal", "transit"]),
         ]
         results = self._read_group(domain, ["lot_id"], having=[("__count", ">", 1)])
-        # The read_group already detects duplicates globally; only flag the records in
-        # self. Searching for (and assigning to) quants outside self both wastes a query
-        # and writes a computed value onto records the ORM never asked us to compute.
         duplicated_sn_ids = {lot.id for [lot] in results}
         self.filtered(lambda q: q.lot_id.id in duplicated_sn_ids).sn_duplicated = True
 
@@ -927,10 +849,6 @@ class StockQuant(models.Model):
                     name.append(record.owner_id.name)
                 record.display_name = " - ".join(name)
 
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
-
     def _inverse_inventory_quantity(self):
         """Inverse method to create stock move when `inventory_quantity` is set
         (`inventory_quantity` is only accessible in inventory mode).
@@ -939,9 +857,6 @@ class StockQuant(models.Model):
             return
         quant_to_inventory = self.env["stock.quant"]
         for quant in self:
-            # UoM-aware: a bare `==` lets a difference below the product's rounding
-            # count as a real count, and (worse) reads two values that differ only by
-            # float residue as different, fabricating a zero-quantity inventory move.
             if (
                 quant.product_uom_id.compare(
                     quant.quantity, quant.inventory_quantity_auto_apply
@@ -953,12 +868,7 @@ class StockQuant(models.Model):
             quant_to_inventory |= quant
         quant_to_inventory.action_apply_inventory()
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
-
     def _search(self, domain, *args, **kwargs):
-        # lot_properties only exists on stock.lot; redirect searches through lot_id.
         domain = Domain(domain).map_conditions(
             lambda condition: (
                 Domain("lot_id", "any", [condition])
@@ -971,10 +881,6 @@ class StockQuant(models.Model):
     def _search_is_outdated(self, operator, value):
         if operator != "in":
             return NotImplemented
-        # SQL translation of `_is_outdated` (kept as the single Python source of
-        # truth for the compute): comparing the rounded values in the database
-        # avoids materialising every counted quant into Python. All UoMs share
-        # the 'Product Unit' precision, so one digit count fits every row.
         self.env["stock.quant"].flush_model(
             [
                 "inventory_quantity_set",
@@ -1003,17 +909,11 @@ class StockQuant(models.Model):
             return NotImplemented
         return self.env["product.product"]._get_domain_locations()[0]
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
-
     @api.onchange("location_id", "product_id", "lot_id", "package_id", "owner_id")
     def _onchange_location_or_product_id(self):
         vals = {}
 
-        # Once the new line is complete, fetch the new theoretical values.
         if self.product_id and self.location_id:
-            # Clear the lot if it doesn't apply to (or match) the selected product.
             if self.lot_id:
                 if self.tracking == "none" or self.product_id != self.lot_id.product_id:
                     vals["lot_id"] = None
@@ -1030,8 +930,6 @@ class StockQuant(models.Model):
                 quant.filtered(lambda q: q.lot_id == self.lot_id).mapped("quantity")
             )
 
-            # Special case: directly set the quantity to one for serial numbers,
-            # it'll trigger `inventory_quantity` compute.
             if self.lot_id and self.tracking == "serial":
                 vals["inventory_quantity"] = 1
                 vals["inventory_quantity_auto_apply"] = 1
@@ -1087,19 +985,11 @@ class StockQuant(models.Model):
                 .lot_stock_id
             )
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def action_view_stock_moves(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._for_xml_id(
             "stock.stock_move_line_action"
         )
-        # Move lines that touched this location on either end, filtered to this quant's
-        # lot. For an untracked quant ``lot_id.id`` is False, correctly matching the
-        # lot-less move lines of an untracked product. Built with Domain operators so
-        # the (source-or-dest) grouping is explicit, not reliant on prefix precedence.
         domain = (
             Domain("location_id", "=", self.location_id.id)
             | Domain("location_dest_id", "=", self.location_id.id)
@@ -1170,8 +1060,6 @@ class StockQuant(models.Model):
         }
 
     def action_apply_inventory(self, date=None):
-        # env.context isn't reliably passed to the wizard for multi-record actions,
-        # so pass the quant ids explicitly.
         ctx = dict(self.env.context or {})
         ctx["default_quant_ids"] = self.ids
         quants_outdated = self.filtered(lambda quant: quant.is_outdated)
@@ -1270,9 +1158,6 @@ class StockQuant(models.Model):
         return None
 
     def action_apply_all(self):
-        # The list-view button passes the current filter as `active_domain`. If the
-        # action is reached without it, fall back to the records in self rather than
-        # raising KeyError (or, worse, searching an empty domain = every quant).
         active_domain = self.env.context.get("active_domain") or [
             ("id", "in", self.ids)
         ]
@@ -1315,10 +1200,6 @@ class StockQuant(models.Model):
         else:
             self.user_id = self.env.user.id
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _update_next_inventory_date(self):
         """Set ``inventory_date`` on every quant in ``self`` to its location's next
         scheduled count date, resolving each location's date only once. The caller
@@ -1333,7 +1214,6 @@ class StockQuant(models.Model):
 
     @api.model
     def name_create(self, name):
-        # Quants can't be quick-created (e.g. from a many2one dropdown).
         return False
 
     def _load_records_create(self, values):
@@ -1359,17 +1239,14 @@ class StockQuant(models.Model):
         if aggregate_spec == "inventory_quantity:sum" and self.env.context.get(
             "inventory_report_mode"
         ):
-            # Not meaningful in report mode: hide it instead of aggregating.
             return SQL("NULL")
         if aggregate_spec == "available_quantity:sum":
-            # available_quantity isn't a stored column, derive it from its parts.
             sql_quantity = self._read_group_select("quantity:sum", query)
             sql_reserved_quantity = self._read_group_select(
                 "reserved_quantity:sum", query
             )
             return SQL("%s - %s", sql_quantity, sql_reserved_quantity)
         if aggregate_spec == "inventory_quantity_auto_apply:sum":
-            # Computed field mirroring quantity (see _compute_inventory_quantity_auto_apply).
             return self._read_group_select("quantity:sum", query)
         return super()._read_group_select(aggregate_spec, query)
 
@@ -1388,7 +1265,6 @@ class StockQuant(models.Model):
         return ["product_id", "location_id", "lot_id", "package_id", "owner_id"]
 
     def _run_least_packages_removal_strategy_astar(self, domain, qty):
-        # Fetch available quantity per package.
         domain = Domain(domain).optimize(self)
         query = self._search(domain, bypass_access=True)
         query.groupby = SQL("package_id")
@@ -1400,18 +1276,10 @@ class StockQuant(models.Model):
             )
         )
 
-        # Split rows into real packages (kept as-is) and a running count of unpackaged
-        # single units. Real packages make this strategy worthwhile: with none, bail
-        # out *before* allocating anything. Otherwise a location with lots of unpackaged
-        # stock would build -- then immediately discard -- a list of that many single-
-        # unit entries for a guaranteed no-op (~46 ms for 2M units before this return).
         real_packages = []
         singles_count = 0
         for package_id, available_qty in qty_by_package:
             if package_id is None:
-                # Unpackaged stock is expanded into N single (None, 1) units below, so
-                # a fractional remainder (< 1 unit) can't be its own selectable unit and
-                # is floored away here: least_packages ranks whole selectable units.
                 singles_count += int(available_qty)
             else:
                 # No `available_qty != 0` guard: `query.having` above already keeps
@@ -1422,10 +1290,6 @@ class StockQuant(models.Model):
             return domain
 
         try:
-            # Expanding singles into individual (None, 1) entries is the memory-hungry
-            # step, so it lives inside the MemoryError guard with the search (previously
-            # it was left unguarded). Singles are appended last on purpose; see
-            # _least_packages_search.
             qty_by_package = real_packages + [(None, 1)] * singles_count
             taken_packages = _least_packages_search(qty_by_package, qty)
             return self._least_packages_domain(taken_packages, domain)
@@ -1546,17 +1410,11 @@ class StockQuant(models.Model):
             and removal_strategy != "least_packages"
             and cache_sort is not None
             and quants_cache.covers(product_id, location_id, lot_id)
-            # The cache fast path replicates only the *base* gather semantics.
-            # If a `_get_gather_domain` override injected extra conditions (the
-            # effective domain differs from the base one), serving from the
-            # cache would silently skip them, so fall back to the search.
             and domain
             == StockQuant._get_gather_domain(
                 self, product_id, location_id, lot_id, package_id, owner_id, strict
             )
         ):
-            # package_id/owner_id may be None (their documented default); the cache is
-            # keyed by id, so normalise to False like the search path does.
             package_key = package_id.id if package_id else False
             owner_key = owner_id.id if owner_id else False
             res = self.env["stock.quant"]
@@ -1569,27 +1427,13 @@ class StockQuant(models.Model):
             ]
             with_expiration = self.env.context.get("with_expiration")
             if with_expiration:
-                # The cache is built without the removal_date filter, so apply it here to
-                # keep the cache path equivalent to the search path (_get_gather_domain).
                 cutoff = fields.Datetime.to_datetime(with_expiration)
                 res = res.filtered(
                     lambda q: not q.removal_date or q.removal_date >= cutoff
                 )
-            # The search path orders on the DB by `order`; the cache is keyed but
-            # unordered, so replicate the removal-strategy ordering here (via the
-            # `_get_removal_strategy_sort_key` hook). Otherwise the two paths return
-            # quants in a different order (id vs in_date), so the first quant
-            # locked/consumed downstream would differ by whether a quants_cache was
-            # in context. (least_packages never takes this branch.)
             sort_key, sort_reverse = cache_sort
             res = res.sorted(sort_key, reverse=sort_reverse)
         else:
-            # No cache / non-strict / least_packages, a strategy whose SQL ordering
-            # has no Python equivalent (`cache_sort is None`), an override-extended
-            # gather domain, or a cache that never scanned this product/location:
-            # resolve from the DB. Falling back here -- rather than trusting an
-            # absent key as "empty" -- is what makes a partial cache safe (an
-            # un-scanned pair no longer silently reads as zero stock).
             res = self.search(domain, order=order)
 
         if removal_strategy == "closest":
@@ -1598,7 +1442,6 @@ class StockQuant(models.Model):
         return res.sorted(lambda q: not q.lot_id)
 
     def _apply_inventory(self, date=None):
-        # Consider the inventory_quantity as set => recompute the inventory_diff_quantity if needed
         self.inventory_quantity_set = True
         move_vals = []
         default_loss_locations = {}
@@ -1630,8 +1473,6 @@ class StockQuant(models.Model):
                     loss_location_id
                 )
         for quant in self:
-            # if inventory applied from product's inverse_qty and the inventory_diff_quantity is 0,
-            # we skip creating a move with 0 quantity.
             if (
                 quant.env.context.get("from_inverse_qty")
                 and quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) == 0
@@ -1641,8 +1482,6 @@ class StockQuant(models.Model):
                 quant.product_id.id, quant.company_id.id
             ] or default_loss_locations.get(quant.company_id.id)
             if not inventory_location:
-                # Without this guard the move creation below crashes with a raw
-                # not-null violation on location_id.
                 raise UserError(
                     _(
                         "No inventory loss location is configured for product "
@@ -1653,8 +1492,6 @@ class StockQuant(models.Model):
                         or self.env.company.display_name,
                     )
                 )
-            # Positive diff (counted more than expected): receive stock from the loss location.
-            # Negative diff: send the missing stock to the loss location.
             if quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) > 0:
                 move_vals.append(
                     quant._get_inventory_move_values(
@@ -1707,9 +1544,6 @@ class StockQuant(models.Model):
         if not (quantity or reserved_quantity):
             raise ValidationError(_("Quantity or Reserved Quantity should be set."))
         self = self.sudo()
-        # Resolve the strategy once and thread it to the gather below (via the
-        # private `_gather_removal_strategy` context key, see `_gather`) so it
-        # does not re-walk the product category + location parent chain.
         self = self.with_context(
             _gather_removal_strategy=self._get_removal_strategy(product_id, location_id)
         )
@@ -1726,7 +1560,6 @@ class StockQuant(models.Model):
             if product_id.uom_id.compare(quantity, 0) > 0:
                 quants = quants.filtered(lambda q: q.lot_id)
             else:
-                # Don't remove quantity from a negative, untracked quant.
                 quants = quants.filtered(
                     lambda q: product_id.uom_id.compare(q.quantity, 0) > 0 or q.lot_id,
                 )
@@ -1741,8 +1574,6 @@ class StockQuant(models.Model):
             ]
         if in_date:
             incoming_dates += [in_date]
-        # If multiple incoming dates are available for a given lot_id/package_id/owner_id, we
-        # consider only the oldest one as being relevant.
         if incoming_dates:
             in_date = min(incoming_dates)
         else:
@@ -1752,38 +1583,20 @@ class StockQuant(models.Model):
         if quants:
             lockable = quants
             if reserved_quantity and reserved_quantity < 0:
-                # For a release, prefer a row that actually holds reserved quantity.
-                # Locking the strategy-first row unconditionally can pick an empty
-                # (reserved_quantity == 0) sibling -- e.g. the reservation-only row
-                # the create branch below produces when the stock-holding quant is
-                # locked by a concurrent transaction. The max(0, ...) clamp would then
-                # drop the whole release and strand a phantom reservation on the
-                # sibling that does hold it. Targeting a reserved row lands the
-                # decrement where the reservation actually is.
                 reserved_rows = quants.filtered(
                     lambda q: q.product_uom_id.compare(q.reserved_quantity, 0) > 0
                 )
                 if reserved_rows:
                     lockable = reserved_rows
-            # quants are already ordered by _gather; lock the first candidate.
             quant = lockable.try_lock_for_update(allow_referencing=True, limit=1)
 
         new_quant = self.env["stock.quant"]
         if quant:
-            # try_lock_for_update only SELECTs ids FOR UPDATE; it does not refetch
-            # column values. The quantity/reserved_quantity in cache came from the
-            # earlier _gather SELECT and may be stale if a concurrent transaction
-            # committed a change to this row in the gather->lock window. Re-read
-            # under the lock before incrementing, or we silently drop that update.
             quant.invalidate_recordset(["quantity", "reserved_quantity"])
             vals = {"in_date": in_date}
             if quantity:
                 vals["quantity"] = quant.quantity + quantity
             if reserved_quantity:
-                # Clamp so a single quant's reserved_quantity never goes negative;
-                # an over-release heals to 0 and _clean_reservations corrects the
-                # true value. The release-targeting above keeps this clamp from
-                # dropping a legitimate release in the multi-row group case.
                 vals["reserved_quantity"] = max(
                     0, quant.reserved_quantity + reserved_quantity
                 )
@@ -1800,27 +1613,11 @@ class StockQuant(models.Model):
             if quantity:
                 vals["quantity"] = quantity
             if reserved_quantity:
-                # A release (reserved_quantity < 0) can reach this branch when the
-                # only matching quant is locked by a concurrent transaction (gather
-                # sees it, try_lock_for_update skips it). Persist the raw negative:
-                # the aggregate reserved over the group (locked quant + this row)
-                # then nets to the intended total, so availability stays correct
-                # immediately, and _merge_quants later folds the rows (its
-                # GREATEST(0, SUM(reserved_quantity)) absorbs a spurious
-                # double-release). Clamping to 0 here would silently drop a
-                # legitimate release and leave phantom reservations until
-                # _clean_reservations runs.
                 vals["reserved_quantity"] = reserved_quantity
             new_quant = self.create(vals)
-        # The strict availability a fresh re-gather would report is exactly the
-        # set gathered above plus the quant possibly created here: the write/
-        # create updated the ORM cache, so summing over these records saves a
-        # second search of the stock_quant hot table per update.
         avail_quants = gathered | new_quant
         with_expiration = self.env.context.get("with_expiration")
         if new_quant and with_expiration:
-            # Mirror the gather domain's removal_date filter (see
-            # _get_gather_domain) for the record the re-gather would have vetted.
             cutoff = fields.Datetime.to_datetime(with_expiration)
             if new_quant.removal_date and new_quant.removal_date < cutoff:
                 avail_quants -= new_quant
@@ -1891,7 +1688,6 @@ class StockQuant(models.Model):
         precision_digits = max(
             6, self.sudo().env.ref("uom.decimal_product_uom").digits * 2
         )
-        # Use a select instead of ORM search for UoM robustness.
         query = SQL(
             """SELECT id FROM stock_quant
                 WHERE (round(quantity::numeric, %s) = 0 OR quantity IS NULL)
@@ -1903,14 +1699,6 @@ class StockQuant(models.Model):
             precision_digits,
         )
         if self._ids:
-            # When called on a recordset (e.g. via _quant_tasks after moving quants),
-            # scope to the touched product/location like _merge_quants does instead of
-            # scanning the whole table. Model-level callers (empty self) still run
-            # global unless they passed an explicit products/locations scope. A
-            # preceding _merge_quants may have deleted duplicate rows that are
-            # members of self (reading their fields would raise MissingError), so
-            # read the scope off the surviving records only -- the kept row of each
-            # merged group shares its product/location, so the scope is preserved.
             quants = self.exists()
             products = quants.product_id
             locations = quants.location_id
@@ -1958,8 +1746,6 @@ class StockQuant(models.Model):
             ],
         )
         if self._ids:
-            # exists(): a preceding _merge_quants may have deleted duplicate rows
-            # that are members of self (see _unlink_zero_quants).
             quants = self.exists()
             products = quants.product_id
             locations = quants.location_id
@@ -2043,11 +1829,6 @@ class StockQuant(models.Model):
             )
 
     def _quant_tasks(self):
-        # Not @api.model: the three tasks scope themselves to `self`'s
-        # product/location pairs when called on a recordset (e.g. package
-        # unpacking); the decorator silently dropped the records and forced
-        # every call global. Model-level callers (cron, report views) still
-        # run global via the empty recordset.
         self._merge_quants()
         self._clean_reservations()
         self._unlink_zero_quants()
@@ -2088,13 +1869,12 @@ class StockQuant(models.Model):
             self.env["ir.config_parameter"].sudo().get_param("stock.barcode_separator")
         )
         if not barcode_separator:
-            return []  # A barcode separator is mandatory to be able to aggregate barcodes.
+            return []
 
-        eol_char = "\t"  # Added at the end of aggregate barcodes to end `barcode_scanned` event.
+        eol_char = "\t"
         aggregate_barcodes = []
         aggregate_barcode = ""
 
-        # Searches all GS1 rules linked to an UoM other than Unit and retrieves their AI.
         uom_unit_id = self.env.ref("uom.product_uom_unit").id
         gs1_quantity_rules = self.env["barcode.rule"].search(
             [
@@ -2117,13 +1897,10 @@ class StockQuant(models.Model):
             if not quant.product_id.barcode:
                 continue
             barcode = ""
-            # In case the quant product's barcode is not GS1 compliant, add it first,
-            # so that the lots and qty barcodes that follow it will be used for this product.
             if previous_product != quant.product_id:
                 previous_product = quant.product_id
                 if not quant.product_id.valid_ean:
                     barcode += quant.product_id.barcode
-            # Fall back to the bare serial number if no GS1 barcode could be built.
             quant_gs1_barcode = quant._get_gs1_barcode(gs1_quantity_rules_ai_by_uom)
             if quant_gs1_barcode:
                 barcode += (barcode_separator if barcode else "") + quant_gs1_barcode
@@ -2136,8 +1913,6 @@ class StockQuant(models.Model):
                 aggregate_barcodes.append(aggregate_barcode + eol_char)
                 aggregate_barcode = ""
             if barcode:
-                # endswith, not a last-character compare: the separator sysparam may
-                # be several characters long.
                 if aggregate_barcode and not aggregate_barcode.endswith(
                     barcode_separator
                 ):
@@ -2197,6 +1972,35 @@ class StockQuant(models.Model):
             allow_negative=allow_negative,
         )
 
+    def _get_on_hand_shortfall(
+        self, product_id, location_id, lot_id, package_id=None, owner_id=None
+    ):
+        """How far below zero the *on-hand* of ``lot_id``'s quants has gone, as a
+        positive number (0.0 when non-negative).
+
+        Deliberately not derived from availability: ``_get_available_quantity`` and
+        ``_update_available_quantity`` both report on-hand *minus reserved*, which is
+        negative for a merely fully-reserved quant that holds plenty of stock. Callers
+        repairing a negative on-hand need the on-hand, so they ask for it here.
+
+        The strict gather matches ``lot_id IN (False, lot)``, so the untracked rows are
+        excluded explicitly -- they are the source the repair draws *from*.
+        """
+        quants = self.sudo()._gather(
+            product_id,
+            location_id,
+            lot_id=lot_id,
+            package_id=package_id,
+            owner_id=owner_id,
+            strict=True,
+        )
+        on_hand = sum(
+            quant.quantity
+            for quant in quants
+            if quant.lot_id and quant.lot_id == lot_id
+        )
+        return -on_hand if product_id.uom_id.compare(on_hand, 0) < 0 else 0.0
+
     def _sum_available_quantity(
         self, quants, product_id, lot_id=None, strict=False, allow_negative=False
     ):
@@ -2211,10 +2015,6 @@ class StockQuant(models.Model):
         caller re-gathers instead.
         """
         quants = quants.sudo()
-        # Reservations decided earlier in this `_action_assign` run are not on the
-        # quant rows yet; without subtracting them every move of the batch would be
-        # told the same stock is free. Absent a ledger (any caller outside that loop)
-        # this is a no-op.
         ledger = self.env.context.get("reservation_ledger")
         if product_id.tracking == "none":
             available_quantity = sum(quants.mapped("quantity")) - sum(
@@ -2229,8 +2029,6 @@ class StockQuant(models.Model):
                 if product_id.uom_id.compare(available_quantity, 0.0) >= 0.0
                 else 0.0
             )
-        # Key per-lot availability by the lot record, with None standing in for
-        # untracked quants (the honest empty-lot value, not a magic string).
         available_quantities = dict.fromkeys(set(quants.mapped("lot_id")), 0.0)
         available_quantities[None] = 0.0
         for quant in quants:
@@ -2302,14 +2100,12 @@ class StockQuant(models.Model):
         gs1_quantity_rules_ai_by_uom = gs1_quantity_rules_ai_by_uom or {}
         barcode = ""
 
-        # Product part.
         if self.product_id.valid_ean:
             barcode = self.product_id.barcode
             barcode = "01" + "0" * (14 - len(barcode)) + barcode
         elif self.tracking == "none" or not self.lot_id:
-            return ""  # Doesn't make sense to generate a GS1 barcode for qty with no other data.
+            return ""
 
-        # Quantity part.
         if (
             self.tracking != "serial"
             or self.product_uom_id.compare(self.quantity, 1) > 0
@@ -2324,16 +2120,12 @@ class StockQuant(models.Model):
                 if len(qty_str) <= 6:
                     barcode += quantity_ai + "0" * (6 - len(qty_str)) + qty_str
             else:
-                # No decimal indicator for GS1 Units, no better solution than rounding the qty.
                 qty_str = str(round(self.quantity))
                 if len(qty_str) <= 8:
                     barcode += "30" + "0" * (8 - len(qty_str)) + qty_str
 
-        # Tracking part (must be GS1 barcode's last part since we don't know SN/LN length.)
         if self.lot_id:
             if len(self.lot_id.name) > 20:
-                # Cannot generate a valid GS1 barcode since the lot/serial number max length is
-                # exceeded and this information is required if the LN/SN is present.
                 return ""
             tracking_ai = "21" if self.tracking == "serial" else "10"
             barcode += tracking_ai + self.lot_id.name
@@ -2360,7 +2152,6 @@ class StockQuant(models.Model):
         they are writable only at creation time -- which is exactly what this list is
         for.
         """
-        # Returned as a literal so no local `fields` binding shadows the module import.
         return [
             "inventory_quantity",
             "inventory_quantity_auto_apply",
@@ -2487,7 +2278,6 @@ class StockQuant(models.Model):
                     ],
                 }
             )
-        # Used by the server action so this action can be reached directly via URL.
         action["path"] = "stock-locations"
         return action
 
@@ -2508,8 +2298,6 @@ class StockQuant(models.Model):
                 ]
             )
             if lot_scope is not None:
-                # Scan only the authoritative lots (plus untracked stock); covers()
-                # refuses coverage for any other lot so it falls back to the search.
                 domain &= Domain(
                     ["|", ("lot_id", "in", lot_scope.ids), ("lot_id", "=", False)]
                 )
@@ -2525,11 +2313,6 @@ class StockQuant(models.Model):
             for product, loc, lot, package, owner, quants in needed_quants:
                 res[product.id, loc.id, lot.id, package.id, owner.id] = quants
                 quant_ids.extend(quants.ids)
-            # `id:recordset` yields ids with no values loaded, and consumers read the
-            # cache one gathered group at a time -- so each group would fetch its own
-            # row (`_action_done` reading `in_date` per move line was one SELECT per
-            # line). Warm every cached quant in a single read instead; the caller built
-            # this cache for exactly the products/locations it is about to process.
             self.env["stock.quant"].browse(quant_ids).fetch(
                 [
                     "quantity",
@@ -2552,12 +2335,6 @@ class StockQuant(models.Model):
                 lang=None
             ).method
         location_id = location_id.sudo()
-        # The nearest ancestor location carrying a strategy wins, else fifo. Rather
-        # than climb one `location_id` read per level, resolve the whole chain from the
-        # materialised `parent_path` ("/"-joined ids, root-first, self last) and browse
-        # it at once: the first `removal_strategy_id` access prefetches the column for
-        # every ancestor in one query. Falls back to the climb only if `parent_path` is
-        # not set yet (transient during creation).
         if location_id.parent_path:
             ancestor_ids = [int(i) for i in location_id.parent_path.split("/") if i]
             for loc in self.env["stock.location"].browse(ancestor_ids[::-1]):
@@ -2599,9 +2376,6 @@ class StockQuant(models.Model):
         if removal_strategy == "lifo":
             return (lambda q: (q.in_date, q.id)), True
         if removal_strategy == "closest":
-            # `closest` orders by the default `id` on the search path and is
-            # re-sorted by location afterwards on both paths (a total order, so
-            # the pre-sort only fixes the tiebreak).
             return (lambda q: q.id), False
         return None
 
@@ -2628,9 +2402,6 @@ class StockQuant(models.Model):
         """
         self = self.sudo()
 
-        # Resolve the strategy once and thread it to every gather below via the private
-        # `_gather_removal_strategy` context key (see `_gather`), so neither the gather
-        # nor the availability re-gather re-walks the category + location parent chain.
         removal_strategy = self._get_removal_strategy(product_id, location_id)
         self = self.with_context(_gather_removal_strategy=removal_strategy)
         quants = self._gather(
@@ -2643,15 +2414,6 @@ class StockQuant(models.Model):
             qty=quantity,
         )
 
-        # allow_negative defaults to False: quants left negative by another lot/package
-        # don't reduce the available quantity of the rest.
-        #
-        # For every strategy but least_packages the availability is measured over the
-        # `quants` just gathered, so reuse them via `_sum_available_quantity` and save a
-        # second full search of the stock_quant hot table. least_packages is the
-        # exception: `quants` was narrowed to the chosen packages by `qty`, but
-        # availability must be measured over the *whole* set, so re-gather it (a fresh
-        # `_get_available_quantity`, which reuses the threaded strategy above).
         if removal_strategy == "least_packages":
             available_quantity = self._get_available_quantity(
                 product_id,
@@ -2666,7 +2428,6 @@ class StockQuant(models.Model):
                 quants, product_id, lot_id=lot_id, strict=strict, allow_negative=False
             )
 
-        # Packaging with a "full" reserve method can only reserve whole packages.
         if (
             self.env.context.get("packaging_uom_id")
             and product_id.product_tmpl_id.categ_id.packaging_reserve_method == "full"
@@ -2679,12 +2440,6 @@ class StockQuant(models.Model):
 
         quantity = min(quantity, available_quantity)
 
-        # `quantity` is in the quants' UoM. Blindly reserving it could break the move's
-        # UoM rounding (e.g. when that rounding forbids fractional reservation), so
-        # round-trip it: convert to the move's UoM rounding DOWN, then back to the
-        # quants' UoM rounding HALF-UP, which never reserves more than allowed. Skipped
-        # when `available_quantity` comes from a chained move line -- there
-        # `_prepare_move_line_vals` changes the UoM to the product's.
         if not strict and uom_id and product_id.uom_id != uom_id:
             quantity_move_uom = product_id.uom_id._compute_quantity(
                 quantity, uom_id, rounding_method="DOWN"
@@ -2694,25 +2449,13 @@ class StockQuant(models.Model):
             )
 
         if product_id.tracking == "serial":
-            # Serial-tracked products can only be reserved in whole units.
             if product_id.uom_id.compare(quantity, int(quantity)) != 0:
                 quantity = 0
 
-        # `quantity` is already capped to the availability measured above, so hand
-        # per-candidate allocation straight to the pure `_distribute_reservation`
-        # (which caps each take by that candidate's own slack). Only reservation
-        # requests reach this method (releases go through
-        # `_update_reserved_quantity` with a negative delta), so a non-positive
-        # quantity means there is nothing to allocate.
         if product_id.uom_id.compare(quantity, 0) <= 0:
             return []
 
         precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
-        # A candidate's slack is `on_hand - reserved`, so folding this run's unwritten
-        # claims into `reserved` is all it takes for `_distribute_reservation` to skip
-        # a quant an earlier move has already emptied -- the cap above and the
-        # per-candidate allocation then agree, which is the invariant that keeps a
-        # batch from over-reserving.
         ledger = self.env.context.get("reservation_ledger")
         candidates = [
             _ReservationCandidate(
@@ -2787,8 +2530,6 @@ class StockQuant(models.Model):
                 self.env.cr.execute(query, params)
                 self.env.invalidate_all()
         except Error as e:
-            # psycopg 3: no `pgerror` attribute; the exception's str() carries the
-            # server message.
             _logger.warning("an error occurred while merging quants: %s", e)
 
     def move_quants(
@@ -2815,7 +2556,6 @@ class StockQuant(models.Model):
                 quant not in all_quants
                 for quant in package.parent_package_id.contained_quant_ids
             ):
-                # Only move the container package as well if its whole content is moved as well
                 return None
             package.package_dest_id = package.parent_package_id
             return set_parent_package(all_quants, package.parent_package_id, limit_ids)
@@ -2824,9 +2564,7 @@ class StockQuant(models.Model):
         move_vals = []
         limit_ids = set(up_to_parent_packages.ids if up_to_parent_packages else [])
         for quant in self:
-            result_package_id = (
-                package_dest_id  # temp variable to keep package_dest_id unchanged
-            )
+            result_package_id = package_dest_id
             if not unpack and not package_dest_id:
                 result_package_id = quant.package_id
                 set_parent_package(self, result_package_id, limit_ids)
@@ -2841,10 +2579,6 @@ class StockQuant(models.Model):
             )
         moves = self.env["stock.move"].create(move_vals)
         moves._action_done()
-
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
 
     def check_quantity(self):
         """Ensure no serial number is present more than once at a given location."""
@@ -2939,7 +2673,6 @@ class StockQuant(models.Model):
             sn_locations = quants.mapped("location_id")
             if quants:
                 if not source_location_id:
-                    # trying to assign an already existing SN
                     message = _(
                         "The Serial Number (%(serial_number)s) is already used in location(s): %(location_list)s.\n\n"
                         "Is this expected? For example, this can occur if a delivery operation is validated "
@@ -2951,7 +2684,6 @@ class StockQuant(models.Model):
                     )
 
                 elif source_location_id and source_location_id not in sn_locations:
-                    # using an existing SN in the wrong location
                     recommended_location = self.env["stock.location"]
                     if ref_doc_location_id:
                         for location in sn_locations:

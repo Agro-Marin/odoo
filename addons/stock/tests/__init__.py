@@ -16,6 +16,7 @@ from . import test_stock_move_review_fixes
 from . import test_review_compounding_fixes
 from . import test_move2
 from . import test_move_lines
+from . import test_move_line_audit
 from . import test_multicompany
 from . import test_robustness
 from . import test_packing
