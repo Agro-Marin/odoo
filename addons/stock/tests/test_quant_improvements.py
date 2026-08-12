@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from odoo.exceptions import UserError
@@ -161,18 +162,23 @@ class TestDistributeReservation(TransactionCase):
         res = _distribute_reservation(cands, 4, self.DIGITS)
         self.assertEqual(res, [("b", 4)])
 
-    def test_unreserve_releases_up_to_reserved(self):
-        # Negative quantity releases reservations, capped per candidate at `reserved`.
-        cands = [self._cand("a", 10, 4), self._cand("b", 10, 4)]
-        res = _distribute_reservation(cands, -6, self.DIGITS)
-        self.assertEqual(res, [("a", -4), ("b", -2)])
-
-    def test_unreserve_skips_zero_reserved_candidates(self):
-        """Candidates with nothing reserved must be skipped, not emitted as
-        zero-delta `(handle, -0.0)` pairs for the caller to apply as no-ops."""
+    def test_non_positive_quantity_allocates_nothing(self):
+        """`_distribute_reservation` reserves only. Releases go through
+        `_update_reserved_quantity`, so a non-positive target is not a release
+        request here -- it is nothing to do."""
         cands = [self._cand("a", 10, 0), self._cand("b", 10, 4)]
-        res = _distribute_reservation(cands, -4, self.DIGITS)
-        self.assertEqual(res, [("b", -4)])
+        for quantity in (0, -4, -0.0001):
+            self.assertEqual(_distribute_reservation(cands, quantity, self.DIGITS), [])
+
+    def test_negative_reserved_candidate_never_yields_a_negative_delta(self):
+        """A candidate holding a negative `reserved` (a state
+        `_update_available_quantity` deliberately persists) contributes slack like
+        any other; every emitted amount stays positive."""
+        cands = [self._cand("neg", 0, -5, key="g"), self._cand("pos", 10, 6, key="g")]
+        res = _distribute_reservation(cands, 6, self.DIGITS)
+        self.assertTrue(res)
+        self.assertTrue(all(amount > 0 for _handle, amount in res), res)
+        self.assertAlmostEqual(sum(amount for _handle, amount in res), 6.0)
 
 
 @tagged("post_install", "-at_install")
@@ -1222,6 +1228,186 @@ class TestStockQuantImprovements(TestStockCommon):
             before,
             "cached quants must already carry their values",
         )
+
+    # ---- least_packages redeems unit slots against available units -----------
+    def _least_packages_location(self, name):
+        return self.env["stock.location"].create(
+            {
+                "name": name,
+                "usage": "internal",
+                "location_id": self.loc.id,
+                "removal_strategy_id": self.env["product.removal"]
+                .search([("method", "=", "least_packages")], limit=1)
+                .id,
+            }
+        )
+
+    def test_least_packages_skips_loose_quants_with_no_available_unit(self):
+        """The A* sizes its loose-unit slots from the group's *available* sum, so
+        redeeming them must count available units too. Taking the first N records
+        instead let a fully reserved loose quant -- which sorts oldest, hence first --
+        eat a slot without supplying stock, pushing the quants that do hold stock out
+        of the candidate set. Availability then reported the full amount while the
+        reservation delivered nothing.
+
+        Lots keep the loose quants distinct: same-characteristics quants are
+        duplicates that `_merge_quants` folds, so only a lot/owner-differentiated set
+        makes this a steady state rather than a transient one.
+        """
+        location = self._least_packages_location("lp-available-units")
+        product = self.env["product.product"].create(
+            {"name": "lp-avail", "is_storable": True, "tracking": "lot"}
+        )
+        lots = self.env["stock.lot"].create(
+            [{"name": f"lp-avail-{i}", "product_id": product.id} for i in range(4)]
+        )
+        package = self.env["stock.package"].create({"name": "lp-avail-pkg"})
+        base = datetime(2020, 1, 1)
+        for index, (lot, quantity) in enumerate(
+            [(lots[0], 4.0), (lots[1], 4.0), (lots[2], 2.0)]
+        ):
+            self.Quant.sudo().create(
+                {
+                    "product_id": product.id,
+                    "location_id": location.id,
+                    "lot_id": lot.id,
+                    "quantity": quantity,
+                    "in_date": base + timedelta(days=index),
+                }
+            )
+        self.Quant.sudo().create(
+            {
+                "product_id": product.id,
+                "location_id": location.id,
+                "lot_id": lots[3].id,
+                "quantity": 5.0,
+                "package_id": package.id,
+                "in_date": base + timedelta(days=3),
+            }
+        )
+        self.env.flush_all()
+
+        # a real delivery reserves the two oldest loose lots in full
+        self._deliver(product, 8.0, location)
+        self.assertEqual(
+            self.Quant._get_available_quantity(product, location, strict=False),
+            7.0,
+            "2 loose + 5 packed units remain free",
+        )
+
+        # the loose stock that is left is the *newest* lot, behind two empty ones
+        reserved = self.Quant._get_reserve_quantity(product, location, 2.0)
+        self.assertEqual(
+            sum(quantity for _quant, quantity in reserved),
+            2.0,
+            "the request must be served from the loose lot that still holds stock",
+        )
+        picking = self._deliver(product, 2.0, location)
+        self.assertEqual(picking.move_ids.state, "assigned")
+        self.assertEqual(picking.move_ids.quantity, 2.0)
+
+    def test_least_packages_still_prefers_a_whole_package(self):
+        """The availability-aware slot redemption must not weaken the strategy: an
+        exact package match still wins over loose stock."""
+        location = self._least_packages_location("lp-whole-package")
+        product = self.env["product.product"].create(
+            {"name": "lp-whole", "is_storable": True}
+        )
+        base = datetime(2020, 1, 1)
+        exact = self.env["stock.package"].create({"name": "lp-whole-5"})
+        other = self.env["stock.package"].create({"name": "lp-whole-3"})
+        self.Quant.sudo().create(
+            [
+                {
+                    "product_id": product.id,
+                    "location_id": location.id,
+                    "quantity": 5.0,
+                    "package_id": exact.id,
+                    "in_date": base,
+                },
+                {
+                    "product_id": product.id,
+                    "location_id": location.id,
+                    "quantity": 3.0,
+                    "package_id": other.id,
+                    "in_date": base + timedelta(days=1),
+                },
+                {
+                    "product_id": product.id,
+                    "location_id": location.id,
+                    "quantity": 10.0,
+                    "in_date": base + timedelta(days=2),
+                },
+            ]
+        )
+        self.env.flush_all()
+        gathered = self.Quant._gather(product, location, strict=False, qty=5.0)
+        self.assertEqual(gathered.package_id, exact)
+
+    def _deliver(self, product, quantity, location):
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.env["stock.picking.type"]
+                .search([("code", "=", "outgoing")], limit=1)
+                .id,
+                "location_id": location.id,
+                "location_dest_id": self.customer_location.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": product.id,
+                            "product_uom_qty": quantity,
+                            "product_uom_id": product.uom_id.id,
+                            "location_id": location.id,
+                            "location_dest_id": self.customer_location.id,
+                        },
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        return picking
+
+    # ---- GS1 quantity encoding rounds, it does not truncate ------------------
+    def test_gs1_barcode_quantity_rounds_instead_of_truncating(self):
+        """`quantity / rounding` is a float division that lands just under the
+        integer for ordinary values; truncating it encoded one decimal step too
+        little (0.29 kg went out as 0.28)."""
+        kg = self.env.ref("uom.product_uom_kgm")
+        product = self.env["product.product"].create(
+            {
+                "name": "gs1-round",
+                "is_storable": True,
+                "tracking": "lot",
+                "uom_id": kg.id,
+                "barcode": "01234567890128",
+            }
+        )
+        lot = self.env["stock.lot"].create(
+            {"name": "GS1ROUND", "product_id": product.id}
+        )
+        quant = self.Quant.sudo().create(
+            {
+                "product_id": product.id,
+                "location_id": self.loc.id,
+                "lot_id": lot.id,
+                "quantity": 0.0,
+            }
+        )
+        ai = "3102"  # AI 310 (kg) with 2 decimals
+        for quantity in (0.29, 0.58, 1.16, 2.32, 4.64):
+            quant.sudo().write({"quantity": quantity})
+            quant.invalidate_recordset()
+            barcode = quant._get_gs1_barcode({kg.id: ai})
+            encoded = barcode.split(ai)[1][:6]
+            self.assertEqual(
+                int(encoded) / 100,
+                quantity,
+                f"{quantity} must encode exactly, got {encoded}",
+            )
 
 
 @tagged("post_install", "-at_install")

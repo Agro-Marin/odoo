@@ -173,8 +173,12 @@ class StockQuant(models.Model):
         return res_move
 
     @api.model
-    def _get_inventory_fields_write(self):
-        """Returns a list of fields user can edit when editing a quant in `inventory_mode`."""
-        res = super()._get_inventory_fields_write()
-        res += ["accounting_date"]
-        return res
+    def _get_inventory_fields_countable(self):
+        """Let an inventory-mode `create` carry the accounting date.
+
+        Renamed with the base method: the old `_get_inventory_fields_write` name
+        promised a write allowlist that `write()` never consulted, so this override
+        only ever affected creation -- which is what it is for. `accounting_date` was
+        never blocked on write either way; that path gates on a deny-list.
+        """
+        return super()._get_inventory_fields_countable() + ["accounting_date"]

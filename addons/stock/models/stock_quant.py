@@ -191,9 +191,21 @@ def _distribute_reservation(candidates, quantity, precision_digits):
         removal strategy. ``handle`` is echoed back verbatim; ``key`` groups
         interchangeable candidates so stock already over-reserved into negative
         available is absorbed first, before the rest of that group over-reserves too.
-    :param quantity: signed target in the candidates' UoM -- ``> 0`` reserves,
-        ``< 0`` unreserves. Its sign is fixed for the run: reserving never takes more
-        than is left, so it converges to zero without crossing it.
+    :param quantity: quantity to reserve, in the candidates' UoM. **Strictly
+        positive**; a non-positive value returns no allocation. Reserving never takes
+        more than is left, so the run converges to zero without crossing it.
+
+        This used to accept a signed quantity and carry a second branch that
+        released. Nothing ever called it: releases go through
+        ``_update_reserved_quantity`` -> ``_update_available_quantity``, which locks a
+        row and clamps there, and ``_get_reserve_quantity`` -- the only caller --
+        returns early on ``quantity <= 0``. The branch was also wrong, which is how a
+        second release algorithm nothing exercised stays wrong: against a candidate
+        holding a *negative* ``reserved`` (a state ``_update_available_quantity``
+        deliberately persists) ``min(cand.reserved, abs(quantity))`` went negative and
+        it emitted a **positive** delta while releasing, then drove ``quantity``
+        further from zero. Deleted rather than repaired, so there is one release path
+        instead of two that disagree.
 
         ``quantity`` is the *only* bound on the run, and that is deliberate. Two
         clamps already make it sufficient: the caller caps it to real availability
@@ -208,13 +220,11 @@ def _distribute_reservation(candidates, quantity, precision_digits):
         established was there.
     :param precision_digits: 'Product Unit' decimal precision; every comparison rounds
         to it, matching ``uom.compare`` / ``uom.is_zero``.
-    :return: list of ``(handle, amount)`` pairs -- ``amount`` positive when reserving,
-        negative when unreserving.
+    :return: list of ``(handle, amount)`` pairs with ``amount`` positive.
     """
     reserved = []
-    if float_is_zero(quantity, precision_digits=precision_digits):
+    if float_compare(quantity, 0, precision_digits=precision_digits) <= 0:
         return reserved
-    reserving = float_compare(quantity, 0, precision_digits=precision_digits) > 0
 
     # Group already-over-reserved (negative available) quantity by characteristics
     # so it is absorbed first, not spread as more over-reservation in the group.
@@ -225,28 +235,19 @@ def _distribute_reservation(candidates, quantity, precision_digits):
             negative_available[cand.key] += slack
 
     for cand in candidates:
-        if reserving:
-            max_on_cand = cand.on_hand - cand.reserved
-            if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
-                continue
-            negative = negative_available[cand.key]
-            if negative:
-                to_absorb = min(abs(negative), max_on_cand)
-                negative_available[cand.key] += to_absorb
-                max_on_cand -= to_absorb
-            if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
-                continue
-            max_on_cand = min(max_on_cand, quantity)
-            reserved.append((cand.handle, max_on_cand))
-            quantity -= max_on_cand
-        else:
-            max_on_cand = min(cand.reserved, abs(quantity))
-            if float_is_zero(max_on_cand, precision_digits=precision_digits):
-                # Nothing reserved on this candidate: don't emit a zero-delta
-                # pair for the caller to apply as a no-op update.
-                continue
-            reserved.append((cand.handle, -max_on_cand))
-            quantity += max_on_cand
+        max_on_cand = cand.on_hand - cand.reserved
+        if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
+            continue
+        negative = negative_available[cand.key]
+        if negative:
+            to_absorb = min(abs(negative), max_on_cand)
+            negative_available[cand.key] += to_absorb
+            max_on_cand -= to_absorb
+        if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
+            continue
+        max_on_cand = min(max_on_cand, quantity)
+        reserved.append((cand.handle, max_on_cand))
+        quantity -= max_on_cand
 
         if float_is_zero(quantity, precision_digits=precision_digits):
             break
@@ -349,9 +350,8 @@ class StockQuant(models.Model):
         check_company=True,
         domain=lambda self: self._domain_product_id(),
         ondelete="restrict",
-        # No standalone index: product_id is the leading column of both
-        # _product_location_idx and _quant_merge_idx below, so a dedicated
-        # single-column btree is pure write overhead on this hot table.
+        # No standalone index: product_id leads _quant_merge_idx below, so a
+        # dedicated single-column btree is pure write overhead on this hot table.
     )
     product_tmpl_id = fields.Many2one(
         related="product_id.product_tmpl_id",
@@ -495,25 +495,32 @@ class StockQuant(models.Model):
     # INDEXES
     # ------------------------------------------------------------
 
-    # Composite index for _gather() queries:
-    # WHERE product_id=? AND location_id=? (strict) or location_id child_of (non-strict)
-    _product_location_idx = models.Index("(product_id, location_id)")
-
-    # Composite index for _merge_quants() GROUP BY and _get_quants_by_products_locations() _read_group.
-    # Column order matches the common _read_group groupby: product, location, lot, package, owner.
-    # company_id is last since _read_group calls don't include it in their groupby.
+    # Serves _gather()'s lookups, _merge_quants()'s GROUP BY and
+    # _get_quants_by_products_locations()'s _read_group. Column order matches the
+    # common _read_group groupby: product, location, lot, package, owner. company_id
+    # is last since those _read_group calls don't include it in their groupby.
+    #
+    # There is deliberately no narrower (product_id, location_id) index beside it:
+    # that pair is this index's own leading prefix, so Postgres serves a prefix
+    # lookup from here and never chose the narrow one even when both existed
+    # (measured at 200k rows / 20k lots: 2400 _gather calls -> 2400 scans here, 0
+    # there). The extra columns are a bonus, not a cost -- the strict gather's
+    # lot/package/owner IS NULL predicates move out of a heap Filter and into the
+    # Index Cond.
     _quant_merge_idx = models.Index(
         "(product_id, location_id, lot_id, package_id, owner_id, company_id)"
     )
 
     def init(self):
         super().init()
-        # product_id dropped its standalone `index=True` (it leads both composite
-        # indexes above, so a single-column btree is pure write overhead here).
-        # `_auto_init` no longer creates it, but the ORM never drops indexes it once
-        # made, so remove the now-orphan index here. Idempotent, and runs after
-        # `_auto_init` so it won't be recreated underneath us.
+        # product_id and (product_id, location_id) both dropped their index: each is
+        # a leading prefix of _quant_merge_idx, so a separate btree is pure write
+        # overhead on this hot table. `_auto_init` no longer creates them, but the
+        # ORM never drops indexes it once made, so remove the now-orphans here.
+        # Idempotent, and runs after `_auto_init` so they won't be recreated
+        # underneath us.
         self.env.cr.execute("DROP INDEX IF EXISTS stock_quant__product_id_index")
+        self.env.cr.execute("DROP INDEX IF EXISTS stock_quant_product_location_idx")
 
     # ------------------------------------------------------------
     # CONSTRAINT METHODS
@@ -694,7 +701,7 @@ class StockQuant(models.Model):
         """Override to handle the "inventory mode" and create the inventory move."""
         forbidden_fields = self._get_forbidden_fields_write()
         if self._is_inventory_mode() and any(
-            field for field in forbidden_fields if field in vals
+            field in vals for field in forbidden_fields
         ):
             # Quants in an inventory-adjustment location can't be meaningfully edited,
             # so a forbidden write on them is silently ignored (returning True honours
@@ -778,8 +785,17 @@ class StockQuant(models.Model):
         )
         quants._update_next_inventory_date()
 
+    @api.depends("product_id", "location_id", "lot_id", "package_id", "owner_id")
     def _compute_last_count_date(self):
-        """We look at the stock move lines associated with every quant to get the last count date."""
+        """We look at the stock move lines associated with every quant to get the last count date.
+
+        The depends covers the characteristics this keys on. It cannot cover the
+        move lines themselves -- the value comes from a `_read_group` over
+        `stock.move.line`, not from a field path -- so a count booked later in the
+        same transaction still needs an explicit invalidation to show up. Without any
+        depends at all the value never refreshed, not even when the quant was
+        re-pointed at another product or location.
+        """
         self.last_count_date = False
         groups = self.env["stock.move.line"]._read_group(
             [
@@ -1093,7 +1109,9 @@ class StockQuant(models.Model):
                 "result_package_id", "=", self.package_id.id
             )
         action["domain"] = domain
-        action["context"] = literal_eval(action.get("context"))
+        # `or "{}"`: an action with no context stores "" / None, which literal_eval
+        # rejects with SyntaxError rather than returning an empty dict.
+        action["context"] = literal_eval(action.get("context") or "{}")
         action["context"]["search_default_product_id"] = self.product_id.id
         return action
 
@@ -1168,8 +1186,9 @@ class StockQuant(models.Model):
                 "target": "new",
                 "context": ctx,
             }
+        # No `inventory_quantity_set = False` here: `_apply_inventory` ends in
+        # `action_clear_inventory_quantity`, which already cleared it.
         self._apply_inventory(date)
-        self.inventory_quantity_set = False
         return None
 
     def action_stock_quant_relocate(self):
@@ -1394,7 +1413,9 @@ class StockQuant(models.Model):
                 # a fractional remainder (< 1 unit) can't be its own selectable unit and
                 # is floored away here: least_packages ranks whole selectable units.
                 singles_count += int(available_qty)
-            elif available_qty != 0:
+            else:
+                # No `available_qty != 0` guard: `query.having` above already keeps
+                # only groups with SUM(quantity - reserved_quantity) > 0.
                 real_packages.append((package_id, available_qty))
 
         if not real_packages:
@@ -1421,28 +1442,39 @@ class StockQuant(models.Model):
 
         Unpackaged singles are resolved to concrete quant ids in a single query.
 
-        Note the deliberate asymmetry: ``single_count`` counts selected *unit slots*
-        (the search expands loose stock into one ``(None, 1)`` entry per unit), but
-        ``single_item_ids`` are quant *records*, each possibly holding several units.
-        Taking ``single_count`` records thus yields *at least* that many loose
-        units -- never fewer -- so the candidate set can only over-cover on the
-        unpackaged side. That is harmless: the reservation loop caps consumption at the
-        requested quantity, and the package set is pinned exactly by
-        ``package_id in [...]`` below, so no extra package is ever opened.
+        ``single_count`` counts selected *unit slots*: the A* sized it from the
+        unpackaged group's **available** sum, expanding it into one ``(None, 1)`` entry
+        per available unit. Redeeming those slots must therefore also count available
+        units. Taking the first ``single_count`` *records* instead -- as this did --
+        assumes every loose quant carries at least one available unit, which a fully
+        reserved, fractional or negative quant does not. Being older, such a quant sorts
+        to the head of the FIFO order below, so it consumed a slot, supplied nothing,
+        and pushed the quants that do hold stock out of the candidate set: the gather
+        then saw only empty quants and reserved zero while availability reported the
+        full amount. Accumulate availability instead, and skip what cannot contribute.
 
-        The A* only fixes the loose-unit *count*, not which quants, so choose the
-        FIFO-oldest singles (``in_date, id``) -- matching the ``least_packages``
-        removal order -- and take the head. Slicing the tail would restrict the
-        candidate set to the *newest* loose quants and strand older stock the
-        final strategy-ordered gather could never reconsider.
+        The A* fixes the loose-unit *count*, not which quants, so walk the FIFO-oldest
+        singles (``in_date, id``) -- matching the ``least_packages`` removal order.
+        Slicing the tail would restrict the candidate set to the *newest* loose quants
+        and strand older stock the final strategy-ordered gather could never reconsider.
+
+        Over-covering on the unpackaged side stays harmless: the reservation loop caps
+        consumption at the requested quantity, and the package set is pinned exactly by
+        ``package_id in [...]`` below, so no extra package is ever opened.
         """
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
         if single_count:
-            single_item_ids = self.search(
-                Domain("package_id", "=", None) & domain, order="in_date, id"
-            ).ids
-            selected_single_items = single_item_ids[:single_count]
+            for quant in self.search(
+                Domain("package_id", "=", False) & domain, order="in_date, id"
+            ):
+                if single_count <= 0:
+                    break
+                available = quant.quantity - quant.reserved_quantity
+                if available <= 0:
+                    continue
+                selected_single_items.append(quant.id)
+                single_count -= available
 
         return (
             Domain(
@@ -1570,11 +1602,20 @@ class StockQuant(models.Model):
         self.inventory_quantity_set = True
         move_vals = []
         default_loss_locations = {}
+        # The product's loss location is company-dependent, so it is keyed by both.
+        # Resolved once here and read from the map below, rather than re-derived per
+        # quant inside the loop as well as in this filter.
+        loss_location_by_product_company = {
+            (quant.product_id.id, quant.company_id.id): quant.product_id.with_company(
+                quant.company_id
+            ).property_stock_inventory
+            for quant in self
+        }
         quants_with_missing_loss_locations = self.filtered(
             lambda quant: (
-                not quant.product_id.with_company(
-                    quant.company_id
-                ).property_stock_inventory
+                not loss_location_by_product_company[
+                    quant.product_id.id, quant.company_id.id
+                ]
             )
         )
         if quants_with_missing_loss_locations:
@@ -1596,11 +1637,9 @@ class StockQuant(models.Model):
                 and quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) == 0
             ):
                 continue
-            inventory_location = quant.product_id.with_company(
-                quant.company_id
-            ).property_stock_inventory or default_loss_locations.get(
-                quant.company_id.id
-            )
+            inventory_location = loss_location_by_product_company[
+                quant.product_id.id, quant.company_id.id
+            ] or default_loss_locations.get(quant.company_id.id)
             if not inventory_location:
                 # Without this guard the move creation below crashes with a raw
                 # not-null violation on location_id.
@@ -1838,6 +1877,17 @@ class StockQuant(models.Model):
             path of ``stock.move._action_done``). Ignored when ``self`` holds
             records (the recordset defines the scope then).
         """
+        # The candidate SELECT below is a hand-written SQL string, so its `to_flush`
+        # is empty and `env.execute_query` flushes nothing for it -- it would read
+        # the table while ORM writes to these four columns are still buffered, and
+        # `unlink()` flushes before deleting, so a pending write would land and then
+        # be dropped with the row. Today every caller happens to have flushed first
+        # (`_quant_tasks` runs `_merge_quants`, whose `cr.savepoint()` flushes), but
+        # that is their accident, not this method's contract. Flush explicitly, like
+        # `_search_is_outdated` does for the same reason.
+        self.env["stock.quant"].flush_model(
+            ["quantity", "reserved_quantity", "inventory_quantity", "user_id"]
+        )
         precision_digits = max(
             6, self.sudo().env.ref("uom.decimal_product_uom").digits * 2
         )
@@ -2266,7 +2316,11 @@ class StockQuant(models.Model):
         ):
             quantity_ai = gs1_quantity_rules_ai_by_uom.get(self.product_uom_id.id)
             if quantity_ai:
-                qty_str = str(int(self.quantity / self.product_uom_id.rounding))
+                # round(), not int(): `quantity / rounding` is a float division that
+                # lands just under the integer for ordinary values, and truncating it
+                # encodes one decimal step too little -- 0.29 kg went out as 0.28,
+                # 1.16 as 1.15. The no-AI branch below already rounds.
+                qty_str = str(round(self.quantity / self.product_uom_id.rounding))
                 if len(qty_str) <= 6:
                     barcode += quantity_ai + "0" * (6 - len(qty_str)) + qty_str
             else:
@@ -2288,11 +2342,24 @@ class StockQuant(models.Model):
     @api.model
     def _get_inventory_fields_create(self):
         """Returns a list of fields user can edit when he want to create a quant in `inventory_mode`."""
-        return ["product_id", "owner_id"] + self._get_inventory_fields_write()
+        return ["product_id", "owner_id"] + self._get_inventory_fields_countable()
 
     @api.model
-    def _get_inventory_fields_write(self):
-        """Returns a list of fields user can edit when he want to edit a quant in `inventory_mode`."""
+    def _get_inventory_fields_countable(self):
+        """The count-related fields an inventory-mode ``create`` may carry.
+
+        Named for what it is. It used to be ``_get_inventory_fields_write``, which
+        `write()` never consulted -- that path gates on the *deny*-list
+        ``_get_forbidden_fields_write`` instead, so this list's only consumer is
+        ``_get_inventory_fields_create`` above. Modules extending it (stock_account's
+        ``accounting_date``, stock_barcode's ``dummy_id``) were widening a write
+        allowlist that does not exist; under the deny-list those fields were never
+        blocked on write in the first place.
+
+        Note ``lot_id``/``location_id``/``package_id`` are also in the deny-list, so
+        they are writable only at creation time -- which is exactly what this list is
+        for.
+        """
         # Returned as a literal so no local `fields` binding shadows the module import.
         return [
             "inventory_quantity",
@@ -2711,6 +2778,11 @@ class StockQuant(models.Model):
                    DELETE FROM stock_quant WHERE id in (SELECT unnest(to_delete_quant_ids) from dupes)
         """
         try:
+            # `savepoint()` flushes (flush=True is its default), and that is
+            # load-bearing here, not incidental: the raw statement below sums the
+            # columns straight off the table, so an ORM write still buffered would be
+            # left out of the merged total and then flushed back over it. Never pass
+            # `flush=False`.
             with self.env.cr.savepoint():
                 self.env.cr.execute(query, params)
                 self.env.invalidate_all()
@@ -2796,7 +2868,13 @@ class StockQuant(models.Model):
             ["quantity:sum"],
         )
         for product, _location, lot, qty in groups:
-            if product.uom_id.compare(abs(qty), 1) > 0:
+            # `abs`: more than one unit of a serial at one location is broken either
+            # way, but the two directions are different faults and the "already
+            # assigned" wording only fits the positive one. A single negative unit
+            # stays legal -- that is an ordinary delivery-before-receipt.
+            if product.uom_id.compare(abs(qty), 1) <= 0:
+                continue
+            if product.uom_id.compare(qty, 0) > 0:
                 raise ValidationError(
                     _(
                         "The serial number has already been assigned: \n Product: %(product)s, Serial Number: %(serial_number)s",
@@ -2804,6 +2882,15 @@ class StockQuant(models.Model):
                         serial_number=lot.name,
                     )
                 )
+            raise ValidationError(
+                _(
+                    "This serial number is at a negative quantity, so it has been"
+                    " taken out more times than it was brought in: \n Product:"
+                    " %(product)s, Serial Number: %(serial_number)s",
+                    product=product.display_name,
+                    serial_number=lot.name,
+                )
+            )
 
     @api.model
     def _check_serial_number(
