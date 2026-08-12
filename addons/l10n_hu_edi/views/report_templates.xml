@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- standard, bold, boxed, striped and folder render their footer through
+         web.external_layout_footer, so a per-layout xpath cannot reach it: inheritance
+         applies to a template's own arch, not to what it t-calls. One override on the
+         footer covers all five. bubble and wave keep theirs: their footers are inline. -->
+    <template id="l10n_hu_edi_external_layout_footer" inherit_id="web.external_layout_footer">
+        <xpath expr="//div[@name='footer_content']" position="attributes">
+            <attribute name="t-if">not custom_footer</attribute>
+        </xpath>
+        <xpath expr="//div[@name='footer_content']" position="after">
+            <div class="o_footer_content border-top pt-2"
+                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
+                <t t-out="custom_footer"/>
+            </div>
+        </xpath>
+    </template>
+
+
     <template id="external_layout_standard" inherit_id="web.external_layout_standard" >
         <xpath expr="//img/../.." position="attributes">
             <attribute name="t-if">not custom_header</attribute>
@@ -12,18 +29,6 @@
                 <t t-call="#{custom_header}"/>
             </div>
         </xpath>
-
-        <!-- support for custom footer -->
-        <div class="o_footer_content d-flex border-top pt-2" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </div>
-
-        <div class="o_footer_content d-flex border-top pt-2" position="after">
-            <div class="o_footer_content border-top pt-2"
-                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                <t t-out="custom_footer"/>
-            </div>
-        </div>
     </template>
 
     <template id="external_layout_bold" inherit_id="web.external_layout_bold" >
@@ -37,16 +42,6 @@
             </div>
         </xpath>
 
-        <!-- support for custom footer -->
-        <xpath expr="//div[hasclass('o_footer_content')]" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </xpath>
-        <xpath expr="//div[hasclass('o_footer_content')]" position="after">
-            <div class="o_footer_content border-top pt-2" t-attf-class="{{'d-flex' if is_html_empty(company.report_header) else 'row' }}"
-                    t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                    <t t-out="custom_footer"/>
-            </div>
-        </xpath>
     </template>
 
     <template id="external_layout_boxed" inherit_id="web.external_layout_boxed" >
@@ -60,16 +55,6 @@
             </div>
         </xpath>
 
-        <!-- support for custom footer -->
-        <xpath expr="//div[hasclass('o_footer_content')]" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </xpath>
-        <xpath expr="//div[hasclass('o_footer_content')]" position="after">
-            <div class="o_footer_content border-top pt-2" t-attf-class="{{'d-flex' if is_html_empty(company.report_header) else 'row' }}"
-                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                <t t-out="custom_footer"/>
-            </div>
-        </xpath>
     </template>
 
     <template id="external_layout_striped" inherit_id="web.external_layout_striped" >
@@ -83,16 +68,6 @@
             </div>
         </xpath>
 
-        <!-- support for custom footer -->
-        <div class="o_footer_content border-top pt-2 text-center" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </div>
-        <div class="o_footer_content border-top pt-2 text-center" position="after">
-            <div class="o_footer_content border-top pt-2 text-center"
-                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                <t t-out="custom_footer"/>
-            </div>
-        </div>
     </template>
 
     <template id="external_layout_bubble" inherit_id="web.external_layout_bubble">
@@ -154,15 +129,5 @@
             </div>
         </xpath>
 
-        <!-- support for custom footer -->
-        <div class="o_footer_content d-flex border-top pt-2" position="attributes">
-            <attribute name="t-if">not custom_footer</attribute>
-        </div>
-        <div class="o_footer_content d-flex border-top pt-2" position="after">
-            <div class="o_footer_content border-top pt-2"
-                 t-if="custom_footer and company.account_fiscal_country_id.code == 'HU'">
-                <t t-out="custom_footer"/>
-            </div>
-        </div>
     </template>
 </odoo>

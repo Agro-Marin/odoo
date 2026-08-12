@@ -1,31 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="l10n_ph.external_layout_standard" inherit_id="web.external_layout_standard">
-        <xpath expr="//div[hasclass('o_footer_content')]" position="before">
-            <t t-if="is_l10n_ph_disbursement_voucher">
-                <t t-call="l10n_ph.report_disbursement_voucher_document_footer"/>
-            </t>
-        </xpath>
-    </template>
-
-    <template id="l10n_ph.external_layout_bold" inherit_id="web.external_layout_bold">
-        <xpath expr="//div[hasclass('o_footer_content')]" position="before">
-            <t t-if="is_l10n_ph_disbursement_voucher">
-                <t t-call="l10n_ph.report_disbursement_voucher_document_footer"/>
-            </t>
-        </xpath>
-    </template>
-
-    <template id="l10n_ph.external_layout_boxed" inherit_id="web.external_layout_boxed">
-        <xpath expr="//div[hasclass('o_footer_content')]" position="before">
-            <t t-if="is_l10n_ph_disbursement_voucher">
-                <t t-call="l10n_ph.report_disbursement_voucher_document_footer"/>
-            </t>
-        </xpath>
-    </template>
-
-    <template id="l10n_ph.external_layout_striped" inherit_id="web.external_layout_striped">
-        <xpath expr="//div[hasclass('o_footer_content')]" position="before">
+    <!-- standard, bold, boxed, striped and folder all t-call web.external_layout_footer;
+         inheriting the footer itself reaches the five of them at once. bubble and wave
+         keep their own overrides below: their footers are inline, not shared. -->
+    <template id="l10n_ph_external_layout_footer" inherit_id="web.external_layout_footer">
+        <xpath expr="//div[@name='footer_content']" position="before">
             <t t-if="is_l10n_ph_disbursement_voucher">
                 <t t-call="l10n_ph.report_disbursement_voucher_document_footer"/>
             </t>
@@ -48,11 +27,4 @@
         </xpath>
     </template>
 
-    <template id="l10n_ph.external_layout_folder" inherit_id="web.external_layout_folder">
-        <xpath expr="//div[hasclass('o_footer_content')]" position="before">
-            <t t-if="is_l10n_ph_disbursement_voucher">
-                <t t-call="l10n_ph.report_disbursement_voucher_document_footer"/>
-            </t>
-        </xpath>
-    </template>
 </odoo>

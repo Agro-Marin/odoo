@@ -6,37 +6,11 @@
         </li>
     </template>
 
-    <template id="l10n_ca_external_layout_standard" inherit_id="web.external_layout_standard">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_ca.pst_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_ca_external_layout_bold" inherit_id="web.external_layout_bold">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_ca.pst_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_ca_external_layout_boxed" inherit_id="web.external_layout_boxed">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_ca.pst_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_ca_external_layout_striped" inherit_id="web.external_layout_striped">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_ca.pst_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_ca_external_layout_bubble" inherit_id="web.external_layout_bubble">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_ca.pst_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_ca_external_layout_wave" inherit_id="web.external_layout_wave">
+    <!-- The company address list moved into its own template, `web.company_address_block`,
+         which every external layout t-calls. One inherit on the block reaches all of them;
+         the six per-layout overrides this replaces anchored on a <ul> the layouts no
+         longer contain, so l10n_ca could not be installed. -->
+    <template id="l10n_ca_company_address_block" inherit_id="web.company_address_block">
         <xpath expr="//ul[@name='company_address_list']" position="inside">
             <t t-call="l10n_ca.pst_external_layout"/>
         </xpath>

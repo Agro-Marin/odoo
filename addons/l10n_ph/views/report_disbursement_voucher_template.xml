@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="l10n_ph.minimal_layout" inherit_id="web.minimal_layout">
-        <xpath expr="//script[@t-if='subst']" position="after">
+        <!-- web.minimal_layout no longer carries a `<script t-if="subst">` to anchor on;
+             the script belongs in <head> either way, so append there. -->
+        <xpath expr="//head" position="inside">
         <t t-if="report_xml_id == 'l10n_ph.action_report_disbursement_voucher_ph'">
             <script>
                 function display_footer_on_last_page_only() {

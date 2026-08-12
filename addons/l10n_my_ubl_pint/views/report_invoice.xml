@@ -11,42 +11,6 @@
     </template>
 
     <!-- Add the SST and TTx to the company -->
-    <template id="l10n_my_ubl_pint_external_layout_standard" inherit_id="web.external_layout_standard">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_my_ubl_pint.sst_ttx_registration_number_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_my_ubl_pint_external_layout_bold" inherit_id="web.external_layout_bold">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_my_ubl_pint.sst_ttx_registration_number_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_my_ubl_pint_external_layout_boxed" inherit_id="web.external_layout_boxed">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_my_ubl_pint.sst_ttx_registration_number_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_my_ubl_pint_external_layout_striped" inherit_id="web.external_layout_striped">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_my_ubl_pint.sst_ttx_registration_number_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_my_ubl_pint_external_layout_bubble" inherit_id="web.external_layout_bubble">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_my_ubl_pint.sst_ttx_registration_number_external_layout"/>
-        </xpath>
-    </template>
-
-    <template id="l10n_my_ubl_pint_external_layout_wave" inherit_id="web.external_layout_wave">
-        <xpath expr="//ul[@name='company_address_list']" position="inside">
-            <t t-call="l10n_my_ubl_pint.sst_ttx_registration_number_external_layout"/>
-        </xpath>
-    </template>
-
     <template id="l10n_my_ubl_pint_external_layout_folder" inherit_id="web.external_layout_folder">
         <xpath expr="//div[hasclass('o_folder_company_info')]" position="after">
             <div t-if="company.sst_registration_number and company.account_fiscal_country_id.code == 'MY'">
@@ -76,6 +40,14 @@
             <div t-if="o.partner_id.sst_registration_number and o.partner_id.country_code == 'MY'">
                 SST: <span t-field="o.partner_id.sst_registration_number"/>
             </div>
+        </xpath>
+    </template>
+    <!-- `web.company_address_block` is the template that owns this <ul>, and every
+         external layout t-calls it; the per-layout overrides this replaces anchored on
+         a <ul> the layouts themselves no longer contain. -->
+    <template id="l10n_my_ubl_pint_company_address_block" inherit_id="web.company_address_block">
+        <xpath expr="//ul[@name='company_address_list']" position="inside">
+            <t t-call="l10n_my_ubl_pint.sst_ttx_registration_number_external_layout"/>
         </xpath>
     </template>
 </odoo>
