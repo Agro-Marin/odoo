@@ -129,15 +129,21 @@ class StockWarehouse(models.Model):
         })
         return rules
 
-    def _get_picking_type_create_values(self, max_sequence):
-        data, next_sequence = super(StockWarehouse, self)._get_picking_type_create_values(max_sequence)
+    def _get_picking_type_codes(self):
+        codes = super()._get_picking_type_codes()
+        codes.update({
+            'subcontracting_type_id': 'SBC',
+            'subcontracting_resupply_type_id': 'RES',
+        })
+        return codes
+
+    def _get_picking_type_create_values(self):
+        data = super()._get_picking_type_create_values()
         data.update({
             'subcontracting_type_id': {
                 'name': _('Subcontracting'),
                 'code': 'mrp_operation',
                 'use_create_components_lots': True,
-                'sequence': next_sequence + 2,
-                'sequence_code': 'SBC',
                 'company_id': self.company_id.id,
             },
             'subcontracting_resupply_type_id': {
@@ -146,13 +152,11 @@ class StockWarehouse(models.Model):
                 'use_create_lots': False,
                 'use_existing_lots': True,
                 'default_location_dest_id': self._get_subcontracting_location().id,
-                'sequence': next_sequence + 3,
-                'sequence_code': 'RES',
                 'print_label': True,
                 'company_id': self.company_id.id,
             }
         })
-        return data, max_sequence + 4
+        return data
 
     def _get_sequence_values(self, name=False, code=False):
         values = super(StockWarehouse, self)._get_sequence_values(name=name, code=code)

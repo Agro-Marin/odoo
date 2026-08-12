@@ -37,10 +37,13 @@ class StockWarehouse(models.Model):
         )
         return picking_type_update_values
 
-    def _get_picking_type_create_values(self, max_sequence):
-        picking_type_create_values, max_sequence = (
-            super()._get_picking_type_create_values(max_sequence)
-        )
+    def _get_picking_type_codes(self):
+        codes = super()._get_picking_type_codes()
+        codes["pos_type_id"] = "POS"
+        return codes
+
+    def _get_picking_type_create_values(self):
+        picking_type_create_values = super()._get_picking_type_create_values()
         picking_type_create_values.update(
             {
                 "pos_type_id": {
@@ -50,13 +53,11 @@ class StockWarehouse(models.Model):
                     "default_location_dest_id": self.env.ref(
                         "stock.stock_location_customers"
                     ).id,
-                    "sequence": max_sequence + 1,
-                    "sequence_code": "POS",
                     "company_id": self.company_id.id,
                 }
             }
         )
-        return picking_type_create_values, max_sequence + 2
+        return picking_type_create_values
 
     @api.model
     def _create_missing_pos_picking_types(self):

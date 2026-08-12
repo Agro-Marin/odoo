@@ -29,8 +29,13 @@ class StockWarehouse(models.Model):
         })
         return values
 
-    def _get_picking_type_create_values(self, max_sequence):
-        data, next_sequence = super(StockWarehouse, self)._get_picking_type_create_values(max_sequence)
+    def _get_picking_type_codes(self):
+        codes = super()._get_picking_type_codes()
+        codes['repair_type_id'] = 'RO'
+        return codes
+
+    def _get_picking_type_create_values(self):
+        data = super()._get_picking_type_create_values()
         prod_location = self._get_production_location()
         scrap_location = self.env['stock.location'].search([
             ('usage', '=', 'inventory'),
@@ -47,14 +52,12 @@ class StockWarehouse(models.Model):
                 'default_location_dest_id': prod_location.id,
                 'default_remove_location_dest_id': scrap_location.id,
                 'default_recycle_location_dest_id': self.lot_stock_id.id,
-                'sequence': next_sequence + 1,
-                'sequence_code': 'RO',
                 'company_id': self.company_id.id,
                 'use_create_lots': True,
                 'use_existing_lots': True,
             },
         })
-        return data, max_sequence + 2
+        return data
 
     def _get_picking_type_update_values(self):
         data = super(StockWarehouse, self)._get_picking_type_update_values()

@@ -280,12 +280,16 @@ class StockWarehouse(models.Model):
         )
         return rules
 
+    def _get_location_step_fields(self):
+        return super()._get_location_step_fields() + ["manufacture_steps"]
+
     def _get_locations_values(self, vals, code=False):
         values = super()._get_locations_values(vals, code=code)
-        def_values = self.default_get(["company_id", "manufacture_steps"])
-        manufacture_steps = vals.get(
-            "manufacture_steps", def_values["manufacture_steps"]
-        )
+        # Same resolution as the base: `vals`, else this warehouse's own value,
+        # else the default — never `default_get` alone, which rebuilt an existing
+        # warehouse's pbm/sam locations against `mrp_one_step`.
+        def_values = self._get_location_step_values(vals)
+        manufacture_steps = def_values["manufacture_steps"]
         code = vals.get("code") or code or ""
         code = code.replace(" ", "").upper()
         company_id = vals.get("company_id", def_values["company_id"])
@@ -349,8 +353,13 @@ class StockWarehouse(models.Model):
         )
         return values
 
-    def _get_picking_type_create_values(self, max_sequence):
-        data, next_sequence = super()._get_picking_type_create_values(max_sequence)
+    def _get_picking_type_codes(self):
+        codes = super()._get_picking_type_codes()
+        codes.update({"pbm_type_id": "PC", "manu_type_id": "MO", "sam_type_id": "SFP"})
+        return codes
+
+    def _get_picking_type_create_values(self):
+        data = super()._get_picking_type_create_values()
         data.update(
             {
                 "pbm_type_id": {
@@ -360,8 +369,6 @@ class StockWarehouse(models.Model):
                     "use_existing_lots": True,
                     "default_location_src_id": self.lot_stock_id.id,
                     "default_location_dest_id": self.pbm_loc_id.id,
-                    "sequence": next_sequence + 1,
-                    "sequence_code": "PC",
                     "company_id": self.company_id.id,
                 },
                 "sam_type_id": {
@@ -371,8 +378,6 @@ class StockWarehouse(models.Model):
                     "use_existing_lots": True,
                     "default_location_src_id": self.sam_loc_id.id,
                     "default_location_dest_id": self.lot_stock_id.id,
-                    "sequence": next_sequence + 3,
-                    "sequence_code": "SFP",
                     "company_id": self.company_id.id,
                 },
                 "manu_type_id": {
@@ -380,13 +385,11 @@ class StockWarehouse(models.Model):
                     "code": "mrp_operation",
                     "use_create_lots": True,
                     "use_existing_lots": True,
-                    "sequence": next_sequence + 2,
-                    "sequence_code": "MO",
                     "company_id": self.company_id.id,
                 },
             }
         )
-        return data, max_sequence + 4
+        return data
 
     def _get_picking_type_update_values(self):
         data = super()._get_picking_type_update_values()
@@ -462,16 +465,8 @@ class StockWarehouse(models.Model):
         )
         self.mapped("sam_loc_id").write({"active": new_manufacture_step == "pbm_sam"})
 
-    def _update_name_and_code(self, name=False, code=False):
-        res = super()._update_name_and_code(name, code)
-        # change the manufacture stock rule name
-        for warehouse in self:
-            if warehouse.manufacture_pull_id and name:
-                warehouse.manufacture_pull_id.write(
-                    {
-                        "name": warehouse.manufacture_pull_id.name.replace(
-                            warehouse.name, name, 1
-                        )
-                    }
-                )
-        return res
+    # No `_update_name_and_code` override: `manufacture_pull_id` is named by
+    # `_format_rulename` from the warehouse *code*, so the former
+    # `.replace(warehouse.name, ...)` here never matched. The base now renames
+    # every rule carrying `warehouse_id`, this one included, when the code
+    # changes.
