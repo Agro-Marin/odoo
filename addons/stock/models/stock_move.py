@@ -389,10 +389,6 @@ class StockMove(models.Model):
         string="Is initial demand editable",
         compute="_compute_is_initial_demand_editable",
     )
-    is_date_editable = fields.Boolean(
-        "Is Date Editable",
-        compute="_compute_is_date_editable",
-    )
     is_quantity_done_editable = fields.Boolean(
         string="Is quantity done editable",
         compute="_compute_is_quantity_done_editable",
@@ -526,11 +522,19 @@ class StockMove(models.Model):
             move_to_check_location = self.filtered(
                 lambda m: m.location_id.id != vals.get("location_id"),
             )
-        if "product_id" in vals or "location_id" in vals or "location_dest_id" in vals:
-            # Refresh the orderpoints of the *current* product/locations before
-            # they change; the post-write call below refreshes the new ones.
-            # Both calls are intentional so old and new orderpoints stay correct.
-            self._update_orderpoints()
+        # Refresh the orderpoints the moves point at *before* the write only for
+        # the moves whose scope actually moves; the post-write call below covers
+        # the new scope. Guarding on key presence alone made every write of an
+        # unchanged product/location pay for a second `stock.warehouse.orderpoint`
+        # search that could only return what the post-write call already finds.
+        moves_leaving_orderpoint_scope = self.filtered(
+            lambda m: any(
+                key in vals and m[key].id != vals[key]
+                for key in ("product_id", "location_id", "location_dest_id")
+            ),
+        )
+        if moves_leaving_orderpoint_scope:
+            moves_leaving_orderpoint_scope._update_orderpoints()
 
         res = super().write(vals)
 
@@ -607,13 +611,6 @@ class StockMove(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    def _compute_is_date_editable(self):
-        for move in self:
-            if move.picking_id:
-                move.is_date_editable = move.picking_id.is_date_editable
-            else:
-                move.is_date_editable = True
-
     @api.depends(
         "product_id",
         "product_id.uom_id",
@@ -634,6 +631,12 @@ class StockMove(models.Model):
         for move in self:
             move.product_uom_id = move.product_id.uom_id.id
 
+    # The body used to also test `picking_type_id != _origin.picking_type_id`.
+    # That disjunct could never fire: on a saved record `_origin is self`, and
+    # `picking_type_id` is exposed in no `stock.move` view, so it never differs
+    # in an onchange either. When it *would* have differed -- a picking change,
+    # which recomputes `picking_type_id` -- the `picking_id` test beside it
+    # already covers the case.
     @api.depends("picking_id.location_id")
     def _compute_location_id(self):
         for move in self:
@@ -642,7 +645,6 @@ class StockMove(models.Model):
             if (
                 not (location := move.location_id)
                 or move.picking_id != move._origin.picking_id
-                or move.picking_type_id != move._origin.picking_type_id
             ):
                 if move.picking_id:
                     location = move.picking_id.location_id
@@ -650,7 +652,15 @@ class StockMove(models.Model):
                     location = move.picking_type_id.default_location_src_id
             move.location_id = location
 
-    @api.depends("picking_id.location_dest_id")
+    # `location_final_id` is load-bearing here: the body's whole purpose is the
+    # "final location wins when it is a child of the destination" rule. Without
+    # the dependency the rule only ran when something else triggered the compute,
+    # so setting Final Location on the picking form's move list (an optional
+    # column under `stock.group_stock_multi_locations`) left `location_dest_id`
+    # -- and the move lines derived from it -- pointing at the parent location.
+    # The same value passed at create time got it right, so one input produced
+    # two different stored results. A plain stored m2o, hence precompute-safe.
+    @api.depends("picking_id.location_dest_id", "location_final_id")
     def _compute_location_dest_id(self):
         customer_loc, __ = self.env["stock.warehouse"]._get_partner_locations()
         inter_comp_location = self.env.ref(
@@ -665,6 +675,13 @@ class StockMove(models.Model):
                 location_dest = move.rule_id.location_dest_id
             elif move.picking_type_id:
                 location_dest = move.picking_type_id.default_location_dest_id
+            else:
+                # Nothing to derive a destination from. Keep the current value:
+                # `location_dest_id` is `readonly=False` and `required=True`, so
+                # re-deriving to False here would wipe a manually set destination
+                # (and cannot be flushed anyway). Mirrors `_compute_location_id`,
+                # which likewise defaults to the field's current value.
+                location_dest = move.location_dest_id
             is_move_to_interco_transit = False
             if location_dest:
                 is_move_to_interco_transit = (
@@ -699,7 +716,7 @@ class StockMove(models.Model):
     )
     def _compute_show_lot_actions(self):
         for move in self:
-            move.show_lot_actions = (
+            move.show_lot_actions = bool(
                 move.has_tracking != "none"
                 and move.product_id
                 and move.picking_type_id.use_create_lots
@@ -710,7 +727,7 @@ class StockMove(models.Model):
     @api.depends("move_line_ids.result_package_id")
     def _compute_has_lines_without_result_package(self):
         for move in self:
-            move.has_lines_without_result_package = (
+            move.has_lines_without_result_package = bool(
                 move.move_line_ids.result_package_id
                 and any(not line.result_package_id for line in move.move_line_ids)
             )
@@ -810,7 +827,7 @@ class StockMove(models.Model):
     @api.depends("product_id")
     def _compute_is_quantity_done_editable(self):
         for move in self:
-            move.is_quantity_done_editable = move.product_id
+            move.is_quantity_done_editable = bool(move.product_id)
 
     @api.depends(
         "picking_id.name",
@@ -907,12 +924,12 @@ class StockMove(models.Model):
         saved_moves = self - new_moves
         if not saved_moves:
             return
-        move_lines_ids = set()
-        for move in saved_moves:
-            move_lines_ids |= set(move.move_line_ids.ids)
-
+        # Group by the moves, not by their lines: `move_line_ids` is the inverse
+        # o2m, so the two domains select the same rows, but this one sends one
+        # parameter per move instead of one per line -- the difference between a
+        # handful of ids and tens of thousands on a large validated picking.
         data = self.env["stock.move.line"]._read_group(
-            [("id", "in", list(move_lines_ids))],
+            [("move_id", "in", saved_moves.ids)],
             ["move_id", "product_uom_id"],
             ["quantity:sum"],
         )
@@ -1485,24 +1502,6 @@ Please change the quantity done or the rounding precision of your unit of measur
     # ACTION METHODS
     # ------------------------------------------------------------
 
-    def action_add_packages(self):
-        """Opens a list of suitable packages to add to a picking."""
-        picking = self.env["stock.picking"].browse(self.env.context.get("picking_id"))
-        if not picking:
-            raise UserError(self.env._("You need a transfer to add these packages to."))
-        return {
-            "name": self.env._("Select Packages to Move"),
-            "type": "ir.actions.act_window",
-            "res_model": "stock.package",
-            "view_mode": "list",
-            "views": [(self.env.ref("stock.view_stock_package_list_add").id, "list")],
-            "target": "new",
-            "domain": [("location_id", "child_of", picking.location_id.id)],
-            "context": {
-                "picking_id": picking.id,
-            },
-        }
-
     def action_show_details(self):
         """Returns an action that will open a form view (in a popup) allowing to work on all the
         move lines of a particular move. This form view is used when "show operations" is not
@@ -1656,6 +1655,17 @@ Please change the quantity done or the rounding precision of your unit of measur
     @api.model
     def _prepare_lot_generation_split(self, quantity, qty_per_lot):
         """Split `quantity` into one entry per lot of `qty_per_lot`, plus the leftover."""
+        # Both arguments arrive from the client context of an RPC-reachable
+        # method, so coerce before doing arithmetic on them: a non-numeric value
+        # would otherwise surface as `TypeError` -> Fault 500 rather than as the
+        # clean UserError every other phase of this flow raises.
+        try:
+            quantity = float(quantity)
+            qty_per_lot = float(qty_per_lot)
+        except TypeError, ValueError:
+            raise UserError(
+                _("The quantity and the quantity per lot must be numbers."),
+            ) from None
         if qty_per_lot <= 0:
             raise UserError(
                 _("The quantity per lot should always be a positive value."),
@@ -1801,7 +1811,11 @@ Please change the quantity done or the rounding precision of your unit of measur
         quantities = move_create_proc.with_context(
             consumed_from_stock_dict=consumed_from_stock_dict,
         )._prepare_procurement_qty()
-        for move, quantity in zip(move_create_proc, quantities, strict=False):
+        # `strict=True`: `_prepare_procurement_qty` appends exactly one entry per
+        # move on every path, so the lengths always match. Pairing them leniently
+        # would silently drop the tail if an override ever broke that invariant --
+        # moves would lose their procurement without a word.
+        for move, quantity in zip(move_create_proc, quantities, strict=True):
             values = move._prepare_procurement_vals()
             origin = move._prepare_procurement_origin()
             procurement_requests.append(
@@ -2569,6 +2583,15 @@ Please change the quantity done or the rounding precision of your unit of measur
             initial_reserved_qty = sum(
                 self.move_line_ids.mapped("quantity_product_uom"),
             )
+            # `force_qty` asks for a specific quantity instead of "whatever is
+            # still missing". The MTS branch above honours it through
+            # `missing_reserved_quantity`; this branch used to recompute the need
+            # from `product_qty` and so ignored it outright -- a caller forcing 3
+            # on a chained move got its full remaining demand reserved instead.
+            if force_qty:
+                target_qty = missing_reserved_quantity
+            else:
+                target_qty = self.product_qty - initial_reserved_qty
             taken_qty_total = 0.0
             all_move_line_vals = []
             for (
@@ -2577,7 +2600,7 @@ Please change the quantity done or the rounding precision of your unit of measur
                 package_id,
                 owner_id,
             ), quantity in available_move_lines.items():
-                need = self.product_qty - initial_reserved_qty - taken_qty_total
+                need = target_qty - taken_qty_total
                 if float_compare(need, 0, precision_rounding=rounding) <= 0:
                     break
                 move_line_vals, taken_quantity = self._update_reserved_quantity_vals(
@@ -2608,7 +2631,7 @@ Please change the quantity done or the rounding precision of your unit of measur
                 moves_to_redirect.add(self.id)
                 if (
                     float_compare(
-                        self.product_qty - initial_reserved_qty - taken_qty_total,
+                        target_qty - taken_qty_total,
                         0,
                         precision_rounding=rounding,
                     )
@@ -3627,6 +3650,11 @@ Please change the quantity done or the rounding precision of your unit of measur
         moves_to_unlink = self.env["stock.move"]
         merged_moves = self.env["stock.move"]
         moves_by_neg_key = defaultdict(lambda: self.env["stock.move"])
+        # Built once: `distinct_fields` is loop-invariant, while each construction
+        # re-reads every float field's digits and, with `price_unit` in scope, hits
+        # `decimal.precision` and the companies' currencies. Inside the loop this
+        # cost one rebuild per candidate picking.
+        merge_key = self._merge_move_itemgetter(distinct_fields)
         for candidate_moves in candidate_moves_set:
             # First step find move to merge.
             candidate_moves = (
@@ -3635,10 +3663,7 @@ Please change the quantity done or the rounding precision of your unit of measur
                 )
                 - neg_qty_moves
             )
-            for __, g in groupby(
-                candidate_moves,
-                key=self._merge_move_itemgetter(distinct_fields),
-            ):
+            for __, g in groupby(candidate_moves, key=merge_key):
                 moves = self.env["stock.move"].concat(*g)
                 if len(moves) > 1:
                     # Link all move lines to record 0 (the one we will keep).
@@ -4033,27 +4058,6 @@ Please change the quantity done or the rounding precision of your unit of measur
             vals["product_uom_id"] = force_uom_id
         return vals
 
-    def _propagate_date_log_note(self, move_orig):
-        """Post a deadline change alert log note on the documents linked to `self`."""
-        # TODO : get the end document (PO/SO/MO)
-        doc_orig = move_orig._delay_alert_get_documents()
-        documents = self._delay_alert_get_documents()
-        if not documents or not doc_orig:
-            return
-
-        msg = _(
-            "The deadline has been automatically updated due to a delay on %s.",
-            doc_orig[0]._get_html_link(),
-        )
-        msg_subject = _("Deadline updated due to delay on %s", doc_orig[0].name)
-        for doc in documents:
-            last_message = doc.message_ids[:1]
-            # Avoid posting the exact same message multiple times.
-            if last_message and last_message.subject == msg_subject:
-                continue
-            odoobot_id = self.env["ir.model.data"]._xmlid_to_res_id("base.partner_root")
-            doc.message_post(body=msg, author_id=odoobot_id, subject=msg_subject)
-
     def _push_apply(self):
         depth = self.env.context.get("_push_apply_depth", 0) + 1
         if depth > self._MAX_PUSH_DEPTH:
@@ -4445,10 +4449,15 @@ Please change the quantity done or the rounding precision of your unit of measur
             visited exactly once even across sibling branches.
         """
         visited.update(self.ids)
+        # `to_datetime` maps a cleared deadline (False) to None, which cannot be
+        # subtracted from a datetime. Clearing is a shift of no particular size,
+        # so there is no delta to propagate: fall through to the branch below,
+        # which assigns `new_deadline` verbatim and clears the linked moves too.
+        new_deadline_dt = fields.Datetime.to_datetime(new_deadline)
         for move in self.with_context(date_deadline_propagate_ids=visited):
             moves_to_update = move.move_dest_ids | move.move_orig_ids
-            if move.date_deadline:
-                delta = move.date_deadline - fields.Datetime.to_datetime(new_deadline)
+            if move.date_deadline and new_deadline_dt:
+                delta = move.date_deadline - new_deadline_dt
             else:
                 delta = 0
             for move_update in moves_to_update:
@@ -4952,14 +4961,21 @@ Please change the quantity done or the rounding precision of your unit of measur
         return self.picking_type_id.use_existing_lots
 
     def _check_quantity(self):
+        # `stock.quant.check_quantity` only ever looks at serial-tracked quants,
+        # so restrict the search to serial-tracked moves instead of scanning the
+        # quants of every product in the batch and letting the callee discard
+        # them. Untracked validations now issue no query at all.
+        serial_moves = self.filtered(lambda m: m.product_id.tracking == "serial")
+        if not serial_moves:
+            return None
         return (
             self.env["stock.quant"]
             .sudo()
             .search(
                 [
-                    ("product_id", "in", self.product_id.ids),
-                    ("location_id", "child_of", self.location_dest_id.ids),
-                    ("lot_id", "in", self.sudo().lot_ids.ids),
+                    ("product_id", "in", serial_moves.product_id.ids),
+                    ("location_id", "child_of", serial_moves.location_dest_id.ids),
+                    ("lot_id", "in", serial_moves.sudo().lot_ids.ids),
                 ],
             )
             .check_quantity()

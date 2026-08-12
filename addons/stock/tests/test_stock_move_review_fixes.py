@@ -49,7 +49,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
             {"name": "REVIEW-NOSTOCK", "product_id": self.lot_product.id},
         )  # deliberately no quant
 
-        # --- create path ---
         picking_c = self._out_picking()
         move_c = self.env["stock.move"].create(
             {
@@ -64,7 +63,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
             },
         )
 
-        # --- write path ---
         picking_w = self._out_picking()
         move_w = self.env["stock.move"].create(
             {
@@ -133,7 +131,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 {
                     "default_product_id": self.lot_product.id,
                     "default_location_dest_id": self.customer_location.id,
-                    # no default_tracking
                 },
                 "generate",
                 "SN001",
@@ -172,19 +169,16 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 "picking_id": picking.id,
             },
         )
-        # single non-float field
         key_fn = Move._merge_move_itemgetter(["product_id"])
         key = key_fn(move)
         self.assertIsInstance(key, tuple)
         self.assertEqual(key, (move.product_id,))
 
-        # single non-float field mixed with a float field
         key_fn2 = Move._merge_move_itemgetter(["product_id", "price_unit"])
         key2 = key_fn2(move)
         self.assertIsInstance(key2, tuple)
         self.assertEqual(len(key2), 2)
 
-        # float-only field list (non-float set empty)
         key_fn3 = Move._merge_move_itemgetter(["price_unit"])
         self.assertIsInstance(key_fn3(move), tuple)
 
@@ -219,9 +213,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
         )
         picking.action_confirm()
         move.invalidate_recordset(["forecast_availability"])
-        # An internal move is consuming; with 10 in stock the whole demand of 4
-        # is forecast as available (the branch removal / prefetch change must
-        # not degrade it to the 0.0 fallback).
         self.assertAlmostEqual(move.forecast_availability, 4.0)
 
     def _done_receipt(self, product, qty, lot=None):
@@ -311,8 +302,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 {"name": "REVIEW-CHAIN-2", "product_id": self.lot_product.id},
             ],
         )
-        # Parent A first (its done line makes lot_2 the first reservation key),
-        # parent B second.
         parent_a = self._done_receipt(self.lot_product, 3, lot=lot_2)
         parent_b = self._done_receipt(self.lot_product, 7, lot=lot_1)
 
@@ -327,9 +316,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
         )
         move._action_confirm()
         move.move_orig_ids = [Command.set((parent_a | parent_b).ids)]
-        # Pre-existing partial reservation on lot_1: the assign below must
-        # *increase* this line in place (update path) for the lot_1 key while
-        # *creating* a line (create path) for the lot_2 key.
         self.env["stock.move.line"].create(
             {
                 "move_id": move.id,
@@ -363,7 +349,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
                 "default_location_dest_id": self.customer_location.id,
                 "default_quantity": 4,
                 "default_picking_type_id": self.picking_type_out.id,
-                # deliberately no default_company_id
             },
             "generate",
             "REVIEW-NOCOMPANY-01",
@@ -494,3 +479,241 @@ class TestStockMoveReviewFixes(TestStockCommon):
         receipt = self._done_receipt(product, 10)
         receipt._trigger_assign()
         self.assertEqual(out_move.state, "assigned")
+
+    def test_date_deadline_cleared_through_chain(self):
+        """Clearing `date_deadline` on a chained move propagates the clear
+        instead of raising.
+
+        `fields.Datetime.to_datetime(False)` is None, so the delta arithmetic in
+        `_propagate_date_deadline` used to raise
+        `TypeError: unsupported operand type(s) for -: 'datetime.datetime' and
+        'NoneType'` for any move that both carried a deadline and had a linked
+        move to propagate to.
+        """
+        parent = self.MoveObj.create(
+            {
+                "product_id": self.lot_product.id,
+                "product_uom_qty": 2,
+                "product_uom_id": self.lot_product.uom_id.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+            },
+        )
+        child = self.MoveObj.create(
+            {
+                "product_id": self.lot_product.id,
+                "product_uom_qty": 2,
+                "product_uom_id": self.lot_product.uom_id.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "move_orig_ids": [Command.set(parent.ids)],
+            },
+        )
+        (parent | child)._action_confirm()
+        deadline = fields.Datetime.now() + timedelta(days=2)
+        child.date_deadline = deadline
+        self.assertEqual(parent.date_deadline, deadline)
+
+        child.write({"date_deadline": False})
+        self.assertFalse(child.date_deadline)
+        self.assertFalse(parent.date_deadline)
+
+    def test_location_dest_follows_location_final(self):
+        """Setting Final Location on a move re-derives `location_dest_id`.
+
+        `_compute_location_dest_id` exists to apply "the final location wins when
+        it is a child of the destination", but `location_final_id` was missing
+        from its dependencies. Reproduced through the picking form, where Final
+        Location is an optional column of the embedded move list: the move kept
+        `location_dest_id` at the parent location, saved that way, did not
+        self-correct at confirm, and passed the wrong destination on to its move
+        lines -- while the identical value supplied at create time (precompute)
+        produced the correct result.
+        """
+        registry = self.env.registry
+        deps = registry.field_depends[
+            self.env["stock.move"]._fields["location_dest_id"]
+        ]
+        self.assertIn("location_final_id", deps)
+
+        sub = self.env["stock.location"].create(
+            {
+                "name": "Review Final Sub",
+                "location_id": self.stock_location.id,
+                "usage": "internal",
+            },
+        )
+        move = self.MoveObj.create(
+            {
+                "product_id": self.lot_product.id,
+                "product_uom_qty": 5,
+                "product_uom_id": self.lot_product.uom_id.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+            },
+        )
+        self.assertEqual(move.location_dest_id, self.stock_location)
+
+        move.location_final_id = sub
+        self.assertEqual(
+            move.location_dest_id,
+            sub,
+            "writing location_final_id must re-derive location_dest_id",
+        )
+
+        # The create path must reach the same destination when it likewise has
+        # to derive one. An explicit `location_dest_id` is deliberately absent
+        # from these values: explicit values beat a compute at create time, which
+        # is ORM behaviour rather than anything this rule decides.
+        created = self.MoveObj.create(
+            {
+                "product_id": self.lot_product.id,
+                "product_uom_qty": 5,
+                "product_uom_id": self.lot_product.uom_id.id,
+                "picking_type_id": self.picking_type_in.id,
+                "location_final_id": sub.id,
+            },
+        )
+        self.assertEqual(created.picking_type_id, self.picking_type_in)
+        self.assertEqual(created.location_dest_id, sub)
+
+    def test_force_qty_honoured_on_chained_move(self):
+        """`_action_assign(force_qty=N)` reserves N on a chained move too.
+
+        Only the no-origin (MTS) branch of `_update_reserved_with_stock` read
+        `missing_reserved_quantity`; the chained branch recomputed the need from
+        `product_qty` and so reserved the move's whole remaining demand whatever
+        N was. Four modules call this method with `force_qty`.
+        """
+        product = self.env["product.product"].create(
+            {"name": "Force Qty Product", "type": "consu", "is_storable": True},
+        )
+        inbound = self._done_receipt(product, 10)
+        chained = self.MoveObj.create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 10,
+                "product_uom_id": product.uom_id.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "picking_type_id": self.picking_type_out.id,
+                "move_orig_ids": [Command.set(inbound.ids)],
+            },
+        )
+        chained._action_confirm()
+        chained.move_line_ids.unlink()
+        self.assertTrue(chained.move_orig_ids, "the move must be chained")
+
+        chained._action_assign(force_qty=3)
+        self.assertEqual(
+            chained.quantity,
+            3,
+            "force_qty must bound the reservation on the chained branch too",
+        )
+
+    def test_write_skips_orderpoint_refresh_when_scope_unchanged(self):
+        """Writing a product/location that does not change refreshes the
+        orderpoints once, not twice.
+
+        The pre-write refresh exists to catch the orderpoints the move is
+        *leaving*; guarding it on key presence alone made an unchanged value pay
+        for a second `stock.warehouse.orderpoint` search returning exactly what
+        the post-write one finds.
+        """
+        move = self.MoveObj.create(
+            {
+                "product_id": self.lot_product.id,
+                "product_uom_qty": 1,
+                "product_uom_id": self.lot_product.uom_id.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+            },
+        )
+        self.env.flush_all()
+
+        calls = []
+        Move = type(self.env["stock.move"])
+        original = Move._get_orderpoints_to_update
+
+        def counting(records):
+            calls.append(len(records))
+            return original(records)
+
+        self.patch(Move, "_get_orderpoints_to_update", counting)
+
+        move.write({"location_id": self.stock_location.id})
+        self.env.flush_all()
+        unchanged_calls = len(calls)
+
+        calls.clear()
+        move.write({"location_id": self.customer_location.id})
+        self.env.flush_all()
+        changed_calls = len(calls)
+
+        self.assertEqual(
+            unchanged_calls,
+            1,
+            "an unchanged source location must not search orderpoints twice",
+        )
+        self.assertEqual(
+            changed_calls,
+            2,
+            "a real location change must refresh both the old and the new scope",
+        )
+
+    def test_generated_lot_split_rejects_non_numeric_quantity(self):
+        """`_prepare_lot_generation_split` is fed from an RPC client context, so
+        a non-numeric quantity must raise UserError, not TypeError -> Fault 500.
+        """
+        with self.assertRaises(UserError):
+            self.env["stock.move"]._prepare_lot_generation_split("not-a-number", 2)
+        with self.assertRaises(UserError):
+            self.env["stock.move"]._prepare_lot_generation_split(10, None)
+
+    def test_boolean_computes_assign_booleans(self):
+        """The Boolean computes assign real booleans, not recordsets.
+
+        `is_quantity_done_editable = move.product_id` and friends relied on the
+        ORM coercing a recordset; the field's own value should be its own type.
+        """
+        move = self.MoveObj.create(
+            {
+                "product_id": self.lot_product.id,
+                "product_uom_qty": 1,
+                "product_uom_id": self.lot_product.uom_id.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+            },
+        )
+        for fname in (
+            "is_quantity_done_editable",
+            "show_lot_actions",
+            "has_lines_without_result_package",
+        ):
+            self.assertIsInstance(
+                move[fname],
+                bool,
+                f"{fname} should hold a bool, not {type(move[fname]).__name__}",
+            )
+
+    def test_required_location_fields_stay_precomputed(self):
+        """`location_id` / `location_dest_id` are `required=True` *and*
+        `precompute=True`: the row cannot be inserted unless they are computed
+        before the INSERT.
+
+        The ORM does not enforce that pairing -- adding a dependency on a stored
+        compute that is not itself `precompute=True` makes `Field.resolve_depends`
+        silently set `precompute = False` behind a `UserWarning`, and the next
+        create dies with `NotNullViolation` far from the edit that caused it.
+        This pins the invariant so that downgrade fails here instead.
+        """
+        Move = self.env["stock.move"]
+        for fname in ("location_id", "location_dest_id"):
+            field = Move._fields[fname]
+            self.assertTrue(field.required, f"{fname} is expected to be required")
+            self.assertTrue(
+                field.precompute,
+                f"{fname} lost precompute=True; a required field that is not "
+                f"precomputed cannot be inserted. Check whether a dependency was "
+                f"added that is a stored compute without precompute=True.",
+            )
