@@ -563,7 +563,7 @@ class PurchaseOrder(models.Model):
             }
             return self.env["ir.qweb"]._render("purchase_stock.exception_on_po", values)
 
-        documents = self.env["stock.picking"]._log_activity_get_documents(
+        documents = self.env["stock.activity.mixin"]._log_activity_get_documents(
             purchase_order_lines_quantities,
             "move_ids",
             "DOWN",
@@ -576,7 +576,7 @@ class PurchaseOrder(models.Model):
                 if parent.state in ["cancel", "done"]:
                     continue
             filtered_documents[(parent, responsible)] = rendering_context
-        self.env["stock.picking"]._log_activity(
+        self.env["stock.activity.mixin"]._log_activity(
             _render_note_exception_quantity_po,
             filtered_documents,
         )

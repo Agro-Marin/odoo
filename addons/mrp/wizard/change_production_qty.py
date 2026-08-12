@@ -63,6 +63,7 @@ class ChangeProductionQty(models.TransientModel):
 
     def change_prod_qty(self):
         precision = self.env["decimal.precision"].precision_get("Product Unit")
+        activity_mixin = self.env["stock.activity.mixin"]
         for wizard in self:
             production = wizard.mo_id
             old_production_qty = production.product_qty
@@ -81,7 +82,7 @@ class ChangeProductionQty(models.TransientModel):
             for move, old_qty, new_qty in update_info:
                 iterate_key = production._get_document_iterate_key(move)
                 if iterate_key:
-                    document = self.env["stock.picking"]._log_activity_get_documents(
+                    document = activity_mixin._log_activity_get_documents(
                         {move: (new_qty, old_qty)}, iterate_key, "UP"
                     )
                     for key, value in document.items():

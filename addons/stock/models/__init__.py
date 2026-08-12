@@ -3,6 +3,8 @@ from . import (
     res_partner,
     res_users,
     uom_uom,
+    date_category_mixin,
+    stock_activity_mixin,
     product_catalog_mixin,
     product_category,
     product_removal,

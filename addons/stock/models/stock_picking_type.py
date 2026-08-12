@@ -10,15 +10,12 @@ from odoo.tools import SQL
 
 class StockPickingType(models.Model):
     _name = "stock.picking.type"
-    _inherit = ["mail.thread"]
+    _inherit = ["mail.thread", "date.category.mixin"]
     _description = "Picking Type"
     _order = "is_favorite desc, sequence, id"
     _rec_names_search = ["name", "warehouse_id.name"]
     _check_company_auto = True
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     name = fields.Char(
         string="Operation Type",
@@ -124,7 +121,6 @@ class StockPickingType(models.Model):
         readonly=False,
         help="Check this box if you want to generate shipping label in this operation.",
     )
-    # TODO: delete this field `show_operations`
     show_operations = fields.Boolean(
         string="Show Detailed Operations",
         default=False,
@@ -270,18 +266,11 @@ class StockPickingType(models.Model):
         help="It specifies goods to be transferred partially or all at once",
     )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if not vals.get("sequence_id") and vals.get("sequence_code"):
-                # The sequence follows the picking type's own company (`company_id`
-                # is required with a `env.company` default, and `check_company`
-                # forces the warehouse to belong to that same company), matching
-                # the resolution used by `write` when the code is renamed.
                 company_id = vals.get("company_id") or self.env.company.id
                 if vals.get("warehouse_id"):
                     wh = self.env["stock.warehouse"].browse(vals["warehouse_id"])
@@ -338,9 +327,6 @@ class StockPickingType(models.Model):
             )
         if "sequence_code" in vals:
             for picking_type in self:
-                # The sequence belongs to the picking type's own company, not the
-                # current user's (`env.company` here silently reassigned the
-                # sequence to whatever company the renaming user was logged into).
                 if picking_type.warehouse_id:
                     picking_type.sequence_id.sudo().write(
                         {
@@ -383,8 +369,6 @@ class StockPickingType(models.Model):
                 )
                 moves.date_reservation = False
         elif new_method == "by_date" or days_changed:
-            # Refresh open moves for the types switching to "by_date" now, plus —
-            # when the day counts change — the types already reserving by date.
             if new_method == "by_date" and not days_changed:
                 picking_types = self.filtered(
                     lambda p: p.reservation_method != "by_date"
@@ -409,8 +393,6 @@ class StockPickingType(models.Model):
                 for picking_type, moves in self.env["stock.move"]._read_group(
                     domain, group_by, aggregates
                 ):
-                    # `.get(key, fallback)` (not `.get(key) or fallback`) so an
-                    # explicit 0 in `vals` wins over the stored day count.
                     common_days = vals.get(
                         "reservation_days_before",
                         picking_type.reservation_days_before,
@@ -430,15 +412,6 @@ class StockPickingType(models.Model):
 
         res = super().write(vals)
 
-        # Reassigning a type's warehouse must not leave its stored default
-        # locations pointing into the *old* warehouse. Done here (not via a
-        # `warehouse_id` dependency on the computes) so only a genuine
-        # reassignment re-defaults: the warehouse machinery configures
-        # step-specific locations (pack/pick/store...) that a dependency-driven
-        # recompute would clobber with `lot_stock_id`. Locations the caller set
-        # explicitly in this same write, locations outside any warehouse
-        # (suppliers/customers/...) and locations already in the new warehouse
-        # are left alone.
         if types_changing_warehouse:
             new_warehouse = self.env["stock.warehouse"].browse(vals["warehouse_id"])
             for picking_type in types_changing_warehouse:
@@ -476,9 +449,6 @@ class StockPickingType(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
@@ -499,9 +469,6 @@ class StockPickingType(models.Model):
 
         return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     def _compute_is_favorite(self):
         for picking_type in self:
@@ -513,20 +480,12 @@ class StockPickingType(models.Model):
             rec.hide_reservation_method = rec.code == "incoming"
 
     def _compute_picking_count(self):
-        # "Late" shares the kanban graph's day boundary (start of today in the
-        # user's timezone, expressed as naive UTC like the stored datetimes), so
-        # the badge, the graph buckets and the date-category filters all agree
-        # on what "today" means.
         late_cutoff = (
             self.env["stock.picking"]
             ._date_category_boundaries()["today"]
             .astimezone(UTC)
             .replace(tzinfo=None)
         )
-        # The plain state-based counters all derive from one query grouped by
-        # (picking_type, state); only "late" and "backorders" carry predicates a
-        # state grouping cannot express, so they keep their own grouped query
-        # (3 queries total instead of 6).
         counts_by_type_state = {
             (picking_type.id, state): count
             for picking_type, state, count in self.env["stock.picking"]._read_group(
@@ -611,20 +570,17 @@ class StockPickingType(models.Model):
 
     @api.depends("code")
     def _compute_default_location_src_id(self):
-        # Deliberately NOT dependent on `warehouse_id`: the stored defaults of
-        # warehouse-managed types (pack/pick/store/...) are configured by
-        # `stock.warehouse` with step-specific locations that this generic
-        # compute cannot derive, so a dependency-driven recompute (e.g. on
-        # module upgrade) would clobber them with `lot_stock_id`. Stale
-        # defaults on an actual warehouse reassignment are handled in `write`
-        # instead. The missing-warehouse redirect only fires for the branch
-        # that actually reads `lot_stock_id` (an incoming type needs no
-        # warehouse here).
+        # Resolved once for the batch, and only when a record actually needs it:
+        # `_get_partner_location` may search, and most batches hold no incoming
+        # type at all.
+        supplier_location = (
+            self.env["stock.warehouse"]._get_partner_location("supplier")
+            if any(picking_type.code == "incoming" for picking_type in self)
+            else self.env["stock.location"]
+        )
         for picking_type in self:
             if picking_type.code == "incoming":
-                picking_type.default_location_src_id = self.env.ref(
-                    "stock.stock_location_suppliers"
-                ).id
+                picking_type.default_location_src_id = supplier_location.id
             else:
                 if not picking_type.warehouse_id:
                     self.env["stock.warehouse"]._warehouse_redirect_warning()
@@ -634,13 +590,14 @@ class StockPickingType(models.Model):
 
     @api.depends("code")
     def _compute_default_location_dest_id(self):
-        # See `_compute_default_location_src_id` for why `warehouse_id` is not
-        # a dependency and for the per-branch missing-warehouse redirect.
+        customer_location = (
+            self.env["stock.warehouse"]._get_partner_location("customer")
+            if any(picking_type.code == "outgoing" for picking_type in self)
+            else self.env["stock.location"]
+        )
         for picking_type in self:
             if picking_type.code == "outgoing":
-                picking_type.default_location_dest_id = self.env.ref(
-                    "stock.stock_location_customers"
-                ).id
+                picking_type.default_location_dest_id = customer_location.id
             else:
                 if not picking_type.warehouse_id:
                     self.env["stock.warehouse"]._warehouse_redirect_warning()
@@ -691,26 +648,17 @@ class StockPickingType(models.Model):
                 "total_after": 0,
             }
             if isinstance(data, dict):
-                # Base implementation: counts already bucketed per date category
-                # by the SQL aggregation.
                 for date_category, count in data.items():
                     summary["total_" + date_category] += count
             else:
-                # Legacy shape kept for overrides (e.g. mrp, repair) that still
-                # return the raw datetime list of their own source records.
                 for p_date in data:
-                    date_category = self.env["stock.picking"].calculate_date_category(
-                        p_date
-                    )
+                    date_category = self.calculate_date_category(p_date)
                     if date_category:
                         summary["total_" + date_category] += 1
             summaries[picking_type_id] = summary
 
         self._prepare_graph_data(summaries)
 
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
 
     def _inverse_is_favorite(self):
         sudoed_self = self.sudo()
@@ -720,9 +668,6 @@ class StockPickingType(models.Model):
         to_fav.write({"favorite_user_ids": [(4, self.env.uid)]})
         (sudoed_self - to_fav).write({"favorite_user_ids": [(3, self.env.uid)]})
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
 
     @api.model
     def _search_is_favorite(self, operator, value):
@@ -732,15 +677,10 @@ class StockPickingType(models.Model):
 
     @api.model
     def _search_display_name(self, operator, value):
-        # Try to reverse the `display_name` structure
         if operator == "in":
             return Domain.OR(self._search_display_name("=", v) for v in value)
         if operator == "not in":
             return NotImplemented
-        # `maxsplit=1` so a picking type name containing ": " still round-trips
-        # ("WH: Pick: Zone A" -> warehouse "WH", name "Pick: Zone A"), and OR the
-        # split interpretation with a plain-name match: a warehouse-less type may
-        # itself carry ": " in its name.
         parts = isinstance(value, str) and value.split(": ", 1)
         if parts and len(parts) == 2:
             return (
@@ -752,9 +692,6 @@ class StockPickingType(models.Model):
             value = [value]
         return super()._search_display_name(operator, value)
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("code")
     def _onchange_picking_code(self):
@@ -794,9 +731,6 @@ class StockPickingType(models.Model):
             }
         return None
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     @api.model
     def action_redirect_to_barcode_installation(self):
@@ -806,9 +740,6 @@ class StockPickingType(models.Model):
         )
         return action
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_action(self, action_xmlid):
         action = self.env["ir.actions.actions"]._for_xml_id(action_xmlid)
@@ -835,9 +766,6 @@ class StockPickingType(models.Model):
         context = {**action_context, **context}
         action["context"] = context
         if self:
-            # Only scope the action when called on an actual picking type: with an
-            # empty recordset, `("picking_type_id", "=", False)` would match no
-            # picking at all, defeating the "all operations" entry points.
             action["domain"] = [("picking_type_id", "=", self.id)]
 
         action["help"] = self.env["ir.ui.view"]._render_template(
@@ -927,8 +855,6 @@ class StockPickingType(models.Model):
         counts_by_type = {picking_type_id: {} for picking_type_id in self.ids}
         if query.is_empty():
             return counts_by_type
-        # Stored datetimes are naive UTC; express the tz-aware boundaries the
-        # same way (mirrors `date_category_to_domain`).
         bounds = {
             key: value.astimezone(UTC).replace(tzinfo=None)
             for key, value in self.env[
@@ -949,10 +875,6 @@ class StockPickingType(models.Model):
             date_value=date_sql,
             **bounds,
         )
-        # Group by select-list position: the CASE expression is parametrized,
-        # and the parameters would get distinct placeholders in the SELECT
-        # and GROUP BY renderings, so PostgreSQL could not match them as the
-        # same expression.
         query.groupby = SQL("1, 2")
         rows = self.env.execute_query(
             query.select(picking_type_sql, category_sql, SQL("COUNT(*)"))
@@ -994,16 +916,12 @@ class StockPickingType(models.Model):
                         if empty
                         else picking_type_summary["data_series_name"]
                     ),
-                    # Passing the picking type ID allows for a redirection after clicking
                     "picking_type_id": None if empty else picking_type.id,
                     "values": [
                         dict(
                             v,
                             value=picking_type_summary[k],
                             type="sample" if empty else v["type"],
-                            # Carry the date-category slug so the kanban graph's
-                            # click handler filters by it directly, instead of
-                            # reconstructing it from the bar's positional index.
                             category=k.removeprefix("total_"),
                         )
                         for k, v in data_category_mapping.items()

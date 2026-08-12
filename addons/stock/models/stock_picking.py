@@ -2,12 +2,11 @@ import json
 import math
 from ast import literal_eval
 from collections import defaultdict
-from datetime import UTC, date, timedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
-from odoo.tools import SQL, OrderedSet, format_date, format_datetime, groupby
+from odoo.tools import SQL, OrderedSet, format_date, format_datetime
 from odoo.tools.misc import clean_context
 from odoo.tools.translate import _
 
@@ -30,7 +29,12 @@ OPEN_PICKING_STATES = frozenset(("waiting", "confirmed", "assigned"))
 
 class StockPicking(models.Model):
     _name = "stock.picking"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = [
+        "mail.thread",
+        "mail.activity.mixin",
+        "stock.activity.mixin",
+        "date.category.mixin",
+    ]
     _description = "Transfer"
     _order = "priority desc, date_planned asc, id desc"
 
@@ -1962,31 +1966,6 @@ class StockPicking(models.Model):
         )
         return [action] if action else []
 
-    @api.model
-    def calculate_date_category(self, value):
-        """Classify `value` (a datetime, assumed UTC) as "before", "yesterday", "today",
-        "day_1" (tomorrow), "day_2" or "after", relative to the current user's timezone.
-        Returns "" if `value` is falsy.
-        """
-        if not value:
-            return ""
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=UTC)
-        else:
-            value = value.astimezone(UTC)
-        bound = self._date_category_boundaries()
-        if value < bound["yesterday"]:
-            return "before"
-        if value < bound["today"]:
-            return "yesterday"
-        if value < bound["day_1"]:
-            return "today"
-        if value < bound["day_2"]:
-            return "day_1"
-        if value < bound["day_3"]:
-            return "day_2"
-        return "after"
-
     def _get_backorder_picking_vals(self):
         """Creation values for this picking's backorder — a copy of it, emptied of
         moves. Kept as values rather than a `copy()` call so a batch of backorders is
@@ -2062,56 +2041,6 @@ class StockPicking(models.Model):
         if bo_to_assign:
             bo_to_assign.action_assign()
         return backorders
-
-    @api.model
-    def _date_category_boundaries(self):
-        """Day boundaries (tz-aware, in the current user's timezone) used to classify a
-        datetime relative to today. Returns the start of "yesterday", "today", "day_1"
-        (tomorrow), "day_2" and "day_3".
-        """
-        start_today = fields.Datetime.context_timestamp(
-            self.env.user,
-            fields.Datetime.now(),
-        ).replace(hour=0, minute=0, second=0, microsecond=0)
-        return {
-            "yesterday": start_today + timedelta(days=-1),
-            "today": start_today,
-            "day_1": start_today + timedelta(days=1),
-            "day_2": start_today + timedelta(days=2),
-            "day_3": start_today + timedelta(days=3),
-        }
-
-    @api.model
-    def date_category_to_domain(self, field_name, date_category):
-        """Build a domain on `field_name` matching the given date category (one of "before",
-        "yesterday", "today", "day_1", "day_2", "after"; see `calculate_date_category`).
-        Returns None if `date_category` is not one of these.
-        """
-        bound = {
-            key: value.astimezone(UTC).replace(tzinfo=None)
-            for key, value in self._date_category_boundaries().items()
-        }
-        date_category_to_search_domain = {
-            "before": [(field_name, "<", bound["yesterday"])],
-            "yesterday": [
-                (field_name, ">=", bound["yesterday"]),
-                (field_name, "<", bound["today"]),
-            ],
-            "today": [
-                (field_name, ">=", bound["today"]),
-                (field_name, "<", bound["day_1"]),
-            ],
-            "day_1": [
-                (field_name, ">=", bound["day_1"]),
-                (field_name, "<", bound["day_2"]),
-            ],
-            "day_2": [
-                (field_name, ">=", bound["day_2"]),
-                (field_name, "<", bound["day_3"]),
-            ],
-            "after": [(field_name, ">=", bound["day_3"])],
-        }
-        return date_category_to_search_domain.get(date_category)
 
     def _get_next_transfers(self):
         # Recordset difference, not a per-element `in` scan (which is what
@@ -2290,103 +2219,6 @@ class StockPicking(models.Model):
 
     def _less_quantities_than_expected_add_documents(self, moves, documents):
         return documents
-
-    def _log_activity_get_documents(
-        self,
-        orig_obj_changes,
-        stream_field,
-        stream,
-        groupby_method=False,
-    ):
-        """Find the (document, responsible) pairs to notify for the given changes, following
-        either the upstream ("UP") or downstream ("DOWN") documents, and build a rendering
-        context per document containing only the changes relevant to it (e.g. a picking is
-        only notified about the moves it actually contains).
-
-        :param dict orig_obj_changes: record -> change on that record, e.g. {move: (new_qty, old_qty)}
-        :param str stream_field: field on the `orig_obj_changes` records to follow, e.g. 'move_dest_ids'
-        :param str stream: ``'UP'`` (log on the topmost ongoing document) or ``'DOWN'`` (log on
-            the following documents)
-        :param groupby_method: required when `stream` is 'DOWN'; groups objects by
-            (document to log on, responsible for that document)
-        """
-        if self.env.context.get("skip_activity") or not orig_obj_changes:
-            # No changes means no documents to notify. Without the guard the model
-            # name below is taken from `next(iter(...))`, which raises StopIteration
-            # -- a bad failure for a method six modules call with a dict they built.
-            return {}
-        move_to_orig_object_rel = {
-            co: ooc for ooc in orig_obj_changes for co in ooc[stream_field]
-        }
-        origin_objects = self.env[next(iter(orig_obj_changes))._name].concat(
-            *orig_obj_changes,
-        )
-        visited_documents = {}
-        if stream == "DOWN":
-            if groupby_method:
-                grouped_moves = groupby(
-                    origin_objects.mapped(stream_field),
-                    key=groupby_method,
-                )
-            else:
-                raise AssertionError(
-                    "You have to define a groupby method and pass them as arguments.",
-                )
-        elif stream == "UP":
-            grouped_moves = {}
-            for visited_move in origin_objects.mapped(stream_field):
-                for (
-                    document,
-                    responsible,
-                    visited,
-                ) in visited_move._get_upstream_documents_and_responsibles(
-                    self.env[visited_move._name],
-                ):
-                    if grouped_moves.get((document, responsible)):
-                        grouped_moves[document, responsible] |= visited_move
-                        visited_documents[document, responsible] |= visited
-                    else:
-                        grouped_moves[document, responsible] = visited_move
-                        visited_documents[document, responsible] = visited
-            grouped_moves = grouped_moves.items()
-        else:
-            raise AssertionError("Unknown stream.")
-
-        documents = {}
-        for (parent, responsible), moves in grouped_moves:
-            if not parent:
-                continue
-            moves = self.env[moves[0]._name].concat(*moves)
-            rendering_context = {
-                move: (orig_object, orig_obj_changes[orig_object])
-                for move in moves
-                for orig_object in move_to_orig_object_rel[move]
-            }
-            if visited_documents:
-                documents[parent, responsible] = (
-                    rendering_context,
-                    visited_documents.values(),
-                )
-            else:
-                documents[parent, responsible] = rendering_context
-        return documents
-
-    def _log_activity(self, render_method, documents):
-        """Schedule a warning activity on each (document, responsible) pair in `documents`,
-        with the note rendered by `render_method(rendering_context)`.
-
-        :param dict documents: (document, responsible) -> rendering_context, as returned by
-            `_log_activity_get_documents`
-        :param callable render_method: rendering_context -> html note string
-        """
-        for (parent, responsible), rendering_context in documents.items():
-            note = render_method(rendering_context)
-            parent.sudo().activity_schedule(
-                "mail.mail_activity_data_warning",
-                date.today(),
-                note=note,
-                user_id=responsible.id,
-            )
 
     def _log_less_quantities_than_expected(self, moves):
         """Log an activity on the pickings that follow `moves`, noting the quantity changes

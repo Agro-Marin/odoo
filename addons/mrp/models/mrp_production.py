@@ -58,7 +58,12 @@ class MrpProduction(models.Model):
     _name = "mrp.production"
     _description = "Manufacturing Order"
     _date_name = "date_start"
-    _inherit = ["mail.thread", "mail.activity.mixin", "product.catalog.mixin"]
+    _inherit = [
+        "mail.thread",
+        "mail.activity.mixin",
+        "product.catalog.mixin",
+        "date.category.mixin",
+    ]
     _order = "priority desc, date_start asc,id"
 
     @api.model
@@ -1653,8 +1658,7 @@ class MrpProduction(models.Model):
             return NotImplemented
         dates = value
         return Domain.OR(
-            self.env["stock.picking"].date_category_to_domain("date_start", date)
-            for date in dates
+            self.date_category_to_domain("date_start", date) for date in dates
         )
 
     @api.depends("lot_producing_ids")
@@ -3029,6 +3033,7 @@ class MrpProduction(models.Model):
         return True
 
     def _action_cancel(self):
+        activity_mixin = self.env["stock.activity.mixin"]
         documents_by_production = {}
         for production in self:
             documents = defaultdict(list)
@@ -3037,7 +3042,7 @@ class MrpProduction(models.Model):
             ):
                 iterate_key = self._get_document_iterate_key(move_raw_id)
                 if iterate_key:
-                    document = self.env["stock.picking"]._log_activity_get_documents(
+                    document = activity_mixin._log_activity_get_documents(
                         {move_raw_id: (move_raw_id.product_uom_qty, 0)},
                         iterate_key,
                         "UP",
@@ -3944,13 +3949,13 @@ class MrpProduction(models.Model):
             }
             return self.env["ir.qweb"]._render("mrp.exception_on_mo", values)
 
-        documents = self.env["stock.picking"]._log_activity_get_documents(
+        documents = self.env["stock.activity.mixin"]._log_activity_get_documents(
             moves_modification, "move_dest_ids", "DOWN", _keys_in_groupby
         )
         documents = self.env[
             "stock.picking"
         ]._less_quantities_than_expected_add_documents(moves_modification, documents)
-        self.env["stock.picking"]._log_activity(
+        self.env["stock.activity.mixin"]._log_activity(
             _render_note_exception_quantity_mo, documents
         )
 
@@ -3981,7 +3986,7 @@ class MrpProduction(models.Model):
             }
             return self.env["ir.qweb"]._render("mrp.exception_on_mo", values)
 
-        self.env["stock.picking"]._log_activity(
+        self.env["stock.activity.mixin"]._log_activity(
             _render_note_exception_quantity_mo, documents
         )
 

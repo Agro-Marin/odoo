@@ -252,7 +252,7 @@ class SaleOrder(models.Model):
                         )
                 if to_log:
                     documents = (
-                        self.env["stock.picking"]
+                        self.env["stock.activity.mixin"]
                         .sudo()
                         ._log_activity_get_documents(
                             to_log,
@@ -389,7 +389,7 @@ class SaleOrder(models.Model):
                     for order_line in sale_order.line_ids
                 }
                 documents = (
-                    self.env["stock.picking"]
+                    self.env["stock.activity.mixin"]
                     .with_context(include_draft_documents=True)
                     ._log_activity_get_documents(
                         sale_order_lines_quantities,
@@ -475,7 +475,7 @@ class SaleOrder(models.Model):
             }
             return self.env["ir.qweb"]._render("sale_stock.exception_on_so", values)
 
-        self.env["stock.picking"]._log_activity(
+        self.env["stock.activity.mixin"]._log_activity(
             _render_note_exception_quantity_so,
             documents,
         )
