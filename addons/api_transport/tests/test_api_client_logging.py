@@ -595,3 +595,67 @@ class TestExternalExchangeLogging(ClientLoggingCommon):
         )
 
         self.assertNotIn("supersecrettoken", self._queued()[0]["error_message"])
+
+
+@tagged("post_install", "-at_install")
+class TestFailedExchangesAreRecordedAsFailed(ClientLoggingCommon):
+    """``state`` follows the status, not whether anyone wrote a message.
+
+    It used to be an unconditional "success" whenever a response came back, and
+    only the presence of error *text* flipped it. ``_extract_error`` falls back
+    to ``response.text``, so a 4xx/5xx with an empty body yields "" and the row
+    recorded a failed exchange as successful -- while ``_track_usage`` counted
+    the same call against the credential as a failure. A bodiless 502 from a
+    proxy is the ordinary shape of this, and both SAT clients call with
+    ``raise_for_status=False``, so they see the raw status.
+    """
+
+    def _last_log(self):
+        self.env.cr.precommit.run()
+        return self.env["api.event.log"].search([], order="id desc", limit=1)
+
+    @staticmethod
+    def _bodiless(status_code):
+        response = MagicMock()
+        response.status_code = status_code
+        response.headers = {}
+        response.text = ""
+        response.json.side_effect = ValueError("no body")
+        response.raise_for_status.return_value = None
+        return response
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_bodiless_5xx_is_not_recorded_as_success(self, mock_request):
+        mock_request.return_value = self._bodiless(502)
+
+        result = self._client().get("/thing", raise_for_status=False)
+
+        self.assertEqual(result["status_code"], 502)
+        log = self._last_log()
+        self.assertEqual(log.state, "failed")
+        self.assertEqual(log.status_code, 502)
+        self.assertEqual(log.error_type, "server", "failed rows need a kind too")
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_bodiless_4xx_is_classified_by_status(self, mock_request):
+        mock_request.return_value = self._bodiless(429)
+
+        self._client().get("/thing", raise_for_status=False)
+
+        log = self._last_log()
+        self.assertEqual(log.state, "failed")
+        self.assertEqual(log.error_type, "rate_limit")
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_2xx_is_still_a_success(self, mock_request):
+        """The guard against fixing this by calling everything failed."""
+        mock_request.return_value = _ok_response()
+
+        self._client().get("/thing", raise_for_status=False)
+
+        log = self._last_log()
+        self.assertEqual(log.state, "success")
+        self.assertFalse(log.error_type)

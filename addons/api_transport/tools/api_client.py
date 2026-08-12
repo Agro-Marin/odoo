@@ -1152,18 +1152,33 @@ class APIGatewayClient:
             safe_response_body = self._redact_sensitive_data(
                 response_data.get("body"),
             )
+            # State comes from the status, not from whether anyone wrote an
+            # error message. This used to be an unconditional "success", so a
+            # 4xx/5xx whose body was empty recorded as a successful exchange:
+            # ``_extract_error`` falls back to ``response.text``, an empty body
+            # gives "", and the ``if error`` below never fires. A bodiless 502
+            # from a proxy is the ordinary shape of that. ``_track_usage``
+            # already counted it as failed, so the row disagreed with the
+            # credential's own success rate.
+            status_code = response_data.get("status_code")
             vals.update(
                 {
-                    "status_code": response_data.get("status_code"),
+                    "status_code": status_code,
                     "response_headers": safe_response_headers,
                     "response_payload": json.dumps(safe_response_body)[
                         :_MAX_LOGGED_PAYLOAD
                     ],
                     "duration_ms": response_data.get("elapsed_ms", 0),
                     "date_completed": fields.Datetime.now(),
-                    "state": "success",
+                    "state": "failed" if (status_code or 0) >= 400 else "success",
                 },
             )
+            if (status_code or 0) >= 400:
+                # Classify from the status for the same reason. The ``if error``
+                # block below overwrites this when a message did arrive, so a
+                # caller that passes its own error_type still wins; this only
+                # fills in the row that would otherwise be failed-with-no-kind.
+                vals["error_type"] = _error_type_for_status(status_code)
 
         if error:
             # Masked again here, not only where ``request`` assigns it. That is
