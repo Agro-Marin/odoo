@@ -12,7 +12,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         warehouse_id = self.env.context.get('warehouse_id', False)
         if warehouse_id:
             domain += [('order_id.picking_type_id.warehouse_id', '=', warehouse_id)]
-        po_lines = self.env['purchase.order.line'].search(domain, order='date_planned, id')
+        po_lines = self.env['purchase.order.line'].search(domain, order='date_commitment, id')
 
         for po_line in po_lines:
             line_qty = po_line.product_qty
@@ -54,9 +54,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         res = super()._get_replenishment_receipt(doc_in, components)
         if doc_in._name == 'purchase.order':
             if doc_in.state != "done":
-                return self._format_receipt_date('estimated', doc_in.date_planned)
+                return self._format_receipt_date('estimated', doc_in.date_commitment)
             in_pickings = doc_in.picking_ids.filtered(lambda p: p.state not in ('done', 'cancel'))
-            planned_date = max(in_pickings.mapped('date_planned')) if in_pickings else doc_in.date_planned
+            planned_date = max(in_pickings.mapped('date_planned')) if in_pickings else doc_in.date_commitment
             return self._format_receipt_date('expected', planned_date)
         return res
 
