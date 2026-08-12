@@ -1433,13 +1433,15 @@ class StockWarehouse(models.Model):
         record = self if len(self) == 1 else self.browse()
         defaults = {} if record else self.default_get(missing)
         for name in missing:
-            if record:
-                value = record[name]
-                values[name] = (
-                    value.id if self._fields[name].type == "many2one" else value
-                )
-            else:
+            if not record:
                 values[name] = defaults[name]
+                continue
+            # `default_get` yields an id for a Many2one and the callers compare
+            # against ids, so unwrap the recordset a field read gives back.
+            # Testing the value itself, rather than looking the field's type up
+            # in the model's private field map, keeps addon code off that map.
+            value = record[name]
+            values[name] = value.id if isinstance(value, models.BaseModel) else value
         return values
 
     def _get_locations_values(self, vals, code=False):
