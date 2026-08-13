@@ -75,7 +75,7 @@
 @web/core/parsers  odoo enterprise
 @web/core/position/position_hook  odoo
 @web/core/py_js/py  odoo enterprise agromarin
-@web/core/registry  odoo enterprise agromarin
+@web/core/registry  odoo enterprise agromarin design-themes
 @web/core/templates  odoo enterprise agromarin
 @web/core/transition  odoo enterprise
 @web/core/translation  odoo enterprise agromarin design-themes
@@ -172,7 +172,7 @@
 @web/model/relational_model  odoo enterprise agromarin
 @web/model/sample_server  odoo enterprise
 @web/public/colibri  odoo
-@web/public/interaction  odoo enterprise
+@web/public/interaction  odoo enterprise design-themes
 @web/public/public_boot_instance  odoo
 @web/public/public_component_interaction  odoo
 @web/public/utils  odoo enterprise
