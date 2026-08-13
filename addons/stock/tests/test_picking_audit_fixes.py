@@ -43,10 +43,6 @@ class TestPickingAuditFixes(TestStockCommon):
             picking.action_assign()
         return picking
 
-    # ------------------------------------------------------------------
-    # The stored shipping weight follows every input it is computed from
-    # ------------------------------------------------------------------
-
     def test_shipping_weight_follows_the_move_quantity(self):
         """Control for the test below: the declared dependency works."""
         product = self._storable(weight=2.0)
@@ -127,10 +123,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.assertEqual(picking.weight_bulk, 12.0)
         self.assertEqual(picking.shipping_volume, 8.0)
 
-    # ------------------------------------------------------------------
-    # A cancelled transfer stays cancelled
-    # ------------------------------------------------------------------
-
     def test_cancelled_moveless_picking_survives_a_write(self):
         """`_compute_state` derives the state from the moves, and a picking with none
         reads as draft. `action_cancel` still cancels empty transfers, and
@@ -157,10 +149,6 @@ class TestPickingAuditFixes(TestStockCommon):
         picking.invalidate_recordset()
         self.assertEqual(picking.state, "draft")
 
-    # ------------------------------------------------------------------
-    # The lot check looks at the lines validation will pick
-    # ------------------------------------------------------------------
-
     def test_lot_check_covers_lines_that_will_be_autopicked(self):
         """`_sanity_check` runs before `_pre_action_done_hook` auto-picks, and nothing
         in the UI writes `picked`, so keying the lot check off `picked` alone left it
@@ -182,9 +170,18 @@ class TestPickingAuditFixes(TestStockCommon):
         self.assertTrue(picking._get_lot_move_lines_for_sanity_check())
 
     def test_multi_picking_lot_error_names_the_transfers(self):
-        self.picking_type_in.write(
-            {"use_create_lots": True, "use_existing_lots": False},
-        )
+        """Validating several independent transfers names them in the error.
+
+        `auto_batch` is turned off when stock_picking_batch is installed: it would
+        put these two receipts in one batch, and `_should_show_transfers` then
+        deliberately reports the batch as a unit rather than listing its transfers.
+        That is the batch module's contract, not this one's — the field is set
+        through `_fields` because stock cannot import a downstream module's schema.
+        """
+        vals = {"use_create_lots": True, "use_existing_lots": False}
+        if "auto_batch" in self.picking_type_in._fields:
+            vals["auto_batch"] = False
+        self.picking_type_in.write(vals)
         pickings = self.env["stock.picking"]
         for _index in range(2):
             picking = self._picking(
@@ -218,10 +215,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.env.flush_all()
         self.assertIn(picking, picking._get_pickings_to_autopick())
 
-    # ------------------------------------------------------------------
-    # Writing the operation type a picking already has changes nothing
-    # ------------------------------------------------------------------
-
     def test_unchanged_picking_type_write_on_a_done_picking(self):
         product = self._storable()
         self.env["stock.quant"]._update_available_quantity(
@@ -253,10 +246,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.env.flush_all()
         with self.assertRaises(UserError):
             picking.write({"picking_type_id": self.picking_type_in.id})
-
-    # ------------------------------------------------------------------
-    # Backorders are created in one batch, and the per-record hook still runs
-    # ------------------------------------------------------------------
 
     def test_backorders_are_created_for_every_picking(self):
         product = self._storable()
@@ -315,10 +304,6 @@ class TestPickingAuditFixes(TestStockCommon):
             seen,
             list(zip(pickings.ids, backorders.ids, strict=True)),
         )
-
-    # ------------------------------------------------------------------
-    # Assorted guards
-    # ------------------------------------------------------------------
 
     def test_log_activity_get_documents_tolerates_no_changes(self):
         self.assertEqual(
