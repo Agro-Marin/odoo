@@ -650,7 +650,7 @@ class Picking(models.Model):
             'partner_id': self.partner_id,
             'transport_partner_id': self.carrier_id.l10n_ro_edi_stock_partner_id,
             'company_id': self.company_id,
-            'scheduled_date': self.scheduled_date,
+            'scheduled_date': self.date_planned,
             'name': self.name,
             'send_type': send_type,
             'l10n_ro_edi_stock_operation_type': self.l10n_ro_edi_stock_operation_type,

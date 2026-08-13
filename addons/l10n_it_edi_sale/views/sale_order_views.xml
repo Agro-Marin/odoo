@@ -5,7 +5,9 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_sale_order_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//group[@name='sale_reporting']" position="after">
+            <!-- sale's `sale_reporting` group (campaign / medium / source) is now
+                 `tracking_info`, the last group on the Other Info page. -->
+            <xpath expr="//group[@name='tracking_info']" position="after">
                 <field name="l10n_it_partner_pa" invisible="1"/>
                 <group name="it_edi_sale_order"
                        string="Italian Electronic Invoicing"

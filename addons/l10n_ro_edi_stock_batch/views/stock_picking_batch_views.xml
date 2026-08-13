@@ -23,7 +23,7 @@
              <button name="action_l10n_ro_edi_stock_fetch_status" string="Fetch Status" type="object" invisible="not l10n_ro_edi_stock_enable_fetch"/>
          </xpath>
 
-         <xpath expr="//field[@name='scheduled_date']" position="after">
+         <xpath expr="//field[@name='date_planned']" position="after">
              <field name="l10n_ro_edi_stock_state" invisible="1"/>
              <field name="l10n_ro_edi_stock_state" invisible="state == 'draft' or not l10n_ro_edi_stock_state" readonly="1"/>
          </xpath>
