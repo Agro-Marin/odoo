@@ -118,6 +118,8 @@
                         <field name="serial_prefix_format" style="max-width: 150px;" />
                         <field name="next_serial" style="max-width: 150px;" />
                     </div>
+                    <field name="lot_name_format"
+                        placeholder="Leave empty to name lots from the sequence" />
                 </group>
                 <group string="Counterpart Locations" name="stock_property"
                     groups="base.group_no_one">

@@ -16,10 +16,6 @@ class StockLot(models.Model):
     _check_company_auto = True
     _order = "name, id"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     name = fields.Char(
         string="Lot/Serial Number",
         required=True,
@@ -103,15 +99,6 @@ class StockLot(models.Model):
         group_expand="_read_group_location_id",
     )
 
-    # ------------------------------------------------------------
-    # CONSTRAINTS
-    # ------------------------------------------------------------
-
-    # Race-proof uniqueness for the same-company (or same no-company) case:
-    # `_check_unique_lot` below cannot stop two concurrent transactions from
-    # committing the same lot. NULLS NOT DISTINCT (PostgreSQL 15+) makes two
-    # no-company lots collide too. The company-vs-no-company collision rule is
-    # not expressible as a single SQL constraint and stays in Python.
     _name_product_company_uniq = models.Constraint(
         "UNIQUE NULLS NOT DISTINCT (name, product_id, company_id)",
         "The combination of lot/serial number and product must be unique within a company.",
@@ -125,23 +112,16 @@ class StockLot(models.Model):
         ]
         groupby = ["company_id", "product_id", "name"]
         if any(not lot.company_id for lot in self):
-            # We need to check across other companies to not have duplicates between 'no-company' and a company.
             self = self.sudo()
         records = self.with_context(skip_preprocess_gs1=True)._read_group(
             domain,
             groupby,
             ["__count"],
         )
-        # First pass: tally 'no-company' lots per (product, name) separately so
-        # correctness never depends on `_read_group`'s row order (the old code relied
-        # on 'company_id DESC' + Postgres NULLS-FIRST to see NULL-company rows first).
         cross_lots = {}
         for company, product, name, count in records:
             if not company:
                 cross_lots[(product, name)] = count
-        # Second pass: a combination duplicates when it appears more than once within
-        # a company (or 'no-company'), or when a company-specific lot collides with a
-        # 'no-company' one. Company-specific lots aren't checked across companies.
         duplicate_pairs = set()
         for company, product, name, count in records:
             duplicates = count
@@ -192,9 +172,6 @@ class StockLot(models.Model):
             ]
             if exclude_ids:
                 domain.append(("id", "not in", list(exclude_ids)))
-            # sudo: an existence check on the exact triple; no-company rows are
-            # visible to everyone but same-company rows may be filtered out by
-            # record rules when the user switches allowed companies.
             groups = (
                 self.sudo()
                 .with_context(skip_preprocess_gs1=True)
@@ -216,10 +193,6 @@ class StockLot(models.Model):
                     for product_id, name, __ in duplicates
                 }
             )
-
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -256,10 +229,6 @@ class StockLot(models.Model):
             )
         if vals.get("company_id"):
             for lot in self:
-                # Guard on the actual quants, not the computed (and editable)
-                # `location_id`: that field reads False as soon as the lot spans
-                # more than one location, which is exactly when the guard
-                # matters most.
                 quant_companies = lot.quant_ids.filtered(
                     lambda q: q.quantity
                 ).location_id.company_id
@@ -296,13 +265,8 @@ class StockLot(models.Model):
     @api.model
     def default_get(self, fields):
         context = dict(self.env.context)
-        # We always want the company_id to be computed, regardless of where it's been created.
         context.pop("default_company_id", False)
         return super(StockLot, self.with_context(context)).default_get(fields)
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     def _compute_delivery_ids(self):
         delivery_ids_by_lot = self._find_delivery_ids_by_lot()
@@ -311,8 +275,6 @@ class StockLot(models.Model):
             lot.count_transfer_outgoing = len(lot.delivery_ids)
 
     def _compute_partner_ids(self):
-        # Reuse `delivery_ids` (computed once and cached) rather than walking the
-        # lot->delivery graph a second time.
         for lot in self:
             pickings = lot.delivery_ids.sorted(key="date_done", reverse=True)
             lot.partner_ids = self._get_partners_from_deliveries(pickings)
@@ -323,23 +285,13 @@ class StockLot(models.Model):
             if lot.name:
                 continue
             if lot.product_id.lot_name_format:
-                # The product states the shape its lot names take. A bare
-                # sequence number would not have that shape, and any check
-                # enforcing the format would reject the record we just filled in.
                 lot.name = lot._compose_name()
                 continue
-            # Fall back to the global lot/serial sequence when the product
-            # has no dedicated one: leaving `name` empty would surface as an
-            # opaque required-field error at save time.
             lot.name = (
                 lot.product_id.lot_sequence_id.next_by_id()
                 if lot.product_id.lot_sequence_id
                 else self.env["ir.sequence"].next_by_code("stock.lot.serial")
             )
-
-    # ------------------------------------------------------------
-    # LOT NAME FORMAT
-    # ------------------------------------------------------------
 
     @api.model
     def _get_lot_name_placeholders(self) -> dict[str, str]:
@@ -438,9 +390,6 @@ class StockLot(models.Model):
         "to_date",
         "location",
         "warehouse_id",
-        # See product_product._compute_quantities: search_location/search_warehouse
-        # are search-view aliases consumed by _get_domain_locations and must key the
-        # cache, or a lot's product_qty aliases across search scopes in one transaction.
         "search_location",
         "search_warehouse",
         "allowed_company_ids",
@@ -451,15 +400,7 @@ class StockLot(models.Model):
         for lot in self:
             lot.product_qty = qty_by_lot.get(lot, 0.0)
 
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
-
     def _inverse_location_id(self):
-        # Evaluate per lot: aggregating quants across the whole recordset would raise
-        # the single-location error on a batch write (e.g. list-view multi-edit)
-        # even when each lot individually sits in exactly one location, and would let
-        # one lot's packaging drive another lot's unpack decision.
         for lot in self:
             quants = lot.quant_ids.filtered(
                 lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
@@ -478,10 +419,6 @@ class StockLot(models.Model):
                     ),
                 )
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
-
     def _search_product_qty(self, operator, value):
         op = PY_OPERATORS.get(operator)
         if not op:
@@ -490,14 +427,9 @@ class StockLot(models.Model):
             value = {float(v) for v in value}
         else:
             value = float(value)
-        # Reuse the exact aggregation behind the `product_qty` field so the search
-        # and the displayed value can never disagree (same location/owner/package/
-        # to_date scoping).
         qty_by_lot = self._get_product_qty_by_lot(Domain("lot_id", "!=", False))
         ids = [lot.id for lot, qty in qty_by_lot.items() if op(qty, value)]
 
-        # Lots with no stock in scope aren't in `qty_by_lot`; their implicit qty is
-        # 0, so include them whenever 0 itself matches the search operator/value.
         if op(0.0, value):
             lots_w_qty = [lot.id for lot in qty_by_lot]
             return ["|", ("id", "in", ids), ("id", "not in", lots_w_qty)]
@@ -519,10 +451,6 @@ class StockLot(models.Model):
             ]
         )
         if is_no_partner:
-            # Reverse the search: collect the lots sent to *some* partner so we
-            # can return all lots NOT sent. Mirror the positive branch and count
-            # both partner sources — a lot delivered through `move_partner_id`
-            # only must not come back as "never delivered to a partner".
             domain &= Domain("picking_partner_id", "!=", False) | Domain(
                 "move_partner_id", "!=", False
             )
@@ -539,10 +467,6 @@ class StockLot(models.Model):
         if is_no_partner:
             return [("id", "not in", move_lines.lot_id.ids)]
         return [("id", "in", move_lines.lot_id.ids)]
-
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_lot_open_quants(self):
         self.ensure_one()
@@ -567,10 +491,6 @@ class StockLot(models.Model):
             )
         return action
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _read_group_location_id(self, locations, domain):
         partner_locations = locations.search(
             [("usage", "in", ("customer", "supplier"))]
@@ -582,13 +502,10 @@ class StockLot(models.Model):
         """Generate `lot_names` from a string."""
         caught_initial_number = re.findall(r"\d+", first_lot)
         if not caught_initial_number:
-            # No digit to increment: append one so a series can be built.
             return self.generate_lot_names(first_lot + "0", count)
-        # We base the series on the last number found in the base lot.
         initial_number = caught_initial_number[-1]
         padding = len(initial_number)
         splitted = re.split(initial_number, first_lot)
-        # initial_number could appear several times, e.g. BAV023B00001S00001
         prefix = initial_number.join(splitted[:-1])
         suffix = splitted[-1]
         initial_number = int(initial_number)
@@ -656,10 +573,6 @@ class StockLot(models.Model):
             domain_move_out_loc &= Domain("owner_id", "=", owner_id)
         if package_id is not None:
             domain_quant &= Domain("package_id", "=", package_id)
-            # Keep the past-date move adjustments below scoped to the same package as
-            # the quant baseline, or later movements of OTHER packages of the product
-            # would corrupt the reconstructed historical quantity. Incoming lines land
-            # in result_package_id; outgoing lines leave from package_id.
             domain_move_in_loc &= Domain("result_package_id", "=", package_id)
             domain_move_out_loc &= Domain("package_id", "=", package_id)
         qty_by_lot = dict(
@@ -670,7 +583,6 @@ class StockLot(models.Model):
         if not dates_in_the_past:
             return qty_by_lot
 
-        # For a past date, adjust the on-hand quantity with the moves done after it.
         domain_lot_done = lot_domain & Domain(
             [("state", "=", "done"), ("move_id.date", ">", to_date)]
         )
@@ -722,9 +634,6 @@ class StockLot(models.Model):
         barren_lines = defaultdict(set)
         parent_map = defaultdict(set)
 
-        # Split move lines between producing (have produce_line_ids) and barren ones,
-        # and build the child->parent lot map so the tree can later be walked from the
-        # leaves up to propagate pickings.
         queue = list(self.ids)
         while queue:
             domain = Domain(
@@ -750,7 +659,6 @@ class StockLot(models.Model):
                 all_lot_ids.update(next_lots)
                 queue.extend(next_lots)
 
-        # Initialize delivery_by_lot with barren lines (i.e. the leaves of the lot tree)
         lots_to_propagate = set()
         delivery_by_lot = {lot_id: set() for lot_id in all_lot_ids}
         for lot_id in barren_lines:
@@ -760,8 +668,6 @@ class StockLot(models.Model):
                 delivery_by_lot[lot_id].update(barren_move_lines.picking_id.ids)
                 lots_to_propagate.add(lot_id)
 
-        # Propagate deliveries upward through the parent graph until no lot's
-        # delivery set changes anymore.
         while lots_to_propagate:
             lot_id = lots_to_propagate.pop()
 
@@ -773,9 +679,25 @@ class StockLot(models.Model):
 
         return {lot_id: list(delivery_by_lot[lot_id]) for lot_id in delivery_by_lot}
 
-    # ------------------------------------------------------------
-    # VALIDATION METHODS
-    # ------------------------------------------------------------
+    @api.model
+    def _get_accessible_location_domain(self):
+        """Domain leaves keeping lots that are unlocated or in an allowed company.
+
+        Shared by the product and variant "Lot/Serial Numbers" actions so the two
+        cannot drift apart.
+        """
+        return [
+            "|",
+            ("location_id", "=", False),
+            (
+                "location_id",
+                "any",
+                self.env["stock.location"]._check_company_domain(
+                    self.env.context.get("allowed_company_ids")
+                    or self.env.companies.ids
+                ),
+            ),
+        ]
 
     def _check_create(self):
         active_picking_id = self.env.context.get("active_picking_id", False)

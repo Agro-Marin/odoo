@@ -6,14 +6,12 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from odoo.addons.stock.models.product_product import PY_OPERATORS
+
 
 class ProductTemplate(models.Model):
     _inherit = "product.template"
     _check_company_auto = True
-
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     is_storable = fields.Boolean(
         string="Track Inventory",
@@ -125,6 +123,8 @@ class ProductTemplate(models.Model):
         compute_sudo=False,
         inverse="_inverse_qty_available",
         search="_search_qty_available",
+        help="Sum of the quantity on hand of every variant of this product, "
+        "scoped by the location or warehouse selected in the search view.",
     )
     qty_available_virtual = fields.Float(
         string="Forecasted Quantity",
@@ -132,6 +132,8 @@ class ProductTemplate(models.Model):
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_virtual_available",
+        help="Sum of the forecasted quantity (on hand - outgoing + incoming) of "
+        "every variant of this product.",
     )
     qty_incoming = fields.Float(
         string="Incoming",
@@ -139,6 +141,7 @@ class ProductTemplate(models.Model):
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_incoming_qty",
+        help="Sum of the planned incoming quantity of every variant of this product.",
     )
     qty_outgoing = fields.Float(
         string="Outgoing",
@@ -146,9 +149,8 @@ class ProductTemplate(models.Model):
         compute="_compute_quantities",
         compute_sudo=False,
         search="_search_outgoing_qty",
+        help="Sum of the planned outgoing quantity of every variant of this product.",
     )
-    # Dummy fields: not stored, only used to inject 'location'/'warehouse_id' into the
-    # context from the search view so they can influence the computed quantity fields.
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Location",
@@ -197,7 +199,6 @@ class ProductTemplate(models.Model):
         compute="_compute_count_reordering_rules",
         compute_sudo=False,
     )
-    # Only used to show the category's routes on the product form view.
     route_from_categ_ids = fields.Many2many(
         related="categ_id.total_route_ids",
         string="Category Routes",
@@ -210,49 +211,95 @@ class ProductTemplate(models.Model):
         compute="_compute_show_qty_status_button"
     )
     show_qty_update_button = fields.Boolean(compute="_compute_show_qty_update_button")
-    count_lot_ids = fields.Integer(
-        string="Lots Count",
-        compute="_compute_count_lot_ids",
-    )
-
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
-        product_tmpl_quantities = [vals.pop("qty_available", 0) for vals in vals_list]
+        product_tmpl_quantities = [vals.get("qty_available", 0) for vals in vals_list]
+        if any(product_tmpl_quantities):
+            vals_list = [
+                {key: val for key, val in vals.items() if key != "qty_available"}
+                for vals in vals_list
+            ]
 
         product_templates = super().create(vals_list)
 
         if any(product_tmpl_quantities):
+            templates_to_update = self.browse()
+            quantities = []
             for product_tmpl, qty in zip(
                 product_templates, product_tmpl_quantities, strict=True
             ):
                 if not qty:
                     continue
-                # Refuse instead of silently dropping the requested quantity:
-                # negatives are invalid (mirrors the variant inverse) and
-                # tracked products need lot/serial numbers, which only an
-                # inventory adjustment can provide.
-                if product_tmpl.uom_id.compare(qty, 0) < 0:
-                    raise UserError(
-                        _(
-                            "The quantity on hand of %(product)s cannot be set to a negative value.",
-                            product=product_tmpl.display_name,
-                        ),
-                    )
-                if product_tmpl.tracking != "none":
-                    raise UserError(
-                        _(
-                            "%(product)s is tracked by lot/serial number: set its quantity"
-                            " through an inventory adjustment so lot/serial numbers can be"
-                            " assigned.",
-                            product=product_tmpl.display_name,
-                        ),
-                    )
-                product_tmpl.product_variant_id.qty_available = qty
+                templates_to_update |= product_tmpl
+                quantities.append(qty)
+            templates_to_update._set_qty_available(quantities)
         return product_templates
+
+    def _check_qty_available_update(self, quantities):
+        """Refuse every way a quantity write would be lost or misapplied.
+
+        Shared by ``create`` and ``_inverse_qty_available`` so the two paths cannot
+        drift: without it a value silently vanished for non-storable and service
+        products, and landed on an arbitrary variant for multi-variant templates.
+        """
+        for template, qty in zip(self, quantities, strict=True):
+            if template.uom_id.compare(qty, 0) < 0:
+                raise UserError(
+                    _(
+                        "The quantity on hand of %(product)s cannot be set to a negative value.",
+                        product=template.display_name,
+                    ),
+                )
+            if template.type != "consu" or not template.is_storable:
+                raise UserError(
+                    _(
+                        "%(product)s does not track inventory, so it cannot have a"
+                        " quantity on hand. Enable Track Inventory first.",
+                        product=template.display_name,
+                    ),
+                )
+            if template.tracking != "none":
+                raise UserError(
+                    _(
+                        "%(product)s is tracked by lot/serial number: set its quantity"
+                        " through an inventory adjustment so lot/serial numbers can be"
+                        " assigned.",
+                        product=template.display_name,
+                    ),
+                )
+            if template.product_variant_count > 1:
+                raise UserError(
+                    _(
+                        "%(product)s has several variants: update the quantity of each"
+                        " variant instead.",
+                        product=template.display_name,
+                    ),
+                )
+            if qty and not template.product_variant_id:
+                raise UserError(
+                    _("Save the product form before updating the Quantity On Hand."),
+                )
+
+    def _set_qty_available(self, quantities):
+        """Validate, then push each template's quantity onto its single variant.
+
+        Templates that cannot hold stock are dropped when the quantity is zero --
+        saving a service or non-storable product sends 0 and has nothing to lose --
+        and refused when it is not, which is the silent discard this replaces.
+        The whole set is applied in one inventory adjustment rather than one apiece.
+        """
+        templates_to_apply = self.browse()
+        quantities_to_apply = []
+        for template, qty in zip(self, quantities, strict=True):
+            if not qty and (template.type != "consu" or not template.is_storable):
+                continue
+            templates_to_apply |= template
+            quantities_to_apply.append(qty)
+        if not templates_to_apply:
+            return
+        templates_to_apply._check_qty_available_update(quantities_to_apply)
+        templates_to_apply.product_variant_id._apply_qty_available(quantities_to_apply)
 
     def write(self, vals):
         if vals.get("company_id"):
@@ -307,22 +354,12 @@ class ProductTemplate(models.Model):
                         ),
                     )
 
-        # Switching a product to storable drops stale reservations and rebuilds its
-        # inventory from move history. Only templates actually transitioning are reset;
-        # those already storable are skipped.
-        clean_inventory = False
         templates_to_reset = self.env["product.template"]
         if vals.get("is_storable"):
             templates_to_reset = self.filtered(lambda tmpl: not tmpl.is_storable)
-            clean_inventory = bool(templates_to_reset)
 
         res = super().write(vals)
-        if clean_inventory:
-            # Scope the realignment to the transitioning products; a
-            # model-level unscoped call would rescan every reserved quant and
-            # open move line in the database. The products-only scope also
-            # covers (product, location) pairs holding open move lines but no
-            # quant row yet — exactly the consumable→storable case.
+        if templates_to_reset:
             products = templates_to_reset.with_context(
                 active_test=False
             ).product_variant_ids
@@ -332,11 +369,6 @@ class ProductTemplate(models.Model):
 
     def copy(self, default=None):
         new_products = super().copy(default=default)
-        # Variants aren't copied directly, so match each template's new variants to the
-        # originals by attribute value and carry over their storage category capacity.
-        # The mapping MUST be rebuilt per template: copy() is batched, so a global key
-        # lets templates sharing an attribute value (e.g. both "Color: Red") overwrite
-        # each other -- wrong variant, or a (product, category) uniqueness crash.
         storage_category_capacity_vals = []
         for old_template, new_template in zip(self, new_products, strict=True):
             new_variant_id_by_value = {
@@ -349,8 +381,6 @@ class ProductTemplate(models.Model):
                 attribute_value = capacity.product_id.product_template_attribute_value_ids.product_attribute_value_id
                 new_variant_id = new_variant_id_by_value.get(attribute_value)
                 if not new_variant_id:
-                    # No matching variant on the copy (e.g. dynamic attributes
-                    # create variants lazily): skip instead of crashing the copy.
                     continue
                 storage_category_capacity_vals.append(
                     capacity.copy_data({"product_id": new_variant_id})[0],
@@ -360,38 +390,10 @@ class ProductTemplate(models.Model):
         )
         return new_products
 
-    # ------------------------------------------------------------
-    # DEFAULT METHODS
-    # ------------------------------------------------------------
-
     def _default_responsible_id(self):
-        # Default to the current user, but leave it unset for OdooBot.
         return False if self.env.user._is_superuser() else self.env.uid
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
-    def _compute_count_lot_ids(self):
-        # Aggregate lot counts per variant in one query, then roll up per template.
-        # Iterating ``product_variant_ids`` (active-filtered) keeps archived variants'
-        # lots out of the count, matching the original per-record ``search_count``.
-        counts = defaultdict(int)
-        for product, count in self.env["stock.lot"]._read_group(
-            [("product_id", "in", self.product_variant_ids.ids)],
-            ["product_id"],
-            ["__count"],
-        ):
-            counts[product.id] += count
-        for template in self:
-            template.count_lot_ids = sum(
-                counts[variant.id] for variant in template.product_variant_ids
-            )
-
     def _compute_count_reordering_rules(self):
-        # Aggregate every variant's orderpoints up to the template: count, min and
-        # max all sum across variants (a template rolls up its variants' rules).
-        # A missing template defaults to zeros, which also covers unsaved records.
         res = defaultdict(lambda: {"count": 0, "min": 0.0, "max": 0.0})
         for product, count, product_min_qty, product_max_qty in self.env[
             "stock.warehouse.orderpoint"
@@ -420,22 +422,31 @@ class ProductTemplate(models.Model):
             lambda t: not t.is_storable and t.tracking != "none",
         ).tracking = "none"
 
-    @api.depends("lot_sequence_id", "lot_sequence_id.prefix")
+    @api.depends("lot_sequence_id.prefix")
     def _compute_serial_prefix_format(self):
         for template in self:
             template.serial_prefix_format = template.lot_sequence_id.prefix or ""
 
-    @api.depends("lot_sequence_id.number_next_actual")
+    @api.depends(
+        "lot_sequence_id.number_next_actual",
+        "lot_sequence_id.padding",
+        "lot_sequence_id.suffix",
+    )
     def _compute_next_serial(self):
+        default_sequence = self.env.ref(
+            "stock.sequence_production_lots",
+            raise_if_not_found=False,
+        )
         for template in self:
-            if template.lot_sequence_id:
+            sequence = template.lot_sequence_id or default_sequence
+            if sequence:
                 template.next_serial = "{:0{}d}{}".format(
-                    template.lot_sequence_id.number_next_actual,
-                    template.lot_sequence_id.padding,
-                    template.lot_sequence_id.suffix or "",
+                    sequence.number_next_actual,
+                    sequence.padding,
+                    sequence.suffix or "",
                 )
             else:
-                template.next_serial = "0000001"
+                template.next_serial = ""
 
     @api.depends("is_storable")
     def _compute_show_qty_status_button(self):
@@ -446,9 +457,6 @@ class ProductTemplate(models.Model):
             )
 
     def _compute_has_available_route_ids(self):
-        # Global flag: true iff any selectable route exists, so it's the same for every
-        # record with no field/context dependency to declare (it tracks stock.route
-        # config).
         self.has_available_route_ids = self._has_product_selectable_route()
 
     @api.model
@@ -473,9 +481,11 @@ class ProductTemplate(models.Model):
 
     @api.depends("product_variant_count", "tracking")
     def _compute_show_qty_update_button(self):
+        has_advanced_option = self._has_advanced_stock_option()
         for product in self:
             product.show_qty_update_button = (
-                product._should_open_product_quants()
+                has_advanced_option
+                or product.tracking != "none"
                 or product.product_variant_count > 1
             )
 
@@ -484,25 +494,16 @@ class ProductTemplate(models.Model):
         "product_variant_ids.qty_available_virtual",
         "product_variant_ids.qty_incoming",
         "product_variant_ids.qty_outgoing",
-        "tracking",
     )
-    # Mirror product.product._compute_quantities: the template value sums its variants'
-    # quantities, so it depends on every context key the variant does. Declaring only
-    # "warehouse_id" aliased the cache across location/date/owner/lot/package/company --
-    # a template read under one location returned a value computed under another.
     @api.depends_context(
         "lot_id",
         "owner_id",
-        # See product_product._compute_quantities: `owners` scopes the variant
-        # quantities this rollup sums, so it must key the cache too.
         "owners",
         "package_id",
         "from_date",
         "to_date",
         "location",
         "warehouse_id",
-        # See product_product._compute_quantities: the search views inject these
-        # aliases and _get_domain_locations consumes them, so they must key the cache.
         "search_location",
         "search_warehouse",
         "allowed_company_ids",
@@ -525,43 +526,23 @@ class ProductTemplate(models.Model):
         reads the already-computed variant fields (the scope comes from the
         context) and rolls them up per template.
         """
-        variants_available = {
-            p["id"]: p
-            for p in self.product_variant_ids._origin.read(
-                [
-                    "qty_available",
-                    "qty_available_virtual",
-                    "qty_incoming",
-                    "qty_outgoing",
-                ],
-            )
-        }
+        fnames = (
+            "qty_available",
+            "qty_available_virtual",
+            "qty_incoming",
+            "qty_outgoing",
+        )
+        self.product_variant_ids._origin.fetch(fnames)
         prod_available = {}
         for template in self:
-            qty_available = 0
-            qty_available_virtual = 0
-            qty_incoming = 0
-            qty_outgoing = 0
-            for p in template.product_variant_ids._origin:
-                qty_available += variants_available[p.id]["qty_available"]
-                qty_available_virtual += variants_available[p.id][
-                    "qty_available_virtual"
-                ]
-                qty_incoming += variants_available[p.id]["qty_incoming"]
-                qty_outgoing += variants_available[p.id]["qty_outgoing"]
+            variants = template.product_variant_ids._origin
             prod_available[template.id] = {
-                "qty_available": qty_available,
-                "qty_available_virtual": qty_available_virtual,
-                "qty_incoming": qty_incoming,
-                "qty_outgoing": qty_outgoing,
+                fname: sum(variants.mapped(fname)) for fname in fnames
             }
         return prod_available
 
     def _compute_count_moves(self):
         res = defaultdict(lambda: {"moves_in": 0, "moves_out": 0})
-        # picking_code is a non-stored related field: it works in a domain but can't be
-        # a _read_group key, so incoming/outgoing stay two queries. The 12-month cutoff
-        # and shared filters are built once so both queries use an identical boundary.
         one_year_ago = fields.Datetime.now() - relativedelta(years=1)
         base_domain = [
             ("product_id.product_tmpl_id", "in", self.ids),
@@ -588,84 +569,86 @@ class ProductTemplate(models.Model):
             template.count_moves_in = res[template.id]["moves_in"]
             template.count_moves_out = res[template.id]["moves_out"]
 
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
-
     def _inverse_serial_prefix_format(self):
-        # Restrict to the lot-serial sequence pool (the same code new sequences are
-        # created with below). Without the code filter, a prefix that collides with
-        # another document type's sequence (e.g. "SO/", "WH/OUT/") would be hijacked:
-        # lot creation would then draw numbers from that foreign sequence, gapping its
-        # numbering and shaping lot names like the other document.
+        """Bind each template to the lot sequence carrying its prefix, creating it once.
+
+        Keyed by (prefix, company): lot names are unique per (name, product, company),
+        so two companies using the same prefix need their own counters. Sharing one
+        made company B draw numbers from a sequence company A created, with a single
+        counter interleaving between them.
+        """
+        default_sequence = self.env.ref(
+            "stock.sequence_production_lots",
+            raise_if_not_found=False,
+        )
         valid_sequences = self.env["ir.sequence"].search(
             [
                 ("code", "=", "stock.lot.serial"),
                 ("prefix", "in", self.mapped("serial_prefix_format")),
+                ("company_id", "in", [*self.company_id.ids, False]),
             ],
         )
-        sequences_by_prefix = {seq.prefix: seq for seq in valid_sequences}
+        sequences_by_key = {
+            (seq.prefix, seq.company_id.id): seq for seq in valid_sequences
+        }
         for template in self:
-            if template.serial_prefix_format:
-                if template.serial_prefix_format in sequences_by_prefix:
-                    template.lot_sequence_id = sequences_by_prefix[
-                        template.serial_prefix_format
-                    ]
-                else:
-                    new_sequence = self.env["ir.sequence"].create(
-                        {
-                            "name": f"{template.name} Serial Sequence",
-                            "code": "stock.lot.serial",
-                            "prefix": template.serial_prefix_format,
-                            "padding": 7,
-                            "company_id": False,
-                        },
-                    )
-                    template.lot_sequence_id = new_sequence
-                    sequences_by_prefix[template.serial_prefix_format] = new_sequence
-            else:
-                template.lot_sequence_id = self.env.ref(
-                    "stock.sequence_production_lots",
-                    raise_if_not_found=False,
+            if not template.serial_prefix_format:
+                template.lot_sequence_id = default_sequence
+                continue
+            key = (template.serial_prefix_format, template.company_id.id)
+            sequence = sequences_by_key.get(key)
+            if not sequence:
+                sequence = self.env["ir.sequence"].create(
+                    {
+                        "name": f"{template.name} Serial Sequence",
+                        "code": "stock.lot.serial",
+                        "prefix": template.serial_prefix_format,
+                        "padding": default_sequence.padding or 7,
+                        "company_id": template.company_id.id,
+                    },
                 )
+                sequences_by_key[key] = sequence
+            template.lot_sequence_id = sequence
 
     def _inverse_qty_available(self):
         if self.env.context.get("skip_qty_available_update", False):
             return
-        for template in self:
-            if template.product_variant_count > 1:
-                # The template value is the SUM over its variants; writing it
-                # back onto the first variant would silently move every other
-                # variant's stock there. The UI hides the field in that case,
-                # but RPC/imports can still write it.
-                raise UserError(
-                    _(
-                        "%(product)s has several variants: update the quantity of each"
-                        " variant instead.",
-                        product=template.display_name,
-                    ),
-                )
-            if template.qty_available and not template.product_variant_id:
-                raise UserError(
-                    _("Save the product form before updating the Quantity On Hand."),
-                )
-            template.product_variant_id.qty_available = template.qty_available
-
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
+        self._set_qty_available([template.qty_available for template in self])
 
     def _search_variant_quantity(self, field_name, operator, value):
-        # A template matches when ANY of its variants matches the criterion,
-        # while the displayed template value is the SUM over its variants. The
-        # two can diverge on multi-variant templates (e.g. `qty_available > 10`
-        # misses a template showing 6 + 6 = 12): a known approximation, kept
-        # because an exact search would need to aggregate quantities per
-        # template for every candidate variant.
-        variant_query = self.env["product.product"]._search(
-            [(field_name, operator, value)]
+        """Match on the template total, the value the field actually displays.
+
+        Matching "any variant satisfies the criterion" instead made a template
+        showing 0 (variants +5 and -5) answer both ``> 0`` and ``< 0`` while
+        missing ``= 0``. Quantities are summed per template and compared once.
+        """
+        Product = self.env["product.product"]
+        operation = PY_OPERATORS.get(operator)
+        if operation is None:
+            variant_query = Product._search([(field_name, operator, value)])
+            return [("product_variant_ids", "in", variant_query)]
+
+        candidates = Product._get_quantity_search_candidates()
+        vals_by_variant = candidates.with_context(
+            prefetch_fields=False
+        )._prepare_quantities_vals(
+            self.env.context.get("lot_id"),
+            self.env.context.get("owner_id"),
+            self.env.context.get("package_id"),
+            self.env.context.get("from_date", False),
+            self.env.context.get("to_date", False),
         )
-        return [("product_variant_ids", "in", variant_query)]
+        totals = defaultdict(float)
+        for variant in candidates:
+            totals[variant.product_tmpl_id.id] += vals_by_variant[variant.id][
+                field_name
+            ]
+        matched = [
+            tmpl_id for tmpl_id, total in totals.items() if operation(total, value)
+        ]
+        if operation(0.0, value):
+            return ["|", ("id", "in", matched), ("id", "not in", list(totals))]
+        return [("id", "in", matched)]
 
     def _search_qty_available(self, operator, value):
         return self._search_variant_quantity("qty_available", operator, value)
@@ -681,11 +664,7 @@ class ProductTemplate(models.Model):
 
     @api.onchange("tracking")
     def _onchange_tracking(self):
-        return self.mapped("product_variant_ids")._onchange_tracking()
-
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
+        return self.product_variant_ids._onchange_tracking()
 
     @api.onchange("type")
     def _onchange_type(self):
@@ -700,6 +679,7 @@ class ProductTemplate(models.Model):
                     ("product_id", "in", self.product_variant_ids.ids),
                     ("state", "!=", "cancel"),
                 ],
+                limit=1,
             )
         ):
             res["warning"] = {
@@ -712,18 +692,9 @@ class ProductTemplate(models.Model):
             }
         return res
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def action_view_quants(self):
-        if "product_variant" in self.env.context:
-            return (
-                self.env["product.product"]
-                .browse(self.env.context["default_product_id"])
-                .action_view_quants()
-            )
-        return self.product_variant_ids.filtered(
+        variants = self.with_context(active_test=False).product_variant_ids
+        return variants.filtered(
             lambda p: p.active or p.qty_available != 0,
         ).action_view_quants()
 
@@ -748,7 +719,7 @@ class ProductTemplate(models.Model):
         action = self.env["ir.actions.actions"]._for_xml_id(
             "stock.stock_move_line_action",
         )
-        action["domain"] = [("product_id.product_tmpl_id", "in", self.ids)]
+        action["domain"] = [("product_id.product_tmpl_id", "=", self.id)]
         return action
 
     def action_view_product_lot(self):
@@ -758,16 +729,7 @@ class ProductTemplate(models.Model):
         )
         action["domain"] = [
             ("product_id.product_tmpl_id", "=", self.id),
-            "|",
-            ("location_id", "=", False),
-            (
-                "location_id",
-                "any",
-                self.env["stock.location"]._check_company_domain(
-                    self.env.context.get("allowed_company_ids")
-                    or self.env.companies.ids
-                ),
-            ),
+            *self.env["stock.lot"]._get_accessible_location_domain(),
         ]
         action["context"] = {
             "default_product_tmpl_id": self.id,
@@ -781,25 +743,24 @@ class ProductTemplate(models.Model):
             )
         return action
 
-    def action_view_routes_diagram(self):
-        products = self.env["product.product"]
+    def _resolve_diagram_products(self):
+        """Variants the routes diagram is about, from the context or from self."""
+        Product = self.env["product.product"]
         if self.env.context.get("default_product_id"):
-            products = self.env["product.product"].browse(
-                self.env.context["default_product_id"]
-            )
-        if not products and self.env.context.get("default_product_tmpl_id"):
-            products = (
-                self.env["product.template"]
-                .browse(self.env.context["default_product_tmpl_id"])
-                .product_variant_ids
-            )
-        if not products:
-            # Called without the context keys (e.g. directly on records or from
-            # a server action): fall back to self, then to the active record.
-            templates = self or self.browse(
-                self.env.context.get("active_id") or [],
-            )
-            products = templates.product_variant_ids
+            products = Product.browse(self.env.context["default_product_id"])
+            if products:
+                return products
+        if self.env.context.get("default_product_tmpl_id"):
+            products = self.browse(
+                self.env.context["default_product_tmpl_id"]
+            ).product_variant_ids
+            if products:
+                return products
+        templates = self or self.browse(self.env.context.get("active_id") or [])
+        return templates.product_variant_ids
+
+    def action_view_routes_diagram(self):
+        products = self._resolve_diagram_products()
         if (
             not self.env.user.has_group("stock.group_stock_multi_warehouses")
             and len(products) == 1
@@ -809,6 +770,8 @@ class ProductTemplate(models.Model):
                 [("company_id", "=", company.id)],
                 limit=1,
             )
+            if not warehouse:
+                self.env["stock.warehouse"]._warehouse_redirect_warning()
             return self.env.ref("stock.action_report_stock_rule").report_action(
                 None,
                 data={
@@ -820,7 +783,10 @@ class ProductTemplate(models.Model):
         action = self.env["ir.actions.actions"]._for_xml_id(
             "stock.action_stock_rules_report",
         )
-        action["context"] = self.env.context
+        action["context"] = {
+            "default_product_id": products[:1].id,
+            "default_product_tmpl_id": products[:1].product_tmpl_id.id,
+        }
         return action
 
     def action_product_tmpl_forecast_report(self):
@@ -830,10 +796,6 @@ class ProductTemplate(models.Model):
         return self.env["ir.actions.actions"]._for_xml_id(
             "stock.stock_forecasted_product_template_action",
         )
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _reset_inventory(self):
         """Create quants matching the move history of products that just became
@@ -849,10 +811,6 @@ class ProductTemplate(models.Model):
                 ("location_dest_usage", "in", ("internal", "transit")),
             ],
         )
-        # Fetch the stored fields the ledger loop reads. ``location_usage`` /
-        # ``location_dest_usage`` are non-stored related fields and can't be folded
-        # into the query, but pulling ``location_dest_id`` up front spares a prefetch
-        # round-trip.
         move_lines_to_match = self.env["stock.move.line"].search_fetch(
             move_line_domain,
             [
@@ -896,18 +854,19 @@ class ProductTemplate(models.Model):
             "domain": domain,
         }
 
-    # ------------------------------------------------------------
-    # VALIDATION METHODS
-    # ------------------------------------------------------------
+    @api.model
+    def _has_advanced_stock_option(self):
+        """Whether any option that makes a single on-hand figure insufficient is on.
 
-    def _should_open_product_quants(self):
-        self.ensure_one()
+        Record-independent, so callers looping over records resolve it once.
+        """
         advanced_option_groups = [
             "stock.group_stock_multi_locations",
             "stock.group_tracking_owner",
             "stock.group_tracking_lot",
         ]
-        return (
-            any(self.env.user.has_group(g) for g in advanced_option_groups)
-            or self.tracking != "none"
-        )
+        return any(self.env.user.has_group(g) for g in advanced_option_groups)
+
+    def _should_open_product_quants(self):
+        self.ensure_one()
+        return self._has_advanced_stock_option() or self.tracking != "none"
