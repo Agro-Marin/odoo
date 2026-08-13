@@ -1240,8 +1240,9 @@ def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[st
 
     Strategy (conservative import-scan, direct + one hop through src):
       * a changed *.test.js file -> its own suite;
-      * a changed src file -> every test file importing it directly, plus test
-        files importing a src file that imports the changed src (one hop).
+      * anything else, including a tour or a helper under static/tests/ -> every
+        test file importing it directly, plus test files importing a src file
+        that imports it (one hop).
 
     The scan spans every addon on the addons path, so a core file legitimately
     reaches ~100 suites across a dozen addons. ``downstream=False`` keeps only
@@ -1256,7 +1257,15 @@ def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[st
         if spec is None:
             continue
         changed_addons.add(spec.lstrip("@").partition("/")[0])
-        if "/../tests/" in spec:
+        # Only a `*.test.js` registers a suite. `static/tests/` also holds the
+        # tour scripts, which a manifest bundles into `web.assets_tests` for
+        # odoo-bin to drive, and shared helpers -- neither is in
+        # `web.assets_unit_tests`, so neither is a suite HOOT can select.
+        # Treating them as one produced an id the loader never registers, and
+        # the runner then refused the whole run rather than the one bad id.
+        # Routing them through `changed_specs` instead is also what finds the
+        # suites a changed helper actually affects.
+        if path.name.endswith(".test.js"):
             suite = specifier_to_suite(spec)
             if suite:
                 suites.add(suite)

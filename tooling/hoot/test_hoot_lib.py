@@ -567,6 +567,57 @@ class TestSpecifierMapping:
             assert H.specifier_to_suite(spec), path
 
 
+class TestAffectedSuiteSelection:
+    """`static/tests/` is two bundles. Only `*.test.js` is a suite HOOT knows."""
+
+    def _p(self, rel):
+        return H.ODOO_ROOT / rel
+
+    def test_a_tour_is_not_a_suite(self):
+        # Tours are bundled into web.assets_tests for odoo-bin, never into
+        # web.assets_unit_tests. Selecting one yielded an id the loader does not
+        # register, and the runner refused the entire run over it -- reporting
+        # `0 failed / 0 passed`, which reads exactly like a clean pass.
+        suites = H.affected_suites(
+            [self._p("addons/stock/static/tests/tours/stock_picking_tour.js")]
+        )
+        assert "@stock/tours/stock_picking_tour" not in suites
+
+    def test_a_test_file_is_still_its_own_suite(self):
+        assert "@stock/inventory_report_list" in H.affected_suites(
+            [self._p("addons/stock/static/tests/inventory_report_list.test.js")]
+        )
+
+    def test_a_tour_does_not_suppress_the_test_files_beside_it(self):
+        # The mixed case is the one that bit: a real suite was selected AND a
+        # tour id was, so the good ids died with the bad one.
+        suites = H.affected_suites(
+            [
+                self._p("addons/stock/static/tests/tours/stock_picking_tour.js"),
+                self._p("addons/stock/static/tests/inventory_report_list.test.js"),
+            ]
+        )
+        assert "@stock/inventory_report_list" in suites
+        assert not any(s.startswith("@stock/tours/") for s in suites)
+
+    def test_every_selected_suite_is_one_hoot_can_register(self):
+        # Whole-corpus guard: feed every tour file the addons path ships and
+        # assert nothing selects a suite with no `*.test.js` behind it.
+        tours = [
+            f
+            for f in H._iter_static_files("tests", "*.js")
+            if "/tests/tours/" in f.as_posix() and not f.name.endswith(".test.js")
+        ]
+        assert tours
+        registrable = {
+            H.specifier_to_suite(spec)
+            for spec in (H.file_to_specifier(f) for f in H._iter_test_files())
+            if spec
+        }
+        for suite in H.affected_suites(tours, downstream=True):
+            assert suite in registrable, suite
+
+
 class TestModuleScope:
     """Wrong scope = a different bundle = tests that pass in CI and fail here."""
 

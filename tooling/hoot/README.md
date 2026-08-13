@@ -132,12 +132,23 @@ HOOT suites to run, using a conservative ESM import-scan of the fork's `@addon/�
 specifiers (see `addons/web/machine_doc_v1/ESM_BUNDLING.md`):
 
 * a changed `*.test.js` file → its own suite;
-* a changed `src` file → every test file that imports it **directly**, plus test
+* anything else → every test file that imports it **directly**, plus test
   files that import a `src` file which imports the changed file (**one hop**).
 
 The suite name is derived exactly as `tests/_framework/start.hoot.js`
 (`_suiteNameFromSpecifier`) does, e.g. `web/static/tests/core/domain.test.js` →
 `@web/core/domain`, so the ids match what the real test loader registers.
+
+**Only `*.test.js` names a suite, and the second rule is why.** `static/tests/`
+holds two unrelated bundles: `*.test.js` goes to `web.assets_unit_tests`, which
+is HOOT, while `tests/tours/*.js` goes to `web.assets_tests`, which odoo-bin
+drives as browser tours. A tour is therefore not a suite, and neither is a shared
+helper. Selecting one used to mint an id the loader never registers, and the
+runner answered by refusing the **whole** run — `no suite or test matches ids
+"…": refusing to fall back to running every test` — so a change touching one
+tour alongside ten real suites reported `0 failed / 0 passed`, which reads like
+a clean pass. They now flow through the import scan instead, which is also what
+makes a changed helper select the suites that actually use it.
 
 The scan covers **every addons-path root**, not just `addons/odoo/addons`. It
 used to stop there, so a changed `src` file in any of the 84 enterprise or 4
