@@ -54,8 +54,8 @@ class SaleOrderLine(models.Model):
                 continue
 
             if line.state == 'draft' and line.product_type == 'consu':
-                components = line.product_id.get_components()
-                if components and components != [line.product_id.id]:
+                components = line.product_id._get_components()
+                if components and components != line.product_id:
                     line.display_qty_widget = True
 
     def _compute_qty_transferred(self):

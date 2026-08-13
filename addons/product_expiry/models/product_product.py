@@ -7,8 +7,9 @@ from odoo import fields, models
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-    def _prepare_quantities_vals(self, lot_id, owner_id, package_id, from_date=False, to_date=False):
-        return super(ProductProduct, self.with_context(with_expiration=datetime.date.today()))._prepare_quantities_vals(lot_id, owner_id, package_id, from_date, to_date)
+    def _prepare_quantities_vals(self, lot_id, owner_id, package_id, from_date=False, to_date=False, location_domains=None):
+        return super(ProductProduct, self.with_context(with_expiration=datetime.date.today()))._prepare_quantities_vals(
+            lot_id, owner_id, package_id, from_date, to_date, location_domains=location_domains)
 
     qty_free = fields.Float(help="Available quantity (computed as Quantity On Hand "
              "- reserved quantity - quantity to remove)\n"

@@ -1,22 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import collections
-import operator as py_operator
 from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-PY_OPERATORS = {
-    "<": py_operator.lt,
-    ">": py_operator.gt,
-    "<=": py_operator.le,
-    ">=": py_operator.ge,
-    "=": py_operator.eq,
-    "!=": py_operator.ne,
-    "in": lambda elem, container: elem in container,
-    "not in": lambda elem, container: elem not in container,
-}
+from odoo.addons.stock.models.product_product import PY_OPERATORS
 
 
 class ProductTemplate(models.Model):
@@ -380,8 +370,8 @@ class ProductProduct(models.Model):
             ).variant_bom_ids.write({"active": vals["active"]})
         return super().write(vals)
 
-    def get_total_routes(self):
-        routes = super().get_total_routes()
+    def _get_total_routes(self):
+        routes = super()._get_total_routes()
         if self.bom_ids:
             manufacture_routes = (
                 self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
@@ -389,20 +379,20 @@ class ProductProduct(models.Model):
             routes |= manufacture_routes
         return routes
 
-    def get_components(self):
-        """Return the ids of the storable components for a kit product.
-        Return the product's own ids otherwise"""
+    def _get_components(self):
+        """The storable components of a kit; the product itself otherwise."""
         self.ensure_one()
         bom_kit = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")[self]
-        if bom_kit:
-            _boms, bom_sub_lines = bom_kit.explode(self, 1)
-            return [
-                bom_line.product_id.id
-                for bom_line, data in bom_sub_lines
+        if not bom_kit:
+            return super()._get_components()
+        __, bom_sub_lines = bom_kit.explode(self, 1)
+        return self.browse().union(
+            *(
+                bom_line.product_id
+                for bom_line, __ in bom_sub_lines
                 if bom_line.product_id.is_storable
-            ]
-        else:
-            return super().get_components()
+            )
+        )
 
     def action_used_in_bom(self):
         self.ensure_one()
@@ -438,7 +428,13 @@ class ProductProduct(models.Model):
             )
 
     def _prepare_quantities_vals(
-        self, lot_id, owner_id, package_id, from_date=False, to_date=False
+        self,
+        lot_id,
+        owner_id,
+        package_id,
+        from_date=False,
+        to_date=False,
+        location_domains=None,
     ):
         """When the product is a kit, this override computes the fields :
          - 'qty_available_virtual'
@@ -455,7 +451,12 @@ class ProductProduct(models.Model):
         regular_products = self - kits
         res = (
             super(ProductProduct, regular_products)._prepare_quantities_vals(
-                lot_id, owner_id, package_id, from_date=from_date, to_date=to_date
+                lot_id,
+                owner_id,
+                package_id,
+                from_date=from_date,
+                to_date=to_date,
+                location_domains=location_domains,
             )
             if regular_products
             else {}
@@ -695,11 +696,12 @@ class ProductProduct(models.Model):
             ).product_tmpl_id.product_variant_ids
         )
 
-    def _get_quantity_search_candidates(self):
+    def _get_quantity_search_candidates(self, location_domains=None):
         # Kits can have a non-zero quantity without any quants/moves of their own (it comes
         # from their components), so they must be added to the candidate set.
         return (
-            super()._get_quantity_search_candidates() | self._get_phantom_bom_products()
+            super()._get_quantity_search_candidates(location_domains=location_domains)
+            | self._get_phantom_bom_products()
         )
 
     def _search_qty_available_new(

@@ -332,8 +332,8 @@ class ProductProduct(models.Model):
             qty_by_product_wh[(product.id, location.warehouse_id.id)] += product_qty
         return qty_by_product_location, qty_by_product_wh
 
-    def get_total_routes(self):
-        routes = super().get_total_routes()
+    def _get_total_routes(self):
+        routes = super()._get_total_routes()
         if self.seller_ids:
             buy_routes = (
                 self.env["stock.rule"].search([("action", "=", "buy")]).route_id
@@ -348,6 +348,7 @@ class ProductProduct(models.Model):
         package_id,
         from_date=False,
         to_date=False,
+        location_domains=None,
     ):
         if (
             self.env.context.get("suggest_based_on")
@@ -363,4 +364,5 @@ class ProductProduct(models.Model):
             package_id=package_id,
             from_date=from_date,  # Keeping default which fetches all past deliveries
             to_date=to_date,
+            location_domains=location_domains,
         )

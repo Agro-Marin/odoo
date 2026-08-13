@@ -730,7 +730,7 @@ class StockWarehouseOrderpoint(models.Model):
             all_product_routes = (
                 orderpoint.product_id.route_ids
                 | orderpoint.product_id.categ_id.total_route_ids
-                | orderpoint.product_id.get_total_routes()
+                | orderpoint.product_id._get_total_routes()
             )
             # Key on the product-route partition too, not just the union: rule
             # resolution (_extract_rule_from_dict) sorts product routes ahead of
