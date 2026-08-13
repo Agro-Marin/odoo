@@ -494,11 +494,6 @@ class StockMove(models.Model):
             move_to_check_location = self.filtered(
                 lambda m: m.location_id.id != vals.get("location_id"),
             )
-        # Refresh the orderpoints the moves point at *before* the write only for
-        # the moves whose scope actually moves; the post-write call below covers
-        # the new scope. Guarding on key presence alone made every write of an
-        # unchanged product/location pay for a second `stock.warehouse.orderpoint`
-        # search that could only return what the post-write call already finds.
         moves_leaving_orderpoint_scope = self.filtered(
             lambda m: any(
                 key in vals and m[key].id != vals[key]
@@ -591,12 +586,6 @@ class StockMove(models.Model):
         for move in self:
             move.product_uom_id = move.product_id.uom_id.id
 
-    # The body used to also test `picking_type_id != _origin.picking_type_id`.
-    # That disjunct could never fire: on a saved record `_origin is self`, and
-    # `picking_type_id` is exposed in no `stock.move` view, so it never differs
-    # in an onchange either. When it *would* have differed -- a picking change,
-    # which recomputes `picking_type_id` -- the `picking_id` test beside it
-    # already covers the case.
     @api.depends("picking_id.location_id")
     def _compute_location_id(self):
         for move in self:
@@ -612,14 +601,6 @@ class StockMove(models.Model):
                     location = move.picking_type_id.default_location_src_id
             move.location_id = location
 
-    # `location_final_id` is load-bearing here: the body's whole purpose is the
-    # "final location wins when it is a child of the destination" rule. Without
-    # the dependency the rule only ran when something else triggered the compute,
-    # so setting Final Location on the picking form's move list (an optional
-    # column under `stock.group_stock_multi_locations`) left `location_dest_id`
-    # -- and the move lines derived from it -- pointing at the parent location.
-    # The same value passed at create time got it right, so one input produced
-    # two different stored results. A plain stored m2o, hence precompute-safe.
     @api.depends("picking_id.location_dest_id", "location_final_id")
     def _compute_location_dest_id(self):
         customer_loc, __ = self.env["stock.warehouse"]._get_partner_locations()
@@ -636,11 +617,6 @@ class StockMove(models.Model):
             elif move.picking_type_id:
                 location_dest = move.picking_type_id.default_location_dest_id
             else:
-                # Nothing to derive a destination from. Keep the current value:
-                # `location_dest_id` is `readonly=False` and `required=True`, so
-                # re-deriving to False here would wipe a manually set destination
-                # (and cannot be flushed anyway). Mirrors `_compute_location_id`,
-                # which likewise defaults to the field's current value.
                 location_dest = move.location_dest_id
             is_move_to_interco_transit = False
             if location_dest:
@@ -861,10 +837,6 @@ class StockMove(models.Model):
         saved_moves = self - new_moves
         if not saved_moves:
             return
-        # Group by the moves, not by their lines: `move_line_ids` is the inverse
-        # o2m, so the two domains select the same rows, but this one sends one
-        # parameter per move instead of one per line -- the difference between a
-        # handful of ids and tens of thousands on a large validated picking.
         data = self.env["stock.move.line"]._read_group(
             [("move_id", "in", saved_moves.ids)],
             ["move_id", "product_uom_id"],
@@ -1503,10 +1475,6 @@ class StockMove(models.Model):
     @api.model
     def _prepare_lot_generation_split(self, quantity, qty_per_lot):
         """Split `quantity` into one entry per lot of `qty_per_lot`, plus the leftover."""
-        # Both arguments arrive from the client context of an RPC-reachable
-        # method, so coerce before doing arithmetic on them: a non-numeric value
-        # would otherwise surface as `TypeError` -> Fault 500 rather than as the
-        # clean UserError every other phase of this flow raises.
         try:
             quantity = float(quantity)
             qty_per_lot = float(qty_per_lot)
@@ -1652,10 +1620,6 @@ class StockMove(models.Model):
         quantities = move_create_proc.with_context(
             consumed_from_stock_dict=consumed_from_stock_dict,
         )._prepare_procurement_qty()
-        # `strict=True`: `_prepare_procurement_qty` appends exactly one entry per
-        # move on every path, so the lengths always match. Pairing them leniently
-        # would silently drop the tail if an override ever broke that invariant --
-        # moves would lose their procurement without a word.
         for move, quantity in zip(move_create_proc, quantities, strict=True):
             values = move._prepare_procurement_vals()
             origin = move._prepare_procurement_origin()
@@ -2325,11 +2289,6 @@ class StockMove(models.Model):
             initial_reserved_qty = sum(
                 self.move_line_ids.mapped("quantity_product_uom"),
             )
-            # `force_qty` asks for a specific quantity instead of "whatever is
-            # still missing". The MTS branch above honours it through
-            # `missing_reserved_quantity`; this branch used to recompute the need
-            # from `product_qty` and so ignored it outright -- a caller forcing 3
-            # on a chained move got its full remaining demand reserved instead.
             if force_qty:
                 target_qty = missing_reserved_quantity
             else:
@@ -2505,13 +2464,6 @@ class StockMove(models.Model):
             ],
         )
         lot_id_names = set(lot_ids.mapped("name"))
-        # `dict.fromkeys` dedupes while preserving order. The same lot name may
-        # legitimately appear on several of the pasted lines -- two move lines of
-        # one lot -- and creating a `stock.lot` per occurrence tripped the model's
-        # own uniqueness constraint, reporting the user's paste as containing
-        # duplicates when it was this method that made them. A repeated *serial*
-        # is still a real mistake; it is now caught by `check_quantity` at
-        # validation, which says so, instead of here, which did not.
         missing_names = dict.fromkeys(
             lot_name for lot_name in lot_names if lot_name not in lot_id_names
         )
@@ -3332,10 +3284,6 @@ class StockMove(models.Model):
         moves_to_unlink = self.env["stock.move"]
         merged_moves = self.env["stock.move"]
         moves_by_neg_key = defaultdict(lambda: self.env["stock.move"])
-        # Built once: `distinct_fields` is loop-invariant, while each construction
-        # re-reads every float field's digits and, with `price_unit` in scope, hits
-        # `decimal.precision` and the companies' currencies. Inside the loop this
-        # cost one rebuild per candidate picking.
         merge_key = self._merge_move_itemgetter(distinct_fields)
         for candidate_moves in candidate_moves_set:
             candidate_moves = (
@@ -4078,10 +4026,6 @@ class StockMove(models.Model):
             visited exactly once even across sibling branches.
         """
         visited.update(self.ids)
-        # `to_datetime` maps a cleared deadline (False) to None, which cannot be
-        # subtracted from a datetime. Clearing is a shift of no particular size,
-        # so there is no delta to propagate: fall through to the branch below,
-        # which assigns `new_deadline` verbatim and clears the linked moves too.
         new_deadline_dt = fields.Datetime.to_datetime(new_deadline)
         for move in self.with_context(date_deadline_propagate_ids=visited):
             moves_to_update = move.move_dest_ids | move.move_orig_ids
@@ -4560,10 +4504,6 @@ class StockMove(models.Model):
         return self.picking_type_id.use_existing_lots
 
     def _check_quantity(self):
-        # `stock.quant.check_quantity` only ever looks at serial-tracked quants,
-        # so restrict the search to serial-tracked moves instead of scanning the
-        # quants of every product in the batch and letting the callee discard
-        # them. Untracked validations now issue no query at all.
         serial_moves = self.filtered(lambda m: m.product_id.tracking == "serial")
         if not serial_moves:
             return None

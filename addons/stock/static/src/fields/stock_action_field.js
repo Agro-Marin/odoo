@@ -49,13 +49,11 @@ class StockActionField extends Component {
         ev.stopPropagation();
         ev.preventDefault();
 
-        // Get the action name from props.options
         const actionName = this.props.actionName;
         const actionContext = this.props.actionContext
             ? evaluateExpr(this.props.actionContext, this.props.record.evalContext)
             : {};
 
-        // Use the action service to perform the action
         this.actionService.doAction(actionName, {
             additionalContext: { ...actionContext, ...this.props.record.context },
         });
@@ -67,9 +65,6 @@ const stockActionField = {
     ...monetaryField,
     component: StockActionField,
     supportedOptions: [
-        // Spread the de-duped float/monetary options into the flat list; wrapping
-        // them in an array (the old form) produced a nested entry that option
-        // tooling can't read.
         ...Object.values(
             Object.fromEntries(
                 [...floatField.supportedOptions, ...monetaryField.supportedOptions].map(
@@ -92,9 +87,6 @@ const stockActionField = {
         },
     ],
     extractProps: (...args) => {
-        // The field descriptor exposes the ORM type under `type`, not `fieldType`
-        // — destructuring the wrong key left both branches below dead, silently
-        // dropping the child field's props (currency_field, digits, …).
         const [{ context, type: fieldType, options }] = args;
         const action_props = {
             actionName: options.action_name,

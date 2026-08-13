@@ -32,23 +32,19 @@ class TestLeastPackagesSearch(TransactionCase):
         self.assertEqual(taken, ((10, 5),))
 
     def test_prefers_fewer_packages_over_exactness(self):
-        # 8 is reachable by one package (10) or two (11+12); the solver minimises count.
         taken = _least_packages_search([(10, 8), (11, 5), (12, 3)], 8)
         self.assertEqual(taken, ((10, 8),))
 
     def test_multi_single_exact_cover(self):
-        # A too-big package forces the exact cover to be two singles.
         taken = _least_packages_search([(10, 9), (None, 1), (None, 1)], 2)
         self.assertEqual(taken, ((None, 1), (None, 1)))
 
     def test_overselect_fallback_when_no_exact(self):
-        # qty 4 cannot be matched exactly by a single package of 5; best leaf overselects.
         taken = _least_packages_search([(10, 5)], 4)
         self.assertEqual(taken, ((10, 5),))
         self.assertEqual(self._num_packages(taken), 1)
 
     def test_insufficient_stock_returns_closest_leaf(self):
-        # Not enough available: returns the closest partial cover rather than raising.
         taken = _least_packages_search([(10, 2)], 5)
         self.assertEqual(taken, ((10, 2),))
 
@@ -73,9 +69,8 @@ class TestLeastPackagesSearch(TransactionCase):
         pq = _LeastPackagesPriorityQueue()
         first, second, third = Explodes(), Explodes(), Explodes()
         pq.put(first, 1.0)
-        pq.put(second, 1.0)  # identical priority -> must fall back to insertion order
+        pq.put(second, 1.0)
         pq.put(third, 1.0)
-        # FIFO among equal priorities, and crucially: no TypeError/AssertionError.
         self.assertIs(pq.get(), first)
         self.assertIs(pq.get(), second)
         self.assertIs(pq.get(), third)
@@ -95,7 +90,6 @@ class TestDistributeReservation(TransactionCase):
     DIGITS = 2
 
     def _cand(self, handle, on_hand, reserved, key=None):
-        # Default each candidate to its own key (no interchangeable grouping).
         return _ReservationCandidate(handle, on_hand, reserved, key or handle)
 
     def test_zero_quantity_is_noop(self):
@@ -103,7 +97,6 @@ class TestDistributeReservation(TransactionCase):
         self.assertEqual(_distribute_reservation(cands, 0, self.DIGITS), [])
 
     def test_reserve_stops_at_quantity(self):
-        # Two quants of 10 available; reserve 8 -> all from the first.
         cands = [self._cand("a", 10, 0), self._cand("b", 10, 0)]
         res = _distribute_reservation(cands, 8, self.DIGITS)
         self.assertEqual(res, [("a", 8)])
@@ -114,15 +107,12 @@ class TestDistributeReservation(TransactionCase):
         self.assertEqual(res, [("a", 5), ("b", 3)])
 
     def test_reserve_skips_fully_reserved(self):
-        # First quant has no slack; allocation moves to the second.
         cands = [self._cand("a", 5, 5), self._cand("b", 5, 0)]
         res = _distribute_reservation(cands, 3, self.DIGITS)
         self.assertEqual(res, [("b", 3)])
 
     def test_reserve_exactly_all_available_slack(self):
-        # Reserving exactly the whole availability drains both quants and stops
-        # cleanly (the caller pre-caps quantity to available, so it lands on zero).
-        cands = [self._cand("a", 4, 1), self._cand("b", 5, 0)]  # slack 3 + 5 = 8
+        cands = [self._cand("a", 4, 1), self._cand("b", 5, 0)]
         res = _distribute_reservation(cands, 8, self.DIGITS)
         self.assertEqual(res, [("a", 3), ("b", 5)])
 
@@ -150,14 +140,11 @@ class TestDistributeReservation(TransactionCase):
         """A quant over-reserved into negative available must be absorbed by the
         positive slack of another quant sharing its key, before that slack is used
         to reserve fresh quantity."""
-        # a: -3 available (over-reserved), b: +10 available, same key "g".
         cands = [self._cand("a", 2, 5, key="g"), self._cand("b", 10, 0, key="g")]
-        # Reserve 4. b's 10 slack first absorbs a's 3 negative, leaving 7 to reserve.
         res = _distribute_reservation(cands, 4, self.DIGITS)
         self.assertEqual(res, [("b", 4)])
 
     def test_negative_available_not_absorbed_across_groups(self):
-        # a's negative belongs to key "g1"; b is "g2" and must not absorb it.
         cands = [self._cand("a", 2, 5, key="g1"), self._cand("b", 10, 0, key="g2")]
         res = _distribute_reservation(cands, 4, self.DIGITS)
         self.assertEqual(res, [("b", 4)])
@@ -196,7 +183,6 @@ class TestStockQuantImprovements(TestStockCommon):
             [{"name": f"qimp-{i}", "is_storable": True} for i in range(5)]
         )
 
-    # ---- #A: non-inventory create() must batch into a single INSERT ---------
     def test_create_batches_non_inventory_rows(self):
         vals_list = [
             {"product_id": p.id, "location_id": self.loc.id, "quantity": 3.0}
@@ -228,7 +214,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "5 non-inventory quant vals must be created with a single INSERT, "
             "not one INSERT per row.",
         )
-        # order + content preserved
         self.assertEqual(quants.product_id, self.products)
         self.assertEqual(set(quants.mapped("quantity")), {3.0})
 
@@ -242,7 +227,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(quants.product_id.ids, self.products.ids)
         self.assertEqual(quants.mapped("quantity"), [1.0, 2.0, 3.0, 4.0, 5.0])
 
-    # ---- #5: the two inventory keys must not cross-contaminate --------------
     def test_inventory_keys_no_cross_contamination(self):
         product = self.products[0]
         quant = self.Quant.with_context(inventory_mode=True).create(
@@ -255,10 +239,8 @@ class TestStockQuantImprovements(TestStockCommon):
                 }
             ]
         )
-        # auto_apply key present -> value 0 is authoritative; the other key is ignored.
         self.assertEqual(quant.quantity, 0.0)
 
-    # ---- #2: _compute_sn_duplicated must not write outside self -------------
     def test_sn_duplicated_scoped_to_self(self):
         serial = self.env["product.product"].create(
             {"name": "qimp-sn", "is_storable": True, "tracking": "serial"}
@@ -290,18 +272,15 @@ class TestStockQuantImprovements(TestStockCommon):
             }
         )
         self.env.invalidate_all()
-        # Compute only qa; qb must NOT be pulled into cache by the compute.
         _ = qa.sn_duplicated
         self.assertFalse(
             self.env.cache.contains(qb, type(qb).sn_duplicated),
             "computing sn_duplicated on qa must not write it onto qb (outside self)",
         )
-        # Both are genuinely duplicated, detection stays global.
         self.assertTrue(qa.sn_duplicated)
         self.env.invalidate_all()
         self.assertTrue(qb.sn_duplicated)
 
-    # ---- #11: _unlink_zero_quants scope (recordset vs model level) ----------
     def test_unlink_zero_quants_scoping(self):
         px, py = self.products[0], self.products[1]
         qx = self.Quant.create(
@@ -311,7 +290,6 @@ class TestStockQuantImprovements(TestStockCommon):
             {"product_id": py.id, "location_id": self.loc.id, "quantity": 0.0}
         )
         self.env.cr.flush()
-        # Scoped call: only qx's product/location is in scope -> qy survives.
         qx._unlink_zero_quants()
         self.assertFalse(
             qx.exists(), "scoped call should remove the in-scope zero quant"
@@ -319,11 +297,9 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertTrue(
             qy.exists(), "scoped call must not touch out-of-scope zero quants"
         )
-        # Model-level (empty self) call: global sweep removes qy too.
         self.env["stock.quant"]._unlink_zero_quants()
         self.assertFalse(qy.exists(), "model-level call should sweep all zero quants")
 
-    # ---- #8: compute and search agree on is_outdated -----------------------
     def test_is_outdated_compute_matches_search(self):
         product = self.products[2]
         quant = self.Quant.with_context(inventory_mode=True).create(
@@ -335,10 +311,7 @@ class TestStockQuantImprovements(TestStockCommon):
                 }
             ]
         )
-        # Persist the count so inventory_diff_quantity is frozen at count time
-        # (it depends on inventory_quantity, not on the live on-hand quantity).
         self.env.flush_all()
-        # Now the on-hand quantity drifts, as it would when stock moves after a count.
         quant.sudo().write({"quantity": 9.0})
         self.env.flush_all()
         self.env.invalidate_all()
@@ -346,11 +319,6 @@ class TestStockQuantImprovements(TestStockCommon):
         found = self.env["stock.quant"].search([("is_outdated", "in", [True])])
         self.assertIn(quant, found, "search(is_outdated) must agree with the compute")
 
-        # Negation path: `_search_is_outdated` only implements the positive `in`
-        # operator and returns NotImplemented otherwise, delegating to the ORM which
-        # inverts `not in` -> `in` and negates. So `= False` must be the *exact*
-        # complement of `= True`, never a copy of it. (Guards the search method from
-        # ever growing an implementation that ignores the operator.)
         all_quants = self.env["stock.quant"].search([])
         outdated = self.env["stock.quant"].search([("is_outdated", "=", True)])
         not_outdated = self.env["stock.quant"].search([("is_outdated", "=", False)])
@@ -361,7 +329,6 @@ class TestStockQuantImprovements(TestStockCommon):
             outdated | not_outdated, all_quants, "False must be the complement of True"
         )
 
-    # ---- last_count_date: previously-uncovered compute ----------------------
     def test_last_count_date_tracks_inventory_move(self):
         """`_compute_last_count_date` surfaces the newest *done inventory* move-line
         date onto the matching quant. This compute had no coverage; the test also
@@ -371,8 +338,6 @@ class TestStockQuantImprovements(TestStockCommon):
         product = self.env["product.product"].create(
             {"name": "qimp-lastcount", "is_storable": True}
         )
-        # Creating with `inventory_quantity_auto_apply` applies the count immediately,
-        # leaving a done inventory stock.move.line from the loss location into self.loc.
         quant = self.Quant.with_context(inventory_mode=True).create(
             [
                 {
@@ -400,19 +365,16 @@ class TestStockQuantImprovements(TestStockCommon):
             "last_count_date must equal the newest done inventory move-line date",
         )
 
-    # ---- #B: _gather cache path tolerates None package/owner ----------------
     def test_gather_cache_path_none_package_owner(self):
         product = self.products[3]
         self.Quant._update_available_quantity(product, self.loc, 2.0)
         self.env.cr.flush()
         cache = self.Quant._get_quants_by_products_locations(product, self.loc)
-        # package_id / owner_id default to None; the cache path must not raise.
         res = self.Quant.with_context(quants_cache=cache)._gather(
             product, self.loc, strict=True
         )
         self.assertEqual(res.product_id, product)
 
-    # ---- #B2: incomplete cache must fall back to a search, not read empty -----
     def test_gather_cache_miss_falls_back_to_search(self):
         """A strict _gather for a product/location the cache never scanned must fall
         back to a DB search instead of trusting the absent key as 'no stock'. Without
@@ -422,21 +384,15 @@ class TestStockQuantImprovements(TestStockCommon):
         self.Quant._update_available_quantity(covered, self.loc, 5.0)
         self.Quant._update_available_quantity(uncovered, self.loc, 7.0)
         self.env.cr.flush()
-        # Cache scanned only `covered` at `self.loc`; `uncovered` is out of scope.
         cache = self.Quant._get_quants_by_products_locations(covered, self.loc)
         gather = self.Quant.with_context(quants_cache=cache)._gather
         self.assertFalse(cache.covers(uncovered, self.loc))
         self.assertTrue(cache.covers(covered, self.loc))
-        # Covered product is served from the cache.
         self.assertEqual(gather(covered, self.loc, strict=True).quantity, 5.0)
-        # Uncovered product has no cache key; the gather must search and find the
-        # real 7.0 rather than return an empty recordset.
         res = gather(uncovered, self.loc, strict=True)
         self.assertEqual(res.product_id, uncovered)
         self.assertEqual(res.quantity, 7.0)
 
-        # A location outside the scanned subtree is a miss too: build a cache scoped
-        # to a child location, then gather at an unrelated sibling location.
         other_loc = self.env["stock.location"].create(
             {"name": "qimp-other", "usage": "internal", "location_id": self.loc.id}
         )
@@ -444,7 +400,7 @@ class TestStockQuantImprovements(TestStockCommon):
         self.env.cr.flush()
         child_cache = self.Quant._get_quants_by_products_locations(
             covered,
-            self.env["stock.location"].browse(),  # empty -> nothing covered
+            self.env["stock.location"].browse(),
         )
         self.assertFalse(child_cache.covers(covered, other_loc))
         res2 = self.Quant.with_context(quants_cache=child_cache)._gather(
@@ -452,7 +408,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
         self.assertEqual(res2.quantity, 3.0)
 
-    # ---- #C: least_packages domain resolves multi-single from one record -----
     def test_least_packages_multi_single_single_query(self):
         """A least_packages gather whose exact cover needs several singles from a
         single unpackaged quant must not crash and must resolve the singles with
@@ -467,14 +422,10 @@ class TestStockQuantImprovements(TestStockCommon):
             {"name": "qimp-lp-prod", "is_storable": True, "categ_id": categ.id}
         )
         pkg = self.env["stock.package"].create({"name": "QIMP-LP"})
-        # One package of 9 (too big for an exact 3) + one unpackaged record of 6.
         self.Quant._update_available_quantity(product, self.loc, 9.0, package_id=pkg)
         self.Quant._update_available_quantity(product, self.loc, 6.0)
         self.env.invalidate_all()
 
-        # Count searches issued *while resolving singles* (inside _least_packages_domain).
-        # The exact cover of 3 is three (None, 1) singles from one unpackaged record, so
-        # the pre-fix pop()+re-search-on-empty code ran this search 3 times; now once.
         cls = type(self.Quant)
         orig_search, orig_domain = cls.search, cls._least_packages_domain
         state = {"building": False, "singles_searches": 0}
@@ -499,7 +450,6 @@ class TestStockQuantImprovements(TestStockCommon):
             cls.search = orig_search
             cls._least_packages_domain = orig_domain
 
-        # Exact cover of 3 must come from the unpackaged record (package is 9).
         self.assertTrue(res, "gather must return the unpackaged quant")
         self.assertEqual(res.package_id.ids, [], "should pick the unpackaged quant")
         self.assertEqual(
@@ -508,7 +458,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "singles must be resolved with a single query, not one per unit",
         )
 
-    # ---- #A1: least_packages must not expand singles when there are no packages --
     def test_least_packages_no_packages_is_noop(self):
         """With only unpackaged stock (no real packages) the strategy is a guaranteed
         no-op: it must return the domain *without* running the A* solver — i.e. without
@@ -527,7 +476,6 @@ class TestStockQuantImprovements(TestStockCommon):
         product = self.env["product.product"].create(
             {"name": "qimp-lp-noop-prod", "is_storable": True, "categ_id": categ.id}
         )
-        # Unpackaged stock only — no stock.package anywhere for this product.
         self.Quant._update_available_quantity(product, self.loc, 5.0)
         self.env.invalidate_all()
 
@@ -551,12 +499,10 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(
             calls["n"], 0, "no real packages -> the A* solver must never run"
         )
-        # The no-op returns the (optimized) input domain unchanged.
         from odoo.fields import Domain
 
         self.assertEqual(res, Domain(base_domain).optimize(self.Quant))
 
-    # ---- #A2: cache-path and search-path _gather agree on fifo/lifo order --------
     def test_gather_cache_path_matches_search_order(self):
         """A strict _gather must return quants in the same order whether or not a
         quants_cache is in context; otherwise the first quant locked/consumed downstream
@@ -566,8 +512,6 @@ class TestStockQuantImprovements(TestStockCommon):
         product = self.env["product.product"].create(
             {"name": "qimp-order", "is_storable": True}
         )
-        # Two un-merged rows, identical characteristics, with the *earlier* in_date on
-        # the *higher* id so id-order and in_date-order genuinely diverge.
         self.Quant.create(
             {
                 "product_id": product.id,
@@ -599,7 +543,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "cache-path _gather must match the search-path fifo order",
         )
 
-    # ---- C1: write() must not silently drop a mixed-recordset forbidden write ----
     def test_write_mixed_recordset_does_not_silently_drop(self):
         """A forbidden-field write in inventory mode is a silent no-op only when *every*
         quant sits in an inventory-adjustment location. If a real (internal) quant shares
@@ -620,7 +563,6 @@ class TestStockQuantImprovements(TestStockCommon):
         q_inv = self.Quant.create(
             {"product_id": product.id, "location_id": inv_loc.id, "quantity": 1.0}
         )
-        # Mixed set + forbidden field (owner_id) -> must raise, not no-op.
         with self.assertRaises(UserError):
             (q_internal | q_inv).with_context(inventory_mode=True).write(
                 {"owner_id": owner.id}
@@ -629,7 +571,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertFalse(
             q_internal.owner_id, "the raise must have rolled back the whole write"
         )
-        # All-inventory-location set stays a silent no-op returning True.
         self.assertTrue(
             q_inv.with_context(inventory_mode=True).write({"owner_id": owner.id})
         )
@@ -638,7 +579,6 @@ class TestStockQuantImprovements(TestStockCommon):
             q_inv.owner_id, "inventory-location forbidden write is a no-op"
         )
 
-    # ---- P1: reservation reuses its gather except for least_packages -------------
     def test_gather_signature_is_override_safe(self):
         """`_gather` and `_get_available_quantity` are extension points overridden in
         sibling repos (agromarin `marin`, `stock_blocked_location`) with fixed
@@ -814,19 +754,16 @@ class TestStockQuantImprovements(TestStockCommon):
         product = self.env["product.product"].create(
             {"name": "anc-prod", "is_storable": True}
         )
-        # Farther ancestor closest, nearer ancestor lifo -> nearer (lifo) wins.
         chain[0].removal_strategy_id = closest
         chain[2].removal_strategy_id = lifo
         self.env.cr.flush()
         self.env.invalidate_all()
         self.assertEqual(self.Quant._get_removal_strategy(product, deep), "lifo")
-        # The location's own strategy beats every ancestor.
         deep.removal_strategy_id = closest
         self.env.cr.flush()
         self.env.invalidate_all()
         self.assertEqual(self.Quant._get_removal_strategy(product, deep), "closest")
 
-    # ---- C3: action_apply_all degrades gracefully without active_domain ----------
     def test_action_apply_all_without_active_domain(self):
         """No active_domain in context must fall back to self, not KeyError (and not a
         catch-all empty-domain search that would sweep every quant)."""
@@ -849,7 +786,6 @@ class TestStockQuantImprovements(TestStockCommon):
             (quant.location_id, quant.lot_id, quant.package_id, quant.owner_id),
         )
 
-    # ---- release racing a row lock must still net aggregate reserved --------
     def test_release_lock_miss_persists_negative_reserved(self):
         """A release whose matching quant cannot be locked (concurrently held,
         SKIP LOCKED returns nothing) lands on the create branch. It must persist
@@ -872,8 +808,6 @@ class TestStockQuantImprovements(TestStockCommon):
         def lock_nothing(records, **kwargs):
             return records.browse()
 
-        # patch.object on the registry class shadows the method exactly where an
-        # _inherit override would sit, and restores the MRO cleanly on exit.
         with patch.object(type(self.Quant), "try_lock_for_update", lock_nothing):
             self.Quant._update_reserved_quantity(product, self.loc, -6.0)
 
@@ -899,7 +833,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(merged.reserved_quantity, 0.0)
         self.assertEqual(merged.quantity, 10.0)
 
-    # ---- recordset _quant_tasks must survive the merge deleting members -----
     def test_quant_tasks_recordset_survives_merge_dupes(self):
         """_merge_quants (raw SQL) deletes duplicate rows that may be members of
         the recordset _quant_tasks was called on; the follow-up scoped steps must
@@ -924,14 +857,13 @@ class TestStockQuantImprovements(TestStockCommon):
             ]
         )
         self.env.cr.flush()
-        dupes._quant_tasks()  # raised MissingError before the exists() guards
+        dupes._quant_tasks()
         remaining = self.Quant.search(
             [("product_id", "=", product.id), ("location_id", "=", self.loc.id)]
         )
         self.assertEqual(len(remaining), 1, "the duplicate rows must be merged")
         self.assertEqual(remaining.quantity, 12.0)
 
-    # ---- recordset _quant_tasks scopes _clean_reservations too --------------
     def test_clean_reservations_scoped_to_recordset(self):
         """A recordset-scoped _quant_tasks must realign reservations only for the
         touched product/location pairs (like its _merge_quants and
@@ -942,7 +874,6 @@ class TestStockQuantImprovements(TestStockCommon):
         loc_b = self.env["stock.location"].create(
             {"name": "qimp-clean-b", "usage": "internal", "location_id": self.loc.id}
         )
-        # Phantom reservation (no move line backs it) out of the scoped location.
         phantom = self.Quant.create(
             {
                 "product_id": product.id,
@@ -968,7 +899,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "the model-level clean-up must stay global",
         )
 
-    # ---- cache fast path parity with _get_gather_domain overrides -----------
     def test_gather_cache_bypassed_for_extended_domain(self):
         """When a `_get_gather_domain` override injects extra conditions, the
         quants_cache fast path (which replicates only the base semantics) must be
@@ -994,12 +924,8 @@ class TestStockQuantImprovements(TestStockCommon):
         cache = self.Quant._get_quants_by_products_locations(product, self.loc)
         gather = self.Quant.with_context(quants_cache=cache)._gather
 
-        # Control: with the base domain, the cache serves both rows.
         self.assertEqual(len(gather(product, self.loc, strict=True)), 2)
 
-        # Shadow the method on the *registry* class, exactly where an _inherit
-        # override sits in the MRO: the parity guard compares against the base
-        # (definition-class) implementation, which must stay untouched.
         registry_cls = type(self.Quant)
         orig = registry_cls._get_gather_domain
 
@@ -1015,7 +941,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "path instead of serving unfiltered quants from the cache",
         )
 
-    # ---- cache fast path parity with extended removal strategies ------------
     def test_gather_cache_bypassed_for_unknown_strategy_order(self):
         """A removal strategy whose SQL ordering has no registered Python sort key
         (`_get_removal_strategy_sort_key` returns None -- the default for
@@ -1024,8 +949,6 @@ class TestStockQuantImprovements(TestStockCommon):
         product = self.env["product.product"].create(
             {"name": "qimp-custstrat", "is_storable": True}
         )
-        # Two un-merged rows with the *earlier* in_date on the *higher* id so
-        # id-order and in_date-order genuinely diverge.
         self.Quant.create(
             [
                 {
@@ -1084,7 +1007,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "match the search-path order",
         )
 
-    # ---- reservation must not be truncated by an over-reserved sibling quant ----
     def test_reserve_full_availability_despite_negative_quant(self):
         """One pass must reserve everything `_get_available_quantity` reports.
 
@@ -1107,7 +1029,6 @@ class TestStockQuantImprovements(TestStockCommon):
             self.Quant._update_available_quantity(
                 product, self.loc, qty, lot_id=lots[name]
             )
-        # Reserve all of lot C, then a count corrects its on-hand down to 1.
         self.Quant._update_reserved_quantity(product, self.loc, 9, lot_id=lots["C"])
         self.Quant.search(
             [("product_id", "=", product.id), ("lot_id", "=", lots["C"].id)]
@@ -1126,8 +1047,6 @@ class TestStockQuantImprovements(TestStockCommon):
             }
         )
         move._action_confirm()
-        # One reservation pass. A picking-less move is not auto-assigned by
-        # `_action_confirm`, so this is the single pass under test.
         move._action_assign()
         self.env.flush_all()
 
@@ -1140,7 +1059,6 @@ class TestStockQuantImprovements(TestStockCommon):
             ["qimp-neg-A", "qimp-neg-B"],
         )
 
-    # ---- the reservation loop must not redo derived state per move ----------
     def test_action_assign_does_not_refresh_orderpoints_per_move(self):
         """Every in-loop `stock.move.line.create` used to trigger `_recompute_state`
         -> `move.write({'state': ...})` -> `_update_orderpoints`, i.e. one
@@ -1200,7 +1118,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
         self.assertEqual(sum(picking.move_ids.mapped("quantity")), 25.0)
 
-    # ---- the quants cache must arrive with its values loaded ----------------
     def test_quants_cache_is_prefetched(self):
         """`_read_group(..., ['id:recordset'])` yields ids with no values loaded, and
         the reservation path reads `in_date`/`quantity` one gathered group at a time
@@ -1219,7 +1136,6 @@ class TestStockQuantImprovements(TestStockCommon):
         for product in products:
             quants = cache[product.id, self.loc.id, False, False, False]
             self.assertTrue(quants, "the scan covered this product/location")
-            # The exact reads `_update_available_quantity` performs per group.
             self.assertEqual(quants.quantity, 7.0)
             quants.mapped("in_date")
             quants.mapped("reserved_quantity")
@@ -1229,7 +1145,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "cached quants must already carry their values",
         )
 
-    # ---- least_packages redeems unit slots against available units -----------
     def _least_packages_location(self, name):
         return self.env["stock.location"].create(
             {
@@ -1287,7 +1202,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
         self.env.flush_all()
 
-        # a real delivery reserves the two oldest loose lots in full
         self._deliver(product, 8.0, location)
         self.assertEqual(
             self.Quant._get_available_quantity(product, location, strict=False),
@@ -1295,7 +1209,6 @@ class TestStockQuantImprovements(TestStockCommon):
             "2 loose + 5 packed units remain free",
         )
 
-        # the loose stock that is left is the *newest* lot, behind two empty ones
         reserved = self.Quant._get_reserve_quantity(product, location, 2.0)
         self.assertEqual(
             sum(quantity for _quant, quantity in reserved),
@@ -1371,7 +1284,6 @@ class TestStockQuantImprovements(TestStockCommon):
         picking.action_assign()
         return picking
 
-    # ---- GS1 quantity encoding rounds, it does not truncate ------------------
     def test_gs1_barcode_quantity_rounds_instead_of_truncating(self):
         """`quantity / rounding` is a float division that lands just under the
         integer for ordinary values; truncating it encoded one decimal step too
@@ -1397,7 +1309,7 @@ class TestStockQuantImprovements(TestStockCommon):
                 "quantity": 0.0,
             }
         )
-        ai = "3102"  # AI 310 (kg) with 2 decimals
+        ai = "3102"
         for quantity in (0.29, 0.58, 1.16, 2.32, 4.64):
             quant.sudo().write({"quantity": quantity})
             quant.invalidate_recordset()
@@ -1452,7 +1364,7 @@ class TestStockMoveLineImprovements(TestStockCommon):
         )
         self.assertFalse(ml.move_id)
         self.assertEqual(reserved(), 2.0, "create must reserve for move-less lines")
-        ml.quantity = 3.0  # raised "Expected singleton" before the fix
+        ml.quantity = 3.0
         self.assertEqual(reserved(), 3.0, "write must re-sync the reservation")
         ml.unlink()
         self.assertEqual(
@@ -1502,14 +1414,12 @@ class TestStockMoveLineImprovements(TestStockCommon):
         self.assertEqual(
             history._get_complete_dest_name_except_outermost(), "QIMP-INNER"
         )
-        # The container itself: no pending destination parent.
         outer_history = self.env["stock.package.history"].search(
             [("package_id", "=", outer.id)]
         )
         self.assertEqual(outer_history.package_name, "QIMP-OUTER")
         self.assertEqual(outer_history._get_complete_dest_name_except_outermost(), "")
 
-    # ---- _action_done folds the reservation release into the stock removal ----
     def _spy_update_available_quantity(self):
         """Record every `_update_available_quantity` call with its characteristics."""
         calls = []

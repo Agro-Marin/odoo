@@ -8,10 +8,6 @@ class ResCompany(models.Model):
     _inherit = "res.company"
     _check_company_auto = True
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     internal_transit_location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Internal Transit Location",
@@ -63,9 +59,6 @@ class ResCompany(models.Model):
          ('0 days') to avoid overstocking.""",
     )
 
-    # Text confirmation sent to the customer when a delivery is done. Channel is
-    # pluggable: base ships 'sms' (stock_sms); stock_enterprise adds 'whatsapp'
-    # via selection_add (whatsapp_stock).
     stock_text_confirmation = fields.Boolean(string="Stock Text Confirmation")
     stock_confirmation_type = fields.Selection(
         selection=[("sms", "SMS")],
@@ -74,35 +67,20 @@ class ResCompany(models.Model):
         help="Channel used to send the delivery text confirmation to the customer.",
     )
 
-    # ------------------------------------------------------------
-    # CONSTRAINTS
-    # ------------------------------------------------------------
-
     @api.constrains("horizon_days")
     def _check_horizon_days(self):
-        # A negative horizon would shift the replenishment horizon date into the
-        # past (see stock.warehouse.orderpoint.get_horizon_days), silently making
-        # reordering rules under-forecast demand. '0 days' is the just-in-time floor.
         for company in self:
             if company.horizon_days < 0:
                 raise ValidationError(
                     _("The replenishment horizon cannot be negative.")
                 )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         companies = super().create(vals_list)
-        # The location ships archived; creating a company implies multi-company use, so reactivate it.
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         if not inter_company_location.active:
             inter_company_location.sudo().write({"active": True})
-        # Provision on the whole batch at once: each hook is recordset-capable, so
-        # N companies cost a constant number of INSERTs instead of N. Order encodes
-        # dependencies (picking types need sequences, rules need picking types).
         companies_sudo = companies.sudo()
         companies_sudo._create_per_company_locations()
         companies_sudo._create_per_company_sequences()
@@ -110,15 +88,8 @@ class ResCompany(models.Model):
         companies_sudo._create_per_company_rules()
         companies_sudo._set_per_company_inter_company_locations(inter_company_location)
         if modules.module.current_test:
-            # Tests assume every company owns a warehouse; production provisions them
-            # explicitly (bootstrap_first_warehouse, then create_missing_* backfills).
-            # Use the single idempotent seam, not stock.warehouse.create directly.
             companies_sudo._create_warehouse()
         return companies
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     @api.model
     def _all_companies(self):
@@ -178,8 +149,6 @@ class ResCompany(models.Model):
         )
         for company, location in zip(self, locations, strict=True):
             company.internal_transit_location_id = location.id
-            # The env company must match the target company for the property write to
-            # land on the right value, so this cannot be batched across companies.
             company.partner_id.with_company(company)._set_stock_property_locations(
                 location
             )
@@ -249,9 +218,6 @@ class ResCompany(models.Model):
         """
         Warehouse = self.env["stock.warehouse"]
         warehouse_by_company = {}
-        # active_test=False: an archived warehouse still occupies its
-        # unique(name/code, company_id) slots, so ignoring it made this
-        # "idempotent" seam create a duplicate name and crash on the constraint.
         for warehouse in Warehouse.with_context(active_test=False).search(
             [("company_id", "in", self.ids)], order="id"
         ):
@@ -259,9 +225,6 @@ class ResCompany(models.Model):
         companies_without = self.filtered(
             lambda company: company.id not in warehouse_by_company
         )
-        # Route name/code through the warehouse's own unique-default generators
-        # instead of the raw company name, so they de-duplicate against existing
-        # (and same-batch) warehouses exactly like every other creation path.
         vals_list = []
         taken_names = defaultdict(set)
         taken_codes = defaultdict(set)
@@ -341,11 +304,6 @@ class ResCompany(models.Model):
             lambda company: not company.stock_mail_confirmation_template_id
         ).stock_mail_confirmation_template_id = template_id
 
-    # The four ``_create_per_company_*`` hooks below run on a whole ``res.company``
-    # recordset (``create`` calls them once on the batch), so each leaf provisioning
-    # creates in one query, not one per company. Ordered locations -> sequences ->
-    # picking types -> rules: picking types look up their sequence, rules their
-    # picking type.
     def _create_per_company_locations(self):
         self._create_transit_location()
         self._create_inventory_loss_location()
@@ -380,8 +338,6 @@ class ResCompany(models.Model):
                 company
             )._set_stock_property_locations(inter_company_location)
             for other_company in other_companies:
-                # The env company must differ on every write for the company-dependent
-                # property to land on the right value, so this stays a per-company loop.
                 company.partner_id.with_company(
                     other_company
                 )._set_stock_property_locations(inter_company_location)

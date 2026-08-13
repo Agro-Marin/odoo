@@ -27,9 +27,6 @@ class StockRule(models.Model):
     @api.model
     def default_get(self, fields):
         res = super().default_get(fields)
-        # Force a company even when the caller clears it via `default_company_id=False`:
-        # a UI-created rule should default to the current company, not a company-less
-        # one.
         if "company_id" in fields and not res.get("company_id"):
             res["company_id"] = self.env.company.id
         return res
@@ -189,9 +186,6 @@ class StockRule(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
@@ -324,22 +318,18 @@ class StockRule(models.Model):
         if self.auto == "transparent":
             old_dest_location = move.location_dest_id
             move.write({"date": new_date, "location_dest_id": self.location_dest_id.id})
-            # make sure the location_dest_id is consistent with the move line location dest
             if move.move_line_ids:
                 move.move_line_ids.location_dest_id = (
                     move.location_dest_id._get_putaway_strategy(move.product_id)
                     or move.location_dest_id
                 )
 
-            # avoid looping if a push rule is not well configured; otherwise call again push_apply to see if a next step is defined
             if self.location_dest_id != old_dest_location:
-                # TDE FIXME: should probably be done in the move model IMO
                 return move._push_apply()[:1]
             return self.env["stock.move"]
 
         new_move_vals = self._push_prepare_move_copy_values(move, new_date)
         new_move = move.sudo().copy(new_move_vals)
-        # when no more push we should reach final destination
         if new_move._skip_push():
             new_move.write({"location_dest_id": new_move.location_final_id.id})
         if new_move._should_bypass_reservation():
@@ -394,16 +384,11 @@ class StockRule(models.Model):
     def _run_pull(self, procurements):
         moves_values_by_company = defaultdict(list)
 
-        # Sanity check: every rule must define a source location.
         for procurement, rule in procurements:
             if not rule.location_src_id:
                 msg = _("No source location defined on stock rule: %s!", rule.name)
                 raise ProcurementException([(procurement, msg)])
 
-        # Sort non-positive quantities (e.g. returns) before positive ones so refund
-        # moves are created first within a company batch. The key is a bool: False for
-        # qty <= 0 (first), True for qty > 0 (last); stable sort preserves order within
-        # each group.
         procurements = sorted(
             procurements,
             key=lambda proc: (
@@ -421,15 +406,12 @@ class StockRule(models.Model):
             moves_values_by_company[procurement.company_id.id].append(move_values)
 
         for company_id, moves_values in moves_values_by_company.items():
-            # create the move as SUPERUSER because the current user may not have the rights to do it (mto product launched by a sale for example)
             moves = (
                 self.env["stock.move"]
                 .sudo()
                 .with_company(company_id)
                 .create(moves_values)
             )
-            # create() doesn't auto-confirm; _action_confirm() is what triggers
-            # the next rule in the chain for make_to_order/mts_else_mto moves.
             moves._action_confirm()
         return True
 
@@ -470,14 +452,9 @@ class StockRule(models.Model):
         ) or False
         partner = self.partner_address_id.id or values.get("partner_id", False)
 
-        # `or` (not a default arg): callers may pass move_dest_ids=False explicitly.
         dest_moves = values.get("move_dest_ids") or self.env["stock.move"]
         move_dest_ids = [Command.link(move.id) for move in dest_moves]
 
-        # For inter-warehouse transfers, default the new move's partner to the
-        # destination warehouse's partner. The reverse tagging of destination moves
-        # with the source warehouse's partner is a write, so it lives in
-        # `_propagate_transit_partner`, not this getter.
         if (
             move_dest_ids
             and not partner
@@ -488,10 +465,6 @@ class StockRule(models.Model):
                 partner = partners.id
 
         if product_uom_id.compare(product_qty, 0.0) < 0:
-            # Work on a local copy: `values` is the caller's procurement dict,
-            # shared with sibling consumers, and a value-preparation getter must
-            # not mutate it. The copy still feeds `procurement_values` and the
-            # custom-field loop below.
             values = dict(values, to_refund=True)
 
         move_values = {
@@ -507,8 +480,6 @@ class StockRule(models.Model):
             "location_final_id": location_dest_id.id,
             "move_dest_ids": move_dest_ids,
             "rule_id": self.id,
-            # `values` entries may be recordsets or plain lists (callers use both),
-            # so iterate instead of assuming a recordset.
             "reference_ids": [
                 Command.set(
                     [reference.id for reference in values.get("reference_ids") or []],
@@ -584,12 +555,10 @@ class StockRule(models.Model):
         :return: the cumulative delay and cumulative delay's description
         :rtype: tuple[defaultdict(float), list[str, str]]
         """
-        # FIXME : ensure one product or make the method work with multiple products
         _ = self.env._
         delays = defaultdict(float)
         delay_description = []
         bypass_delay_description = self.env.context.get("bypass_delay_description")
-        # Check if the rules have lead time
         delaying_rules = self.filtered(
             lambda r: r.action in ["pull", "pull_push"] and r.delay
         )
@@ -600,7 +569,6 @@ class StockRule(models.Model):
                     (_("Delay on %s", rule.name), _("+ %d day(s)", rule.delay))
                     for rule in delaying_rules
                 ]
-        # Check if there's a horizon set
         bypass_global_horizon_days = self.env.context.get("bypass_global_horizon_days")
         if bypass_global_horizon_days:
             return delays, delay_description
@@ -651,17 +619,12 @@ class StockRule(models.Model):
                 "company_id", procurement.location_id.company_id
             )
             procurement.values.setdefault("priority", "0")
-            # A plain `setdefault` is not enough: a caller may pass an explicit
-            # falsy `date_planned`, which would otherwise reach
-            # `_get_stock_move_values` and raise on `None - relativedelta(...)`.
             procurement.values["date_planned"] = (
                 procurement.values.get("date_planned") or fields.Datetime.now()
             )
             if self._skip_procurement(procurement):
                 continue
             valid_procurements.append(procurement)
-        # Batched rule resolution: one rule-dict search per (hierarchy root,
-        # company, warehouse, route set) group instead of one per procurement.
         rules = self._get_rules_batch(valid_procurements)
         for procurement, rule in zip(valid_procurements, rules, strict=True):
             if not rule:
@@ -679,25 +642,8 @@ class StockRule(models.Model):
             raise_exception(procurement_errors)
 
         for action, action_procurements in actions_to_run.items():
-            # Dynamic dispatch: `_run_pull`/`_run_push` here, `_run_buy`/`_run_manufacture`
-            # contributed by purchase/mrp. `None` default keeps a misconfigured action
-            # from raising an AttributeError instead of a readable log line.
             run_action = getattr(self.env["stock.rule"], f"_run_{action}", None)
             if run_action is None:
-                # A rule whose action nothing implements cannot be run, and the
-                # demand it was selected for is simply lost. This used to be an
-                # ERROR line in the server log and nothing else: the caller --
-                # `action_replenish`, a scheduler run, an MTO sale confirmation
-                # -- reported success, no move was created, and the orderpoint
-                # stayed unfulfilled with nothing on screen to explain it.
-                #
-                # It is the same class of misconfiguration as "no rule has been
-                # found" a few lines above (a route that cannot satisfy the
-                # demand), so it is reported the same way, to the user who can
-                # act on it. Reachable whenever a route keeps rules from a
-                # module that is not installed: uninstalling `mrp` while
-                # manufacture rules remain on a warehouse, an imported route, or
-                # a registry that has not loaded the contributing module yet.
                 _logger.error(
                     "The method _run_%s doesn't exist on the procurement rules", action
                 )
@@ -771,8 +717,6 @@ class StockRule(models.Model):
             route_ids, packaging_uom_id, product_id, no_warehouse
         ):
             valid_route_ids |= set(routes.ids)
-        # The warehouse bucket differs here: it may span several warehouses and
-        # is filtered per product, so it is handled outside `_get_route_buckets`.
         if warehouse_ids:
             filter_function = partial(
                 self._filter_warehouse_routes, product_id, warehouse_ids
@@ -875,9 +819,6 @@ class StockRule(models.Model):
                 continue
             if not warehouse_id:
                 return sub_dict[next(iter(sub_dict))]
-            # `.get(False)` not `[False]`: a group may hold only a foreign-warehouse
-            # rule and no warehouse-agnostic one, so falling through to the next route /
-            # parent location is correct; indexing would raise KeyError.
             rule = sub_dict.get(warehouse_id.id) or sub_dict.get(False)
             if rule:
                 return rule
@@ -918,11 +859,6 @@ class StockRule(models.Model):
         """Walk the leaf -> root chain `locations`, returning the first pull rule
         the prefetched `rule_dict` yields (empty recordset when none matches).
         """
-        # Resolve the intercompany locations once instead of re-running
-        # `_check_intercomp_location` / `env.ref` per location in the walk. When the
-        # inter-company transit is in scope, `_get_rule_domain` also searches rules
-        # delivering to the shared Customers location, so it must be tried alongside
-        # the transit location during the walk.
         intercomp_transit = self.env.ref(
             "stock.stock_location_inter_company", raise_if_not_found=False
         )
@@ -951,11 +887,8 @@ class StockRule(models.Model):
         Rule = self.env["stock.rule"]
         if not location_id:
             return Rule
-        # Build the leaf -> root location hierarchy once; it is reused below for
-        # the search domain, the warehouse set and the fallback walk.
         locations = self._get_location_hierarchy(location_id)
         domain = self._get_rule_domain(locations, values)
-        # Mapping (location_id, route_id) -> {warehouse_id: rule}
         rule_dict = self._search_rule_for_warehouses(
             values.get("route_ids", False),
             values.get("packaging_uom_id", False),
@@ -1005,9 +938,6 @@ class StockRule(models.Model):
             )
             groups[key].append((index, procurement, locations, warehouse_ids))
         for group in groups.values():
-            # One rule dict for the union of the group's ancestor chains: extra
-            # (location, route) entries are harmless, each procurement's walk
-            # only consults its own chain and route buckets.
             group_locations = self.env["stock.location"].union(
                 *(locations for _index, _procurement, locations, _wh in group),
             )
@@ -1038,8 +968,6 @@ class StockRule(models.Model):
     @api.model
     def _get_rule_domain(self, locations, values):
         location_ids = locations.ids
-        # If the method is called to find rules towards the Inter-company location, also add the 'Customer' location in the domain.
-        # This is to avoid having to duplicate every rules that deliver to Customer to have the Inter-company part.
         if self._check_intercomp_location(locations):
             customers_location = self.env.ref(
                 "stock.stock_location_customers", raise_if_not_found=False
@@ -1049,9 +977,6 @@ class StockRule(models.Model):
         domain = Domain("location_dest_id", "in", location_ids) & Domain(
             "action", "!=", "push"
         )
-        # In case the method is called by the superuser, we need to restrict the rules to the
-        # ones of the company. This is not useful as a regular user since there is a record
-        # rule to filter out the rules based on the company.
         if self.env.su and values.get("company_id"):
             company_ids = set(values.get("company_id").ids)
             if values.get("route_ids"):
@@ -1105,15 +1030,10 @@ class StockRule(models.Model):
                 remaining=self._get_scheduler_tasks_to_do()
             )
 
-        # Minimum stock rules
         domain = self._get_orderpoint_domain(company_id=company_id)
         orderpoints = self.env["stock.warehouse.orderpoint"].search(domain)
         orderpoints.sudo()._compute_qty_to_order_computed()
         orderpoints.sudo()._compute_deadline_date()
-        # Refresh stored lead-time analytics from freshly completed receipts; they cannot
-        # ORM-depend on the pickings they aggregate, so the scheduler owns their refresh.
-        # Covers every active orderpoint, not only the auto-triggered ones procured
-        # below: manual orderpoints' stats otherwise go stale forever.
         stats_domain = [("product_id.active", "=", True)]
         if company_id:
             stats_domain += [("company_id", "=", company_id)]
@@ -1121,21 +1041,12 @@ class StockRule(models.Model):
         stats_orderpoints.sudo()._compute_lead_time_stats()
 
         if use_new_cursor:
-            # Commit — and thereby flush — the freshly recomputed stored values
-            # (`qty_to_order_computed`, `deadline_date`, lead-time stats) BEFORE
-            # procuring: `_procure_orderpoint_confirm` processes its batches in
-            # dedicated cursors whose snapshots cannot see this transaction's
-            # pending writes, so without this commit every run would procure
-            # with the quantities committed by the *previous* run — and the late
-            # flush of this pre-procurement snapshot would then clobber the
-            # fresher value the batch envs commit after procuring.
             self.env["ir.cron"]._commit_progress(1)
 
         orderpoints.sudo()._procure_orderpoint_confirm(
             use_new_cursor=use_new_cursor, company_id=company_id, raise_user_error=False
         )
 
-        # Search all confirmed stock_moves and try to assign them
         domain = self._get_moves_to_assign_domain(company_id)
         moves_to_assign = self.env["stock.move"].search(
             domain,
@@ -1153,7 +1064,6 @@ class StockRule(models.Model):
         if use_new_cursor:
             self.env["ir.cron"]._commit_progress(1)
 
-        # Merge duplicated quants
         self.env["stock.quant"]._quant_tasks()
 
         if use_new_cursor:

@@ -28,8 +28,6 @@ export class SMLX2ManyField extends X2ManyField {
             onRecordSaved: (record) => this.selectRecord([record.resId]),
             fieldString: this.props.string,
             is2Many: true,
-            // `onClose` is a hook-config option (not a per-call one): restore
-            // the focus captured by createOpenRecord() when the dialog closes.
             onClose: () => {
                 this._activeElementOnDialogOpen?.focus();
                 this._activeElementOnDialogOpen = null;
@@ -38,15 +36,13 @@ export class SMLX2ManyField extends X2ManyField {
     }
 
     get quantListViewShowOnHandOnly() {
-        return true; // To override in mrp_subcontracting
+        return true;
     }
 
     async onAdd({ context } = {}) {
         if (!this.props.record.data.show_quant) {
             return super.onAdd(...arguments);
         }
-        // Compute the quant offset from move lines quantity changes that were not saved yet.
-        // Hence, did not yet affect quant's quantity in DB.
         await this.updateDirtyQuantsData();
         context = {
             ...context,
@@ -83,23 +79,11 @@ export class SMLX2ManyField extends X2ManyField {
         return this.selectCreate({ domain, context, title });
     }
 
-    /**
-     * Pending, not-yet-saved change to a move line's quantity, as
-     * `savedQty - currentQty` (negative when the line now reserves more than the
-     * DB reflects). Reads the relational Record's private `_values`/`_changes`
-     * because the last-saved baseline is not exposed publicly (`data.quantity` is
-     * the current, edited value) and the quant's DB `available_quantity` does not
-     * yet account for unsaved line-quantity edits. Returns a falsy `NaN` when the
-     * quantity is unchanged, so it also serves as a "quantity is dirty" test.
-     * Isolated here so this fragile coupling lives in one place.
-     */
     _unsavedQtyDelta(ml) {
         return ml._values.quantity - ml._changes.quantity;
     }
 
     async updateDirtyQuantsData() {
-        // Since changes of move line quantities will not affect the available quantity of the quant before
-        // the record has been saved, it is necessary to determine the offset of the DB quant data.
         this.dirtyQuantsData.clear();
         const dirtyQuantityMoveLines = this._move_line_ids.filter(
             (ml) => !ml.data.quant_id && this._unsavedQtyDelta(ml),
@@ -183,16 +167,11 @@ export class SMLX2ManyField extends X2ManyField {
             );
         }
         const record = await this.list.addNewRecord(params);
-        // Make it dirty to force the save of the record. addNewRecord make
-        // the new record dirty === False by default to remove them at unfocus event
         record.dirty = true;
     }
 
     createOpenRecord() {
         this._activeElementOnDialogOpen = document.activeElement;
-        // `immediate` is the second positional argument of the open function
-        // returned by useOpenMany2XRecord (passing it inside the first object,
-        // as before, silently ignored it).
         this.openQuantRecord(
             {
                 context: {

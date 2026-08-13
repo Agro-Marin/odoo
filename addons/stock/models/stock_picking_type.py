@@ -570,9 +570,6 @@ class StockPickingType(models.Model):
 
     @api.depends("code")
     def _compute_default_location_src_id(self):
-        # Resolved once for the batch, and only when a record actually needs it:
-        # `_get_partner_location` may search, and most batches hold no incoming
-        # type at all.
         supplier_location = (
             self.env["stock.warehouse"]._get_partner_location("supplier")
             if any(picking_type.code == "incoming" for picking_type in self)

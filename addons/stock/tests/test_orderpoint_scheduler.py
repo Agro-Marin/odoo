@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for the orderpoint scheduler transaction choreography and
 related warehouse/rule fixes."""
 
@@ -60,13 +59,9 @@ class TestOrderpointSchedulerContract(TransactionCase):
         return cr.fetchone()[0]
 
     def test_scheduler_flushes_recomputes_before_procurement(self):
-        # Persist the creation-time computed quantity (no stock, min 5 -> 5).
         self.env.flush_all()
         self.assertAlmostEqual(self._read_stored_qty_to_order(self.env.cr), 5.0)
 
-        # Confirmed extra demand: a fresh compute now yields 8 (5 - (-3)); the
-        # move triggers (`stock.move._update_orderpoints`) refresh the stored
-        # column in this transaction too.
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
@@ -80,11 +75,6 @@ class TestOrderpointSchedulerContract(TransactionCase):
         self.env.flush_all()
         self.assertAlmostEqual(self._read_stored_qty_to_order(self.env.cr), 8.0)
 
-        # Simulate the value committed by a *previous* scheduler run: falsify
-        # the stored column behind the ORM's back (no dependency is touched,
-        # exactly like a value left over from another, already-committed
-        # transaction) and drop the caches. The scheduler's own recompute must
-        # bring back 8 — and must flush it before procuring.
         self.env.cr.execute(
             "UPDATE stock_warehouse_orderpoint SET qty_to_order_computed = 1.0"
             " WHERE id = %s",
@@ -99,13 +89,9 @@ class TestOrderpointSchedulerContract(TransactionCase):
         )
 
         def _probing_procure(records, *args, **kwargs):
-            # Raw SQL on the scheduler cursor: only *flushed* values are
-            # visible, exactly like the dedicated batch cursors in production.
             captured["flushed_qty"] = self._read_stored_qty_to_order(records.env.cr)
             return procure_orderpoint_confirm(records, *args, **kwargs)
 
-        # The class cursor forbids commits; run the scheduler on a registry
-        # test cursor, as the cron worker would run it on its own cursor.
         self.registry_enter_test_mode()
         with self.registry.cursor() as scheduler_cr:
             scheduler_env = self.env(cr=scheduler_cr)
@@ -227,8 +213,6 @@ class TestOrderpointActivity(TransactionCase):
             }
         )
 
-        # A standalone internal location outside any warehouse tree: no rule
-        # can ever serve it, so the procurement fails on every module set.
         isolated_location = self.env["stock.location"].create(
             {
                 "name": "Isolated Replenish Location",

@@ -28,7 +28,6 @@ class StockMove(TransactionCase):
         Create an delivery immediate transfer with a storable and a consumable
         product. The consumable product should not create move line from quants.
         """
-        # create a delivery order
         picking = Form(
             self.env["stock.picking"].with_context(
                 default_picking_type_id=self.ref("stock.picking_type_out")
@@ -49,7 +48,6 @@ class StockMove(TransactionCase):
         """Create a delivery immediate transfer with a storable product.
         The move line should be reserved.
         """
-        # create a delivery order
         picking = Form(
             self.env["stock.picking"].with_context(
                 default_picking_type_id=self.ref("stock.picking_type_out")
@@ -60,7 +58,6 @@ class StockMove(TransactionCase):
             move.product_uom_qty = 2.0
         picking = picking.save()
 
-        # we check that changing the quantity while still in draft doesn't change the state of the move
         picking.move_ids.write({"product_uom_qty": 1})
         self.assertEqual(picking.move_ids.state, "draft")
 

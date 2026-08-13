@@ -1290,10 +1290,6 @@ class TestWarehouse(TestStockCommon):
             )
             self.assertEqual(res, expected, "Error with operator %s" % op)
 
-    # ------------------------------------------------------------
-    # Warehouse topology invariants
-    # ------------------------------------------------------------
-
     def test_create_second_warehouse_as_stock_manager(self):
         """`stock.group_stock_manager` holds full CRUD on stock.warehouse and the
         Warehouses menu is gated on that group, so a plain stock manager must be
@@ -1322,9 +1318,6 @@ class TestWarehouse(TestStockCommon):
             ("res.groups branch", [(3, multi_wh.id), (4, multi_loc.id)]),
         ]
         for index, (label, implied) in enumerate(branches):
-            # Names and codes are per-branch: a subTest failure does not roll
-            # back, so a shared name would turn the second branch into a
-            # UniqueViolation and hide its own result.
             with self.subTest(branch=label):
                 Warehouse.search([]).write({"active": False})
                 group_user.write({"implied_ids": implied})
@@ -1556,8 +1549,6 @@ class TestWarehouse(TestStockCommon):
             {"name": "Rebuild", "code": "RBD", "reception_steps": "three_steps"}
         )
         self.assertTrue(warehouse.wh_qc_stock_loc_id.active)
-        # detach the location without deleting it: the picking types still
-        # reference it, and stock.location.unlink is RESTRICTed for that reason
         self.env.cr.execute(
             "UPDATE stock_warehouse SET wh_qc_stock_loc_id = NULL WHERE id = %s",
             (warehouse.id,),
@@ -1628,10 +1619,6 @@ class TestWarehouse(TestStockCommon):
                 {key: {} for key in codes},
                 dict(codes, unregistered_type_id="ZZZ"),
             )
-
-    # ------------------------------------------------------------
-    # Partner location resolution
-    # ------------------------------------------------------------
 
     def _drop_partner_location_xmlid(self, name):
         self.env["ir.model.data"].search(
@@ -1712,7 +1699,6 @@ class TestWarehouse(TestStockCommon):
         self.env["stock.location"].with_context(active_test=False).search(
             [("usage", "=", "supplier")]
         ).usage = "transit"
-        # the customer side is untouched and must still resolve
         self.assertTrue(Warehouse._get_partner_location("customer"))
         with self.assertRaises(UserError) as caught:
             Warehouse._get_partner_location("supplier")

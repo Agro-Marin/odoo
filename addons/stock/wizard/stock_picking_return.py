@@ -63,23 +63,12 @@ class StockReturnPickingLine(models.TransientModel):
             if self.move_id:
                 new_return_move = self.move_id.copy(vals)
                 vals = {}
-                # +--------------------------------------------------------------------------------------------------------+
-                # |       picking_pick     <--Move Orig--    picking_pack     --Move Dest-->   picking_ship
-                # |              | returned_move_ids              ↑                                  | returned_move_ids
-                # |              ↓                                | return_line.move_id              ↓
-                # |       return pick(Add as dest)          return toLink                    return ship(Add as orig)
-                # +--------------------------------------------------------------------------------------------------------+
                 move_orig_to_link = self.move_id.move_dest_ids.returned_move_ids
                 move_orig_to_link |= self.move_id
-                # siblings: moves sharing a destination move with the original move
                 move_orig_to_link |= self.move_id.move_dest_ids.filtered(
                     lambda m: m.state not in ("cancel")
                 ).move_orig_ids.filtered(lambda m: m.state not in ("cancel"))
                 move_dest_to_link = self.move_id.move_orig_ids.returned_move_ids
-                # Link to children of originally returned moves, if any. Going through
-                # move_orig_ids.returned_move_ids.move_orig_ids (not move_orig_ids
-                # directly) avoids linking a return to its parents' destination moves,
-                # while still linking the return-of-the-return to them.
                 move_dest_to_link |= (
                     self.move_id.move_orig_ids.returned_move_ids.move_orig_ids.filtered(
                         lambda m: m.state not in ("cancel")
@@ -138,8 +127,6 @@ class StockReturnPicking(models.TransientModel):
             product_return_moves = [Command.clear()]
             if not wizard.picking_id._can_return():
                 raise UserError(_("You may only return Done pickings."))
-            # Fetch line default values (e.g. 'to_refund') since we build the Command.create
-            # dicts manually instead of letting the ORM apply them.
             line_fields = list(self.env["stock.return.picking.line"]._fields)
             product_return_moves_data_tmpl = self.env[
                 "stock.return.picking.line"
@@ -154,8 +141,6 @@ class StockReturnPicking(models.TransientModel):
                     wizard._prepare_stock_return_picking_line_vals_from_move(move)
                 )
                 product_return_moves.append(Command.create(product_return_moves_data))
-            # The list always holds the leading Command.clear() sentinel: only
-            # a length of 1 means no returnable move was found.
             if len(product_return_moves) == 1:
                 raise UserError(
                     _(
@@ -236,7 +221,6 @@ class StockReturnPicking(models.TransientModel):
         for return_line in self.product_return_moves:
             return_line._process_line(exchange_picking)
 
-        # The exchange moves should be independent of their origin moves
         exchange_picking.move_ids.write(
             {
                 "origin_returned_move_id": False,
@@ -278,8 +262,6 @@ class StockReturnPicking(models.TransientModel):
                 ):
                     continue
                 quantity -= move.quantity
-            # Already fully (or over-) returned: never propose a negative
-            # return, which would create a negative-demand move.
             quantity = max(stock_move.product_uom_id.round(quantity), 0)
             return_move.quantity = quantity
         return self.action_create_returns()
@@ -288,11 +270,9 @@ class StockReturnPicking(models.TransientModel):
         """Create a return for the active picking, then create a return of
         the return for the exchange picking and open it."""
         action = self.action_create_returns()
-        # For receipts: ignore the procurement and create an exchange directly
         if self.picking_id.picking_type_id.code == "incoming":
             return_picking = self.env["stock.picking"].browse([action["res_id"]])
             exchange_picking = self._create_exchange(return_picking)
-            # Set the exchange as a return of the return
             exchange_picking.return_id = return_picking
             return action
 

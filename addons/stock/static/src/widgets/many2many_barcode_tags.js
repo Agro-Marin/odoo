@@ -9,11 +9,6 @@ import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2XBarcodeTagsAutocomplete extends Many2XAutocomplete {
     onQuickCreateError(error, request) {
-        // A duplicate barcode surfaces as a ValidationError (the `unique(barcode)`
-        // constraint or the product-barcode check). Raise it to show the error dialog
-        // instead of the slow-create dialog, which can't resolve a barcode conflict.
-        // Detect via the RPC exception name, not `error.data.debug`: the server hides
-        // tracebacks outside dev mode, so that text isn't reliably available.
         if (
             error instanceof RPCError &&
             error.exceptionName === "odoo.exceptions.ValidationError"

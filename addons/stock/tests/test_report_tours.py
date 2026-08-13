@@ -9,7 +9,6 @@ class TestStockReportTour(HttpCase):
 
     def test_stock_route_diagram_report(self):
         """Open the route diagram report."""
-        # Do not make the test rely on demo data
         self.env.ref("stock.route_warehouse0_mto").active = True
         self.env["product.template"].search([("type", "!=", "service")]).write(
             {"active": False}

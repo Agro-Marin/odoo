@@ -9,10 +9,6 @@ class StockQuantRelocate(models.TransientModel):
     _description = "Stock Quantity Relocation"
 
     quant_ids = fields.Many2many(comodel_name="stock.quant")
-    # Computed, not related: a related field through a x2many silently takes
-    # the first quant's company, mis-scoping the destination location/package
-    # domains for every other quant. `_check_single_company` refuses
-    # multi-company selections outright.
     company_id = fields.Many2one(
         comodel_name="res.company",
         compute="_compute_company_id",

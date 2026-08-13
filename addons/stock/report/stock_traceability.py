@@ -30,7 +30,6 @@ class StockTraceabilityReport(models.TransientModel):
         lines_todo = deque(move_lines)
         while lines_todo:
             move_line = lines_todo.popleft()
-            # made-to-order: follow the explicit move link
             if move_line.move_id.move_orig_ids:
                 lines = (
                     move_line.move_id.move_orig_ids.move_line_ids.filtered(
@@ -40,7 +39,6 @@ class StockTraceabilityReport(models.TransientModel):
                     )
                     - lines_seen
                 )
-            # made-to-stock: rediscover the line that fed this location
             elif move_line.location_id.usage in ("internal", "transit"):
                 lines = self.env["stock.move.line"].search(
                     [
@@ -98,9 +96,6 @@ class StockTraceabilityReport(models.TransientModel):
         level = kw.get("level") or 1
         move_lines = self.env["stock.move.line"]
         if model and model not in self._get_line_allowed_models():
-            # model_name is client-supplied; refuse to dereference a model this
-            # report does not traverse rather than crashing in env[model].browse(...)
-            # (mirrors the printed path's _get_pdf_line_allowed_models guard).
             return []
         if rec_id and model == "stock.lot":
             move_lines = move_lines.search(
@@ -278,14 +273,12 @@ class StockTraceabilityReport(models.TransientModel):
         lines = move_lines or self.env["stock.move.line"]
         if model and line_id:
             if model not in self._get_line_allowed_models():
-                # Defense in depth: _lines is @api.model and browses model directly.
                 return final_vals
             move_line = self.env[model].browse(model_id)
             linked_lines = self._get_linked_move_lines(move_line)[0]
             if linked_lines:
                 lines = linked_lines
             else:
-                # not produced/consumed by an override (e.g. MRP): trace the raw move chain
                 lines = self._get_move_lines(move_line, line_id=line_id)
         for line in lines:
             unfoldable = bool(
@@ -332,9 +325,6 @@ class StockTraceabilityReport(models.TransientModel):
         final_vals = []
         allowed_models = self._get_pdf_line_allowed_models()
         for line in line_data or []:
-            # The payload comes straight from the client: coerce and validate
-            # each entry, silently skipping anything malformed or referencing
-            # a model this report does not render.
             try:
                 model_name = line["model_name"]
                 model_id = int(line["model_id"])

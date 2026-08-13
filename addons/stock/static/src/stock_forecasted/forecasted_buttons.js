@@ -23,11 +23,6 @@ export class ForecastedButtons extends Component {
             "product.template";
     }
 
-    /**
-     * Called when an action open a wizard. If the wizard is discarded, this
-     * method does nothing, otherwise it reloads the report.
-     * @param {Object | undefined} res
-     */
     _onClose(res) {
         return res?.special || res?.noReload || this.props.reloadReport();
     }
@@ -59,7 +54,6 @@ export class ForecastedButtons extends Component {
             [this.productId],
         ]);
         if (action.res_model === "stock.quant") {
-            // Quant view in inventory mode.
             action.views = [[false, "list"]];
         }
         if (action.help) {

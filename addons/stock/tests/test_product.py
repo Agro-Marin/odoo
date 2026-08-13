@@ -9,8 +9,6 @@ class TestVirtualAvailable(TestStockCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Make `product3` a storable product for this test. Indeed, creating quants
-        # and playing with owners is not possible for consumables.
         cls.product_3.is_storable = True
         cls.picking_type_out.reservation_method = "manual"
 
@@ -80,15 +78,12 @@ class TestVirtualAvailable(TestStockCommon):
         self.assertAlmostEqual(40.0, self.product_3.qty_free)
         self.picking_out.action_confirm()
         self.picking_out_2.action_confirm()
-        # No reservation so qty_free is unchanged
         self.assertAlmostEqual(40.0, self.product_3.qty_free)
         self.picking_out.action_assign()
         self.picking_out_2.action_assign()
-        # 8 units are now reserved
         self.assertAlmostEqual(32.0, self.product_3.qty_free)
         self.picking_out.do_unreserve()
         self.picking_out_2.do_unreserve()
-        # 8 units are available again
         self.assertAlmostEqual(40.0, self.product_3.qty_free)
 
     def test_archive_product_1(self):
@@ -124,7 +119,6 @@ class TestVirtualAvailable(TestStockCommon):
                 "is_storable": True,
             }
         )
-        # Creates a quant for productA in the first company.
         self.env["stock.quant"].create(
             {
                 "product_id": product.id,
@@ -134,15 +128,13 @@ class TestVirtualAvailable(TestStockCommon):
                 "reserved_quantity": 0,
             }
         )
-        # Assigns a company: should be OK for company1 but should raise an error for company2.
         product.company_id = company1.id
         with self.assertRaises(UserError):
             product.company_id = company2.id
-        # Checks we can assing company2 for the product once there is no more quant for it.
         quant = self.env["stock.quant"].search([("product_id", "=", product.id)])
         quant.quantity = 0
         self.env["stock.quant"]._unlink_zero_quants()
-        product.company_id = company2.id  # Should work this time.
+        product.company_id = company2.id
 
     def test_change_product_company_02(self):
         """Checks we can't change the product's company if this product has
@@ -190,7 +182,6 @@ class TestVirtualAvailable(TestStockCommon):
                 "is_storable": True,
             }
         )
-        # Creates a quant for company 1.
         self.env["stock.quant"].create(
             {
                 "product_id": product.id,
@@ -199,7 +190,6 @@ class TestVirtualAvailable(TestStockCommon):
                 "quantity": 5,
             }
         )
-        # Creates a quant for vendor location.
         self.env["stock.quant"].create(
             {
                 "product_id": product.id,
@@ -208,7 +198,6 @@ class TestVirtualAvailable(TestStockCommon):
                 "quantity": -15,
             }
         )
-        # Creates a quant for customer location.
         self.env["stock.quant"].create(
             {
                 "product_id": product.id,
@@ -217,13 +206,10 @@ class TestVirtualAvailable(TestStockCommon):
                 "quantity": 10,
             }
         )
-        # Assigns a company: should be ok because only exist one company (exclude vendor and customer location)
         product.company_id = company1.id
 
-        # Reset product company to empty
         product.company_id = False
         company2 = self.env["res.company"].create({"name": "Second Company"})
-        # Assigns to another company: should be not okay because exist quants in defferent company (exclude vendor and customer location)
         with self.assertRaises(UserError):
             product.company_id = company2.id
 
@@ -250,20 +236,17 @@ class TestVirtualAvailable(TestStockCommon):
         Product = self.env["product.product"]
         owner = self.user_stock_user.partner_id
 
-        # owner_id: product_3 has a 10-unit quant owned by `owner`.
         with_owner = Product.with_context(owner_id=owner.id).search(
             [("qty_available", ">", 0)]
         )
         self.assertIn(self.product_3, with_owner)
 
-        # A different owner sees none of product_3's owned stock.
         other_owner = self.env["res.partner"].create({"name": "Other owner"})
         with_other_owner = Product.with_context(owner_id=other_owner.id).search(
             [("qty_available", ">", 0), ("id", "in", self.product_3.ids)]
         )
         self.assertFalse(with_other_owner)
 
-        # lot_id / package_id must not raise either (no matching stock -> empty).
         self.assertFalse(
             Product.with_context(lot_id=1).search(
                 [("qty_available", ">", 0), ("id", "in", self.product_3.ids)]
@@ -279,7 +262,6 @@ class TestVirtualAvailable(TestStockCommon):
         """An operator the quant-only path can't evaluate (e.g. `ilike`) must fall
         back to the move-aware search instead of leaking `NotImplemented`.
         """
-        # Should not raise "NotImplemented should not be used in a boolean context".
         self.env["product.product"].search([("qty_available", "ilike", "3")])
 
     def test_search_qty_available_includes_zero_non_storable(self):
@@ -484,7 +466,6 @@ class TestVirtualAvailable(TestStockCommon):
         product.is_storable = True
         product.tracking = "serial"
         self.assertEqual(product.tracking, "serial")
-        # change the type from "product.product" form
         product_form = Form(product.product_variant_id)
         product_form.type = "service"
         product = product_form.save()
@@ -539,7 +520,6 @@ class TestVirtualAvailable(TestStockCommon):
     def test_change_product_type_archived_product(self):
         self.picking_out.action_confirm()
         self.picking_out.action_assign()
-        # At this point product_3 should have the quantity reserved
         self.product_3.active = False
 
         self.product_3.write({"is_storable": False})
@@ -584,8 +564,6 @@ class TestVirtualAvailable(TestStockCommon):
         quant._update_available_quantity(product, sub_location, 3)
         self.env.invalidate_all()
 
-        # Read the parent location first: under the bug it poisons the cache so the
-        # child-location read below returns 10 instead of 3.
         self.assertEqual(
             template.with_context(location=self.stock_location.id).qty_available,
             10.0,

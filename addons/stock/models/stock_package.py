@@ -19,10 +19,6 @@ class StockPackage(models.Model):
     _parent_store = True
     _rec_name = "complete_name"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     name = fields.Char(
         string="Package Reference",
         required=True,
@@ -151,10 +147,6 @@ class StockPackage(models.Model):
         compute="_compute_json_popover",
     )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -171,9 +163,6 @@ class StockPackage(models.Model):
 
     def write(self, vals):
         if "name" in vals and not vals.get("name"):
-            # Regenerate the name from the sequence if it was emptied. The type may
-            # come from vals (same for the whole batch) or fall back to each
-            # package's own type, so resolve it per record.
             for package in self:
                 package_type = self.env["stock.package.type"].browse(
                     vals.get("package_type_id", package.package_type_id.id)
@@ -181,8 +170,6 @@ class StockPackage(models.Model):
                 package.name = package_type._get_next_name_by_sequence()
             del vals["name"]
         if "location_id" in vals:
-            # Per-record guards: a batch mixing empty and non-empty packages must
-            # neither clear the location of a non-empty one nor move an empty one.
             empty_packs = self.filtered(lambda pack: not pack.contained_quant_ids)
             if not vals["location_id"] and self - empty_packs:
                 raise UserError(_("Cannot remove the location of a non empty package"))
@@ -200,13 +187,6 @@ class StockPackage(models.Model):
                     message=_("Package manually relocated"),
                     up_to_parent_packages=self,
                 )
-                # Negative quants (pending accounting, e.g. an outbound
-                # validated before its inbound) must relocate too, or the
-                # package stays split across the old and new locations and the
-                # negative never nets against future receipts at the new one.
-                # Moving a -N quant from OLD to NEW means moving N units
-                # NEW -> OLD within the same package: it nets the OLD quant to
-                # zero and recreates the -N at NEW.
                 negative_quants = self.contained_quant_ids.filtered(
                     lambda q: q.product_uom_id.compare(q.quantity, 0) < 0
                 )
@@ -228,8 +208,6 @@ class StockPackage(models.Model):
                     )
                     moves._action_done()
         if vals.get("package_dest_id"):
-            # Guard against a cycle in the package_dest_id chain; parent_path
-            # can't be used here since it only tracks parent_package_id.
             current_children_dest_ids = self._get_all_children_package_dest_ids()[1]
             if vals["package_dest_id"] in current_children_dest_ids:
                 raise ValidationError(
@@ -239,10 +217,6 @@ class StockPackage(models.Model):
                 )
 
         return super().write(vals)
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("child_package_ids", "child_package_ids.parent_path")
     def _compute_all_children_package_ids(self):
@@ -385,8 +359,6 @@ class StockPackage(models.Model):
 
     @api.depends("location_id", "child_package_dest_ids")
     def _compute_move_line_ids(self):
-        # location_id isn't used below but stays in @api.depends to force a
-        # recompute of move_line_ids whenever the package changes location.
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
         groups = self.env["stock.move.line"]._read_group(
             domain=[
@@ -413,24 +385,14 @@ class StockPackage(models.Model):
         "child_package_ids",
         "child_package_ids.location_id",
         "quant_ids",
-        # An in-place quant update (e.g. an inventory adjustment zeroing a
-        # quantity, or a relocation rewriting location_id) changes the outcome
-        # without changing the quant_ids set, so it must trigger too.
         "quant_ids.quantity",
         "quant_ids.location_id",
         "quant_ids.company_id",
     )
     def _compute_package_info(self):
-        # Location and company are only meaningful when unambiguous: a package
-        # whose positive quants (or child packages) span several locations or
-        # companies is in an inconsistent state, and silently electing the first
-        # quant's value would hide it (and make the result depend on quant
-        # ordering). Mirror the homogeneity rule already applied to the company.
         for package in self:
             package.location_id = False
             package.company_id = False
-            # Homogeneity only over the positive quants: a stale zero-quantity
-            # quant left in another location/company must not blank the values.
             quants = package.quant_ids.filtered(
                 lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
             )
@@ -442,8 +404,6 @@ class StockPackage(models.Model):
                 if len(companies) == 1 and all(q.company_id for q in quants):
                     package.company_id = companies
             elif package.child_package_ids:
-                # Location-less children (e.g. empty packages) don't make the
-                # located ones ambiguous, so only distinct truthy values count.
                 locations = package.child_package_ids.location_id
                 if len(locations) == 1:
                     package.location_id = locations
@@ -479,9 +439,6 @@ class StockPackage(models.Model):
 
     @api.depends("contained_quant_ids.owner_id")
     def _compute_owner_id(self):
-        # Aggregate over the whole content (own quants plus nested packages'):
-        # a container whose goods all belong to one owner through its children
-        # must expose that owner too.
         for package in self:
             package.owner_id = False
             quants = package.contained_quant_ids
@@ -505,16 +462,8 @@ class StockPackage(models.Model):
             if package.name:
                 package.valid_sscc = check_barcode_encoding(package.name, "sscc")
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
-
     def _search_all_children_package_ids(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
-            # Let the ORM derive the negation from the positive domain: wrapping a
-            # negative operator's matches with parent_of composes wrongly (a package
-            # that DOES contain the target would match "not in", because its child
-            # matched the negated inner search).
             return NotImplemented
         packages = self.search_fetch(
             domain=[("id", operator, value)], field_names=["id"]
@@ -554,13 +503,10 @@ class StockPackage(models.Model):
                 value = self.env["stock.move.line"]._search(value)
 
         if isinstance(value, Iterable) and not isinstance(value, str):
-            # Materialize one-shot iterables (e.g. generators): `value` is
-            # inspected below and then reused inside the domain.
             value = list(value)
         domain = Domain("state", "not in", ["done", "cancel"])
         pack_operator = "in"
         if isinstance(value, list) and value == [False]:
-            # ('move_line_ids', '=', False): not assigned to any ongoing picking
             pack_operator = "not in"
         else:
             domain &= Domain("id", operator, value)
@@ -602,10 +548,6 @@ class StockPackage(models.Model):
 
         return [("id", "in", all_package_ids)]
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
     def action_add_to_picking(self):
         picking = self.env["stock.picking"].browse(self.env.context.get("picking_id"))
         if picking and self:
@@ -639,11 +581,8 @@ class StockPackage(models.Model):
         if packs_to_clear := previous_dest_packages.filtered(
             lambda p: not p.move_line_ids
         ):
-            # No move line points to these former dest packages now that the
-            # container changed, so they're irrelevant: free them.
             packs_to_clear.package_dest_id = False
 
-        # The uppermost package changed, so new putaway rules may apply.
         package.move_line_ids._apply_putaway_strategy()
         return package._post_put_in_pack_hook()
 
@@ -673,7 +612,6 @@ class StockPackage(models.Model):
         self.env["stock.move.line"].browse(move_line_ids_to_update).write(
             {"result_package_id": False}
         )
-        # Unlink moves with no initial demand and no remaining move lines.
         self.env["stock.move"].search_fetch(
             [
                 ("id", "in", related_move_ids),
@@ -683,18 +621,14 @@ class StockPackage(models.Model):
             field_names=["id"],
         ).unlink()
 
-        # If packages in self are dest containers of others, clear that too.
         self.child_package_dest_ids.package_dest_id = False
         self.package_dest_id = False
 
-        # Parent packages now isolated from bottom-level packages: clear their
-        # destination container too.
         self.env["stock.package"].search_fetch(
             [("id", "in", all_package_dest_ids), ("move_line_ids", "=", False)],
             field_names=["id"],
         ).write({"package_dest_id": False})
 
-        # If outermost packages were changed, different putaway rules may apply.
         self.env["stock.move.line"].browse(
             all_move_line_ids - move_line_ids_to_unlink
         )._apply_putaway_strategy()
@@ -713,10 +647,6 @@ class StockPackage(models.Model):
         action["domain"] = [("id", "in", pickings.ids)]
         return action
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
-
     def _apply_dest_to_package(self, processed_package_ids=None):
         """Move packages into their ``package_dest_id`` container (or detach them
         if none), ensuring the container's quants aren't split across locations.
@@ -731,11 +661,9 @@ class StockPackage(models.Model):
         packs_by_container = packages_todo.grouped("package_dest_id")
         for container_package, packages in packs_by_container.items():
             if not container_package:
-                # If package has no future container package, needs to be removed from its current one.
                 packages.write({"parent_package_id": False})
                 processed_package_ids.update(packages.ids)
                 continue
-            # At this point, the packages were already moved so we need to check their current position.
             new_location = packages.location_id
             if len(new_location) > 1:
                 raise UserError(
@@ -768,7 +696,6 @@ class StockPackage(models.Model):
                 }
             )
             processed_package_ids.update(packages.ids)
-        # First level applied; check whether the next level needs it too.
         if (
             packages_todo.parent_package_id.package_dest_id
             or packages_todo.parent_package_id.parent_package_id
@@ -790,7 +717,6 @@ class StockPackage(models.Model):
                     continue
                 packages.package_dest_id = container
         if self.package_dest_id:
-            # One level added: check whether the upper container is fully contained too.
             self.package_dest_id._apply_package_dest_for_entire_packs(
                 allowed_package_ids
             )
@@ -806,8 +732,6 @@ class StockPackage(models.Model):
             }
         for package in self:
             weight = package.package_type_id.base_weight or 0.0
-            # Add the base_weight of every nested package, including ones that
-            # only contain other packages (no quants of their own to weigh).
             weight += sum(
                 package.all_children_package_ids.mapped(
                     lambda p: p.package_type_id.base_weight,
@@ -831,9 +755,7 @@ class StockPackage(models.Model):
         :return: dict mapping ``(package, picking_id)`` to its weight.
         """
         picking_ids = list(picking_ids)
-        # (picking_id, package_id) -> weight of the picking's own product content.
         package_weights = defaultdict(float)
-        # For an ongoing picking, also count the weight of current dest children.
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
         base_weight_per_package_group = self.env["stock.package"]._read_group(
             domain=[("id", "in", all_pack_ids)],
@@ -922,8 +844,6 @@ class StockPackage(models.Model):
                 message=_("Quantities unpacked"),
                 unpack=True,
             )
-            # Quant clean-up to avoid multiple quants of the same product: e.g.
-            # unpack 2 packages of 50, then reserve 100 => a -50 quant at validation.
             quants._quant_tasks()
 
     def _pre_put_in_pack_hook(
@@ -950,10 +870,6 @@ class StockPackage(models.Model):
     def _post_put_in_pack_hook(self):
         self.ensure_one()
         return self
-
-    # ------------------------------------------------------------
-    # VALIDATION METHODS
-    # ------------------------------------------------------------
 
     def _check_move_lines_map_quant(self, move_lines):
         """Checks that self's contained quants and move_lines carry matching quantities per product and lot."""

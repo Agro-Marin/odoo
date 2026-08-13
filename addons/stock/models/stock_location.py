@@ -8,14 +8,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.numbers import float_compare
 
-# A cyclic inventory frequency is a number of days added to a date. Anything past
-# this is not a schedule, it is a typo or a bad import, and it makes
-# ``_compute_next_inventory_date`` overflow — see ``_inventory_freq_bounded``.
 MAX_CYCLIC_INVENTORY_DAYS = 36500
 
-# The usages that physically hold countable stock. The virtual counterparts
-# (supplier, customer, inventory, production, view) carry quants as bookkeeping,
-# so emptiness and inventory scheduling are not meaningful for them.
 STOCKED_USAGES = ("internal", "transit")
 
 
@@ -176,17 +170,6 @@ class StockLocation(models.Model):
         search="_search_is_empty",
     )
 
-    # `company_id` is nullable by design ("shared between companies"), and a plain
-    # UNIQUE(barcode, company_id) leaves those rows unbound, because PostgreSQL
-    # treats NULLs as distinct — two shared locations could carry one barcode,
-    # which `_rec_names_search` and barcode scanning then resolve arbitrarily.
-    # COALESCE folds "shared" into a single namespace; the partial WHERE keeps
-    # NULL *barcodes* distinct, since no barcode is not a barcode to collide on.
-    # (`UNIQUE NULLS NOT DISTINCT` cannot express this: it applies to every column
-    # of the index, so it would let only one location have no barcode at all.)
-    # Named apart from the `_barcode_company_uniq` CONSTRAINT it replaces: a
-    # UNIQUE constraint owns its backing index, so an index cannot take that name
-    # over. The pre-migration drops the old one.
     _barcode_company_unique_idx = models.UniqueIndex(
         "(barcode, COALESCE(company_id, 0)) WHERE barcode IS NOT NULL",
         "The barcode for a location must be unique per company!",
@@ -201,11 +184,6 @@ class StockLocation(models.Model):
     def _check_replenish_location(self):
         if not any(self.mapped("replenish_location")):
             return
-        # No sudo needed: `_validate_fields` already hands a constraint its
-        # records sudo-ed unless it opts out with `_constrains_sudo`, so this
-        # search sees every conflicting location whatever the writer may read.
-        # Archived ones are included deliberately — unarchiving one later would
-        # silently reintroduce the overlap this exists to prevent.
         replenish_locations = self.with_context(active_test=False).search(
             [("replenish_location", "=", True)]
         )
@@ -282,11 +260,6 @@ class StockLocation(models.Model):
             [("id", "child_of", self.ids)],
         )
         descendants = subtree - self
-        # The guard is a business rule, so it must not run while a module is being
-        # uninstalled — an uninstall cannot satisfy it, and the ORM already skips
-        # `@api.ondelete(at_uninstall=False)` handlers for the same reason. This
-        # override cannot *be* one of those handlers: it needs `subtree` to widen
-        # the deletion, which an ondelete hook cannot do.
         if (
             descendants
             and not self.env.context.get("stock_unlink_subtree")
@@ -337,10 +310,6 @@ class StockLocation(models.Model):
     @api.depends("complete_name", "name", "location_id.complete_name", "usage")
     @api.depends_context("formatted_display_name")
     def _compute_display_name(self):
-        # `complete_name` already *is* the parent-prefixed path (see
-        # `_compute_complete_name`), so the plain name is a read of that stored
-        # field, not a second assembly of it. Only the formatted variant, which
-        # marks up the two halves, has to look at the parent separately.
         formatted = self.env.context.get("formatted_display_name")
         for location in self:
             if formatted and location._prefixed_by_parent():
@@ -394,15 +363,10 @@ class StockLocation(models.Model):
             ):
                 location.next_inventory_date = False
                 continue
-            # No overflow guard here: `_inventory_freq_bounded` keeps the frequency
-            # inside a range that cannot overflow a date, so a bad value is refused
-            # at write time instead of turning every later read — and every module
-            # upgrade that recomputes this field — into a UserError.
             frequency = timedelta(days=location.cyclic_inventory_frequency)
             if not location.last_inventory_date:
                 location.next_inventory_date = today + frequency
             elif location.last_inventory_date + frequency <= today:
-                # The planned date has already passed; recount from tomorrow.
                 location.next_inventory_date = today + timedelta(days=1)
             else:
                 location.next_inventory_date = location.last_inventory_date + frequency
@@ -412,20 +376,12 @@ class StockLocation(models.Model):
         warehouses = self.env["stock.warehouse"].search(
             [("view_location_id", "parent_of", self.ids)]
         )
-        # Deepest view location first, so a location nested in several warehouses
-        # resolves to the innermost one. Only ancestors of a given location can
-        # match, and a location's ancestors are prefix-ordered, so ordering the
-        # whole set by parent_path string is enough to put the deepest match first.
         warehouses = warehouses.sorted(
             lambda w: w.view_location_id.parent_path, reverse=True
         )
         warehouse_id_by_view_location = {
             wh.view_location_id.id: wh.id for wh in warehouses
         }
-        # Resolve first, assign once. Assigning False up front and correcting per
-        # record afterwards makes this a *write* of NULL followed by a write of the
-        # real value whenever the compute is invoked outside the recompute queue
-        # (`_recompute_descendants_warehouse` does exactly that).
         for loc in self:
             warehouse_id = False
             if loc.parent_path:
@@ -456,10 +412,6 @@ class StockLocation(models.Model):
                 loc.replenish_location = False
 
     def _search_is_empty(self, operator, value):
-        # Only the positive operator is implemented; the ORM derives the negative
-        # (is_empty = False) by negating this domain — `_optimize_boolean_in`
-        # rewrites `in [False]` to `not in [True]` and the search-method optimizer
-        # inverts what we return here.
         if operator != "in":
             return NotImplemented
         return [("id", "not in", list(self._get_occupied_location_ids()))]
@@ -499,9 +451,6 @@ class StockLocation(models.Model):
 
     def _child_of(self, other_location):
         self.ensure_one()
-        # A record with no parent_path (unstored) is a child of nothing; a missing
-        # other_location (e.g. a ref resolved with raise_if_not_found=False) is an
-        # ancestor of nothing.
         if not self.parent_path or not other_location.parent_path:
             return False
         return self.parent_path.startswith(other_location.parent_path)
@@ -552,8 +501,6 @@ class StockLocation(models.Model):
             internal_descendants = descendant_locations.filtered(
                 lambda l: l.usage == "internal"
             )
-            # Same definition of "not empty" that `is_empty` reports, so a
-            # location the list shows as empty is one that archives.
             blocking_quants = self.env["stock.quant"].search(
                 self._get_occupancy_domain()
                 & Domain("location_id", "in", internal_descendants.ids),
@@ -636,15 +583,6 @@ class StockLocation(models.Model):
         )
 
         putaway_location = None
-        # The `locations` context is a *cache* of `child_internal_location_ids`,
-        # filled once per move group by `stock.move.line._apply_putaway_strategy`.
-        # A group can span several destinations, so the cached set is their union
-        # and must be narrowed back to this destination's subtree — otherwise the
-        # fallback below hands out a candidate belonging to another destination,
-        # and every line in the group agrees on it, which defeats the
-        # "don't split a package across locations" reset in the caller.
-        # `is None` and not falsiness: an explicitly empty candidate set means
-        # "nothing available here", not "no cache supplied".
         locations = self.env.context.get("locations")
         if locations is None:
             locations = self.child_internal_location_ids
@@ -904,10 +842,6 @@ class StockLocation(models.Model):
         )
         if policy == "empty":
             return not positive_quant
-        # policy == "same": the location may hold a single product only. For a
-        # package, `product` isn't set, so fall back to the context products;
-        # default to an empty recordset so a caller that sets neither still gets a
-        # policy answer instead of a TypeError below.
         product = (
             product or self.env.context.get("products") or self.env["product.product"]
         )

@@ -6,10 +6,6 @@ class StockPackageType(models.Model):
     _description = "Stock package type"
     _order = "sequence, id"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
-
     name = fields.Char(string="Package Type", required=True)
     sequence = fields.Integer(
         string="Sequence",
@@ -90,10 +86,6 @@ class StockPackageType(models.Model):
         domain="[('package_type_selectable', '=', True)]",
     )
 
-    # ------------------------------------------------------------
-    # CONSTRAINTS
-    # ------------------------------------------------------------
-
     _barcode_uniq = models.Constraint(
         "unique(barcode)",
         "A barcode can only be assigned to one package type!",
@@ -114,10 +106,6 @@ class StockPackageType(models.Model):
         "CHECK(max_weight>=0.0)",
         "Max Weight must be positive",
     )
-
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -143,8 +131,6 @@ class StockPackageType(models.Model):
 
     def write(self, vals):
         seq_vals = {}
-        # Truthiness guard: clearing the code must not create/rename sequences
-        # with a False prefix ("Package Type Sequence False").
         if vals.get("sequence_code"):
             seq_vals["name"] = self.env._(
                 "Package Type Sequence %(code)s", code=vals["sequence_code"]
@@ -158,11 +144,6 @@ class StockPackageType(models.Model):
                 if package_type.sequence_id:
                     seq_to_todo_ids.add(package_type.sequence_id.id)
                 elif vals.get("sequence_code"):
-                    # Only create a sequence when a code is provided: a
-                    # company-only change on a type without a sequence must not
-                    # create a nameless/prefixless one (NOT NULL violation on
-                    # ir_sequence.name); it only has to move existing sequences
-                    # to the new company.
                     sequence = (
                         self.env["ir.sequence"]
                         .sudo()
@@ -190,10 +171,6 @@ class StockPackageType(models.Model):
             for package_type, vals in zip(self, vals_list, strict=True)
         ]
 
-    # ------------------------------------------------------------
-    # DEFAULT METHODS
-    # ------------------------------------------------------------
-
     def _default_length_uom(self):
         return self.env[
             "product.template"
@@ -203,10 +180,6 @@ class StockPackageType(models.Model):
         return self.env[
             "product.template"
         ]._get_weight_uom_name_from_ir_config_parameter()
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("name", "packaging_length", "width", "height")
     @api.depends_context("formatted_display_name")
@@ -254,10 +227,6 @@ class StockPackageType(models.Model):
             package_type.weight_uom_name = self.env[
                 "product.template"
             ]._get_weight_uom_name_from_ir_config_parameter()
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_next_name_by_sequence(self):
         if len(self) == 1 and self.sequence_id:

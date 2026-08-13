@@ -13,8 +13,6 @@ export class StockReschedulingPopoverComponent extends PopoverComponent {
         this.action = useService("action");
     }
 
-    // Complete translatable sentences: the operation links are rendered between
-    // them, so the surrounding text must not be split into fragments.
     get precedingLabel() {
         return _t("Preceding operations:");
     }
@@ -39,17 +37,11 @@ export class StockReschedulingPopover extends PopoverWidgetField {
         Popover: StockReschedulingPopoverComponent,
     };
 
-    // Getters, like the base class: the parent defines `color`/`icon` as
-    // getter-only accessors, so assigning `this.color = ...` in setup() throws
-    // a TypeError (strict-mode assignment through an inherited getter).
     get color() {
         return this.jsonValue.color || "text-danger";
     }
 
     get icon() {
-        // Full FA7 class (family + name); the parent's bare-name normalization
-        // applies the `fa-solid` family to bare icon names, and this override
-        // only changes the default glyph.
         const rawIcon = this.jsonValue.icon || "fa-triangle-exclamation";
         return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
     }

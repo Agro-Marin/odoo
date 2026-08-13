@@ -141,11 +141,11 @@ class ProductReplenish(models.TransientModel):
                     self.product_id,
                     self.quantity,
                     self.product_uom_id,
-                    self.warehouse_id.lot_stock_id,  # Location
-                    _("Manual Replenishment"),  # Name
-                    _("Manual Replenishment"),  # Origin
+                    self.warehouse_id.lot_stock_id,
+                    _("Manual Replenishment"),
+                    _("Manual Replenishment"),
                     self.warehouse_id.company_id,
-                    self._prepare_run_values(),  # Values
+                    self._prepare_run_values(),
                 )
             ]
         )
@@ -169,9 +169,6 @@ class ProductReplenish(models.TransientModel):
         }
 
     def _get_record_to_notify(self, date):
-        # ``date`` (a whole-transaction timestamp) alone is not selective: every
-        # move written in this transaction shares it, so we also pin the product
-        # and take the newest id to land on the move this run just created.
         return self.env["stock.move"].search(
             [("write_date", ">=", date), ("product_id", "=", self.product_id.id)],
             order="id desc",

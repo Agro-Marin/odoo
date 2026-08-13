@@ -19,8 +19,6 @@ export class ReceptionReportTable extends Component {
     };
     static props = {
         index: String,
-        // Boolean: the server sends `false` for sources without a scheduled
-        // date (see _get_formatted_scheduled_date and its overrides).
         scheduledDate: { type: [String, Boolean], optional: true },
         lines: Array,
         source: Array,
@@ -32,14 +30,9 @@ export class ReceptionReportTable extends Component {
     setup() {
         this.actionService = useService("action");
         this.ormService = useService("orm");
-        // Guard the bulk assign against a double-click firing two concurrent
-        // action_assign RPCs (the server then errors "already linked"); mirrors
-        // the line-level handlers in ReceptionReportLine.
         this.opGuard = useOperationGuard();
         this.onClickAssignAll = this.opGuard.guard(this.onClickAssignAll.bind(this));
     }
-
-    //---- Handlers ----
 
     async onClickAssignAll() {
         const { moveIds, quantities, inIds } = collectAssignable(this.props.lines);
@@ -68,8 +61,6 @@ export class ReceptionReportTable extends Component {
         }
     }
 
-    //---- Getters ----
-
     get hasMovesIn() {
         return this.props.lines.some(
             (line) => line.move_ins && line.move_ins.length > 0,
@@ -81,10 +72,6 @@ export class ReceptionReportTable extends Component {
     }
 
     get isAssignAllDisabled() {
-        // Disabled while a bulk assign is in flight (re-entrancy guard), or when
-        // no line is actually assignable — shares the predicate with
-        // collectAssignable/onClickAssignAll so the button state and what the
-        // click actually assigns stay in lockstep.
         return (
             this.opGuard.busy ||
             this.props.lines.every((line) => !isLineAssignable(line))

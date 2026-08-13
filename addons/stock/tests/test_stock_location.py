@@ -216,10 +216,6 @@ class TestStockLocationTree(TestStockCommon):
         )
         shelf = self.StockLocationObj.create({"name": "Shelf", "location_id": zone.id})
         bin_ = self.StockLocationObj.create({"name": "Bin", "location_id": shelf.id})
-        # Settle the tree before the operation under test. Left pending, the
-        # `warehouse_id` recomputes these creations queued would be flushed *by*
-        # that operation and resolve correctly by accident, hiding whether the
-        # operation maintains the field itself.
         self.env.flush_all()
         return zone, shelf, bin_
 

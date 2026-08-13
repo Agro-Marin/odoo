@@ -133,7 +133,6 @@ registry.category("web_tour.tours").add("test_generate_serial_2", {
             trigger: ".modal h4:contains('Detailed Operations')",
             run: "click",
         },
-        // We generate lots for a first batch of 50 products
         {
             trigger: ".modal .o_widget_generate_serials > button",
             run: "click",
@@ -149,7 +148,6 @@ registry.category("web_tour.tours").add("test_generate_serial_2", {
         {
             trigger: ".modal div[name=next_serial_count] input",
             run() {
-                //input type number not supported by tour helpers.
                 this.anchor.value = "7.5";
             },
         },
@@ -176,7 +174,6 @@ registry.category("web_tour.tours").add("test_generate_serial_2", {
                 }
             },
         },
-        // We generate lots for the last 50 products
         {
             trigger: ".modal .o_widget_generate_serials > button",
             run: "click",
@@ -279,7 +276,6 @@ registry.category("web_tour.tours").add("test_inventory_adjustment_apply_all", {
             trigger: "div[name=inventory_quantity] input",
             run: "edit 123",
         },
-        // Unfocus to show the "New" button again
         {
             trigger: ".o_searchview_input_container",
             run: "click",

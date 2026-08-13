@@ -7,9 +7,6 @@ import {
 } from "@web/fields/relational/many2many_tags";
 
 export class Many2ManyPackageTagsField extends Many2ManyTagsField {
-    // Getter, not a setup() snapshot: has_lines_without_result_package is a
-    // computed field that changes as move lines change, so the "No Package" tag
-    // must re-evaluate on every render.
     get hasNoneTag() {
         return this.props.record.data?.has_lines_without_result_package || false;
     }
@@ -24,9 +21,6 @@ export class Many2ManyPackageTagsField extends Many2ManyTagsField {
                     ...this.getTagProps(lastRecord),
                     id: "datapoint_None",
                     text: _t("No Package"),
-                    // Synthetic tag: never let it inherit a real package's identity
-                    // or delete handler (would target the wrong record if this field
-                    // ever becomes editable).
                     resId: false,
                     onDelete: undefined,
                 });

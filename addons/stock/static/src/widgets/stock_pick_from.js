@@ -17,9 +17,6 @@ export class StockPickFrom extends Component {
         const props = computeM2OProps(this.props);
         return {
             ...props,
-            // id: false (not 0) for the synthetic value — the base Many2One treats
-            // false as non-linkable (quick-create convention), so it never renders
-            // an external link to a nonexistent record/0 if `no_open` is dropped.
             value: props.value || {
                 id: false,
                 display_name: this._quant_display_name(),
@@ -29,7 +26,6 @@ export class StockPickFrom extends Component {
 
     _quant_display_name() {
         const data = this.props.record.data;
-        // location display_name is absent when the location group is disabled
         const name_parts = [data.location_id?.display_name];
         if (data.lot_id) {
             name_parts.push(data.lot_id?.display_name || data.lot_name);
@@ -44,8 +40,6 @@ export class StockPickFrom extends Component {
         if (data.owner_id) {
             name_parts.push(data.owner_id?.display_name);
         }
-        // Filter the falsy parts so a missing component never renders as a
-        // dangling " - " separator.
         return name_parts.filter(Boolean).join(" - ");
     }
 }
@@ -53,7 +47,6 @@ export class StockPickFrom extends Component {
 registry.category("fields").add("pick_from", {
     ...buildM2OFieldDescription(StockPickFrom),
     fieldDependencies: [
-        // dependencies to build the quant display name
         { name: "location_id", type: "relation" },
         { name: "package_id", type: "relation" },
         { name: "lot_id", type: "relation" },

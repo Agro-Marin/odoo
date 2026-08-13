@@ -7,23 +7,16 @@ import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 
 export class ForecastWidgetField extends FloatField {
     static template = "stock.ForecastWidget";
-    // NB: intentionally does not call super.setup() — this widget reuses
-    // FloatField only for its field descriptor/formatting, not the numeric input
-    // the base wires up (the template is a custom badge with no input ref).
     setup() {
         this.actionService = useService("action");
         this.orm = useService("orm");
     }
 
-    // Derived values are getters (not setup-time snapshots) so the badge stays
-    // correct when the move's fields change in place in an editable list.
     get resId() {
         return this.props.record.resId;
     }
 
     get forecastExpectedDate() {
-        // formatDate's second argument is an options object ({ format }); the
-        // localization default date format is what we want here.
         return formatDate(this.props.record.data.date_planned_forecast);
     }
 
@@ -53,13 +46,6 @@ export class ForecastWidgetField extends FloatField {
         return this.props.record.data.state;
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
-    /**
-     * Opens the Forecast Report for the `stock.move` product.
-     */
     async _openReport(ev) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -74,8 +60,6 @@ export class ForecastWidgetField extends FloatField {
         this.actionService.doAction(action);
     }
 
-    // Single source of truth for the badge's tri-state, consumed by both the
-    // color (`decoration`) and the label (template) so they can never disagree.
     get status() {
         if (this.willBeFulfilled) {
             return this.forecastExpectedDate ? "expected" : "available";

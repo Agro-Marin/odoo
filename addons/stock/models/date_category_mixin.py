@@ -47,9 +47,6 @@ class DateCategoryMixin(models.AbstractModel):
         """
         if not value:
             return ""
-        # Stored datetimes are naive UTC; `astimezone` would reinterpret a naive
-        # value in the server's OS timezone, so attach UTC explicitly instead.
-        # Aware values are converted by instant, matching the tz-aware boundaries.
         if value.tzinfo is None:
             value = value.replace(tzinfo=UTC)
         else:
@@ -73,7 +70,6 @@ class DateCategoryMixin(models.AbstractModel):
         "yesterday", "today", "day_1", "day_2", "after"; see `calculate_date_category`).
         Returns None if `date_category` is not one of these.
         """
-        # Stored datetimes are naive UTC, so express the boundaries the same way.
         bound = {
             key: value.astimezone(UTC).replace(tzinfo=None)
             for key, value in self._date_category_boundaries().items()

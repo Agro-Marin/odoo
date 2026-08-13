@@ -13,8 +13,6 @@ class TestOldRules(TestStockCommon):
         super().setUpClass()
         cls.partner = cls.env["res.partner"].create({"name": "Partner"})
 
-        # Since the old rules are still a valid setup for multi-step routes, we need to make sure they still work.
-        # Create a warehouse with 3 steps using old rules setup so we need to restore it only once.
         cls.warehouse_3_steps = cls.env["stock.warehouse"].create(
             {
                 "name": "Warehouse 3 steps",
@@ -40,7 +38,6 @@ class TestOldRules(TestStockCommon):
         reception_route_3.rule_ids[1].write({"action": "pull_push"})
         reception_route_3.rule_ids[2].write({"action": "pull_push"})
 
-        # Create a warehouse with 2 steps using old rules setup.
         cls.warehouse_2_steps = cls.env["stock.warehouse"].create(
             {
                 "name": "Warehouse 2 steps",
@@ -80,41 +77,31 @@ class TestOldRules(TestStockCommon):
         ship, pack, pick = self.env["stock.move"].search(
             [("product_id", "=", self.productA.id)]
         )
-        # by default they all the same `date`
         self.assertEqual(set((ship + pack + pick).mapped("date")), {pick.date})
 
-        # pick - pack - ship
         ship.date += timedelta(days=2)
         pack.date += timedelta(days=1)
         self.assertFalse(pick.date_delay_alert)
         self.assertFalse(pack.date_delay_alert)
         self.assertFalse(ship.date_delay_alert)
 
-        # move the pack after the ship
-        # pick - ship - pack
         pack.date += timedelta(days=2)
         self.assertFalse(pick.date_delay_alert)
         self.assertFalse(pack.date_delay_alert)
         self.assertTrue(ship.date_delay_alert)
         self.assertAlmostEqual(ship.date_delay_alert, pack.date)
 
-        # restore the pack before the ship
-        # pick - pack - ship
         pack.date -= timedelta(days=2)
         self.assertFalse(pick.date_delay_alert)
         self.assertFalse(pack.date_delay_alert)
         self.assertFalse(ship.date_delay_alert)
 
-        # move the pick after the pack
-        # pack - ship - pick
         pick.date += timedelta(days=3)
         self.assertFalse(pick.date_delay_alert)
         self.assertTrue(pack.date_delay_alert)
         self.assertFalse(ship.date_delay_alert)
         self.assertAlmostEqual(pack.date_delay_alert, pick.date)
 
-        # move the ship before the pack
-        # ship - pack - pick
         ship.date -= timedelta(days=2)
         self.assertFalse(pick.date_delay_alert)
         self.assertTrue(pack.date_delay_alert)
@@ -122,15 +109,12 @@ class TestOldRules(TestStockCommon):
         self.assertAlmostEqual(pack.date_delay_alert, pick.date)
         self.assertAlmostEqual(ship.date_delay_alert, pack.date)
 
-        # move the pack at the end
-        # ship - pick - pack
         pack.date = pick.date + timedelta(days=2)
         self.assertFalse(pick.date_delay_alert)
         self.assertFalse(pack.date_delay_alert)
         self.assertTrue(ship.date_delay_alert)
         self.assertAlmostEqual(ship.date_delay_alert, pack.date)
 
-        # fix the ship
         ship.date = pack.date + timedelta(days=2)
         self.assertFalse(pick.date_delay_alert)
         self.assertFalse(pack.date_delay_alert)
@@ -148,13 +132,10 @@ class TestOldRules(TestStockCommon):
             self.productA, self.warehouse_3_steps.wh_output_stock_loc_id, 4.0
         )
 
-        # We set quantities in the stock location to avoid warnings
-        # triggered by '_onchange_product_id_check_availability'
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.warehouse_3_steps.lot_stock_id, 4.0
         )
 
-        # We alter one rule and we set it to 'mts_else_mto'
         self.warehouse_3_steps.delivery_route_id.rule_ids.filtered(
             lambda r: r.procure_method == "make_to_order"
         ).procure_method = "mts_else_mto"
@@ -183,7 +164,6 @@ class TestOldRules(TestStockCommon):
             self.productA, self.warehouse_3_steps.wh_output_stock_loc_id
         )
 
-        # 3 pickings should be created.
         picking_ids = self.env["stock.picking"].search(
             [("reference_ids", "in", reference.id)]
         )
@@ -219,7 +199,6 @@ class TestOldRules(TestStockCommon):
             product_a, warehouse.wh_output_stock_loc_id, 4.0
         )
 
-        # We alter one rule and we set it to 'mts_else_mto'
         self.warehouse_3_steps.delivery_route_id.rule_ids.filtered(
             lambda r: r.procure_method == "make_to_order"
         ).procure_method = "mts_else_mto"
@@ -282,20 +261,15 @@ class TestOldRules(TestStockCommon):
             [("reference_ids", "in", reference_3.id)]
         )
 
-        # The 2 first procurements should have create only 1 picking since enough quantities
-        # are left in the delivery location
         self.assertEqual(len(pickings_pg1), 1)
         self.assertEqual(len(pickings_pg2), 1)
         self.assertEqual(pickings_pg1.move_ids.procure_method, "make_to_stock")
         self.assertEqual(pickings_pg2.move_ids.procure_method, "make_to_stock")
 
-        # The last one should have 3 pickings as there's nothing left in the delivery location
         self.assertEqual(len(pickings_pg3), 3)
         for picking in pickings_pg3:
-            # Only the picking from Stock to Pack should be MTS
             self.assertEqual(picking.move_ids.procure_method, "make_to_stock")
 
-            # All the moves should be should have the same quantity as it is on each procurements
             self.assertEqual(len(picking.move_ids), 1)
             self.assertEqual(picking.move_ids.product_uom_qty, 2)
 
@@ -399,7 +373,6 @@ class TestOldRules(TestStockCommon):
             }
         )
 
-        # create chained pick/pack moves to test with
         ship_move._update_picking()
         ship_move._action_confirm()
         pack_move = ship_move.move_orig_ids[0]
@@ -440,7 +413,6 @@ class TestOldRules(TestStockCommon):
             }
         )
 
-        # create chained pick/pack moves to test with
         ship_move._update_picking()
         ship_move._action_confirm()
         pack_move = ship_move.move_orig_ids[0]
@@ -500,7 +472,6 @@ class TestOldRules(TestStockCommon):
         """
         Check the cancellation propagation in pull set ups.
         """
-        # create a procurement group
         product1 = self.env["product.product"].create(
             {
                 "name": "test_procurement_cancel_propagation",

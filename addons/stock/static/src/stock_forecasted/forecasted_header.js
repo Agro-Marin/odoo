@@ -16,8 +16,6 @@ export class ForecastedHeader extends Component {
 
         this._formatFloat = (num) =>
             formatFloat(num, { digits: [false, this.props.docs.precision] });
-        // Computed once; leadTime is read several times per render and previously
-        // rebuilt dates and mutated the report data on every access.
         this.leadTimeData = this._computeLeadTime();
     }
 
@@ -59,9 +57,6 @@ export class ForecastedHeader extends Component {
         if (!product?.leadtime) {
             return null;
         }
-        // Return a derived copy; never write today/earliestPossibleArrival back
-        // into the shared report data. Dates are formatted with the user's
-        // Odoo date format, not the browser locale.
         const today = DateTime.local().startOf("day");
         return {
             ...product.leadtime,

@@ -45,7 +45,6 @@ test("double-click on Assign fires a single RPC and disables the button", async 
     const assignButton = queryFirst("button[name=assign_link]");
     await click(assignButton);
     await animationFrame();
-    // In flight: button disabled, second activation inert.
     expect(assignButton).toHaveAttribute("disabled");
     await click(assignButton);
     await animationFrame();
@@ -58,7 +57,7 @@ test("double-click on Assign fires a single RPC and disables the button", async 
 test("unassign only flips the state when the server confirms", async () => {
     onRpc("action_unassign", () => {
         expect.step("unassign-rpc");
-        return false; // server refused: no state flip
+        return false;
     });
     const env = await mountLine({ is_assigned: true });
     env.bus.addEventListener("update-assign-state", () => expect.step("state-flipped"));

@@ -108,10 +108,6 @@ class ResConfigSettings(models.TransientModel):
     horizon_days = fields.Integer(related="company_id.horizon_days", readonly=False)
 
     def _compute_replenish_on_order(self):
-        # Unconditional assignment: a compute must assign its field on every
-        # record even when the MTO route was deleted (a case this module guards
-        # elsewhere), otherwise the settings page crashes on
-        # "Compute method failed to assign".
         route = self.env.ref("stock.route_warehouse0_mto", raise_if_not_found=False)
         self.replenish_on_order = bool(route and route.active)
 
@@ -169,19 +165,13 @@ class ResConfigSettings(models.TransientModel):
         if not self.env.user.has_group("stock.group_stock_manager"):
             return
 
-        # If we just enabled multiple locations, activate the warehouses' internal operation
-        # types so they appear in the dashboard. Otherwise (if we just disabled multiple
-        # locations with this settings change), deactivate them.
         warehouse_obj = self.env["stock.warehouse"]
         if self.group_stock_multi_locations and not previous_group.get(
             "group_stock_multi_locations"
         ):
-            # set_values() runs with active_test=False in context; force it back on
-            # so the search only activates operation types that are actually active.
             warehouse_obj.with_context(active_test=True).search(
                 []
             ).int_type_id.active = True
-            # Hide the create button on the location list/form (resilient if views were deleted).
             for view in (
                 self.env.ref(
                     "stock.view_stock_location_list_2_editable",
@@ -202,7 +192,6 @@ class ResConfigSettings(models.TransientModel):
                     ("delivery_steps", "=", "ship_only"),
                 ]
             ).int_type_id.active = False
-            # Restore the create button on the location list/form (resilient if views were deleted).
             for view in (
                 self.env.ref(
                     "stock.view_stock_location_list_2_editable",

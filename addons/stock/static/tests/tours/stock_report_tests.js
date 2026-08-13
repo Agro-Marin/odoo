@@ -25,7 +25,6 @@ registry.category("web_tour.tours").add("test_stock_route_diagram_report", {
 
 registry.category("web_tour.tours").add("test_context_from_warehouse_filter", {
     steps: () => [
-        // Add "foo" to the warehouse context key
         {
             trigger: ".o_searchview_input",
             run: "click",
@@ -38,7 +37,6 @@ registry.category("web_tour.tours").add("test_context_from_warehouse_filter", {
             trigger: ".o-dropdown-item:contains(Warehouse):contains(foo)",
             run: "click",
         },
-        // Add warehouse A's id to the warehouse context key
         {
             trigger: ".o_searchview_input",
             run: "click",
@@ -55,7 +53,6 @@ registry.category("web_tour.tours").add("test_context_from_warehouse_filter", {
             trigger: ".o-dropdown-item.o_indent:contains(Warehouse A) a",
             run: "click",
         },
-        // Add warehouse B's id to the warehouse context key
         {
             trigger: ".o_searchview_input",
             run: "edit warehouse",

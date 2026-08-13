@@ -149,10 +149,6 @@ class StockScrap(models.Model):
         )
         if len(company_warehouses) == 0 and self.company_id:
             self.env["stock.warehouse"]._warehouse_redirect_warning()
-        # First warehouse per company in the search order (`sequence, id`): the
-        # deterministic "main" warehouse, instead of re-grouping the very same
-        # records through an unordered array_agg (whose first element was
-        # arbitrary in multi-warehouse companies).
         locations_per_company = {}
         for warehouse in company_warehouses:
             locations_per_company.setdefault(
@@ -172,14 +168,6 @@ class StockScrap(models.Model):
 
     @api.depends("company_id")
     def _compute_scrap_location_id(self):
-        # Flagless default (upstream 53181c7ac4d dropped the scrap_location
-        # flag: any inventory-loss location qualifies, and this fork does not
-        # provision a per-company "Scrap" location). A company can designate
-        # its dedicated scrap location explicitly through the external id
-        # `stock.stock_location_scrap_company_<company_id>` (locale-proof,
-        # unlike the previous preference for a location literally named
-        # "Scrap"); otherwise fall back to the company's first (lowest id)
-        # inventory-loss location, deterministically.
         locations = self.env["stock.location"].search_fetch(
             [("company_id", "in", self.company_id.ids), ("usage", "=", "inventory")],
             ["company_id"],
@@ -276,10 +264,6 @@ class StockScrap(models.Model):
         self._check_company()
         already_done = self.filtered(lambda s: s.state == "done")
         if already_done:
-            # Guard against re-validation (stale dialog, RPC retry, or the
-            # insufficient-qty wizard re-entering): a second pass would draw a new
-            # sequence -- orphaning the reference on the already-posted move -- and
-            # create a second scrap move, decrementing stock twice.
             raise UserError(
                 _(
                     "The following scrap orders are already done and cannot be "
@@ -288,13 +272,10 @@ class StockScrap(models.Model):
                 )
             )
         for scrap in self:
-            # Draw from the scrap's own company sequence, not `env.company`'s:
-            # each company provisions its own `stock.scrap` sequence.
             scrap.name = self.env["ir.sequence"].with_company(
                 scrap.company_id
             ).next_by_code("stock.scrap") or _("New")
             move = scrap._create_scrap_move()
-            # master: replace context by cancel_backorder
             move.with_context(is_scrap=True)._action_done()
             scrap.write({"state": "done"})
             scrap.date_done = fields.Datetime.now()

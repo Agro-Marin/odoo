@@ -23,9 +23,6 @@ class TestShowDetailsVisible(TestStockCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Neutralize the two groups that would otherwise open the gate on their
-        # own, so the Packages group is what decides visibility. Done at the group
-        # level (implications + memberships) and rolled back with the test txn.
         Groups = cls.env["res.groups"]
         for xmlid in (
             "stock.group_stock_multi_locations",
@@ -37,13 +34,11 @@ class TestShowDetailsVisible(TestStockCommon):
             )
             grp.write({"user_ids": [Command.clear()]})
 
-        # A user that has ONLY the Packages group among the three revealing groups.
         cls.pack_user = new_test_user(
             cls.env,
             login="show_details_pack_user",
             groups="base.group_user,stock.group_stock_user,stock.group_tracking_lot",
         )
-        # A user with NONE of the three revealing groups.
         cls.plain_user = new_test_user(
             cls.env,
             login="show_details_plain_user",

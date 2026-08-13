@@ -11,7 +11,6 @@ class TestReportStockQuantity(tests.TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # freeze time to avoid test errors due to the class being initialized before 00:00:00 and the test run after
         cls.fake_today = fields.Date.today()
         cls.startClassPatcher(freeze_time(cls.fake_today))
         cls.product1 = cls.env["product.product"].create(
@@ -29,7 +28,6 @@ class TestReportStockQuantity(tests.TransactionCase):
         cls.uom_unit = cls.env.ref("uom.product_uom_unit")
         cls.customer_location = cls.env.ref("stock.stock_location_customers")
         cls.supplier_location = cls.env.ref("stock.stock_location_suppliers")
-        # replenish
         cls.move1 = cls.env["stock.move"].create(
             {
                 "location_id": cls.supplier_location.id,
@@ -42,7 +40,6 @@ class TestReportStockQuantity(tests.TransactionCase):
                 "date": fields.Datetime.now(),
             }
         )
-        # ship
         cls.move2 = cls.env["stock.move"].create(
             {
                 "location_id": cls.wh.lot_stock_id.id,
@@ -139,7 +136,6 @@ class TestReportStockQuantity(tests.TransactionCase):
                 "is_storable": True,
             }
         )
-        # get auto-created pull rule from when warehouse is created
         self.wh.reception_route_id.rule_ids.unlink()
         self.env["stock.rule"].create(
             {
@@ -172,7 +168,6 @@ class TestReportStockQuantity(tests.TransactionCase):
         )
         delivery_picking.action_confirm()
 
-        # Trigger the manual orderpoint creation for missing product
         self.env.flush_all()
         self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
 
@@ -191,7 +186,6 @@ class TestReportStockQuantity(tests.TransactionCase):
                 ("location_dest_id", "=", self.wh.lot_stock_id.id),
             ]
         )
-        # Simulate a supplier delay
         move.date = fields.Datetime.now() + timedelta(days=1)
         orderpoint = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", self.product_replenished.id)]
@@ -239,7 +233,6 @@ class TestReportStockQuantity(tests.TransactionCase):
             product, wh01.lot_stock_id, 3, in_date=two_days_ago
         )
 
-        # Let's have 2 inter-warehouses stock moves (one for today and one for two days from now)
         move01, move02 = self.env["stock.move"].create(
             [
                 {
@@ -275,17 +268,16 @@ class TestReportStockQuantity(tests.TransactionCase):
         for (date_day, warehouse, qty_rd), qty in zip(
             data,
             [
-                # wh01_qty, wh02_qty
                 3.0,
-                0.0,  # two days ago
+                0.0,
                 3.0,
                 0.0,
                 2.0,
-                1.0,  # today
+                1.0,
                 2.0,
                 1.0,
                 1.0,
-                2.0,  # in two days
+                2.0,
             ],
             strict=False,
         ):
@@ -316,7 +308,6 @@ class TestReportStockQuantity(tests.TransactionCase):
                 )
             )
 
-        # We add a second warehouse and put the resuplying flow in push mechanic to test receipt in 2 steps with an external transfer
         warehouse, warehouse_2 = (
             self.wh,
             self.env["stock.warehouse"].create(
@@ -421,12 +412,12 @@ class TestReportStockQuantity(tests.TransactionCase):
             (
                 move_in.date - timedelta(days=1),
                 (0.0, 50.0),
-            ),  # The backorder of move_in contributes in the incoming qty
+            ),
             (move_pick.date - timedelta(days=1), (100.0, 150.0)),
             (
                 move_out.date - timedelta(days=1),
                 (100.0, 115.0),
-            ),  # The backorder of move_out contributes in the outgoing qty
+            ),
             (today - timedelta(days=1), (75.0, 90.0)),
         ):
             qty = get_inv_qty_at_date(product.id, date)

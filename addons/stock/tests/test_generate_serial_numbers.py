@@ -22,8 +22,6 @@ class TestGenerateLotNames(TransactionCase):
         self.assertEqual(self._names("sn05", 3), ["sn05", "sn06", "sn07"])
 
     def test_padding_grows_on_overflow(self):
-        # padding=2; once the counter needs 3 digits, zfill(2) is a no-op and the
-        # width grows naturally rather than truncating.
         self.assertEqual(self._names("sn98", 4), ["sn98", "sn99", "sn100", "sn101"])
         self.assertEqual(self._names("098", 5), ["098", "099", "100", "101", "102"])
 
@@ -31,8 +29,6 @@ class TestGenerateLotNames(TransactionCase):
         self.assertEqual(self._names("SN0001-A", 2), ["SN0001-A", "SN0002-A"])
 
     def test_only_last_number_group_increments(self):
-        # BAV023B00001S00001: several digit groups; only the trailing one is the
-        # series counter, the earlier ones are frozen into the prefix.
         self.assertEqual(
             self._names("BAV023B00001S00001", 3),
             ["BAV023B00001S00001", "BAV023B00001S00002", "BAV023B00001S00003"],
@@ -128,12 +124,9 @@ class StockGenerateCommon(TransactionCase):
         move._do_unreserve()
         move._generate_serial_numbers("001", nbre_of_lines)
 
-        # Checks new move lines have the right SN
         generated_numbers = ["001", "002", "003", "004", "005"]
         self.assertEqual(len(move.move_line_ids), len(generated_numbers))
         for move_line in move.move_line_ids:
-            # For a product tracked by SN, the `quantity` is set on 1 when
-            # `lot_name` is set.
             self.assertEqual(move_line.quantity, 1)
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
@@ -142,11 +135,9 @@ class StockGenerateCommon(TransactionCase):
         are correctly used.
         """
         nbre_of_lines = 10
-        # Case #1: Prefix, no suffix
         move = self.get_new_move(nbre_of_lines)
         move._do_unreserve()
         move._generate_serial_numbers("bilou-87", nbre_of_lines)
-        # Checks all move lines have the right SN
         generated_numbers = [
             "bilou-87",
             "bilou-88",
@@ -160,16 +151,12 @@ class StockGenerateCommon(TransactionCase):
             "bilou-96",
         ]
         for move_line in move.move_line_ids:
-            # For a product tracked by SN, the `quantity` is set on 1 when
-            # `lot_name` is set.
             self.assertEqual(move_line.quantity, 1)
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
-        # Case #2: No prefix, suffix
         move = self.get_new_move(nbre_of_lines)
         move._do_unreserve()
         move._generate_serial_numbers("005-ccc", nbre_of_lines)
-        # Checks all move lines have the right SN
         generated_numbers = [
             "005-ccc",
             "006-ccc",
@@ -183,15 +170,11 @@ class StockGenerateCommon(TransactionCase):
             "014-ccc",
         ]
         for move_line in move.move_line_ids:
-            # For a product tracked by SN, the `quantity` is set on 1 when
-            # `lot_name` is set.
             self.assertEqual(move_line.quantity, 1)
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
-        # Case #3: Prefix + suffix
         move = self.get_new_move(nbre_of_lines)
         move._generate_serial_numbers("alpha-012-345-beta", nbre_of_lines)
-        # Checks all move lines have the right SN
         generated_numbers = [
             "alpha-012-345-beta",
             "alpha-012-346-beta",
@@ -205,15 +188,11 @@ class StockGenerateCommon(TransactionCase):
             "alpha-012-354-beta",
         ]
         for move_line in move.move_line_ids:
-            # For a product tracked by SN, the `quantity` is set on 1 when
-            # `lot_name` is set.
             self.assertEqual(move_line.quantity, 1)
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
-        # Case #4: Prefix + suffix, identical number pattern
         move = self.get_new_move(nbre_of_lines)
         move._generate_serial_numbers("BAV023B00001S00001", nbre_of_lines)
-        # Checks all move lines have the right SN
         generated_numbers = [
             "BAV023B00001S00001",
             "BAV023B00001S00002",
@@ -227,15 +206,12 @@ class StockGenerateCommon(TransactionCase):
             "BAV023B00001S00010",
         ]
         for move_line in move.move_line_ids:
-            # For a product tracked by SN, the `quantity` is set on 1 when
-            # `lot_name` is set.
             self.assertEqual(move_line.quantity, 1)
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
     def test_generate_03_raise_exception(self):
         """Tries to generate some SN but with invalid initial number."""
         move = self.get_new_move(3)
-        # Must raise an exception because `next_serial_count` must be greater than 0.
         with self.assertRaises(ValidationError):
             move._generate_serial_numbers("code-xxx", 0)
 
@@ -254,21 +230,15 @@ class StockGenerateCommon(TransactionCase):
         move = self.get_new_move(nbre_of_lines)
         move._do_unreserve()
         move._generate_serial_numbers("001", 3)
-        # Second assignment
         move._generate_serial_numbers("bilou-64", 2)
-        # Third assignment
         move._generate_serial_numbers("ro-1337-bot", 4)
 
-        # Checks all move lines have the right SN
         generated_numbers = [
-            # Correspond to the first assignment
             "001",
             "002",
             "003",
-            # Correspond to the second assignment
             "bilou-64",
             "bilou-65",
-            # Correspond to the third assignment
             "ro-1337-bot",
             "ro-1338-bot",
             "ro-1339-bot",
@@ -295,19 +265,15 @@ class StockGenerateCommon(TransactionCase):
             }
         )
 
-        # Checks a first time without putaway...
         move = self.get_new_move(nbre_of_lines)
         move._generate_serial_numbers("001", nbre_of_lines)
 
         for move_line in move.move_line_ids:
             self.assertEqual(move_line.quantity, 1)
-            # The location dest must be the default one.
             self.assertEqual(move_line.location_dest_id.id, self.location_dest.id)
 
-        # We need to activate multi-locations to use putaway rules.
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [(4, grp_multi_loc.id)]})
-        # Creates a putaway rule
         self.env["stock.putaway.rule"].create(
             {
                 "product_id": self.product_serial.id,
@@ -316,14 +282,12 @@ class StockGenerateCommon(TransactionCase):
             }
         )
 
-        # Checks now with putaway...
         move = self.get_new_move(nbre_of_lines)
         move._do_unreserve()
         move._generate_serial_numbers("001", nbre_of_lines)
 
         for move_line in move.move_line_ids:
             self.assertEqual(move_line.quantity, 1)
-            # The location dest must be now the one from the putaway.
             self.assertEqual(move_line.location_dest_id.id, shelf_location.id)
 
     def test_generate_with_putaway_02(self):
@@ -340,7 +304,6 @@ class StockGenerateCommon(TransactionCase):
             {"group_ids": [(4, self.env.ref("stock.group_stock_multi_locations").id)]}
         )
 
-        # max 1 x product_serial
         stor_category = self.env["stock.storage.category"].create(
             {
                 "name": "Super Storage Category",
@@ -357,8 +320,6 @@ class StockGenerateCommon(TransactionCase):
             }
         )
 
-        # 5 sub locations with the storage category
-        # (the last one should never be used)
         sub_loc_01, sub_loc_02, sub_loc_03, sub_loc_04, _dummy = self.env[
             "stock.location"
         ].create(
@@ -383,7 +344,6 @@ class StockGenerateCommon(TransactionCase):
             }
         )
 
-        # Receive 1 x P
         receipt_picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.warehouse.in_type_id.id,
@@ -520,7 +480,6 @@ class StockGenerateCommon(TransactionCase):
             }
         )
 
-        # Test 'Generate Serial/Lots' action, from the detailed operations view
         action_context = {
             "default_company_id": self.env.company.id,
             "default_picking_id": receipt_picking.id,
@@ -565,7 +524,6 @@ class StockGenerateCommon(TransactionCase):
             ],
         )
 
-        # Test 'Assign Serial Numbers' action from the operation tree view
         move._generate_serial_numbers("sn-t2-01", 5)
         sn_t2_01, sn_t2_02, sn_t2_03, sn_t2_04, sn_t2_05 = self.env["stock.lot"].search(
             [
@@ -601,7 +559,6 @@ class StockGenerateCommon(TransactionCase):
             }
         )
 
-        # Simulate context provided from JS side, cf addons/stock/static/src/widgets/generate_serial.js:63-68
         action_context = {
             "default_company_id": self.env.company.id,
             "default_picking_id": receipt_picking.id,
@@ -728,7 +685,6 @@ class StockGenerateCommon(TransactionCase):
         before = seq.number_next_actual
         next_char = seq.get_next_char(before)
 
-        # Paste a list whose first name equals the sequence's next char.
         self.env["stock.move"].action_generate_lot_line_vals(
             action_context,
             "import",

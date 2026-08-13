@@ -36,8 +36,6 @@ class StockBackorderConfirmation(models.TransientModel):
                 (0, 0, {"to_backorder": True, "picking_id": pick_id})
                 for pick_id in res["pick_ids"][0][2]
             ]
-            # default_get returns x2m values as [(6, 0, ids)]
-            # because of webclient limitations
         return res
 
     def _check_less_quantities_than_expected(self, pickings):

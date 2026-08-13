@@ -33,9 +33,6 @@ defineModels([Picking]);
 defineMailModels();
 
 test("rescheduling popover mounts with default color/icon getters", async () => {
-    // Locks the getter-based overrides: the previous setup() assignments threw
-    // a TypeError (assignment through the base class' getter-only accessors),
-    // crashing any view containing the widget.
     await mountView({
         type: "form",
         resModel: "picking",
@@ -62,9 +59,7 @@ test("rescheduling popover honors custom color/icon and late-elements guard", as
             </form>`,
         resId: 2,
     });
-    // Bare icon names get the fa-solid family; custom color wins over default.
     expect(".fa-solid.fa-clock.text-warning").toHaveCount(1);
-    // Without late_elements, showPopup is a no-op.
     await contains(".fa-solid.fa-clock").click();
     expect(".popover").toHaveCount(0);
 });

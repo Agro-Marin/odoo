@@ -7,15 +7,7 @@ import { KanbanRenderer, kanbanView } from "@web/views/kanban";
 export class StockDashboardKanbanRenderer extends KanbanRenderer {
     setup() {
         super.setup();
-        // Parsed graph JSON per record, keyed on the raw string so a record's
-        // value is re-parsed only when it actually changes — not on every
-        // render.
         this._graphCache = new WeakMap();
-        // Renderer-local signal consumed by PickingTypeDashboardGraphField:
-        // when every card's graph is server-tagged "sample" (no real data
-        // anywhere on the dashboard), the graph fields render lively random
-        // bars instead of flat zeros. The fabricated values stay local to the
-        // field components — `record.data` is never written to.
         useSubEnv({ stockDashboardAllSample: () => this.allGraphsAreSample() });
     }
 

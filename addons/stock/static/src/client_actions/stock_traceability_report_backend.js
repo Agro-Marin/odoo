@@ -62,8 +62,6 @@ export class TraceabilityReport extends Component {
         } = this.props.action.context;
         this.controllerUrl = url;
 
-        // Shallow-copy: the following Object.assign must not mutate the live
-        // action.context object shared with the framework.
         this.context = { ...(context || {}) };
         Object.assign(this.context, {
             active_id: active_id || this.props.action.params.active_id,
@@ -136,9 +134,6 @@ export class TraceabilityReport extends Component {
                 active_model: line.model,
                 auto_unfold: true,
                 lot_name: line.lot_name || false,
-                // Must carry the :active_id/:active_model placeholders that
-                // onClickPrint() substitutes; without them Print builds a broken
-                // URL (see stock_traceability_report_data.xml for the canonical form).
                 url: "/stock/output_format?active_id=:active_id&active_model=:active_model",
             },
         });
@@ -146,9 +141,6 @@ export class TraceabilityReport extends Component {
 
     onClickPrint() {
         if (!this.controllerUrl) {
-            // No print URL in the action context (e.g. a programmatic launch of
-            // stock_report_generic): nothing to print, so bail instead of throwing
-            // on .replace of undefined.
             return;
         }
         const data = JSON.stringify(extractPrintData(this.state.lines));
@@ -163,16 +155,12 @@ export class TraceabilityReport extends Component {
         });
     }
 
-    /** Dynamic fold-toggle labels (a11y): reflect the line's current state. */
     foldLabel(line) {
         return line.isFolded ? _t("Unfold") : _t("Fold");
     }
 
     async toggleLine(line) {
         line.isFolded = !line.isFolded;
-        // Pending-guard: while the children RPC is in flight `line.lines` is
-        // still empty, so a second toggle would fire a duplicate RPC and
-        // desync the fold state from the (twice-) loaded rows.
         if (!line.lines.length && !line.linesLoading) {
             line.linesLoading = true;
             try {

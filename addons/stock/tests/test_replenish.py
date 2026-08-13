@@ -155,8 +155,6 @@ class TestStockReplenish(TestStockCommon):
             }
         )
 
-        # An unrelated move for product B, present in the same transaction with a
-        # lower id than the move the wizard is about to create.
         self.env["stock.move"].create(
             {
                 "product_id": product_b.id,

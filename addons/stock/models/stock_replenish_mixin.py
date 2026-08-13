@@ -23,13 +23,7 @@ class StockReplenishMixin(models.AbstractModel):
         route_ids = self.env["stock.route"].search(domain)
         self.allowed_route_ids = route_ids
 
-    # TODO: remove dynamic domain
-    # Overridden in 'Drop Shipping' and 'Dropship and Subcontracting Management'
-    # to exclude the dropshipping route from the allowed routes.
     def _get_allowed_route_domain(self):
-        # raise_if_not_found=False: the record is deletable and the rest of the
-        # module already guards this ref — a missing transit location must not
-        # crash the replenish wizard.
         inter_company_location = self.env.ref(
             "stock.stock_location_inter_company", raise_if_not_found=False
         )
@@ -44,15 +38,9 @@ class StockReplenishMixin(models.AbstractModel):
 
         domains = [
             base_domain,
-            # "Any rule delivering inside a warehouse" is intended `any`
-            # semantics and stays a plain o2m path condition.
             Domain("rule_ids.location_dest_id.warehouse_id", "!=", False),
         ]
         if inter_company_location:
-            # `not any`, not a `!=` path condition: `rule_ids.location_src_id
-            # != X` matches routes having ANY rule whose source differs from X
-            # (i.e. almost all of them, inter-company ones included). The intent
-            # is routes with NO rule touching the inter-company location.
             domains += [
                 Domain(
                     "rule_ids",

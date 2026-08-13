@@ -50,10 +50,6 @@ class TestAuditFixesV2(TestStockCommon):
         picking.action_confirm()
         return picking
 
-    # ------------------------------------------------------------
-    # availability: cancelled / done siblings must not poison the picking
-    # ------------------------------------------------------------
-
     def test_cancelled_sibling_move_availability(self):
         """A picking whose only shortage is a *cancelled* move is Available."""
         self.env["stock.quant"]._update_available_quantity(
@@ -67,7 +63,6 @@ class TestAuditFixesV2(TestStockCommon):
 
         self.assertEqual(picking.products_availability_state, "available")
         self.assertEqual(picking.products_availability, "Available")
-        # The search classifier must agree with the display.
         matched = self.env["stock.picking"].search(
             [
                 ("id", "=", picking.id),
@@ -97,10 +92,6 @@ class TestAuditFixesV2(TestStockCommon):
             "a done sibling move must not report the picking as late",
         )
 
-    # ------------------------------------------------------------
-    # return wizard: never propose a negative return quantity
-    # ------------------------------------------------------------
-
     def test_return_all_never_negative(self):
         """Over-returning then "Return All" floors the quantity at 0 instead of
         creating a negative-demand move (it raises a clean "nothing to return").
@@ -113,8 +104,6 @@ class TestAuditFixesV2(TestStockCommon):
         picking.move_ids.picked = True
         picking._action_done()
 
-        # Over-return: push the returned quantity above what was delivered so
-        # the "already returned" total exceeds the 5 that went out.
         wizard = (
             self.env["stock.return.picking"]
             .with_context(active_id=picking.id, active_model="stock.picking")
@@ -127,9 +116,6 @@ class TestAuditFixesV2(TestStockCommon):
         return_picking.move_ids.quantity = 8.0
         return_picking._action_done()
 
-        # "Return All" now floors to 0 for the fully-returned line. The wizard
-        # must not build a negative-demand return: no return move with a
-        # negative quantity may exist, and the flow raises "nothing to return".
         wizard2 = (
             self.env["stock.return.picking"]
             .with_context(active_id=picking.id, active_model="stock.picking")
@@ -150,10 +136,6 @@ class TestAuditFixesV2(TestStockCommon):
         self.assertFalse(
             negative_returns, "no negative-demand return move must be created"
         )
-
-    # ------------------------------------------------------------
-    # security: plain internal users are read-only on stock.move.line
-    # ------------------------------------------------------------
 
     def test_move_line_plain_user_read_only(self):
         """A base.group_user with no stock role cannot create move lines."""
@@ -176,17 +158,10 @@ class TestAuditFixesV2(TestStockCommon):
                 }
             )
 
-    # ------------------------------------------------------------
-    # serial recommendation: ancestry, not parent_path substring
-    # ------------------------------------------------------------
-
     def test_sn_recommendation_uses_child_of(self):
         """`_child_of` must reject a substring `parent_path` false positive."""
         Location = self.env["stock.location"]
         parent = Location.create({"name": "SN Parent", "usage": "internal"})
-        # A sibling subtree whose parent_path can contain the other's id as a
-        # substring (e.g. ".../5/" inside ".../15/"). The exact ids are assigned
-        # by the DB; `_child_of` must still only match true ancestry.
         child = Location.create(
             {"name": "SN Child", "usage": "internal", "location_id": parent.id}
         )

@@ -1,10 +1,6 @@
 import { expect, test } from "@odoo/hoot";
 import { ForecastedDetails } from "@stock/stock_forecasted/forecasted_details";
 
-/**
- * The grouping/merge pipeline is pure (props in, plain members out): exercise
- * it on a bare prototype instance, without OWL mounting or services.
- */
 function makeDetails(docs) {
     const details = Object.create(ForecastedDetails.prototype);
     details.props = { docs };
@@ -15,8 +11,6 @@ function makeDetails(docs) {
 const doc = (id, name) => ({ id, _name: "stock.picking", name });
 
 function makeDocs() {
-    // Product 7: two on-hand lines (one reserved) + a zero-qty free-stock line.
-    // Product 9: one reconciled line, no free stock.
     const onHand1 = {
         product: { id: 7 },
         document_in: false,
@@ -76,7 +70,6 @@ test("grouping and totals per product", () => {
     expect(details.OnHandLinesPerProduct[7]).toEqual([lines.onHand1, lines.onHand2]);
     expect(details.ReconciledLinesPerProduct[9]).toEqual([lines.reconciled]);
     expect(details.OnHandTotalQty[7]).toBe(7);
-    // Reserved quantities are excluded from the available total.
     expect(details.AvailableOnHandTotalQty[7]).toBe(3);
     expect(details.isOnHand(lines.onHand1)).toBe(true);
     expect(details.isOnHand(lines.reconciled)).toBe(false);
@@ -94,7 +87,6 @@ test("derivation never mutates the parent-owned docs.lines", () => {
     const { docs, lines } = makeDocs();
     const original = [...docs.lines];
     const details = makeDetails(docs);
-    // The dropped zero-qty free stock line is removed from the local copy only.
     expect(details.lines).not.toBe(docs.lines);
     expect(docs.lines).toEqual(original);
     expect(docs.lines).toInclude(lines.freeStockZero);
@@ -114,17 +106,13 @@ test("re-deriving from new docs replaces the local line list", () => {
 test("adjacent on-hand lines of a product merge into one rowspan", () => {
     const { docs } = makeDocs();
     const details = makeDetails(docs);
-    // onHand1/onHand2 sit at indices 0-1 after the free-stock line removal.
     expect(details.mergesLinesData[0]).toEqual({ rowcount: 2, tot_qty: 7 });
-    // The reconciled line of the other product does not extend the merge.
     expect(details.mergesLinesData[2]).toBe(undefined);
 });
 
 test("displayReserve takes the line index explicitly", () => {
     const { docs, lines } = makeDocs();
     const details = makeDetails(docs);
-    // On-hand line: reservable regardless of the previous-line heuristic.
     expect(details.displayReserve(lines.onHand1, 0)).toBe(true);
-    // Reconciled line of a product without free stock: not reservable.
     expect(details.displayReserve(lines.reconciled, 2)).toBe(false);
 });

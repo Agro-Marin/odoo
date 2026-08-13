@@ -64,7 +64,7 @@ def migrate(cr, version):
     :param version: installed module version; falsy on a fresh install
     """
     if not version:
-        return  # fresh install: the ORM creates quantity_packaging_uom directly
+        return
 
     if column_exists(cr, "stock_move", "packaging_uom_qty") and not column_exists(
         cr, "stock_move", "quantity_packaging_uom"
@@ -74,7 +74,6 @@ def migrate(cr, version):
             'RENAME COLUMN "packaging_uom_qty" TO "quantity_packaging_uom"'
         )
 
-    # Whole-word rewrite in stored view arch (jsonb) for both renamed tokens.
     cr.execute(
         f"""
         UPDATE ir_ui_view
@@ -83,7 +82,6 @@ def migrate(cr, version):
         """
     )
 
-    # User-created filters referencing the old field name or the old method.
     cr.execute(
         f"""
         UPDATE ir_filters
@@ -95,8 +93,6 @@ def migrate(cr, version):
         """
     )
 
-    # Exported field name — export lines only ever reference field paths, so
-    # only the field-rename pair applies here (exact match, like 1.3).
     cr.execute(
         """
         UPDATE ir_exports_line l
@@ -108,8 +104,6 @@ def migrate(cr, version):
         """
     )
 
-    # Server actions (ir.actions.server) whose Python code references either
-    # old token — closes the A9 gap left open by the 1.3 migration.
     cr.execute(
         f"""
         UPDATE ir_act_server

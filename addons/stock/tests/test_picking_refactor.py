@@ -114,9 +114,8 @@ class TestPickingRefactor(TestStockCommon):
                 "date_deadline": datetime(2026, 1, 1),
             },
         )
-        # deadline (Jan) is before the scheduled date (Feb) -> late
         self.assertTrue(picking.has_deadline_issue)
-        move.date_deadline = datetime(2026, 3, 1)  # now after the scheduled date
+        move.date_deadline = datetime(2026, 3, 1)
         self.assertFalse(picking.has_deadline_issue)
 
     def test_show_allocation_batched_matches_per_picking(self):
@@ -146,7 +145,6 @@ class TestPickingRefactor(TestStockCommon):
         )
         receipt.action_confirm()
 
-        # No demand in the warehouse yet -> nothing to allocate.
         receipt.invalidate_recordset(["show_allocation"])
         self.assertFalse(receipt.show_allocation)
         self.assertEqual(
@@ -154,7 +152,6 @@ class TestPickingRefactor(TestStockCommon):
             bool(receipt._get_show_allocation(receipt.picking_type_id)),
         )
 
-        # Outgoing demand for the same product, sourced from stock -> allocatable.
         delivery = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -220,7 +217,6 @@ class TestPickingRefactor(TestStockCommon):
             [{**common, "quantity": q} for q in (3.0, 2.0, 3.0)],
         )
         picking.invalidate_recordset(["weight_bulk"])
-        # (3 + 2 + 3) units * 2.0 kg/unit
         self.assertEqual(picking.weight_bulk, 16.0)
 
     def test_get_report_lang_requires_single_record(self):
@@ -327,7 +323,6 @@ class TestPickingRefactor(TestStockCommon):
                     ],
                 },
             )
-        # Before the fix this raised "Expected singleton: stock.picking.type(...)".
         actions = pickings._get_autoprint_report_actions()
         self.assertEqual(
             len(actions),
@@ -443,7 +438,7 @@ class TestPickingRefactor(TestStockCommon):
                 "location_dest_id": self.customer_location.id,
             },
         )
-        picking.action_confirm()  # no stock -> stays confirmed, quantity 0
+        picking.action_confirm()
         with self.assertRaises(UserError):
             picking.button_validate()
 
@@ -479,7 +474,6 @@ class TestPickingRefactor(TestStockCommon):
         self.assertEqual(not_to_bo, never_pick)
         self.assertEqual(to_bo, ask_pick)
 
-        # The context override moves an otherwise-backorderable picking to the no-BO side.
         to_bo, not_to_bo = pickings.with_context(
             picking_ids_not_to_backorder=ask_pick.ids,
         )._split_backorder_pickings()
@@ -532,7 +526,7 @@ class TestPickingRefactor(TestStockCommon):
         real_move.quantity = 5
         scrap_move.quantity = 3
         real_move.picked = False
-        scrap_move.picked = True  # a scrap move already picked
+        scrap_move.picked = True
 
         picking.with_context(skip_backorder=True)._pre_action_done_hook()
 
@@ -603,8 +597,6 @@ class TestPickingRefactor(TestStockCommon):
                 "quantity": 3.0,
             },
         )
-        # Prime the caches, then mutate quantity and re-read: correct values must come
-        # from `@api.depends` invalidation alone.
         self.assertEqual(picking.shipping_volume, 6.0, "3 units * 2.0 volume/unit")
         self.assertEqual(picking.weight_bulk, 12.0, "3 units * 4.0 kg/unit")
         move_line.quantity = 5.0
@@ -651,7 +643,6 @@ class TestPickingRefactor(TestStockCommon):
 
         incoming = make(self.picking_type_in)
         outgoing = make(self.picking_type_out)
-        # Precondition: the field itself distinguishes them.
         self.assertFalse(incoming.products_availability_state)
         self.assertEqual(outgoing.products_availability_state, "available")
 
@@ -691,10 +682,8 @@ class TestPickingRefactor(TestStockCommon):
         by `date_category_to_domain`.
         """
         self.env.user.tz = "UTC"
-        dt = datetime(2024, 6, 6, 2, 0)  # 02:00 UTC -> "today" for a UTC user
+        dt = datetime(2024, 6, 6, 2, 0)
         old_tz = os.environ.get("TZ")
-        # UTC+6 server: the old code shifted 02:00 to 2024-06-05 20:00 UTC
-        # ("yesterday").
         os.environ["TZ"] = "Etc/GMT-6"
         time.tzset()
         try:
@@ -776,12 +765,8 @@ class TestPickingRefactor(TestStockCommon):
         picking_b = make_internal(self.shelf_2)
         pair = picking_a | picking_b
 
-        # Per-picking semantics (field + singleton fast path): the sibling's open
-        # move is allocatable demand.
         self.assertTrue(pair._get_show_allocation_map()[picking_a])
         self.assertTrue(picking_a._get_show_allocation_map()[picking_a])
-        # Excluding the whole set removes the sibling demand — on both the
-        # singleton fast path and the batched path.
         self.assertFalse(
             picking_a._get_show_allocation_map(excluded_pickings=pair)[picking_a],
         )
@@ -812,7 +797,7 @@ class TestPickingRefactor(TestStockCommon):
                 },
             )
             if confirm:
-                picking.action_confirm()  # no stock -> stays confirmed, quantity 0
+                picking.action_confirm()
             return picking
 
         zero_picking = make_delivery(confirm=True)
@@ -825,8 +810,6 @@ class TestPickingRefactor(TestStockCommon):
 
         draft_picking = make_delivery(confirm=False)
         self.assertEqual(draft_picking.state, "draft")
-        # Must not raise: the draft picking's quantities are backfilled later by
-        # `button_validate` (and the batch flow checks before confirmation).
         (draft_picking | ok_picking)._sanity_check()
 
     def test_search_date_category_ignores_unknown_values(self):
@@ -834,7 +817,7 @@ class TestPickingRefactor(TestStockCommon):
         nothing instead of crashing, and must not swallow valid values passed
         alongside them.
         """
-        picking = self._new_picking(self.picking_type_out)  # scheduled now: "today"
+        picking = self._new_picking(self.picking_type_out)
         self.assertFalse(
             self.PickingObj.search([("search_date_category", "in", ["bogus"])]),
         )
@@ -851,7 +834,7 @@ class TestPickingRefactor(TestStockCommon):
         11:00 UTC (23:00 local, yesterday) is late; the old UTC-date cutoff
         (2024-06-06 00:00) missed it.
         """
-        self.env.user.tz = "Pacific/Auckland"  # UTC+12 in June
+        self.env.user.tz = "Pacific/Auckland"
         picking_type = self.picking_type_out
         count_before = picking_type.count_picking_late
 
@@ -895,7 +878,7 @@ class TestPickingRefactor(TestStockCommon):
                 "location_dest_id": self.shelf_1.id,
             },
         )
-        picking.action_confirm()  # no stock -> confirmed
+        picking.action_confirm()
         self.assertEqual(picking.state, "confirmed")
         picking.location_id = self.supplier_location
         self.assertEqual(

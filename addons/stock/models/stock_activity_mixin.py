@@ -39,9 +39,6 @@ class StockActivityMixin(models.AbstractModel):
             (document to log on, responsible for that document)
         """
         if self.env.context.get("skip_activity") or not orig_obj_changes:
-            # No changes means no documents to notify. Without the guard the model
-            # name below is taken from `next(iter(...))`, which raises StopIteration
-            # -- a bad failure for a method five modules call with a dict they built.
             return {}
         move_to_orig_object_rel = {
             co: ooc for ooc in orig_obj_changes for co in ooc[stream_field]
@@ -49,10 +46,6 @@ class StockActivityMixin(models.AbstractModel):
         origin_objects = self.env[next(iter(orig_obj_changes))._name].concat(
             *orig_obj_changes,
         )
-        # Group each destination object by (document to log, responsible), regardless of
-        # stream direction. E.g.:
-        # {(delivery_picking_1, admin): stock.move(1, 2),
-        #  (delivery_picking_2, admin): stock.move(3)}
         visited_documents = {}
         if stream == "DOWN":
             if groupby_method:
@@ -65,8 +58,6 @@ class StockActivityMixin(models.AbstractModel):
                     "You have to define a groupby method and pass them as arguments.",
                 )
         elif stream == "UP":
-            # Ascending requires `_get_upstream_documents_and_responsibles` to be
-            # defined on the destination objects.
             grouped_moves = {}
             for visited_move in origin_objects.mapped(stream_field):
                 for (

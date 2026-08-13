@@ -29,7 +29,6 @@ class TestCompanyProvisioning(TransactionCase):
         should be reported as missing the property."""
         company = self.env["res.company"].create({"name": "Prov Co"})
         field = self._inventory_default_field()
-        # Replace every per-company default with a single global one.
         self.env["ir.default"].sudo().search([("field_id", "=", field.id)]).unlink()
         loc = self.env["stock.location"].search(
             [("usage", "=", "inventory"), ("company_id", "=", company.id)], limit=1
@@ -82,8 +81,6 @@ class TestCompanyProvisioning(TransactionCase):
         owns records and may be reactivated later. The company enumeration used by
         the ``create_missing_*`` backfills therefore ignores the active flag."""
         company = self.env["res.company"].create({"name": "Archived Co"})
-        # Simulate a company that predates provisioning: strip its transit
-        # location, then archive it.
         company.internal_transit_location_id = False
         company.active = False
         self.assertIn(
@@ -149,7 +146,6 @@ class TestCompanyStockProvisioning(TransactionCase):
         partner.with_company(company)._set_stock_property_locations(transit)
         self.assertEqual(partner.with_company(company).property_stock_customer, transit)
         self.assertEqual(partner.with_company(company).property_stock_supplier, transit)
-        # an empty recordset clears both properties
         partner.with_company(company)._set_stock_property_locations(
             self.env["stock.location"]
         )
@@ -232,7 +228,6 @@ class TestCompanyStockProvisioning(TransactionCase):
             "an archived company without the template must still be backfilled",
         )
 
-        # Idempotent + non-destructive: a custom template survives a second run.
         custom = template.copy({"name": "Custom Confirmation"})
         active.stock_mail_confirmation_template_id = custom
         self.env["res.company"].create_missing_mail_template()
@@ -252,9 +247,6 @@ class TestMultiCompany(TransactionCase):
 
         cls.company_a = cls.env["res.company"].create({"name": "Company A"})
         cls.company_b = cls.env["res.company"].create({"name": "Company B"})
-        # Fetch each company's primary warehouse through the idempotent seam: under
-        # tests res.company.create already provisions one, so this returns those
-        # rather than creating duplicates.
         cls.warehouse_a, cls.warehouse_b = (
             cls.company_a + cls.company_b
         )._create_warehouse()
@@ -310,7 +302,6 @@ class TestMultiCompany(TransactionCase):
         product = self.env["product.product"].create(
             {"name": "horizon prod", "is_storable": True}
         )
-        # Active company is A; the orderpoint belongs to B.
         env_a = self.env(user=self.user_a)
         self.assertEqual(env_a.company, self.company_a)
         orderpoint = env_a["stock.warehouse.orderpoint"].create(
@@ -323,7 +314,6 @@ class TestMultiCompany(TransactionCase):
                 "product_max_qty": 10.0,
             }
         )
-        # No rule delay, so lead_horizon_date = today + horizon_days.
         offset = (orderpoint.lead_horizon_date - fields.Date.today()).days
         self.assertEqual(
             offset,
@@ -612,7 +602,6 @@ class TestMultiCompany(TransactionCase):
             }
         )
         self.assertTrue(lot)
-        # Even without having access to it, it shouldn't be possible to duplicate the lot between a company & no-company.
         with self.assertRaises(ValidationError):
             self.env["stock.lot"].with_user(self.user_b).with_context(
                 allowed_company_ids=self.company_b.ids
@@ -623,7 +612,6 @@ class TestMultiCompany(TransactionCase):
                     "company_id": False,
                 }
             )
-        # But it should be possible to create it in another company.
         lot_b = (
             self.env["stock.lot"]
             .with_user(self.user_b)
@@ -640,7 +628,6 @@ class TestMultiCompany(TransactionCase):
     def test_orderpoint_1(self):
         """As a user of company A, create an orderpoint for company B. Check itsn't possible to
         use a warehouse of companny A"""
-        # Required for `warehouse_id` and `location_id` to be visible in the view
         self.user_a.group_ids += self.env.ref("stock.group_stock_multi_locations")
         product = self.env["product.product"].create(
             {
@@ -663,7 +650,6 @@ class TestMultiCompany(TransactionCase):
         """As a user of Company A, check it is not possible to change the company on an existing
         orderpoint to Company B.
         """
-        # Required for `warehouse_id` and `location_id` to be visible in the view
         self.user_a.group_ids += self.env.ref("stock.group_stock_multi_locations")
         product = self.env["product.product"].create(
             {
@@ -683,8 +669,6 @@ class TestMultiCompany(TransactionCase):
 
     def test_orderpoint_3(self):
         warehouse_a1 = self.warehouse_a
-        # Create a second warehouse the company A
-        # to test the change of location when changing of warehouse within a same company
         warehouse_a2 = (
             self.env["stock.warehouse"]
             .with_user(self.user_a)
@@ -721,8 +705,6 @@ class TestMultiCompany(TransactionCase):
     def test_product_1(self):
         """As an user of Company A, checks we can or cannot create new product
         depending of its `company_id`."""
-        # Creates a new product with no company_id and set a responsible.
-        # The product must be created as there is no company on the product.
         self.user_a.group_ids += self.env.ref("product.group_product_manager")
         product_form = Form(self.env["product.template"].with_user(self.user_a))
         product_form.name = "Paramite Pie"
@@ -732,9 +714,6 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(product.company_id.id, False)
         self.assertEqual(product.responsible_id.id, self.user_b.id)
 
-        # Creates a new product belong to Company A and set a responsible belong
-        # to Company B. The product mustn't be created as the product and the
-        # user don't belong of the same company.
         self.user_b.company_ids = [(6, 0, [self.company_b.id])]
         product_form = Form(self.env["product.template"].with_user(self.user_a))
         product_form.name = "Meech Munchy"
@@ -742,12 +721,8 @@ class TestMultiCompany(TransactionCase):
         product_form.responsible_id = self.user_b
 
         with self.assertRaises(UserError):
-            # Raises an UserError for company incompatibility.
             product = product_form.save()
 
-        # Creates a new product belong to Company A and set a responsible belong
-        # to Company A & B (default B). The product must be created as the user
-        # belongs to product's company.
         self.user_b.company_ids = [(6, 0, [self.company_a.id, self.company_b.id])]
         product_form = Form(self.env["product.template"].with_user(self.user_a))
         product_form.name = "Scrab Cake"
@@ -1157,7 +1132,6 @@ class TestMultiCompany(TransactionCase):
             }
         )
 
-        # Classic flow
         orderpoint._procure_orderpoint_confirm()
         moves = self.env["stock.move"].search([("product_id", "=", product.id)])
         self.assertEqual(len(moves), 2)
@@ -1169,7 +1143,6 @@ class TestMultiCompany(TransactionCase):
         out_move._action_cancel()
         self.assertEqual(out_move.state, "cancel")
 
-        # Propagate cancel
         self.env["ir.config_parameter"].sudo().set_param(
             "stock.cancel_moves_origin", True
         )

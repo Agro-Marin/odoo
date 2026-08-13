@@ -26,7 +26,7 @@ def migrate(cr, version):
     :param version: installed module version; falsy on a fresh install
     """
     if not version:
-        return  # fresh install: the ORM creates product_uom_id directly
+        return
 
     if column_exists(cr, "stock_move", "product_uom") and not column_exists(
         cr, "stock_move", "product_uom_id"
@@ -35,8 +35,6 @@ def migrate(cr, version):
             'ALTER TABLE "stock_move" RENAME COLUMN "product_uom" TO "product_uom_id"'
         )
 
-    # Whole-word rewrite in stored view arch (jsonb) for views not reloaded from
-    # disk before validation runs.
     cr.execute(
         r"""
         UPDATE ir_ui_view
@@ -46,7 +44,6 @@ def migrate(cr, version):
         """
     )
 
-    # User-created filters / exports that reference the old field name.
     cr.execute(
         r"""
         UPDATE ir_filters

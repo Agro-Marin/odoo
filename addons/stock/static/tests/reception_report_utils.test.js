@@ -19,7 +19,6 @@ test("isLineAssignable: unassigned and qty-assignable only", () => {
     expect(isLineAssignable(line())).toBe(true);
     expect(isLineAssignable(line({ is_assigned: true }))).toBe(false);
     expect(isLineAssignable(line({ is_qty_assignable: false }))).toBe(false);
-    // "expected" draft lines expose is_qty_assignable: undefined
     expect(isLineAssignable(line({ is_qty_assignable: undefined }))).toBe(false);
 });
 
@@ -46,7 +45,7 @@ test("collectAssignedLabels rounds quantities up and defaults to 1", () => {
     const lines = [
         line({ move_out_id: 1, quantity: 2.3, is_assigned: true }),
         line({ move_out_id: 2, quantity: 0, is_assigned: true }),
-        line({ move_out_id: 3, quantity: 9 }), // not assigned: skipped
+        line({ move_out_id: 3, quantity: 9 }),
     ];
     expect(collectAssignedLabels(lines)).toEqual({
         docids: [1, 2],

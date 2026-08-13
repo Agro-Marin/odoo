@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for report/wizard/controller layer fixes."""
 
 from collections import defaultdict
@@ -53,7 +52,6 @@ class TestReportWizardFixes(TransactionCase):
         (out_pre | out | in_one | in_two).write({"state": "confirmed"})
         in_one.move_dest_ids = [Command.link(out_pre.id)]
 
-        # `action_assign` iterates the candidate ins in reverse order.
         report.action_assign([out.id], [10.0], [[in_two.id, in_one.id]])
 
         self.assertEqual(

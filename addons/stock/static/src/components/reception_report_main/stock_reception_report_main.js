@@ -35,13 +35,10 @@ export class ReceptionReportMain extends Component {
         useBus(this.env.bus, "update-assign-state", (ev) =>
             this._changeAssignedState(ev.detail),
         );
-        // Guard the global bulk assign against a double-click firing two
-        // concurrent action_assign RPCs (mirrors ReceptionReportLine).
         this.opGuard = useOperationGuard();
         this.onClickAssignAll = this.opGuard.guard(this.onClickAssignAll.bind(this));
 
         onWillStart(async () => {
-            // Check the URL if report was alreadu loaded.
             let defaultDocIds;
             const { rfield, rids } = this.props.action.context.params || {};
             if (rfield && rids) {
@@ -51,31 +48,22 @@ export class ReceptionReportMain extends Component {
                         rfield,
                         parsedIds instanceof Array ? parsedIds : [parsedIds],
                     ];
-                } catch {
-                    // `rids` comes straight from the (user-editable) URL: a
-                    // malformed value falls through to the context defaults
-                    // below instead of crashing the whole action.
-                }
+                } catch {}
             }
             if (!defaultDocIds) {
                 const defaultEntry = Object.entries(this.context).find(([k]) =>
                     k.startsWith("default_"),
                 );
                 if (defaultEntry) {
-                    // Normalize the raw context value to a list — a scalar
-                    // default_*_id must not reach get_report_data as a bare number
-                    // (the rfield/rids branch above already wraps).
                     const [field, value] = defaultEntry;
                     defaultDocIds = [field, Array.isArray(value) ? value : [value]];
                 } else {
-                    // If nothing could be found, just ask for empty data.
                     defaultDocIds = [false, [0]];
                 }
             }
             this.contextDefaultDoc = { field: defaultDocIds[0], ids: defaultDocIds[1] };
 
             if (this.contextDefaultDoc.field) {
-                // Add the fields/ids to the URL, so we can properly reload them after a page refresh.
                 this.props.updateActionState({
                     rfield: this.contextDefaultDoc.field,
                     rids: JSON.stringify(this.contextDefaultDoc.ids),
@@ -110,8 +98,6 @@ export class ReceptionReportMain extends Component {
             { context },
         );
     }
-
-    //---- Handlers ----
 
     async onClickAssignAll() {
         const lines = Object.values(this.state.sourcesToLines).flat();
@@ -153,8 +139,6 @@ export class ReceptionReportMain extends Component {
         }
     }
 
-    //---- Utils ----
-
     _changeAssignedState(options) {
         const { isAssigned, tableIndex, lineIndex } = options;
         const isBulk = isNaN(lineIndex);
@@ -167,10 +151,6 @@ export class ReceptionReportMain extends Component {
                 if (!isBulk && lineIndex !== line.index) {
                     return;
                 }
-                // Bulk assign only flips lines that were actually assignable, so
-                // the UI never marks a non-qty-assignable line as assigned (which
-                // would make Print Labels emit labels for unassigned moves). A
-                // targeted lineIndex (single assign/unassign) always applies.
                 if (isBulk && isAssigned && !isLineAssignable(line)) {
                     return;
                 }
@@ -178,8 +158,6 @@ export class ReceptionReportMain extends Component {
             });
         }
     }
-
-    //---- Getters ----
 
     get context() {
         return this.props.action.context;

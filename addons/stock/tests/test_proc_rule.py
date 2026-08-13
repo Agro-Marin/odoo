@@ -62,7 +62,6 @@ class TestProcRule(TransactionCase):
             warehouse.company_id,
             {"warehouse_id": warehouse, "date_planned": False},
         )
-        # Must not raise; previously this crashed with a TypeError.
         self.env["stock.rule"].run([procurement])
         move = self.env["stock.move"].search(
             [("origin", "=", "test_falsy_date_planned")], limit=1
@@ -80,12 +79,9 @@ class TestProcRule(TransactionCase):
         )
         reception_route = warehouse.reception_route_id
         self.product.is_storable = True
-        # Pin the product to the reception route so the looping rule created below is the
-        # one selected, independent of buy/manufacture routes from co-installed modules.
         reception_route.product_selectable = True
         self.product.route_ids = reception_route
 
-        # Creates a delivery for this product, that way, this product will be to resupply.
         picking_form = Form(self.env["stock.picking"])
         picking_form.picking_type_id = warehouse.out_type_id
         with picking_form.move_ids.new() as move_line:
@@ -93,9 +89,8 @@ class TestProcRule(TransactionCase):
             move_line.product_uom_qty = 10
         delivery = picking_form.save()
         delivery.action_confirm()
-        self.product._compute_quantities()  # Computes `qty_outgoing` to have the orderpoint.
+        self.product._compute_quantities()
 
-        # Then, creates a rule and adds it into the route's rules.
         reception_route.rule_ids.action_archive()
         self.env["stock.rule"].create(
             {
@@ -109,13 +104,10 @@ class TestProcRule(TransactionCase):
             }
         )
 
-        # Tries to open the Replenishment view -> It should raise an UserError.
         with self.assertRaises(UserError):
             self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
 
     def test_proc_rule(self):
-        # Create a product route containing a stock rule that will
-        # generate a move from Stock for every procurement created in Output
         product_route = self.env["stock.route"].create(
             {
                 "name": "Stock -> output route",
@@ -137,10 +129,8 @@ class TestProcRule(TransactionCase):
             }
         )
 
-        # Set this route on `product.product_product_3`
         self.product.write({"route_ids": [(4, product_route.id)]})
 
-        # Create Delivery Order of 10 `product.product_product_3` from Output -> Customer
         product = self.product
         vals = {
             "name": "Delivery order for procurement",
@@ -166,18 +156,11 @@ class TestProcRule(TransactionCase):
         }
         pick_output = self.env["stock.picking"].create(vals)
 
-        # Confirm delivery order.
         pick_output.action_confirm()
 
-        # I run the scheduler.
-        # Note: If purchase if already installed, the method _run_buy will be called due
-        # to the purchase demo data. As we update the stock module to run this test, the
-        # method won't be an attribute of stock.procurement at this moment. For that reason
-        # we mute the logger when running the scheduler.
         with mute_logger("odoo.addons.stock.models.procurement"):
             self.env["stock.rule"].run_scheduler()
 
-        # Check that a picking was created from stock to output.
         moves = self.env["stock.move"].search(
             [
                 ("product_id", "=", self.product.id),
@@ -195,13 +178,11 @@ class TestProcRule(TransactionCase):
     def test_get_rule_respects_sequence_order(self):
         """Test that _get_rule selects the rule associated with the route of the lowest sequence."""
 
-        # Create a warehouse and a product
         warehouse = self.env["stock.warehouse"].search([], limit=1)
         product = self.env["product.product"].create(
             {"name": "Test Product", "is_storable": True}
         )
 
-        # Create routes with different sequences to simulate prioritization.
         route_low_priority = self.env["stock.route"].create(
             {"name": "Route 1", "sequence": 10}
         )
@@ -217,7 +198,6 @@ class TestProcRule(TransactionCase):
             }
         )
 
-        # Create a second route with higher priority (lower sequence).
         route_high_priority = self.env["stock.route"].create(
             {"name": "Route 2", "sequence": 5}
         )
@@ -233,13 +213,10 @@ class TestProcRule(TransactionCase):
             }
         )
 
-        # Assign both routes to the product. This order is set so that the method
-        # will be forced to sort the routes by their sequence.
         product.write(
             {"route_ids": [(4, route_low_priority.id), (4, route_high_priority.id)]}
         )
 
-        # Call the _get_rule method to simulate rule selection.
         rule = self.env["stock.rule"]._get_rule(
             product_id=product,
             location_id=warehouse.lot_stock_id,
@@ -249,7 +226,6 @@ class TestProcRule(TransactionCase):
             },
         )
 
-        # Assert that the selected rule corresponds to the route with the lowest sequence.
         self.assertEqual(
             rule,
             rule_high_priority,
@@ -268,8 +244,6 @@ class TestProcRule(TransactionCase):
         """
         wh1 = self.env["stock.warehouse"].search([], limit=1)
         wh2 = self.env["stock.warehouse"].create({"name": "WH Foreign", "code": "WHF"})
-        # Nest wh1's view under wh2's view so wh1's stock chain reaches into wh2:
-        # locations.warehouse_id then contains both warehouses.
         wh1.view_location_id.location_id = wh2.view_location_id.id
 
         product = self.env["product.product"].create(
@@ -279,8 +253,6 @@ class TestProcRule(TransactionCase):
             {"name": "Cross-WH Route", "product_selectable": True}
         )
         product.route_ids = [Command.link(route.id)]
-        # A rule delivering into wh1's stock but tagged with the *foreign*
-        # warehouse, and no warehouse-agnostic rule for this (location, route).
         foreign_rule = self.env["stock.rule"].create(
             {
                 "name": "Foreign-WH rule",
@@ -294,9 +266,6 @@ class TestProcRule(TransactionCase):
             }
         )
 
-        # Pre-fix, resolving the foreign-warehouse group raised KeyError(False).
-        # Post-fix it must fall through gracefully: return a stock.rule recordset
-        # and never the foreign-warehouse rule, which does not apply to wh1.
         rule = self.env["stock.rule"]._get_rule(
             product, wh1.lot_stock_id, {"route_ids": route}
         )
@@ -357,7 +326,6 @@ class TestProcRule(TransactionCase):
         )
 
     def test_reordering_rule_1(self):
-        # Required for `location_id` to be visible in the view
         self.product.is_storable = True
         self.env.user.group_ids += self.env.ref("stock.group_stock_multi_locations")
         warehouse = self.env["stock.warehouse"].search([], limit=1)
@@ -367,10 +335,6 @@ class TestProcRule(TransactionCase):
         orderpoint_form.product_max_qty = 5.0
         orderpoint = orderpoint_form.save()
 
-        # Reuse the reception route's supplier pull rule (auto-created with the
-        # warehouse). When another module (e.g. mrp/purchase) turns the reception
-        # route into a receive-only route, that pull rule is absent, so create it
-        # here to keep this test independent of which modules are co-installed.
         rule_vals = {
             "route_id": warehouse.reception_route_id.id,
             "location_dest_id": warehouse.lot_stock_id.id,
@@ -385,12 +349,8 @@ class TestProcRule(TransactionCase):
         if not rule:
             rule = self.env["stock.rule"].create({**rule_vals, "name": "Rule Supplier"})
 
-        # add a delay [i.e. lead days] so procurement will be triggered based on forecasted stock
         rule.delay = 9.0
 
-        # Pin the orderpoint to the reception route carrying the supplier pull rule, so
-        # replenishment is deterministic regardless of buy/manufacture routes contributed
-        # by co-installed modules (this test targets the plain stock receipt path).
         orderpoint.route_id = warehouse.reception_route_id
 
         delivery_move = self.env["stock.move"].create(
@@ -422,7 +382,6 @@ class TestProcRule(TransactionCase):
         reordering rule (RR). Add extra product to already confirmed picking => automatically
         run another RR
         """
-        # Required for `location_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("stock.group_stock_multi_locations")
 
         self.productA = self.env["product.product"].create(
@@ -468,9 +427,6 @@ class TestProcRule(TransactionCase):
             }
         )
 
-        # Pin both orderpoints to the reception route's supplier pull rule so
-        # replenishment stays deterministic regardless of buy/manufacture routes from
-        # co-installed modules (this test targets the plain stock receipt path).
         (orderpoint | orderpoint_b).route_id = warehouse.reception_route_id
 
         delivery_picking = self.env["stock.picking"].create(
@@ -572,8 +528,7 @@ class TestProcRule(TransactionCase):
                 "replenishment_uom_id": pack_of_10.id,
             }
         )
-        self.assertEqual(orderpoint.qty_to_order, 20.0)  # 15.0 < 14.5 + 10 <= 30.0
-        # Test search on computed field
+        self.assertEqual(orderpoint.qty_to_order, 20.0)
         rr = self.env["stock.warehouse.orderpoint"].search(
             [
                 ("qty_to_order", ">", 0),
@@ -592,13 +547,13 @@ class TestProcRule(TransactionCase):
                 )
             }
         )
-        self.assertEqual(orderpoint.qty_to_order, 16.0)  # 15.0 < 14.5 + 15 <= 30.0
+        self.assertEqual(orderpoint.qty_to_order, 16.0)
         orderpoint.write(
             {
                 "replenishment_uom_id": False,
             }
         )
-        self.assertEqual(orderpoint.qty_to_order, 15.5)  # 15.0 < 14.5 + 15.5 <= 30.0
+        self.assertEqual(orderpoint.qty_to_order, 15.5)
 
     def test_get_multiple_rounded_qty_rounds_up_to_multiple(self):
         """`_get_multiple_rounded_qty` must round the order quantity UP to a whole
@@ -627,12 +582,11 @@ class TestProcRule(TransactionCase):
             }
         )
         _round = orderpoint._get_multiple_rounded_qty
-        self.assertEqual(_round(10.0), 10.0)  # exact multiple: unchanged
-        self.assertEqual(_round(11.0), 20.0)  # 1.1 packs -> up to 2 packs -> 20
-        self.assertEqual(_round(1.0), 10.0)  # shortage of 1 -> a full pack
-        self.assertEqual(_round(0.5), 10.0)  # fractional -> a full pack
-        self.assertEqual(_round(20.0), 20.0)  # exact 2 packs
-        # No replenishment multiple (base stock has no alternative) -> unchanged.
+        self.assertEqual(_round(10.0), 10.0)
+        self.assertEqual(_round(11.0), 20.0)
+        self.assertEqual(_round(1.0), 10.0)
+        self.assertEqual(_round(0.5), 10.0)
+        self.assertEqual(_round(20.0), 20.0)
         orderpoint.replenishment_uom_id = False
         self.assertEqual(_round(11.0), 11.0)
 
@@ -694,7 +648,6 @@ class TestProcRule(TransactionCase):
             ]
         )
         moves._action_confirm()
-        # activate action of opening the replenishment view
         self.env.flush_all()
         self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
         replenishments = self.env["stock.warehouse.orderpoint"].search(
@@ -702,7 +655,6 @@ class TestProcRule(TransactionCase):
                 ("product_id", "=", product.id),
             ]
         )
-        # Verify that the location makes sense and that route is not set by default
         self.assertRecordValues(
             replenishments,
             [
@@ -745,7 +697,6 @@ class TestProcRule(TransactionCase):
             }
         )
         move._action_confirm()
-        # activate action of opening the replenishment view
         self.env.flush_all()
         self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
         replenishments = self.env["stock.warehouse.orderpoint"].search(
@@ -753,7 +704,6 @@ class TestProcRule(TransactionCase):
                 ("product_id", "=", product.id),
             ]
         )
-        # Verify the location and the qty
         self.assertRecordValues(
             replenishments,
             [
@@ -829,7 +779,6 @@ class TestProcRule(TransactionCase):
             ]
         )
         moves._action_confirm()
-        # activate action of opening the replenishment view
         self.env.flush_all()
         self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
         replenishments = self.env["stock.warehouse.orderpoint"].search(
@@ -837,7 +786,6 @@ class TestProcRule(TransactionCase):
                 ("product_id", "in", products.ids),
             ]
         )
-        # Verify that the route is unset
         self.assertRecordValues(
             replenishments.sorted(lambda r: r.product_id.id),
             [
@@ -865,8 +813,6 @@ class TestProcRule(TransactionCase):
             {"name": "Test Warehouse", "code": "TWH"}
         )
 
-        # No warehouse specified, no location specified
-        # Must choose default/first warehouse and the `lot_stock_id` of that warehouse
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product.id,
@@ -876,7 +822,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(orderpoint.location_id, warehouse_a.lot_stock_id)
         orderpoint.unlink()
 
-        # Warehouse specified, must choose the `lot_stock_id` of that warehouse by default
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product.id,
@@ -887,7 +832,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(orderpoint.location_id, warehouse_b.lot_stock_id)
         orderpoint.unlink()
 
-        # Location specified, must choose the warehouse of that location by default
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product.id,
@@ -898,7 +842,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(orderpoint.location_id, warehouse_b.lot_stock_id)
         orderpoint.unlink()
 
-        # Warehouse specified, location specified, must let them and not overwrite them with a default
         location = warehouse_b.lot_stock_id.copy()
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
@@ -927,8 +870,6 @@ class TestProcRule(TransactionCase):
                 "product_max_qty": 200,
             }
         )
-        # Deterministic supplier pull rule + pin, so force-to-max replenishment creates a
-        # stock receipt regardless of buy/manufacture routes from co-installed modules.
         self.env["stock.rule"].create(
             {
                 "name": "Rule Supplier",
@@ -942,12 +883,10 @@ class TestProcRule(TransactionCase):
         )
         orderpoint.route_id = warehouse.reception_route_id
         self.assertEqual(orderpoint.qty_forecast, 10.0)
-        # above minimum qty => nothing to order
         orderpoint.action_replenish()
         self.assertEqual(orderpoint.qty_forecast, 10.0)
         orderpoint.action_replenish(force_to_max=True)
         self.assertEqual(orderpoint.qty_forecast, 200.0)
-        # Test that changing the replenishment UoM does not cause issues when replenishing to max
         orderpoint.replenishment_uom_id = self.env.ref("uom.product_uom_dozen")
         orderpoint.product_max_qty = 240
         orderpoint.action_replenish(force_to_max=True)
@@ -979,7 +918,6 @@ class TestProcRule(TransactionCase):
         )
         stock_move._action_confirm()
         shelf1.active = False
-        # opening the replenishment should not raise a KeyError even if the location is archived
         self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
 
     def test_compute_qty_to_order(self):
@@ -1020,7 +958,6 @@ class TestProcRule(TransactionCase):
             mto_rule.rule_message,
             "The help message should correctly display information for MTO.",
         )
-        # Switch to MTSO
         mto_rule.procure_method = "mts_else_mto"
         source_mtso = mto_rule.location_src_id.display_name
         self.assertIn(
@@ -1054,12 +991,10 @@ class TestProcRule(TransactionCase):
             "There should at least be the rule from route 'My Company: Receive in 1 step (stock)'.",
         )
 
-        # Archive the route
         orderpoint.rule_ids.route_id.active = False
         orderpoint.invalidate_recordset(fnames=["show_supply_warning"])
         self.assertTrue(orderpoint.show_supply_warning)
 
-        # Add a route to the product
         product_route = self.env["stock.route"].create(
             {
                 "name": "Supplier -> Stock",
@@ -1150,7 +1085,6 @@ class TestProcRule(TransactionCase):
         delivery_date_2 = datetime.today() + timedelta(days=35)
 
         stock_moves = self.env["stock.move"]
-        # product 0: 15 OUT in 15 days, 10 IN in 25 days -> deadline in 15 days
         stock_moves |= self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
@@ -1171,7 +1105,6 @@ class TestProcRule(TransactionCase):
                 "date": delivery_date_1,
             }
         )
-        # product 1: 10 OUT in 25, 5 OUT in 35 days -> deadline in 35 days
         stock_moves |= self.env["stock.move"].create(
             {
                 "product_id": product_1.id,
@@ -1192,7 +1125,6 @@ class TestProcRule(TransactionCase):
                 "date": delivery_date_2,
             }
         )
-        # product 2: 15 OUT in 15 days, 15 IN in 15 days, 15 OUT in 25 days -> deadline in 25 days
         stock_moves |= self.env["stock.move"].create(
             {
                 "product_id": product_2.id,
@@ -1224,16 +1156,13 @@ class TestProcRule(TransactionCase):
             }
         )
 
-        # There should be no deadline since no move was confirmed
         self.assertEqual(orderpoint_0.deadline_date, False)
         self.assertEqual(orderpoint_1.deadline_date, False)
         self.assertEqual(orderpoint_2.deadline_date, False)
-        # After confirming the moves, deadline dates should have been applied to all orderpoints
         stock_moves._action_confirm()
         self.assertEqual(orderpoint_0.deadline_date, delivery_date_0.date())
         self.assertEqual(orderpoint_1.deadline_date, delivery_date_2.date())
         self.assertEqual(orderpoint_2.deadline_date, delivery_date_1.date())
-        # After changing the horizon days, the deadline dates should have been recomputed
         self.env.company.horizon_days = 30
         self.assertEqual(orderpoint_0.deadline_date, delivery_date_0.date())
         self.assertEqual(orderpoint_1.deadline_date, False)
@@ -1347,7 +1276,6 @@ class TestProcRule(TransactionCase):
         info = self.env["stock.replenishment.info"].create(
             {"orderpoint_id": orderpoint.id}
         )
-        # Force a fresh recompute, then flush so any stray write would hit the DB.
         info.invalidate_recordset(["json_replenishment_graph"])
         self.assertTrue(info.json_replenishment_graph)
         info.flush_recordset()
@@ -1358,14 +1286,12 @@ class TestProcRule(TransactionCase):
     def test_prepare_graph_data_is_pure(self):
         """``_prepare_graph_data`` derives its result purely from its arguments."""
         Info = self.env["stock.replenishment.info"]
-        # No demand -> flat placeholder axis, no ordering period.
         ordering_period, data = Info._prepare_graph_data(10, 50, daily_demand=0)
         self.assertEqual(ordering_period, 0)
         self.assertEqual(data["x_axis_vals"], ["", " "])
         self.assertEqual(data["curve_line_vals"], [])
         self.assertEqual([p["y"] for p in data["max_line_vals"]], [50, 50])
         self.assertEqual([p["y"] for p in data["min_line_vals"]], [10, 10])
-        # Equal min/max must not divide by zero (qty_diff falls back to 1).
         ordering_period, _data = Info._prepare_graph_data(20, 20, daily_demand=5)
         self.assertEqual(ordering_period, 1)
 

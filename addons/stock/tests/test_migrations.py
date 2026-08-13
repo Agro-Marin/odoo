@@ -18,8 +18,6 @@ class MigrationScriptMixin:
     truthy version, so the mocked cursor never reaches those helpers' SQL.
     """
 
-    # Odoo's test loader only collects methods from the class __dict__;
-    # opt in so the shared tests defined on this mixin run on every subclass.
     allow_inherited_tests_method = True
 
     script_version = None
@@ -75,7 +73,6 @@ class TestStock12PreMigrate(MigrationScriptMixin, BaseCase):
     """Unit tests for ``stock/migrations/1.2/pre-migrate.py``."""
 
     script_version = "1.2"
-    # 9 view sweeps (4 method + 5 field renames) + 4 server-action sweeps.
     expected_updates = 13
 
     def _patch_horizon_days(self, udt_name):
@@ -111,7 +108,6 @@ class TestStock13PreMigrate(MigrationScriptMixin, BaseCase):
     """Unit tests for ``stock/migrations/1.3/pre-migrate.py``."""
 
     script_version = "1.3"
-    # One sweep each over ir_ui_view, ir_filters and ir_exports_line.
     expected_updates = 3
 
     def _columns(self, *, renamed):
@@ -140,7 +136,6 @@ class TestStock14PreMigrate(MigrationScriptMixin, BaseCase):
     """Unit tests for ``stock/migrations/1.4/pre-migrate.py``."""
 
     script_version = "1.4"
-    # ir_ui_view + ir_filters + ir_exports_line + ir_act_server.
     expected_updates = 4
 
     def _columns(self, *, renamed):
@@ -172,9 +167,6 @@ class TestStock15PreMigrate(MigrationScriptMixin, BaseCase):
     """Unit tests for ``stock/migrations/1.5/pre-migrate.py``."""
 
     script_version = "1.5"
-    # Per token group (1 global + 3 scoped): ir_ui_view + ir_filters = 8,
-    # ir_exports_line: 1 global regexp + 6 scoped exact renames = 7,
-    # ir_act_server: 1 global sweep. Total 16.
     expected_updates = 16
 
     def _columns(self, *, renamed):

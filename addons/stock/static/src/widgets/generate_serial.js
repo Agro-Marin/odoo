@@ -38,11 +38,7 @@ export class GenerateDialog extends Component {
         this.keepLines = useRef("keepLines");
         this.lots = useRef("lots");
         this.orm = useService("orm");
-        // In-flight guard: Generate runs an RPC + command batch; a second click
-        // during the await must not emit a second batch (duplicated lines).
         this.state = useState({ busy: false });
-        // Debounced (leading edge): rapid repeat clicks on "New" collapse into
-        // one preview RPC.
         this.onGenerateCustomSerial = useDebounced(this._onGenerateCustomSerial, 500, {
             immediate: true,
         });
@@ -60,9 +56,6 @@ export class GenerateDialog extends Component {
         });
     }
     async _onGenerateCustomSerial() {
-        // Single read-only RPC: the server interpolates legends and pads the
-        // number without consuming the sequence, so previewing (or discarding
-        // the dialog) never burns a number.
         const preview = await this.orm.call("product.product", "preview_next_lot", [
             [this.props.move.data.product_id.id],
         ]);
@@ -85,15 +78,10 @@ export class GenerateDialog extends Component {
             count = parseInteger(this.nextSerialCount.el?.value || "0");
             qtyToProcess = this.props.move.data.product_qty;
         }
-        // Validate BEFORE building any command: an empty submit must not wipe
-        // the existing lines ("keep current lines" unchecked deletes them all
-        // even when nothing is generated).
         if (this.props.mode === "generate") {
             if (!this.nextSerial.el?.value.trim()) {
                 return;
             }
-            // Serial mode: a non-positive count generates nothing.
-            // NB: `!(count >= 1)` also rejects NaN.
             if (this.props.move.data.has_tracking !== "lot" && !(count >= 1)) {
                 return;
             }
@@ -133,12 +121,6 @@ export class GenerateDialog extends Component {
         );
         const lines = this.props.move.data.move_line_ids;
 
-        // Create the generated lines directly from the server-computed values.
-        // The CREATE command bypasses onchanges (as intended here); using the
-        // public applyCommands lets the model handle datapoint creation, command
-        // tracking, currentIds, count/limit and the update notification — instead
-        // of poking private internals by hand. Clear the existing lines first
-        // unless "keep current lines" is ticked.
         const commands = [];
         if (!this.keepLines.el.checked) {
             commands.push(

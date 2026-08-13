@@ -17,8 +17,6 @@ class TestReportStockRule(TransactionCase):
         cls.supplier = cls.env.ref("stock.stock_location_suppliers")
         cls.customer = cls.env.ref("stock.stock_location_customers")
 
-        # A minimal route: supplier -> stock -> customer, two push rules so the
-        # destination is location_dest_id (deterministic, no picking-type detour).
         cls.route = cls.env["stock.route"].create({"name": "RSR Route"})
         cls.rule_in = cls.env["stock.rule"].create(
             {
@@ -52,7 +50,6 @@ class TestReportStockRule(TransactionCase):
         data = {"product_id": self.product.id, "warehouse_ids": self.warehouse.ids}
         return self.report._get_report_values(None, data=data)
 
-    # -- ordering ----------------------------------------------------------
     def test_locations_follow_the_flow(self):
         """Supplier is leftmost, customer rightmost, stock in between."""
         vals = self._report_values()
@@ -66,22 +63,18 @@ class TestReportStockRule(TransactionCase):
             self.env["stock.location"].create({"name": n, "usage": "internal"})
             for n in ("A", "B", "C")
         )
-        edges = [(a, b), (b, c), (c, a)]  # 3-cycle
+        edges = [(a, b), (b, c), (c, a)]
         rank = self.report._topological_rank(a | b | c, edges)
         self.assertEqual(sorted(rank), sorted((a | b | c).ids))
         self.assertEqual(len(set(rank.values())), 3)
 
-    # -- route lines / positioning ----------------------------------------
     def test_route_lines_positions_and_dense_colors(self):
         vals = self._report_values()
         loc_index = {loc.id: i for i, loc in enumerate(vals["locations"])}
         rows = vals["route_lines"]
-        # every row spans exactly one slot per location column
         for row in rows:
             self.assertEqual(len(row), len(vals["locations"]))
 
-        # colors are dense: the drawn routes use a contiguous palette prefix,
-        # never skipping a color for a route that had nothing to display.
         palette = self.report._get_route_colors()
         used = []
         for row in rows:
@@ -90,11 +83,9 @@ class TestReportStockRule(TransactionCase):
                     used.append(slot[2])
         self.assertEqual(used, palette[: len(used)])
 
-        # our own rule renders origin@supplier, destination@stock
         row_in = next(r for r in rows if any(s and s[0] == self.rule_in for s in r))
         self.assertEqual(row_in[loc_index[self.supplier.id]][1], "origin")
         self.assertEqual(row_in[loc_index[self.stock.id]][1], "destination")
-        # and the two grid cells belong to the same (single) route color
         rule_colors = {s[2] for s in row_in if s}
         self.assertEqual(len(rule_colors), 1)
 
@@ -124,10 +115,9 @@ class TestReportStockRule(TransactionCase):
         rows = self.report._get_route_lines(rule.route_id, rule, loc_by_rule, locations)
         self.assertEqual(len(rows), 1)
         row = rows[0]
-        self.assertEqual(row[0][1], "origin")  # dup1 column
-        self.assertEqual(row[1][1], "destination")  # dup2 column, distinct
+        self.assertEqual(row[0][1], "origin")
+        self.assertEqual(row[1][1], "destination")
 
-    # -- header lines ------------------------------------------------------
     def test_header_lines_are_recordsets(self):
         self.env["stock.warehouse.orderpoint"].create(
             {

@@ -1,12 +1,5 @@
 // @ts-check
 
-/**
- * `stock_warehouse` reloads the whole action context when a warehouse is
- * written, so its reaction is disruptive rather than merely costly — it must
- * stay on `onModelMutation`'s `successOnly` policy. It had no coverage at all
- * while it hand-rolled that decode against the raw `rpcBus`.
- */
-
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -19,7 +12,6 @@ describe.current.tags("headless");
 
 const RELOAD_DEBOUNCE_MS = 300;
 
-/** @type {string[]} */
 let actions;
 
 beforeEach(async () => {
@@ -28,7 +20,7 @@ beforeEach(async () => {
         "action",
         {
             start: () => ({
-                doAction: (/** @type {string} */ name) => actions.push(name),
+                doAction: (name) => actions.push(name),
             }),
         },
         { force: true },
@@ -36,11 +28,6 @@ beforeEach(async () => {
     await makeMockEnv();
 });
 
-/**
- * @param {string} model
- * @param {string} method
- * @param {any} [error]
- */
 function fire(model, method, error) {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model, method } },
@@ -83,9 +70,6 @@ test("another model's write does not reload", async () => {
 });
 
 test("a FAILED write never reloads, whichever way it failed", async () => {
-    // successOnly: a page-level reload is too destructive to fire on a write
-    // that may not have landed — unlike a cache drop, it cannot be undone by
-    // refetching.
     const rpcError = new RPCError("Access denied");
     rpcError.exceptionName = "odoo.exceptions.AccessError";
     fire("stock.warehouse", "write", rpcError);
@@ -96,8 +80,7 @@ test("a FAILED write never reloads, whichever way it failed", async () => {
 
 test("a tour in progress suppresses the reload", async () => {
     patchWithCleanup(browser.localStorage, {
-        getItem: (/** @type {string} */ key) =>
-            key === "running_tour" ? "some_tour" : null,
+        getItem: (key) => (key === "running_tour" ? "some_tour" : null),
     });
     fire("stock.warehouse", "write");
     await settle();

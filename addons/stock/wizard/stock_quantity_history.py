@@ -24,8 +24,6 @@ class StockQuantityHistory(models.TransientModel):
             domain &= Domain("id", "=", product_id)
         elif product_tmpl_id:
             domain &= Domain("product_tmpl_id", "=", product_tmpl_id)
-        # We pass `to_date` in the context so that `qty_available` will be computed across
-        # moves until date.
         return {
             "type": "ir.actions.act_window",
             "views": [(tree_view_id, "list"), (form_view_id, "form")],

@@ -9,8 +9,6 @@ class StockRequestCount(models.TransientModel):
     inventory_date = fields.Date(
         string="Scheduled at",
         required=True,
-        # Date.context_today, not Datetime.now: a naive UTC datetime coerced to
-        # a date shifts to the previous/next day for users far from UTC.
         default=fields.Date.context_today,
         help="Choose a date to get the inventory at that date",
     )
@@ -66,8 +64,6 @@ class StockRequestCount(models.TransientModel):
             or not tracked_quants
         ):
             return quants_to_count
-        # Also count sibling quants (other lots) sharing product+location, since
-        # tracked products are counted as a whole per location.
         domain = Domain.OR(
             {
                 Domain("product_id", "=", quant.product_id.id)

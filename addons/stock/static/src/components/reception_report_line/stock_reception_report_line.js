@@ -21,16 +21,11 @@ export class ReceptionReportLine extends Component {
         this.actionService = useService("action");
         this.formatFloat = (val) =>
             formatFloat(val, { digits: [false, this.props.precision] });
-        // Assign/Unassign/Print mutate server state (or spawn a report action)
-        // and then flip the shared assign state: double activation would run
-        // the RPC twice before the first response lands.
         this.opGuard = useOperationGuard();
         this.onClickAssign = this.opGuard.guard(this.onClickAssign.bind(this));
         this.onClickUnassign = this.opGuard.guard(this.onClickUnassign.bind(this));
         this.onClickPrint = this.opGuard.guard(this.onClickPrint.bind(this));
     }
-
-    //---- Handlers ----
 
     async onClickForecast() {
         const action = await this.ormService.call(
@@ -82,8 +77,6 @@ export class ReceptionReportLine extends Component {
             });
         }
     }
-
-    //---- Getters ----
 
     get data() {
         return this.props.data;

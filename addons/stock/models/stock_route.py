@@ -116,11 +116,6 @@ class StockRoute(models.Model):
                 rules.action_archive()
         res = super().write(vals)
         if vals.get("active"):
-            # The blanket rule unarchive above also resurrects the resupply legs
-            # `_check_delivery_resupply` had archived as configuration state
-            # (the Stock -> Output pick leg vs. the single-step MTO rules).
-            # Re-align them with the supplier warehouses' current delivery
-            # steps, mirroring what the warehouse unarchive already does.
             for warehouse in self.sudo().supplier_wh_id:
                 warehouse._align_resupply_rule_activity()
         return res
@@ -134,9 +129,6 @@ class StockRoute(models.Model):
         return vals_list
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)

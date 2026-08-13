@@ -59,8 +59,6 @@ def migrate(cr, version):
         )
 
     if column_exists(cr, "stock_location", "barcode"):
-        # Only company-less rows can hold duplicates today: the pre-existing index
-        # already bound every row that names a company.
         cr.execute(
             """
             UPDATE stock_location

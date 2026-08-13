@@ -37,8 +37,6 @@ class TestGenerateLotLineVals(TestStockCommon):
             **extra,
         }
 
-    # --- what it produces ---------------------------------------------------
-
     def test_generate_serials_one_line_per_unit(self):
         vals = self.env["stock.move"].action_generate_lot_line_vals(
             self._context(self.serial_product, "serial"), "generate", "sn-001", 4, ""
@@ -48,7 +46,6 @@ class TestGenerateLotLineVals(TestStockCommon):
             [v["lot_name"] for v in vals], ["sn-001", "sn-002", "sn-003", "sn-004"]
         )
         self.assertEqual([v["quantity"] for v in vals], [1, 1, 1, 1])
-        # Relational values come back in the webclient's {id, display_name} shape.
         self.assertEqual(
             vals[0]["location_dest_id"],
             {
@@ -66,7 +63,6 @@ class TestGenerateLotLineVals(TestStockCommon):
             4,
             "",
         )
-        # 10 split by 4 = 4 + 4 + 2
         self.assertEqual([v["quantity"] for v in vals], [4, 4, 2])
 
     def test_generate_lots_without_a_leftover(self):
@@ -90,8 +86,6 @@ class TestGenerateLotLineVals(TestStockCommon):
         self.assertEqual([v["lot_name"] for v in vals], ["aaa", "bbb", "ccc"])
         self.assertEqual([v["quantity"] for v in vals], [1, 1, 1])
 
-    # --- what it refuses ----------------------------------------------------
-
     def test_rejects_an_unknown_mode(self):
         with self.assertRaises(UserError):
             self.env["stock.move"].action_generate_lot_line_vals(
@@ -105,7 +99,7 @@ class TestGenerateLotLineVals(TestStockCommon):
             )
 
     def test_rejects_a_context_missing_a_required_key(self):
-        context = self._context(self.lot_product, "lot")  # no default_quantity
+        context = self._context(self.lot_product, "lot")
         with self.assertRaises(UserError):
             self.env["stock.move"].action_generate_lot_line_vals(
                 context, "generate", "lot-1", 2, ""
@@ -120,8 +114,6 @@ class TestGenerateLotLineVals(TestStockCommon):
                 0,
                 "",
             )
-
-    # --- the bounds, which are the point of an RPC boundary -----------------
 
     def test_serial_count_is_bounded(self):
         """The cap must fire *before* the list is built: `count` is client-supplied."""
@@ -149,8 +141,6 @@ class TestGenerateLotLineVals(TestStockCommon):
                 "",
             )
 
-    # --- the sequence side effect ------------------------------------------
-
     def test_generate_advances_the_lot_sequence_but_import_does_not(self):
         sequence = self.env["ir.sequence"].create(
             {"name": "gen seq", "prefix": "GS", "padding": 4, "number_next": 1}
@@ -165,7 +155,6 @@ class TestGenerateLotLineVals(TestStockCommon):
         )
         first = sequence._get_current_sequence().number_next_actual
 
-        # Import mode leaves the sequence alone: the names are user-pasted.
         self.env["stock.move"].action_generate_lot_line_vals(
             self._context(product, "serial"), "import", "", 0, "x1\nx2"
         )
@@ -175,8 +164,6 @@ class TestGenerateLotLineVals(TestStockCommon):
             "import must not consume sequence numbers",
         )
 
-        # Generate mode advances it past the names it just handed out, and only ever
-        # forwards.
         self.env["stock.move"].action_generate_lot_line_vals(
             self._context(product, "serial"),
             "generate",

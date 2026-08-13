@@ -11,13 +11,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
         this.actionService = useService("action");
     }
 
-    /**
-     * Same as the parent's renderChart, but sources the graph data through
-     * getGraphData(): parsing is memoized on the raw value, and when the whole
-     * dashboard only has sample (empty) graphs the flat zeros are replaced by
-     * random bars — locally, without ever writing fabricated values back into
-     * `record.data`.
-     */
     renderChart() {
         if (this.chart) {
             this.chart.destroy();
@@ -30,7 +23,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
         if (this.props.graphType === "line") {
             config = this.getLineChartConfig();
         } else {
-            // Only bar chart is available for picking types
             config = this.getBarChartConfig();
         }
         this.chart = new Chart(this.canvasRef.el, config);
@@ -52,23 +44,18 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
             if (
                 data[0]?.values?.length &&
                 data[0].values.every((value) => value.type === "sample") &&
-                // Provided by StockDashboardKanbanRenderer; absent when the
-                // field is used outside the stock dashboard kanban.
                 this.env.stockDashboardAllSample?.()
             ) {
                 for (const value of data[0].values) {
                     value.value = Math.floor(Math.random() * 9 + 1);
                 }
             }
-            // Memoized on `raw`: the random sample bars stay stable across
-            // re-renders instead of re-randomising every time.
             this._graphData = data;
         }
         return this._graphData;
     }
 
     getBarChartConfig() {
-        // Only bar chart is available for picking types
         const data = [];
         const labels = [];
         const backgroundColor = [];
@@ -106,16 +93,11 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
             },
             options: {
                 onClick: (e, elements) => {
-                    // Sample data has no picking type id and is not clickable.
-                    // `elements` is empty when the click misses every bar.
                     const pickingTypeId = this.data[0].picking_type_id;
                     if (!pickingTypeId || !elements.length) {
                         return;
                     }
                     const columnIndex = elements[0].index;
-                    // Prefer the server-provided category slug on the clicked bar;
-                    // fall back to the positional map only for older cached graph
-                    // data that predates the `category` key.
                     const dateCategories = {
                         0: "before",
                         1: "yesterday",
@@ -134,7 +116,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                         picking_type_id: pickingTypeId,
                         search_default_picking_type_id: [pickingTypeId],
                     };
-                    // Add a filter for the given date category
                     additionalContext["search_default_".concat(dateCategory)] = true;
                     this.actionService.doAction("stock.click_dashboard_graph", {
                         additionalContext: additionalContext,
@@ -143,10 +124,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        // Suppress the tooltip over fake sample bars. The stock
-                        // server never sends the parent's top-level
-                        // `is_sample_data`; it tags sampleness per value with
-                        // `type: "sample"` (see getGraphData), so key off that.
                         enabled: !this.data[0]?.values?.every(
                             (value) => value.type === "sample",
                         ),

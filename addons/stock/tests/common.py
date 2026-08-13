@@ -36,9 +36,7 @@ class TestStockCommon(ProductVariantsCommon):
     """
 
     def _create_move(self, product, src_location, dst_location, **values):
-        # TDE FIXME: user as parameter
         Move = self.env["stock.move"].with_user(self.user_stock_manager)
-        # simulate create + onchange
         move = Move.new(
             {
                 "product_id": product.id,
@@ -54,7 +52,6 @@ class TestStockCommon(ProductVariantsCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Product environment related data
         cls.uom_dunit = cls.env["uom.uom"].create(
             {
                 "name": "DeciUnit",
@@ -66,16 +63,16 @@ class TestStockCommon(ProductVariantsCommon):
         cls.product_1, cls.product_2, cls.product_3 = cls.env["product.product"].create(
             [
                 {
-                    "name": "Courage",  # product_1
+                    "name": "Courage",
                     "type": "consu",
                     "default_code": "PROD-1",
                     "uom_id": cls.uom_dunit.id,
                 },
                 {
-                    "name": "Wood",  # product_2
+                    "name": "Wood",
                 },
                 {
-                    "name": "Stone",  # product_3
+                    "name": "Stone",
                     "uom_id": cls.uom_dozen.id,
                 },
             ]
@@ -92,7 +89,6 @@ class TestStockCommon(ProductVariantsCommon):
         cls.LotObj = cls.env["stock.lot"]
         cls.StockLocationObj = cls.env["stock.location"]
 
-        # Warehouses
         cls.warehouse_1 = cls.env["stock.warehouse"].create(
             {
                 "name": "Base Warehouse",
@@ -105,7 +101,6 @@ class TestStockCommon(ProductVariantsCommon):
         cls.route_mto = cls.warehouse_1.mto_pull_id.route_id
         cls.route_mto.rule_ids.procure_method = "make_to_order"
 
-        # Model Data
         cls.picking_type_in = cls.warehouse_1.in_type_id
         cls.picking_type_int = cls.warehouse_1.int_type_id
         cls.picking_type_out = cls.warehouse_1.out_type_id
@@ -143,7 +138,6 @@ class TestStockCommon(ProductVariantsCommon):
         cls.customer_location = cls.quick_ref("stock.stock_location_customers")
         cls.inter_company_location = cls.quick_ref("stock.stock_location_inter_company")
 
-        # Product Created A, B, C, D
         (
             cls.productA,
             cls.productB,
@@ -160,7 +154,6 @@ class TestStockCommon(ProductVariantsCommon):
             ]
         )
 
-        # Configure unit of measure.
         cls.uom_kg = cls.uom_kgm
         cls.uom_gm = cls.uom_gram
 
@@ -180,7 +173,6 @@ class TestStockCommon(ProductVariantsCommon):
             }
         )
 
-        # User Data: stock user and stock manager
         cls.user_stock_user = mail_new_test_user(
             cls.env,
             name="Pauline Poivraisselle",
@@ -198,7 +190,6 @@ class TestStockCommon(ProductVariantsCommon):
             groups="stock.group_stock_manager",
         )
 
-        # Partner
         cls.partner_1 = cls.env["res.partner"].create(
             {
                 "name": "Julia Agrolait",
@@ -206,14 +197,12 @@ class TestStockCommon(ProductVariantsCommon):
             }
         )
 
-        # Existing data
         cls.existing_inventories = cls.StockQuantObj.search(
             [("inventory_quantity", "!=", 0.0)]
         )
         cls.existing_quants = cls.StockQuantObj.search([])
 
     def url_extract_rec_id_and_model(self, url):
-        # Extract model and record ID
         action_match = re.findall(r"action-([^/]+)", url)
         model_name = self.env.ref(action_match[0]).res_model
         rec_id = re.findall(r"/(\d+)$", url)[0]

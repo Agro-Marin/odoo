@@ -22,8 +22,6 @@ safe and preserves the translation structure.
 
 from odoo.db.schema import table_columns
 
-# (old, new) — button/compute method names referenced by stored view buttons
-# (type="object") and by ir.actions.server code.
 _METHOD_RENAMES = (
     ("action_open_product_lot", "action_view_product_lot"),
     ("action_open_quants", "action_view_quants"),
@@ -31,7 +29,6 @@ _METHOD_RENAMES = (
     ("action_open_routes_diagram", "action_view_routes_diagram"),
 )
 
-# (old, new) — product.(product|template) field names referenced by stored views.
 _FIELD_RENAMES = (
     ("nbr_moves_in", "count_moves_in"),
     ("nbr_moves_out", "count_moves_out"),
@@ -48,7 +45,7 @@ def migrate(cr, version):
     :param version: installed module version; falsy on a fresh install
     """
     if not version:
-        return  # fresh install: on-disk arch is already correct
+        return
 
     for old, new in _METHOD_RENAMES + _FIELD_RENAMES:
         cr.execute(
@@ -66,10 +63,6 @@ def migrate(cr, version):
             (old, new, f"%{old}%"),
         )
 
-    # res.company.horizon_days became fields.Integer; convert the column
-    # explicitly (no fractional values exist in practice, round() is exact).
-    # Guarded on the current type so a re-run (or a DB already converted by a
-    # partial upgrade) skips the table rewrite instead of re-executing it.
     horizon_days = table_columns(cr, "res_company").get("horizon_days")
     if horizon_days is not None and horizon_days["udt_name"] != "int4":
         cr.execute(

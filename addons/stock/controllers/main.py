@@ -11,26 +11,15 @@ class StockReportController(http.Controller):
     @http.route(
         [
             "/stock/<string:output_format>",
-            # Legacy path: the trailing report-name segment was never consumed
-            # server-side. The in-tree builders (stock_traceability_report_data.xml,
-            # stock_traceability_report_backend.js) now use the canonical form,
-            # but stored copies of the client action in existing databases
-            # (Studio duplicates, saved contexts) may still carry it, so it
-            # stays routable (and ignored).
             "/stock/<string:output_format>/<string:report_name>",
         ],
         type="http",
         auth="user",
     )
     def report(self, output_format, report_name=None, **kw):
-        # Only PDF is produced; anything else used to fall through and return
-        # ``None`` (an invalid WSGI response). Reject it explicitly.
         if output_format != "pdf":
             raise BadRequest(f"Unsupported output format: {output_format!r}")
 
-        # Validate client input before the try block: client errors must
-        # surface as 400s, not be swallowed by the generic handler below and
-        # re-raised as a misleading 500 "Odoo Server Error".
         raw_data = kw.get("data")
         active_id = kw.get("active_id")
         active_model = kw.get("active_model")

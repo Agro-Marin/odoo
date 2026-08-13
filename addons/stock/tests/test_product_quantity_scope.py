@@ -381,10 +381,6 @@ class TestProductQuantityScope(TransactionCase):
             "the location triple should be resolved once per quantity condition",
         )
 
-    # ------------------------------------------------------------------
-    # Extracted helpers -- now directly testable, which is the point of extracting them
-    # ------------------------------------------------------------------
-
     def test_resolve_context_record_ids_accepts_ids_and_names(self):
         resolve = self.env["product.product"]._resolve_context_record_ids
         self.assertEqual(
@@ -422,7 +418,6 @@ class TestProductQuantityScope(TransactionCase):
             {"name": "Scope Child Product", "is_storable": True, "type": "consu"}
         )
         self._stock_up(product, 4, location=child)
-        # non-strict sees the child; strict does not
         self.assertEqual(
             product.with_context(location=self.stock_location.id).qty_available, 4.0
         )

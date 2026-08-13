@@ -50,10 +50,6 @@ class TestAuditFixesPicking(TestStockCommon):
         picking.action_confirm()
         return picking
 
-    # ------------------------------------------------------------
-    # #1 stock.package.type sequence handling on write
-    # ------------------------------------------------------------
-
     def test_package_type_company_only_write_without_sequence(self):
         """A company-only write on a package type without a sequence must not
         try to create a nameless sequence (NotNullViolation), and must move the
@@ -74,15 +70,10 @@ class TestAuditFixesPicking(TestStockCommon):
         )
         self.assertEqual(seq_type.sequence_id.company_id, company)
 
-        # Providing a code afterwards creates the sequence, on the type company.
         no_seq_type.write({"sequence_code": "PTAUD2"})
         self.assertTrue(no_seq_type.sequence_id)
         self.assertEqual(no_seq_type.sequence_id.prefix, "PTAUD2")
         self.assertEqual(no_seq_type.sequence_id.company_id, company)
-
-    # ------------------------------------------------------------
-    # #14 action_split_transfer partition
-    # ------------------------------------------------------------
 
     def test_split_transfer_excludes_cancelled_moves(self):
         picking = self._create_confirmed_delivery(self.product_2, 5)
@@ -116,10 +107,6 @@ class TestAuditFixesPicking(TestStockCommon):
         self.assertEqual(move.product_uom_qty, 2)
         self.assertEqual(sum(backorder.move_ids.mapped("product_uom_qty")), 3)
 
-    # ------------------------------------------------------------
-    # #15 lot company-change guard
-    # ------------------------------------------------------------
-
     def test_lot_company_change_guard_multi_location(self):
         """The guard must fire even when the lot spans several locations (where
         the computed `location_id` reads False)."""
@@ -146,10 +133,6 @@ class TestAuditFixesPicking(TestStockCommon):
         with self.assertRaises(UserError):
             lot.write({"company_id": company_b.id})
 
-    # ------------------------------------------------------------
-    # #16 picking type sequence company
-    # ------------------------------------------------------------
-
     def test_picking_type_sequence_company_on_code_rename(self):
         company_b = self.env["res.company"].create({"name": "Audit Co Seq"})
         warehouse_b = self.env["stock.warehouse"].search(
@@ -166,15 +149,9 @@ class TestAuditFixesPicking(TestStockCommon):
             }
         )
         self.assertEqual(picking_type.sequence_id.company_id, company_b)
-        # Renaming the code while logged into company A must keep the sequence
-        # on the picking type's own company.
         picking_type.write({"sequence_code": "AUD16B"})
         self.assertEqual(picking_type.sequence_id.company_id, company_b)
         self.assertEqual(picking_type.sequence_id.prefix, "AUD16B")
-
-    # ------------------------------------------------------------
-    # #17 default locations follow the warehouse
-    # ------------------------------------------------------------
 
     def test_picking_type_default_locations_follow_warehouse(self):
         warehouse_2 = self.env["stock.warehouse"].create(
@@ -200,7 +177,6 @@ class TestAuditFixesPicking(TestStockCommon):
         self.assertEqual(
             picking_type.default_location_dest_id, warehouse_2.lot_stock_id
         )
-        # An explicitly passed location wins over the re-defaulting.
         picking_type.write(
             {
                 "warehouse_id": self.warehouse_1.id,
@@ -226,7 +202,6 @@ class TestAuditFixesPicking(TestStockCommon):
             self.warehouse_1.pick_type_id.default_location_dest_id,
             self.warehouse_1.wh_pack_stock_loc_id,
         )
-        # Flip back and forth: the pack source must survive both writes.
         self.warehouse_1.delivery_steps = "ship_only"
         self.warehouse_1.delivery_steps = "pick_pack_ship"
         self.assertEqual(
@@ -250,10 +225,6 @@ class TestAuditFixesPicking(TestStockCommon):
             picking_type.default_location_src_id,
             self.env.ref("stock.stock_location_suppliers"),
         )
-
-    # ------------------------------------------------------------
-    # #18 deterministic scrap source location
-    # ------------------------------------------------------------
 
     def test_scrap_default_source_location_deterministic(self):
         company = self.env.company
@@ -299,10 +270,6 @@ class TestAuditFixesPicking(TestStockCommon):
             "The company-scoped external id must designate the scrap location",
         )
 
-    # ------------------------------------------------------------
-    # #23 return pickings keep their locations on type change
-    # ------------------------------------------------------------
-
     def test_return_picking_type_change_keeps_locations(self):
         original = self._create_confirmed_delivery(self.product_2, 1)
         return_picking = self.PickingObj.create(
@@ -322,7 +289,6 @@ class TestAuditFixesPicking(TestStockCommon):
         )
         self.assertEqual(return_picking.location_dest_id, self.stock_location)
 
-        # Control: a regular picking is still re-defaulted.
         regular = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -333,29 +299,18 @@ class TestAuditFixesPicking(TestStockCommon):
         regular.write({"picking_type_id": other_in_type.id})
         self.assertEqual(regular.location_id, other_in_type.default_location_src_id)
 
-    # ------------------------------------------------------------
-    # #21 _compute_state serves NewId records from the cache
-    # ------------------------------------------------------------
-
     def test_state_of_new_record_follows_cache(self):
         picking = self._create_confirmed_delivery(self.storable_1, 1)
         self.assertEqual(picking.state, "confirmed")
         new_picking = self.PickingObj.new(origin=picking)
         self.assertEqual(new_picking.state, "confirmed")
-        # Unsaved edits must be reflected instead of re-reading the committed
-        # moves from the database.
         new_picking.move_ids = False
         self.assertEqual(
             new_picking.state,
             "draft",
             "The form state must follow the pending (cache) moves",
         )
-        # The database record itself is untouched.
         self.assertEqual(picking.state, "confirmed")
-
-    # ------------------------------------------------------------
-    # #22 dashboard graph bucketing
-    # ------------------------------------------------------------
 
     def test_dashboard_graph_sql_bucketing(self):
         picking_type = self.picking_type_out
@@ -387,10 +342,6 @@ class TestAuditFixesPicking(TestStockCommon):
         totals = {value["category"]: value["value"] for value in graph_data["values"]}
         self.assertEqual(totals, expected)
 
-    # ------------------------------------------------------------
-    # #20 batched shipping weight
-    # ------------------------------------------------------------
-
     def test_shipping_weight_batched_per_picking(self):
         product = self.ProductObj.create(
             {"name": "Heavy audit product", "is_storable": True, "weight": 2.0}
@@ -409,10 +360,6 @@ class TestAuditFixesPicking(TestStockCommon):
         for picking in pickings:
             self.assertAlmostEqual(picking.shipping_weight, expected[picking.id])
 
-    # ------------------------------------------------------------
-    # #13 reception report probes per warehouse
-    # ------------------------------------------------------------
-
     def test_reception_report_not_shown_for_other_warehouse_demand(self):
         """Multi-warehouse batch validation: the demand probe must pair each
         warehouse's locations with that warehouse's own received products, not
@@ -427,7 +374,6 @@ class TestAuditFixesPicking(TestStockCommon):
                 {"name": "Audit RR product WH2", "is_storable": True},
             ]
         )
-        # Open demand for the WH1-received product... but in warehouse 2.
         self._create_confirmed_delivery(
             product_wh1, 3, picking_type=warehouse_2.out_type_id
         )
@@ -468,10 +414,6 @@ class TestAuditFixesPicking(TestStockCommon):
             "the WH1 product lives in WH2, which only received another product)",
         )
 
-    # ------------------------------------------------------------
-    # date_done write (low)
-    # ------------------------------------------------------------
-
     def test_date_done_only_redates_done_moves(self):
         picking = self._create_confirmed_delivery(self.product_2, 2)
         cancelled_move = self.MoveObj.create(
@@ -501,16 +443,10 @@ class TestAuditFixesPicking(TestStockCommon):
             "A cancelled move must not be re-dated by a date_done write",
         )
 
-    # ------------------------------------------------------------
-    # stock.lot lows
-    # ------------------------------------------------------------
-
     def test_lot_name_default_without_product_sequence(self):
         product = self.ProductObj.create(
             {"name": "Audit lot product", "is_storable": True, "tracking": "lot"}
         )
-        # The fork provisions a per-product sequence on tracked products; drop
-        # it to simulate legacy/imported products without one.
         product.lot_sequence_id = False
         lot = self.LotObj.create({"product_id": product.id})
         self.assertTrue(
@@ -528,10 +464,6 @@ class TestAuditFixesPicking(TestStockCommon):
         )
         with self.assertRaises(ValueError):
             lots.action_lot_open_quants()
-
-    # ------------------------------------------------------------
-    # stock.package lows
-    # ------------------------------------------------------------
 
     def test_package_owner_includes_children(self):
         owner = self.PartnerObj.create({"name": "Audit Owner"})
@@ -607,16 +539,11 @@ class TestAuditFixesPicking(TestStockCommon):
         matched_ids = domain[0][2]
         self.assertIn(package.id, matched_ids)
 
-    # ------------------------------------------------------------
-    # storage category capacity constraint (low)
-    # ------------------------------------------------------------
-
     @mute_logger("odoo.db.cursor")
     def test_storage_capacity_requires_exactly_one_target(self):
         category = self.env["stock.storage.category"].create({"name": "Audit Cat"})
         package_type = self.env["stock.package.type"].create({"name": "Audit PT"})
         Capacity = self.env["stock.storage.category.capacity"]
-        # Valid: exactly one of product / package type.
         Capacity.create(
             {
                 "storage_category_id": category.id,
@@ -645,10 +572,6 @@ class TestAuditFixesPicking(TestStockCommon):
                 }
             )
             self.env.flush_all()
-
-    # ------------------------------------------------------------
-    # putaway rule default qty map (low)
-    # ------------------------------------------------------------
 
     def test_putaway_location_without_qty_map(self):
         rule = self.env["stock.putaway.rule"].create(
@@ -720,7 +643,6 @@ class TestAuditAvailabilitySearch(TestStockCommon):
             available,
             "the clean sibling move must not leak the picking into 'available'",
         )
-        # in/not-in operators mirror the same single-state classification
         self.assertIn(
             picking,
             Picking.search(

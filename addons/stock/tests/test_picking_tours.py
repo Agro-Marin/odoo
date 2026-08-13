@@ -93,7 +93,6 @@ class TestStockPickingTour(HttpCase):
         menu = self.env.ref("stock.menu_action_inventory_tree")
         url = "/odoo/stock.quant?menu_id=%s" % (menu["id"])
 
-        # We need a bigger window, so the "Apply All" button is immediately visible
         self.browser_size = "1920,1080"
         self.start_tour(
             url, "test_inventory_adjustment_apply_all", login="admin", timeout=60

@@ -467,30 +467,12 @@ class StockQuant(models.Model):
         help="User assigned to do product count.",
     )
 
-    # Serves _gather()'s lookups, _merge_quants()'s GROUP BY and
-    # _get_quants_by_products_locations()'s _read_group. Column order matches the
-    # common groupby: product, location, lot, package, owner. company_id is last
-    # since the _read_group calls don't include it.
-    #
-    # There is deliberately no narrower (product_id, location_id) index beside it:
-    # that pair is this index's own leading prefix, so Postgres serves a prefix
-    # lookup from here and never chose the narrow one when both existed (measured
-    # at 200k rows / 20k lots: 2400 _gather calls, 2400 scans here, 0 there). The
-    # extra columns are a bonus, not a cost -- the strict gather's
-    # lot/package/owner IS NULL predicates move out of a heap Filter and into the
-    # Index Cond. Same reasoning as the standalone product_id index dropped below.
     _quant_merge_idx = models.Index(
         "(product_id, location_id, lot_id, package_id, owner_id, company_id)"
     )
 
     def init(self):
         super().init()
-        # product_id and (product_id, location_id) both dropped their index: each is
-        # a leading prefix of _quant_merge_idx, so a separate btree is pure write
-        # overhead on this hot table. `_auto_init` no longer creates them, but the
-        # ORM never drops indexes it once made, so remove the now-orphans here.
-        # Idempotent, and runs after `_auto_init` so they won't be recreated
-        # underneath us.
         self.env.cr.execute("DROP INDEX IF EXISTS stock_quant__product_id_index")
         self.env.cr.execute("DROP INDEX IF EXISTS stock_quant_product_location_idx")
 
@@ -999,8 +981,6 @@ class StockQuant(models.Model):
                 "result_package_id", "=", self.package_id.id
             )
         action["domain"] = domain
-        # `or "{}"`: an action with no context stores "" / None, which literal_eval
-        # rejects with SyntaxError rather than returning an empty dict.
         action["context"] = literal_eval(action.get("context") or "{}")
         action["context"]["search_default_product_id"] = self.product_id.id
         return action
@@ -1074,8 +1054,6 @@ class StockQuant(models.Model):
                 "target": "new",
                 "context": ctx,
             }
-        # No `inventory_quantity_set = False` here: `_apply_inventory` ends in
-        # `action_clear_inventory_quantity`, which already cleared it.
         self._apply_inventory(date)
         return None
 
@@ -1282,8 +1260,6 @@ class StockQuant(models.Model):
             if package_id is None:
                 singles_count += int(available_qty)
             else:
-                # No `available_qty != 0` guard: `query.having` above already keeps
-                # only groups with SUM(quantity - reserved_quantity) > 0.
                 real_packages.append((package_id, available_qty))
 
         if not real_packages:
@@ -1445,9 +1421,6 @@ class StockQuant(models.Model):
         self.inventory_quantity_set = True
         move_vals = []
         default_loss_locations = {}
-        # The product's loss location is company-dependent, so it is keyed by both.
-        # Resolved once here and read from the map below, rather than re-derived per
-        # quant inside the loop as well as in this filter.
         loss_location_by_product_company = {
             (quant.product_id.id, quant.company_id.id): quant.product_id.with_company(
                 quant.company_id
@@ -1674,14 +1647,6 @@ class StockQuant(models.Model):
             path of ``stock.move._action_done``). Ignored when ``self`` holds
             records (the recordset defines the scope then).
         """
-        # The candidate SELECT below is a hand-written SQL string, so its `to_flush`
-        # is empty and `env.execute_query` flushes nothing for it -- it would read
-        # the table while ORM writes to these four columns are still buffered, and
-        # `unlink()` flushes before deleting, so a pending write would land and then
-        # be dropped with the row. Today every caller happens to have flushed first
-        # (`_quant_tasks` runs `_merge_quants`, whose `cr.savepoint()` flushes), but
-        # that is their accident, not this method's contract. Flush explicitly, like
-        # `_search_is_outdated` does for the same reason.
         self.env["stock.quant"].flush_model(
             ["quantity", "reserved_quantity", "inventory_quantity", "user_id"]
         )
@@ -2112,10 +2077,6 @@ class StockQuant(models.Model):
         ):
             quantity_ai = gs1_quantity_rules_ai_by_uom.get(self.product_uom_id.id)
             if quantity_ai:
-                # round(), not int(): `quantity / rounding` is a float division that
-                # lands just under the integer for ordinary values, and truncating it
-                # encodes one decimal step too little -- 0.29 kg went out as 0.28,
-                # 1.16 as 1.15. The no-AI branch below already rounds.
                 qty_str = str(round(self.quantity / self.product_uom_id.rounding))
                 if len(qty_str) <= 6:
                     barcode += quantity_ai + "0" * (6 - len(qty_str)) + qty_str
@@ -2521,11 +2482,6 @@ class StockQuant(models.Model):
                    DELETE FROM stock_quant WHERE id in (SELECT unnest(to_delete_quant_ids) from dupes)
         """
         try:
-            # `savepoint()` flushes (flush=True is its default), and that is
-            # load-bearing here, not incidental: the raw statement below sums the
-            # columns straight off the table, so an ORM write still buffered would be
-            # left out of the merged total and then flushed back over it. Never pass
-            # `flush=False`.
             with self.env.cr.savepoint():
                 self.env.cr.execute(query, params)
                 self.env.invalidate_all()
@@ -2602,10 +2558,6 @@ class StockQuant(models.Model):
             ["quantity:sum"],
         )
         for product, _location, lot, qty in groups:
-            # `abs`: more than one unit of a serial at one location is broken either
-            # way, but the two directions are different faults and the "already
-            # assigned" wording only fits the positive one. A single negative unit
-            # stays legal -- that is an ordinary delivery-before-receipt.
             if product.uom_id.compare(abs(qty), 1) <= 0:
                 continue
             if product.uom_id.compare(qty, 0) > 0:

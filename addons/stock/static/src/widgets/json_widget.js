@@ -10,10 +10,6 @@ export class JsonPopOver extends Component {
     static template = "";
     static props = { ...standardFieldProps };
     get jsonValue() {
-        // Memoized: this getter is read many times per render (once per derived
-        // getter and repeatedly in getScatterGraphConfig). Re-parse only when the
-        // underlying field value actually changes. An empty/false field value
-        // parses as an empty object instead of throwing.
         const raw = this.props.record.data[this.props.name];
         if (raw !== this._jsonRaw) {
             this._jsonRaw = raw;
@@ -29,10 +25,6 @@ export const jsonPopOver = {
     supportedTypes: ["char"],
 };
 
-// --------------------------------------------------------------------------
-// Lead Days
-// --------------------------------------------------------------------------
-
 export class PopOverLeadDays extends JsonPopOver {
     static template = "stock.leadDays";
 }
@@ -42,10 +34,6 @@ export const popOverLeadDays = {
     component: PopOverLeadDays,
 };
 registry.category("fields").add("lead_days_widget", popOverLeadDays);
-
-// --------------------------------------------------------------------------
-// Forecast Graph
-// --------------------------------------------------------------------------
 
 export class ReplenishmentGraphWidget extends JsonPopOver {
     static template = "stock.replenishmentGraph";
@@ -66,8 +54,6 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
                     }
                 };
             },
-            // Rebuild the chart only when the underlying JSON changes, not on
-            // every render.
             () => [this.props.record.data[this.props.name]],
         );
     }
@@ -99,8 +85,6 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
         return this.jsonValue["lead_time"];
     }
 
-    // Full translatable sentences (placeholders included) instead of template
-    // fragments a translator would only ever see piecewise.
     get dailyDemandText() {
         return _t("Daily Demand: %(demand)s %(uom)s/day", {
             demand: this.dailyDemand,

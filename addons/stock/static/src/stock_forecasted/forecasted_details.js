@@ -12,9 +12,6 @@ export class ForecastedDetails extends Component {
     setup() {
         this.orm = useService("orm");
         this.state = useState({ collapsedProducts: {} });
-        // Shared busy flag: while a reserve/unreserve/priority RPC (and the
-        // reloadReport it triggers) is in flight, all three handlers are inert
-        // and the template disables the controls.
         this.opGuard = useOperationGuard();
         this._reserve = this.opGuard.guard(this._reserve.bind(this));
         this._unreserve = this.opGuard.guard(this._unreserve.bind(this));
@@ -28,12 +25,6 @@ export class ForecastedDetails extends Component {
             formatFloat(num, { digits: [false, this.props.docs.precision] });
     }
 
-    /**
-     * Derives everything the template reads (local line list, groupings,
-     * totals, merge data) from `docs`. Called from setup and again on every
-     * props update. The line list is a local copy: sorting/splicing during the
-     * derivation must never write back into the parent-owned `props.docs`.
-     */
     _deriveLinesData(docs) {
         this.docs = docs;
         this._prepareLines();
@@ -103,7 +94,6 @@ export class ForecastedDetails extends Component {
         );
     }
 
-    //Extend this to add new lines grouping
     _groupLines() {
         this._groupLinesByProduct();
         this._groupOnHandLinesByProduct();
@@ -151,9 +141,6 @@ export class ForecastedDetails extends Component {
     }
 
     _groupFreeStockLinesByProduct() {
-        // NB: no `removal_date` filtering here — that key only exists when
-        // product_expiry is installed, and product_expiry's override of
-        // `_freeStockCondition` applies it.
         this.FreeStockLinesPerProduct = {};
         for (const line of this.lines) {
             if (this._freeStockCondition(line)) {
@@ -164,9 +151,6 @@ export class ForecastedDetails extends Component {
     }
 
     _prepareLines() {
-        // Copy first (extensions sort `docs.lines` in place before calling
-        // super, so the copy must be taken here, not earlier): every later
-        // step — grouping, splicing, merging — works on this local array only.
         this._lines = [...this.docs.lines];
         if (this.multipleProducts) {
             this._lines.sort((a, b) => (a.product.id || 0) - (b.product.id || 0));
@@ -244,11 +228,6 @@ export class ForecastedDetails extends Component {
         );
     }
 
-    /**
-     * Whether the Reserve/Unreserve action is shown for `line`, the datapoint at
-     * `lineIndex` in `this.lines`. The index is passed explicitly by the template
-     * — do not rely on t-foreach scope variables leaking into `this`.
-     */
     displayReserve(line, lineIndex) {
         let splittedLine = true;
         if (lineIndex - 1 >= 0) {
@@ -319,10 +298,6 @@ export class ForecastedDetails extends Component {
         return _t("Free Stock");
     }
 
-    /**
-     * Full translatable sentence for an incoming document's expected receipt —
-     * built in one piece so translators see the whole phrase, not fragments.
-     */
     incomingSentence(line, quantity) {
         return _t("%(quantity)s %(uom)s expected on %(date)s", {
             quantity: this._formatFloat(quantity),
@@ -338,10 +313,6 @@ export class ForecastedDetails extends Component {
         });
     }
 
-    /**
-     * Local, derived copy of `docs.lines` (see _deriveLinesData) — never the
-     * parent-owned array itself.
-     */
     get lines() {
         return this._lines;
     }
@@ -350,20 +321,11 @@ export class ForecastedDetails extends Component {
         return this.docs.multiple_product;
     }
 
-    /** @param {number} productId */
     toggleProduct(productId) {
         this.state.collapsedProducts[productId] =
             !this.state.collapsedProducts[productId];
     }
 
-    /**
-     * The rows of one product group carry Bootstrap's `.collapse`, whose
-     * `:not(.show)` rule is the only thing hiding them — `.show` is deliberately
-     * not paired with a `display`, so the rows keep `display: table-row`.
-     *
-     * @param {number} productId
-     * @returns {string}
-     */
     groupClass(productId) {
         if (!this.multipleProducts) {
             return "";

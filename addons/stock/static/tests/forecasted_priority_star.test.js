@@ -4,11 +4,6 @@ import { describe, expect, getFixture, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 
-/**
- * Font Awesome 7 tells the filled and outlined star apart by font weight, not by
- * codepoint - the outline lost its own glyph (\f006). Styling keyed on the old
- * `fa-star-o` name silently stops matching, leaving both states identical.
- */
 function mountStars() {
     const fixture = getFixture();
     fixture.innerHTML = `<div class="o_stock_forecasted_page">

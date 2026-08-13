@@ -28,9 +28,6 @@ async function doMultiPrint(env, action) {
                 ...report,
             });
         } catch {
-            // If PDF generation fails the action service falls back to HTML;
-            // isolate the failure so one bad report doesn't wedge the whole
-            // print chain (and leave a follow-up action's promise unresolved).
             env.services.notification.add(
                 _t("Could not print report: %s", report.name),
                 { title: _t("Report Printing Error") },
@@ -40,7 +37,6 @@ async function doMultiPrint(env, action) {
     if (action.params.anotherAction) {
         return env.services.action.doAction(action.params.anotherAction);
     } else if (action.params.onClose) {
-        // handle special cases such as barcode
         return action.params.onClose();
     } else {
         return env.services.action.doAction("reload_context");

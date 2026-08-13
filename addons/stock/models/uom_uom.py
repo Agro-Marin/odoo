@@ -16,7 +16,6 @@ class UomUom(models.Model):
     )
 
     def write(self, vals):
-        # Block conversion-ratio changes once moves/reservations/quants already depend on it.
         keys_to_protect = {"factor", "relative_factor", "relative_uom_id"}
         if any(key in vals for key in keys_to_protect):
             changed = self.filtered(
@@ -27,8 +26,6 @@ class UomUom(models.Model):
                     )
                     or (
                         "relative_uom_id" in vals
-                        # `or 0` folds a programmatic None into the same "unset"
-                        # bucket as the web client's False instead of crashing.
                         and (u.relative_uom_id.id or 0)
                         != int(vals["relative_uom_id"] or 0)
                     )

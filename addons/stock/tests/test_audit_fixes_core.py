@@ -32,10 +32,6 @@ class TestAuditFixesCore(TestStockCommon):
             }
         )
 
-    # ------------------------------------------------------------
-    # helpers
-    # ------------------------------------------------------------
-
     def _spy_calls(self, module, klass, method):
         """Patch `method` on the given model class with a counting wrapper.
 
@@ -144,10 +140,6 @@ class TestAuditFixesCore(TestStockCommon):
         move._action_done()
         return move
 
-    # ------------------------------------------------------------
-    # 3. duplicate-serial onchange warns on the FIRST duplicate
-    # ------------------------------------------------------------
-
     def test_duplicate_serial_onchange_warns_on_first_duplicate(self):
         picking = self.env["stock.picking"].create(
             {
@@ -187,21 +179,14 @@ class TestAuditFixesCore(TestStockCommon):
                 },
             ]
         )
-        # One other line already carries this serial: the very first duplicate
-        # must warn (the `> 1` threshold silently accepted it).
         res = line2._onchange_serial_number()
         self.assertTrue(
             res.get("warning"),
             "first duplicate serial must trigger the onchange warning",
         )
-        # Control: a unique serial stays silent.
         line1.lot_name = "AUD-SN-UNIQUE"
         res = line1._onchange_serial_number()
         self.assertFalse(res.get("warning"))
-
-    # ------------------------------------------------------------
-    # 4. picking assignation requires the exact reference set
-    # ------------------------------------------------------------
 
     def test_picking_assignation_reference_set_coverage(self):
         """A move only joins a picking whose reference set it fully covers: the
@@ -233,9 +218,6 @@ class TestAuditFixesCore(TestStockCommon):
         picking_ab = move_a.picking_id
         self.assertTrue(picking_ab)
 
-        # A move belonging to ref1 only must NOT join the picking that also
-        # serves ref2 (the ORM turns the "=" m2m domain into any-overlap, which
-        # used to let it in).
         move_b = make_move(self.productA, ref1)
         move_b._action_confirm()
         self.assertTrue(move_b.picking_id)
@@ -245,22 +227,13 @@ class TestAuditFixesCore(TestStockCommon):
             "a move must not join a picking serving references it does not carry",
         )
 
-        # Control: a move covering the picking's whole set joins it (different
-        # product so `_merge_moves` does not fold the move into move_a).
         move_c = make_move(self.productB, ref1 | ref2)
         move_c._action_confirm()
         self.assertEqual(move_c.picking_id, picking_ab)
 
-        # Merged-origin flow: a move carrying *more* references than any
-        # picking (as after an origin-document merge) joins the picking whose
-        # set it covers -- here move_b's {ref1} picking, not a fresh one.
         move_d = make_move(self.productB, ref1 | ref3)
         move_d._action_confirm()
         self.assertEqual(move_d.picking_id, move_b.picking_id)
-
-    # ------------------------------------------------------------
-    # 5. reservation hot path: gather counts
-    # ------------------------------------------------------------
 
     def _gather_spy(self):
         import odoo.addons.stock.models.stock_quant as _sq
@@ -332,10 +305,6 @@ class TestAuditFixesCore(TestStockCommon):
         self.assertAlmostEqual(sum(quant.mapped("reserved_quantity")), 6.0)
         self.assertEqual(move.state, "assigned")
 
-    # ------------------------------------------------------------
-    # 6. destination-only writes do not resync the reservation
-    # ------------------------------------------------------------
-
     def test_write_location_dest_does_not_resync_reservation(self):
         import odoo.addons.stock.models.stock_move_line as _sml
 
@@ -356,17 +325,8 @@ class TestAuditFixesCore(TestStockCommon):
         )
         self.assertAlmostEqual(sum(quant.mapped("reserved_quantity")), 5.0)
 
-    # ------------------------------------------------------------
-    # 9. _free_reservation severs only fully-unlinked moves
-    # ------------------------------------------------------------
-
     def test_free_reservation_partial_keeps_mto_chain(self):
         m_in, m_out = self._mto_chain(self.productD, qty=5.0)
-        # Forcing 3 out of the same stock leaves 2 available: the MTO line is
-        # reduced (5 -> 2). The move degrades to make_to_stock (so quant-side
-        # replenishment can serve the stolen portion via `_trigger_assign`) but
-        # its origin chain links must survive -- only fully-unlinked moves lose
-        # them.
         self._force_outgoing_done(self.productD, 3.0)
         self.assertAlmostEqual(m_out.move_line_ids.quantity, 2.0)
         self.assertEqual(m_out.procure_method, "make_to_stock")
@@ -378,24 +338,16 @@ class TestAuditFixesCore(TestStockCommon):
 
     def test_free_reservation_full_unlink_severs_chain(self):
         _m_in, m_out = self._mto_chain(self.productD, qty=5.0)
-        # Forcing the full 5 out unlinks the reservation entirely: the move
-        # falls back to MTS and drops its origin link (unchanged behavior).
         self._force_outgoing_done(self.productD, 5.0)
         self.assertFalse(m_out.move_line_ids)
         self.assertEqual(m_out.procure_method, "make_to_stock")
         self.assertFalse(m_out.move_orig_ids)
-
-    # ------------------------------------------------------------
-    # 10. same-package validation cleans zero quants scoped
-    # ------------------------------------------------------------
 
     def test_same_package_validation_scoped_zero_quant_cleanup(self):
         package = self.env["stock.package"].create({"name": "AUD-PACK"})
         self.Quant._update_available_quantity(
             self.productC, self.stock_location, 5.0, package_id=package
         )
-        # An unrelated zero quant outside the touched scope must survive the
-        # validation (the cleanup used to scan and purge the whole table).
         unrelated_zero = self.Quant.create(
             {
                 "product_id": self.productD.id,
@@ -443,15 +395,10 @@ class TestAuditFixesCore(TestStockCommon):
             "the cleanup must stay scoped to the touched products/locations",
         )
 
-    # ------------------------------------------------------------
-    # 11. done lines created in batch reassign chained moves once
-    # ------------------------------------------------------------
-
     def test_done_lines_batch_single_reassign(self):
         import odoo.addons.stock.models.stock_move as _sm
 
         self.Quant._update_available_quantity(self.productE, self.stock_location, 10.0)
-        # m1 done (stock -> pack), m2 assigned on what m1 brought.
         m1 = self.env["stock.move"].create(
             {
                 "product_id": self.productE.id,
@@ -503,14 +450,9 @@ class TestAuditFixesCore(TestStockCommon):
             1,
             "N done lines on one move must reassign the chained moves once",
         )
-        # The chained move now sees the extra 2 units m1 brought.
         self.assertAlmostEqual(
             sum(m2.move_line_ids.mapped("quantity_product_uom")), 6.0
         )
-
-    # ------------------------------------------------------------
-    # 12. _compute_picked is pure; the dialog uses a create default
-    # ------------------------------------------------------------
 
     def test_compute_picked_ignores_context(self):
         self.Quant._update_available_quantity(self.productB, self.stock_location, 5.0)
@@ -540,10 +482,6 @@ class TestAuditFixesCore(TestStockCommon):
         self.assertNotIn("auto_pick_move_lines", action["context"])
         move.picked = False
         self.assertFalse(move.action_show_details()["context"].get("default_picked"))
-
-    # ------------------------------------------------------------
-    # Low severity -- core engine group
-    # ------------------------------------------------------------
 
     def test_get_reserve_quantity_non_positive_returns_empty(self):
         self.Quant._update_available_quantity(self.productA, self.stock_location, 4.0)
@@ -615,9 +553,6 @@ class TestAuditFixesCore(TestStockCommon):
                 },
             ]
         )
-        # The clean, company-aware uniqueness ValidationError raised by
-        # stock.lot's `_check_duplicate_lot_keys` -- never a raw
-        # unique-constraint IntegrityError.
         with self.assertRaises(ValidationError):
             mls._create_and_assign_production_lot()
 
@@ -649,8 +584,6 @@ class TestAuditFixesCore(TestStockCommon):
             }
         )
         self.serial_product.product_tmpl_id.lot_sequence_id = sequence
-        # first_lot matches get_next_char(number_next_actual - increment):
-        # the unclamped arithmetic would rewind the sequence to 46.
         first_lot = sequence.get_next_char(45)
         context_data = {
             "default_product_id": self.serial_product.id,
@@ -673,12 +606,9 @@ class TestAuditFixesCore(TestStockCommon):
         self.Quant._update_available_quantity(self.productB, self.stock_location, 4.0)
         picking = self._out_picking_with_moves(self.productB, qty=4.0)
         move1 = picking.move_ids
-        # The base key is f"{pid}_{name}_{description}_{uom}_{pkg_uom}". Embed
-        # its own tail in move1's description so move1's key strictly extends
-        # the cancelled move's ("AUD-AGG") key without being the same group.
         move1.description_picking = "AUD-AGG"
         base_key = self.MoveLine._get_aggregated_properties(move=move1)["line_key"]
-        tail = base_key.split("AUD-AGG", 1)[1]  # "_{uom}_{pkg_uom}"
+        tail = base_key.split("AUD-AGG", 1)[1]
         move1.description_picking = "AUD-AGG" + tail + "_X"
 
         move2 = self.env["stock.move"].create(

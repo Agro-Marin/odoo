@@ -2,8 +2,6 @@ from collections import defaultdict
 
 from odoo import api, models
 
-# Palette cycled through, one color per drawn route. Kept as a hook (see
-# ``_get_route_colors``) so downstream modules can override it.
 ROUTE_COLORS = (
     "#FFA500",
     "#800080",
@@ -25,15 +23,10 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
         product = self.env["product.product"].browse(data.get("product_id", docids))
         product.ensure_one()
         warehouses = self.env["stock.warehouse"].browse(data.get("warehouse_ids") or [])
-        # Re-expose normalized ids: ``_get_routes`` (and downstream overrides such
-        # as sale_stock's) read the product/warehouses back out of ``data``.
         data = {**data, "product_id": product.id, "warehouse_ids": warehouses.ids}
 
         routes = self._get_routes(data)
 
-        # Some routes carry rules of several warehouses; only keep the rules with
-        # no warehouse or belonging to a selected one. For each we resolve its
-        # source and destination location.
         relevant_rules = routes.rule_ids.filtered(
             lambda r: not r.warehouse_id or r.warehouse_id in warehouses
         )
@@ -109,8 +102,6 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
             for rule in rules_to_display:
                 rule_loc = loc_by_rule[rule]
                 row = [[] for _ in locations]
-                # Destination first, then source: a rule whose source and
-                # destination collapse to one location renders as "origin".
                 destination = rule_loc["destination"]
                 source = rule_loc["source"]
                 if destination.id in loc_index:
@@ -210,11 +201,9 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
                 indegree[succ] -= 1
                 if indegree[succ] == 0:
                     newly_ready.append(succ)
-            # keep the frontier sorted for a stable, id-ordered result
             for succ in sorted(newly_ready):
                 ready.insert(0, succ)
             ready.sort()
-        # locations still stuck in a cycle: append deterministically
         for lid in sorted(location_ids - rank.keys()):
             rank[lid] = len(rank)
         return rank

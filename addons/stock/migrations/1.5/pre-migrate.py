@@ -48,14 +48,12 @@ tuple bound to ``IN %s`` collapses into a single parameter and errors out.
 
 from odoo.db.schema import column_exists
 
-# (table, old column, new column) — stored computes renamed by the fork.
 _COLUMN_RENAMES = (
     ("stock_picking", "scheduled_date", "date_planned"),
     ("stock_move", "delay_alert_date", "date_delay_alert"),
     ("stock_move", "reservation_date", "date_reservation"),
 )
 
-# (old, new) — unambiguous fork-wide; safe for a global sweep.
 _GLOBAL_PAIRS = (
     ("delay_alert_date", "date_delay_alert"),
     ("reservation_date", "date_reservation"),
@@ -63,7 +61,6 @@ _GLOBAL_PAIRS = (
     ("packages_count", "count_packages"),
 )
 
-# (models, (old, new) pairs) — ambiguous tokens, rewritten per anchor model.
 _SCOPED_GROUPS = (
     (
         ["stock.picking", "stock.move.line"],
@@ -119,14 +116,12 @@ def migrate(cr, version):
     :param version: installed module version; falsy on a fresh install
     """
     if not version:
-        return  # fresh install: the ORM creates the new columns directly
+        return
 
     for table, old, new in _COLUMN_RENAMES:
         if column_exists(cr, table, old) and not column_exists(cr, table, new):
             cr.execute(f'ALTER TABLE "{table}" RENAME COLUMN "{old}" TO "{new}"')
 
-    # Stored view arch and user filters: one global pass, then one pass per
-    # scoped model group. ``None`` as the model list means "no model filter".
     for models, pairs in ((None, _GLOBAL_PAIRS), *_SCOPED_GROUPS):
         view_filter = " AND model = ANY(%s)" if models else ""
         filter_filter = " AND model_id = ANY(%s)" if models else ""
@@ -152,8 +147,6 @@ def migrate(cr, version):
             params,
         )
 
-    # Export lines. Global tokens: regexp on the whole path, so dotted paths
-    # from other models (``picking_id/packages_count``) are covered too.
     cr.execute(
         f"""
         UPDATE ir_exports_line
@@ -161,9 +154,6 @@ def migrate(cr, version):
          WHERE {_match_sql("name", _GLOBAL_PAIRS)}
         """
     )
-    # Scoped tokens: exact field-name match per anchor resource (the 1.3/1.4
-    # approach) — a dotted ``scheduled_date`` under another resource cannot be
-    # attributed to stock.picking reliably.
     for models, pairs in _SCOPED_GROUPS:
         for old, new in pairs:
             cr.execute(
@@ -178,7 +168,6 @@ def migrate(cr, version):
                 (new, models, old),
             )
 
-    # Server actions: global (unambiguous) tokens only — see module docstring.
     cr.execute(
         f"""
         UPDATE ir_act_server

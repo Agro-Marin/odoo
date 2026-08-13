@@ -39,10 +39,8 @@ class ReportStockReport_Reception(models.AbstractModel):
         doc_states = docs.mapped("state")
         moves = self._get_moves(docs)
 
-        # Classify every incoming move by how it can be presented.
         qty_draft, qty_to_assign, total_assigned = self._classify_incoming_moves(moves)
 
-        # Candidate outgoing moves that these incoming quantities could cover.
         outs = self._search_candidate_outs(docs, doc_states, qty_to_assign, qty_draft)
 
         sources_to_lines = self._match_outs_to_incoming(
@@ -50,7 +48,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         )
         self._add_assigned_lines(sources_to_lines, total_assigned)
 
-        # dates aren't auto-formatted when printed in report :(
         sources_to_formatted_scheduled_date = {
             source: self._get_formatted_scheduled_date(source[0])
             for source in sources_to_lines
@@ -93,8 +90,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         qty_to_assign = defaultdict(list)
         total_assigned = defaultdict(lambda: [0.0, []])
 
-        # Pool of quantities already reserved through destination moves, drawn
-        # down greedily below so batch pickings don't double-count them.
         assigned_pool = defaultdict(float)
         for assigned in moves.move_dest_ids:
             assigned_pool[assigned.product_id] += assigned.product_qty
@@ -120,7 +115,6 @@ class ReportStockReport_Reception(models.AbstractModel):
     def _search_candidate_outs(self, docs, doc_states, qty_to_assign, qty_draft):
         """Outgoing moves (not already chained, non-mto, same warehouse) that
         could consume the incoming quantities."""
-        # only match for non-mto moves in same warehouse
         warehouse = docs[0].picking_type_id.warehouse_id
         wh_location_ids = self.env["stock.location"]._search(
             [
@@ -131,7 +125,6 @@ class ReportStockReport_Reception(models.AbstractModel):
 
         allowed_states = ["confirmed", "partially_available", "waiting"]
         if "done" in doc_states:
-            # only done moves are allowed to be assigned to already reserved moves
             allowed_states.append("assigned")
 
         product_ids = [product.id for product in {*qty_to_assign, *qty_draft}]
@@ -154,7 +147,7 @@ class ReportStockReport_Reception(models.AbstractModel):
         for out in outs:
             products_to_outs[out.product_id].append(out)
 
-        sources_to_lines = defaultdict(list)  # group by source to print together
+        sources_to_lines = defaultdict(list)
         for product, product_outs in products_to_outs.items():
             product_uom_id = product.uom_id
             assign_queue = qty_to_assign[product]
@@ -183,7 +176,6 @@ class ReportStockReport_Reception(models.AbstractModel):
                         )
                     )
 
-                # draft qtys can be shown but not assigned
                 qty_expected = qty_draft.get(product, 0)
                 if product_uom_id.compare(
                     qty_to_reserve, quantity
@@ -227,10 +219,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         """Append the already-assigned (chained) lines to `sources_to_lines`."""
         for product, (assigned_qty, move_in_ids) in total_assigned.items():
             moves_in = self.env["stock.move"].browse(move_in_ids)
-            # Allocate the assigned pool FIFO across the destination moves so
-            # the displayed total never exceeds the received quantity. Which
-            # outs the batch's in moves actually cover is still a guess, but a
-            # quantity-conserving one.
             for out_move in moves_in.move_dest_ids:
                 if out_move.product_id.uom_id.is_zero(assigned_qty):
                     continue
@@ -279,7 +267,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         }
 
     def _get_report_source(self, move):
-        # We expect len(source) = 2 when picking + origin [e.g. SO] and len() = 1 otherwise [e.g. MO].
         source = move._get_source_document()
         if not source:
             return False
@@ -317,10 +304,6 @@ class ReportStockReport_Reception(models.AbstractModel):
             return format_date(self.env, source.date_planned)
         return False
 
-    # ------------------------------------------------------------------
-    # Assign / unassign
-    # ------------------------------------------------------------------
-
     def action_assign(self, move_ids, qtys, in_ids):
         """Assign picking move(s) [i.e. link] to other moves (i.e. make them MTO)
         :param move_ids ids: the ids of the moves to make MTO
@@ -342,9 +325,6 @@ class ReportStockReport_Reception(models.AbstractModel):
                     " moves lists must have the same length."
                 )
             )
-        # Drop lines with no incoming moves to link (e.g. the "expected" draft-only
-        # lines "Assign all" also sends): nothing to make-to-order, and processing
-        # them would wrongly split the out move (and browse(False)[0] would raise).
         assignments = [
             (out_id, qty, ins)
             for out_id, qty, ins in zip(move_ids, qtys, in_ids, strict=True)
@@ -352,11 +332,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         ]
         if not assignments:
             return
-        # Re-validate the client-supplied payload server-side. This RPC turns moves
-        # into make-to-order and re-parents reserved quants, so a crafted request (or
-        # a stale report tab) must not link an out that is not an assignable candidate,
-        # re-link an already-linked out, or cross a company boundary -- the report's
-        # own candidate search (`_search_candidate_outs`) enforces the same invariants.
         allowed_out_states = {"confirmed", "partially_available", "waiting", "assigned"}
         for out_id, _qty, ins in assignments:
             out = self.env["stock.move"].browse(out_id)
@@ -384,9 +359,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         out_ids = [out_id for out_id, _qty, _ins in assignments]
         outs = self.env["stock.move"].browse(out_ids)
 
-        # Split outs with only part of demand assigned to avoid reservation problems.
-        # Done first so split moves are created in batch; only outs that yield a
-        # split are mapped, keeping ids aligned 1:1 with the created moves.
         new_move_vals = []
         split_out_ids = []
         for out, (_out_id, qty_to_link, _ins) in zip(outs, assignments, strict=True):
@@ -399,7 +371,6 @@ class ReportStockReport_Reception(models.AbstractModel):
             new_move_vals += split_vals
             split_out_ids.append(out.id)
         new_outs = self.env["stock.move"].create(new_move_vals)
-        # don't do action confirm to avoid creating additional unintentional reservations
         new_outs.write({"state": "confirmed"})
         out_to_new_out = dict(zip(split_out_ids, new_outs, strict=True))
 
@@ -408,15 +379,10 @@ class ReportStockReport_Reception(models.AbstractModel):
             if out.id in out_to_new_out:
                 new_out = out_to_new_out[out.id]
                 if potential_ins[0].state != "done" and out.quantity:
-                    # let's assume if 1 of the potential_ins isn't done, then none of them are => we are only assigning the not-reserved
-                    # qty and the new move should have all existing reserved quants (i.e. move lines) assigned to it
                     out.move_line_ids.move_id = new_out
                 elif (
                     potential_ins[0].state == "done"
                     and out.product_id.uom_id.compare(
-                        # out.quantity is in the move's UoM; qty_to_link is in the product's
-                        # reference UoM (as is product_qty). Convert before comparing, or a
-                        # non-unit move UoM (e.g. dozens) silently mis-compares.
                         out.product_uom_id._compute_quantity(
                             out.quantity, out.product_id.uom_id
                         ),
@@ -424,8 +390,6 @@ class ReportStockReport_Reception(models.AbstractModel):
                     )
                     > 0
                 ):
-                    # let's assume if 1 of the potential_ins is done, then all of them are => we can link them to already reserved moves, but we
-                    # need to make sure the reserved qtys still match the demand amount the move (we're assigning).
                     out.move_line_ids.move_id = new_out
                     assigned_amount = 0
                     matching_locations = potential_ins.location_dest_id
@@ -471,12 +435,8 @@ class ReportStockReport_Reception(models.AbstractModel):
                     in_move.product_id != out.product_id
                     or in_move.product_id.uom_id.compare(0, quantity_remaining) >= 0
                 ):
-                    # in move is already completely linked (e.g. during another assign click) => don't count it again
                     continue
 
-                # Only the still-unclaimed part of the in move can cover this
-                # out: counting its full quantity would decrement qty_to_link
-                # too much and leave the out silently under-covered.
                 linked_qty = min(quantity_remaining, qty_to_link)
                 in_move.move_dest_ids |= out
                 self._share_source_references(in_move, out)
@@ -484,11 +444,10 @@ class ReportStockReport_Reception(models.AbstractModel):
                 quantity_remaining -= linked_qty
                 qty_to_link -= linked_qty
                 if out.product_id.uom_id.is_zero(qty_to_link):
-                    break  # qty_to_link is fully satisfied
+                    break
 
         (outs | new_outs)._recompute_state()
 
-        # always try to auto-assign to prevent another move from reserving the quant if incoming move is done
         outs._action_assign()
 
     def action_unassign(self, move_id, qty, in_ids):
@@ -500,11 +459,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         out = self.env["stock.move"].browse(move_id)
         ins = self.env["stock.move"].browse(in_ids)
 
-        # Re-validate the client-supplied payload server-side, mirroring
-        # `action_assign`: this RPC severs MTO links, rewrites procure_method
-        # and unreserves, so a crafted request (or a stale report tab) must not
-        # touch a move in an unexpected state, an unlinked move, or a move of
-        # another company.
         allowed_out_states = {"confirmed", "partially_available", "waiting", "assigned"}
         if out.state not in allowed_out_states:
             raise UserError(
@@ -539,23 +493,15 @@ class ReportStockReport_Reception(models.AbstractModel):
             if out.product_id.uom_id.compare(qty, amount_unassigned) <= 0:
                 break
         if out.move_orig_ids and out.state != "done":
-            # annoying use cases where we need to split the out move:
-            # 1. batch reserved + individual picking unreserved
-            # 2. moves linked from backorder generation
             total_still_linked = sum(out.move_orig_ids.mapped("product_qty"))
             new_move_vals = out._split(total_still_linked)
             if new_move_vals:
                 new_move_vals[0]["procure_method"] = "make_to_order"
                 new_move_vals[0]["date_reservation"] = out.date_reservation
                 new_out = self.env["stock.move"].create(new_move_vals)
-                # don't do action confirm to avoid creating additional unintentional reservations
                 new_out.write({"state": "confirmed"})
                 out.move_line_ids.move_id = new_out
                 (out | new_out)._compute_quantity()
-                # new_out.quantity is in the move UoM; product_qty and the move lines'
-                # quantity_product_uom below are in the product reference UoM. Work in
-                # reference UoM throughout so a non-unit move UoM does not mis-compute
-                # the extra reserved amount.
                 new_out_qty_ref = new_out.product_uom_id._compute_quantity(
                     new_out.quantity, new_out.product_id.uom_id
                 )
@@ -565,7 +511,6 @@ class ReportStockReport_Reception(models.AbstractModel):
                     )
                     > 0
                 ):
-                    # extra reserved amount goes to no longer linked out
                     reserved_amount_to_remain = new_out_qty_ref - new_out.product_qty
                     product_uom = new_out.product_id.uom_id
                     for move_line_id in new_out.move_line_ids:
@@ -620,10 +565,6 @@ class ReportStockReport_Reception(models.AbstractModel):
             in_source._remove_reference(out_ref)
         if in_ref and out_source:
             out_source._remove_reference(in_ref)
-
-    # ------------------------------------------------------------------
-    # HTML formatting for the interactive (OWL) report
-    # ------------------------------------------------------------------
 
     def _format_html_docs(self, docs):
         """Format docs to be sent in an html request."""

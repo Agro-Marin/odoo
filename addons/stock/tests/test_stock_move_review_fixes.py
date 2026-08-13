@@ -561,10 +561,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
             "writing location_final_id must re-derive location_dest_id",
         )
 
-        # The create path must reach the same destination when it likewise has
-        # to derive one. An explicit `location_dest_id` is deliberately absent
-        # from these values: explicit values beat a compute at create time, which
-        # is ORM behaviour rather than anything this rule decides.
         created = self.MoveObj.create(
             {
                 "product_id": self.lot_product.id,

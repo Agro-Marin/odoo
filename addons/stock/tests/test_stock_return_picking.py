@@ -48,7 +48,6 @@ class TestReturnPicking(TestStockCommon):
         ).create({})
 
         ReturnPickingLineObj = self.env["stock.return.picking.line"]
-        # Check return line of uom_unit move
         return_line = ReturnPickingLineObj.search(
             [
                 ("move_id", "=", move_1.id),
@@ -68,7 +67,6 @@ class TestReturnPicking(TestStockCommon):
         )
         self.assertEqual(return_line.quantity, 0, "Return line should have 0 quantity")
         return_line.quantity = 2
-        # Check return line of uom_dozen move
         return_line = ReturnPickingLineObj.search(
             [
                 ("move_id", "=", move_2.id),
@@ -149,7 +147,6 @@ class TestReturnPicking(TestStockCommon):
         res = return_wizard.action_create_returns()
         picking2 = self.PickingObj.browse(res["res_id"])
 
-        # Assigned user should not be copied
         self.assertTrue(picking.user_id)
         self.assertFalse(picking2.user_id)
 
@@ -165,7 +162,6 @@ class TestReturnPicking(TestStockCommon):
 
     def test_return_location(self):
         """test default return location are taken into account"""
-        # Make a delivery
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 100
         )
@@ -189,7 +185,6 @@ class TestReturnPicking(TestStockCommon):
         out_move.quantity = 1
         delivery_picking.button_validate()
 
-        # Create return
         return_wizard = (
             self.env["stock.return.picking"]
             .with_context(active_id=delivery_picking.id, active_model="stock.picking")
@@ -225,7 +220,6 @@ class TestReturnPicking(TestStockCommon):
             }
         )
         receipt.button_validate()
-        # create a return picking
         stock_return_picking_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=receipt.ids,
@@ -249,7 +243,6 @@ class TestReturnPicking(TestStockCommon):
         Test the stock return for exchange by creating a picking with moves and
         create a return exchange.
         """
-        # create a storable product
         product_serial = self.env["product.product"].create(
             {
                 "name": "Tracked by SN",
@@ -257,7 +250,6 @@ class TestReturnPicking(TestStockCommon):
                 "tracking": "serial",
             }
         )
-        # Create a stock picking with moves
         original_picking = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -277,11 +269,9 @@ class TestReturnPicking(TestStockCommon):
             }
         )
         original_picking.action_confirm()
-        # Update the lots of move lines
         for i in range(10):
             original_picking.move_line_ids[i].lot_name = f"Test Lot {i}"
         original_picking.button_validate()
-        # Create a return picking with the above respected picking
         return_picking_wizard = (
             self.env["stock.return.picking"]
             .with_context(
@@ -291,12 +281,9 @@ class TestReturnPicking(TestStockCommon):
             )
             .create({})
         )
-        # Change the quantity of the product return move from 0 to 3
         return_picking_wizard.product_return_moves.quantity = 3.0
-        # Create a return picking exchange
         return_picking_wizard.action_create_exchanges()
 
-        # There should be 3 transfers: original, return, exchange
         self.assertEqual(
             len(
                 self.env["stock.picking"].search(
@@ -309,29 +296,22 @@ class TestReturnPicking(TestStockCommon):
         return_picking = original_picking.return_ids
         exchange_picking = return_picking.return_ids
 
-        # Original: one return (return picking), type in, 10 items
         self.assertEqual(original_picking.return_count, 1)
         self.assertEqual(original_picking.picking_type_id, self.picking_type_in)
         self.assertEqual(len(original_picking.move_line_ids), 10)
 
-        # Return: one return (exchange picking), type out, 3 item
         self.assertEqual(return_picking.return_count, 1)
         self.assertEqual(return_picking.picking_type_id, self.picking_type_out)
         self.assertEqual(len(return_picking.move_line_ids), 3)
-        # By default, the serial IDs picked are the first 3 of the original picking
-        # and it should not be possible to create new serial numbers.
         self.assertListEqual(
             return_picking.move_line_ids.lot_id.ids,
             original_picking.move_line_ids[:3].lot_id.ids,
         )
         self.assertEqual(return_picking.move_ids.show_lot_actions, False)
 
-        # Exchange: no returns, type in, 3 item
         self.assertEqual(exchange_picking.return_count, 0)
         self.assertEqual(exchange_picking.picking_type_id, self.picking_type_in)
         self.assertEqual(len(exchange_picking.move_line_ids), 3)
-        # There should be not pre-selected serial IDs for the exchange picking
-        # and it should be possible to create new serial numbers because it's an incoming picking.
         self.assertListEqual(exchange_picking.move_line_ids.lot_id.ids, [])
         self.assertEqual(exchange_picking.move_ids.show_lot_actions, True)
 
@@ -369,7 +349,6 @@ class TestReturnPicking(TestStockCommon):
         receipt.action_confirm()
         self.assertEqual(receipt.state, "assigned")
         receipt.button_validate()
-        # create a return picking
         stock_return_picking_form = Form(
             self.env["stock.return.picking"].with_context(
                 active_ids=receipt.ids,
@@ -413,7 +392,6 @@ class TestReturnPicking(TestStockCommon):
         )
         original_picking.button_validate()
 
-        # Product received: both on-hand and forecasted quantities should be 10
         self.assertEqual(self.productA.qty_available, 10)
         self.assertEqual(self.productA.qty_available_virtual, 10)
 
@@ -434,12 +412,10 @@ class TestReturnPicking(TestStockCommon):
 
         return_picking.button_validate()
 
-        # 2 products returned: on-hand = 8, forecasted = 10
         self.assertEqual(self.productA.qty_available, 8)
         self.assertEqual(self.productA.qty_available_virtual, 10)
 
         exchange_picking.button_validate()
 
-        # 2 exchanged products received: both on-hand and forecasted quantities should be 10
         self.assertEqual(self.productA.qty_available, 10)
         self.assertEqual(self.productA.qty_available_virtual, 10)

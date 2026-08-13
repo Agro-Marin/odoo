@@ -146,19 +146,10 @@ class StockForecasted_Product_Product(models.AbstractModel):
         products = self._get_products(product_template_ids, product_ids)
         location = self._get_warehouse().lot_stock_id
         for product in products:
-            # Rule resolution cannot be shared across products, even per
-            # location: modules filter the candidate routes per product
-            # (purchase_stock on seller_ids, mrp on bom_ids), so only the
-            # location lookup above is hoisted.
             try:
                 rule = product._get_rules_from_location(location)
-                # ``_get_lead_days`` always returns a ``(delays, details)`` tuple.
                 delays, details = rule._get_lead_days(product)
             except UserError:
-                # A misconfigured rule cycle on one product (endless-loop
-                # UserError) must not kill the whole report: show that product
-                # without a lead time instead (the header renders nothing for a
-                # falsy leadtime).
                 res["product"][product.id]["leadtime"] = False
                 continue
             res["product"][product.id]["leadtime"] = {
@@ -233,8 +224,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         )
         if warehouse:
             return warehouse
-        # Without an explicit warehouse, prefer the current company's first
-        # warehouse over the first one of any allowed company.
         Warehouse = self.env["stock.warehouse"]
         return Warehouse.search(
             [
@@ -246,31 +235,16 @@ class StockForecasted_Product_Product(models.AbstractModel):
 
     def _get_report_data(self, product_template_ids=False, product_ids=False):
         if not product_template_ids and not product_ids:
-            # The docids come from the client action payload: refuse an empty
-            # request instead of asserting (assertions are stripped under -O
-            # and raise an opaque 500).
             raise UserError(_("No product selected for the forecasted report."))
         res = {}
 
         warehouse = self._get_warehouse()
-        # Thread the resolved warehouse so every quantity read below (header
-        # product quantities, lead times, sub-module extensions) is computed
-        # for the same warehouse as the report lines; without it, the header
-        # helpers run under the ambient context (all warehouses of the current
-        # companies) while the lines use this warehouse's locations.
         self = self.with_context(warehouse_id=warehouse.id)
-        # Materialised id list for the header/lines helpers. A Query would be
-        # equally correct in the domains (`_get_forecast_availability_outgoing`
-        # passes one to `_get_report_lines`): the `not in` clauses do not rely
-        # on the implicit NULL handling of id lists because `location_id` and
-        # `location_dest_id` are required fields and `location_final_id` is
-        # guarded by an explicit `!= False` in `_move_domain`.
         wh_location_ids = (
             self.env["stock.location"]
             .search([("id", "child_of", warehouse.view_location_id.id)])
             .ids
         )
-        # any quantities in this location will be considered free stock, others are free stock in transit
         wh_stock_location = warehouse.lot_stock_id
 
         res.update(
@@ -334,10 +308,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
             ),
             "uom_id": product.uom_id.read()[0] if read else product.uom_id,
         }
-        # Source-document *resolution* is needed even for `read=False` callers
-        # (mrp's MO overview consumes the document_in/document_out dicts), but
-        # the display formatting (`display_name`, `format_date`) is UI-only and
-        # discarded by them, so it is gated on `read`.
         if move_in:
             document_in = move_in.sudo()._get_source_document()
             line.update(
@@ -428,7 +398,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         counted twice.
         """
         reserved_out = 0
-        # the move to show when qty is reserved
         reserved_move = self.env["stock.move"]
         for move in linked_moves:
             if move.state not in ("partially_available", "assigned"):
@@ -436,11 +405,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
             reserved = move.product_uom_id._compute_quantity_report(
                 move.quantity, move.product_id.uom_id
             )
-            # Cap by the demand still unreserved, not the full demand: with the
-            # full-demand cap, several linked moves could together push
-            # ``reserved_out`` past ``out.product_qty`` and over-decrement the
-            # on-hand ledger. Also skip quantities counted before (happens if
-            # multiple outs share pick/pack).
             reserved = min(
                 reserved - used_reserved_moves[move],
                 out.product_qty - reserved_out,
@@ -449,7 +413,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 reserved_move = move
             reserved_out += reserved
             used_reserved_moves[move] += reserved
-            # any sublocation qties needs to be reserved to the main stock location qty as well
             if move.location_id.id in ctx.wh_stock_sub_location_ids:
                 ctx.currents[out.product_id.id, ctx.wh_stock_location.id] -= reserved
             ctx.currents[out.product_id.id, move.location_id.id] -= reserved
@@ -476,11 +439,9 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 move.quantity, move.product_id.uom_id
             )
             demand = max(move.product_qty - reserved, 0)
-            # to make sure we don't demand more than the out (useful when same pick/pack goes to multiple out)
             demand = min(demand, demand_out)
             if move.product_id.uom_id.is_zero(demand):
                 continue
-            # if chained, available qty is what the orig moves actually moved, not what's still in stock
             if move.move_orig_ids:
                 move_in_qty = sum(
                     move.move_orig_ids.filtered(lambda m: m.state == "done").mapped(
@@ -498,12 +459,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 move_available_qty = ctx.currents[
                     out.product_id.id, move.location_id.id
                 ]
-            # count taken from stock, but avoid taking more than what's in stock in case of move origs,
-            # this can happen if a stock adjustment is done after the orig moves are done.
-            # Floor at 0: move_available_qty (move_in - move_out - reserved) can go
-            # negative when siblings over-consume the origin, and a negative
-            # taken_from_stock would otherwise INFLATE demand_out at the tail below,
-            # making later linked lines over-decrement free/transit stock.
             taken_from_stock = max(
                 0.0,
                 min(
@@ -513,7 +468,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 ),
             )
             if taken_from_stock > 0:
-                # any sublocation qties needs to be removed to the main stock location qty as well
                 if move.location_id.id in ctx.wh_stock_sub_location_ids:
                     ctx.currents[out.product_id.id, ctx.wh_stock_location.id] -= (
                         taken_from_stock
@@ -590,7 +544,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         outs = past_outs | future_outs
 
         ins = self.env["stock.move"].search(in_domain, order="priority desc, date, id")
-        # Prewarm cache with rollups
         outs._rollup_move_origs_fetch()
         ins._rollup_move_dests_fetch()
 
@@ -600,18 +553,15 @@ class StockForecasted_Product_Product(models.AbstractModel):
             linked_move_ids = out._rollup_move_origs() - ins_ids
             linked_moves_per_out[out] = self.env["stock.move"].browse(linked_move_ids)
 
-        # Gather all linked moves
         all_linked_move_ids = {
             _id for _ids in linked_moves_per_out.values() for _id in _ids._ids
         }
         all_linked_moves = self.env["stock.move"].browse(all_linked_move_ids)
 
-        # Prewarm cache with sibling move's state/quantity
         all_linked_moves.fetch(["move_orig_ids"])
         all_linked_moves.move_orig_ids.fetch(["move_dest_ids"])
         all_linked_moves.move_orig_ids.move_dest_ids.fetch(["state", "quantity"])
 
-        # Share prefetch ids among all linked moves for performance
         for out, linked_moves in linked_moves_per_out.items():
             linked_moves_per_out[out] = linked_moves.with_prefetch(
                 all_linked_moves._prefetch_ids
@@ -651,7 +601,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         currents = defaultdict(float)
         for product, location, quantity in qties:
             location_id = location.id
-            # any sublocation qties will be added to the main stock location qty as well
             if location_id in wh_stock_sub_location_ids:
                 currents[product.id, wh_stock_location.id] += quantity
             currents[(product.id, location_id)] += quantity
@@ -668,14 +617,11 @@ class StockForecasted_Product_Product(models.AbstractModel):
 
         moves_data = {}
         for out_moves in outs_per_product.values():
-            # to handle multiple outs with the same in (e.g. same pick/pack for 2 outs)
             used_reserved_moves = defaultdict(float)
-            # for all out moves, check for linked moves and count reserved quantity
             for out in out_moves:
                 moves_data[out] = self._compute_out_reserved(
                     out, linked_moves_per_out[out], used_reserved_moves, ctx
                 )
-            # another loop to remove qty from current stock after reserved is counted for
             for out in out_moves:
                 moves_data[out].update(
                     self._compute_out_taken_from_stock(out, moves_data[out], ctx)
@@ -693,13 +639,11 @@ class StockForecasted_Product_Product(models.AbstractModel):
             unreconciled_outs = []
             free_stock = currents[product.id, wh_stock_location.id]
             transit_stock = product_sum[product.id] - free_stock
-            # add report lines and see if remaining demand can be reconciled by unreservable stock or ins
             for out in outs_per_product[product.id]:
                 reserved_out = moves_data[out].get("reserved")
                 taken_from_stock_out = moves_data[out].get("taken_from_stock")
                 reserved_move = moves_data[out].get("reserved_move")
                 demand_out = out.product_qty
-                # Reconcile with the reserved stock.
                 if reserved_out > 0:
                     demand_out = max(demand_out - reserved_out, 0)
                     in_transit = bool(reserved_move.move_orig_ids)
@@ -716,7 +660,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 if uom.is_zero(demand_out):
                     continue
 
-                # Reconcile with the current stock.
                 if taken_from_stock_out > 0:
                     demand_out = max(demand_out - taken_from_stock_out, 0)
                     lines.append(
@@ -728,7 +671,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 if uom.is_zero(demand_out):
                     continue
 
-                # Reconcile with unreservable stock, quantities that are in stock but not in correct location to reserve from (in transit)
                 unreservable_qty = min(demand_out, transit_stock)
                 if unreservable_qty > 0:
                     demand_out -= unreservable_qty
@@ -742,14 +684,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 if uom.is_zero(demand_out):
                     continue
 
-                # Reconcile with the ins.
                 demand_out = self._reconcile_out_with_ins(
                     lines, out, dest_ids_to_in_ids[out.id], demand_out, uom, ctx
                 )
                 if not uom.is_zero(demand_out):
                     unreconciled_outs.append((demand_out, out))
 
-            # Another pass, in case there are some ins linked to a dest move but that still have some quantity available
             for demand, out in unreconciled_outs:
                 demand = self._reconcile_out_with_ins(
                     lines, out, ins_per_product[product.id], demand, uom, ctx
@@ -760,7 +700,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                             demand, move_out=out, replenishment_filled=False, read=read
                         )
                     )
-            # Stock in transit
             if not uom.is_zero(transit_stock):
                 lines.append(
                     self._prepare_report_line(
@@ -768,13 +707,11 @@ class StockForecasted_Product_Product(models.AbstractModel):
                     )
                 )
 
-            # Unused remaining stock.
             if not uom.is_zero(free_stock) or lines_init_count == len(lines):
                 lines += self._free_stock_lines(
                     product, free_stock, moves_data, wh_location_ids, read
                 )
 
-            # In moves not used.
             for in_id in ins_per_product[product.id]:
                 in_data = in_id_to_in_data[in_id]
                 if uom.is_zero(in_data["qty"]):

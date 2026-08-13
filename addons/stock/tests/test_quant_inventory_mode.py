@@ -9,7 +9,6 @@ class TestEditableQuant(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Shortcut to call `stock.quant` with `inventory mode` set in the context
         cls.Quant = cls.env["stock.quant"].with_context(inventory_mode=True)
 
         Product = cls.env["product.product"]
@@ -64,7 +63,6 @@ class TestEditableQuant(TransactionCase):
 
     def test_create_quant_1(self):
         """Create a new quant who don't exist yet."""
-        # Checks we don't have any quant for this product.
         quants = self.env["stock.quant"].search([("product_id", "=", self.product.id)])
         self.assertEqual(len(quants), 0)
         self.Quant.create(
@@ -80,8 +78,6 @@ class TestEditableQuant(TransactionCase):
                 ("quantity", ">", 0),
             ]
         )
-        # Checks we have now a quant, and also checks the quantity is equals to
-        # what we set in `inventory_quantity` field.
         self.assertEqual(len(quants), 1)
         self.assertEqual(quants.quantity, 24)
 
@@ -97,7 +93,6 @@ class TestEditableQuant(TransactionCase):
         """Try to create a quant who already exist.
         Must update the existing quant instead of creating a new one.
         """
-        # Creates a quants...
         first_quant = self.Quant.create(
             {
                 "product_id": self.product.id,
@@ -112,7 +107,6 @@ class TestEditableQuant(TransactionCase):
             ]
         )
         self.assertEqual(len(quants), 1)
-        # ... then try to create an another quant for the same product/location.
         second_quant = self.Quant.create(
             {
                 "product_id": self.product.id,
@@ -127,8 +121,6 @@ class TestEditableQuant(TransactionCase):
                 ("quantity", ">", 0),
             ]
         )
-        # Checks we still have only one quant, and first quant quantity was
-        # updated, and second quant had the same ID than the first quant.
         self.assertEqual(len(quants), 1)
         self.assertEqual(first_quant.quantity, 24)
         self.assertEqual(first_quant.id, second_quant.id)
@@ -270,12 +262,10 @@ class TestEditableQuant(TransactionCase):
             }
         )
         self.assertEqual(quant.quantity, 12)
-        # Try to write on quant without permission
         with self.assertRaises(AccessError):
             quant.with_user(self.demo_user).write({"inventory_quantity": 8})
         self.assertEqual(quant.quantity, 12)
 
-        # Try to write on quant with permission
         quant.with_user(user_admin).write({"inventory_quantity": 8})
         quant.action_apply_inventory()
         self.assertEqual(quant.quantity, 8)

@@ -15,7 +15,6 @@ class StockReplenishmentInfo(models.TransientModel):
     _description = "Stock supplier replenishment information"
     _rec_name = "orderpoint_id"
 
-    # Move states that count towards realised demand when estimating daily demand.
     _DEMAND_MOVE_STATES = ("assigned", "confirmed", "partially_available", "done")
 
     orderpoint_id = fields.Many2one(comodel_name="stock.warehouse.orderpoint")
@@ -113,9 +112,6 @@ class StockReplenishmentInfo(models.TransientModel):
         self.ensure_one()
         orderpoint = self.orderpoint_id
         orderpoints_values = orderpoint._get_lead_days_values()
-        # Thread the orderpoint's own horizon: `_get_lead_days` otherwise
-        # resolves it from the ambient company, which in multi-company is not
-        # necessarily the orderpoint's (same contract as `_compute_lead_days`).
         return orderpoint.rule_ids.with_context(
             global_horizon_days=orderpoint.get_horizon_days(),
         )._get_lead_days(
@@ -188,7 +184,7 @@ class StockReplenishmentInfo(models.TransientModel):
             start_date -= relativedelta(months=3)
         elif self.based_on == "one_year":
             start_date -= relativedelta(years=1)
-        else:  # Relative period of time.
+        else:
             start_date = datetime(year=today.year - 1, month=today.month, day=1)
             if self.based_on == "last_year_2":
                 start_date += relativedelta(months=1)
@@ -222,7 +218,7 @@ class StockReplenishmentInfo(models.TransientModel):
                 x_axis_vals.append(date_string)
                 curve_line_vals.append({"x": date_string, "y": product_min_qty})
                 curve_line_vals.append({"x": date_string, "y": product_max_qty})
-            curve_line_vals.pop()  # we pop the last value since it would result in an ascending line that we don't need
+            curve_line_vals.pop()
 
         max_line_vals = [{"x": date, "y": product_max_qty} for date in x_axis_vals]
         min_line_vals = [{"x": date, "y": product_min_qty} for date in x_axis_vals]
@@ -242,9 +238,6 @@ class StockReplenishmentInfo(models.TransientModel):
         "product_max_qty",
     )
     def _compute_json_replenishment_graph(self):
-        # Default before the loop: the guard below `continue`s without
-        # assigning (same pattern as `_compute_json_lead_days`), and a compute
-        # must assign every record.
         self.json_replenishment_graph = False
         for replenishment_report in self:
             if (
@@ -252,8 +245,6 @@ class StockReplenishmentInfo(models.TransientModel):
                 or not replenishment_report.orderpoint_id.location_id
             ):
                 continue
-            # The graph only needs the cumulative delays, not their textual
-            # breakdown, so skip building the (discarded) description.
             lead_days, __ = replenishment_report.with_context(
                 bypass_delay_description=True
             )._get_lead_days_and_description()
@@ -273,14 +264,6 @@ class StockReplenishmentInfo(models.TransientModel):
                     ],
                 ],
             )
-            # Demand is everything shipped to customers or consumed by
-            # production. The return leg is asymmetric *on purpose*: only
-            # customer returns are netted. Inflow from a production location is
-            # ambiguous at the stock level — for a component it is a demand
-            # reversal (unused parts coming back), but for a *manufactured*
-            # product it is its finished-goods supply, and netting it would
-            # cancel the product's real demand (see mrp's
-            # `test_auto_assign` graph expectations).
             quantity_out = (
                 self.env["stock.move"]._read_group(
                     Domain.AND(
@@ -307,9 +290,6 @@ class StockReplenishmentInfo(models.TransientModel):
                 or 0.0
             )
 
-            # ``product_max_qty >= product_min_qty`` is guaranteed by the
-            # orderpoint constraint ``_check_min_max_qty``, so no clamping (and
-            # certainly no write-back to the orderpoint) is needed here.
             product_min_qty = replenishment_report.product_min_qty
             product_max_qty = replenishment_report.product_max_qty
             average_stock = (product_min_qty + product_max_qty) / 2

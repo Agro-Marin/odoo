@@ -15,21 +15,14 @@ class PackageFormDialog extends FormViewDialog {}
 
 class Many2XStockPackageAutocomplete extends Many2XAutocomplete {
     get createDialog() {
-        // Memoize a per-instance dialog subclass instead of mutating the shared
-        // PackageFormDialog.defaultProps on every access — the old form bound
-        // onRecordSave to whichever autocomplete last read this getter (last
-        // writer wins on a module-level static).
         if (!this._createDialog) {
             const self = this;
             this._createDialog = class extends PackageFormDialog {
                 static defaultProps = {
                     ...PackageFormDialog.defaultProps,
                     onRecordSave: async (record) => {
-                        // We need to reload to get the name computed from the backend.
                         const saved = await record.save({ reload: true });
                         if (saved && self.props.update) {
-                            // Without this, the package is named 'Unnamed' in the UI
-                            // until the record is saved.
                             self.props.update([{ ...record.data, id: record.resId }]);
                         }
                         return saved;
@@ -58,11 +51,6 @@ export class StockPackageMany2One extends Component {
     };
 
     get isDone() {
-        // `state` is declared as an *optional* field dependency below: it is
-        // read when the view's arch knows the field (stock.move.line views
-        // declare it) and silently skipped on the models that lack it
-        // (stock.package, stock.quant, stock.quant.relocate), where the
-        // done-trimming behavior simply stays off.
         return ["done", "cancel"].includes(this.props.record?.data?.state);
     }
 
@@ -85,8 +73,6 @@ export class StockPackageMany2One extends Component {
     get displayValue() {
         const displayVal = this.props.record.data[this.props.name];
         if (this.isDone && displayVal?.display_name) {
-            // Return a trimmed copy; never mutate the record's own datapoint data
-            // from a render getter (other consumers/persistence read the same object).
             return {
                 ...displayVal,
                 display_name: displayVal.display_name.split(" > ").pop(),

@@ -7,10 +7,6 @@ class ReportStockQuantity(models.Model):
     _auto = False
     _description = "Stock Quantity Report"
 
-    # Columns read by the SQL view below; drives ``to_flush`` so pending writes to
-    # them are flushed before the view is queried (fresh read-after-write in the
-    # same transaction). Keep in sync with ``init``: a field read but not listed
-    # here causes stale reads (an extra listed field is only harmless).
     _depends = {
         "product.product": ["product_tmpl_id"],
         "product.template": ["is_storable", "uom_id"],
@@ -206,6 +202,5 @@ GROUP BY product_id, product_tmpl_id, state, date, company_id, warehouse_id
         try:
             report_period = int(report_period)
         except ValueError:
-            # A malformed system parameter must not break registry loading.
             report_period = 3
         self.env.cr.execute(query, {"report_period": report_period})

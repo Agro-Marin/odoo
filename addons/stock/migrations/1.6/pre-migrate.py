@@ -48,10 +48,8 @@ def migrate(cr, version):
     :param version: installed module version; falsy on a fresh install
     """
     if not version:
-        return  # fresh install: no legacy data to normalize
+        return
 
-    # stock.move: cross-category packaging UoM -> the move's own product UoM,
-    # and its stored display quantity -> the (identity) product quantity.
     if column_exists(cr, "stock_move", "packaging_uom_id"):
         cr.execute(
             r"""
@@ -68,8 +66,6 @@ def migrate(cr, version):
             """
         )
 
-    # stock.warehouse.orderpoint: cross-category reorder multiple -> cleared
-    # (no rounding), so replenishment is sized by the exact shortage.
     if column_exists(cr, "stock_warehouse_orderpoint", "replenishment_uom_id"):
         cr.execute(
             r"""

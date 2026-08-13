@@ -23,7 +23,7 @@ export class ForcedPlaceholderField extends Component {
         const props = computeM2OProps(this.props);
         return {
             ...props,
-            canOpen: !props.readonly && props.canOpen, // to remove the wrong link and the hand cursor on hover
+            canOpen: !props.readonly && props.canOpen,
         };
     }
 }

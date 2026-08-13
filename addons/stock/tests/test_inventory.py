@@ -34,7 +34,6 @@ class TestInventory(TransactionCase):
         """Check that making an inventory adjustment to remove all products from stock is working
         as expected.
         """
-        # make some stock
         self.env["stock.quant"]._update_available_quantity(
             self.product1, self.stock_location, 100
         )
@@ -49,7 +48,6 @@ class TestInventory(TransactionCase):
             100.0,
         )
 
-        # remove them with an inventory adjustment
         inventory_quant = self.env["stock.quant"].search(
             [
                 ("location_id", "=", self.stock_location.id),
@@ -63,7 +61,6 @@ class TestInventory(TransactionCase):
 
         inventory_quant.action_apply_inventory()
 
-        # check
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.product1, self.stock_location
@@ -110,7 +107,6 @@ class TestInventory(TransactionCase):
 
         inventory_quant.action_apply_inventory()
 
-        # check
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.product2, self.stock_location, lot_id=lot1
@@ -200,7 +196,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(len(inventory_quants), 2)
         inventory_quants.action_apply_inventory()
 
-        # check
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.product2, self.stock_location, lot_id=lot1, strict=False
@@ -266,7 +261,6 @@ class TestInventory(TransactionCase):
         has been reserved correctly frees the reservation. After that, add products to stock and check
         that they're used if the user encodes more than what's available through the chain
         """
-        # add 10 products to stock
         inventory_quant = self.env["stock.quant"].create(
             {
                 "location_id": self.stock_location.id,
@@ -282,8 +276,6 @@ class TestInventory(TransactionCase):
             10.0,
         )
 
-        # Make a chain of two moves, validate the first and check that 10 products are reserved
-        # in the second one.
         move_stock_pack = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -323,8 +315,6 @@ class TestInventory(TransactionCase):
             0.0,
         )
 
-        # Make an inventory adjustment and remove two products from the pack location. This should
-        # free the reservation of the second move.
         inventory_quant = self.env["stock.quant"].search(
             [
                 ("location_id", "=", self.pack_location.id),
@@ -346,13 +336,10 @@ class TestInventory(TransactionCase):
         self.assertEqual(move_pack_cust.state, "partially_available")
         self.assertEqual(move_pack_cust.quantity, 8)
 
-        # If the user tries to assign again, only 8 products are available and thus the reservation
-        # state should not change.
         move_pack_cust._action_assign()
         self.assertEqual(move_pack_cust.state, "partially_available")
         self.assertEqual(move_pack_cust.quantity, 8)
 
-        # Make a new inventory adjustment and add two new products.
         inventory_quant = self.env["stock.quant"].search(
             [
                 ("location_id", "=", self.pack_location.id),
@@ -369,17 +356,12 @@ class TestInventory(TransactionCase):
             2,
         )
 
-        # Nothing should have changed for our pack move
         self.assertEqual(move_pack_cust.state, "partially_available")
         self.assertEqual(move_pack_cust.quantity, 8)
 
-        # Running _action_assign will now find the new available quantity. Since the products
-        # are not differentiated (no lot/pack/owner), even if the new available quantity is not directly
-        # brought by the chain, the system will take them into account.
         move_pack_cust._action_assign()
         self.assertEqual(move_pack_cust.state, "assigned")
 
-        # move all the things
         move_pack_cust.move_line_ids.quantity = 10
         move_pack_cust.picked = True
         move_stock_pack._action_done()
@@ -428,7 +410,6 @@ class TestInventory(TransactionCase):
         """Checks that inventory quants have a `inventory quantity` set to zero
         after an adjustment.
         """
-        # Set product quantity to 42.
         inventory_quant = self.env["stock.quant"].create(
             {
                 "product_id": self.product1.id,
@@ -436,14 +417,11 @@ class TestInventory(TransactionCase):
                 "inventory_quantity": 42,
             }
         )
-        # Applies the change, the quant must have a quantity of 42 and a inventory quantity to 0.
         inventory_quant.action_apply_inventory()
         self.assertEqual(len(inventory_quant), 1)
         self.assertEqual(inventory_quant.inventory_quantity, 0)
         self.assertEqual(inventory_quant.quantity, 42)
 
-        # Checks we can write on `inventory_quantity_set` even if we write on
-        # `inventory_quantity` at the same time.
         self.assertEqual(inventory_quant.inventory_quantity_set, False)
         inventory_quant.write({"inventory_quantity": 5})
         self.assertEqual(inventory_quant.inventory_quantity_set, True)
@@ -458,12 +436,10 @@ class TestInventory(TransactionCase):
     def test_inventory_request_count_quantity(self):
         """Ensures when a request to count a quant for tracked product is done, other quants for
         the same product in the same location are also marked as to count."""
-        # Config: enable tracking and multilocations.
         self.env.user.group_ids = [
             Command.link(self.env.ref("stock.group_production_lot").id),
             Command.link(self.env.ref("stock.group_stock_multi_locations").id),
         ]
-        # Creates other locations.
         stock_location_2 = self.env["stock.location"].create(
             {
                 "name": "stock 2",
@@ -476,7 +452,6 @@ class TestInventory(TransactionCase):
                 "location_id": self.stock_location.id,
             }
         )
-        # Creates some quants for product2 (tracked by serail numbers.)
         serial_numbers = self.env["stock.lot"].create(
             [{"product_id": self.product2.id, "name": f"sn{i + 1}"} for i in range(4)]
         )
@@ -508,8 +483,6 @@ class TestInventory(TransactionCase):
                 },
             ]
         )
-        # Request count for 1 quant => The other quant in the same location
-        # should also be updated, other quants shouldn't
         request_wizard = self.env["stock.request.count"].create(
             {
                 "quant_ids": quants[1].ids,
@@ -550,7 +523,6 @@ class TestInventory(TransactionCase):
         opens a wizard. The wizard should warn about the conflict and its value should be
         corrected after user confirms the inventory quantity.
         """
-        # Set initial quantity to 7
         self.env["stock.quant"]._update_available_quantity(
             self.product1, self.stock_location, 7
         )
@@ -560,14 +532,11 @@ class TestInventory(TransactionCase):
                 ("product_id", "=", self.product1.id),
             ]
         )
-        # When a quant is created, it must not be marked as outdated
-        # and its `inventory_quantity` must be equal to zero.
         self.assertEqual(inventory_quant.inventory_quantity, 0)
 
         inventory_quant.inventory_quantity = 5
         self.assertEqual(inventory_quant.inventory_diff_quantity, -2)
 
-        # Deliver 3 units
         move_out = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -583,7 +552,6 @@ class TestInventory(TransactionCase):
         move_out.picked = True
         move_out._action_done()
 
-        # Ensure that diff didn't change.
         self.assertEqual(inventory_quant.inventory_diff_quantity, -2)
         self.assertEqual(inventory_quant.inventory_quantity, 5)
         self.assertEqual(inventory_quant.quantity, 4)
@@ -605,7 +573,6 @@ class TestInventory(TransactionCase):
         """Checks that an outdated inventory adjustment auto-corrects when
         changing its inventory quantity after its corresponding quant has been modified.
         """
-        # Set initial quantity to 7
         vals = {
             "product_id": self.product1.id,
             "product_uom_id": self.uom_unit.id,
@@ -615,7 +582,6 @@ class TestInventory(TransactionCase):
         }
         quant = self.env["stock.quant"].create(vals)
 
-        # Decrease quant to 3 and inventory line is now outdated
         move_out = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -634,7 +600,6 @@ class TestInventory(TransactionCase):
 
         self.assertEqual(quant.inventory_quantity, 7)
         self.assertEqual(quant.inventory_diff_quantity, 0)
-        # Refresh inventory line and quantity will recompute to 3
         quant.inventory_quantity = 3
         self.assertEqual(quant.inventory_quantity, 3)
         self.assertEqual(quant.inventory_diff_quantity, 0)
@@ -643,7 +608,6 @@ class TestInventory(TransactionCase):
         """Checks that an inventory adjustment line without a difference
         doesn't change quant when validated.
         """
-        # Set initial quantity to 10
         vals = {
             "product_id": self.product1.id,
             "product_uom_id": self.uom_unit.id,
@@ -661,7 +625,6 @@ class TestInventory(TransactionCase):
         """Checks that inventory adjustment line isn't marked as outdated when
         a non-corresponding quant is created.
         """
-        # Set initial quantity to 7 and create inventory adjustment for product1
         inventory_quant = self.env["stock.quant"].create(
             {
                 "product_id": self.product1.id,
@@ -672,7 +635,6 @@ class TestInventory(TransactionCase):
             }
         )
 
-        # Create quant for product3
         product3 = self.env["product.product"].create(
             {
                 "name": "Product C",
@@ -689,7 +651,6 @@ class TestInventory(TransactionCase):
             }
         )
         inventory_quant.action_apply_inventory()
-        # Expect action apply do not return a wizard
         self.assertEqual(inventory_quant.quantity, 5)
 
     def test_cyclic_inventory(self):
@@ -735,16 +696,12 @@ class TestInventory(TransactionCase):
         new_loc_form.cyclic_inventory_frequency = 2
         new_loc = new_loc_form.save()
 
-        # check next_inventory_date is correctly calculated
         existing_loc2_form = Form(existing_loc2)
         existing_loc2_form.cyclic_inventory_frequency = 2
         existing_loc2 = existing_loc2_form.save()
 
-        # next_inventory_date = today + cyclic_inventory_frequency
         self.assertEqual(new_loc.next_inventory_date, today + timedelta(days=2))
-        # previous inventory done + cyclic_inventory_frequency < today => next_inventory_date = tomorrow
         self.assertEqual(existing_loc2.next_inventory_date, today + timedelta(days=1))
-        # check that cyclic inventories are correctly autogenerated
         self.env["stock.quant"]._update_available_quantity(self.product1, new_loc, 5)
         self.env["stock.quant"]._update_available_quantity(
             self.product1, existing_loc2, 5
@@ -752,7 +709,6 @@ class TestInventory(TransactionCase):
         self.env["stock.quant"]._update_available_quantity(
             self.product1, no_cyclic_loc, 5
         )
-        # cyclic inventory locations should auto-assign their next inventory date to their quants
         quant_new_loc = self.env["stock.quant"].search(
             [("location_id", "=", new_loc.id)]
         )
@@ -763,7 +719,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(
             quant_existing_loc.inventory_date, existing_loc2.next_inventory_date
         )
-        # quant without a cyclic inventory location should default to the company's annual inventory date
         quant_non_cyclic_loc = self.env["stock.quant"].search(
             [("location_id", "=", no_cyclic_loc.id)]
         )
@@ -771,8 +726,6 @@ class TestInventory(TransactionCase):
             quant_non_cyclic_loc.inventory_date.month,
             int(no_cyclic_loc.company_id.annual_inventory_month),
         )
-        # in case of leap year, ensure we select a feasiable day for next year since inventory_date should default to last
-        # day of the month if annual_inventory_day is greater than number of days in that month
         next_annual_inventory_day = min(
             (today + relativedelta(years=1)).day,
             no_cyclic_loc.company_id.annual_inventory_day,
@@ -785,7 +738,6 @@ class TestInventory(TransactionCase):
         (
             quant_new_loc | quant_existing_loc | quant_non_cyclic_loc
         ).action_apply_inventory()
-        # check location's last inventory dates + their quants next inventory dates
         self.assertEqual(new_loc.last_inventory_date, date.today())
         self.assertEqual(existing_loc2.last_inventory_date, date.today())
         self.assertEqual(no_cyclic_loc.last_inventory_date, date.today())

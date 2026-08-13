@@ -4,7 +4,6 @@ from . import report
 from . import wizard
 
 
-# TODO: Apply proper fix & remove in master
 def pre_init_hook(env):
     env["ir.model.data"].search(
         [("model", "like", "stock"), ("module", "=", "stock")]

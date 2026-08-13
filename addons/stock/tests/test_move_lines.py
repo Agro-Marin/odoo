@@ -218,7 +218,6 @@ class TestStockMoveLine(TestStockCommon):
             (move_line1 | move_line2).quant_id = quant_productA
 
     def test_move_line_date(self):
-        # we need to freezetime due to write time being too fast for date changes to be observed
         with freeze_time() as freeze:
             move = self.env["stock.move"].create(
                 {
@@ -271,7 +270,6 @@ class TestStockMoveLine(TestStockCommon):
             )
             freeze.tick(delta=datetime.timedelta(seconds=2))
             ml.write({"product_uom_id": self.uom_unit.id, "quantity": 24})
-            # 2 dozen = 24 units
             self.assertEqual(
                 update_date_3,
                 ml.date,
@@ -279,7 +277,6 @@ class TestStockMoveLine(TestStockCommon):
             )
             freeze.tick(delta=datetime.timedelta(seconds=2))
             ml.write({"product_uom_id": self.uom_dozen.id, "quantity": 3})
-            # 36 units > 24 units
             self.assertTrue(
                 ml.date > update_date_3,
                 "Quantity change check for date should take into account UoM conversion",

@@ -29,7 +29,6 @@ class TestRobustness(TransactionCase):
         Quant = self.env["stock.quant"]
         Quant._update_available_quantity(self.product1, self.stock_location, 10.0)
 
-        # Reserve all 10 with a delivery move.
         move = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -45,8 +44,6 @@ class TestRobustness(TransactionCase):
         quant = Quant._gather(self.product1, self.stock_location, strict=True)
         self.assertEqual(quant.reserved_quantity, 10.0)
 
-        # A done move line consumes 6 straight out of stock, bypassing reservation
-        # (e.g. an inventory loss). This drives available to 4 - 10 = -6.
         loss_move = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -70,8 +67,6 @@ class TestRobustness(TransactionCase):
 
         quant.invalidate_recordset(["quantity", "reserved_quantity"])
         self.assertEqual(quant.quantity, 4.0)
-        # The 6 units of now-invalid reservation must have been freed (10 -> 4),
-        # keeping available non-negative rather than a phantom -6.
         self.assertEqual(quant.reserved_quantity, 4.0)
 
     def test_uom_factor(self):
@@ -79,14 +74,12 @@ class TestRobustness(TransactionCase):
         quantities are reserved, else the existing move lines won't be consistent
         with the `reserved_quantity` on quants.
         """
-        # make some stock
         self.env["stock.quant"]._update_available_quantity(
             self.product1,
             self.stock_location,
             12,
         )
 
-        # reserve a dozen
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -104,19 +97,16 @@ class TestRobustness(TransactionCase):
             self.stock_location,
         )
 
-        # assert the reservation
         self.assertEqual(quant.reserved_quantity, 12)
         self.assertEqual(move1.state, "assigned")
         self.assertEqual(move1.product_qty, 12)
 
-        # unreserve
         move1._do_unreserve()
 
     def test_location_usage(self):
         """Changing the usage of a location shouldn't be allowed
         or changing a location from scrap to non-scrap or vice versa
         shouldn't be allowed when stock is available in a location"""
-        # change stock usage
         test_stock_location = self.env["stock.location"].create(
             {
                 "name": "Test Location",
@@ -125,14 +115,12 @@ class TestRobustness(TransactionCase):
         )
         test_stock_location.usage = "inventory"
 
-        # make some stock
         self.env["stock.quant"]._update_available_quantity(
             self.product1,
             test_stock_location,
             1,
         )
 
-        # reserve a unit
         move = self.env["stock.move"].create(
             {
                 "location_id": test_stock_location.id,
@@ -148,17 +136,14 @@ class TestRobustness(TransactionCase):
         move._action_done()
         self.assertEqual(move.state, "done")
 
-        # change the stock usage
         test_stock_location.usage = "internal"
 
-        # make some stock again
         self.env["stock.quant"]._update_available_quantity(
             self.product1,
             test_stock_location,
             1,
         )
 
-        # change the stock usage again
         with self.assertRaises(UserError):
             test_stock_location.usage = "inventory"
 
@@ -176,7 +161,6 @@ class TestRobustness(TransactionCase):
             self.product1, self.stock_location, 10, package_id=package
         )
 
-        # reserve 10 units
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -193,7 +177,6 @@ class TestRobustness(TransactionCase):
         package.unpack()
         self.assertEqual(move1.move_line_ids.package_id, self.env["stock.package"])
 
-        # unreserve
         move1._do_unreserve()
         self.assertEqual(
             len(self.env["stock.quant"]._gather(self.product1, self.stock_location)), 1
@@ -394,7 +377,6 @@ class TestRobustness(TransactionCase):
         receipt.action_confirm()
         receipt.action_assign()
         move1.picked = True
-        # move1.move_line_ids.quantity = 1
 
         receipt.button_validate()
 
@@ -496,14 +478,12 @@ class TestRobustness(TransactionCase):
                 "uom_id": uom_kg.id,
             }
         )
-        # update available quantity to 1 kg
         self.env["stock.quant"]._update_available_quantity(
             product_reservation_too_high, self.stock_location, 1
         )
         quant = self.env["stock.quant"]._gather(
             product_reservation_too_high, self.stock_location
         )
-        # reserve 0.1 kg with a move
         move = self.env["stock.move"].create(
             {
                 "location_id": self.stock_location.id,
@@ -515,13 +495,11 @@ class TestRobustness(TransactionCase):
         )
         move._action_confirm()
         move._action_assign()
-        # update reserved quantity to 0.2 kg
         self.env["stock.quant"]._update_reserved_quantity(
             product_reservation_too_high, self.stock_location, 0.2
         )
         self.assertEqual(quant.reserved_quantity, 0.3)
         self.env["stock.quant"]._clean_reservations()
-        # the reserved quantity should be cleaned to the quantity reserved by the move
         self.assertEqual(quant.reserved_quantity, 0.1)
 
     def test_clean_quants_synch_in_non_company_specific_locations(self):
@@ -561,10 +539,8 @@ class TestRobustness(TransactionCase):
                 }
             ],
         )
-        # create a syncj issue
         product_without_quant.stock_quant_ids.unlink()
         self.assertFalse(product_without_quant.stock_quant_ids)
-        # acces the quant view to provoke a quant synch
         self.env["stock.quant"].action_view_quants()
         self.assertRecordValues(
             product_without_quant.stock_quant_ids,
@@ -687,7 +663,6 @@ class TestRobustness(TransactionCase):
                 "usage": "internal",
             }
         )
-        # Put stock in other_location so the move can be reserved there
         self.env["stock.quant"]._update_available_quantity(product, other_location, 5.0)
 
         move = self.env["stock.move"].create(
@@ -705,10 +680,7 @@ class TestRobustness(TransactionCase):
         self.assertTrue(move.move_line_ids)
         old_ml_ids = move.move_line_ids.ids
 
-        # Change move source to empty_location — not a parent of other_location,
-        # and has no stock so _action_assign won't create new lines
         move.location_id = empty_location
-        # Original move lines should have been unlinked
         self.assertFalse(self.env["stock.move.line"].browse(old_ml_ids).exists())
 
     def test_product_tmpl_id_stored_and_synced(self):
@@ -737,10 +709,8 @@ class TestRobustness(TransactionCase):
                 "product_uom_id": self.uom_unit.id,
             }
         )
-        # Stored field should match product_a's template
         self.assertEqual(move.product_tmpl_id, template_a)
 
-        # Search by product_tmpl_id should work (only possible if stored)
         found = self.env["stock.move"].search(
             [
                 ("id", "=", move.id),
@@ -749,11 +719,9 @@ class TestRobustness(TransactionCase):
         )
         self.assertEqual(found, move)
 
-        # Change product — template should auto-update
         move.product_id = product_b
         self.assertEqual(move.product_tmpl_id, template_b)
 
-        # Search with new template should find it
         found = self.env["stock.move"].search(
             [
                 ("id", "=", move.id),

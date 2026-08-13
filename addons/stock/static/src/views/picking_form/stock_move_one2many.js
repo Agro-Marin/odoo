@@ -23,7 +23,6 @@ export class MovesListRenderer extends ListRenderer {
     }
 
     async onClickMovePackage() {
-        // If picking doesn't exist yet or location is outdated, it will lead to incorrect results
         const canOpenDialog = await this.forceSave();
         if (!canOpenDialog) {
             return;
@@ -40,7 +39,6 @@ export class MovesListRenderer extends ListRenderer {
     }
 
     async forceSave() {
-        // This means the record hasn't been saved once, but we need the picking id to know for which picking we create the move lines.
         const record = this.env.model.root;
         const result = await record.save();
         this.pickingId = record.data.id;

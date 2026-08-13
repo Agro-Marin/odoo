@@ -14,8 +14,6 @@ export class StockOrderpointListController extends ListController {
 
     setup() {
         super.setup();
-        // Order/Order To Max/Snooze mutate orderpoints and reload the list; a
-        // second activation while one is in flight would replenish twice.
         this.opGuard = useOperationGuard();
         this.onClickOrder = this.opGuard.guard(this.onClickOrder.bind(this));
         this.onClickSnooze = this.opGuard.guard(this.onClickSnooze.bind(this));
@@ -35,10 +33,6 @@ export class StockOrderpointListController extends ListController {
         if (action) {
             await this.actionService.doAction(action);
         }
-        // Soft in-place reload instead of a full-webclient `reload` client action:
-        // the latter hard-reloads the browser (losing scroll/search facets) and
-        // destroys the action_replenish notification — which carries the link to
-        // the generated picking — before the user can click it.
         await this.model.load();
     }
 

@@ -50,8 +50,6 @@ test("empty serial submit is rejected before any delete command is built", async
         return [];
     });
     await mountDialog(move);
-    // First serial number left empty: submitting must not fire the RPC nor
-    // touch the existing lines (whose deletion is queued before the creates).
     await click(".modal-footer button.btn-primary");
     await animationFrame();
     expect.verifySteps([]);
@@ -89,7 +87,6 @@ test("double-click on Generate emits a single command batch", async () => {
     const generateButton = queryFirst(".modal-footer button.btn-primary");
     await click(generateButton);
     await animationFrame();
-    // In flight: the footer button is disabled and a second click is inert.
     expect(generateButton).toHaveAttribute("disabled");
     await click(generateButton);
     await animationFrame();
@@ -97,8 +94,6 @@ test("double-click on Generate emits a single command batch", async () => {
     await animationFrame();
     expect.verifySteps(["generate-rpc", "close"]);
     expect(applied.length).toBe(1);
-    // One batch: the 2 deletes of the existing lines ("keep current lines"
-    // unchecked) followed by the 2 creates from the server values.
     const commands = applied[0];
     expect(commands.length).toBe(4);
     expect(commands.slice(0, 2).map((c) => c[0] === 2 && c[1])).toEqual([51, 52]);

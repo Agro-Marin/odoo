@@ -1,16 +1,3 @@
-/**
- * Arch-compilation guards for the move "Detailed Operations" form.
- *
- * `stock/static/tests/generate_serial.test.js` mounts `GenerateDialog` directly as a
- * component, so it exercises the dialog's logic while never touching the view layer.
- * That left the step *before* it untested: whether the arch declaring the widget
- * compiles into a `Widget` component at all.
- *
- * These tests pin the invariant: a *class name* must not decide whether an arch node
- * compiles. They are written against the framework behaviour rather than against
- * stock's own arch, so they keep holding if the arch is restyled.
- */
-
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
@@ -40,7 +27,6 @@ class Move extends models.Model {
 defineModels([Move]);
 defineMailModels();
 
-/** Every Bootstrap positioning class `ViewCompiler` treats as a dropdown container. */
 const POSITIONING_CLASSES = [
     "dropdown",
     "dropup",
@@ -50,7 +36,6 @@ const POSITIONING_CLASSES = [
     "btn-group-vertical",
 ];
 
-/** Compile one arch through the real FormCompiler and return the template markup. */
 function compileArch(arch) {
     const doc = new DOMParser().parseFromString(arch, "text/xml");
     return new FormCompiler({ root: doc.documentElement }).compile("root", {})

@@ -61,7 +61,6 @@ class TestLotSerial(TestStockCommon):
         self.assertEqual(self.lot_p_a.location_id, self.locationA)
         self.assertEqual(self.lot_p_b.location_id, self.locationA)
 
-        # testing changing the location from the lot form
         lot_b_form = Form(self.lot_p_b)
         lot_b_form.location_id = self.locationB
         lot_b_form.save()
@@ -70,13 +69,11 @@ class TestLotSerial(TestStockCommon):
             self.locationB,
         )
 
-        # testing changing the location from the quant
         self.lot_p_b.quant_ids.move_quants(
             location_dest_id=self.locationC, message="test_quant_move"
         )
         self.assertEqual(self.lot_p_b.location_id, self.locationC)
 
-        # testing having the lot in multiple locations
         self.StockQuantObj.create(
             {
                 "product_id": self.productA.id,
@@ -87,7 +84,6 @@ class TestLotSerial(TestStockCommon):
         )
         self.assertEqual(self.lot_p_a.location_id.id, False)
 
-        # testing having the lot back in a single location
         self.lot_p_a.quant_ids.filtered(
             lambda q: q.location_id == self.locationA
         ).move_quants(location_dest_id=self.locationC)
@@ -143,7 +139,6 @@ class TestLotSerial(TestStockCommon):
         move.picked = True
         picking1._action_done()
         self.assertEqual(move.state, "done")
-        # there is a lot but without a company
         self.assertTrue(move.move_line_ids.lot_id)
         self.assertFalse(move.move_line_ids.lot_id.company_id)
 
@@ -157,7 +152,6 @@ class TestLotSerial(TestStockCommon):
             }
         )
         self.assertTrue(lot_1)
-        # Now try to insert the same one without company
         with self.assertRaises(ValidationError):
             self.env["stock.lot"].create(
                 {
@@ -166,7 +160,6 @@ class TestLotSerial(TestStockCommon):
                     "company_id": False,
                 }
             )
-        # Same thing should happen when creating it from a company now
         with self.assertRaises(ValidationError):
             self.env["stock.lot"].create(
                 {
@@ -184,7 +177,6 @@ class TestLotSerial(TestStockCommon):
             }
         )
         self.assertTrue(lot_2)
-        # Now try to insert the same one without company
         with self.assertRaises(ValidationError):
             self.env["stock.lot"].create(
                 {
@@ -193,7 +185,6 @@ class TestLotSerial(TestStockCommon):
                     "company_id": False,
                 }
             )
-        # Same thing should happen when creating it from a company now
         with self.assertRaises(ValidationError):
             self.env["stock.lot"].create(
                 {
@@ -257,9 +248,7 @@ class TestLotSerial(TestStockCommon):
         """
         Test that the location of a lot is updated when its linked quants change
         """
-        # check that the serial number linked to productB is in location A
         self.assertEqual(self.lot_p_b.location_id, self.locationA)
-        # Make a delivery move
         starting_quant = self.lot_p_b.quant_ids
         self.assertEqual(starting_quant.quantity, 1)
         move = self.env["stock.move"].create(
@@ -276,11 +265,8 @@ class TestLotSerial(TestStockCommon):
         move.picked = True
         move._action_done()
         self.assertEqual(move.state, "done")
-        # check that the quantity of starting quant is moved to a new quant
         self.assertEqual(starting_quant.quantity, 0)
-        # check that the sn is in customer location
         self.assertEqual(self.lot_p_b.location_id.id, self.customer_location.id)
-        # create a return
         move = self.env["stock.move"].create(
             {
                 "location_id": self.customer_location.id,
@@ -315,7 +301,6 @@ class TestLotSerial(TestStockCommon):
         branch_receipt_type = self.env["stock.picking.type"].search(
             [("company_id", "=", branch_a.id), ("code", "=", "incoming")], limit=1
         )
-        # create a receipt and confirm it
         picking1 = self.env["stock.picking"].create(
             {
                 "name": "Picking 1",
@@ -351,7 +336,6 @@ class TestLotSerial(TestStockCommon):
 
     def test_lot_search_partner_ids(self):
         """Test that the correct lots show when doing searches based on partner_ids"""
-        # create everything from scratch to avoid test failures due to demo data/test setup changes
         lot_location = self.env["stock.location"].create(
             {
                 "name": "Test Lots Only",
@@ -409,7 +393,6 @@ class TestLotSerial(TestStockCommon):
         picking1.move_ids.move_line_ids.lot_id = lot_a
         picking1.action_confirm()
         picking1.button_validate()
-        # note that domains unfortuntaely have to include additional fields to avoid returning demo data lots
         lot_id = self.env["stock.lot"].search(
             [
                 ("partner_ids", "!=", False),
@@ -444,13 +427,11 @@ class TestLotSerial(TestStockCommon):
             {"name": "qty-parity-lot", "product_id": product.id}
         )
 
-        # Stock only in a transit location: not "on hand" for the compute...
         self.env["stock.quant"]._update_available_quantity(
             product, transit, 7.0, lot_id=lot
         )
         self.env["stock.quant"].invalidate_model()
         self.assertEqual(lot.product_qty, 0.0)
-        # ...so the search must not report it as > 0, and must report it as = 0.
         self.assertNotIn(lot, self.env["stock.lot"].search([("product_qty", ">", 0)]))
         self.assertIn(
             lot,
@@ -459,7 +440,6 @@ class TestLotSerial(TestStockCommon):
             ),
         )
 
-        # Add real on-hand stock: both compute and search now see it.
         self.env["stock.quant"]._update_available_quantity(
             product, self.stock_location, 3.0, lot_id=lot
         )
@@ -468,10 +448,6 @@ class TestLotSerial(TestStockCommon):
         self.assertEqual(lot.product_qty, 3.0)
         self.assertIn(lot, self.env["stock.lot"].search([("product_qty", ">", 0)]))
 
-        # A `location` context scopes the field and the search identically. Point
-        # it at a fresh internal location that holds none of this product: the
-        # field reads 0 there, and the search (which used to ignore the context and
-        # still find the 3.0 elsewhere) must agree and exclude the lot.
         empty_loc = self.env["stock.location"].create(
             {
                 "name": "Empty Loc",
@@ -527,11 +503,9 @@ class TestLotSerial(TestStockCommon):
             return line
 
         L0, L1, L2, L3 = (mk_lot(n) for n in ("L0", "L1", "L2", "L3"))
-        # Diamond: L3 produced from L1 & L2 ; L1 & L2 produced from L0.
         mk_done_line(L3, children=[L1, L2])
         mk_done_line(L1, children=[L0])
         mk_done_line(L2, children=[L0])
-        # Direct outgoing deliveries of L0 and L3.
         pk0, pk3 = (
             self.env["stock.picking"].create(
                 {
@@ -552,8 +526,6 @@ class TestLotSerial(TestStockCommon):
         self.assertEqual(set(by_lot[L2.id]), {pk0.id})
         self.assertEqual(set(by_lot[L0.id]), {pk0.id})
 
-        # Querying a single lot must yield the same set as the batch query (the
-        # old recursive walk was query-set dependent on shared/cyclic graphs).
         self.assertEqual(set(L3._find_delivery_ids_by_lot()[L3.id]), {pk0.id, pk3.id})
         self.assertEqual(L3.delivery_ids, pk0 | pk3)
 

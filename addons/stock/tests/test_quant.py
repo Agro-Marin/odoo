@@ -328,14 +328,11 @@ class TestStockQuant(TestStockCommon):
         Quant._update_available_quantity(self.productA, self.stock_location, 10.0)
         quant = self.gather_relevant(self.productA, self.stock_location, strict=True)
         self.assertEqual(len(quant), 1)
-        # Prime the ORM cache with the current value (10).
         self.assertEqual(quant.quantity, 10.0)
-        # Simulate a concurrent txn that committed +5 after our cache was primed.
         self.env.cr.execute(
             "UPDATE stock_quant SET quantity = quantity + 5 WHERE id = %s",
             (quant.id,),
         )
-        # Increment by 3: the result must build on the fresh 15, not the stale 10.
         Quant._update_available_quantity(self.productA, self.stock_location, 3.0)
         quant.invalidate_recordset(["quantity"])
         self.assertEqual(quant.quantity, 18.0)
@@ -481,16 +478,13 @@ class TestStockQuant(TestStockCommon):
         Quant._update_available_quantity(self.productA, self.stock_location, 10.0)
         quant = self.gather_relevant(self.productA, self.stock_location, strict=True)
         self.assertEqual(len(quant), 1)
-        # Reserve 4 through the ORM so cache and DB agree.
         Quant._update_reserved_quantity(self.productA, self.stock_location, 4.0)
         quant.invalidate_recordset(["reserved_quantity"])
         self.assertEqual(quant.reserved_quantity, 4.0)
-        # Concurrent committed reserve of +3 (DB now 7), leaving the cache stale at 4.
         self.env.cr.execute(
             "UPDATE stock_quant SET reserved_quantity = reserved_quantity + 3 WHERE id = %s",
             (quant.id,),
         )
-        # Release 2: must build on the fresh 7 -> 5, not the stale 4 -> 2.
         Quant._update_reserved_quantity(self.productA, self.stock_location, -2.0)
         quant.invalidate_recordset(["reserved_quantity"])
         self.assertEqual(quant.reserved_quantity, 5.0)
@@ -617,8 +611,6 @@ class TestStockQuant(TestStockCommon):
                 "reserved_quantity": 12.0,
             }
         )
-        # total quantity: 58
-        # total reserved quantity: 29
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.productA, self.stock_location
@@ -742,7 +734,6 @@ class TestStockQuant(TestStockCommon):
         )
         move._action_confirm()
         move.quantity = 5
-        # No reservation as product is consumable
         quants = self.gather_relevant(self.product_consu, self.stock_location)
         self.assertEqual(sum(quants.mapped("reserved_quantity")), 0.0)
 
@@ -805,7 +796,6 @@ class TestStockQuant(TestStockCommon):
             }
         )
 
-        # add one tracked, one untracked
         self.env["stock.quant"]._update_available_quantity(
             self.product_serial, self.stock_location, 1.0
         )
@@ -991,7 +981,6 @@ class TestStockQuant(TestStockCommon):
             self.product_serial, self.stock_location, 1.0
         )
 
-        # Default removal strategy is FIFO, so lot2 should be received as it was received earlier.
         self.assertEqual(quants[0][0].lot_id.id, lot2.id)
 
     def test_in_date_4(self):
@@ -1039,7 +1028,6 @@ class TestStockQuant(TestStockCommon):
             ]
         )
 
-        # Removal strategy is LIFO, so lot1 should be received as it was received later.
         self.assertEqual(quants[0][0].lot_id.id, lot1.id)
 
     def test_quant_in_date_5(self):
@@ -1122,7 +1110,6 @@ class TestStockQuant(TestStockCommon):
         """Check that the Closest location strategy correctly applies when you have multiple lot received
         at different locations for a tracked product.
         """
-        # Enable multi-locations to be able to set an origin location for delivery
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [Command.link(grp_multi_loc.id)]})
 
@@ -1143,15 +1130,12 @@ class TestStockQuant(TestStockCommon):
             }
         )
         in_date = datetime.now()
-        # Add a product from lot1 in stock_location/shelf_2
         self.env["stock.quant"]._update_available_quantity(
             self.product_serial, self.shelf_2, 1.0, lot_id=lot1, in_date=in_date
         )
-        # Add a product from lot2 in stock_location/shelf_1
         self.env["stock.quant"]._update_available_quantity(
             self.product_serial, self.shelf_1, 1.0, lot_id=lot2, in_date=in_date
         )
-        # Require one unit of the product for a delivery
         with Form(self.env["stock.picking"]) as picking_form:
             picking_form.picking_type_id = self.picking_type_out
             picking_form.location_id = self.stock_location
@@ -1161,7 +1145,6 @@ class TestStockQuant(TestStockCommon):
             picking = picking_form.save()
         picking.action_confirm()
 
-        # Default removal strategy is 'Closest location', so lot2 should be received as it was put in a closer location. (stock_location/shelf_1 < stock_location/shelf_2)
         self.assertEqual(picking.move_ids.lot_ids.id, lot2.id)
 
     def test_closest_removal_strategy_untracked(self):
@@ -1171,7 +1154,6 @@ class TestStockQuant(TestStockCommon):
             [("method", "=", "closest")]
         )
         self.stock_location.removal_strategy_id = closest_strategy
-        # Add 2 units of product into stock_location/shelf_1
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -1179,7 +1161,6 @@ class TestStockQuant(TestStockCommon):
                 "quantity": 2.0,
             }
         )
-        # Add 3 units of product into stock_location/shelf_2
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -1187,15 +1168,12 @@ class TestStockQuant(TestStockCommon):
                 "quantity": 3.0,
             }
         )
-        # Request 3 units of product, with 'Closest location' as removal strategy
         quants = self.env["stock.quant"]._get_reserve_quantity(
             self.productA, self.stock_location, 3
         )
 
-        # The 2 in stock_location/shelf_1 should be taken first, as the location name is smaller alphabetically
         self.assertEqual(quants[0][1], 2)
         self.assertEqual(quants[0][0].location_id, self.shelf_1)
-        # The last one should then be taken in stock_location/shelf_2 since the first location doesn't have enough products
         self.assertEqual(quants[1][1], 1)
         self.assertEqual(quants[1][0].location_id, self.shelf_2)
 
@@ -1328,9 +1306,6 @@ class TestStockQuant(TestStockCommon):
             [("product_id", "=", self.productA.id), ("on_hand", "=", True)]
         )
         self.assertEqual(len(quant), 1)
-        # The quants merging is processed thanks to a SQL query (see StockQuant._merge_quants).
-        # At that point, the ORM is not aware of the new value. So we need to invalidate the
-        # cache to ensure that the value will be the newest
         quant.invalidate_recordset(["quantity"])
         self.assertEqual(quant.quantity, 11)
 
@@ -1551,7 +1526,6 @@ class TestStockQuant(TestStockCommon):
             [("product_id", "=", self.productA.id)]
         )
 
-        # testing assigning a package to a quant
         relocate_wizard = _get_relocate_wizard(quant_a)
         relocate_wizard.dest_package_id = package_02
         action = relocate_wizard.save().action_relocate_quants()
@@ -1563,7 +1537,6 @@ class TestStockQuant(TestStockCommon):
         )
         self.assertEqual(new_quant_a.package_id, package_02)
 
-        # testing moving a packed quant to a new location
         relocate_wizard = _get_relocate_wizard(new_quant_a)
         self.assertEqual(relocate_wizard.is_partial_package, False)
         relocate_wizard.dest_location_id = self.shelf_2
@@ -1574,7 +1547,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(new_quant_a_bis.location_id, self.shelf_2)
         self.assertEqual(new_quant_a_bis.package_id, package_02)
 
-        # testing moving multiple packed quants to a new location with incomplete package
         product_b = self.env["product.product"].create(
             {"name": "product B", "is_storable": True}
         )
@@ -1627,13 +1599,6 @@ class TestStockQuant(TestStockCommon):
             ],
         )
 
-        ### CURRENT STATE
-        # COMPANY A:
-        # -> product A: shelf_1, package_02
-        # -> product B: shelf_1, no package
-        # -> product C: stock_location, package_01
-
-        ### testing blocks on relocating quants from different companies
         package_03 = self.env["stock.package"].create({})
         package_04 = self.env["stock.package"].create({})
         company_B = self.env["res.company"].create(
@@ -1667,7 +1632,6 @@ class TestStockQuant(TestStockCommon):
             product_b_company_B, location_company_B, 10
         )
 
-        # testing the available packs from company B
         quant_b_B = self.env["stock.quant"].search(
             [("product_id", "=", product_b_company_B.id), ("quantity", "=", 10)]
         )
@@ -1679,7 +1643,6 @@ class TestStockQuant(TestStockCommon):
             package_03 + package_04,
         )
 
-        # testing the available packs from company A with multiple quants
         quants_ab_A = self.env["stock.quant"].search(
             [
                 ("product_id", "in", (self.productA.id, product_b.id)),
@@ -1694,7 +1657,6 @@ class TestStockQuant(TestStockCommon):
             package_02 + package_04,
         )
 
-        # testing the recomputation of available packages
         relocate_wizard.dest_location_id = self.stock_location
         self.assertEqual(
             relocate_wizard.dest_package_id.search(
@@ -1703,7 +1665,6 @@ class TestStockQuant(TestStockCommon):
             package_01 + package_04,
         )
 
-        # testing calling the wizard with quants from multiple companies
         quants_bab_AB = quant_b_B + quants_ab_A
         with self.assertRaises(UserError):
             _get_relocate_wizard(quants_bab_AB)
@@ -1774,10 +1735,8 @@ class TestStockQuant(TestStockCommon):
         """Checks quant's methods to generate barcode works as expected and don't
         generate barcodes longer than the given limit and use the given separator.
         """
-        # Initial config.
         self.env["ir.config_parameter"].set_param("stock.agg_barcode_max_length", 400)
         self.env["ir.config_parameter"].set_param("stock.barcode_separator", ";")
-        # Create some products with a valid EAN-13 and LN/SN for tracked ones.
         product_ean13 = self.env["product.product"].create(
             {
                 "name": "Product Test EAN13",
@@ -1822,7 +1781,6 @@ class TestStockQuant(TestStockCommon):
             ]
         )
 
-        # Add some quants for those products.
         common_serial_vals = {
             "product_id": product_serial_ean13.id,
             "location_id": self.stock_location.id,
@@ -1867,7 +1825,6 @@ class TestStockQuant(TestStockCommon):
             lambda q: q.product_id == product_lot_ean13
         )
 
-        # First, check each individual barcodes.
         self.assertEqual(
             quants_product_ean13._get_gs1_barcode(), "01001000111010143000000123"
         )
@@ -1880,7 +1837,6 @@ class TestStockQuant(TestStockCommon):
             "0100300033303032300000002510lot-001",
         )
 
-        # Then, check the aggregate barcode.
         aggregate_barcodes = quants.sorted(
             lambda q: q.product_id.id
         ).get_aggregate_barcodes()
@@ -1893,13 +1849,11 @@ class TestStockQuant(TestStockCommon):
             "0100300033303032300000001510lot-000;0100300033303032300000002510lot-001\t",
         )
 
-        # Use another separator and set a lower aggregate barcode's max length.
         self.env["ir.config_parameter"].set_param("stock.barcode_separator", "|")
         self.env["ir.config_parameter"].set_param("stock.agg_barcode_max_length", 160)
         aggregate_barcodes = quants.sorted(
             lambda q: q.product_id.id
         ).get_aggregate_barcodes()
-        # Check we have now two aggregate barcodes (306 char but limit at 160).
         self.assertEqual(len(aggregate_barcodes), 2)
         for aggregate_barcode in aggregate_barcodes:
             self.assertTrue(
@@ -1921,10 +1875,8 @@ class TestStockQuant(TestStockCommon):
         """Checks quant's methods to generate barcode works for tracked products
         regardless the product's barcode is a valid EAN or not.
         """
-        # Initial config.
         self.env["ir.config_parameter"].set_param("stock.agg_barcode_max_length", 400)
         self.env["ir.config_parameter"].set_param("stock.barcode_separator", ";")
-        # Creates some product with not GS1 compliant barcodes.
         product = self.env["product.product"].create(
             {
                 "name": "Product Test",
@@ -1948,7 +1900,6 @@ class TestStockQuant(TestStockCommon):
                 "tracking": "lot",
             }
         )
-        # Creates some lot/serial numbers.
         serial_numbers = self.env["stock.lot"].create(
             [
                 {
@@ -1969,7 +1920,6 @@ class TestStockQuant(TestStockCommon):
             ]
         )
 
-        # Add some quants for those products.
         common_serial_vals = {
             "product_id": product_serial.id,
             "location_id": self.stock_location.id,
@@ -2012,14 +1962,12 @@ class TestStockQuant(TestStockCommon):
         )
         quants_product_lot = quants.filtered(lambda q: q.product_id == product_lot)
 
-        # Check each individual barcodes.
         self.assertEqual(quants_product._get_gs1_barcode(), "")
         self.assertEqual(quants_product_serial[3]._get_gs1_barcode(), "21tsn-003")
         self.assertEqual(
             quants_product_lot[1]._get_gs1_barcode(), "300000002510lot-001"
         )
 
-        # Check the aggregate barcode.
         aggregate_barcodes = quants.sorted(
             lambda q: q.product_id.id
         ).get_aggregate_barcodes()
@@ -2227,7 +2175,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
             {
                 "name": "Product",
                 "is_storable": True,
-                # categ_id is required to set the removal strategy later
                 "categ_id": cls.env.ref("product.product_category_goods").id,
             }
         )
@@ -2293,7 +2240,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         ]
         self._generate_data(packages_data)
 
-        # Out 1000 should selecte a package with 1000 units inside
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
@@ -2323,7 +2269,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         ]
         self._generate_data(packages_data)
 
-        # Out 1000 should select a package with 1000 units inside
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
@@ -2372,7 +2317,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
             move.move_line_ids,
             [{"quantity_product_uom": 10}] + [{"quantity_product_uom": 3}],
         )
-        # Make sure it selects the smallest possible package as best leaf.
         self.assertEqual(move.move_line_ids[1].package_id.quant_ids.quantity, 5)
 
     def test_least_package_removal_strategy_not_enough(self):
@@ -2467,7 +2411,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
                 {"name": "Pack 002"},
             ]
         )
-        # Pack the first 2 prodcuts in Pack 001 and the last in Pack 002
         self.env["stock.quant"]._update_available_quantity(
             products[0], self.stock_location, 1.0, package_id=packages[0]
         )
@@ -2511,7 +2454,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
             ]
         )
         delivery.action_confirm()
-        # Make an internal transfer to move Pack 001 in a sublocation
         self.picking_type_int.show_entire_packs = True
         internal_transfer.action_add_entire_packs(packages[0].id)
         internal_transfer.action_confirm()

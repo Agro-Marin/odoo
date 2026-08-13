@@ -30,8 +30,6 @@ class TestMoveReservation(TestStockCommon):
             [("code", "=", "internal")], limit=1
         )
 
-    # -- helpers --------------------------------------------------------------
-
     def _product(self, tracking="none"):
         return self.env["product.product"].create(
             {"name": "RESV_%s" % tracking, "is_storable": True, "tracking": tracking}
@@ -55,8 +53,6 @@ class TestMoveReservation(TestStockCommon):
         move = self.env["stock.move"].create(vals)
         move._action_confirm()
         return move
-
-    # -- MTS branch (no origin) ----------------------------------------------
 
     def test_mts_full_availability(self):
         p = self._product()
@@ -83,8 +79,6 @@ class TestMoveReservation(TestStockCommon):
         self.assertEqual(move.state, "confirmed")
         self.assertFalse(move.move_line_ids)
 
-    # -- reservation-bypass branch (supplier source) --------------------------
-
     def test_receipt_bypasses_reservation(self):
         p = self._product()
         move = self._move(p, self.supplier_loc, self.stock_loc, 5, self.in_type)
@@ -102,8 +96,6 @@ class TestMoveReservation(TestStockCommon):
         self.assertEqual(len(move.move_line_ids), 3)
         self.assertEqual(set(move.move_line_ids.mapped("quantity")), {1.0})
 
-    # -- lot-tracked MTS ------------------------------------------------------
-
     def test_lot_mts_partial(self):
         p = self._product(tracking="lot")
         lot = self.env["stock.lot"].create({"name": "RESVLOT", "product_id": p.id})
@@ -114,8 +106,6 @@ class TestMoveReservation(TestStockCommon):
         self.assertEqual(len(move.move_line_ids), 1)
         self.assertEqual(move.move_line_ids.lot_id, lot)
         self.assertEqual(move.move_line_ids.quantity, 3)
-
-    # -- chained move fed by a done origin (MTS-with-orig branch) --------------
 
     def test_chain_reserves_from_done_origin(self):
         output = self.env["stock.location"].create(
@@ -140,12 +130,10 @@ class TestMoveReservation(TestStockCommon):
         self.assertEqual(out.move_line_ids.location_id, output)
         self.assertEqual(out.move_line_ids.quantity, 5)
 
-    # -- UoM conversion -------------------------------------------------------
-
     def test_uom_conversion_dozen_over_unit_stock(self):
         uom_dozen = self.env.ref("uom.product_uom_dozen")
         p = self._product()
-        self._add_stock(p, self.stock_loc, 24)  # 2 dozen
+        self._add_stock(p, self.stock_loc, 24)
         move = self._move(
             p, self.stock_loc, self.customer_loc, 1, self.out_type, uom=uom_dozen
         )
@@ -155,13 +143,10 @@ class TestMoveReservation(TestStockCommon):
         self.assertEqual(move.move_line_ids.quantity, 1)
         self.assertEqual(move.move_line_ids.product_uom_id, uom_dozen)
 
-    # -- force_qty path -------------------------------------------------------
-
     def test_force_qty_reserves_exact_quantity(self):
         p = self._product()
         self._add_stock(p, self.stock_loc, 10)
         move = self._move(p, self.stock_loc, self.customer_loc, 5, self.out_type)
-        # Start from a clean, unreserved state so force_qty is the only reservation.
         move._do_unreserve()
         self.assertFalse(move.move_line_ids)
         move._action_assign(force_qty=3)
@@ -174,8 +159,6 @@ class TestMoveReservation(TestStockCommon):
         move._action_assign(force_qty=3)
         self.assertEqual(move.state, "confirmed")
         self.assertFalse(move.move_line_ids)
-
-    # -- write() reservation re-sync (regression) -----------------------------
 
     def _reserved(self, product, location):
         quants = self.env["stock.quant"].search(
@@ -238,10 +221,8 @@ class TestMoveReservation(TestStockCommon):
 
         ml.write({"location_id": loc_b.id, "result_package_id": pkg.id})
 
-        # Reservation follows the line to B; nothing left stranded at A.
         self.assertEqual((self._reserved(p, loc_a), self._reserved(p, loc_b)), (0, 5))
         self.assertEqual(ml.result_package_id, pkg)
-        # Unreserving is clean -- no orphaned reservation, full stock freed at both.
         move._do_unreserve()
         self.assertEqual((self._reserved(p, loc_a), self._reserved(p, loc_b)), (0, 0))
 

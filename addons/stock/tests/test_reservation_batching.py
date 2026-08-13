@@ -33,8 +33,6 @@ class TestReservationBatching(TestStockCommon):
             {"name": "Res Lot", "is_storable": True, "tracking": "lot"}
         )
 
-    # --- helpers ------------------------------------------------------------
-
     def _stock(self, product, qty, location=None, lot=None):
         self.env["stock.quant"]._update_available_quantity(
             product, location or self.stock_location, qty, lot_id=lot
@@ -59,8 +57,6 @@ class TestReservationBatching(TestStockCommon):
             ]
         )
         return sum(quants.mapped("reserved_quantity"))
-
-    # --- the case the batching must not break -------------------------------
 
     def test_batch_divides_insufficient_stock_in_order(self):
         """Three moves, stock for one and a half: the batch is served in order, and
@@ -115,8 +111,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(moves[1].state, "partially_available")
         self.assertEqual(self._reserved(self.product), 12.0)
 
-    # --- the shapes the loop can take ---------------------------------------
-
     def test_serial_moves_get_one_line_per_unit(self):
         lots = self.env["stock.lot"].create(
             [
@@ -137,7 +131,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(moves[0].state, "assigned")
         self.assertEqual(len(moves[1].move_line_ids), 1)
         self.assertEqual(moves[1].state, "partially_available")
-        # every reserved line names a distinct serial
         used = moves.move_line_ids.lot_id
         self.assertEqual(len(used), 3)
         self.assertEqual(self._reserved(self.serial_product), 3.0)
@@ -167,8 +160,8 @@ class TestReservationBatching(TestStockCommon):
         move._action_assign()
 
         self.assertEqual(move.state, "assigned")
-        self.assertEqual(move.quantity, 2.0)  # dozens
-        self.assertEqual(self._reserved(self.product), 24.0)  # units
+        self.assertEqual(move.quantity, 2.0)
+        self.assertEqual(self._reserved(self.product), 24.0)
 
     def test_a_partially_reserved_move_tops_up_rather_than_duplicating(self):
         """The in-place update path: a move that already holds a line gets that line
@@ -211,7 +204,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(receipt.quantity, 7.0)
         self.assertEqual(delivery.state, "assigned")
         self.assertEqual(delivery.quantity, 5.0)
-        # only the delivery touched the quants
         self.assertEqual(self._reserved(self.product), 5.0)
 
     def test_chained_moves_distribute_what_their_origin_brought(self):
@@ -277,8 +269,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(moves.mapped("quantity"), [5.0, 5.0])
         self.assertEqual(len(moves.move_line_ids), 2)
 
-    # --- the batching property itself ---------------------------------------
-
     def test_a_batch_creates_its_move_lines_in_one_call(self):
         """The architectural property, asserted directly rather than as a query count.
 
@@ -327,7 +317,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertIsNone(self.env.context.get("reservation_ledger"))
         self.assertEqual(self._reserved(self.product), 4.0)
 
-        # a second, independent run sees the first one's reservation on the quant
         move2 = self._out_move(self.product, 8.0)
         move2._action_confirm()
         move2._action_assign()

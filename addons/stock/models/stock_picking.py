@@ -13,17 +13,8 @@ from odoo.tools.translate import _
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
 
-# Terminal states, shared by pickings and moves: a done/cancelled record no longer
-# takes part in confirmation, reservation, backorders or packing. Membership tests
-# only -- domains keep explicit tuples.
 DONE_CANCEL_STATES = frozenset(("done", "cancel"))
-# Terminal states plus "not started": a move in one of these is never reserved,
-# scheduled or validated by the picking-level actions.
 DRAFT_DONE_CANCEL_STATES = DONE_CANCEL_STATES | {"draft"}
-# The states in which a picking is confirmed but not finished. This is exactly the
-# set that carries a forecast availability, so `_compute_products_availability` and
-# `_search_products_availability_state` share it rather than each spelling out one
-# side of the partition.
 OPEN_PICKING_STATES = frozenset(("waiting", "confirmed", "assigned"))
 
 
@@ -431,9 +422,6 @@ class StockPicking(models.Model):
             pickings_changing_type = self.filtered(
                 lambda picking: picking.picking_type_id != picking_type,
             )
-            # Only an actual change is forbidden. Rewriting the type a done picking
-            # already has changes nothing, and refusing it breaks every idempotent
-            # writer (imports, server actions, callers echoing the current values).
             if any(
                 picking.state in DONE_CANCEL_STATES
                 for picking in pickings_changing_type
@@ -838,9 +826,6 @@ class StockPicking(models.Model):
         "move_line_ids.result_package_id",
         "move_line_ids.product_uom_id",
         "move_line_ids.quantity",
-        # The compute reads the product's weight; without this the *stored*
-        # `shipping_weight` -- what the carriers rate and label against -- keeps a
-        # value computed from a weight the product no longer has.
         "move_line_ids.product_id.weight",
     )
     def _compute_bulk_weight(self):
@@ -1188,9 +1173,6 @@ class StockPicking(models.Model):
             return NotImplemented
 
         value = set(value)
-        # Stated as the same set `_compute_products_availability` selects on, rather
-        # than as its complement: the two cannot drift into disagreeing about which
-        # pickings carry a state.
         qualifying = Domain(
             [
                 ("state", "in", tuple(OPEN_PICKING_STATES)),
@@ -1358,17 +1340,12 @@ class StockPicking(models.Model):
         todo_moves = self.move_ids.filtered(
             lambda move: move.state not in DONE_CANCEL_STATES,
         )
-        # One write per distinct owner rather than per picking: the owner is a
-        # partner, so a batch validation usually shares a handful of them at most.
         for owner, pickings in self.filtered("owner_id").grouped("owner_id").items():
             pickings.move_ids.write({"restrict_partner_id": owner.id})
             pickings.move_line_ids.write({"owner_id": owner.id})
         todo_moves._action_done(
             cancel_backorder=self.env.context.get("cancel_backorder"),
         )
-        # Only pickings that actually landed get a transfer date. A picking whose
-        # moves were all cancelled on the way through is not "processed", and
-        # stamping it would date an event that never happened.
         self.filtered(lambda picking: picking.state == "done").write(
             {"date_done": fields.Datetime.now(), "priority": "0"},
         )
@@ -1408,8 +1385,6 @@ class StockPicking(models.Model):
         self = self.filtered(lambda p: p.state not in DONE_CANCEL_STATES)
         draft_picking = self.filtered(lambda p: p.state == "draft")
         draft_picking.action_confirm()
-        # Back-fill the done quantity from the demand, one write per distinct demand
-        # instead of one per move.
         moves_by_quantity = defaultdict(lambda: self.env["stock.move"])
         for move in draft_picking.move_ids:
             if move.product_uom_id.is_zero(
@@ -1819,10 +1794,6 @@ class StockPicking(models.Model):
         """Run `action_confirm` on pickings that gained a move after the initial
         `action_confirm` (which acts only on draft moves).
         """
-        # A done or cancelled picking is settled: neither branch may confirm moves on
-        # it. The second one used to look at `self.move_ids` rather than the open
-        # pickings', so writing `move_ids` on a done picking confirmed draft moves
-        # there while the first branch was correctly skipping it.
         open_pickings = self.filtered(
             lambda picking: picking.state not in DONE_CANCEL_STATES,
         )
@@ -1994,10 +1965,6 @@ class StockPicking(models.Model):
         """Create a backorder picking and move the non-`done`/`cancel` stock.moves into
         it. Called when the user chose to create a backorder.
         """
-        # Resolve every picking's backorder moves first, then create all the
-        # backorders in one `create`: one INSERT for the batch instead of one
-        # `copy()` per picking, and the per-picking writes below no longer flush
-        # between each other (which re-fired `_compute_state` twice per picking).
         moves_by_picking = {}
         for picking in self:
             if backorder_moves:
@@ -2043,8 +2010,6 @@ class StockPicking(models.Model):
         return backorders
 
     def _get_next_transfers(self):
-        # Recordset difference, not a per-element `in` scan (which is what
-        # `_compute_show_next_pickings` already does, and quadratic here).
         return self.move_ids.move_dest_ids.picking_id - self.return_ids
 
     @api.model

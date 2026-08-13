@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 """Regression tests for the product/reports/wizards audit fixes (2026-07-17)."""
 
 from odoo import fields
@@ -34,10 +33,6 @@ class TestAuditFixesProduct(TransactionCase):
                 **extra_vals,
             },
         )
-
-    # ------------------------------------------------------------
-    # Replenishment info wizard (#2 + record creation in compute)
-    # ------------------------------------------------------------
 
     def test_replenishment_info_bare_wizard_computes(self):
         """A wizard without orderpoint/location must compute its JSON fields to
@@ -77,10 +72,6 @@ class TestAuditFixesProduct(TransactionCase):
             set(resupplied_wh.resupply_route_ids.ids),
         )
         self.assertEqual(options.product_id, self.product)
-
-    # ------------------------------------------------------------
-    # Owners context on quantity fields (#34)
-    # ------------------------------------------------------------
 
     def test_quantities_owner_context_scopes_moves(self):
         """The `owners` context must scope the move-based quantity fields
@@ -128,16 +119,10 @@ class TestAuditFixesProduct(TransactionCase):
         self.assertEqual(product_as_other.qty_outgoing, 0)
         self.assertEqual(product_as_other.qty_available_virtual, 0)
 
-        # Empty owners list means "unowned stock only": neither the owned quant
-        # nor the owner-scoped moves may count.
         product_unowned = self.product.with_context(owners=[])
         self.assertEqual(product_unowned.qty_available, 0)
         self.assertEqual(product_unowned.qty_incoming, 0)
         self.assertEqual(product_unowned.qty_outgoing, 0)
-
-    # ------------------------------------------------------------
-    # Batch qty_available inverse (#37)
-    # ------------------------------------------------------------
 
     def test_inverse_qty_available_batches(self):
         """Setting qty_available on several products at once applies a single
@@ -156,10 +141,6 @@ class TestAuditFixesProduct(TransactionCase):
         )
         self.assertEqual(len(quants), 2)
         self.assertEqual(quants.mapped("quantity"), [4, 4])
-
-    # ------------------------------------------------------------
-    # Scoped _clean_reservations on is_storable flip (#38)
-    # ------------------------------------------------------------
 
     def test_is_storable_flip_scoped_clean_reservations(self):
         """Flipping is_storable only realigns the transitioning products'
@@ -181,9 +162,6 @@ class TestAuditFixesProduct(TransactionCase):
         template = self.env["product.template"].create(
             {"name": "Becomes storable", "type": "consu", "is_storable": False},
         )
-        # Open picked move on the still-consumable product: the flip must
-        # create its reserved quant even though the product has no quant row
-        # yet (the move-line-only side of the realignment).
         move = self._create_move(
             5,
             self.stock_location,
@@ -202,13 +180,7 @@ class TestAuditFixesProduct(TransactionCase):
             ],
         )
         self.assertEqual(sum(flipped_quants.mapped("reserved_quantity")), 5)
-        # The bystander's stale reservation (no move line backs it) must NOT
-        # have been healed by a global clean pass.
         self.assertEqual(bystander_quant.reserved_quantity, 3)
-
-    # ------------------------------------------------------------
-    # Template inverse / create hardening (#41, create alignment)
-    # ------------------------------------------------------------
 
     def test_template_inverse_qty_available_multi_variant_raises(self):
         attribute = self.env["product.attribute"].create(
@@ -269,10 +241,6 @@ class TestAuditFixesProduct(TransactionCase):
         )
         self.assertEqual(template.product_variant_id.qty_available, 7)
 
-    # ------------------------------------------------------------
-    # Routes diagram fallback (low)
-    # ------------------------------------------------------------
-
     def test_action_view_routes_diagram_falls_back_to_self(self):
         template = self.product.product_tmpl_id
         action = template.action_view_routes_diagram()
@@ -286,10 +254,6 @@ class TestAuditFixesProduct(TransactionCase):
             .action_view_routes_diagram()
         )
         self.assertTrue(action)
-
-    # ------------------------------------------------------------
-    # Forecasted report (#36, #40, #42, assert -> UserError)
-    # ------------------------------------------------------------
 
     def test_forecasted_report_no_product_raises_usererror(self):
         with self.assertRaises(UserError):
@@ -307,9 +271,6 @@ class TestAuditFixesProduct(TransactionCase):
             quantity=7,
         )
         Report = self.env["stock.forecasted_product_product"]
-        # No warehouse in context: the report resolves the company's first
-        # warehouse; the header must show that warehouse's (empty) stock, not
-        # the all-warehouses total.
         res = Report._get_report_data(product_ids=self.product.ids)
         self.assertEqual(res["product"][self.product.id]["quantity_on_hand"], 0)
         res = Report.with_context(warehouse_id=warehouse_2.id)._get_report_data(
@@ -339,10 +300,8 @@ class TestAuditFixesProduct(TransactionCase):
             },
         )
         self.product.route_ids = route
-        # The loop must raise for a direct resolution ...
         with self.assertRaises(UserError):
             self.product._get_rules_from_location(self.stock_location)
-        # ... but the report must survive it.
         res = self.env["stock.forecasted_product_product"]._get_report_data(
             product_ids=self.product.ids,
         )
@@ -374,7 +333,7 @@ class TestAuditFixesProduct(TransactionCase):
 
         line = Report._prepare_report_line(3, move_in=move_in, read=False)
         self.assertFalse(line["receipt_date"])
-        self.assertEqual(line["move_in"], move_in)  # record, not read() dict
+        self.assertEqual(line["move_in"], move_in)
         self.assertEqual(line["uom_id"], self.product.uom_id)
         self.assertEqual(line["document_in"]["_name"], "stock.picking")
         self.assertEqual(line["document_in"]["id"], picking.id)
@@ -385,10 +344,6 @@ class TestAuditFixesProduct(TransactionCase):
         self.assertIsInstance(line["move_in"], dict)
         self.assertIsInstance(line["uom_id"], dict)
         self.assertEqual(line["document_in"]["name"], picking.display_name)
-
-    # ------------------------------------------------------------
-    # Reception report action_unassign hardening (#35)
-    # ------------------------------------------------------------
 
     def test_reception_unassign_rejects_unlinked_move(self):
         out = self._create_move(2, self.stock_location, self.customer_location)
@@ -405,23 +360,13 @@ class TestAuditFixesProduct(TransactionCase):
         with self.assertRaises(UserError):
             report.action_unassign(out.id, 2, [])
 
-    # ------------------------------------------------------------
-    # Traceability allowed models (low)
-    # ------------------------------------------------------------
-
     def test_traceability_allowed_models_no_mrp(self):
         report = self.env["stock.traceability.report"].create({})
         self.assertNotIn("mrp.production", report._get_line_allowed_models())
-        # A client payload naming mrp.production must be refused gracefully
-        # (no env KeyError 500 when mrp is not installed).
         self.assertEqual(
             report.get_lines(model_name="mrp.production", model_id=1),
             [],
         )
-
-    # ------------------------------------------------------------
-    # Relocation wizard company handling (low)
-    # ------------------------------------------------------------
 
     def test_relocate_wizard_single_company(self):
         self.env["stock.quant"]._update_available_quantity(
@@ -440,14 +385,7 @@ class TestAuditFixesProduct(TransactionCase):
         )
         self.assertEqual(wizard.company_id, self.stock_location.company_id)
 
-    # ------------------------------------------------------------
-    # Request count default date (low)
-    # ------------------------------------------------------------
-
     def test_request_count_default_date_is_context_today(self):
-        # UTC+14 and UTC-12: at any moment, at least one of them is on a
-        # different calendar day than naive UTC, so a regression to
-        # `Datetime.now` (UTC date) always fails one of the two assertions.
         for tz in ("Pacific/Kiritimati", "Etc/GMT+12"):
             wizard = self.env["stock.request.count"].with_context(tz=tz).create({})
             self.assertEqual(
@@ -455,10 +393,6 @@ class TestAuditFixesProduct(TransactionCase):
                 fields.Date.context_today(wizard),
                 f"inventory_date default must be the user-timezone today ({tz})",
             )
-
-    # ------------------------------------------------------------
-    # Quant-only search path invariant (#39)
-    # ------------------------------------------------------------
 
     def test_search_qty_available_new_positive_only(self):
         """The quant-only fast path only ever serves searches that 0 does not

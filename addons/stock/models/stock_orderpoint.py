@@ -27,20 +27,9 @@ class StockWarehouseOrderpoint(models.Model):
     _check_company_auto = True
     _order = "location_id,company_id,id"
 
-    # Number of most-recent completed incoming transfers sampled when computing
-    # actual lead-time statistics (see `_read_lead_time_stats`).
     _LEAD_TIME_SAMPLE_SIZE = 20
-    # Only receipts completed within this window feed the lead-time statistics:
-    # older history no longer reflects current supplier behaviour and ranking it
-    # on every scheduler run is needlessly expensive.
     _LEAD_TIME_LOOKBACK_DAYS = 730
-    # How many times a batch is retried on a serialization failure before the
-    # scheduler gives up on it (the next scheduler run retries naturally).
     _PROCUREMENT_RETRIES = 5
-
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     name = fields.Char(
         string="Name",
@@ -244,7 +233,6 @@ class StockWarehouseOrderpoint(models.Model):
         "Check the Forecast Report.",
     )
 
-    # Lead time analytics — computed from actual completed incoming pickings
     actual_lead_time_avg = fields.Float(
         string="Avg Lead Time (days)",
         digits=(10, 2),
@@ -268,10 +256,6 @@ class StockWarehouseOrderpoint(models.Model):
         help="Number of completed incoming transfers used to compute lead time statistics.",
     )
 
-    # ------------------------------------------------------------
-    # CONSTRAINTS
-    # ------------------------------------------------------------
-
     _product_location_check = models.Constraint(
         "unique (product_id, location_id, company_id)",
         "A replenishment rule already exists for this product on this location.",
@@ -292,11 +276,6 @@ class StockWarehouseOrderpoint(models.Model):
                 ),
             )
 
-    # Fields the qty_to_order suggestion is derived from. A falsy `qty_to_order`
-    # arriving in the same create/write as one of these is the web client echoing
-    # the onchange artifact — the stored suggestion deliberately computes to 0 on
-    # virtual (NewId) records — not a user-entered 0, and must not latch the
-    # `qty_to_order_manual_zero` suppression (see `_drop_echoed_qty_to_order`).
     _QTY_TO_ORDER_SOURCE_FIELDS = frozenset(
         {
             "product_id",
@@ -333,10 +312,6 @@ class StockWarehouseOrderpoint(models.Model):
             vals = {key: value for key, value in vals.items() if key != "qty_to_order"}
         return vals
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         vals_list = [self._drop_echoed_qty_to_order(vals) for vals in vals_list]
@@ -363,8 +338,6 @@ class StockWarehouseOrderpoint(models.Model):
                         ),
                     )
         if vals.get("snoozed_until"):
-            # Use the trigger being set in this same write, if any, so that switching an
-            # orderpoint to manual and snoozing it in one write is allowed.
             new_trigger = vals.get("trigger")
             if any(
                 (new_trigger or orderpoint.trigger) == "auto" for orderpoint in self
@@ -376,17 +349,9 @@ class StockWarehouseOrderpoint(models.Model):
                 )
         return super().write(vals)
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
     @api.depends("warehouse_id", "company_id")
     def _compute_allowed_location_ids(self):
-        # Keep only locations strictly belonging to our warehouse, or not belonging
-        # to any warehouse at all (i.e. exclude locations of *other* warehouses).
         all_warehouses = self.env["stock.warehouse"].search([])
-        # The allowed set only depends on (company, warehouse): search once per
-        # distinct pair instead of once per orderpoint.
         orderpoints_by_key = defaultdict(
             lambda: self.env["stock.warehouse.orderpoint"],
         )
@@ -395,9 +360,6 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint
             )
         for (company, warehouse), orderpoints in orderpoints_by_key.items():
-            # Apply the company filter unconditionally: doing it only inside the
-            # other-warehouses loop dropped it when a single warehouse existed,
-            # leaking other companies' locations.
             loc_domain = Domain("usage", "in", ("internal", "view")) & Domain(
                 "company_id",
                 "in",
@@ -446,7 +408,6 @@ class StockWarehouseOrderpoint(models.Model):
         if not orderpoints_to_compute:
             return
 
-        # horizon_days is a company setting, so the horizon date must be computed per company.
         for company in orderpoints_to_compute.company_id:
             company_orderpoints = orderpoints_to_compute.filtered(
                 lambda c, company=company: c.company_id == company,
@@ -454,12 +415,6 @@ class StockWarehouseOrderpoint(models.Model):
             horizon_date = fields.Date.today() + relativedelta.relativedelta(
                 days=company_orderpoints.get_horizon_days(),
             )
-            # Build the move domains from this company's own orderpoint locations
-            # (their subtrees, like the parent_path matching below). The former
-            # `_get_domain_locations()` fallback resolved the warehouses of
-            # `env.companies`, so under the cron user another company's
-            # orderpoints matched zero moves and silently stored
-            # `deadline_date = False`.
             _, domain_move_in, domain_move_out = (
                 company_orderpoints.product_id._get_domain_locations_new(
                     company_orderpoints.location_id.ids,
@@ -506,9 +461,6 @@ class StockWarehouseOrderpoint(models.Model):
                 ["product_qty:sum"],
             )
 
-            # Keep each move's location parent_path so an orderpoint picks up moves in
-            # any sub-location of its own location, not just the exact one (matching by
-            # exact id missed sub-bin moves).
             moves_by_product = defaultdict(list)
             for (
                 product,
@@ -517,13 +469,6 @@ class StockWarehouseOrderpoint(models.Model):
                 in_date,
                 in_qty,
             ) in incoming_moves_by_product_date:
-                # The deadline walk only sees not-done moves, so the goods land at the
-                # move's final location when set (a multi-step reception routes through
-                # an intermediate such as Input, with location_final_id = Stock), else
-                # at its direct destination. Matching on location_dest_id alone made
-                # every 2/3-step receipt invisible to the deadline -- inconsistent with
-                # qty_forecast and _get_orderpoint_action, which both use the final
-                # location.
                 arrival = location_final or location_dest
                 moves_by_product[product.id].append(
                     (arrival.parent_path or "", in_date.date(), in_qty),
@@ -595,7 +540,6 @@ class StockWarehouseOrderpoint(models.Model):
         "lead time" is noise that would skew the average and the standard
         deviation consumed by reordering engines.
         """
-        # Group by warehouse so one SQL query covers all products of a given warehouse.
         wh_orderpoints = defaultdict(lambda: self.env["stock.warehouse.orderpoint"])
         for orderpoint in self:
             if orderpoint.product_id and orderpoint.warehouse_id:
@@ -604,15 +548,13 @@ class StockWarehouseOrderpoint(models.Model):
         date_done_cutoff = fields.Datetime.now() - relativedelta.relativedelta(
             days=self._LEAD_TIME_LOOKBACK_DAYS,
         )
-        result_map = {}  # (product_id, warehouse_id) -> (avg, stddev, count)
+        result_map = {}
         for warehouse, orderpoints in wh_orderpoints.items():
             product_ids = orderpoints.product_id.ids
             parent_path = warehouse.lot_stock_id.parent_path
             if not product_ids or not parent_path:
                 continue
 
-            # The date cutoff bounds the set ranked by the window function, so
-            # the per-product sample cap stays cheap without a LATERAL probe.
             self.env.cr.execute(
                 """
                 WITH receipts AS (
@@ -688,13 +630,6 @@ class StockWarehouseOrderpoint(models.Model):
             bypass_delay_description=True,
         ):
             values = orderpoint._get_lead_days_values()
-            # Resolve the horizon from *this orderpoint's* company and thread it, so
-            # the forecast window honours `company_id.horizon_days` (the declared
-            # dependency). Otherwise `_get_lead_days` re-resolves it off an empty
-            # recordset -> `env.company`, which during `run_scheduler` is the cron
-            # user's company, giving every other company's orderpoints the wrong
-            # horizon. `get_horizon_days()` still yields to an explicit
-            # `global_horizon_days` in context (the replenishment view's override).
             lead_days, _dummy = orderpoint.rule_ids.with_context(
                 global_horizon_days=orderpoint.get_horizon_days(),
             )._get_lead_days(
@@ -723,8 +658,6 @@ class StockWarehouseOrderpoint(models.Model):
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
         )
-        # Cache rules per (location, route, product routes) to avoid repeated calls to
-        # _get_rules_from_location for products sharing the same routes.
         rules_cache = {}
         for orderpoint in orderpoints_to_compute:
             all_product_routes = (
@@ -732,12 +665,6 @@ class StockWarehouseOrderpoint(models.Model):
                 | orderpoint.product_id.categ_id.total_route_ids
                 | orderpoint.product_id._get_total_routes()
             )
-            # Key on the product-route partition too, not just the union: rule
-            # resolution (_extract_rule_from_dict) sorts product routes ahead of
-            # category routes, so two products with the same route *union* but a
-            # different split (product vs category) resolve different rule chains and
-            # must not share a cache entry. Use `in` rather than `or`, or a legitimately
-            # empty result would be treated as a cache miss and recomputed each time.
             cache_key = (
                 orderpoint.location_id,
                 orderpoint.route_id,
@@ -781,12 +708,6 @@ class StockWarehouseOrderpoint(models.Model):
                     orderpoint.product_id.seller_ids.product_uom_id
                 )
 
-    # Deliberately NOT dependent on `qty_to_order`: with purchase_stock installed,
-    # `_get_replenishment_multiple_alternative` resolves procurement dates and
-    # sellers per record, so recomputing this display-only placeholder on every
-    # forecast change would add one seller lookup per row to the replenishment
-    # list. The placeholder may therefore lag behind the latest qty_to_order
-    # until the allowed UoMs recompute.
     @api.depends("allowed_replenishment_uom_ids")
     def _compute_replenishment_uom_id_placeholder(self):
         for orderpoint in self:
@@ -881,8 +802,6 @@ class StockWarehouseOrderpoint(models.Model):
         "location_id",
     )
     def _compute_effective_route_id(self):
-        # Only the orderpoints without an explicit route need the (costlier) default
-        # route resolved.
         default_routes = self.filtered(
             lambda orderpoint: not orderpoint.route_id,
         )._get_default_route_map()
@@ -939,8 +858,6 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_qty_to_order(self):
         for orderpoint in self:
             if orderpoint.qty_to_order_manual_zero:
-                # The user explicitly zeroed the quantity: keep suppressing the
-                # computed suggestion instead of resurrecting it.
                 orderpoint.qty_to_order = 0.0
             else:
                 orderpoint.qty_to_order = (
@@ -963,16 +880,7 @@ class StockWarehouseOrderpoint(models.Model):
         (self - orderpoints).qty_to_order_computed = False
         if not orderpoints:
             return
-        # One batched, *fresh* `_quantity_in_progress()` call: unlike the cached
-        # `qty_forecast` field, it sees replenishments created earlier in this
-        # transaction that involve no stock move yet (e.g. draft RFQs from
-        # `stock.move._trigger_scheduler`) — reusing the cached field here made
-        # the scheduler re-order quantities an RFQ already covered.
         qty_in_progress_by_orderpoint = orderpoints._quantity_in_progress()
-        # Group by forecast context and read `qty_available_virtual` once per
-        # group (same batching as `_compute_qty`): a per-orderpoint read inside
-        # `_get_qty_to_order` re-ran the full multi-query forecast for every
-        # single orderpoint on each scheduler run.
         orderpoints_contexts = defaultdict(
             lambda: self.env["stock.warehouse.orderpoint"],
         )
@@ -992,24 +900,15 @@ class StockWarehouseOrderpoint(models.Model):
                     qty_available_virtual=qty_by_product[orderpoint.product_id.id],
                 )
 
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
-
     def _inverse_route_id(self):
-        # Override this method to add custom behavior when route is set
         pass
 
     def _inverse_qty_to_order(self):
-        # Non-reentrant: never assigns `qty_to_order` itself, only the stored
-        # companion fields it is computed from.
         for orderpoint in self:
             if orderpoint.trigger == "auto":
                 orderpoint.qty_to_order_manual = 0
                 orderpoint.qty_to_order_manual_zero = False
             elif not orderpoint.qty_to_order:
-                # An explicit 0 sticks: record the suppression instead of
-                # silently reverting to the computed suggestion.
                 orderpoint.qty_to_order_manual = 0
                 orderpoint.qty_to_order_manual_zero = True
             else:
@@ -1019,13 +918,8 @@ class StockWarehouseOrderpoint(models.Model):
                 ):
                     orderpoint.qty_to_order_manual = orderpoint.qty_to_order
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
-
     def _search_effective_route_id(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
-            # Let the ORM derive the negation from the positive match set.
             return NotImplemented
         Route = self.env["stock.route"]
         match_unset = False
@@ -1034,17 +928,11 @@ class StockWarehouseOrderpoint(models.Model):
                 value if isinstance(value, Domain) else [("id", "in", value)],
             )
         elif operator == "in":
-            # `False`/`None` in the value means "no effective route".
             ids = set(value)
             match_unset = False in ids or None in ids
             routes = Route.browse(id_ for id_ in ids if id_)
         else:
-            # Name-based operators (ilike & co.) typed in a search filter: the
-            # former `("id", operator, value)` probe crashed on them.
             routes = Route.search([("display_name", operator, value)])
-        # Orderpoints with an explicit route match purely in SQL; only the ones
-        # without a route need their default resolved (one batched pass instead
-        # of triggering the non-stored compute, a rule `_read_group` per record).
         unset_orderpoints = self.env["stock.warehouse.orderpoint"].search(
             [("route_id", "=", False)],
         )
@@ -1062,10 +950,6 @@ class StockWarehouseOrderpoint(models.Model):
         return Domain("route_id", "in", routes.ids) | Domain("id", "in", matched_ids)
 
     def _search_qty_to_order(self, operator, value):
-        # Pure domain over the stored columns (`qty_to_order` is 0 when the
-        # suggestion is suppressed, else the manual value when set, else the
-        # computed one): no per-search materialization of the whole orderpoint
-        # table in Python.
         base_domain = Domain("qty_to_order_manual_zero", "=", False) & Domain(
             [
                 "|",
@@ -1077,8 +961,6 @@ class StockWarehouseOrderpoint(models.Model):
                 ("qty_to_order_computed", operator, value),
             ],
         )
-        # Suppressed rows have qty_to_order == 0: include them iff 0 itself
-        # satisfies the searched condition.
         py_op = PY_OPERATORS.get(operator)
         if py_op is None:
             return NotImplemented
@@ -1090,18 +972,10 @@ class StockWarehouseOrderpoint(models.Model):
             return base_domain | Domain("qty_to_order_manual_zero", "=", True)
         return base_domain
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
-
     @api.onchange("product_id")
     def _onchange_product_id(self):
         if self.product_id:
             self.product_uom_id = self.product_id.uom_id.id
-
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_product_forecast_report(self):
         self.ensure_one()
@@ -1143,11 +1017,6 @@ class StockWarehouseOrderpoint(models.Model):
         now = self.env.cr.now()
         forced_quantities = None
         if force_to_max:
-            # Pass the forced quantities as an explicit mapping instead of
-            # assigning `qty_to_order`: the assignment only worked while its
-            # inverse (which zeroes the manual qty for auto orderpoints) stayed
-            # deferred past the procurement's read — any intervening flush
-            # silently degraded the forced quantity back to the computed one.
             forced_quantities = {
                 orderpoint.id: orderpoint._get_multiple_rounded_qty(
                     orderpoint.product_max_qty - orderpoint.qty_forecast,
@@ -1183,11 +1052,8 @@ class StockWarehouseOrderpoint(models.Model):
             notification = self.with_context(
                 written_after=now,
             )._get_replenishment_order_notification()
-        # Forced to call compute quantity because we don't have a link.
         self.action_remove_manual_qty_to_order()
         self._compute_qty_to_order()
-        # Drop the auto-created manual orderpoints whose shortage is now resolved (same
-        # rule as the scheduler's cleanup, kept in a single place).
         self._unlink_processed_orderpoints()
         return notification
 
@@ -1197,10 +1063,6 @@ class StockWarehouseOrderpoint(models.Model):
 
     def action_remove_manual_qty_to_order(self):
         self.write({"qty_to_order_manual": 0, "qty_to_order_manual_zero": False})
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_default_rule(self):
         self.ensure_one()
@@ -1347,9 +1209,6 @@ class StockWarehouseOrderpoint(models.Model):
             "stock.action_orderpoint_replenish",
         )
         action["context"] = self.env.context
-        # Include archived orderpoints too: they still count against the unique
-        # product_location_check constraint, so ignoring one would make us create a
-        # duplicate manual orderpoint for that product/location.
         orderpoints = (
             self.env["stock.warehouse.orderpoint"]
             .with_context(active_test=False)
@@ -1360,8 +1219,6 @@ class StockWarehouseOrderpoint(models.Model):
         if self.env.context.get("force_orderpoint_recompute", False):
             orderpoints._compute_qty_to_order_computed()
             orderpoints._compute_deadline_date()
-            # Stored lead-time analytics cannot ORM-depend on the pickings they aggregate,
-            # so refresh them here (and in the scheduler) instead of only at creation.
             orderpoints._compute_lead_time_stats()
         to_refill = defaultdict(float)
         all_product_ids = self._get_orderpoint_products()
@@ -1386,13 +1243,6 @@ class StockWarehouseOrderpoint(models.Model):
             (domain_product, domain_state, domain_move_out_loc),
         )
 
-        # Attribute each aggregated row to the replenish locations among the row
-        # location's ancestors (via parent_path), iterating the rows once —
-        # instead of re-scanning every row for each (product, replenish
-        # location) pair, a products × locations × rows blow-up on large
-        # databases. Ancestor matching is on exact path-segment ids, which also
-        # fixes the substring false-positives of the former
-        # `parent_path in path` check (e.g. "5/" matching "15/").
         replenish_ids = set(all_replenish_location_ids.ids)
         replenish_ancestors_by_location = {}
 
@@ -1419,8 +1269,6 @@ class StockWarehouseOrderpoint(models.Model):
             ["product_id", "location_dest_id", "location_final_id"],
             ["product_qty:sum"],
         ):
-            # Count the move once per replenish location even when both its
-            # destination and final location fall under the same one.
             for replenish_id in {
                 *replenish_ancestors(location_dest),
                 *replenish_ancestors(location_final),
@@ -1446,16 +1294,10 @@ class StockWarehouseOrderpoint(models.Model):
             if product.uom_id.compare(net_qty, 0) >= 0:
                 continue
             loc = replenish_location_by_id[replenish_id]
-            # Resolve the horizon from the location's own company (an explicit
-            # context override still wins, mirroring `get_horizon_days`): the
-            # report spans every replenish location, and in multi-company the
-            # ambient company's horizon is wrong for other companies' locations.
             loc_horizon_days = self.env.context.get(
                 "global_horizon_days",
                 (loc.company_id or self.env.company).horizon_days,
             )
-            # group product by lead_days and location in order to read
-            # qty_available_virtual in batch
             rules = product._get_rules_from_location(loc)
             lead_days = rules.with_context(
                 bypass_delay_description=True,
@@ -1466,8 +1308,6 @@ class StockWarehouseOrderpoint(models.Model):
                 loc,
             ].add(product.id)
 
-        # Refine the shortage with qty_available_virtual bounded by each product's actual lead-time
-        # horizon, instead of the unbounded sum of all pending moves used above.
         today = fields.Datetime.now().replace(hour=23, minute=59, second=59)
         product_ids = set()
         location_ids = set()
@@ -1486,7 +1326,6 @@ class StockWarehouseOrderpoint(models.Model):
         if not to_refill:
             return action
 
-        # Remove incoming quantity from other origin than moves (e.g RFQ)
         product_ids = list(product_ids)
         location_ids = list(location_ids)
         qty_by_product_loc = (
@@ -1503,16 +1342,11 @@ class StockWarehouseOrderpoint(models.Model):
             ["id:recordset"],
         )
         orderpoint_by_product_location = {
-            # `sum` over the aggregated recordset: a shared (company-less)
-            # location can hold one orderpoint per company for the same product,
-            # so the group is not necessarily a singleton.
             (product.id, location.id): sum(group_orderpoints.mapped("qty_to_order"))
             for product, location, group_orderpoints in orderpoint_by_product_location
         }
         for (product, location), product_qty in to_refill.items():
             qty_in_progress = qty_by_product_loc.get((product, location)) or 0.0
-            # Also net out other orderpoints' pending qty_to_order on this product/location,
-            # so their planned replenishment isn't counted again as a shortage here.
             qty_in_progress += orderpoint_by_product_location.get(
                 (product, location),
                 0.0,
@@ -1526,7 +1360,6 @@ class StockWarehouseOrderpoint(models.Model):
             if float_compare(v, 0.0, precision_digits=rounding) < 0.0
         }
 
-        # With archived ones to avoid `product_location_check` SQL constraints
         orderpoint_by_product_location = (
             self.env["stock.warehouse.orderpoint"]
             .with_context(active_test=False)
@@ -1636,8 +1469,6 @@ class StockWarehouseOrderpoint(models.Model):
         if replenishment_multiple and self.product_id.uom_id._has_common_reference(
             replenishment_multiple
         ):
-            # Round UP so the ordered qty fully covers the shortage (use DOWN instead if
-            # overshooting product_max_qty must be avoided).
             qty_to_order = self.product_id.uom_id._compute_quantity(
                 qty_to_order,
                 replenishment_multiple,
@@ -1766,9 +1597,6 @@ class StockWarehouseOrderpoint(models.Model):
                     except ProcurementException as errors:
                         orderpoints_exceptions = []
                         for procurement, error_msg in errors.procurement_exceptions:
-                            # `orderpoint_id` is falsy for manual-trigger
-                            # orderpoints; normalize to an empty recordset so the
-                            # `concat` below never chokes on `False`.
                             orderpoints_exceptions += [
                                 (
                                     procurement.values.get("orderpoint_id")
@@ -1786,19 +1614,12 @@ class StockWarehouseOrderpoint(models.Model):
                         orderpoints_batch -= failed_orderpoints
 
                     except OperationalError as e:
-                        # Only a serialization failure (40001) or deadlock (40P01) is
-                        # worth retrying; a connection-level OperationalError won't
-                        # recover on retry (and rolling back a dead connection would
-                        # raise again inside this handler, masking the original).
                         if e.sqlstate not in ("40001", "40P01"):
                             raise
                         if use_new_cursor:
                             cr.rollback()
                             remaining_retries -= 1
                             if remaining_retries <= 0:
-                                # Give up on this batch instead of looping
-                                # forever on a persistent serialization failure;
-                                # the next scheduler run retries it naturally.
                                 _logger.error(
                                     "Serialization failure while processing a batch "
                                     "of %d orderpoints; giving up after %d retries.",
@@ -1812,12 +1633,8 @@ class StockWarehouseOrderpoint(models.Model):
                         orderpoints_batch._post_process_scheduler()
                         break
 
-                # Log an activity on product template for failed orderpoints.
                 for orderpoint, error_msg in all_orderpoints_exceptions:
                     if not orderpoint:
-                        # Failed procurement without a linked orderpoint (manual
-                        # trigger): nothing to hang an activity on, keep the
-                        # error in the log.
                         _logger.error("Orderpoint procurement failed: %s", error_msg)
                         continue
                     existing_activity = self.env["mail.activity"].search_count(
@@ -1833,9 +1650,6 @@ class StockWarehouseOrderpoint(models.Model):
                         limit=1,
                     )
                     if not existing_activity:
-                        # Schedule as OdooBot, not `sudo()`: `sudo()` keeps the
-                        # current uid, which would leak the triggering user
-                        # (e.g. a portal user) into the activity's create_uid.
                         orderpoint.product_id.product_tmpl_id.with_user(
                             SUPERUSER_ID,
                         ).activity_schedule(

@@ -238,7 +238,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         original = StockWarehouseOrderpoint._prepare_procurement_vals
 
         def flushing(orderpoint_record, date=False):
-            # Simulate any ORM operation flushing pending inverses mid-way.
             orderpoint_record.env.flush_all()
             return original(orderpoint_record, date=date)
 
@@ -281,7 +280,6 @@ class TestAuditOrderpointFixes(TransactionCase):
             0.0,
             "The explicit 0 must survive a cache invalidation/recompute.",
         )
-        # The search must agree with the computed value.
         positive = self.env["stock.warehouse.orderpoint"].search(
             [("qty_to_order", ">", 0)],
         )
@@ -290,12 +288,10 @@ class TestAuditOrderpointFixes(TransactionCase):
             [("qty_to_order", "=", 0)],
         )
         self.assertIn(orderpoint, zeroed)
-        # A non-zero entry lifts the suppression.
         orderpoint.qty_to_order = 4
         self.env.flush_all()
         self.assertEqual(orderpoint.qty_to_order, 4.0)
         self.assertFalse(orderpoint.qty_to_order_manual_zero)
-        # Resetting the manual value restores the computed suggestion.
         orderpoint.qty_to_order = 0
         self.env.flush_all()
         orderpoint.action_remove_manual_qty_to_order()
@@ -315,8 +311,6 @@ class TestAuditOrderpointFixes(TransactionCase):
             },
         )
         self.assertEqual(orderpoint.qty_to_order, 10.0)
-        # What a Form save sends after editing product_min_qty on a manual
-        # orderpoint: the edited field plus the echoed virtual 0.
         orderpoint.write({"product_min_qty": 8, "qty_to_order": 0})
         self.env.flush_all()
         self.assertFalse(orderpoint.qty_to_order_manual_zero)
@@ -404,8 +398,8 @@ class TestAuditOrderpointFixes(TransactionCase):
             )
             return picking
 
-        make_done_receipt(timedelta(minutes=10))  # immediate: excluded
-        make_done_receipt(timedelta(days=5))  # planned: kept
+        make_done_receipt(timedelta(minutes=10))
+        make_done_receipt(timedelta(days=5))
 
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
@@ -615,10 +609,8 @@ class TestAuditTopologyFixes(TransactionCase):
             )
         )
         self.assertTrue(pick_leg.active, "Multi-step delivery: pick leg active.")
-        # Switching the supplier to single-step archives the pick leg.
         supplier_wh.delivery_steps = "ship_only"
         self.assertFalse(pick_leg.active)
-        # An archive/unarchive cycle of the route must not resurrect it.
         resupply_route.action_archive()
         resupply_route.action_unarchive()
         self.assertFalse(
@@ -767,8 +759,6 @@ class TestAuditProcureMultiCompany(TransactionCase):
         )
         out_move._action_confirm()
 
-        # Recompute with the ambient companies restricted to the main company,
-        # like the scheduler running under the cron user.
         orderpoint_ambient = orderpoint.with_context(
             allowed_company_ids=[self.env.company.id],
         )

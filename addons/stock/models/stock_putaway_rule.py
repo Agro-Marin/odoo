@@ -229,9 +229,6 @@ class StockPutawayRule(models.Model):
                 )
             )
 
-            # The two per-location aggregates `_can_be_used` needs, resolved for
-            # the whole candidate set in one query each instead of once per
-            # location inside the loops below.
             forecast_weight_by_location = child_locations._get_weight(
                 self.env.context.get("exclude_sml_ids", set())
             )

@@ -886,19 +886,9 @@ class StockMoveLine(models.Model):
             lambda sml: sml.result_package_id.outermost_package_id,
         ):
             smls = self.env["stock.move.line"].concat(*smls)
-            # Candidate locations, resolved once for the whole group instead of
-            # once per line. A group can span several move destinations, so this
-            # is their union; `_get_putaway_strategy` narrows it back to the
-            # destination it is asked about.
             locations = smls.move_id.location_dest_id.child_internal_location_ids
             excluded_smls = set(smls.ids)
             if package.package_type_id:
-                # One putaway answer per destination, not one for the group:
-                # `_get_putaway_strategy` speaks for a single location, and lines
-                # whose moves target different destinations cannot share an
-                # answer without landing outside their own move's destination.
-                # The common case — every line of a package going to the same
-                # place — is a single iteration, exactly as before.
                 for location_dest, dest_smls in smls.grouped(
                     lambda sml: sml.move_id.location_dest_id
                 ).items():
