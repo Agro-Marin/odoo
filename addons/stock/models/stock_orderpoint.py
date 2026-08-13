@@ -15,7 +15,7 @@ from odoo.libs.datetime import timezone
 from odoo.modules.registry import Registry
 from odoo.tools import float_compare, format_date, frozendict
 
-from odoo.addons.stock.models.product_product import PY_OPERATORS
+from odoo.addons.stock.const import PY_OPERATORS
 from odoo.addons.stock.models.stock_procurement import ProcurementException
 
 _logger = logging.getLogger(__name__)

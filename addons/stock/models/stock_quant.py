@@ -1418,6 +1418,16 @@ class StockQuant(models.Model):
         return res.sorted(lambda q: not q.lot_id)
 
     def _apply_inventory(self, date=None):
+        # `from_inverse_qty` marks an adjustment that came from writing a product's
+        # on-hand rather than from counting: a zero difference there means nothing was
+        # counted, so it raises no move (see the loop below). Whole-set effects have to
+        # honour that too -- re-saving a product form already at 0 otherwise stamped
+        # `last_inventory_date` on the whole stock location with no move behind it.
+        if self.env.context.get("from_inverse_qty") and not any(
+            quant.product_uom_id.compare(quant.inventory_diff_quantity, 0)
+            for quant in self
+        ):
+            return
         self.inventory_quantity_set = True
         move_vals = []
         default_loss_locations = {}

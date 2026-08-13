@@ -6,7 +6,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
-from odoo.addons.stock.models.product_product import PY_OPERATORS
+from odoo.addons.stock.const import PY_OPERATORS
 
 
 class StockLot(models.Model):

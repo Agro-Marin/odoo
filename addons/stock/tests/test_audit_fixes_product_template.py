@@ -161,11 +161,11 @@ class TestProductTemplateAuditFixes(TransactionCase):
         )
         tmpl.lot_sequence_id = seq
         self.env.invalidate_all()
-        self.assertEqual(tmpl.next_serial, "001")
+        self.assertEqual(tmpl.next_serial, "V11-001")
         seq.padding = 8
-        self.assertEqual(tmpl.next_serial, "00000001")
+        self.assertEqual(tmpl.next_serial, "V11-00000001")
         seq.suffix = "-X"
-        self.assertEqual(tmpl.next_serial, "00000001-X")
+        self.assertEqual(tmpl.next_serial, "V11-00000001-X")
 
     def test_prefix_does_not_bind_across_companies(self):
         co_b = self.env["res.company"].create({"name": "V12 Co B"})

@@ -920,10 +920,7 @@ class TestTraceability(TestMrpCommon):
                 {"name": "TEST0000002"},
             ],
         )
-        self.assertEqual(
-            final_product.serial_prefix_format + final_product.next_serial,
-            "TEST0000003",
-        )
+        self.assertEqual(final_product.next_serial, "TEST0000003")
 
         second_mo = self.env["mrp.production"].create(
             {
@@ -1027,7 +1024,7 @@ class TestTraceability(TestMrpCommon):
                 {"name": "03-02-0000002"},
             ],
         )
-        self.assertEqual(final_product.next_serial, "0000003")
+        self.assertEqual(final_product.next_serial, "03-02-0000003")
 
     def test_assign_stock_move_date_on_mark_done(self):
         product_final = self.env["product.product"].create(

@@ -1,5 +1,4 @@
 import logging
-import operator as py_operator
 from ast import literal_eval
 from collections import defaultdict
 from collections.abc import Iterable
@@ -16,27 +15,9 @@ from odoo.libs.numbers import float_compare
 from odoo.tools import SQL, Query
 from odoo.tools.mail import html2plaintext, is_html_empty
 
+from odoo.addons.stock.const import PY_OPERATORS, QUANTITY_FIELDS
+
 _logger = logging.getLogger(__name__)
-
-PY_OPERATORS = {
-    "<": py_operator.lt,
-    ">": py_operator.gt,
-    "<=": py_operator.le,
-    ">=": py_operator.ge,
-    "=": py_operator.eq,
-    "!=": py_operator.ne,
-    "in": lambda elem, container: elem in container,
-    "not in": lambda elem, container: elem not in container,
-}
-
-
-QUANTITY_FIELDS = (
-    "qty_available",
-    "qty_free",
-    "qty_incoming",
-    "qty_outgoing",
-    "qty_available_virtual",
-)
 
 
 class QuantityScope(NamedTuple):
@@ -368,7 +349,17 @@ class ProductProduct(models.Model):
         "search_location",
         "search_warehouse",
         "allowed_company_ids",
-        "is_storable",
+        # Read further down the chain, and every one of them changes the answer:
+        # `strict` and `skip_in_progress` in `_get_domain_locations_new`,
+        # `with_expiration` and `fresh_qty_forecast` in `_expired_quant_domain`.
+        # Left out of the cache key, one scope answered with the other's value --
+        # whichever was computed first, in either direction. The template's roll-up
+        # declares the same four: it reads these fields, so the key has to match or
+        # the narrow read is served the wide answer one level down.
+        "strict",
+        "skip_in_progress",
+        "with_expiration",
+        "fresh_qty_forecast",
     )
     @api.depends(
         "stock_move_ids.product_qty", "stock_move_ids.state", "stock_move_ids.quantity"

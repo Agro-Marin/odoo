@@ -37,13 +37,11 @@ class MrpProductionSerials(models.TransientModel):
                 continue
             wizard.lot_name = wizard.production_id.lot_producing_ids[:1].name
             if not wizard.lot_name:
-                sequence = wizard.production_id.product_id.lot_sequence_id
-                wizard.lot_name = (
-                    sequence.get_next_char(sequence.number_next_actual)
-                    if sequence
-                    else wizard.production_id.product_id.serial_prefix_format
-                    + wizard.production_id.product_id.next_serial
-                )
+                # `next_serial` is that whole expression now: it previews the product's
+                # own sequence, prefix interpolated, and falls back to the stock-wide
+                # one. The branch it replaces hand-built the same string two ways --
+                # neither of which survived a sequence with date ranges.
+                wizard.lot_name = wizard.production_id.product_id.next_serial
 
     @api.depends("production_id")
     def _compute_lot_quantity(self):
