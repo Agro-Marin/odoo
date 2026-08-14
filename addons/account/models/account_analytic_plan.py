@@ -31,10 +31,18 @@ class AccountAnalyticApplicability(models.Model):
     @api.depends("account_prefix", "business_domain")
     def _compute_prefix_placeholder(self):
         account_expense = self.env["account.account"].search(
-            [("account_type", "=", "expense")], limit=1
+            [
+                *self.env["account.account"]._check_company_domain(self.env.company),
+                ("account_type", "=", "expense"),
+            ],
+            limit=1,
         )
         account_income = self.env["account.account"].search(
-            [("account_type", "=", "income")], limit=1
+            [
+                *self.env["account.account"]._check_company_domain(self.env.company),
+                ("account_type", "=", "income"),
+            ],
+            limit=1,
         )
 
         for applicability in self:
