@@ -104,10 +104,17 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             )
 
     def _inverse_expense_accrual_account(self):
+        # Persisting to `company_id` is a UI convenience (remember the choice
+        # as next time's default) that requires `sudo()` because this wizard
+        # is reachable by `group_account_user`, a lower privilege than what
+        # `res.company` write normally requires. Gate the side effect itself
+        # so a non-manager can still use the wizard without silently
+        # rewriting a company-wide default.
         for record in self:
-            record.company_id.sudo().expense_accrual_account_id = (
-                record.expense_accrual_account
-            )
+            if record.env.user.has_group("account.group_account_manager"):
+                record.company_id.sudo().expense_accrual_account_id = (
+                    record.expense_accrual_account
+                )
 
     @api.depends("company_id")
     def _compute_revenue_accrual_account(self):
@@ -117,10 +124,12 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             )
 
     def _inverse_revenue_accrual_account(self):
+        # See `_inverse_expense_accrual_account` above: same manager-only gate.
         for record in self:
-            record.company_id.sudo().revenue_accrual_account_id = (
-                record.revenue_accrual_account
-            )
+            if record.env.user.has_group("account.group_account_manager"):
+                record.company_id.sudo().revenue_accrual_account_id = (
+                    record.revenue_accrual_account
+                )
 
     @api.depends("company_id")
     def _compute_journal_id(self):
@@ -128,10 +137,12 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             record.journal_id = record.company_id.automatic_entry_default_journal_id
 
     def _inverse_journal_id(self):
+        # See `_inverse_expense_accrual_account` above: same manager-only gate.
         for record in self:
-            record.company_id.sudo().automatic_entry_default_journal_id = (
-                record.journal_id
-            )
+            if record.env.user.has_group("account.group_account_manager"):
+                record.company_id.sudo().automatic_entry_default_journal_id = (
+                    record.journal_id
+                )
 
     @api.constrains("percentage", "action")
     def _constraint_percentage(self):
