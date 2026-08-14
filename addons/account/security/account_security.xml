@@ -241,6 +241,12 @@
                 company_ids)]</field>
         </record>
 
+        <record model="ir.rule" id="account_lock_exception_comp_rule">
+            <field name="name">Account lock exception company rule</field>
+            <field name="model_id" ref="model_account_lock_exception" />
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+
         <!-- Billing record rules for account.move and account.move.line -->
 
         <record id="account_move_see_all" model="ir.rule">
