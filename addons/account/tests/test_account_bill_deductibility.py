@@ -1,4 +1,5 @@
 from odoo import Command, fields
+from odoo.exceptions import UserError
 from odoo.tests import tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -1073,3 +1074,24 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                 payment_term.sequence,
                 f"{line.display_type} sorted after the payment-term line",
             )
+
+    def test_deductible_amount_locked_after_hashing(self):
+        """`deductible_amount` drives the non-deductible split of an already
+        posted entry (see `_prepare_non_deductible_base_lines_for_taxes_
+        computation_from_base_lines`), so once the bill is hashed it must be
+        rejected by the same inalterable-hash guard as `debit`/`credit`.
+
+        Starts fully deductible (100.0) so posting creates no
+        non_deductible_* lines — `_post()` renames those after hashing
+        (`account_move.py::_post`, "Add the move number to the
+        non_deductible lines for easier auditing") and would otherwise
+        collide with the hash guard on `name` itself, which is a separate,
+        pre-existing issue unrelated to this fix."""
+        self.company_data["default_journal_purchase"].restrict_mode_hash_table = True
+        bill = self._partial_bill([100.0])
+        bill.action_post()
+        self.assertNotEqual(bill.inalterable_hash, False)
+
+        product_line = bill.invoice_line_ids[0]
+        with self.assertRaisesRegex(UserError, "cannot edit the following fields"):
+            product_line.deductible_amount = 50.0
