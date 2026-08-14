@@ -1435,20 +1435,30 @@ class ProductProduct(models.Model):
         Restamping is only meaningful while each record still carries the product's
         current UoM -- the quantities are not converted -- so anything already recorded
         in a different unit aborts the change.
+
+        The unit being left is read from the *template*, never from ``product.uom_id``.
+        `product.template.write` calls this before writing itself, so the template still
+        holds the old unit -- but assigning on a **variant** goes through the related
+        field, and the ORM has already put the new unit in the variant's cache by the
+        time it determines that inverse. Read from the variant, the guard compared every
+        existing record against the unit being moved *to*, so it fired on the one case it
+        exists to allow: `product.uom_id = new` raised for any product with a single move
+        while `product.product_tmpl_id.uom_id = new` restamped it and passed. Same read as
+        `base_order._update_uom_on_order_lines`, which is this method for order lines.
         """
         for uom, product, records in self.env[model]._read_group(
             [("product_id", "in", self.ids)],
             ["product_uom_id", "product_id"],
             ["id:recordset"],
         ):
-            if uom != product.uom_id:
+            if uom != product.product_tmpl_id.uom_id:
                 raise UserError(
                     _(
                         "As other units of measure (ex : %(problem_uom)s) "
                         "than %(uom)s have already been used for this product, the change of unit of measure can not be done."
                         "If you want to change it, please archive the product and create a new one.",
                         problem_uom=uom.name,
-                        uom=product.uom_id.name,
+                        uom=product.product_tmpl_id.uom_id.name,
                     ),
                 )
             records.product_uom_id = to_uom_id

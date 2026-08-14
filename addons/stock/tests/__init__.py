@@ -49,3 +49,4 @@ from . import test_picking_audit_fixes
 from . import test_product_quantity_scope
 from . import test_audit_fixes_product_template
 from . import test_followup_fixes_product_template
+from . import test_restamp_uom
