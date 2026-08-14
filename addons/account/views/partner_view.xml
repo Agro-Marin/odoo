@@ -209,7 +209,12 @@
         <field name="priority">2</field>
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='company_id']" position="after">
+            <!-- Scoped to `group[@name='misc']`, not a bare `//field[@name='company_id']`:
+                 `base.view_partner_form` has a second, unrelated `company_id` node nested
+                 inside `child_ids`'s own subview (contact_internal group), which sorts
+                 first in document order and would otherwise silently absorb this field
+                 into the wrong scope (t24923 EO9.18.7). -->
+            <xpath expr="//group[@name='misc']/field[@name='company_id']" position="after">
                 <field name="fiscal_country_codes" invisible="1" />
             </xpath>
             <xpath expr="//sheet" position="before">
