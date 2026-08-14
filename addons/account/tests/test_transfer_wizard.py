@@ -3,7 +3,7 @@ import time
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.tests import Form, tagged
+from odoo.tests import Form, new_test_user, tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -967,4 +967,60 @@ class TestTransferWizard(AccountTestInvoicingCommon):
                 },
                 {"balance": 1000, "analytic_distribution": False},
             ],
+        )
+
+    def test_non_manager_cannot_change_company_accrual_defaults(self):
+        """A non-manager using the wizard must not silently rewrite the company's accrual/journal defaults."""
+        accrual_account = self.env["account.account"].create(
+            {
+                "name": "Accrual Expense Account",
+                "code": "234568",
+                "account_type": "expense",
+                "reconcile": True,
+            }
+        )
+        non_manager = new_test_user(
+            self.env,
+            login="non_manager_accountant",
+            groups="account.group_account_user",
+            company_id=self.company.id,
+        )
+        manager = new_test_user(
+            self.env,
+            login="manager_accountant",
+            groups="account.group_account_user,account.group_account_manager",
+            company_id=self.company.id,
+        )
+        self.assertFalse(self.company.expense_accrual_account_id)
+
+        context = {
+            "active_model": "account.move.line",
+            "active_ids": self.move_1.line_ids[0].ids,
+            "default_action": "change_period",
+        }
+        wizard_as_non_manager = (
+            self.env["account.automatic.entry.wizard"]
+            .with_user(non_manager)
+            .with_context(context)
+            .create({})
+        )
+        wizard_as_non_manager.expense_accrual_account = accrual_account
+        wizard_as_non_manager._inverse_expense_accrual_account()
+        self.assertFalse(
+            self.company.expense_accrual_account_id,
+            "a non-manager must not be able to change the company's accrual default",
+        )
+
+        wizard_as_manager = (
+            self.env["account.automatic.entry.wizard"]
+            .with_user(manager)
+            .with_context(context)
+            .create({})
+        )
+        wizard_as_manager.expense_accrual_account = accrual_account
+        wizard_as_manager._inverse_expense_accrual_account()
+        self.assertEqual(
+            self.company.expense_accrual_account_id,
+            accrual_account,
+            "a manager must still be able to set the company's accrual default",
         )
