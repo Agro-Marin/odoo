@@ -2563,6 +2563,12 @@ class AccountMoveLine(models.Model):
         )
         if {"debit", "credit"} & inalterable_fields:
             inalterable_fields.add("balance")
+        # `deductible_amount` is not itself part of the hashed field set, but it
+        # drives the non-deductible base-line split computed from this line
+        # (see `account.move._prepare_non_deductible_base_lines_for_taxes_
+        # computation_from_base_lines`), so it changes the fiscal substance of
+        # an already-hashed entry exactly like `balance` does for debit/credit.
+        inalterable_fields.add("deductible_amount")
         hashed_moves = self.move_id.filtered("inalterable_hash")
         violated_fields = set(vals) & inalterable_fields
         if (
