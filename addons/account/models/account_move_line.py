@@ -2443,7 +2443,7 @@ class AccountMoveLine(models.Model):
             return line not in before or before[line][fname] != after[line][fname]
 
         before = existing()
-        yield
+        yield  # noqa: RUF075 - deliberate: on exception the transaction aborts and rolls back, so skipping the post-write currency/balance sync here changes nothing that would otherwise be persisted
         after = existing()
         for line in after:
             if (
@@ -2650,12 +2650,14 @@ class AccountMoveLine(models.Model):
                     ).statement_line_id
 
         lines_to_unreconcile.remove_move_reconcile()
+        st_lines_locked = self.env["account.bank.statement.line"]
         for st_line in st_lines_to_unreconcile:
             try:
                 st_line.move_id._check_fiscal_lock_dates()
                 st_line.move_id.line_ids._check_tax_lock_date()
             except UserError:
-                st_lines_to_unreconcile -= st_line
+                st_lines_locked += st_line
+        st_lines_to_unreconcile -= st_lines_locked
         if st_lines_to_unreconcile:
             st_lines_to_unreconcile.action_undo_reconciliation()
 
