@@ -78,7 +78,7 @@ class TestDashboardProject(TestProjectDashboardCommon):
                 'product_qty': 1,
         }])
         expected_dict = sol_service_3._read_format(
-            ['display_name', 'product_uom_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
+            ['display_name', 'product_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
         )
         # The fork refuses to confirm an order with no lines, so the order
         # is confirmed here instead of in setUpClass.
@@ -87,7 +87,7 @@ class TestDashboardProject(TestProjectDashboardCommon):
         sale_item_data = self.dashboard_project.get_sale_items_data(limit=5, with_action=False, section_id='materials')
         self.assertEqual(sale_item_data['sol_items'], expected_dict)
         expected_dict = (sol_service_1 + sol_service_2 + sol_service_4)._read_format(
-            ['display_name', 'product_uom_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
+            ['display_name', 'product_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
         )
         sale_item_data = self.dashboard_project.get_sale_items_data(limit=5, with_action=False, section_id='service_revenues')
         self.assertEqual(sale_item_data['sol_items'], expected_dict)

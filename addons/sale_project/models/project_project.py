@@ -487,7 +487,7 @@ class ProjectProject(models.Model):
             'sol_items': [{
                 **sol_read,
                 **get_action(sol_read['id']),
-            } for sol_read in all_sols.with_context(with_price_unit=True)._read_format(['display_name', 'product_uom_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id'])],
+            } for sol_read in all_sols.with_context(with_price_unit=True)._read_format(['display_name', 'product_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id'])],
             'displayLoadMore': display_load_more,
         }
 

@@ -28,7 +28,7 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
 
     def test_role_lines_follow_template(self):
         """One role line per template task role; cleared without template."""
-        role = self.env["project.role"].create({"name": "Reviewer"})
+        role = self.env["resource.role"].create({"name": "Reviewer"})
         self.env["project.task"].create(
             {
                 "name": "Template task",

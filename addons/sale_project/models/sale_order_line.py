@@ -84,7 +84,7 @@ class SaleOrderLine(models.Model):
         milestones_lines.qty_transferred_method = 'milestones'
         super(SaleOrderLine, self - milestones_lines)._compute_qty_transferred_method()
 
-    @api.depends('product_uom_qty', 'reached_milestones_ids.quantity_percentage')
+    @api.depends('product_qty', 'reached_milestones_ids.quantity_percentage')
     def _compute_qty_transferred(self):
         lines_by_milestones = self.filtered(lambda sol: sol.qty_transferred_method == 'milestones')
         super(SaleOrderLine, self - lines_by_milestones)._compute_qty_transferred()
@@ -100,7 +100,7 @@ class SaleOrderLine(models.Model):
         reached_milestones_per_sol = {sale_line.id: percentage_sum for sale_line, percentage_sum in project_milestone_read_group}
         for line in lines_by_milestones:
             sol_id = line.id or line._origin.id
-            line.qty_transferred = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_uom_qty
+            line.qty_transferred = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_qty
 
     def _prepare_qty_transferred(self):
         lines_by_milestones = self.filtered(lambda sol: sol.qty_transferred_method == 'milestones')
@@ -118,7 +118,7 @@ class SaleOrderLine(models.Model):
 
         for line in lines_by_milestones:
             sol_id = line.id or line._origin.id
-            delivered_qties[line] = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_uom_qty
+            delivered_qties[line] = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_qty
 
         return delivered_qties
 
@@ -204,7 +204,7 @@ class SaleOrderLine(models.Model):
     ###########################################
 
     def _convert_qty_company_hours(self, dest_company):
-        return self.product_uom_qty
+        return self.product_qty
 
     def _timesheet_create_project_prepare_values(self):
         """Generate project values"""
@@ -372,7 +372,7 @@ class SaleOrderLine(models.Model):
             lambda sol:
                 sol.is_service
                 and sol.product_id.service_tracking in ['project_only', 'task_in_project', 'task_global_project']
-                and not (sol._is_line_optional() and sol.product_uom_qty == 0)
+                and not (sol._is_line_optional() and sol.product_qty == 0)
         )
         so_line_task_global_project = sale_order_lines._get_so_lines_task_global_project()
         so_line_new_project = sale_order_lines._get_so_lines_new_project()
@@ -450,7 +450,7 @@ class SaleOrderLine(models.Model):
         for so_line in so_line_task_global_project:
             if not so_line.task_id:
                 project = map_sol_project.get(so_line.id) or so_line.order_id.project_id
-                if project and so_line.product_uom_qty > 0:
+                if project and so_line.product_qty > 0:
                     if so_line.product_id.task_template_id not in task_templates:
                         task_templates |= so_line.product_id.task_template_id
                         so_line._timesheet_create_task(project)
@@ -472,7 +472,7 @@ class SaleOrderLine(models.Model):
         if (milestones := project.milestone_ids.filtered(lambda milestone: not milestone.sale_line_id)):
             milestones.write({
                 'sale_line_id': self.id,
-                'product_uom_qty': self.product_uom_qty / len(milestones),
+                'product_uom_qty': self.product_qty / len(milestones),
             })
         else:
             milestone = self.env['project.milestone'].create({

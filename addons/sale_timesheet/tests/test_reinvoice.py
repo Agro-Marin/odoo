@@ -300,6 +300,10 @@ class TestReInvoice(TestCommonSaleTimesheet):
             'standard_price': 30,
             'list_price': 90,
             'type': 'service',
+            # Delivered by timesheet, so it has to be sold in a time unit: the
+            # delivered quantity comes from analytic lines in hours, and a quantity
+            # (or a price) cannot cross unit categories.
+            'uom_id': self.env.ref('uom.product_uom_hour').id,
             'service_policy': 'delivered_timesheet',
             'invoice_policy': 'transferred',
             'default_code': 'SERV-DELI2',

@@ -533,10 +533,11 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                         "All lines that still have some quantity to be invoiced should have an invoice status of 'to invoice', regardless if they were considered for previous invoicing, but didn't belong to the timesheet domain")
 
         invoice = sale_order.invoice_ids[0]
-        self.assertEqual(so_line_deliver_global_project.qty_invoiced, timesheet1.unit_amount)
-
         # validate invoice
         invoice.action_post()
+        # An invoice contributes to `qty_invoiced` once posted, not while draft,
+        # so each one is validated before the quantity it carries is asserted.
+        self.assertEqual(so_line_deliver_global_project.qty_invoiced, timesheet1.unit_amount)
 
         wizard.write({
             'date_start_invoice_timesheet': today - timedelta(days=16),
@@ -546,6 +547,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         self.assertEqual(len(sale_order.invoice_ids), 2)
         invoice2 = sale_order.invoice_ids[-1]
+        invoice2.action_post()
 
         self.assertEqual(so_line_deliver_global_project.qty_invoiced, timesheet1.unit_amount + timesheet3.unit_amount, "The last invoice done should have the quantity of the timesheet 3, because the date this timesheet is the only one before the 'date_end_invoice_timesheet' field in the wizard.")
 
@@ -558,6 +560,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         self.assertEqual(len(sale_order.invoice_ids), 3)
         invoice3 = sale_order.invoice_ids[-1]
+        invoice3.action_post()
 
         # Check if all timesheets have been invoiced
         self.assertEqual(so_line_deliver_global_project.qty_invoiced, timesheet1.unit_amount + timesheet2.unit_amount + timesheet3.unit_amount)

@@ -123,7 +123,7 @@ class SaleOrder(models.Model):
             projects = order.line_ids.filtered(
                 lambda sol:
                     sol.is_service
-                    and not (sol._is_line_optional() and sol.product_uom_qty == 0)
+                    and not (sol._is_line_optional() and sol.product_qty == 0)
                 ).mapped('product_id.project_id')
             projects |= order.project_id
             projects |= order.line_ids.mapped('project_id')

@@ -82,7 +82,14 @@ class TestProject(TestCommonSaleTimesheet):
             'project_ids': [Command.set(self.project_global.ids)],
             'fold': True,
         })
-        task.write({
+        # Fold every task carrying this line, not just the one created above: the
+        # order generated its own task for the same service line on confirmation, so
+        # the line stays reachable through an unfolded task unless both move. The
+        # filter under test selects tasks, and the line follows from them.
+        self.env['project.task'].search([
+            ('project_id', '=', self.project_global.id),
+            ('sale_line_id', '=', task.sale_line_id.id),
+        ]).write({
             'step_id': done_stage.id,
         })
         self.env.flush_all()

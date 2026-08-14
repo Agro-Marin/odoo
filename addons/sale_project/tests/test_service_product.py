@@ -60,11 +60,24 @@ class TestServiceProductConfig(TestSaleProjectCommon):
         self.assertFalse(product.project_id)
 
     def test_inverse_service_policy_maps_invoice_policy(self):
-        """Setting the service policy drives invoice policy and service type."""
+        """Setting the service policy drives invoice policy and service type.
+
+        The service type is read from the module's own mapping rather than spelled
+        out: `_get_service_to_general_map` is an extension point, and a bridge module
+        legitimately re-points a policy at its own tracking -- `sale_timesheet` maps
+        `ordered_prepaid` to `timesheet` where this module alone maps it to `manual`.
+        Pinning the literal here asserted that no such module is installed, which is
+        not what this test is about. The invoice policy is spelled out because every
+        map agrees on it.
+        """
         product = self.product_delivery_manual1
         product.service_policy = "ordered_prepaid"
+        expected_invoice_policy, expected_service_type = (
+            product.product_tmpl_id._get_service_to_general("ordered_prepaid")
+        )
+        self.assertEqual(expected_invoice_policy, "ordered")
         self.assertEqual(product.invoice_policy, "ordered")
-        self.assertEqual(product.service_type, "manual")
+        self.assertEqual(product.service_type, expected_service_type)
 
     def test_tracking_no_rejects_project_links(self):
         """A non-generating product must not carry project nor template."""

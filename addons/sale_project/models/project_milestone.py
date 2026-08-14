@@ -35,18 +35,18 @@ class ProjectMilestone(models.Model):
     product_uom_id = fields.Many2one(related="sale_line_id.product_uom_id", export_string_translation=False)
     product_uom_qty = fields.Float("Quantity", compute="_compute_product_uom_qty", readonly=False)
 
-    @api.depends('sale_line_id.product_uom_qty', 'product_uom_qty')
+    @api.depends('sale_line_id.product_qty', 'product_uom_qty')
     def _compute_quantity_percentage(self):
         for milestone in self:
-            milestone.quantity_percentage = milestone.sale_line_id.product_uom_qty and milestone.product_uom_qty / milestone.sale_line_id.product_uom_qty
+            milestone.quantity_percentage = milestone.sale_line_id.product_qty and milestone.product_uom_qty / milestone.sale_line_id.product_qty
 
     @api.depends('sale_line_id', 'quantity_percentage')
     def _compute_product_uom_qty(self):
         for milestone in self:
             if milestone.quantity_percentage:
-                milestone.product_uom_qty = milestone.quantity_percentage * milestone.sale_line_id.product_uom_qty
+                milestone.product_uom_qty = milestone.quantity_percentage * milestone.sale_line_id.product_qty
             else:
-                milestone.product_uom_qty = milestone.sale_line_id.product_uom_qty
+                milestone.product_uom_qty = milestone.sale_line_id.product_qty
 
     @api.model
     def _get_fields_to_export(self):

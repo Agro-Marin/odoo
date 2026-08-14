@@ -49,6 +49,11 @@ class TestSaleTimesheetDashboard(Common):
             'product_qty': 1,
         }])
 
+        # The dashboard reports items of *confirmed* orders (`_get_sale_items_domain`
+        # filters on the order state, as upstream does): a quotation's lines are not
+        # project revenue yet, so without this the sections come back empty.
+        self.dashboard_sale_order.action_confirm()
+
         sale_item_data = self.dashboard_project.get_sale_items_data(with_action=False, limit=5, section_id='materials')
         expected_dict = sols._read_format(
             ['display_name', 'product_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
