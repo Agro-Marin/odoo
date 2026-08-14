@@ -1076,17 +1076,11 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
             )
 
     def test_deductible_amount_locked_after_hashing(self):
-        """`deductible_amount` drives the non-deductible split of an already
-        posted entry (see `_prepare_non_deductible_base_lines_for_taxes_
-        computation_from_base_lines`), so once the bill is hashed it must be
-        rejected by the same inalterable-hash guard as `debit`/`credit`.
-
-        Starts fully deductible (100.0) so posting creates no
-        non_deductible_* lines — `_post()` renames those after hashing
-        (`account_move.py::_post`, "Add the move number to the
-        non_deductible lines for easier auditing") and would otherwise
-        collide with the hash guard on `name` itself, which is a separate,
-        pre-existing issue unrelated to this fix."""
+        """`deductible_amount` must be rejected by the hash guard once posted, same as debit/credit."""
+        # Starts fully deductible (100.0): posting creates no non_deductible_*
+        # lines, which sidesteps a separate, pre-existing issue where _post()
+        # renames those lines AFTER hashing and collides with the guard on
+        # `name` itself (unrelated to this fix).
         self.company_data["default_journal_purchase"].restrict_mode_hash_table = True
         bill = self._partial_bill([100.0])
         bill.action_post()
