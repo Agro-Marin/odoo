@@ -461,9 +461,13 @@ class AccountMoveSend(models.AbstractModel):
 
     @api.model
     def _check_move_constraints(self, moves):
+        errors = []
         for move in moves:
             if move_constraints := self._get_move_constraints(move):
-                raise UserError(next(iter(move_constraints.values()), None))
+                message = next(iter(move_constraints.values()), None)
+                errors.append(f"{move.display_name}: {message}")
+        if errors:
+            raise UserError("\n".join(errors))
 
     @api.model
     def _get_move_constraints(self, move):

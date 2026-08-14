@@ -1045,9 +1045,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             "placeholder": False,
             "manual": True,
         }
-        wizard.mail_attachments_widget = wizard.mail_attachments_widget + [
-            manual_attachment_values
-        ]
+        wizard.mail_attachments_widget += [manual_attachment_values]
 
         # Add an attachment to a new mail_template and change it.
         new_mail_template = wizard.template_id.copy()
@@ -1692,3 +1690,14 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                     }
                 ],
             )
+
+    def test_check_move_constraints_reports_every_violation(self):
+        """A batch with several invalid moves must report all of them, not just the first."""
+        draft_move_a = self.init_invoice("out_invoice", post=False)
+        draft_move_b = self.init_invoice("out_invoice", post=False)
+        with self.assertRaises(UserError) as capture:
+            self.env["account.move.send"]._check_move_constraints(
+                draft_move_a + draft_move_b
+            )
+        self.assertIn(draft_move_a.display_name, str(capture.exception))
+        self.assertIn(draft_move_b.display_name, str(capture.exception))
