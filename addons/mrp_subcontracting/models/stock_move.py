@@ -242,11 +242,34 @@ class StockMove(models.Model):
                 continue
             if move.has_tracking == 'none':
                 if productions.product_uom_id.compare(productions.product_qty, move.quantity) != 0:
+                    target_qty = move.quantity or move.product_uom_qty
+                    # Growing the production up to the receipt's *demand* is a demand
+                    # change, and the components have to be pulled for the difference.
+                    # Every other rescale here records what the subcontractor actually
+                    # did, which must not order anything -- which is why the callers of
+                    # this method suppress procurement wholesale. That suppression used
+                    # to cover this case too: the production grew, its component demand
+                    # grew with it, and the resupply feeding that component kept the
+                    # quantity its procurement was run for. One component, to build two.
+                    demand_driven = (
+                        productions.product_uom_id.compare(target_qty, productions.product_qty) > 0
+                        and productions.product_uom_id.compare(target_qty, move.product_uom_qty) == 0
+                    )
+                    raw_demand_before = {
+                        raw.id: raw.product_uom_qty for raw in productions.move_raw_ids
+                    } if demand_driven else {}
                     self.sudo().env['change.production.qty'].with_context(skip_activity=True).create([{
                         'mo_id': productions.id,
-                        'product_qty': move.quantity or move.product_uom_qty,
+                        'product_qty': target_qty,
                     }]).change_prod_qty()
                     productions.action_assign()
+                    if raw_demand_before:
+                        # Run explicitly, and only for the components whose previous
+                        # demand was captured: a raw move created in between has no
+                        # "before" and would be procured for its whole quantity.
+                        productions.move_raw_ids.filtered(
+                            lambda raw: raw.id in raw_demand_before
+                        )._run_procurement(raw_demand_before)
             else:
                 qty_by_lot = dict(move.move_line_ids._read_group([('move_id', '=', move.id)], ['lot_id'], ['quantity_product_uom:sum']))
                 mos_to_assign = self.env['mrp.production']

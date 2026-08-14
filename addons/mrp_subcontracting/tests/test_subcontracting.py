@@ -1564,7 +1564,7 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
             {'name': 'TEST0000001'},
             {'name': 'TEST0000002'},
         ])
-        self.assertEqual(self.finished.serial_prefix_format + self.finished.next_serial, 'TEST0000003')
+        self.assertEqual(self.finished.next_serial, 'TEST0000003')
 
         second_receipt, second_mo = self.generate_subcontracting_receipt_and_mo(5, warehouse)
         second_serials_wizard = Form.from_action(self.env, second_mo.action_generate_serial())
@@ -1629,7 +1629,7 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
             {'name': '03-02-0000001'},
             {'name': '03-02-0000002'},
         ])
-        self.assertEqual(self.finished.next_serial, '0000003')
+        self.assertEqual(self.finished.next_serial, '03-02-0000003')
 
 
 @tagged('post_install', '-at_install')

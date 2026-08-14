@@ -100,16 +100,23 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
 
         # Change the purchased quantity to 2
         po.line_ids.write({'product_qty': 2})
-        # Check that a single delivery with the two components for the subcontractor have been created
-        mo2 = self.env['mrp.production'].search([('bom_id', '=', self.bom.id)]) - mo
-        picking_deliveries = mo2.picking_ids
+        # Two components must reach the subcontractor -- which is what this test is
+        # named for. It used to look for them on a *second* production: upstream splits
+        # one for the added quantity, while `_sync_subcontracting_productions` scales
+        # the existing one ("for untracked moves there will always be only 1
+        # production"). Asserting the mechanism rather than the outcome is what let the
+        # resupply sit at 1 while the production said 2.
+        productions = self.env['mrp.production'].search([('bom_id', '=', self.bom.id)])
+        self.assertEqual(productions, mo, "the production is scaled, not duplicated")
+        self.assertEqual(mo.product_qty, 2)
+
+        picking_deliveries = mo.picking_ids
         self.assertEqual(len(picking_deliveries), 1)
         self.assertEqual(picking_deliveries.picking_type_id, wh.subcontracting_resupply_type_id)
         self.assertEqual(picking_deliveries.partner_id, self.subcontractor_partner1.parent_id)
         self.assertTrue(picking_deliveries.state != 'cancel')
-        move1 = picking_deliveries.move_ids[0]
-        self.assertEqual(move1.product_id, self.comp1)
-        self.assertEqual(move1.product_qty, 1)
+        comp1_moves = picking_deliveries.move_ids.filtered(lambda m: m.product_id == self.comp1)
+        self.assertEqual(sum(comp1_moves.mapped('product_qty')), 2)
 
     def test_dropshipped_component_and_sub_location(self):
         """
