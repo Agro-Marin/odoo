@@ -221,7 +221,13 @@ class ProjectTask(models.Model):
     def _compute_task_to_invoice(self):
         for task in self:
             if task.sale_order_id:
-                task.task_to_invoice = bool(task.sale_order_id.invoice_state not in ('no', 'invoiced'))
+                # Fork values: no / to do / partial / done / over done. Nothing is
+                # left to invoice when there never was any ('no'), when it is fully
+                # invoiced ('done') or already over-invoiced ('over done'); the
+                # upstream spelling of the middle two was 'to invoice'/'invoiced'.
+                task.task_to_invoice = task.sale_order_id.invoice_state not in (
+                    'no', 'done', 'over done',
+                )
             else:
                 task.task_to_invoice = False
 
