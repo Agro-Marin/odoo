@@ -1,4 +1,5 @@
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import Command
 from odoo.exceptions import UserError
@@ -347,3 +348,27 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             both.map_tax(tax)
         with self.assertRaises(ValueError):
             both.map_account(acc)
+
+    def test_fiscal_country_codes_lands_in_the_misc_group(self):
+        """`fiscal_country_codes` must be added next to the top-level `company_id`, not the unrelated one nested under `child_ids`."""
+        # An earlier, ambiguous `//field[@name='company_id']` xpath matched
+        # the FIRST company_id in document order within base.view_partner_form,
+        # which is the one nested inside child_ids' own contact_internal
+        # subview group, not the intended `group[@name='misc']` one.
+        view = self.env["res.partner"].get_view(
+            view_id=self.env.ref("account.view_partner_property_form").id,
+            view_type="form",
+        )
+        arch = etree.fromstring(view["arch"])
+        misc_group = arch.find(".//group[@name='misc']")
+        self.assertIsNotNone(misc_group)
+        self.assertIsNotNone(
+            misc_group.find(".//field[@name='fiscal_country_codes']"),
+            "fiscal_country_codes must be inside group[@name='misc']",
+        )
+        child_ids_field = arch.find(".//field[@name='child_ids']")
+        if child_ids_field is not None:
+            self.assertIsNone(
+                child_ids_field.find(".//field[@name='fiscal_country_codes']"),
+                "fiscal_country_codes must not be nested inside child_ids' own subview",
+            )
