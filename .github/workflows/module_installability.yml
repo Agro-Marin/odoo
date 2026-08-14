@@ -79,6 +79,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -100,6 +107,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libcairo2-dev postgresql-client
           pip install --quiet -r requirements-test.txt
+
+      - name: Install JS dependencies (Dart Sass)
+        # Dart Sass is a hard runtime dependency of this fork and `sass-embedded`
+        # in package.json is its only source — no apt package provides it and
+        # node_modules is gitignored, so it must be installed per run.
+        # Without it, `-i` on the module set below reaches test_assetsbundle,
+        # whose _register_hook pregenerates every bundle, and find_sass()
+        # returns None: SassNotFoundError aborts the registry load before a
+        # single module is measured.
+        run: npm ci
 
       - name: Collect every installable module
         # Read the manifests rather than keeping a list in this file: a list here
