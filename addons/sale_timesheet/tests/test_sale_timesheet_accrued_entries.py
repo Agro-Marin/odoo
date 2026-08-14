@@ -21,7 +21,7 @@ class TestAccruedTimeSheetSaleOrders(TestCommonSaleTimesheet):
         so_line_deliver_global_project = cls.env['sale.order.line'].create({
             'name': cls.product_delivery_timesheet2.name,
             'product_id': cls.product_delivery_timesheet2.id,
-            'product_uom_qty': 50,
+            'product_qty': 50,
             'price_unit': cls.product_delivery_timesheet2.list_price,
             'order_id': cls.sale_order.id,
         })

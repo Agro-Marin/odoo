@@ -51,7 +51,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         SaleOrderLine = self.env['sale.order.line'].with_context(default_order_id=sale_order.id)
         delivery_service_order_line = SaleOrderLine.create({
             'product_id': self.product_delivery_manual1.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
         })
         sale_order.action_confirm()
         self.task.write({'sale_line_id': delivery_service_order_line.id})
@@ -72,7 +72,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         SaleOrderLineForeign = self.env['sale.order.line'].with_context(default_order_id=sale_order_foreign.id)
         SaleOrderLineForeign.create({
             'product_id': self.product_delivery_manual1.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
         })
         sale_order_foreign.action_confirm()
         self.task.write({'sale_line_id': delivery_service_order_line.id})
@@ -292,7 +292,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         # Create a new foreign sol, and link this sol to the so_line of the task.
         foreign_delivery_timesheet_order_line = SaleOrderLineForeign.create({
             'product_id': self.product_delivery_timesheet1.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
         })
         self.task.write({'sale_line_id': foreign_delivery_timesheet_order_line.id})
         billable_timesheets = timesheet1 + timesheet2 + foreign_timesheet1 + foreign_timesheet2
@@ -309,11 +309,11 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
                         {
                             'id': 'billable_time',
                             'sequence': sequence_per_invoice_type['billable_time'],
-                            'to_invoice': foreign_delivery_timesheet_order_line.untaxed_amount_to_invoice * 0.2,
+                            'to_invoice': foreign_delivery_timesheet_order_line.amount_taxexc_to_invoice * 0.2,
                             'invoiced': 0.0
                         },
                     ],
-                    'total': {'invoiced': 100.0, 'to_invoice': foreign_delivery_timesheet_order_line.untaxed_amount_to_invoice * 0.2},
+                    'total': {'invoiced': 100.0, 'to_invoice': foreign_delivery_timesheet_order_line.amount_taxexc_to_invoice * 0.2},
                 },
                 'costs': {
                     'data': [
@@ -344,7 +344,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         # Create a new task in the project, link to it a new SO form the main company SO with a delivery timesheet product.
         delivery_timesheet_order_line = SaleOrderLine.create({
             'product_id': self.product_delivery_timesheet1.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
         })
         task_2 = self.env['project.task'].create({
             'name': 'Task 2',
@@ -357,7 +357,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
             'unit_amount': 1,
         })
-        self.assertNotEqual(delivery_timesheet_order_line.untaxed_amount_to_invoice, 0.0)
+        self.assertNotEqual(delivery_timesheet_order_line.amount_taxexc_to_invoice, 0.0)
         self.assertDictEqual(
             self.project_task_rate._get_profitability_items(False),
             {
@@ -368,11 +368,11 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
                         {
                             'id': 'billable_time',
                             'sequence': sequence_per_invoice_type['billable_time'],
-                            'to_invoice': delivery_timesheet_order_line.untaxed_amount_to_invoice + foreign_delivery_timesheet_order_line.untaxed_amount_to_invoice * 0.2,
+                            'to_invoice': delivery_timesheet_order_line.amount_taxexc_to_invoice + foreign_delivery_timesheet_order_line.amount_taxexc_to_invoice * 0.2,
                             'invoiced': 0.0
                         },
                     ],
-                    'total': {'invoiced': 100.0, 'to_invoice': foreign_delivery_timesheet_order_line.untaxed_amount_to_invoice * 0.2 + delivery_timesheet_order_line.untaxed_amount_to_invoice},
+                    'total': {'invoiced': 100.0, 'to_invoice': foreign_delivery_timesheet_order_line.amount_taxexc_to_invoice * 0.2 + delivery_timesheet_order_line.amount_taxexc_to_invoice},
                 },
                 'costs': {
                     'data': [
@@ -404,7 +404,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         # Create a SOL in the foreign SO with a milestone service product.
         milestone_foreign_order_line = SaleOrderLineForeign.create({
             'product_id': self.product_milestone.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         })
         task2_foreign = self.env['project.task'].create({
             'name': 'Test',
@@ -429,7 +429,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         self.assertDictEqual(
             [data for data in profitability_items['revenues']['data'] if data['id'] == 'billable_milestones'][0],
             {'id': 'billable_milestones', 'sequence': sequence_per_invoice_type['billable_milestones'],
-             'to_invoice': milestone_foreign_order_line.untaxed_amount_to_invoice * 0.2, 'invoiced': 0.0},
+             'to_invoice': milestone_foreign_order_line.amount_taxexc_to_invoice * 0.2, 'invoiced': 0.0},
         )
         # Create a second timesheet in the new task, with an employee from the main company.
         task2_timesheet = Timesheet.with_context(default_task_id=task2_foreign.id).create({
@@ -449,12 +449,12 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         self.assertDictEqual(
             [data for data in profitability_items['revenues']['data'] if data['id'] == 'billable_milestones'][0],
             {'id': 'billable_milestones', 'sequence': sequence_per_invoice_type['billable_milestones'],
-             'to_invoice': milestone_foreign_order_line.untaxed_amount_to_invoice * 0.2, 'invoiced': 0.0},
+             'to_invoice': milestone_foreign_order_line.amount_taxexc_to_invoice * 0.2, 'invoiced': 0.0},
         )
         # Create a SOL in the foreign SO with a milestone service product.
         milestone_order_line = SaleOrderLine.create({
             'product_id': self.product_milestone.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         })
         task3_milestone = self.env['project.task'].create({
             'name': 'Task 3',
@@ -478,7 +478,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         self.assertDictEqual(
             [data for data in profitability_items['revenues']['data'] if data['id'] == 'billable_milestones'][0],
             {'id': 'billable_milestones', 'sequence': sequence_per_invoice_type['billable_milestones'],
-             'to_invoice': milestone_foreign_order_line.untaxed_amount_to_invoice * 0.2 + milestone_order_line.untaxed_amount_to_invoice, 'invoiced': 0.0},
+             'to_invoice': milestone_foreign_order_line.amount_taxexc_to_invoice * 0.2 + milestone_order_line.amount_taxexc_to_invoice, 'invoiced': 0.0},
         )
 
         # Cancel the milestone timesheets
@@ -512,7 +512,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
 
         sale_order_line_revenue = saleOrderLine_revenue.create({
             'product_id': product_profitability_items.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
             'order_id': sale_order_revenue.id,
         })
 

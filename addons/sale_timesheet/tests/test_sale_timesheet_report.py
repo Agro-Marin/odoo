@@ -24,7 +24,7 @@ class TestSaleTimesheetReport(TestCommonSaleTimesheet):
         })
         so_line = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet3.id,
-            'product_uom_qty': 3,
+            'product_qty': 3,
             'order_id': sale_order.id,
             'price_unit': 10.0,
             'tax_ids': [Command.set(self.tax_sale_a.ids)],

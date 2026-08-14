@@ -12,7 +12,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
 
 
             We display an upsell warning in SO when this following condition is satisfy in its SOL:
-            (qty_delivered / product_uom_qty) >= product_id.service_upsell_threshold
+            (qty_delivered / product_qty) >= product_id.service_upsell_threshold
 
             Test Case:
             =========
@@ -37,7 +37,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         self.env['sale.order.line'].create({
             'order_id': so.id,
             'product_id': self.product_order_timesheet1.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
         })
         so.action_confirm()
 
@@ -88,7 +88,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         """ Test to display an upsell warning when threshold value (10000%) exceed while creating invoice.
 
             We display an upsell warning in SO when this following condition is satisfy in its SOL:
-            (qty_delivered / product_uom_qty) >= product_id.service_upsell_threshold
+            (qty_delivered / product_qty) >= product_id.service_upsell_threshold
 
             Test Case:
             =========
@@ -116,7 +116,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'order_id': so.id,
             'name': self.product_order_timesheet1.name,
             'product_id': self.product_order_timesheet1.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'price_unit': self.product_order_timesheet1.list_price,
         })
         so.action_confirm()
@@ -157,7 +157,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         """ Test to display an upsell warning caused by an SO line that has already produced an upsell warning previously.
 
             We display an upsell warning in SO when this following condition is satisfy in its SOL:
-            (qty_delivered / product_uom_qty) >= product_id.service_upsell_threshold
+            (qty_delivered / product_qty) >= product_id.service_upsell_threshold
 
             Test Case:
             =========
@@ -187,7 +187,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         self.env['sale.order.line'].create({
             'order_id': so.id,
             'product_id': self.product_order_timesheet1.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
         })
         so.action_confirm()
 
@@ -220,7 +220,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
 
         # 5) Update the ordered quantity of the SOL to match its delivered quantity
         so.line_ids.write({
-            'product_uom_qty': so.line_ids.qty_transferred,
+            'product_qty': so.line_ids.qty_transferred,
         })
 
         # 6) Mark the upsell activity as done

@@ -276,18 +276,18 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
         self.env['sale.order.line'].create([{
             'order_id': self.so.id,
             'product_id': self.product_delivery_timesheet1.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
         }, {
             'order_id': self.so.id,
             'product_id': self.product_delivery_timesheet2.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
         }, {
             'order_id': self.so.id,
             'product_id': self.product_delivery_timesheet3.id,
-            'product_uom_qty': 5,
+            'product_qty': 5,
         }, {
             'order_id': self.so.id,
             'product_id': self.product_order_timesheet1.id,
-            'product_uom_qty': 2,
+            'product_qty': 2,
         }])
         self.so.action_confirm()

@@ -49,10 +49,12 @@ class TestSaleService(TestCommonSaleTimesheet):
             'employee_id': self.employee_manager.id,
         })
         self.assertEqual(self.sale_order.invoice_state, 'to do', 'Sale Service: there should be sale_ordermething to invoice after registering timesheets')
-        self.sale_order._create_invoices()
+        # `qty_invoiced` counts posted invoices only in this fork, so a draft
+        # invoice leaves the order 'to do'; post it to reach the invoiced state.
+        self.sale_order._create_invoices().action_post()
 
-        self.assertTrue(sale_order_line.product_uom_qty == sale_order_line.qty_transferred == sale_order_line.qty_invoiced, 'Sale Service: line should be invoiced completely')
-        self.assertEqual(self.sale_order.invoice_state, 'invoiced', 'Sale Service: SO should be invoiced')
+        self.assertTrue(sale_order_line.product_qty == sale_order_line.qty_transferred == sale_order_line.qty_invoiced, 'Sale Service: line should be invoiced completely')
+        self.assertEqual(self.sale_order.invoice_state, 'done', 'Sale Service: SO should be invoiced')
         self.assertEqual(self.sale_order.tasks_count, 1, "A task should have been created on SO confirmation.")
 
         # Add a line on the confirmed SO, and it should generate a new task directly
@@ -69,7 +71,7 @@ class TestSaleService(TestCommonSaleTimesheet):
             'project_id': project.id
         })
 
-        self.env['sale.order.line'].create({
+        second_line = self.env['sale.order.line'].create({
             'product_id': product_service_task.id,
             'product_qty': 10,
             'order_id': self.sale_order.id,
@@ -77,12 +79,18 @@ class TestSaleService(TestCommonSaleTimesheet):
 
         self.assertEqual(self.sale_order.tasks_count, 2, "Adding a new service line on a confirmer SO should create a new task.")
 
+        # Deletion is checked on the second task: the first one's timesheets are on
+        # the invoice posted above, and an invoiced timesheet cannot be removed. The
+        # point being made is that deleting a task unlinks it from its line, which
+        # this task makes just as well and without the unrelated guard in the way.
+        second_task = second_line.task_id
+        self.assertTrue(second_task, "The second service line should have created a task.")
         # delete timesheets before deleting the task, so as to trigger the error
         # about linked sales order lines and not the one about linked timesheets
-        task.timesheet_ids.unlink()
+        second_task.timesheet_ids.unlink()
         # unlink automatically task from the SOL when deleting the task
-        task.unlink()
-        self.assertFalse(sale_order_line.task_id, "Deleting the task its should automatically unlink the task from SOL.")
+        second_task.unlink()
+        self.assertFalse(second_line.task_id, "Deleting the task its should automatically unlink the task from SOL.")
 
     def test_timesheet_uom(self):
         """ Test timesheet invoicing and uom conversion """
@@ -114,8 +122,10 @@ class TestSaleService(TestCommonSaleTimesheet):
             'unit_amount': 24,
             'employee_id': self.employee_user.id,
         })
-        self.sale_order._create_invoices()
-        self.assertEqual(self.sale_order.invoice_state, 'invoiced', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
+        # `qty_invoiced` counts posted invoices only in this fork, so a draft
+        # invoice leaves the order 'to do'; post it to reach the invoiced state.
+        self.sale_order._create_invoices().action_post()
+        self.assertEqual(self.sale_order.invoice_state, 'done', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
 
     def test_task_so_line_assignation(self):
         # create SO line and confirm it
@@ -222,11 +232,11 @@ class TestSaleService(TestCommonSaleTimesheet):
         self.assertEqual(self.sale_order.tasks_count, 1, "The SO should have only one task")
         self.assertEqual(so_line1.task_id.sale_line_id, so_line1, "The created task is also linked to its origin sale line, for invoicing purpose.")
         self.assertFalse(so_line1.task_id.user_ids, "The created task should be unassigned")
-        self.assertEqual(so_line1.product_uom_qty, so_line1.project_id.allocated_hours, "The planned hours on the project should be the same as the ordered quantity of the native SO line")
-        self.assertEqual(so_line1.product_uom_qty, so_line1.task_id.planned_hours, "The planned hours on the task should be the same as the ordered quantity of the native SO line")
+        self.assertEqual(so_line1.product_qty, so_line1.project_id.allocated_hours, "The planned hours on the project should be the same as the ordered quantity of the native SO line")
+        self.assertEqual(so_line1.product_qty, so_line1.task_id.planned_hours, "The planned hours on the task should be the same as the ordered quantity of the native SO line")
 
         so_line1.write({'product_qty': 20})
-        self.assertEqual(so_line1.product_uom_qty, so_line1.task_id.planned_hours, "The planned hours should have changed when updating the ordered quantity of the native SO line")
+        self.assertEqual(so_line1.product_qty, so_line1.task_id.planned_hours, "The planned hours should have changed when updating the ordered quantity of the native SO line")
 
         # cancel SO
         self.sale_order._action_cancel()
@@ -237,7 +247,7 @@ class TestSaleService(TestCommonSaleTimesheet):
         self.assertEqual(so_line1.task_id.sale_line_id, so_line1, "The created task is also linked to its origin sale line, for invoicing purpose.")
 
         so_line1.write({'product_qty': 30})
-        self.assertEqual(so_line1.product_uom_qty, so_line1.task_id.planned_hours, "The planned hours should have changed when updating the ordered quantity, even after SO cancellation")
+        self.assertEqual(so_line1.product_qty, so_line1.task_id.planned_hours, "The planned hours should have changed when updating the ordered quantity, even after SO cancellation")
 
         # reconfirm SO
         self.sale_order.action_draft()
@@ -497,7 +507,7 @@ class TestSaleService(TestCommonSaleTimesheet):
         # 1) Check the remaining hours in the SOL containing a prepaid service product
         prepaid_service_sol = self.so.line_ids.filtered(lambda sol: sol.product_id.service_policy == 'ordered_prepaid')
         self.assertEqual(len(prepaid_service_sol), 1, "It should only have one SOL with prepaid service product in this SO.")
-        self.assertEqual(prepaid_service_sol.remaining_hours, prepaid_service_sol.product_uom_qty - prepaid_service_sol.qty_transferred, "The remaining hours of this SOL should be equal to the ordered quantity minus the delivered quantity.")
+        self.assertEqual(prepaid_service_sol.remaining_hours, prepaid_service_sol.product_qty - prepaid_service_sol.qty_transferred, "The remaining hours of this SOL should be equal to the ordered quantity minus the delivered quantity.")
 
         # 2) Create task in project with pricing type is equal to "task rate" and has the customer in the SO
         # and check if the remaining hours is equal to the remaining hours in the SOL,
@@ -568,6 +578,9 @@ class TestSaleService(TestCommonSaleTimesheet):
 
             product_vals.update({
                 'name': uom_name,
+                # The product must carry the unit its line is sold in: a price
+                # cannot be expressed in a unit outside the product's category.
+                'uom_id': uom_id.id,
             })
             product = Product.create(product_vals)
 

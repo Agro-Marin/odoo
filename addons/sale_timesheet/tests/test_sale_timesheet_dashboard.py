@@ -34,24 +34,24 @@ class TestSaleTimesheetDashboard(Common):
 
         sols = self.dashboardSaleOrderLine.create([{
             'product_id': self.product_milestone.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }, {
             'product_id': self.product_prepaid.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }, {
             'product_id': self.material_product.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }, {
             'product_id': self.dashboard_product_delivery_timesheet.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }, {
             'product_id': self.dashboard_product_delivery_service.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }])
 
         sale_item_data = self.dashboard_project.get_sale_items_data(with_action=False, limit=5, section_id='materials')
         expected_dict = sols._read_format(
-            ['display_name', 'product_uom_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
+            ['display_name', 'product_qty', 'qty_transferred', 'qty_invoiced', 'product_uom_id', 'product_id']
         )
         self.assertEqual(
             sale_item_data['sol_items'][0],

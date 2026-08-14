@@ -11,7 +11,7 @@ class TestSaleTimesheetTaskAnalysis(TestCommonSaleTimesheet):
         })
         so_line_1 = self.env['sale.order.line'].create({
             'product_id': self.product_order_timesheet3.id,
-            'product_uom_qty': 10,
+            'product_qty': 10,
             'order_id': sales_order.id,
         })
         sales_order.action_confirm()

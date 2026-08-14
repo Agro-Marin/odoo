@@ -49,13 +49,13 @@ class SaleOrderLine(models.Model):
             is_time_product = line.product_uom_id and line.product_uom_id._has_common_reference(self.env.ref('uom.product_uom_hour'))
             line.remaining_hours_available = is_ordered_prepaid and is_time_product
 
-    @api.depends('qty_transferred', 'product_uom_qty', 'analytic_line_ids')
+    @api.depends('qty_transferred', 'product_qty', 'analytic_line_ids')
     def _compute_remaining_hours(self):
         uom_hour = self.env.ref('uom.product_uom_hour')
         for line in self:
             remaining_hours = None
             if line.remaining_hours_available:
-                qty_left = line.product_uom_qty - line.qty_transferred
+                qty_left = line.product_qty - line.qty_transferred
                 remaining_hours = line.product_uom_id._compute_quantity(qty_left, uom_hour, round=False)
             line.remaining_hours = remaining_hours
 
@@ -103,9 +103,9 @@ class SaleOrderLine(models.Model):
         if product_uom_id == self.env.ref('uom.product_uom_unit'):
             product_uom_id = self.env.ref('uom.product_uom_hour')
         if product_uom_id != company_time_uom_id and product_uom_id._has_common_reference(company_time_uom_id):
-            allocated_hours = product_uom_id._compute_quantity(self.product_uom_qty, company_time_uom_id, rounding_method='HALF-UP')
+            allocated_hours = product_uom_id._compute_quantity(self.product_qty, company_time_uom_id, rounding_method='HALF-UP')
         else:
-            allocated_hours = self.product_uom_qty
+            allocated_hours = self.product_qty
         return allocated_hours
 
     def _timesheet_create_project(self):
@@ -138,7 +138,7 @@ class SaleOrderLine(models.Model):
                     and line.product_id.project_template_id == self.product_id.project_template_id \
                     and line.product_uom_id.id in factor_per_id:
                 uom_factor = factor_per_id[line.product_uom_id.id] / project_uom.factor
-                allocated_hours += line.product_uom_qty * uom_factor
+                allocated_hours += line.product_qty * uom_factor
 
         project.write({
             'allocated_hours': allocated_hours,

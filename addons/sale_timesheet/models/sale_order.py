@@ -109,7 +109,7 @@ class SaleOrder(models.Model):
             and sol.product_id.service_policy == 'ordered_prepaid'
             and float_compare(
                 sol.qty_transferred,
-                sol.product_uom_qty * (sol.product_id.service_upsell_threshold or 1.0),
+                sol.product_qty * (sol.product_id.service_upsell_threshold or 1.0),
                 precision_digits=precision
             ) > 0
         )
@@ -153,7 +153,7 @@ class SaleOrder(models.Model):
     def _reset_has_displayed_warning_upsell_order_lines(self):
         precision = self.env['decimal.precision'].precision_get('Product Unit')
         for line in self.line_ids:
-            if line.has_displayed_warning_upsell and line.product_uom_id and float_compare(line.qty_transferred, line.product_uom_qty, precision_digits=precision) == 0:
+            if line.has_displayed_warning_upsell and line.product_uom_id and float_compare(line.qty_transferred, line.product_qty, precision_digits=precision) == 0:
                 line.has_displayed_warning_upsell = False
 
     def _create_invoices(self, grouped=False, final=False, date=None):

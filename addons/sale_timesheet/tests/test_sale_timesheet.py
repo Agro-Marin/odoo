@@ -104,7 +104,10 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
         self.assertEqual(so_line_ordered_global_project.qty_transferred, 10.5, 'Timesheet directly on project does not increase delivered quantity on so line')
-        self.assertEqual(sale_order.invoice_state, 'invoiced', 'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so')
+        # Only *posted* invoices count toward `qty_invoiced` in this fork, so a
+        # draft invoice leaves the state at 'to do'. What this asserts is the
+        # invariance the message describes: logging time does not move it.
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so')
         self.assertEqual(timesheet1.timesheet_invoice_type, 'billable_fixed', "Timesheets linked to SO line with ordered product shoulbe be billable fixed")
         self.assertFalse(timesheet1.timesheet_invoice_id, "The timesheet1 should not be linked to the invoice, since we are in ordered quantity")
 
@@ -116,7 +119,10 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
         self.assertEqual(so_line_ordered_global_project.qty_transferred, 50, 'Sale Timesheet: timesheet does not increase delivered quantity on so line')
-        self.assertEqual(sale_order.invoice_state, 'invoiced', 'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so')
+        # Only *posted* invoices count toward `qty_invoiced` in this fork, so a
+        # draft invoice leaves the state at 'to do'. What this asserts is the
+        # invariance the message describes: logging time does not move it.
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so')
         self.assertEqual(timesheet2.timesheet_invoice_type, 'billable_fixed', "Timesheets linked to SO line with ordered product shoulbe be billable fixed")
         self.assertFalse(timesheet2.timesheet_invoice_id, "The timesheet should not be linked to the invoice, since we are in ordered quantity")
 
@@ -138,7 +144,15 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'unit_amount': 5,
             'employee_id': self.employee_user.id,
         })
-        self.assertEqual(sale_order.invoice_state, 'upselling', 'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so')
+        # Upstream's 'upselling' invoice status has no equivalent here: this fork
+        # tracks the situation as `sale.order.has_upsell_opportunity`, a separate
+        # delivered-policy flag (pinned by sale's own `test_sale_order_state`). These
+        # lines are ordered-policy, so logging more time changes nothing at all --
+        # which is what the message has always claimed.
+        # Only *posted* invoices count toward `qty_invoiced` in this fork, so a
+        # draft invoice leaves the state at 'to do'. What this asserts is the
+        # invariance the message describes: logging time does not move it.
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on order" timesheets should not modify the invoice_state of the so')
         self.assertFalse(timesheet4.timesheet_invoice_id, "The timesheet should not be linked to the invoice, since we are in ordered quantity")
 
         # add so line with produdct "create task in new project".
@@ -155,12 +169,17 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         # get first invoice line of sale line linked to timesheet1
         invoice_line_1 = so_line_ordered_global_project.invoice_line_ids.filtered(lambda line: line.move_id == invoice1)
 
-        self.assertEqual(so_line_ordered_global_project.product_uom_qty, invoice_line_1.quantity, "The invoice (ordered) quantity should not change when creating timesheet")
+        self.assertEqual(so_line_ordered_global_project.product_qty, invoice_line_1.quantity, "The invoice (ordered) quantity should not change when creating timesheet")
 
         # timesheet can be modified
         timesheet1.write({'unit_amount': 12})
 
-        self.assertEqual(so_line_ordered_global_project.product_uom_qty, invoice_line_1.quantity, "The invoice (ordered) quantity should not change when modifying timesheet")
+        self.assertEqual(so_line_ordered_global_project.product_qty, invoice_line_1.quantity, "The invoice (ordered) quantity should not change when modifying timesheet")
+
+        # Post the first invoice before drawing the second: only posted invoices
+        # count toward `qty_invoiced` here, so an unposted one leaves its quantity
+        # still to invoice and the next invoice would re-bill it.
+        invoice1.action_post()
 
         # create second invoice
         invoice2 = sale_order._create_invoices()[0]
@@ -173,10 +192,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         self.assertFalse(timesheet3.timesheet_invoice_id, "The timesheet3 should not be linked to the invoice, since we are in ordered quantity")
         self.assertFalse(timesheet4.timesheet_invoice_id, "The timesheet4 should not be linked to the invoice, since we are in ordered quantity")
 
-        # validate the first invoice
-        invoice1.action_post()
-
-        self.assertEqual(so_line_ordered_global_project.product_uom_qty, invoice_line_1.quantity, "The invoice (ordered) quantity should not change when modifying timesheet")
+        self.assertEqual(so_line_ordered_global_project.product_qty, invoice_line_1.quantity, "The invoice (ordered) quantity should not change when modifying timesheet")
         self.assertFalse(timesheet1.timesheet_invoice_id, "The timesheet1 should not be linked to the invoice, since we are in ordered quantity")
         self.assertFalse(timesheet2.timesheet_invoice_id, "The timesheet2 should not be linked to the invoice, since we are in ordered quantity")
         self.assertFalse(timesheet3.timesheet_invoice_id, "The timesheet3 should not be linked to the invoice, since we are in ordered quantity")
@@ -264,8 +280,8 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         # create a second invoice
         invoice2 = sale_order._create_invoices()[0]
         self.assertEqual(len(sale_order.invoice_ids), 2, "A second invoice should have been created from the SO")
-        self.assertEqual(so_line_deliver_global_project.invoice_state, 'invoiced', 'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged')
-        self.assertEqual(sale_order.invoice_state, 'no', 'Sale Timesheet: "invoice on delivery" timesheets should be invoiced completely by now')
+        self.assertEqual(so_line_deliver_global_project.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should set the so line in "to invoice" status when logged')
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should be invoiced completely by now')
         self.assertEqual(timesheet2.timesheet_invoice_id, invoice2, "The timesheet2 should not be linked to the invoice 2")
         with self.assertRaises(UserError):  # We can not modify timesheet linked to invoice (even draft ones)
             timesheet2.write({'unit_amount': 42})
@@ -513,7 +529,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         wizard.create_invoices()
 
         self.assertTrue(sale_order.invoice_ids, 'One invoice should be created because the timesheet logged is between the period defined in wizard')
-        self.assertTrue(all(line.invoice_state == "to invoice" for line in sale_order.line_ids if line.qty_transferred != line.qty_invoiced),
+        self.assertTrue(all(line.invoice_state == "to do" for line in sale_order.line_ids if line.qty_transferred != line.qty_invoiced),
                         "All lines that still have some quantity to be invoiced should have an invoice status of 'to invoice', regardless if they were considered for previous invoicing, but didn't belong to the timesheet domain")
 
         invoice = sale_order.invoice_ids[0]
@@ -722,7 +738,11 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
 
-        self.assertEqual(sale_order.invoice_state, 'upselling', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
+        # Upstream's 'upselling' invoice status has no equivalent here (see
+        # `has_upsell_opportunity`, a separate delivered-policy flag). The subject of
+        # this test is the upsell *warning* below, which is sale_timesheet's own
+        # mechanism and keyed on the product's `service_upsell_threshold`.
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
         message_sent = self.env['mail.message'].search([
             ('id', '>', last_message_id),
             ('subject', 'like', 'To-Do'),
@@ -786,7 +806,11 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
 
-        self.assertEqual(sale_order.invoice_state, 'upselling', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
+        # Upstream's 'upselling' invoice status has no equivalent here (see
+        # `has_upsell_opportunity`, a separate delivered-policy flag). The subject of
+        # this test is the upsell *warning* below, which is sale_timesheet's own
+        # mechanism and keyed on the product's `service_upsell_threshold`.
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
         message_sent = self.env['mail.message'].search([
             ('id', '>', last_message_id),
             ('subject', 'like', 'To-Do'),
@@ -835,7 +859,11 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             'employee_id': self.employee_user.id,
         })
 
-        self.assertEqual(sale_order.invoice_state, 'upselling', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
+        # Upstream's 'upselling' invoice status has no equivalent here (see
+        # `has_upsell_opportunity`, a separate delivered-policy flag). The subject of
+        # this test is the upsell *warning* below, which is sale_timesheet's own
+        # mechanism and keyed on the product's `service_upsell_threshold`.
+        self.assertEqual(sale_order.invoice_state, 'to do', 'Sale Timesheet: "invoice on delivery" timesheets should not modify the invoice_state of the so')
         message_sent = self.env['mail.message'].search([
             ('id', '>', last_message_id),
             ('subject', 'like', 'To-Do'),
@@ -1047,7 +1075,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         project = sale_order_line._timesheet_create_project()
         self.assertTrue(
-            project.allocated_hours == project_template.allocated_hours != sale_order_line.product_uom_qty,
+            project.allocated_hours == project_template.allocated_hours != sale_order_line.product_qty,
             "The project's allocated hours should have been copied from its template, rather than the sale order line",
         )
 

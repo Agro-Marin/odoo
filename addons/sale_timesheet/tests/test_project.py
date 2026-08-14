@@ -143,7 +143,7 @@ class TestProject(TestCommonSaleTimesheet):
         sale_line = self.env['sale.order.line'].create({
             'name': self.product_delivery_timesheet1.name,
             'product_id': self.product_delivery_timesheet1.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'price_unit': self.product_delivery_timesheet1.list_price,
             'order_id': sale_order.id,
         })
