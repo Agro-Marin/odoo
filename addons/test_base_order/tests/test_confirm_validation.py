@@ -97,6 +97,30 @@ class TestConfirmValidation(BaseOrderTestCase):
             order._can_confirm_has_lines()
         self.assertIn(order.display_name, str(err.exception))
 
+    def test_a_flow_can_declare_that_an_empty_order_is_expected(self):
+        """`_requires_lines_to_confirm` is the seam for flows that confirm empty.
+
+        `industry_fsm_stock` is the case in the tree: it confirms a field-service
+        order before the technician has added any material, because confirmation is
+        what binds the order and its pickings to that user's warehouse. The exemption
+        is per record, not per model -- dropping `_can_confirm_has_lines` from the
+        registry would disable the guard for every order of the model.
+        """
+        order = self._make_order()
+        self.assertTrue(order._requires_lines_to_confirm())
+
+        cls = type(order)
+        original = cls._requires_lines_to_confirm
+        cls._requires_lines_to_confirm = lambda records: False
+        try:
+            order._can_confirm_has_lines()  # must not raise
+        finally:
+            cls._requires_lines_to_confirm = original
+
+        # and the guard is back the moment the flow stops claiming the exemption
+        with self.assertRaises(UserError):
+            order._can_confirm_has_lines()
+
     # --- _can_confirm_lines_have_product ---
 
     def test_line_without_product_blocks_confirmation(self):

@@ -829,9 +829,30 @@ class OrderMixin(models.AbstractModel):
             ),
         )
 
+    def _requires_lines_to_confirm(self):
+        """Whether confirming this order requires it to carry at least one line.
+
+        True for an ordinary order: confirming an empty one is a mistake, and the
+        message says so.
+
+        It is not universal, though, which is why this is a record-level predicate and
+        not simply the absence of ``_can_confirm_has_lines`` from
+        ``_get_can_confirm_validation_methods``. That list is per *model*, so dropping
+        the validator to accommodate one flow would disable it for every order of that
+        model. A flow that confirms empty on purpose overrides this instead, and only
+        for the orders it owns -- ``industry_fsm_stock`` is the case in the tree: it
+        confirms a field-service order before any material is on it, because
+        confirmation is what binds the order and its pickings to the technician's
+        warehouse.
+        """
+        self.ensure_one()
+        return True
+
     def _can_confirm_has_lines(self):
         """Ensure orders have at least one order line."""
-        orders_without_lines = self.filtered(lambda order: not order.line_ids)
+        orders_without_lines = self.filtered(
+            lambda order: not order.line_ids and order._requires_lines_to_confirm()
+        )
         if orders_without_lines:
             raise UserError(
                 _(
