@@ -128,8 +128,15 @@ class _RegistryFieldsMixin(_RegistryStubs):
         finally:
             self.model_graph.end_invalidation()
 
+        # Invalidate only. Rebuilding here forces a full `resolve_depends` over every
+        # field of every model, and `_discard_fields` runs from `_add_manual_models`
+        # during `setup_model_classes` -- before the fields are set up. A related
+        # many2one still has `comodel_name = None` at that point, so resolving a
+        # dependency *through* one raised "is not relational", and only manual fields
+        # are excused from that error. Every reader goes through
+        # `_ensure_field_triggers`, so the rebuild happens on next use, once setup is
+        # complete.
         self.__dict__.pop("_field_triggers", None)
-        self._ensure_field_triggers()
 
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:
         self._ensure_field_triggers()
