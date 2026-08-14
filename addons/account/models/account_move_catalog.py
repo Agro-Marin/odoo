@@ -159,9 +159,16 @@ class AccountMove(models.Model):
         return move_line.price_unit
 
     def _is_readonly(self):
-        """Return whether the move has been canceled."""
+        """Return whether the move can no longer be edited via the catalog.
+
+        Only a draft move is catalog-editable: `state != "draft"` also
+        covers "posted" (matching the o2m field's own client-side
+        `readonly="state != 'draft'"` in the form view), not just
+        "cancel" — the previous narrower check let the catalog RPC route
+        mutate/create lines on an already-posted, hash-protected entry.
+        """
         self.ensure_one()
-        return self.state == "cancel"
+        return self.state != "draft"
 
     def _get_parent_field_on_child_model(self):
         return "move_id"
