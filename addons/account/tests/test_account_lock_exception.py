@@ -546,3 +546,24 @@ class TestAccountLockException(AccountTestInvoicingCommon):
             .ids
         )
         self.assertNotIn(exception_company_1.id, visible_ids)
+
+    def test_lock_exception_visible_from_a_branch_company(self):
+        """An exception set on a parent/root company must still be visible from its branch."""
+        root_company = self.company_data["company"]
+        root_company.write({"child_ids": [Command.create({"name": "branch"})]})
+        self.cr.precommit.run()  # load the CoA
+        branch = root_company.child_ids
+
+        exception_on_root = self.env["account.lock_exception"].create(
+            {
+                "company_id": root_company.id,
+                "user_id": self.env.user.id,
+                "fiscalyear_lock_date": fields.Date.to_date("2020-01-01"),
+                "end_datetime": self.fakenow + timedelta(hours=24),
+                "reason": "test_lock_exception_visible_from_a_branch_company",
+            }
+        )
+        visible_ids = (
+            self.env["account.lock_exception"].with_company(branch).search([]).ids
+        )
+        self.assertIn(exception_on_root.id, visible_ids)
