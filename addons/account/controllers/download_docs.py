@@ -33,10 +33,11 @@ class AccountDocumentDownloadController(http.Controller):
     )
     def download_invoice_attachments(self, attachments):
         attachments.check_access("read")
-        assert all(
+        if not all(
             attachment.res_id and attachment.res_model == "account.move"
             for attachment in attachments
-        )
+        ):
+            raise UserError(_("Some attachments are not linked to an invoice."))
         if len(attachments) == 1:
             headers = _get_headers(
                 attachments.name, attachments.mimetype, attachments.raw
@@ -87,7 +88,9 @@ class AccountDocumentDownloadController(http.Controller):
             return request.make_response(doc_data["content"], headers)
         if len(docs_data) > 1:
             zip_content = _build_zip_from_data(docs_data)
-            headers = _get_headers(_("invoices") + ".zip", "application/zip", zip_content)
+            headers = _get_headers(
+                _("invoices") + ".zip", "application/zip", zip_content
+            )
             return request.make_response(zip_content, headers)
         return None
 
