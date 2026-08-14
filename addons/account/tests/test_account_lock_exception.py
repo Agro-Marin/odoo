@@ -518,3 +518,31 @@ class TestAccountLockException(AccountTestInvoicingCommon):
                     }
                 )
                 move.action_draft()
+
+    def test_lock_exception_is_company_scoped(self):
+        """A user of company B must not see company A's lock exceptions."""
+        exception_company_1 = self.env["account.lock_exception"].create(
+            {
+                "company_id": self.company.id,
+                "user_id": self.env.user.id,
+                "fiscalyear_lock_date": fields.Date.to_date("2020-01-01"),
+                "end_datetime": self.fakenow + timedelta(hours=24),
+                "reason": "test_lock_exception_is_company_scoped",
+            }
+        )
+        other_company_user = new_test_user(
+            self.env,
+            name="Other Company User",
+            login="other_company_user",
+            password="password",
+            email="other_company_user@example.com",
+            group_ids=self.get_default_groups().ids,
+            company_id=self.company_data_2["company"].id,
+        )
+        visible_ids = (
+            self.env["account.lock_exception"]
+            .with_user(other_company_user)
+            .search([])
+            .ids
+        )
+        self.assertNotIn(exception_company_1.id, visible_ids)
