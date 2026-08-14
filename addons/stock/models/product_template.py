@@ -380,26 +380,40 @@ class ProductTemplate(models.Model):
         return res
 
     def copy(self, default=None):
+        """Carry each variant's storage capacities onto the duplicate's counterpart.
+
+        Variants are matched on the attribute values they materialise, not by
+        position: the copy generates its own variants and nothing guarantees the two
+        orders agree.
+
+        Read with ``active_test=False``, because archiving a *variant* does not remove
+        the attribute value from the *template* -- so the copy gets a live variant for
+        that combination, and it was the only one coming out without its capacity.
+        A capacity with no counterpart at all is still dropped, which is what happens
+        when ``default`` narrows the copy's attribute lines.
+        """
         new_products = super().copy(default=default)
+        Capacity = self.env["stock.storage.category.capacity"]
         storage_category_capacity_vals = []
         for old_template, new_template in zip(self, new_products, strict=True):
             new_variant_id_by_value = {
                 variant.product_template_attribute_value_ids.product_attribute_value_id: variant.id
-                for variant in new_template.product_variant_ids
+                for variant in new_template.with_context(
+                    active_test=False
+                ).product_variant_ids
             }
-            for (
-                capacity
-            ) in old_template.product_variant_ids.storage_category_capacity_ids:
+            capacities = old_template.with_context(
+                active_test=False
+            ).product_variant_ids.storage_category_capacity_ids
+            for capacity, vals in zip(capacities, capacities.copy_data(), strict=True):
                 attribute_value = capacity.product_id.product_template_attribute_value_ids.product_attribute_value_id
                 new_variant_id = new_variant_id_by_value.get(attribute_value)
-                if not new_variant_id:
+                if not new_variant_id or vals is None:
                     continue
                 storage_category_capacity_vals.append(
-                    capacity.copy_data({"product_id": new_variant_id})[0],
+                    {**vals, "product_id": new_variant_id},
                 )
-        self.env["stock.storage.category.capacity"].create(
-            storage_category_capacity_vals,
-        )
+        Capacity.create(storage_category_capacity_vals)
         return new_products
 
     def _default_responsible_id(self):

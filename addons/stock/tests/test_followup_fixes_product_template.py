@@ -340,6 +340,101 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertEqual(draft.count_reordering_rules, 1)
         self.assertEqual(draft.reordering_qty_max, 9.0)
 
+    # ------------------------------------------------------------------- copy
+
+    def _capacity(self, product, quantity):
+        return self.env["stock.storage.category.capacity"].create(
+            {
+                "storage_category_id": self.category.id,
+                "product_id": product.id,
+                "quantity": quantity,
+            }
+        )
+
+    @property
+    def category(self):
+        if not getattr(self, "_category", None):
+            self._category = self.env["stock.storage.category"].create(
+                {"name": "F-cat"}
+            )
+        return self._category
+
+    def test_copy_carries_an_archived_variants_capacity(self):
+        """Archiving a variant does not remove its attribute value from the template.
+
+        The copy therefore gets a live variant for that combination, and it was the
+        only one arriving without a capacity.
+        """
+        tmpl = self._two_variants("F20")
+        kept, archived = tmpl.product_variant_ids
+        self._capacity(kept, 10)
+        self._capacity(archived, 20)
+        archived.active = False
+        self.env.flush_all()
+
+        copied = tmpl.copy()
+        variants = copied.with_context(active_test=False).product_variant_ids
+        self.assertTrue(all(variants.mapped("active")))
+        by_value = {
+            capacity.product_id.product_template_attribute_value_ids.product_attribute_value_id.name: capacity.quantity
+            for capacity in variants.storage_category_capacity_ids
+        }
+        self.assertEqual(by_value, {"S": 10.0, "M": 20.0})
+
+    def test_copy_drops_a_capacity_with_no_counterpart(self):
+        """`default` can narrow the copy's attribute lines; those capacities go."""
+        tmpl = self._two_variants("F21")
+        first, second = tmpl.product_variant_ids
+        self._capacity(first, 10)
+        self._capacity(second, 20)
+        line = tmpl.attribute_line_ids[0]
+        kept_value = (
+            first.product_template_attribute_value_ids.product_attribute_value_id
+        )
+
+        copied = tmpl.copy(
+            {
+                "attribute_line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "attribute_id": line.attribute_id.id,
+                            "value_ids": [(6, 0, kept_value.ids)],
+                        },
+                    )
+                ]
+            }
+        )
+        self.assertEqual(len(copied.product_variant_ids), 1)
+        self.assertEqual(
+            copied.product_variant_ids.storage_category_capacity_ids.mapped("quantity"),
+            [10.0],
+        )
+
+    def test_copy_batch_keeps_each_templates_capacities_apart(self):
+        """One `copy_data` call for the set must not shuffle vals between templates."""
+        first, second = self._two_variants("F22a"), self._two_variants("F22b")
+        for template, quantities in ((first, (1, 2)), (second, (3, 4))):
+            for variant, quantity in zip(
+                template.product_variant_ids, quantities, strict=True
+            ):
+                self._capacity(variant, quantity)
+        self.env.flush_all()
+
+        copies = (first + second).copy()
+        self.assertEqual(
+            [
+                sorted(
+                    copy.product_variant_ids.storage_category_capacity_ids.mapped(
+                        "quantity"
+                    )
+                )
+                for copy in copies
+            ],
+            [[1.0, 2.0], [3.0, 4.0]],
+        )
+
     # ---------------------------------------------------- no-op adjustment
 
     def test_zero_adjustment_leaves_the_location_alone(self):
