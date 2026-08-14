@@ -220,16 +220,34 @@ class ProductProduct(models.Model):
 
     @api.model
     def fields_get(self, allfields=None, attributes=None):
+        """Relabel the quantity fields to match the location the context scopes them to.
+
+        The scope itself accepts an id, a name to match, or a list of either
+        (`_get_domain_locations`), so the labels resolve the value the same way rather
+        than only understanding a bare id -- a list or a name used to filter the numbers
+        while leaving them labelled "Quantity On Hand".
+
+        Only an unambiguous single location can name a column, so a scope resolving to
+        several is left with the generic labels. A *bad* value is skipped rather than
+        raised on, unlike the scope path: labels are cosmetic, and breaking view loading
+        over a stray context key is worse than not relabelling.
+        """
         res = super().fields_get(allfields, attributes)
         context_location = self.env.context.get("location") or self.env.context.get(
             "search_location",
         )
-        if (
-            context_location
-            and isinstance(context_location, int)
-            and not isinstance(context_location, bool)
-        ):
-            location = self.env["stock.location"].browse(context_location)
+        if context_location:
+            if not isinstance(context_location, list):
+                context_location = [context_location]
+            try:
+                location_ids = self._resolve_context_record_ids(
+                    "stock.location", context_location
+                )
+            except ValueError:
+                location_ids = set()
+            location = self.env["stock.location"].browse(
+                next(iter(location_ids)) if len(location_ids) == 1 else ()
+            )
             relabels = {
                 "supplier": {
                     "qty_available_virtual": _("Future Receipts"),
@@ -268,8 +286,23 @@ class ProductProduct(models.Model):
         for product in self:
             product.count_lot_ids = counts.get(product._origin, 0)
 
-    @api.depends("stock_move_ids.state")
+    @api.depends(
+        "stock_move_ids.move_line_ids.state",
+        "stock_move_ids.move_line_ids.date",
+    )
     def _compute_count_moves(self):
+        """Count this product's done receipt/delivery lines over the last 12 months.
+
+        The dependency names ``stock.move.line``, which is what the read-groups below
+        actually read. Declaring ``stock_move_ids.state`` instead was right often enough
+        to hide the gap -- validating a picking writes the move's state and does refresh
+        the count -- but the value follows the *line's* state and date, and backdating a
+        line of an already-done move left it stale.
+
+        ``picking_code`` is deliberately absent: it is a non-stored related on the
+        picking type, so it cannot carry a dependency, and a picking type's code does not
+        change under a done move.
+        """
         one_year_ago = fields.Datetime.now() - relativedelta(years=1)
 
         def _counts_by_product(picking_code):
@@ -367,11 +400,13 @@ class ProductProduct(models.Model):
     def _compute_quantities(self):
         """Fill the five quantity fields for every product in ``self``.
 
-        Services have no quantities and are left out of the computation, so every field
-        is zeroed first -- that also covers the zeros the ``if val`` filter drops below.
-        ``qty_available`` is written through ``skip_qty_available_update`` because it is
-        the one field with an inverse, which would otherwise post an inventory
-        adjustment for a value this method just computed.
+        Services have no quantities and are left out of the computation, so they are
+        zeroed directly; every other product is written once, from the values
+        ``_prepare_quantities_vals`` returned.
+
+        The whole set is rebound through ``skip_qty_available_update`` because
+        ``qty_available`` is the one field with an inverse, which would otherwise post an
+        inventory adjustment for a value this method just computed.
 
         ``type`` is read with prefetching off so that filtering services out does not
         drag every other field of the set along; the caller's own setting is then
@@ -379,11 +414,14 @@ class ProductProduct(models.Model):
         deliberately turns it off.
         """
         prefetch_fields = self.env.context.get("prefetch_fields", True)
+        guarded = self.with_context(skip_qty_available_update=True)
         products = (
-            self.with_context(prefetch_fields=False)
+            guarded.with_context(prefetch_fields=False)
             .filtered(lambda p: p.type != "service")
             .with_context(prefetch_fields=prefetch_fields)
         )
+        for field_name in QUANTITY_FIELDS:
+            (guarded - products)[field_name] = 0.0
         res = products._prepare_quantities_vals(
             self.env.context.get("lot_id"),
             self.env.context.get("owner_id"),
@@ -391,13 +429,8 @@ class ProductProduct(models.Model):
             self.env.context.get("from_date"),
             self.env.context.get("to_date"),
         )
-        zeroed = self.with_context(skip_qty_available_update=True)
-        for field_name in QUANTITY_FIELDS:
-            zeroed[field_name] = 0.0
         for product in products:
-            product.with_context(skip_qty_available_update=True).update(
-                {key: val for key, val in res[product.id].items() if val}
-            )
+            product.update(res[product.id])
 
     def _inverse_qty_available(self):
         """Apply a manual on-hand adjustment from the product form.
@@ -425,6 +458,12 @@ class ProductProduct(models.Model):
         Takes the quantities explicitly instead of reading ``qty_available`` back, so
         a caller that never wrote the field -- ``product.template.create`` -- reaches
         the same batched path rather than one adjustment per distinct value.
+
+        When the context scopes quantities to a location or a warehouse, the adjustment
+        lands *there*: `_compute_quantities` reads through that scope, so writing outside
+        it made the field disagree with itself -- setting 9 under one warehouse put the
+        stock in another and left the scoped value reading 0. See
+        `_resolve_inventory_location`.
         """
         products_to_update = self.browse()
         quantities_to_apply = []
@@ -449,33 +488,46 @@ class ProductProduct(models.Model):
             quantities_to_apply.append(quantity)
         if not products_to_update:
             return
+        # Resolved only once there is something to adjust, so a set of services under an
+        # ambiguous scope stays the no-op it has always been rather than raising.
+        scoped_location = self._resolve_inventory_location()
         quantity_by_product = dict(
             zip(products_to_update, quantities_to_apply, strict=True)
         )
-        products_by_company = defaultdict(self.browse)
-        for product in products_to_update:
-            products_by_company[product.company_id or self.env.company] += product
-        warehouses = self.env["stock.warehouse"].search(
-            [("company_id", "in", [company.id for company in products_by_company])],
-        )
-        warehouse_by_company = {}
-        for warehouse in warehouses:
-            warehouse_by_company.setdefault(warehouse.company_id, warehouse)
-
-        vals_list = []
-        for company, products in products_by_company.items():
-            warehouse = warehouse_by_company.get(company)
-            if not warehouse:
-                self.env["stock.warehouse"]._warehouse_redirect_warning()
-                return
-            vals_list += [
+        if scoped_location:
+            vals_list = [
                 {
                     "product_id": product.id,
-                    "location_id": warehouse.lot_stock_id.id,
+                    "location_id": scoped_location.id,
                     "inventory_quantity": quantity_by_product[product],
                 }
-                for product in products
+                for product in products_to_update
             ]
+        else:
+            products_by_company = defaultdict(self.browse)
+            for product in products_to_update:
+                products_by_company[product.company_id or self.env.company] += product
+            warehouses = self.env["stock.warehouse"].search(
+                [("company_id", "in", [company.id for company in products_by_company])],
+            )
+            warehouse_by_company = {}
+            for warehouse in warehouses:
+                warehouse_by_company.setdefault(warehouse.company_id, warehouse)
+
+            vals_list = []
+            for company, products in products_by_company.items():
+                warehouse = warehouse_by_company.get(company)
+                if not warehouse:
+                    self.env["stock.warehouse"]._warehouse_redirect_warning()
+                    return
+                vals_list += [
+                    {
+                        "product_id": product.id,
+                        "location_id": warehouse.lot_stock_id.id,
+                        "inventory_quantity": quantity_by_product[product],
+                    }
+                    for product in products
+                ]
         quants = (
             self.env["stock.quant"]
             .with_context(inventory_mode=True, from_inverse_qty=True)
@@ -483,8 +535,54 @@ class ProductProduct(models.Model):
         )
         quants._apply_inventory()
 
+    def _resolve_inventory_location(self):
+        """The single internal location an on-hand adjustment should target, or empty.
+
+        Empty means "the context named no scope" -- the caller then falls back to one
+        warehouse per product company, which is the only sensible answer when nothing
+        says otherwise and the products may span companies.
+
+        A scope naming several internal locations has **no** correct answer: the value
+        being written is a total over all of them, and splitting it across them is a
+        guess. That raises rather than silently picking one, which is what the previous
+        behaviour amounted to. A warehouse scope is the exception -- it names one place
+        by construction, its `lot_stock_id` -- so the common case still works.
+        """
+        location_ids = self._scope_location_ids()
+        if location_ids is None:
+            return self.env["stock.location"].browse()
+        locations = self.env["stock.location"].browse(location_ids)
+        warehouses = locations.warehouse_id
+        if len(locations) == 1 and locations.usage == "internal":
+            return locations
+        # A warehouse scope resolves to that warehouse's view location, whose stock
+        # location is the unambiguous target.
+        if len(warehouses) == 1 and locations == warehouses.view_location_id:
+            return warehouses.lot_stock_id
+        raise UserError(
+            _(
+                "The quantity on hand cannot be set while the view is scoped to "
+                "%(count)s locations (%(locations)s): the value is a total over all of "
+                "them, and there is no way to tell how it should be split. Scope the "
+                "view to a single location or warehouse, or use an inventory "
+                "adjustment.",
+                count=len(locations),
+                locations=", ".join(locations.mapped("display_name")[:5]) or "none",
+            ),
+        )
+
     def _search_qty_available(self, operator, value):
-        if not ({"from_date", "to_date", "owners"} & self.env.context.keys()):
+        # The quant-only fast path answers only "on hand, now, whoever owns it". A date
+        # window or an owner filter changes the answer, so those fall through to the full
+        # pass -- but only when they carry a value. `to_date=False` is "no cutoff", which
+        # is what the fast path already computes; testing key *presence* abandoned it for
+        # a context that asked for nothing. `owners` stays a presence test: an empty list
+        # is a real filter there, selecting the stock that has no owner.
+        if not (
+            self.env.context.get("from_date")
+            or self.env.context.get("to_date")
+            or "owners" in self.env.context
+        ):
             op = PY_OPERATORS.get(operator)
             if op is not None and op(0.0, value):
                 return self._search_product_quantity(operator, value, "qty_available")
@@ -610,11 +708,11 @@ class ProductProduct(models.Model):
                 "search_default_filter_not_snoozed": True,
             },
         )
-        if self and len(self) == 1:
+        if len(self) == 1:
             action["context"].update(
                 {
-                    "default_product_id": self.ids[0],
-                    "search_default_product_id": self.ids[0],
+                    "default_product_id": self.id,
+                    "search_default_product_id": self.id,
                 },
             )
         else:
@@ -862,8 +960,8 @@ class ProductProduct(models.Model):
 
     def _read_quantities(self, scope):
         """Run `scope`'s grouped reads. The only method here that touches the database."""
-        Move = self.env["stock.move"].with_context(active_test=False)
-        Quant = self.env["stock.quant"].with_context(active_test=False)
+        Move = self.env["stock.move"]
+        Quant = self.env["stock.quant"]
         moves_in_res = {
             product.id: product_qty
             for product, product_qty in Move._read_group(
@@ -936,6 +1034,10 @@ class ProductProduct(models.Model):
         Three phases, each separately overridable: `_prepare_quantities_scope` decides
         *what* to read, `_read_quantities` reads it, and the loop below turns the raw
         sums into per-product, UoM-rounded values.
+
+        Products with nothing to read need no special case: every lookup below defaults
+        to zero, so they fall through the same arithmetic to the same five zeros a
+        short-circuit would have written.
         """
         scope = self._prepare_quantities_scope(
             lot_id,
@@ -951,19 +1053,6 @@ class ProductProduct(models.Model):
         for product in self.with_context(prefetch_fields=False):
             origin_product_id = product._origin.id
             product_id = product.id
-            if not origin_product_id or not any(
-                origin_product_id in source
-                for source in (
-                    reads.quants,
-                    reads.moves_in,
-                    reads.moves_out,
-                    reads.moves_in_past,
-                    reads.moves_out_past,
-                    reads.expired_unreserved,
-                )
-            ):
-                res[product_id] = dict.fromkeys(QUANTITY_FIELDS, 0.0)
-                continue
             res[product_id] = {}
             quantity, reserved_quantity = reads.quants.get(
                 origin_product_id, (0.0, 0.0)
@@ -1011,8 +1100,8 @@ class ProductProduct(models.Model):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             location_domains or self._get_domain_locations()
         )
-        Quant = self.env["stock.quant"].with_context(active_test=False)
-        Move = self.env["stock.move"].with_context(active_test=False)
+        Quant = self.env["stock.quant"]
+        Move = self.env["stock.move"]
         product_ids = {
             product.id
             for [product] in Quant._read_group(domain_quant_loc, ["product_id"])
@@ -1107,6 +1196,26 @@ class ProductProduct(models.Model):
           record first, which is what made a stale id silent alone but fatal alongside
           ``warehouse_id``.
         """
+        location_ids = self._scope_location_ids()
+        if location_ids is None:
+            location_ids = set(
+                self.env["stock.warehouse"]
+                .search([("company_id", "in", self.env.companies.ids)])
+                .mapped("view_location_id")
+                .ids
+            )
+        return self._get_domain_locations_new(location_ids)
+
+    def _scope_location_ids(self) -> set[int] | None:
+        """The locations the context scopes quantities to, or ``None`` for no scope.
+
+        Split out of `_get_domain_locations` because the *write* half of
+        `qty_available` needs the same answer: a scope the compute honours has to be a
+        scope the inverse honours, or the field does not round-trip. Returning ``None``
+        rather than the default set keeps "the caller asked for nothing" distinguishable
+        from "the caller asked for every warehouse", which is the distinction
+        `_resolve_inventory_location` turns on.
+        """
         Location = self.env["stock.location"]
         Warehouse = self.env["stock.warehouse"]
         _search_ids = self._resolve_context_record_ids
@@ -1127,26 +1236,18 @@ class ProductProduct(models.Model):
                 .mapped("view_location_id")
                 .ids
             )
-            if location:
-                l_ids = _search_ids("stock.location", location)
-                parents = Location.browse(w_ids).mapped("parent_path")
-                location_ids = {
-                    loc.id
-                    for loc in Location.browse(l_ids)
-                    if any(loc.parent_path.startswith(parent) for parent in parents)
-                }
-            else:
-                location_ids = w_ids
-        elif location:
-            location_ids = _search_ids("stock.location", location)
-        else:
-            location_ids = set(
-                Warehouse.search([("company_id", "in", self.env.companies.ids)])
-                .mapped("view_location_id")
-                .ids
-            )
-
-        return self._get_domain_locations_new(location_ids)
+            if not location:
+                return w_ids
+            l_ids = _search_ids("stock.location", location)
+            parents = Location.browse(w_ids).mapped("parent_path")
+            return {
+                loc.id
+                for loc in Location.browse(l_ids)
+                if any(loc.parent_path.startswith(parent) for parent in parents)
+            }
+        if location:
+            return _search_ids("stock.location", location)
+        return None
 
     def _get_domain_locations_new(self, location_ids) -> tuple[Domain, Domain, Domain]:
         """Return (quant, move-in, move-out) domains for a set of locations.
@@ -1292,14 +1393,14 @@ class ProductProduct(models.Model):
                 rule.location_src_id, seen_rules=seen_rules | rule
             )
 
-    def _get_dates_info(self, date, location, route_ids=False):
+    def _get_dates_info(self, date_planned, location, route_ids=False):
         rules = self._get_rules_from_location(location, route_ids=route_ids)
         delays, __ = rules.with_context(bypass_delay_description=True)._get_lead_days(
             self
         )
         return {
-            "date_planned": date,
-            "date_order": date - relativedelta(days=delays["purchase_delay"]),
+            "date_planned": date_planned,
+            "date_order": date_planned - relativedelta(days=delays["purchase_delay"]),
         }
 
     @api.model
@@ -1359,18 +1460,18 @@ class ProductProduct(models.Model):
         over the batch. `stock.quant.product_id` and `stock.move.product_id` both
         restrict on delete, and having stock history is the norm rather than the
         exception, so both belong here alongside lots.
+
+        Only the lot read needs `active_test=False`, and it genuinely needs it: an
+        archived lot still restricts the delete. Quants and moves carry no `active`
+        field, so the key would be a no-op there.
         """
         domain = [("product_id", "in", self.ids)]
         grouped = (
             self.env["stock.lot"]
             .with_context(active_test=False)
             ._read_group(domain, ["product_id"]),
-            self.env["stock.quant"]
-            .with_context(active_test=False)
-            ._read_group(domain, ["product_id"]),
-            self.env["stock.move"]
-            .with_context(active_test=False)
-            ._read_group(domain, ["product_id"]),
+            self.env["stock.quant"]._read_group(domain, ["product_id"]),
+            self.env["stock.move"]._read_group(domain, ["product_id"]),
         )
         linked_product_ids = {product.id for groups in grouped for [product] in groups}
         return super(

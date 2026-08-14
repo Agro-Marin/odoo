@@ -428,3 +428,250 @@ class TestProductQuantityScope(TransactionCase):
             ).qty_available,
             0.0,
         )
+
+    # ------------------------------------------------------------------
+    # 2026-08-13 follow-up audit
+    # ------------------------------------------------------------------
+
+    def test_inverse_qty_available_lands_in_the_scoped_warehouse(self):
+        """The write half must honour the scope the compute half reads through.
+
+        `_compute_quantities` narrows by `warehouse_id`, the inverse resolved the
+        company's *first* warehouse regardless, so setting 9 under one warehouse put
+        the stock in another and the scoped value read back 0.
+        """
+        warehouse_b = self.env["stock.warehouse"].create(
+            {"name": "Scope WH2", "code": "SW2", "company_id": self.env.company.id}
+        )
+        scoped = self.product.with_context(warehouse_id=warehouse_b.id)
+        self.assertEqual(scoped.qty_available, 0.0)
+        scoped.qty_available = 9.0
+        self.product.flush_recordset()
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.product.with_context(warehouse_id=warehouse_b.id).qty_available,
+            9.0,
+            "the value must read back through the scope it was written under",
+        )
+        self.assertEqual(
+            self.product.with_context(warehouse_id=self.warehouse.id).qty_available,
+            0.0,
+            "and must not have landed in the unscoped warehouse",
+        )
+
+    def test_inverse_qty_available_lands_in_the_scoped_location(self):
+        shelf = self.env["stock.location"].create(
+            {
+                "name": "Scope Shelf",
+                "location_id": self.stock_location.id,
+                "usage": "internal",
+            }
+        )
+        scoped = self.product.with_context(location=shelf.id)
+        scoped.qty_available = 4.0
+        self.product.flush_recordset()
+        self.env.invalidate_all()
+        quant = self.env["stock.quant"].search(
+            [("product_id", "=", self.product.id), ("location_id", "=", shelf.id)]
+        )
+        self.assertEqual(quant.quantity, 4.0)
+        self.assertEqual(
+            self.product.with_context(location=shelf.id).qty_available, 4.0
+        )
+
+    def test_inverse_qty_available_refuses_an_ambiguous_scope(self):
+        """A total over several locations cannot be split by guessing."""
+        shelf_a = self.env["stock.location"].create(
+            {
+                "name": "Scope Shelf A",
+                "location_id": self.stock_location.id,
+                "usage": "internal",
+            }
+        )
+        shelf_b = self.env["stock.location"].create(
+            {
+                "name": "Scope Shelf B",
+                "location_id": self.stock_location.id,
+                "usage": "internal",
+            }
+        )
+        with self.assertRaises(UserError):
+            self.product.with_context(
+                location=[shelf_a.id, shelf_b.id]
+            ).qty_available = 5.0
+
+    def test_inverse_qty_available_without_a_scope_still_uses_the_warehouse(self):
+        """No scope keys must keep the per-company warehouse behaviour."""
+        self.product.qty_available = 6.0
+        self.product.flush_recordset()
+        quant = self.env["stock.quant"].search(
+            [
+                ("product_id", "=", self.product.id),
+                ("location_id.usage", "=", "internal"),
+            ]
+        )
+        self.assertEqual(quant.location_id, self.warehouse.lot_stock_id)
+
+    def test_count_moves_follows_the_move_line_not_the_move(self):
+        """The counter reads `stock.move.line`; its dependency must name that.
+
+        Declaring `stock_move_ids.state` refreshed on validation by coincidence, but
+        backdating a line of an already-done move left the value stale.
+        """
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.warehouse.in_type_id.id,
+                "location_id": self.env.ref("stock.stock_location_suppliers").id,
+                "location_dest_id": self.stock_location.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": self.product.id,
+                            "product_uom_qty": 5,
+                            "location_id": self.env.ref(
+                                "stock.stock_location_suppliers"
+                            ).id,
+                            "location_dest_id": self.stock_location.id,
+                        },
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.move_ids.quantity = 5
+        picking.button_validate()
+        self.assertEqual(self.product.count_moves_in, 1)
+        self.env["stock.move.line"].search(
+            [("product_id", "=", self.product.id)]
+        ).write({"date": "2020-01-01 00:00:00"})
+        self.assertEqual(
+            self.product.count_moves_in,
+            0,
+            "ageing the move line out of the 12-month window must invalidate",
+        )
+
+    def test_template_count_moves_is_invalidated_by_a_receipt(self):
+        """The template counter went stale where the variant's did not."""
+        template = self.product.product_tmpl_id
+        self.assertEqual(template.count_moves_in, 0)
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.warehouse.in_type_id.id,
+                "location_id": self.env.ref("stock.stock_location_suppliers").id,
+                "location_dest_id": self.stock_location.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": self.product.id,
+                            "product_uom_qty": 3,
+                            "location_id": self.env.ref(
+                                "stock.stock_location_suppliers"
+                            ).id,
+                            "location_dest_id": self.stock_location.id,
+                        },
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.move_ids.quantity = 3
+        picking.button_validate()
+        self.assertEqual(template.count_moves_in, 1)
+        self.assertEqual(
+            template.count_moves_in,
+            self.product.count_moves_in,
+            "the template rolls the variant counters up, so they cannot disagree",
+        )
+
+    def test_template_quantity_search_resolves_location_domains_once(self):
+        """The variant path was de-duplicated; the template path was not."""
+        self._stock_up(self.product, 6)
+        cls = type(self.env["product.product"])
+        calls = []
+        original = cls._get_domain_locations
+
+        def counting(records):
+            calls.append(1)
+            return original(records)
+
+        cls._get_domain_locations = counting
+        try:
+            self.env["product.template"].search([("qty_available_virtual", ">", 0)])
+        finally:
+            cls._get_domain_locations = original
+        self.assertEqual(
+            len(calls),
+            1,
+            "the location triple should be resolved once per quantity condition",
+        )
+
+    def test_falsy_date_context_keeps_the_quant_only_fast_path(self):
+        """`to_date=False` asks for no cutoff, which the fast path already answers."""
+        self._stock_up(self.product, 5)
+        cls = type(self.env["product.product"])
+        slow_path = []
+        original = cls._search_product_quantity
+
+        def counting(records, operator, value, field):
+            slow_path.append(field)
+            return original(records, operator, value, field)
+
+        cls._search_product_quantity = counting
+        try:
+            found = (
+                self.env["product.product"]
+                .with_context(to_date=False, from_date=False)
+                .search([("id", "=", self.product.id), ("qty_available", ">", 0)])
+            )
+        finally:
+            cls._search_product_quantity = original
+        self.assertEqual(found, self.product)
+        self.assertFalse(slow_path, "a falsy date must not abandon the quant-only path")
+
+    def test_owners_context_still_takes_the_slow_path_when_empty(self):
+        """An empty `owners` list is a real filter: stock with no owner."""
+        self._stock_up(self.product, 5)
+        cls = type(self.env["product.product"])
+        slow_path = []
+        original = cls._search_product_quantity
+
+        def counting(records, operator, value, field):
+            slow_path.append(field)
+            return original(records, operator, value, field)
+
+        cls._search_product_quantity = counting
+        try:
+            self.env["product.product"].with_context(owners=[]).search(
+                [("id", "=", self.product.id), ("qty_available", ">", 0)]
+            )
+        finally:
+            cls._search_product_quantity = original
+        self.assertTrue(slow_path, "an owner filter must still take the full pass")
+
+    def test_fields_get_relabels_a_location_given_by_name_or_list(self):
+        """The scope accepts ids, names and lists; the labels must resolve the same."""
+        customers = self.env.ref("stock.stock_location_customers")
+        Product = self.env["product.product"]
+        expected = Product.with_context(location=customers.id).fields_get(
+            ["qty_available"]
+        )["qty_available"]["string"]
+        for value in (customers.id, [customers.id], customers.name):
+            with self.subTest(location=value):
+                self.assertEqual(
+                    Product.with_context(location=value).fields_get(["qty_available"])[
+                        "qty_available"
+                    ]["string"],
+                    expected,
+                )
+
+    def test_fields_get_survives_an_unresolvable_location(self):
+        """Labels are cosmetic; a bad context key must not break view loading."""
+        Product = self.env["product.product"]
+        for value in (True, 99999999, "No Such Location"):
+            with self.subTest(location=value):
+                res = Product.with_context(location=value).fields_get(["qty_available"])
+                self.assertTrue(res["qty_available"]["string"])
