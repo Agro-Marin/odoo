@@ -193,6 +193,8 @@ class AccountReconcileModel(models.Model):
     def _check_match_label_param(self):
         for record in self:
             if record.match_label == "match_regex":
+                if not record.match_label_param:
+                    raise UserError(_("The regex is not valid"))
                 try:
                     re.compile(record.match_label_param)
                 except re.error as err:
