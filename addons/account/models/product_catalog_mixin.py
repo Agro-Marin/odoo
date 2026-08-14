@@ -158,16 +158,22 @@ class ProductCatalogMixin(models.AbstractModel):
         lines = self[child_field].sorted("sequence")
         move_section, target_section = sections
 
+        # Use `get_line_parent_section()`, not raw `parent_id`: a line nested
+        # under a `line_subsection` has `parent_id` pointing at the
+        # subsection, not the section (see `_get_sections` above, which
+        # already accounts for this). The raw comparison silently left such
+        # lines out of both blocks.
         move_block = lines.filtered(
             lambda line: (
-                line.id == move_section["id"] or line.parent_id.id == move_section["id"]
+                line.id == move_section["id"]
+                or line.get_line_parent_section().id == move_section["id"]
             ),
         )
 
         target_block = lines.filtered(
             lambda line: (
                 line.id == target_section["id"]
-                or line.parent_id.id == target_section["id"]
+                or line.get_line_parent_section().id == target_section["id"]
             ),
         )
 
