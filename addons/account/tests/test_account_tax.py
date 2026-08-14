@@ -334,6 +334,34 @@ class TestAccountTax(AccountTestInvoicingCommon):
         tax_reconciliation.invalidate_model(fnames=["is_used"])
         self.assertTrue(tax_reconciliation.is_used)
 
+    def test_tax_unlink_guard_sees_fresh_usage_without_manual_invalidate(self):
+        """`unlink()` on a newly-used tax must be blocked even if `is_used` was read (and cached) earlier in the same transaction."""
+        tax = self.env["account.tax"].create(
+            {"name": "test_is_used_stale", "amount": "100"}
+        )
+        self.assertFalse(
+            tax.is_used
+        )  # cache a stale False, deliberately no invalidate after this
+
+        self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "date": "2023-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "invoice_line",
+                            "quantity": 1.0,
+                            "price_unit": 100.0,
+                            "tax_ids": [Command.set(tax.ids)],
+                        }
+                    ),
+                ],
+            }
+        )
+        with self.assertRaises(ValidationError):
+            tax.unlink()
+
     def test_tax_no_duplicate_in_repartition_line(self):
         """Ensure a tax that generates a second tax line is not applied to that tax line."""
 
