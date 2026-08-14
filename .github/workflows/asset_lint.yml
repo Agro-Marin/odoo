@@ -128,6 +128,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -153,6 +160,14 @@ jobs:
           # bundled addons' dependencies too. requirements.txt alone stopped
           # being the full runtime when requirements-addons.txt was split out.
           pip install --quiet -r requirements.txt -r requirements-addons.txt
+
+      - name: Install JS dependencies (Dart Sass)
+        # Same hard dependency as module_installability.yml, reached by the other
+        # trigger: the served-page step below runs an HttpCase, and
+        # preload_registries pregenerates every bundle when the post_install
+        # suite has one (odoo/service/lifecycle.py). SCSS compilation there
+        # needs Dart Sass, which only `npm ci` provides.
+        run: npm ci
 
       - name: Run the asset & palette checks
         # odoo-bin exits non-zero on any test failure, so this step fails the
