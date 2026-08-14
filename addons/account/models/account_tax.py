@@ -242,6 +242,11 @@ class AccountTax(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def unlink_except_tax_used(self):
+        # `is_used` has no `@api.depends`, so the ORM never auto-invalidates
+        # it: a value read earlier in this transaction (e.g. before a line
+        # referencing this tax was created) would otherwise stay cached as
+        # stale here and let a now-in-use tax slip past this guard.
+        self.invalidate_recordset(["is_used"])
         if any(self.mapped("is_used")):
             raise ValidationError(
                 self.env._(
