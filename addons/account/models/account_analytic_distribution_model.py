@@ -42,7 +42,9 @@ class AccountAnalyticDistributionModel(models.Model):
                 not model.account_prefix
                 or any(
                     (vals.get("account_prefix") or "").startswith(prefix)
-                    for prefix in delimiter_pattern.split(model.account_prefix)
+                    for prefix in delimiter_pattern.split(
+                        model.account_prefix.replace(" ", "")
+                    )
                 )
             )
         )

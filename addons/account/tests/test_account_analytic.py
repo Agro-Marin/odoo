@@ -706,6 +706,25 @@ class TestAccountAnalyticAccount(AccountTestInvoicingCommon, AnalyticCommon):
             {str(self.analytic_account_4.id): 100},
         )
 
+    def test_analytic_distribution_prefix_with_space_before_delimiter(self):
+        """A trailing space before the delimiter (e.g. "60 ,61") must not stop the prefix from matching."""
+        self.env["account.analytic.distribution.model"].create(
+            {
+                "account_prefix": "60 ,61",
+                "analytic_distribution": {self.analytic_account_3.id: 100},
+                "company_id": False,
+            }
+        )
+        account_60 = self.env["account.account"].search(
+            [("code", "ilike", "60%")], limit=1
+        )
+        invoice = self.create_invoice(self.env["res.partner"], self.product_a)
+        invoice.invoice_line_ids.account_id = account_60
+        self.assertEqual(
+            invoice.invoice_line_ids.analytic_distribution,
+            {str(self.analytic_account_3.id): 100},
+        )
+
     def test_analytic_applicability_multiple_prefixes(self):
         # This applicability should block all invoices with lines having account_code who starts with '40' or '41'
         self.env["account.analytic.applicability"].create(
