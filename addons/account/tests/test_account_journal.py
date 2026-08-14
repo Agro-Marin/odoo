@@ -319,6 +319,31 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
             self.assertEqual(res.status_code, 403)
             self.assertEqual(journal.incoming_einvoice_notification_email, email)
 
+    def test_write_type_resets_default_account_id(self):
+        """Changing `type` via write() (not the form's onchange) must not leave the previous type's stale default account."""
+        company = self.env.company
+        journal = self.env["account.journal"].create(
+            {
+                "name": "test_write_type_resets",
+                "code": "TWTR",
+                "type": "sale",
+                "company_id": company.id,
+                # `create()` never fires `_onchange_type` either, so set the
+                # sale-type default explicitly to reproduce the "journal
+                # already has an account from its current type" starting
+                # point the bug is about.
+                "default_account_id": company.income_account_id.id,
+            }
+        )
+        self.assertEqual(journal.default_account_id, company.income_account_id)
+
+        journal.write({"type": "purchase"})
+        self.assertEqual(
+            journal.default_account_id,
+            company.expense_account_id,
+            "the stale sale-type account must be reset when type changes via write()",
+        )
+
 
 @tagged("post_install", "-at_install", "mail_alias")
 class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):

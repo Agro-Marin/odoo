@@ -973,6 +973,29 @@ class AccountJournal(models.Model):
         )
 
     def write(self, vals):
+        # `_onchange_type` resets default_account_id/profit_account_id/
+        # loss_account_id when `type` changes through the form UI, but that
+        # onchange never fires on write()/import/cron: a journal's `type`
+        # could change via API while silently keeping the previous type's
+        # now-stale accounts. Snapshot which journals are actually changing
+        # type here (before super().write() applies it); the reset itself
+        # runs after, once type/company_id are already committed, so the
+        # account fields being written are checked against the journal's
+        # FINAL company (avoids a check_company false trip if company_id is
+        # also changing in the same call). Skipped when the caller
+        # explicitly sets the account fields in the same write -- that's an
+        # intentional override, not a stale leftover to clean up.
+        journals_changing_type = (
+            self.filtered(lambda j: j.type != vals["type"])
+            if "type" in vals
+            and (
+                "default_account_id" not in vals
+                or "profit_account_id" not in vals
+                or "loss_account_id" not in vals
+            )
+            else self.browse()
+        )
+
         # for journals, force a readable name instead of a sanitized name e.g. non ascii in journal names
         if vals.get("alias_name") and "type" not in vals:
             # will raise if writing name on more than 1 record, using self[0] is safe
@@ -1050,6 +1073,32 @@ class AccountJournal(models.Model):
                     "alias_name": alias_vals["alias_name"],
                 }
                 journal.update(alias_vals)
+
+        # See the comment above `journals_changing_type` (top of this
+        # method): reset the type-dependent default accounts now that
+        # `type`/`company_id` are committed, mirroring `_onchange_type`.
+        for journal in journals_changing_type:
+            company = journal.company_id
+            if "default_account_id" not in vals:
+                default_account_id = False
+                if journal.type == "sale" and company.income_account_id.active:
+                    default_account_id = company.income_account_id.id
+                elif journal.type == "purchase" and company.expense_account_id.active:
+                    default_account_id = company.expense_account_id.id
+                journal.default_account_id = default_account_id
+            if "profit_account_id" not in vals and "loss_account_id" not in vals:
+                profit_account_id = loss_account_id = False
+                if journal.type in ("cash", "bank"):
+                    if company.default_cash_difference_income_account_id.active:
+                        profit_account_id = (
+                            company.default_cash_difference_income_account_id.id
+                        )
+                    if company.default_cash_difference_expense_account_id.active:
+                        loss_account_id = (
+                            company.default_cash_difference_expense_account_id.id
+                        )
+                journal.profit_account_id = profit_account_id
+                journal.loss_account_id = loss_account_id
 
         # Ensure the liquidity accounts are sharing the same foreign currency.
         if "currency_id" in vals:
