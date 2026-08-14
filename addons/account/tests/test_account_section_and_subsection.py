@@ -162,3 +162,44 @@ class TestAccountSectionAndSubsection(AccountTestInvoicingCommon):
         ):
             for key, value in expected_value.items():
                 self.assertEqual(line_value[key], value)
+
+    def test_resequence_section_moves_lines_nested_under_a_subsection(self):
+        """Moving a section must carry its subsections' lines along with it."""
+        move = self.init_invoice("out_invoice")
+        move.invoice_line_ids = [
+            Command.create(
+                {"name": "Section A", "display_type": "line_section", "sequence": 10}
+            ),
+            Command.create(
+                {"product_id": self.product_a.id, "price_unit": 100, "sequence": 20}
+            ),
+            Command.create(
+                {
+                    "name": "Subsection A.1",
+                    "display_type": "line_subsection",
+                    "sequence": 30,
+                }
+            ),
+            Command.create(
+                {"product_id": self.product_a.id, "price_unit": 200, "sequence": 40}
+            ),
+            Command.create(
+                {"name": "Section B", "display_type": "line_section", "sequence": 50}
+            ),
+            Command.create(
+                {"product_id": self.product_b.id, "price_unit": 100, "sequence": 60}
+            ),
+        ]
+        section_a, _p1, subsection_a1, p2_under_subsection, section_b, p3 = (
+            move.invoice_line_ids
+        )
+
+        sections = move._get_sections("invoice_line_ids")
+        move_section = next(s for s in sections if s["id"] == section_a.id)
+        target_section = next(s for s in sections if s["id"] == section_b.id)
+        move._resequence_sections([move_section, target_section], "invoice_line_ids")
+
+        # Section A's whole block (including the product nested under its
+        # subsection) must now sort after Section B's.
+        self.assertGreater(subsection_a1.sequence, p3.sequence)
+        self.assertGreater(p2_under_subsection.sequence, p3.sequence)
