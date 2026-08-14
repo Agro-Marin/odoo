@@ -82,6 +82,27 @@ class TestResupplyFollowsDemand(TestMrpSubcontractingCommon):
 
         self.assertEqual(self._resupplied(production, self.comp1), 4)
 
+    def test_recording_down_then_back_up_does_not_resupply_twice(self):
+        """The production shrinks and grows again; the components were sent once.
+
+        This is what a delta against the *previous demand* cannot see: the climb back
+        looks exactly like a fresh increase. Measured against what the upstream moves
+        carry, there is nothing missing. Toggling repeatedly used to add the difference
+        every single time -- 3, then 5, then 6.
+        """
+        order = self._order(3)
+        production = self._production()
+        receipt_move = order.picking_ids.move_ids.filtered(lambda m: m.is_subcontract)
+
+        for recorded in (1, 3, 2, 3):
+            receipt_move.move_line_ids.write({"quantity": recorded})
+            self.env.invalidate_all()
+            self.assertEqual(
+                self._resupplied(production, self.comp1),
+                3,
+                f"resupply moved after recording {recorded}",
+            )
+
     def test_recording_a_quantity_does_not_order_more(self):
         """The suppression this reuses exists for exactly this case.
 

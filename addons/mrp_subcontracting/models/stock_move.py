@@ -255,21 +255,19 @@ class StockMove(models.Model):
                         productions.product_uom_id.compare(target_qty, productions.product_qty) > 0
                         and productions.product_uom_id.compare(target_qty, move.product_uom_qty) == 0
                     )
-                    raw_demand_before = {
-                        raw.id: raw.product_uom_qty for raw in productions.move_raw_ids
-                    } if demand_driven else {}
+                    already_covered = productions._get_covered_component_qties() if demand_driven else {}
                     self.sudo().env['change.production.qty'].with_context(skip_activity=True).create([{
                         'mo_id': productions.id,
                         'product_qty': target_qty,
                     }]).change_prod_qty()
                     productions.action_assign()
-                    if raw_demand_before:
-                        # Run explicitly, and only for the components whose previous
-                        # demand was captured: a raw move created in between has no
-                        # "before" and would be procured for its whole quantity.
+                    if already_covered:
+                        # Only the components measured before the rescale: one created
+                        # in between has nothing covering it on record and would be
+                        # procured for its whole quantity.
                         productions.move_raw_ids.filtered(
-                            lambda raw: raw.id in raw_demand_before
-                        )._run_procurement(raw_demand_before)
+                            lambda raw: raw.id in already_covered
+                        )._run_procurement(already_covered)
             else:
                 qty_by_lot = dict(move.move_line_ids._read_group([('move_id', '=', move.id)], ['lot_id'], ['quantity_product_uom:sum']))
                 mos_to_assign = self.env['mrp.production']

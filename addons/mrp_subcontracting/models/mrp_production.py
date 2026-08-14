@@ -112,6 +112,44 @@ class MrpProduction(models.Model):
     def _get_subcontract_move(self):
         return self.move_finished_ids.move_dest_ids.filtered(lambda m: m.is_subcontract)
 
+    def _get_covered_component_qties(self):
+        """How much of each component's demand is already covered, per raw move id.
+
+        In the shape `stock.move._run_procurement` wants for `old_qties`: what it is
+        asked to leave alone, so that it procures the remainder.
+
+        For a component fed by a chain, that is what the upstream moves actually carry --
+        not the demand this production had a moment ago. The difference matters when a
+        subcontractor records less and then records the full quantity again: the demand
+        drops and climbs back, while the components were sent once and still cover it.
+        Read as a delta against the previous demand, the climb looked like a fresh
+        increase and shipped the difference a second time, every time.
+
+        A component with no upstream move is supplied by something that is not a move --
+        a purchase order line, most often -- which these links cannot see and must not be
+        judged from. Those keep the previous demand, which is what `mrp`'s own
+        quantity-change path already uses for them.
+        """
+        covered = {}
+        for production in self:
+            for raw in production.move_raw_ids:
+                if raw.state in ('done', 'cancel'):
+                    continue
+                if not raw.move_orig_ids:
+                    covered[raw.id] = raw.product_uom_qty
+                    continue
+                supplied = sum(
+                    origin.product_qty
+                    for origin in raw.move_orig_ids
+                    if origin.state != 'cancel'
+                )
+                covered[raw.id] = raw.product_id.uom_id._compute_quantity(
+                    supplied,
+                    raw.product_uom_id,
+                    rounding_method='HALF-UP',
+                )
+        return covered
+
     def _get_writeable_fields_portal_user(self):
         return ['move_line_raw_ids', 'lot_producing_ids', 'qty_producing', 'product_qty']
 
