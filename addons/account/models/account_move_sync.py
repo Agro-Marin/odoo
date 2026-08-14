@@ -91,7 +91,7 @@ class AccountMove(models.Model):
                         ),
                         "account_id": biggest_tax_line.account_id.id,
                         "tax_repartition_line_id": biggest_tax_line.tax_repartition_line_id.id,
-                        "tax_tag_ids": [(6, 0, biggest_tax_line.tax_tag_ids.ids)],
+                        "tax_tag_ids": [Command.set(biggest_tax_line.tax_tag_ids.ids)],
                         "tax_ids": [Command.set(biggest_tax_line.tax_ids.ids)],
                     }
                 )
@@ -197,7 +197,7 @@ class AccountMove(models.Model):
             return bool(move.line_ids.tax_ids)
 
         move_had_tax = {move: has_tax(move) for move in container["records"]}
-        yield
+        yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
         balance_name = _("Automatic Balancing Line")
         # Only draft moves: posted ones are immutable and cancelled ones are
         # dead documents that must not grow balancing lines.
@@ -283,7 +283,7 @@ class AccountMove(models.Model):
 
     @contextmanager
     def _sync_rounding_lines(self, container):
-        yield
+        yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
         for invoice in container["records"]:
             if invoice.state == "draft":
                 invoice._recompute_cash_rounding_lines()
@@ -430,7 +430,7 @@ class AccountMove(models.Model):
             }
             for move in container["records"]
         }
-        yield
+        yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
 
         to_delete = []
         to_create = []
@@ -658,7 +658,7 @@ class AccountMove(models.Model):
             for move in container["records"]
         }
 
-        yield
+        yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
 
         to_delete = []
         to_create = []
@@ -835,7 +835,7 @@ class AccountMove(models.Model):
         needed_before = needed()
         dirty_recs_before, dirty_fname = dirty()
         dirty_recs_before[dirty_fname] = False
-        yield
+        yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
         dirty_recs_after, dirty_fname = dirty()
         if not dirty_recs_after:  # TODO improve filter
             return
@@ -912,7 +912,7 @@ class AccountMove(models.Model):
             return move not in before or before[move][fname] != after[move][fname]
 
         before = existing()
-        yield
+        yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
         after = existing()
 
         partner_id_to_update = defaultdict(set)
@@ -1008,6 +1008,6 @@ class AccountMove(models.Model):
                 # only exist after yield).
                 line_container = {"records": container["records"].line_ids}
                 with container["records"].line_ids._sync_invoice(line_container):
-                    yield
+                    yield  # noqa: RUF075 - deliberate: on exception the transaction aborts/rolls back, so skipping this sync's post-yield step changes nothing that would otherwise persist
                     line_container["records"] = container["records"].line_ids
                 update_containers()

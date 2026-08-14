@@ -97,7 +97,7 @@
     </p>
 </div>
 </field>
-            <field name="report_template_ids" eval="[(4, ref('account.action_report_payment_receipt'))]"/>
+            <field name="report_template_ids" eval="[Command.link(ref('account.action_report_payment_receipt'))]"/>
             <field name="auto_delete" eval="True"/>
         </record>
         <!-- Credit note template -->

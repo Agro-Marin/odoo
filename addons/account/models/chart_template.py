@@ -1226,14 +1226,14 @@ class AccountChartTemplate(models.AbstractModel):
                 "prefix": "999",
                 "code_digits": code_digits,
                 "account_type": "income_other",
-                "tag_ids": [(6, 0, self.ref("account.account_tag_investing").ids)],
+                "tag_ids": [Command.set(self.ref("account.account_tag_investing").ids)],
             },
             "default_cash_difference_expense_account_id": {
                 "name": _("Cash Difference Loss"),
                 "prefix": "999",
                 "code_digits": code_digits,
                 "account_type": "expense",
-                "tag_ids": [(6, 0, self.ref("account.account_tag_investing").ids)],
+                "tag_ids": [Command.set(self.ref("account.account_tag_investing").ids)],
             },
             "transfer_account_id": {
                 "name": _("Liquidity Transfer"),
