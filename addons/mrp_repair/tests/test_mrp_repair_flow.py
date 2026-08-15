@@ -27,9 +27,22 @@ class TestMrpRepairFlow(TestMrpCommon):
         rule = mto_route.rule_ids.filtered(lambda r: r.picking_type_id.code == 'repair_operation')
         rule.procure_method = 'make_to_order'
 
-        product = self.product_2
-        product.write({
+        # A product of this test's own, manufacturable and used by nothing else. It used
+        # `product_2`, which appears in the fixture only as a *component*: with no BoM of
+        # its own, `_run_manufacture` skips it by design ("No BOM: skip MO creation, only
+        # replenishment rules should handle this"), so no manufacturing order could ever
+        # be created and the link this test is named for could not exist. The fixture's
+        # manufacturable products are no good either -- they are components of each
+        # other's BoMs, so the quantity that comes back is somebody else's.
+        product = self.env['product.product'].create({
+            'name': 'Repairable, manufactured',
+            'is_storable': True,
             'route_ids': [Command.set([mto_route.id, manufacturing_route.id])],
+        })
+        self.env['mrp.bom'].create({
+            'product_tmpl_id': product.product_tmpl_id.id,
+            'type': 'normal',
+            'bom_line_ids': [Command.create({'product_id': self.product_1.id, 'product_qty': 1})],
         })
 
         repair = self.env['repair.order'].create([
