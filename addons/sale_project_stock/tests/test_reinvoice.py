@@ -1,5 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from odoo.fields import Command
+
 from odoo.addons.stock.tests.common import TestStockCommon
 
 
@@ -9,10 +11,26 @@ class TestReInvoice(TestStockCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.partner = cls.env['res.partner'].create({'name': 'Test Partner'})
+        # The order carries the service it was sold for, which is what a project's
+        # reinvoicing target looks like: costs land on it *beside* what the customer
+        # ordered. It used to be created with no lines at all and confirmed anyway,
+        # which `base_order._can_confirm_has_lines` refuses -- rightly, since nothing in
+        # the product confirms an empty order on purpose, and the two auto-confirm paths
+        # in `sale_project` both look for a service line first. A service keeps the
+        # order out of the delivery this test drives.
+        cls.sold_service = cls.env['product.product'].create({
+            'name': 'Sold service',
+            'type': 'service',
+            'list_price': 200.0,
+        })
         cls.sale_order = cls.env['sale.order'].create({
             'partner_id': cls.partner.id,
             'partner_invoice_id': cls.partner.id,
             'partner_shipping_id': cls.partner.id,
+            'line_ids': [Command.create({
+                'product_id': cls.sold_service.id,
+                'product_qty': 1,
+            })],
         })
         cls.project = cls.env['project.project'].create({
             'name': 'Project',
@@ -61,7 +79,8 @@ class TestReInvoice(TestStockCommon):
         self.picking_out.with_user(self.user_stock_user).action_confirm()
         self.picking_out.with_user(self.user_stock_user).button_validate()
 
-        self.assertEqual(len(self.sale_order.line_ids), 2, 'There should be 2 lines on the SO')
+        # The service the order was sold for, plus the two reinvoiced by the delivery.
+        self.assertEqual(len(self.sale_order.line_ids), 3, 'There should be 3 lines on the SO')
         new_sale_order_line1 = self.sale_order.line_ids.filtered(lambda sol: sol.product_id == self.reinvoicable_product_at_cost)
         self.assertTrue(new_sale_order_line1, 'A new sale line should have been created with the reinvoicable product at cost')
         self.assertEqual(

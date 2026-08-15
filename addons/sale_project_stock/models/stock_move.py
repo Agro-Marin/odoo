@@ -53,7 +53,15 @@ class StockMove(models.Model):
             'tax_ids': [x.id for x in taxes],
             'discount': 0.0,
             'product_id': self.product_id.id,
-            'product_uom_qty': self.product_uom_qty,
+            # Both quantities are measured in the *move's* unit, so the line is given
+            # that unit and its own `product_qty`. `sale.order.line.product_uom_qty` is
+            # computed and stored from `product_qty` -- writing it is accepted and then
+            # overwritten, which reinvoiced every delivery as a quantity of 1 whatever
+            # was shipped. Passing the unit as well keeps a move measured in something
+            # other than the product's reference unit from being reinvoiced as that many
+            # reference units.
+            'product_uom_id': self.product_uom_id.id,
+            'product_qty': self.product_uom_qty,
             'qty_transferred': self.quantity,
         }
 
