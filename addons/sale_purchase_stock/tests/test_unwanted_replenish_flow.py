@@ -108,7 +108,9 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
                     'product_id': cls.product_A.id,
                     'product_qty': 10.0,
                     'price_unit': 10.0,
-                    'date_planned': datetime.today(),
+                    # Appendix A: purchase's `date_planned` is `date_commitment` here.
+                    # `stock.picking.date_planned` below is the one that kept its name.
+                    'date_commitment': datetime.today(),
                 })],
         })
 

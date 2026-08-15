@@ -50,7 +50,16 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             components_qty_to_produce[product.id] += comp[
                 "uom"
             ]._compute_quantity_report(comp["base_bom_line_qty"], product.uom_id)
-            components_qty_available[product.id] = product.qty_free
+            # The row's own figure, not `product.qty_free` again: `free_to_manufacture_qty`
+            # is what `_get_quantities_info` decided is available *for this BoM*, and
+            # `mrp_subcontracting` narrows it to the subcontractor's location. Reading the
+            # product a second time threw that away and answered with company-wide stock,
+            # so a subcontractor holding 20 of 80 components reported 80 producible while
+            # the component row beside it correctly said 20. Converted from the BoM line's
+            # unit exactly as the demand above it is.
+            components_qty_available[product.id] = comp["uom"]._compute_quantity_report(
+                comp["free_to_manufacture_qty"], product.uom_id
+            )
         producibles = [
             float_round(
                 components_qty_available[p_id] / qty,

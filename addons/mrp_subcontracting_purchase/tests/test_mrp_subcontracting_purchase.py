@@ -470,7 +470,11 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         self.assertEqual(pol.product_qty, 9.0)
         self.assertEqual(len(po.picking_ids), 2)
         warehouse = po.picking_ids.move_ids.warehouse_id
-        self.assertRecordValues(po.picking_ids.move_ids, [
+        # Sorted, because `assertRecordValues` compares position by position while
+        # `picking_ids.move_ids` yields whatever order the *pickings* are in -- and the
+        # return picking sorts ahead of the receipt it came from. By id is the order the
+        # rows are written in: the receipt, then the return taken out of it.
+        self.assertRecordValues(po.picking_ids.move_ids.sorted('id'), [
             {'location_dest_id': warehouse.lot_stock_id.id, 'quantity': 10.0, 'state': 'done'},
             {'location_dest_id': self.company.subcontracting_location_id.id, 'quantity': 1.0, 'state': 'done'},
         ])
