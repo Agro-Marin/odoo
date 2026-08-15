@@ -1639,6 +1639,20 @@ class SaleOrderLine(models.Model):
     def _invoiced_on_transferred(self):
         return self.product_id.invoice_policy == "transferred"
 
+    def _is_upsell_opportunity(self):
+        """Whether this line has been delivered beyond what was ordered.
+
+        The single definition behind `sale.order.has_upsell_opportunity` and behind
+        any consumer that needs the lines themselves rather than the flag. Upstream
+        expressed this as an `upselling` value of the line's invoice status; this fork
+        keeps invoicing status and commercial opportunity apart, so it is a predicate
+        and not a state -- a line can be fully invoiced and still be an opportunity.
+        """
+        self.ensure_one()
+        return (
+            self._invoiced_on_transferred() and self.qty_transferred > self.product_qty
+        )
+
     def _prepare_aml_vals(self, **optional_values):
         """Prepare the values to create the new invoice line for a sales order line.
 

@@ -731,10 +731,12 @@ class SaleOrder(models.Model):
         """
         for order in self:
             # Independent of invoice_state: this flags a commercial opportunity to
-            # increase the order, not an invoicing status.
+            # increase the order, not an invoicing status. The per-line test lives on
+            # the line (`_is_upsell_opportunity`) because consumers need to know
+            # *which* lines make the opportunity, not only that one exists --
+            # `sale_subscription` lists them in the upsell activity.
             order.has_upsell_opportunity = any(
-                line.product_id.invoice_policy == "transferred"
-                and line.qty_transferred > line.product_qty
+                line._is_upsell_opportunity()
                 for line in order.line_ids.filtered(lambda l: not l.display_type)
             )
 
