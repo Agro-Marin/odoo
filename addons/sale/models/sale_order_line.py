@@ -1937,7 +1937,7 @@ class SaleOrderLine(models.Model):
 
     def _price_update_blocked(self):
         # Never update invoiced lines (accounting integrity)
-        if self.qty_invoiced > 0:
+        if any(aml.move_id.state != "cancel" for aml in self.invoice_line_ids):
             return True
         # Never update expense lines with cost policy
         if self.product_id.expense_policy == "cost" and self.is_expense:
