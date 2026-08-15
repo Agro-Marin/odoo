@@ -25,15 +25,15 @@ class TestWebsiteSaleStockReorderFromPortal(HttpCase, WebsiteSaleStockCommon):
             'line_ids': [
                 Command.create({
                     'product_id': cls.available_product.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 }),
                 Command.create({
                     'product_id': cls.unavailable_product.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 }),
                 Command.create({
                     'product_id': cls.partially_available_product.id,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                 })
             ]
         })

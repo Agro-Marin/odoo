@@ -74,7 +74,7 @@ class TestWebsiteSaleStockProductWarehouse(
             'line_ids': [(0, 0, {
                 'name': self.product_A.name,
                 'product_id': self.product_A.id,
-                'product_uom_qty': 5,
+                'product_qty': 5,
                 'price_unit': self.product_A.list_price,
             })]
         })

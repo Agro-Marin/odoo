@@ -154,7 +154,13 @@ class SaleOrder(models.Model):
                 free_qty_in_uom = max(int(product.uom_id._compute_quantity(
                     qty_free, ol.product_uom_id, rounding_method="DOWN"
                 )), 0)  # Round down as only integer quantities can be sold.
-                line_qty_in_uom = ol.product_uom_qty
+                # `product_qty` is the quantity in the line's own UoM, which is what
+                # this variable is named for and what `free_qty_in_uom` was just
+                # converted into. `product_uom_qty` is the same quantity converted to
+                # the *product's reference* UoM, so reading it here compared packs
+                # against units and, below, converted an already-converted number a
+                # second time.
+                line_qty_in_uom = ol.product_qty
                 if line_qty_in_uom > free_qty_in_uom:  # Not enough stock.
                     # Set a warning on the order line.
                     insufficient_stock_data[ol] = free_qty_in_uom

@@ -89,7 +89,7 @@ class TestSaleOrder(ClickAndCollectCommon):
     def test_prevent_buying_out_of_stock_products(self):
         cart = self._create_in_store_delivery_order(line_ids=[Command.create({
             'product_id': self.product_2.id,
-            'product_uom_qty': 5.0,
+            'product_qty': 5.0,
         })])
         cart.warehouse_id = self.warehouse
         with self.assertRaises(ValidationError):
@@ -100,7 +100,7 @@ class TestSaleOrder(ClickAndCollectCommon):
             line_ids=[
                 Command.create({
                     'product_id': self.storable_product.id,
-                    'product_uom_qty': 5.0,
+                    'product_qty': 5.0,
                 })
             ]
         )
@@ -114,7 +114,7 @@ class TestSaleOrder(ClickAndCollectCommon):
                 Command.create(
                     {
                         'product_id': self.product_2.id,
-                        'product_uom_qty': 5.0,
+                        'product_qty': 5.0,
                     }
                 )
             ]
@@ -127,7 +127,7 @@ class TestSaleOrder(ClickAndCollectCommon):
             line_ids=[
                 Command.create({
                     'product_id': self.storable_product.id,
-                    'product_uom_qty': 15.0,
+                    'product_qty': 15.0,
                 })
             ]
         )
@@ -144,14 +144,14 @@ class TestSaleOrder(ClickAndCollectCommon):
                 Command.create(
                     {
                         'product_id': self.storable_product.id,
-                        'product_uom_qty': 1.0,
+                        'product_qty': 1.0,
                         'product_uom_id': pack_of_6_id,
                     }
                 ),
                 Command.create(
                     {
                         'product_id': self.storable_product.id,
-                        'product_uom_qty': 5.0,
+                        'product_qty': 5.0,
                         'product_uom_id': self.storable_product.uom_id.id,
                     }
                 ),
@@ -173,12 +173,12 @@ class TestSaleOrder(ClickAndCollectCommon):
         cart = self._create_in_store_delivery_order(line_ids=[
             Command.create({
                 'product_id': self.storable_product.id,
-                'product_uom_qty': 4.0,
+                'product_qty': 4.0,
                 'product_uom_id': self.storable_product.uom_id.id,
             }),
             Command.create({
                 'product_id': self.storable_product.id,
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
                 'product_uom_id': pack_of_6_id,
             }),
         ])
@@ -191,7 +191,7 @@ class TestSaleOrder(ClickAndCollectCommon):
             line_ids=[
                 Command.create({
                     'product_id': self.product_2.id,
-                    'product_uom_qty': 5.0,
+                    'product_qty': 5.0,
                 }),
             ]
         )
@@ -204,7 +204,7 @@ class TestSaleOrder(ClickAndCollectCommon):
             line_ids=[
                 Command.create({
                     'product_id': self.storable_product.id,
-                    'product_uom_qty': 5.0,
+                    'product_qty': 5.0,
                 })
             ]
         )

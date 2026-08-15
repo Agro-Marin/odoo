@@ -58,7 +58,7 @@ class TestWebsiteSaleStockDeliveryController(PaymentCommon, WebsiteSaleCommon, D
             'partner_id': self.partner.id,
             'line_ids': [Command.create({
                 'product_id': storable_product.id,
-                'product_uom_qty': 12.0,
+                'product_qty': 12.0,
             })],
             'carrier_id': self.free_delivery.id,
         })

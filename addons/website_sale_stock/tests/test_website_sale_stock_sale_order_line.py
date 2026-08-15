@@ -33,19 +33,19 @@ class TestWebsiteSaleStockSaleOrderLine(HttpCase, WebsiteSaleStockCommon):
             type='combo', combo_ids=[Command.link(combo_a.id), Command.link(combo_b.id)]
         )
         combo_product_line = self.env['sale.order.line'].create({
-            'order_id': self.cart.id, 'product_id': combo_product.id, 'product_uom_qty': 3
+            'order_id': self.cart.id, 'product_id': combo_product.id, 'product_qty': 3
         })
         combo_item_line_a, _combo_item_line_b = self.env['sale.order.line'].create([
             {
                 'order_id': self.cart.id,
                 'product_id': product_a.id,
-                'product_uom_qty': 3,
+                'product_qty': 3,
                 'linked_line_id': combo_product_line.id,
                 'combo_item_id': combo_a.combo_item_ids[0].id,
             }, {
                 'order_id': self.cart.id,
                 'product_id': product_b.id,
-                'product_uom_qty': 3,
+                'product_qty': 3,
                 'linked_line_id': combo_product_line.id,
                 'combo_item_id': combo_b.combo_item_ids[0].id,
             },
@@ -64,12 +64,12 @@ class TestWebsiteSaleStockSaleOrderLine(HttpCase, WebsiteSaleStockCommon):
         })
         combo_product = self._create_product(type='combo', combo_ids=[Command.link(combo.id)])
         combo_product_line = self.env['sale.order.line'].create({
-            'order_id': self.cart.id, 'product_id': combo_product.id, 'product_uom_qty': 3,
+            'order_id': self.cart.id, 'product_id': combo_product.id, 'product_qty': 3,
         })
         combo_item_line = self.env['sale.order.line'].create({
             'order_id': self.cart.id,
             'product_id': product.id,
-            'product_uom_qty': 3,
+            'product_qty': 3,
             'linked_line_id': combo_product_line.id,
         })
 

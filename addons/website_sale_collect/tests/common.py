@@ -33,7 +33,7 @@ class ClickAndCollectCommon(PaymentCustomCommon, WebsiteSaleStockCommon):
             'website_id': self.website.id,
             'line_ids': [Command.create({
                 'product_id': self.storable_product.id,
-                'product_uom_qty': 5.0,
+                'product_qty': 5.0,
             })],
             'carrier_id': self.in_store_dm.id,
         }

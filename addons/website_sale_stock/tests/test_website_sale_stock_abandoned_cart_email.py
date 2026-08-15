@@ -34,7 +34,7 @@ class TestWebsiteSaleStockAbandonedCartEmail(
         order_line = [[0, 0, {
             'name': 'The Product',
             'product_id': storable_product_product.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }]]
         customer = self.env['res.partner'].create({
             'name': 'a',
