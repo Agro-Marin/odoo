@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import logging
 from collections import defaultdict
 from datetime import datetime
 
@@ -9,6 +10,8 @@ from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
 from odoo.tools import OrderedSet
+
+_logger = logging.getLogger(__name__)
 
 
 class StockRule(models.Model):
@@ -138,7 +141,32 @@ class StockRule(models.Model):
             is_batch_size = bom and bom.enable_batch_size
             if not mo or is_batch_size:
                 if not bom:
-                    # No BOM: skip MO creation, only replenishment rules should handle this
+                    # Nothing here can make this product, so the procurement is
+                    # dropped. An orderpoint would simply propose it again, which is
+                    # what "only replenishment rules should handle this" meant; a
+                    # *chained* demand gets no second chance, and the move waiting on
+                    # it waits forever with nothing on its way and nothing said. That
+                    # is the case worth a warning, and measured over `mrp` and
+                    # `sale_mrp` it is the only one that occurs: five skips, every one
+                    # of them with a `move_dest_ids` and none from an orderpoint.
+                    #
+                    # Raising instead was tried and reverted -- it fires on
+                    # `mrp.production.action_confirm`, so a component with no bill of
+                    # materials stopped the order being confirmed at all rather than
+                    # leaving it short. See
+                    # `research/2026-08-15-mrp-silent-manufacture-skip.md`.
+                    waiting_moves = procurement.values.get("move_dest_ids")
+                    log = _logger.warning if waiting_moves else _logger.debug
+                    log(
+                        "No bill of materials to manufacture %r in %r: rule %r produced"
+                        " nothing, leaving %s.",
+                        procurement.product_id.display_name,
+                        procurement.location_id.display_name,
+                        rule.display_name,
+                        f"stock.move {waiting_moves.ids} waiting on it"
+                        if waiting_moves
+                        else "no demand unsatisfied",
+                    )
                     continue
                 procurement_qty = procurement.product_qty
                 batch_size = (
