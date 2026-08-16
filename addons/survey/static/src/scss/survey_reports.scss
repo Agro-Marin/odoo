@@ -85,7 +85,7 @@
                 color: #6b6d70;
 
                 .user-name {
-                    font-family: certification-cursive, cursive;
+                    font-family: o-add-unicode-support-font((certification-cursive, cursive));
                     font-size: 50pt;
                     line-height: 2;
                     color: #282f33;
@@ -170,7 +170,7 @@
             background-image: url("/survey/static/src/img/certification_bg_classic.svg");
             background-repeat: no-repeat;
             background-size: cover;
-            font-family: "certification-serif", serif;
+            font-family: o-add-unicode-support-font(("certification-serif", serif));
             width: 295mm;
             height: 208mm;
             margin: 1mm;
@@ -263,7 +263,7 @@
         }
 
         .certification {
-            font-family: "certification-modern", sans-serif;
+            font-family: o-add-unicode-support-font(("certification-modern", sans-serif));
             width: 272mm;
             height: 185mm;
             margin: 12.5mm;

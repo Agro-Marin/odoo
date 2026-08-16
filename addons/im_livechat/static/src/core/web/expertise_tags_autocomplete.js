@@ -3,10 +3,10 @@ import { Component } from "@odoo/owl";
 import { useTagNavigation } from "@web/components/record_selectors";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { rpc } from "@web/core/network";
+import { x2ManyCommands } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
-import { x2ManyCommands } from "@web/model/relational_model";
 
 /**
  * @typedef {Object} Props

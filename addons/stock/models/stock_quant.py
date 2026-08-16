@@ -416,6 +416,20 @@ class StockQuant(models.Model):
         store=False,
         search="_search_on_hand",
     )
+    date_last_movement = fields.Datetime(
+        string="Last Movement",
+        compute="_compute_date_last_movement",
+        help="Date of the most recent done move line that took goods out of, or "
+        "brought goods into, this quant. Inventory adjustments do not count: a "
+        "cycle count is not a movement (see Last Count Date for those).",
+    )
+    days_since_last_movement = fields.Integer(
+        string="Days Static",
+        compute="_compute_date_last_movement",
+        search="_search_days_since_last_movement",
+        help="Days the goods in this quant have sat untouched. Counted from the "
+        "incoming date when no movement has ever matched the quant.",
+    )
 
     inventory_quantity = fields.Float(
         string="Counted",
@@ -708,65 +722,35 @@ class StockQuant(models.Model):
         re-pointed at another product or location.
         """
         self.last_count_date = False
-        groups = self.env["stock.move.line"]._read_group(
-            [
-                ("state", "=", "done"),
-                ("is_inventory", "=", True),
-                ("product_id", "in", self.product_id.ids),
-                "|",
-                ("lot_id", "in", self.lot_id.ids),
-                ("lot_id", "=", False),
-                "|",
-                ("owner_id", "in", self.owner_id.ids),
-                ("owner_id", "=", False),
-                "|",
-                ("location_id", "in", self.location_id.ids),
-                ("location_dest_id", "in", self.location_id.ids),
-                "|",
-                ("package_id", "=", False),
-                "|",
-                ("package_id", "in", self.package_id.ids),
-                ("result_package_id", "in", self.package_id.ids),
-            ],
-            [
-                "product_id",
-                "lot_id",
-                "package_id",
-                "owner_id",
-                "result_package_id",
-                "location_id",
-                "location_dest_id",
-            ],
-            ["date:max"],
-        )
-
-        date_by_quant = {}
-        for (
-            product,
-            lot,
-            package,
-            owner,
-            result_package,
-            location,
-            location_dest,
-            move_line_date,
-        ) in groups:
-            for loc in (location, location_dest):
-                for pkg in (package, result_package):
-                    key = (loc.id, pkg.id, product.id, lot.id, owner.id)
-                    current = date_by_quant.get(key)
-                    if not current or move_line_date > current:
-                        date_by_quant[key] = move_line_date
+        date_by_quant = self._read_move_line_dates(is_inventory=True)
         for quant in self:
-            quant.last_count_date = date_by_quant.get(
-                (
-                    quant.location_id.id,
-                    quant.package_id.id,
-                    quant.product_id.id,
-                    quant.lot_id.id,
-                    quant.owner_id.id,
-                )
-            )
+            quant.last_count_date = date_by_quant.get(quant._move_line_match_key())
+
+    @api.depends(
+        "product_id", "location_id", "lot_id", "package_id", "owner_id", "in_date"
+    )
+    def _compute_date_last_movement(self):
+        """Age each quant from the last move line that was not a count.
+
+        The counterpart to ``_compute_last_count_date`` over the other half of the
+        move lines: counting stock is not moving it, so a warehouse running
+        diligent cycle counts must not read as a warehouse with no dormant stock.
+
+        The dependencies cover the quant's own identity only -- a move line
+        landing after the field was read does not invalidate it within the same
+        transaction, exactly as for ``last_count_date``.
+        """
+        now = fields.Datetime.now()
+        date_by_quant = self._read_move_line_dates(is_inventory=False)
+        for quant in self:
+            date_last_movement = date_by_quant.get(quant._move_line_match_key())
+            quant.date_last_movement = date_last_movement
+            # A quant cannot have sat still longer than it has existed, so
+            # `in_date` is the floor when no move line matches -- a quant born of
+            # an inventory adjustment, or one whose history predates a data
+            # import. That floor is why this needs no "never moved" sentinel.
+            dates = [d for d in (date_last_movement, quant.in_date) if d]
+            quant.days_since_last_movement = (now - max(dates)).days if dates else 0
 
     @api.depends("inventory_quantity", "inventory_quantity_set")
     def _compute_inventory_diff_quantity(self):
@@ -859,6 +843,70 @@ class StockQuant(models.Model):
             )
         )
         return super()._search(domain, *args, **kwargs)
+
+    def _search_days_since_last_movement(self, operator, value):
+        if operator not in ("<", "<=", ">", ">="):
+            return NotImplemented
+        # SQL translation of `_compute_date_last_movement` (kept as the single
+        # Python source of truth for the value): the compute is a correlated
+        # lookup per quant, and materialising every quant in the database to
+        # filter it in Python is not a search. Only "age >= n" is expressed --
+        # on whole days the other three operators are that one shifted by a day,
+        # negated, or both.
+        days = int(value) + 1 if operator in ("<=", ">") else int(value)
+        threshold = fields.Datetime.subtract(fields.Datetime.now(), days=days)
+        self.env["stock.quant"].flush_model(
+            [
+                "in_date",
+                "product_id",
+                "location_id",
+                "lot_id",
+                "package_id",
+                "owner_id",
+            ]
+        )
+        self.env["stock.move.line"].flush_model(
+            [
+                "state",
+                "date",
+                "move_id",
+                "product_id",
+                "location_id",
+                "location_dest_id",
+                "lot_id",
+                "package_id",
+                "result_package_id",
+                "owner_id",
+            ]
+        )
+        # `stock.move.line.is_inventory` is related and unstored, so the flag
+        # only exists on the move -- hence the join the ORM domain hides.
+        self.env["stock.move"].flush_model(["is_inventory"])
+        rows = self.env.execute_query(
+            SQL(
+                """SELECT q.id
+                     FROM stock_quant q
+                    WHERE q.in_date <= %(threshold)s
+                      AND NOT EXISTS (
+                          SELECT 1
+                            FROM stock_move_line ml
+                            JOIN stock_move m ON m.id = ml.move_id
+                           WHERE ml.state = 'done'
+                             AND m.is_inventory IS NOT TRUE
+                             AND ml.date > %(threshold)s
+                             AND ml.product_id = q.product_id
+                             AND ml.lot_id IS NOT DISTINCT FROM q.lot_id
+                             AND ml.owner_id IS NOT DISTINCT FROM q.owner_id
+                             AND (ml.location_id = q.location_id
+                                  OR ml.location_dest_id = q.location_id)
+                             AND (ml.package_id IS NOT DISTINCT FROM q.package_id
+                                  OR ml.result_package_id
+                                     IS NOT DISTINCT FROM q.package_id))""",
+                threshold=threshold,
+            )
+        )
+        quant_ids = [row[0] for row in rows]
+        return [("id", "not in" if operator in ("<", "<=") else "in", quant_ids)]
 
     def _search_is_outdated(self, operator, value):
         if operator != "in":
@@ -1177,6 +1225,88 @@ class StockQuant(models.Model):
             self._apply_inventory()
         else:
             self.user_id = self.env.user.id
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
+
+    def _move_line_match_key(self):
+        """The identity a move line is matched on by ``_read_move_line_dates``."""
+        self.ensure_one()
+        return (
+            self.location_id.id,
+            self.package_id.id,
+            self.product_id.id,
+            self.lot_id.id,
+            self.owner_id.id,
+        )
+
+    def _read_move_line_dates(self, is_inventory):
+        """Map each quant's identity to the date of the last done move line on it.
+
+        :param bool is_inventory: ``True`` selects inventory adjustments (the
+            counting history behind ``last_count_date``), ``False`` real
+            movements (``date_last_movement``). The two sets are disjoint and a
+            caller wants one or the other, never their union.
+        :return: ``{_move_line_match_key(): datetime}``, with no entry for a
+            quant no move line matches.
+        """
+        if not self:
+            return {}
+        groups = self.env["stock.move.line"]._read_group(
+            [
+                ("state", "=", "done"),
+                ("is_inventory", "=", is_inventory),
+                ("product_id", "in", self.product_id.ids),
+                "|",
+                ("lot_id", "in", self.lot_id.ids),
+                ("lot_id", "=", False),
+                "|",
+                ("owner_id", "in", self.owner_id.ids),
+                ("owner_id", "=", False),
+                "|",
+                ("location_id", "in", self.location_id.ids),
+                ("location_dest_id", "in", self.location_id.ids),
+                "|",
+                ("package_id", "=", False),
+                "|",
+                ("package_id", "in", self.package_id.ids),
+                ("result_package_id", "in", self.package_id.ids),
+            ],
+            [
+                "product_id",
+                "lot_id",
+                "package_id",
+                "owner_id",
+                "result_package_id",
+                "location_id",
+                "location_dest_id",
+            ],
+            ["date:max"],
+        )
+
+        # A move line can be the last one for a quant on either end of the move
+        # (source/dest location) reached through either package slot (package/result
+        # package): the 2x2 cross product below is those four (location, package)
+        # tuples. Keep the newest date per tuple.
+        date_by_quant = {}
+        for (
+            product,
+            lot,
+            package,
+            owner,
+            result_package,
+            location,
+            location_dest,
+            move_line_date,
+        ) in groups:
+            for loc in (location, location_dest):
+                for pkg in (package, result_package):
+                    key = (loc.id, pkg.id, product.id, lot.id, owner.id)
+                    current = date_by_quant.get(key)
+                    if not current or move_line_date > current:
+                        date_by_quant[key] = move_line_date
+        return date_by_quant
 
     def _update_next_inventory_date(self):
         """Set ``inventory_date`` on every quant in ``self`` to its location's next

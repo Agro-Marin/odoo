@@ -157,7 +157,4 @@ You could use this simplified accounting in case you work with an (external) acc
     "website": "https://www.odoo.com/app/invoicing",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "kpi_providers": [
-        "models.kpi_provider:get_kpi_summary",
-    ],
 }

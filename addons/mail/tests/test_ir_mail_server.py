@@ -2,7 +2,6 @@ import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from itertools import batched
-from unittest.mock import patch
 
 from odoo.exceptions import UserError
 from odoo.tests import tagged, users
@@ -169,12 +168,9 @@ class TestIrMailServer(MailCommon):
                 self.assertEqual(message["From"], expected_from)
 
     @mute_logger("odoo.models.unlink")
-    @patch.dict(
-        config.options,
-        {
-            "from_filter": "dummy@example.com, test.mycompany.com, dummy2@example.com",
-            "smtp_server": "example.com",
-        },
+    @config.patch(
+        from_filter="dummy@example.com, test.mycompany.com, dummy2@example.com",
+        smtp_server="example.com",
     )
     def test_mail_server_config_bin(self):
         IrMailServer = self.env["ir.mail_server"]
@@ -493,13 +489,7 @@ class TestPersonalServer(MailCommon):
             )
 
     @mute_logger("odoo.models.unlink", "odoo.addons.base.models.ir_mail_server")
-    @patch.dict(
-        config.options,
-        {
-            "from_filter": "cli@example.com",
-            "smtp_server": "example.com",
-        },
-    )
+    @config.patch(from_filter="cli@example.com", smtp_server="example.com")
     def test_personal_mail_server(self):
         IrMailServer = self.env["ir.mail_server"]
         self.env["ir.mail_server"].search([]).from_filter = "random.domain"

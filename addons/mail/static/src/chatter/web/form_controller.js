@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { EventBus, useSubEnv } from "@odoo/owl";
+import { x2ManyCommands } from "@web/core/network";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { x2ManyCommands } from "@web/model/relational_model";
 import { FormController } from "@web/views/form";
 FormController.props = {
     ...FormController.props,

@@ -401,7 +401,11 @@ class PosController(PortalAccount):
         if partner:
             if additional_partner_fields:
                 form_values["extra_field_values"] = {
-                    "partner_" + field.name: partner[field.name]
+                    "partner_" + field.name: (
+                        partner[field.name].id
+                        if field.ttype == "many2one"
+                        else partner[field.name]
+                    )
                     for field in additional_partner_fields
                     if field.name not in form_values["extra_field_values"]
                 }

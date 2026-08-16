@@ -97,6 +97,12 @@
             'spreadsheet.o_spreadsheet',
             'spreadsheet.public_spreadsheet',
         ],
+        'external_libs': {
+            'chartjs-chart-geo': (
+                '/spreadsheet/static/lib/chartjs-chart-geo/chartjs-chart-geo.js'
+            ),
+            'chartjs-chart-treemap': '/spreadsheet/static/lib/chart_js_treemap.js',
+        },
         'dynamic_children': {
             'web.assets_web': [
                 'spreadsheet.o_spreadsheet',

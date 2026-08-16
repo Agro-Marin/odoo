@@ -7,6 +7,7 @@ import logging
 from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 _logger = logging.getLogger(__name__)
 
@@ -427,6 +428,7 @@ class TestWorkflowDAGExecution(TransactionCase):
         self.assertEqual(self.test_partner.email, "dag@example.com")
         self.assertEqual(self.test_partner.phone, "999-888-7777")
 
+    @mute_logger("odoo.addons.base_automation.models.automation_runtime_line")
     def test_error_in_action_marks_line_error(self):
         """A failing server action is recorded on the line, not raised away.
 

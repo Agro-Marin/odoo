@@ -4,21 +4,21 @@ import {
     sectionAndNoteFieldOne2Many,
     SectionAndNoteListRenderer,
     getSectionRecords,
-} from '@account/components/section_and_note_fields_backend/section_and_note_fields_backend';
-import { makeContext } from '@web/core/context';
-import { x2ManyCommands } from "@web/model/relational_model";
-import { registry } from '@web/core/registry';
+} from "@account/components/section_and_note_fields_backend/section_and_note_fields_backend";
+import { makeContext } from "@web/core/context";
+import { x2ManyCommands } from "@web/core/network";
+import { registry } from "@web/core/registry";
 
 export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRenderer {
-    static recordRowTemplate = 'sale_management.ListRenderer.RecordRow';
+    static recordRowTemplate = "sale_management.ListRenderer.RecordRow";
 
     setup() {
         super.setup();
-        this.copyFields.push('is_optional');
+        this.copyFields.push("is_optional");
     }
 
     disableOptionalButton(record) {
-        return this.shouldCollapse(record, 'is_optional');
+        return this.shouldCollapse(record, "is_optional");
     }
 
     /**
@@ -53,8 +53,8 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
 
         return this.shouldCollapse(
             this.props.list.records[this.props.list.records.length - 1],
-            'is_optional',
-            true
+            "is_optional",
+            true,
         );
     }
 
@@ -62,7 +62,7 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
      * Override to set the default `product_uom_qty` to 0 for new lines created under an optional
      * section.
      */
-    add(params){
+    add(params) {
         params.context = this.getCreateContext(params);
         super.add(params);
     }
@@ -70,7 +70,10 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
     getCreateContext(params) {
         const evaluatedContext = makeContext([params.context]);
         // A falsy context indicates a product line (no `display_type` specified)
-        if(!evaluatedContext[`default_display_type`] && this.isCurrentSectionOptional) {
+        if (
+            !evaluatedContext[`default_display_type`] &&
+            this.isCurrentSectionOptional
+        ) {
             return { ...evaluatedContext, default_product_uom_qty: 0 };
         }
         return params.context;
@@ -81,10 +84,10 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
      * sections from dropdown.
      */
     getInsertLineContext(record, addSubSection) {
-        if (this.shouldCollapse(record, 'is_optional', true) && !addSubSection) {
+        if (this.shouldCollapse(record, "is_optional", true) && !addSubSection) {
             return {
                 ...super.getInsertLineContext(record, addSubSection),
-                default_product_uom_qty: 0
+                default_product_uom_qty: 0,
             };
         }
         return super.getInsertLineContext(record, addSubSection);
@@ -92,8 +95,8 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
 
     getRowClass(record) {
         let rowClasses = super.getRowClass(record);
-        if (this.shouldCollapse(record, 'is_optional', true)) {
-            rowClasses += ' text-primary';
+        if (this.shouldCollapse(record, "is_optional", true)) {
+            rowClasses += " text-primary";
         }
         return rowClasses;
     }
@@ -101,9 +104,11 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
     async toggleIsOptional(record) {
         const setOptional = !record.data.is_optional;
 
-        const commands = [(x2ManyCommands.update(record.resId || record._virtualId, {
-            is_optional: setOptional,
-        }))];
+        const commands = [
+            x2ManyCommands.update(record.resId || record._virtualId, {
+                is_optional: setOptional,
+            }),
+        ];
 
         for (const sectionRecord of getSectionRecords(this.props.list, record)) {
             let changes = {};
@@ -118,8 +123,8 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
                 commands.push(
                     x2ManyCommands.update(
                         sectionRecord.resId || sectionRecord._virtualId,
-                        changes
-                    )
+                        changes,
+                    ),
                 );
             }
         }
@@ -139,8 +144,11 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
      *
      */
     async sortDrop(dataRowId, dataGroupId, { element, previous }) {
-        const record = this.props.list.records.find(r => r.id === dataRowId);
-        const recordMap = this._getRecordsToRecompute(record, previous ? previous.dataset.id : null);
+        const record = this.props.list.records.find((r) => r.id === dataRowId);
+        const recordMap = this._getRecordsToRecompute(
+            record,
+            previous ? previous.dataset.id : null,
+        );
 
         await super.sortDrop(dataRowId, dataGroupId, { element, previous });
 
@@ -161,11 +169,14 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
     _getRecordsToRecompute(record, targetId) {
         const optionalStateMap = new Map();
 
-        if (this.isSection(record)) { // If a section or subsection is moved
+        if (this.isSection(record)) {
+            // If a section or subsection is moved
             let currentIndex = this.props.list.records.findIndex(
                 (r) => r.id === record.id,
             );
-            let targetIndex = this.props.list.records.findIndex(r => r.id === targetId);
+            let targetIndex = this.props.list.records.findIndex(
+                (r) => r.id === targetId,
+            );
             if (currentIndex > targetIndex) {
                 //When moving up, recompute:
                 // 1. All records under the moved section.
@@ -174,13 +185,22 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
                     if (!this.props.list.records[i].data.display_type) {
                         optionalStateMap.set(
                             this.props.list.records[i].id,
-                            this.shouldCollapse(this.props.list.records[i], 'is_optional')
+                            this.shouldCollapse(
+                                this.props.list.records[i],
+                                "is_optional",
+                            ),
                         );
                     }
                 }
-                for (const sectionRecord of getSectionRecords(this.props.list, record)) {
+                for (const sectionRecord of getSectionRecords(
+                    this.props.list,
+                    record,
+                )) {
                     if (!sectionRecord.data.display_type) {
-                        optionalStateMap.set(sectionRecord.id, this.shouldCollapse(sectionRecord, 'is_optional'));
+                        optionalStateMap.set(
+                            sectionRecord.id,
+                            this.shouldCollapse(sectionRecord, "is_optional"),
+                        );
                     }
                 }
             } else {
@@ -189,14 +209,17 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
                 // 2. All records between the old and new positions (skipping overlaps).
                 for (let i = currentIndex; i <= targetIndex; i++) {
                     if (this.isSection(this.props.list.records[i])) {
-                        for (const sectionRecord of getSectionRecords(this.props.list, this.props.list.records[i])) {
+                        for (const sectionRecord of getSectionRecords(
+                            this.props.list,
+                            this.props.list.records[i],
+                        )) {
                             if (
-                                !optionalStateMap.has(sectionRecord.id)
-                                && !sectionRecord.data.display_type
+                                !optionalStateMap.has(sectionRecord.id) &&
+                                !sectionRecord.data.display_type
                             ) {
                                 optionalStateMap.set(
                                     sectionRecord.id,
-                                    this.shouldCollapse(sectionRecord, 'is_optional')
+                                    this.shouldCollapse(sectionRecord, "is_optional"),
                                 );
                             }
                         }
@@ -204,18 +227,22 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
 
                     // we must skip overlapping records
                     if (
-                        !optionalStateMap.has(this.props.list.records[i].id)
-                        && !this.props.list.records[i].data.display_type
+                        !optionalStateMap.has(this.props.list.records[i].id) &&
+                        !this.props.list.records[i].data.display_type
                     ) {
                         optionalStateMap.set(
                             this.props.list.records[i].id,
-                            this.shouldCollapse(this.props.list.records[i], 'is_optional')
+                            this.shouldCollapse(
+                                this.props.list.records[i],
+                                "is_optional",
+                            ),
                         );
                     }
                 }
             }
-        } else if (!record.data.display_type) { // If a regular record is moved compute its own optional state
-            optionalStateMap.set(record.id, this.shouldCollapse(record, 'is_optional'));
+        } else if (!record.data.display_type) {
+            // If a regular record is moved compute its own optional state
+            optionalStateMap.set(record.id, this.shouldCollapse(record, "is_optional"));
         }
 
         return optionalStateMap;
@@ -225,23 +252,26 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         const commands = [];
 
         for (const [recordId, wasOptional] of recordMap.entries()) {
-            const record = this.props.list.records.find(r => r.id === recordId);
-            const isOptional = this.shouldCollapse(record, 'is_optional');
+            const record = this.props.list.records.find((r) => r.id === recordId);
+            const isOptional = this.shouldCollapse(record, "is_optional");
 
             if (wasOptional && !isOptional && !record.data.product_uom_qty) {
-                commands.push(x2ManyCommands.update(
-                    record.resId || record._virtualId, { product_uom_qty: 1 }
-                ));
+                commands.push(
+                    x2ManyCommands.update(record.resId || record._virtualId, {
+                        product_uom_qty: 1,
+                    }),
+                );
             } else if (!wasOptional && isOptional) {
-                commands.push(x2ManyCommands.update(
-                    record.resId || record._virtualId, { product_uom_qty: 0 }
-                ));
+                commands.push(
+                    x2ManyCommands.update(record.resId || record._virtualId, {
+                        product_uom_qty: 0,
+                    }),
+                );
             }
         }
 
         await this.props.list.applyCommands(commands, { sort: true });
     }
-
 }
 export class SaleOrderTemplateLineOne2Many extends SectionAndNoteFieldOne2Many {
     static components = {
@@ -255,4 +285,4 @@ export const saleOrderTemplateLineOne2Many = {
     component: SaleOrderTemplateLineOne2Many,
 };
 
-registry.category('fields').add('so_template_line_o2m', saleOrderTemplateLineOne2Many);
+registry.category("fields").add("so_template_line_o2m", saleOrderTemplateLineOne2Many);

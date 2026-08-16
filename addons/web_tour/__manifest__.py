@@ -67,11 +67,18 @@ Odoo Web tours.
             ('include', 'web_tour._common'),
             'web_tour/static/src/js/tour_automatic/**/*',
         ],
+        # The recorder UI only. `views/` (the tour list view) and `widgets/`
+        # (the tour_start form widget) are backend screens that
+        # `web.assets_backend` already ships above; carrying them here put a
+        # second copy of each in a lazily-loaded bundle, and they are what
+        # dragged `@web/views/list` and `@web/fields/basic/char/char_field`
+        # into the recorder's import map -- backend modules a frontend page
+        # never registers, so their bridges resolved to `undefined` and
+        # `TourRecorder extends Component` died before it drew anything.
+        # `tour_service.js` ships on the frontend too and loads this there.
         'web_tour.recorder': [
             ('include', 'web_tour._common'),
             'web_tour/static/src/js/tour_recorder/**/*',
-            'web_tour/static/src/views/**/*',
-            'web_tour/static/src/widgets/**/*',
         ],
     },
     'auto_install': True,

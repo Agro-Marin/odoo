@@ -5,11 +5,12 @@ import {
 } from "@account/components/product_label_section_and_note_field/product_label_section_and_note_field";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network";
+import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { uuid } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-import { sort as sortListRecords, x2ManyCommands } from "@web/model/relational_model";
+import { sort as sortListRecords } from "@web/model/relational_model";
 
 // `StaticList._sort()` was extracted into this free function; call it directly (as the
 // framework's own internal callers do) to re-sort line_ids after a combo mutation.

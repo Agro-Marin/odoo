@@ -69,7 +69,16 @@ capabilities so portal pages can be rendered without the ``website`` module.
         "portal.assets_chatter_helpers": [
             "web/static/src/views/view_dialogs/form_view_dialog.js",
             "web/static/src/views/view_dialogs/export_data_dialog.js",
-            "web/static/src/webclient/debug/*",
+            # Not the whole directory. `action_dialog.js` below needs `DebugMenu`
+            # and nothing else here does, but the glob also took `debug_items.js`,
+            # which imports `@web/views/view_dialogs/select_create_dialog` -- a
+            # backend module no frontend page registers. This bundle is a lazy
+            # child of `web.assets_frontend`, so that import resolved to a bridge
+            # shim reading `odoo.loader.modules.get(...)` === `undefined`.
+            "web/static/src/webclient/debug/debug_menu.js",
+            "web/static/src/webclient/debug/debug_menu_basic.js",
+            "web/static/src/webclient/debug/debug_menu.xml",
+            "web/static/src/webclient/debug/debug_menu.scss",
             "web/static/src/ui/commands/command_hook.js",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",

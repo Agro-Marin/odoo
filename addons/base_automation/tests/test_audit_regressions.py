@@ -589,9 +589,9 @@ class TestWebhookOverHttp(HttpCase):
         ):
             rule = self._rule(
                 f"hdr-{configured}",
-                webhook_auth_type="hmac_sha256",
-                webhook_credential_id=self.credential.id,
-                webhook_signature_header=configured,
+                auth_type="hmac_sha256",
+                credential_id=self.credential.id,
+                signature_header=configured,
             )
             response = self._post(rule, {"X-Hub-Signature-256": self.signature})
             self.assertEqual(
@@ -603,8 +603,8 @@ class TestWebhookOverHttp(HttpCase):
     def test_bad_signature_is_still_rejected(self):
         rule = self._rule(
             "bad-sig",
-            webhook_auth_type="hmac_sha256",
-            webhook_credential_id=self.credential.id,
+            auth_type="hmac_sha256",
+            credential_id=self.credential.id,
         )
         response = self._post(rule, {"X-Hub-Signature-256": "sha256=deadbeef"})
         self.assertEqual(response.status_code, 401)
@@ -612,11 +612,11 @@ class TestWebhookOverHttp(HttpCase):
     def test_unauthenticated_calls_cannot_exhaust_the_rate_limit(self):
         rule = self._rule(
             "rate",
-            webhook_auth_type="hmac_sha256",
-            webhook_credential_id=self.credential.id,
-            webhook_rate_limit=True,
+            auth_type="hmac_sha256",
+            credential_id=self.credential.id,
+            rate_limit_enabled=True,
             rate_limit_requests=3,
-            webhook_rate_limit_window=60,
+            rate_limit_window_seconds=60,
         )
         for _ in range(6):
             self.assertEqual(

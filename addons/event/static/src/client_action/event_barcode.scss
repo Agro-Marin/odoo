@@ -10,7 +10,7 @@
     }
 }
 .o_event_barcode_main {
-    font-family: "Lato", sans-serif;
+    font-family: o-add-unicode-support-font(("Lato", sans-serif));
     width: 100%;
     text-align: center;
     padding: 2em;

@@ -39,6 +39,13 @@
                     <filter name="negative" string="Negative Stock"
                         domain="[('quantity', '&lt;', 0.0)]" />
                     <separator />
+                    <filter name="dormant_30" string="No Movement 30+ Days"
+                        domain="[('days_since_last_movement', '&gt;=', 30)]" />
+                    <filter name="dormant_90" string="No Movement 90+ Days"
+                        domain="[('days_since_last_movement', '&gt;=', 90)]" />
+                    <filter name="dormant_180" string="No Movement 180+ Days"
+                        domain="[('days_since_last_movement', '&gt;=', 180)]" />
+                    <separator />
                     <filter name="filter_in_date" date="in_date" />
                 </group>
                 <group>
@@ -112,6 +119,8 @@
                 <field name="inventory_quantity_auto_apply" readonly="0" sum="Total On Hand" />
                 <field name="reserved_quantity" optional="show" sum="Total Reserved" />
                 <field name="available_quantity" optional="hide" sum="Total Available" />
+                <field name="date_last_movement" optional="hide" />
+                <field name="days_since_last_movement" optional="hide" />
                 <field name="product_uom_id" groups="uom.group_uom" widget="many2one_uom" />
                 <field name="lot_properties" optional="hide" />
                 <button name="action_view_stock_moves" string="History" type="object"

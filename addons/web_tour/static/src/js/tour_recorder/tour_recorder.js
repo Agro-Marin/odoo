@@ -3,9 +3,9 @@ import { queryAll, queryFirst, queryOne } from "@odoo/hoot-dom";
 import { Component, useExternalListener, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
+import { x2ManyCommands } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { x2ManyCommands } from "@web/model/relational_model";
 
 import { tourRecorderState } from "./tour_recorder_state.js";
 

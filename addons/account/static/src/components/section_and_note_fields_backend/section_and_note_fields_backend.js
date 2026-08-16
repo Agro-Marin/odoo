@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { Component, onWillRender, useEffect } from "@odoo/owl";
+import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { ListTextField, TextField } from "@web/fields/basic/text/text_field";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { x2ManyCommands } from "@web/model/relational_model";
 import { ListRenderer } from "@web/views/list";
 
 import {

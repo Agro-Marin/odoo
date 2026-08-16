@@ -4,6 +4,7 @@ from . import test_product
 from . import test_warehouse
 from . import test_stock_location_search
 from . import test_quant
+from . import test_quant_dormancy
 from . import test_quant_improvements
 from . import test_quant_inventory_mode
 from . import test_generate_serial_numbers

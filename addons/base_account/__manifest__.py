@@ -18,7 +18,6 @@ depend on.
         "views/account_account_tag_views.xml",
     ],
     "installable": True,
-    "auto_install": False,
     "author": "Odoo S.A., AgroMarin",
     "license": "LGPL-3",
 }

@@ -14,12 +14,6 @@ from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import safe_eval
 
-from odoo.addons.base_credential_manager.tools import (
-    ip_in_allowlist,
-    verify_signature,
-    verify_timestamp,
-)
-
 _logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -185,37 +179,9 @@ def get_webhook_request_payload():
     return payload
 
 
-class CaseInsensitiveHeaders(dict):
-    """HTTP headers whose lookups ignore case, as RFC 9110 §5.1 requires.
-
-    Werkzeug's own ``Headers`` is already case-insensitive, but it is not a
-    ``dict`` and ``base_credential_manager``'s verifiers reject anything that
-    is not (``isinstance(headers, dict)``). Subclassing ``dict`` keeps those
-    verifiers working while making ``get()`` insensitive for every consumer,
-    so a rule configured with ``x-hub-signature-256`` matches a request
-    carrying ``X-Hub-Signature-256`` and vice versa.
-    """
-
-    def __init__(self, source=None):
-        super().__init__(source or {})
-        self._by_lower = {str(k).lower(): v for k, v in self.items()}
-
-    def get(self, key, default=None):
-        return self._by_lower.get(str(key).lower(), default)
-
-    def __getitem__(self, key):
-        try:
-            return self._by_lower[str(key).lower()]
-        except KeyError:
-            raise KeyError(key) from None
-
-    def __contains__(self, key):
-        return str(key).lower() in self._by_lower
-
-
 class BaseAutomation(models.Model):
     _name = "base.automation"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mail.thread", "mail.activity.mixin", "inbound.gate.mixin"]
     _description = "Automation Rule"
     _order = "sequence, id"
 
@@ -319,56 +285,44 @@ class BaseAutomation(models.Model):
     )
 
     # ------------------------------------------------------------------
-    # Webhook security (absorbed from the agromarin api_webhook module).
+    # Webhook security (absorbed from the agromarin api_webhook module, then
+    # onto the shared gate by ADR-0017).
+    #
     # The bare /web/hook/<uuid> endpoint authenticates only by the unguessable
-    # UUID; these optional controls add real request authentication and abuse
-    # protection, backed by base_credential_manager for the encrypted secret and
-    # the rate-limit bucket. Defaults keep the historical "open" behaviour.
+    # UUID; the `inbound.gate.mixin` fields add real request authentication and
+    # abuse protection. Eleven `webhook_`-prefixed fields used to be declared
+    # here, spelling the same things `api.endpoint.inbound` spelled without the
+    # prefix -- one vocabulary for a rule and another for a record, and with
+    # them two implementations of one security check. The second copy is what
+    # produced the 100-calls-an-hour ceiling on authenticated webhooks; see the
+    # record.
+    #
+    # What stays here is only what the gate deliberately does NOT model: the
+    # defaults, which differ because a rule's endpoint is published open and a
+    # device's is not.
     # ------------------------------------------------------------------
-    webhook_auth_type = fields.Selection(
-        selection=[
-            ("none", "None (UUID only)"),
-            ("hmac_sha256", "HMAC SHA-256 signature"),
-            ("hmac_sha512", "HMAC SHA-512 signature"),
-            ("bearer", "Bearer token"),
-        ],
-        string="Webhook Authentication",
+
+    # `none`, not the gate's `bearer`: a webhook rule has always been publishable
+    # without a credential, and every rule created after the upgrade must keep
+    # behaving the way the ones created before it do.
+    auth_type = fields.Selection(
         default="none",
+        string="Webhook Authentication",
         help="How incoming webhook calls are authenticated. HMAC/bearer read "
         "their secret from the linked credential.",
     )
-    webhook_credential_id = fields.Many2one(
-        "credential.credential",
+    credential_id = fields.Many2one(
         string="Webhook Secret",
-        ondelete="restrict",
         help="Credential holding the shared secret / token used to verify calls.",
     )
-    webhook_signature_header = fields.Char(default="X-Hub-Signature-256")
-    webhook_signature_prefix = fields.Char(default="sha256=")
-    webhook_timestamp_check = fields.Boolean(
-        string="Verify Timestamp",
-        help="Reject calls whose timestamp header is missing or outside the "
-        "allowed age window (replay-attack protection).",
-    )
-    webhook_timestamp_header = fields.Char(default="X-Webhook-Timestamp")
-    webhook_timestamp_max_age = fields.Integer(
-        string="Max Timestamp Age (s)", default=300
-    )
-    webhook_ip_allowlist = fields.Char(
-        string="IP Allowlist",
-        help="Comma-separated IPs/CIDRs allowed to call this webhook. Empty = any. "
-        "Requires proxy_mode when behind a reverse proxy.",
-    )
-    webhook_max_payload_size = fields.Integer(
-        string="Max Payload Size (bytes)", default=1048576
-    )
-    webhook_rate_limit = fields.Boolean(string="Rate Limit")
+    # Off by default, for the same reason: the gate defaults it on because a
+    # device endpoint is provisioned deliberately, while a webhook rule is not.
+    rate_limit_enabled = fields.Boolean(string="Rate Limit", default=False)
     rate_limit_requests = fields.Integer(
         string="Requests / Window",
         default=100,
         help="Token-bucket capacity (read by the rate-limit bucket).",
     )
-    webhook_rate_limit_window = fields.Integer(string="Rate Window (s)", default=60)
 
     trigger = fields.Selection(
         selection=[
@@ -1183,83 +1137,29 @@ class BaseAutomation(models.Model):
 
         Returns ``(ok, status_code, message)``. Called by the ``/web/hook``
         controller before the automation runs. Every check is opt-in through the
-        ``webhook_*`` fields; with the defaults this is a no-op and the endpoint
-        keeps its historical UUID-only behaviour.
+        gate's fields; with the defaults this is a no-op and the endpoint keeps
+        its historical UUID-only behaviour.
+
+        The checks are `inbound.gate.mixin._check_inbound_request` (ADR-0017),
+        the same ones every other inbound mechanism in the fork runs. This method
+        stays as the name the controller and the tests already call.
+
+        The ordering argument this used to carry lives with the gate now, and it
+        won: authentication still happens before the endpoint quota is spent, so
+        nobody holding only the URL can lock the real sender out. What is new is
+        a caller-keyed allowance spent BEFORE authentication, which is what the
+        other mechanism's "cheap refusals come first" was protecting.
         """
         self.ensure_one()
-
-        # HTTP header names are case-insensitive; the configured header name is
-        # free text, so neither side's spelling can be trusted to match.
-        headers = CaseInsensitiveHeaders(headers)
-
-        # --- cheap, pre-authentication guards -------------------------------
-        # These cost nothing and can safely reject before we know who is calling.
-        if self.webhook_ip_allowlist and not self._webhook_ip_allowed(remote_addr):
-            return (False, 403, "IP address not allowed")
-
-        if self.webhook_max_payload_size and len(body) > self.webhook_max_payload_size:
-            return (False, 413, "Payload too large")
-
-        # --- authentication -------------------------------------------------
-        # Deliberately ahead of the rate limit: the bucket is shared with the
-        # legitimate sender, so spending a token on an unauthenticated request
-        # would let anyone holding only the URL lock that sender out.
-        if self.webhook_timestamp_check:
-            ts = headers.get(self.webhook_timestamp_header)
-            if not ts or not verify_timestamp(
-                ts, max_age_seconds=self.webhook_timestamp_max_age, env=self.env
-            ):
-                return (False, 401, "Timestamp verification failed")
-
-        if self.webhook_auth_type and self.webhook_auth_type != "none":
-            # Source the shared secret from whichever storage the credential
-            # uses: the simple credential_value, or the JSON api_secret/api_key
-            # accessors (all base_credential_manager fields).
-            cred = self.webhook_credential_id
-            secret = (
-                (cred.credential_value or cred.api_secret or cred.api_key)
-                if cred
-                else None
-            )
-            if not verify_signature(
-                signature_type=self.webhook_auth_type,
-                headers=headers,
-                body=body,
-                secret=secret,
-                signature_header=self.webhook_signature_header,
-                signature_prefix=self.webhook_signature_prefix,
-                env=self.env,
-            ):
-                return (False, 401, "Invalid signature")
-
-        # --- abuse control, on authenticated calls only ----------------------
-        if self.webhook_rate_limit and not self._webhook_rate_ok():
-            return (False, 429, "Rate limit exceeded")
-
-        return (True, 200, "OK")
+        return self._check_inbound_request(headers, body=body, remote_addr=remote_addr)
 
     def _webhook_ip_allowed(self, remote_addr):
-        """Return True if remote_addr matches the comma-separated IP/CIDR list.
-
-        The check itself is shared with every other inbound endpoint in the fork
-        (see base_credential_manager.tools.ip_in_allowlist); this method stays as
-        the model-level name callers and overrides already use.
-        """
-        return ip_in_allowlist(remote_addr, self.webhook_ip_allowlist)
+        """Deprecated: the gate's `is_ip_allowed`. Kept for overrides."""
+        return self.is_ip_allowed(remote_addr)
 
     def _webhook_rate_ok(self):
-        """Consume one token from this rule's DB-backed rate-limit bucket.
-
-        strict=True: a public webhook endpoint must fail CLOSED under lock
-        contention, not silently let a burst through (the bucket's own
-        default is fail-open, meant for lower-stakes internal callers).
-        """
-        bucket = (
-            self.env["rate.limit.bucket"]
-            .sudo()
-            .get_or_create_bucket(self, self.env.company.id)
-        )
-        return bucket.consume_token(strict=True)
+        """Deprecated: the gate's `_consume_rate_limit`. Kept for overrides."""
+        return self._consume_rate_limit()
 
     def _execute_webhook(self, payload):
         """Execute the webhook for the given payload.

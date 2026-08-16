@@ -10,7 +10,7 @@ class TestWebhookSecurity(TransactionCase):
     """Authentication/anti-abuse checks on the /web/hook receiver.
 
     Exercises base.automation._verify_webhook_request (the logic the webhook
-    controller runs before dispatching), backed by base_credential_manager for
+    controller runs before dispatching), backed by credential for
     the secret.
     """
 
@@ -33,8 +33,8 @@ class TestWebhookSecurity(TransactionCase):
                 "name": "WH rule",
                 "model_id": cls.env.ref("base.model_res_partner").id,
                 "trigger": "on_webhook",
-                "webhook_auth_type": "hmac_sha256",
-                "webhook_credential_id": cls.credential.id,
+                "auth_type": "hmac_sha256",
+                "credential_id": cls.credential.id,
             }
         )
         cls.body = b'{"event": "test", "x": 1}'
@@ -62,7 +62,7 @@ class TestWebhookSecurity(TransactionCase):
         self.assertEqual(status, 401)
 
     def test_ip_allowlist(self):
-        self.rule.webhook_ip_allowlist = "10.0.0.0/8, 192.168.1.5"
+        self.rule.ip_whitelist = "10.0.0.0/8, 192.168.1.5"
         sig = {"X-Hub-Signature-256": self._sig(self.secret)}
         self.assertTrue(
             self.rule._verify_webhook_request(sig, self.body, "10.5.5.5")[0]
@@ -72,7 +72,7 @@ class TestWebhookSecurity(TransactionCase):
         self.assertEqual(blocked[1], 403)
 
     def test_payload_size_limit(self):
-        self.rule.webhook_max_payload_size = 5
+        self.rule.max_payload_size = 5
         res = self.rule._verify_webhook_request(
             {"X-Hub-Signature-256": self._sig(self.secret)}, self.body, "1.2.3.4"
         )
