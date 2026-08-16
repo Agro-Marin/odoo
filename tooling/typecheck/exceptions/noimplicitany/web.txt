@@ -39,6 +39,7 @@ addons/web/static/src/components/tree_editor/tree_editor_operator_editor.js
 addons/web/static/src/components/tree_editor/tree_editor_value_editors.js
 addons/web/static/src/core/errors/error_service.js
 addons/web/static/src/core/navigation/navigation.js
+addons/web/static/src/core/network/commands.js
 addons/web/static/src/core/transition.js
 addons/web/static/src/env.js
 addons/web/static/src/fields/display/statusbar/statusbar_field.js
@@ -82,7 +83,6 @@ addons/web/static/src/libs/bootstrap.js
 addons/web/static/src/libs/popper_compat.js
 addons/web/static/src/model/model.js
 addons/web/static/src/model/relational_model/command_builder.js
-addons/web/static/src/model/relational_model/commands.js
 addons/web/static/src/model/relational_model/dynamic_group_list.js
 addons/web/static/src/model/relational_model/dynamic_list.js
 addons/web/static/src/model/relational_model/dynamic_record_list.js

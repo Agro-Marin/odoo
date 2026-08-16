@@ -97,6 +97,26 @@ for an empty recordset — instead of `str(recordset)`.
 The change belongs in `_compile_out_emit`'s emit step, the one place the bare
 path passes through, so `t-field` and widget rendering are untouched.
 
+## Alternatives considered
+
+**Leave it, and let `t-field` be the answer.** Defensible — a template author who
+writes `t-out` on a relation arguably meant `t-field` — but it makes the
+framework's response to a common mistake a Python repr in a customer-facing
+document, and it leaves `mail`'s two renderers permanently disagreeing on input
+its own allow-list advertises.
+
+**Fix it in `mail` only.** There is nowhere to put it: mail cannot intercept
+attribute access on `object`, and its `ir.qweb` subclass is `_inherit`, so any
+change there is registry-wide anyway — the same blast radius with less of the
+benefit.
+
+**Route the bare path through `_compile_to_str`.** That helper already maps
+`None`/`False` to `""` and is used by `t-field`, widgets and text nodes, so it
+looks like the natural home. It is not: it returns `str`, and the bare path must
+preserve `Markup` for html fields. Adding the recordset case to it would fix
+`t-field`'s fallback and text interpolation as a side effect, which is a wider
+decision than this one.
+
 ## Consequences
 
 **Where it fires, it can only improve the output.** There is no template for
@@ -121,26 +141,6 @@ fail.
 ships. A model that allow-lists a relational path whose display name differs
 from what the evaluation-free renderer computes would still diverge; the
 differential suite (`test_mail_hardening_v19`) is what keeps that visible.
-
-## Alternatives considered
-
-**Leave it, and let `t-field` be the answer.** Defensible — a template author who
-writes `t-out` on a relation arguably meant `t-field` — but it makes the
-framework's response to a common mistake a Python repr in a customer-facing
-document, and it leaves `mail`'s two renderers permanently disagreeing on input
-its own allow-list advertises.
-
-**Fix it in `mail` only.** There is nowhere to put it: mail cannot intercept
-attribute access on `object`, and its `ir.qweb` subclass is `_inherit`, so any
-change there is registry-wide anyway — the same blast radius with less of the
-benefit.
-
-**Route the bare path through `_compile_to_str`.** That helper already maps
-`None`/`False` to `""` and is used by `t-field`, widgets and text nodes, so it
-looks like the natural home. It is not: it returns `str`, and the bare path must
-preserve `Markup` for html fields. Adding the recordset case to it would fix
-`t-field`'s fallback and text interpolation as a side effect, which is a wider
-decision than this one.
 
 ## What `Accepted` would require
 

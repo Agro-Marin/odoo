@@ -204,8 +204,8 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns fifteen tool
-counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, jsfunclen_mail, pyfunclen, pyfunclen_addons, jsprivate, jsserviceshape, jsserviceshape_mail, jsforcedrender and naming**
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns seventeen tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, pyfunclen, pyfunclen_addons, pyfunclen_mail, jsprivate, jsserviceshape, jsserviceshape_mail, jsforcedrender and naming**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.
