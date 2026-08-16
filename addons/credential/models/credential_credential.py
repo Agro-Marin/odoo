@@ -1,0 +1,1621 @@
+import hashlib
+import ipaddress
+import json
+import logging
+import re
+from datetime import timedelta
+from types import SimpleNamespace
+from typing import Any, Self
+
+from cryptography.fernet import Fernet, InvalidToken
+from psycopg import errors as psycopg_errors
+
+from odoo import api, fields, models
+from odoo.exceptions import UserError, ValidationError
+from odoo.http import request
+
+from odoo.addons.credential.tools import (
+    check_json_depth,
+    get_caller_rate_limiter,
+)
+
+_logger = logging.getLogger(__name__)
+
+
+MAX_CREDENTIAL_DATA_SIZE = 65536
+MAX_CREDENTIAL_VALUE_SIZE = 8192
+MAX_JSON_NESTING_DEPTH = 10
+
+DAYS_NO_EXPIRY = 999
+
+EXPIRY_WARNING_DAYS = 30
+
+
+SECRET_PATTERNS = [
+    ("password", r"\b(password|passwd|pwd)\s*[:=]\s*\S+"),
+    ("api_key", r"\b(api[_-]?key|apikey)\s*[:=]\s*\S+"),
+    ("secret_or_token", r"\b(secret|token)\s*[:=]\s*\S+"),
+    ("aws_style_key", r"\b(access[_-]?key|secret[_-]?key)\s*[:=]\s*\S+"),
+    ("private_key_pem", r"-----BEGIN\s+\w+\s+PRIVATE\s+KEY-----"),
+    ("github_token", r"\bghp_[a-zA-Z0-9]{36}\b"),
+    ("openai_api_key", r"\bsk-[a-zA-Z0-9]{48}\b"),
+    ("aws_access_key_id", r"\bAKIA[0-9A-Z]{16}\b"),
+]
+SECRET_NAMED_REGEXES = [
+    (name, re.compile(pattern, re.IGNORECASE)) for name, pattern in SECRET_PATTERNS
+]
+
+
+CATEGORY_REQUIRED_FIELDS = {
+    "api_key": {
+        "fields": [("credential_value", "api_key")],
+        "message": "API Key credentials require a secret value.",
+    },
+    "bearer_token": {
+        "fields": [("credential_value", "bearer_token")],
+        "message": "Bearer Token credentials require a token value.",
+    },
+    "basic_auth": {
+        "fields": ["username", "password"],
+        "message": "Basic Authentication requires username and password.",
+    },
+    "oauth2": {
+        "fields": [("oauth_access_token", "oauth_client_secret")],
+        "message": "OAuth 2.0 credentials require an access token or a client secret.",
+    },
+    "aws_iam": {
+        "fields": ["api_key", "api_secret"],
+        "message": "AWS IAM credentials require Access Key ID and Secret Access Key.",
+    },
+}
+
+
+class CredentialCredential(models.Model):
+    _name = "credential.credential"
+    _inherit = "encryption.mixin"
+    _description = "Credential"
+    _order = "company_id, sequence, name"
+    _rec_name = "name"
+
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        required=False,
+        default=lambda self: self.env.company,
+        ondelete="cascade",
+        index=True,
+        help="Company that owns this credential. Leave empty for system-wide credentials visible to all companies.",
+    )
+
+    category_id = fields.Many2one(
+        comodel_name="credential.category",
+        required=True,
+        index=True,
+        ondelete="restrict",
+        help="Type of credential (API Key, OAuth, Certificate, etc.)",
+    )
+    category_code = fields.Char(
+        related="category_id.code",
+        store=True,
+        index=True,
+        help="Technical code of the category for programmatic access",
+    )
+    category_description = fields.Text(
+        related="category_id.description",
+        store=False,
+        help="Description of the credential category",
+    )
+    category_icon = fields.Char(
+        related="category_id.icon",
+        store=False,
+    )
+    storage_hint = fields.Selection(
+        related="category_id.storage_hint",
+        string="Storage Type",
+        store=False,
+        help="Recommended storage method from category",
+    )
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Created By",
+        default=lambda self: self.env.user,
+        readonly=True,
+        index=True,
+        help="User who created this credential",
+    )
+    owner_user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Personal Credential Of",
+        index=True,
+        ondelete="cascade",
+        help="Make this a personal credential belonging to one user. Calls "
+        "that resolve it act as that user rather than as the company. Only "
+        "consulted for endpoints that allow personal credentials; leave empty "
+        "for the ordinary company-wide credential.",
+    )
+    name = fields.Char(
+        string="Credential Name",
+        required=True,
+        index=True,
+        help="Descriptive name for this credential",
+    )
+    active = fields.Boolean(
+        default=True,
+        help="Only active credentials are used. Archiving is an admin-only "
+        "control enforced by record rules / access rights — a field-level "
+        "``groups=`` cannot be used here because the ORM's active_test reads "
+        "``active`` on every search (including for plain users).",
+    )
+    sequence = fields.Integer(
+        string="Priority",
+        default=10,
+        help="Lower number = higher priority when multiple credentials exist",
+    )
+    display_name = fields.Char(
+        compute="_compute_display_name",
+        store=False,
+    )
+    username = fields.Char(
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_username",
+        copy=False,
+        groups="base.group_system",
+        help="Username stored in JSON credential data",
+    )
+    password = fields.Char(
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_password",
+        copy=False,
+        groups="base.group_system",
+        help="Password stored in JSON credential data",
+    )
+    notes = fields.Text(
+        help="Additional notes or documentation for this credential.\n\n"
+        "⚠️ SECURITY WARNING: Notes are stored in PLAIN TEXT (not encrypted).\n"
+        "Do NOT store passwords, API keys, or other secrets in notes.",
+    )
+
+    credential_value_encrypted = fields.Binary(
+        string="Credential Value (Encrypted)",
+        copy=False,
+        attachment=False,
+        groups="base.group_system",
+        help="Encrypted storage for credential value (API key, token, secret, etc.)",
+    )
+    cached_plaintext = fields.Char(
+        compute="_compute_cached_plaintext",
+        store=False,
+        copy=False,
+        groups="base.group_system",
+        help="Internal: single-decrypt memo for credential_value_encrypted. "
+        "Do NOT depend on this field outside this model.",
+    )
+    storage_method = fields.Selection(
+        selection=[
+            ("none", "Not Set"),
+            ("simple", "Simple Value"),
+            ("json", "JSON Data"),
+        ],
+        default="none",
+        store=True,
+        readonly=True,
+        copy=False,
+        help="Storage mode for credential_value_encrypted. Write-once: set "
+        "by the first payload write and sealed thereafter. Mixing simple "
+        "and JSON storage on the same record is not permitted.",
+    )
+    credential_value = fields.Char(
+        compute="_compute_credential_value",
+        store=False,
+        inverse="_inverse_credential_value",
+        readonly=False,
+        copy=False,
+        groups="base.group_system",
+        help="Credential value (encrypted at rest) - API key, bearer token, etc.",
+    )
+    credential_data = fields.Text(
+        string="Credential Data (JSON)",
+        compute="_compute_credential_data",
+        store=False,
+        inverse="_inverse_credential_data",
+        readonly=False,
+        copy=False,
+        groups="base.group_system",
+        help="JSON storage for complex multi-value credentials (e.g., OAuth2). "
+        "Example: {'access_token': '...', 'refresh_token': '...'}",
+    )
+
+    health_status = fields.Selection(
+        selection=[
+            ("unknown", "Unknown"),
+            ("healthy", "Healthy"),
+            ("warning", "Warning"),
+            ("error", "Error"),
+        ],
+        default="unknown",
+        readonly=True,
+        index=True,
+        help="Health status from last validation check",
+    )
+    health_message = fields.Text(
+        readonly=True,
+        help="Details from last health check",
+    )
+    last_health_check = fields.Datetime(
+        readonly=True,
+        help="Timestamp of most recent health check",
+    )
+    last_health_check_latency = fields.Float(
+        string="Last Check Latency (ms)",
+        readonly=True,
+        digits=(6, 2),
+        help="Response time of last health check in milliseconds",
+    )
+    last_used_at = fields.Datetime(
+        string="Last Used",
+        readonly=True,
+        help="Timestamp of most recent credential usage",
+    )
+    last_error = fields.Text(
+        readonly=True,
+        help="Error message from last failed operation",
+    )
+    last_error_date = fields.Datetime(
+        readonly=True,
+        help="Date and time of last error",
+    )
+    total_health_checks = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Total number of health check tests performed",
+    )
+    failed_health_checks = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Number of failed health check tests",
+    )
+    health_check_success_rate = fields.Float(
+        string="Health Check Success Rate (%)",
+        compute="_compute_health_check_success_rate",
+        store=True,
+        digits=(5, 2),
+        help="Percentage of successful health checks",
+    )
+
+    usage_count = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Total number of times this credential was used",
+    )
+    success_count = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Number of successful credential uses",
+    )
+    error_count = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Number of failed credential uses",
+    )
+    success_rate = fields.Float(
+        string="Success Rate (%)",
+        compute="_compute_success_rate",
+        store=True,
+        help="Percentage of successful credential uses",
+    )
+
+    date_expiration = fields.Datetime(
+        string="Expires At",
+        help="Date when this credential expires (optional)",
+    )
+    is_expired = fields.Boolean(
+        string="Expired",
+        compute="_compute_is_expired",
+        store=True,
+        help="Whether the credential has expired. Note: This is stored for indexing "
+        "but only recomputes when date_expiration changes. For time-critical queries, "
+        "filter directly on date_expiration < now().",
+    )
+    days_until_expiry = fields.Integer(
+        compute="_compute_days_until_expiry",
+        help=f"Number of days until credential expires. Returns {DAYS_NO_EXPIRY} "
+        "if no expiration date is set.",
+    )
+    date_expiry_warned = fields.Datetime(
+        string="Expiry Warning Logged",
+        readonly=True,
+        copy=False,
+        help="When cron_check_expiring_credentials last reported this "
+        "credential as approaching expiry. Cleared whenever the expiration "
+        "date is rewritten, so a renewed credential is warned about again.",
+    )
+
+    cache_hits = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Number of times a cached session/connection was reused",
+    )
+    cache_misses = fields.Integer(
+        default=0,
+        readonly=True,
+        help="Number of times a new session/connection had to be created",
+    )
+    allow_key_fallback = fields.Boolean(
+        string="Allow Old Key Fallback",
+        default=True,
+        help="If enabled, will try decrypting with old key versions when current key fails. "
+        "Default from category, can be overridden.",
+    )
+    auto_validate_health = fields.Boolean(
+        string="Automatic Health Validation",
+        default=False,
+        help="If enabled, this credential will be automatically validated by scheduled health checks. "
+        "Default from category, can be overridden.",
+    )
+
+    enable_rate_limiting = fields.Boolean(
+        default=True,
+        groups="credential.group_credential_admin",
+        help="Enable rate limiting for credential access operations. Default from category, can be overridden.",
+    )
+    rate_limit_max_attempts = fields.Integer(
+        string="Rate Limit (attempts/hour)",
+        default=100,
+        groups="credential.group_credential_admin",
+        help="Maximum number of decryption operations allowed per user per hour. "
+        "Default from category, can be overridden.",
+    )
+
+    environment = fields.Selection(
+        selection=[
+            ("test", "Test/Sandbox"),
+            ("staging", "Staging"),
+            ("production", "Production"),
+        ],
+        default="test",
+        index=True,
+        help="Environment for this credential (test, staging, production).",
+    )
+
+    is_system_wide = fields.Boolean(
+        string="System-wide Configuration",
+        compute="_compute_is_system_wide",
+        store=True,
+        help="True if this is a system-wide credential (company_id is not set)",
+    )
+    bypass_format_validation = fields.Boolean(
+        default=False,
+        groups="base.group_system",
+        help="Allow non-standard credential formats. Use only for credentials with unusual format requirements.",
+    )
+
+    api_key = fields.Char(
+        string="API Key",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_api_key",
+        copy=False,
+        groups="base.group_system",
+        help="API Key stored in JSON credential data",
+    )
+    api_secret = fields.Char(
+        string="API Secret",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_api_secret",
+        copy=False,
+        groups="base.group_system",
+        help="API Secret stored in JSON credential data",
+    )
+    bearer_token = fields.Char(
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_bearer_token",
+        copy=False,
+        groups="base.group_system",
+        help="Bearer Token stored in JSON credential data",
+    )
+
+    oauth_access_token = fields.Char(
+        string="OAuth Access Token",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_oauth_access_token",
+        copy=False,
+        groups="base.group_system",
+        help="OAuth Access Token stored in JSON credential data",
+    )
+    oauth_refresh_token = fields.Char(
+        string="OAuth Refresh Token",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_oauth_refresh_token",
+        copy=False,
+        groups="base.group_system",
+        help="OAuth Refresh Token stored in JSON credential data",
+    )
+    oauth_client_id = fields.Char(
+        string="OAuth Client ID",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_oauth_client_id",
+        copy=False,
+        groups="base.group_system",
+        help="OAuth Client ID stored in JSON credential data",
+    )
+    oauth_client_secret = fields.Char(
+        string="OAuth Client Secret",
+        compute="_compute_credential_accessors",
+        inverse="_inverse_credential_field_oauth_client_secret",
+        copy=False,
+        groups="base.group_system",
+        help="OAuth Client Secret stored in JSON credential data",
+    )
+    oauth_token_date_expiration = fields.Datetime(
+        string="OAuth Token Expiration",
+        groups="base.group_system",
+        help="When the OAuth access token expires. Set by OAuth integration code "
+        "when tokens are refreshed (comes from provider's 'expires_in' response).",
+    )
+
+    credential_hash = fields.Char(
+        compute="_compute_credential_hash",
+        store=True,
+        readonly=True,
+        help="Hash of encrypted credentials for cache key generation and integrity",
+    )
+    encryption_key_is_current = fields.Boolean(
+        compute="_compute_encryption_key_is_current",
+        store=False,
+        help="True when this credential's ciphertext was written with the "
+        "current ODOO_API_ENCRYPTION_KEY. Drives the key-rotation warning "
+        "banner: only credentials still on an OLD key version show it.",
+    )
+    last_validated = fields.Datetime(
+        readonly=True,
+        help="Timestamp of last successful credential validation",
+    )
+
+    _credential_system_unique = models.UniqueIndex(
+        "(name) WHERE company_id IS NULL AND active = true",
+        "Active system-wide credential names must be unique!",
+    )
+
+    _credential_company_unique = models.UniqueIndex(
+        "(company_id, name) WHERE company_id IS NOT NULL AND active = true",
+        "Active credential names must be unique per company!",
+    )
+
+    def _validate_required_fields_for_category(self):
+        self.invalidate_recordset(["credential_value_encrypted"])
+
+        for record in self:
+            if not record.category_code:
+                continue
+
+            config = CATEGORY_REQUIRED_FIELDS.get(record.category_code)
+            if not config:
+                continue
+
+            record = record.sudo()
+
+            json_data = {}
+            encrypted = record.with_context(bin_size=False).credential_value_encrypted
+            if encrypted:
+                decrypted = record._decrypt_value(encrypted)
+                if decrypted:
+                    try:
+                        parsed = json.loads(decrypted)
+                    except json.JSONDecodeError, ValueError:
+                        parsed = {}
+                    if isinstance(parsed, dict):
+                        json_data = parsed
+
+            missing_fields = []
+            for spec in config["fields"]:
+                alternatives = (spec,) if isinstance(spec, str) else tuple(spec)
+                satisfied = False
+                for field_name in alternatives:
+                    if getattr(record, field_name, None):
+                        satisfied = True
+                        break
+                    if json_data.get(field_name):
+                        satisfied = True
+                        break
+                if not satisfied:
+                    missing_fields.append(alternatives[0])
+
+            if missing_fields:
+                raise ValidationError(
+                    self.env._("%(message)s\n\nMissing fields: %(fields)s")
+                    % {
+                        "message": config["message"],
+                        "fields": ", ".join(missing_fields),
+                    },
+                )
+
+    @api.constrains("notes")
+    def _check_notes_for_secrets(self):
+        for record in self:
+            if not record.notes:
+                continue
+            matched_names = [
+                name
+                for name, regex in SECRET_NAMED_REGEXES
+                if regex.search(record.notes)
+            ]
+            if not matched_names:
+                continue
+            _logger.warning(
+                "Possible secret pattern in notes for credential %s: "
+                "matched pattern(s) %s (value not logged).",
+                record.id or "new",
+                ", ".join(matched_names),
+            )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if not self.env.context.get(self._INTERNAL_STATS_UPDATE_KEY):
+            for vals in vals_list:
+                protected_being_set = vals.keys() & self._PROTECTED_STATS_FIELDS
+                if protected_being_set:
+                    raise ValidationError(
+                        self.env._(
+                            "Cannot seed protected statistics fields at creation!\n\n"
+                            "The following fields are managed internally: %(fields)s\n\n"
+                            "Create the credential first, then use the dedicated "
+                            "methods (increment_usage, action_validate_credential, "
+                            "mark_as_used) to update statistics.",
+                        )
+                        % {
+                            "fields": ", ".join(sorted(protected_being_set)),
+                        },
+                    )
+
+        if not self.env.context.get(self._INTERNAL_STORAGE_UPDATE_KEY):
+            for vals in vals_list:
+                if self._STORAGE_METHOD_GUARD_FIELD in vals:
+                    raise ValidationError(
+                        self.env._(
+                            "storage_method cannot be set directly at creation. "
+                            "It is sealed automatically by the first payload write "
+                            "(credential_value -> 'simple', credential_data or any "
+                            "JSON accessor -> 'json').",
+                        ),
+                    )
+
+        current_version = self._get_current_encryption_key_version() or 1
+
+        for vals in vals_list:
+            if "encryption_key_version" not in vals:
+                has_encrypted_content = any(
+                    vals.get(field) for field in self._ENCRYPTED_PAYLOAD_FIELDS
+                )
+                if has_encrypted_content:
+                    vals["encryption_key_version"] = current_version
+
+        records = super().create(vals_list)
+
+        records._validate_required_fields_for_category()
+
+        return records
+
+    _PROTECTED_STATS_FIELDS = frozenset(
+        {
+            "usage_count",
+            "success_count",
+            "error_count",
+            "cache_hits",
+            "cache_misses",
+            "health_status",
+            "health_message",
+            "last_health_check",
+            "last_health_check_latency",
+            "total_health_checks",
+            "failed_health_checks",
+            "last_used_at",
+            "last_error",
+            "last_error_date",
+        }
+    )
+
+    _INTERNAL_STATS_UPDATE_KEY = "_credential_internal_stats_update"
+
+    _INTERNAL_STORAGE_UPDATE_KEY = "_credential_internal_storage_update"
+
+    _STORAGE_METHOD_GUARD_FIELD = "storage_method"
+
+    _ENCRYPTED_PAYLOAD_FIELDS = (
+        "credential_value",
+        "credential_data",
+        "username",
+        "password",
+        "api_key",
+        "api_secret",
+        "oauth_access_token",
+        "oauth_refresh_token",
+        "bearer_token",
+    )
+
+    def write(self, vals):
+        if "date_expiration" in vals and "date_expiry_warned" not in vals:
+            vals = {**vals, "date_expiry_warned": False}
+
+        if not self.env.context.get(self._INTERNAL_STATS_UPDATE_KEY):
+            protected_being_modified = set(vals.keys()) & self._PROTECTED_STATS_FIELDS
+            if protected_being_modified:
+                raise ValidationError(
+                    self.env._(
+                        "Cannot modify protected statistics fields directly!\n\n"
+                        "The following fields are managed internally: %(fields)s\n\n"
+                        "Use the appropriate methods:\n"
+                        "- increment_usage() for usage statistics\n"
+                        "- action_validate_credential() for health checks\n"
+                        "- mark_as_used() for last_used_at",
+                    )
+                    % {"fields": ", ".join(sorted(protected_being_modified))},
+                )
+
+        if self._STORAGE_METHOD_GUARD_FIELD in vals and not self.env.context.get(
+            self._INTERNAL_STORAGE_UPDATE_KEY,
+        ):
+            raise ValidationError(
+                self.env._(
+                    "storage_method is a write-once invariant managed by the "
+                    "credential model. It is sealed on the first payload write "
+                    "and cannot be modified directly. To change storage mode, "
+                    "archive this credential and create a new one.",
+                ),
+            )
+
+        adding_encrypted_content = any(
+            vals.get(field) for field in self._ENCRYPTED_PAYLOAD_FIELDS
+        )
+
+        if adding_encrypted_content:
+            current_version = self._get_current_encryption_key_version() or 1
+
+            stamped = self.filtered(lambda r: not r.encryption_key_version)
+            if stamped:
+                self.env.cr.execute(
+                    """
+                    UPDATE credential_credential
+                    SET encryption_key_version = %s
+                    WHERE id = ANY(%s) AND (encryption_key_version IS NULL
+                                            OR encryption_key_version = 0)
+                    """,
+                    [current_version, stamped.ids],
+                )
+                stamped.invalidate_recordset(
+                    ["encryption_key_version", "encryption_key_is_current"],
+                )
+
+        result = super().write(vals)
+
+        category_changed = "category_id" in vals
+        if category_changed or adding_encrypted_content:
+            self._validate_required_fields_for_category()
+
+        return result
+
+    def unlink(self):
+        source_ip = self._get_request_source_ip()
+        vals_list = [
+            {
+                **record._prepare_access_log_vals("delete", source_ip),
+                "credential_id": False,
+            }
+            for record in self.filtered(lambda r: r.id)
+        ]
+
+        result = super().unlink()
+
+        if vals_list:
+            try:
+                self.env["credential.access.log"].sudo().create(vals_list)
+            except Exception as e:
+                _logger.error(
+                    "Failed to write delete audit log for credentials %s: %s",
+                    [vals.get("credential_name") for vals in vals_list],
+                    e,
+                )
+
+        return result
+
+    @api.depends("name", "company_id", "category_id")
+    def _compute_display_name(self):
+        for record in self:
+            parts = [record.name or ""]
+            if record.category_id:
+                parts.append(f"[{record.category_id.name}]")
+            if record.company_id:
+                parts.append(f"({record.company_id.name})")
+            else:
+                parts.append("(System-wide)")
+            record.display_name = " ".join(parts)
+
+    @api.depends("company_id")
+    def _compute_is_system_wide(self):
+        for record in self:
+            record.is_system_wide = not record.company_id
+
+    @api.depends("credential_value_encrypted")
+    def _compute_cached_plaintext(self):
+        for record in self:
+            encrypted = record.with_context(bin_size=False).credential_value_encrypted
+            if not encrypted:
+                record.cached_plaintext = False
+                continue
+
+            decrypted = record._decrypt_value_safe(encrypted, default=None)
+
+            if decrypted is None:
+                _logger.warning(
+                    "Credential %s: could not decrypt credential_value_encrypted "
+                    "(key missing or rotated). Field will read as empty.",
+                    record.id or "new",
+                )
+                record.cached_plaintext = False
+                continue
+
+            if decrypted and record.id:
+                record._enforce_access_rate_limit()
+
+            record.cached_plaintext = decrypted or False
+
+            if decrypted and record.id:
+                try:
+                    record._log_access_guarded("read")
+                except psycopg_errors.ReadOnlySqlTransaction:
+                    raise
+                except Exception as e:
+                    _logger.warning(
+                        "Credential %s: failed to write audit log for read: %s",
+                        record.id,
+                        e,
+                    )
+
+    @api.depends("cached_plaintext", "storage_method")
+    def _compute_credential_value(self):
+        for record in self:
+            if record.storage_method != "simple":
+                record.credential_value = False
+                continue
+            record.credential_value = record.cached_plaintext or False
+
+    @api.depends("cached_plaintext", "storage_method")
+    def _compute_credential_data(self):
+        for record in self:
+            if record.storage_method != "json":
+                record.credential_data = "{}"
+                continue
+            plaintext = record.cached_plaintext
+            if not plaintext:
+                record.credential_data = "{}"
+                continue
+            try:
+                json.loads(plaintext)
+                record.credential_data = plaintext
+            except json.JSONDecodeError, ValueError:
+                record.credential_data = "{}"
+
+    @api.depends("date_expiration")
+    def _compute_is_expired(self):
+        now = fields.Datetime.now()
+        for record in self:
+            record.is_expired = bool(
+                record.date_expiration and record.date_expiration < now
+            )
+
+    @api.depends("date_expiration")
+    def _compute_days_until_expiry(self):
+        now = fields.Datetime.now()
+        for record in self:
+            if record.date_expiration:
+                delta = record.date_expiration - now
+                record.days_until_expiry = delta.days
+            else:
+                record.days_until_expiry = DAYS_NO_EXPIRY
+
+    @api.depends("success_count", "error_count")
+    def _compute_success_rate(self):
+        for record in self:
+            total = record.success_count + record.error_count
+            if total > 0:
+                record.success_rate = (record.success_count / total) * 100
+            else:
+                record.success_rate = 0.0
+
+    @api.depends("total_health_checks", "failed_health_checks")
+    def _compute_health_check_success_rate(self):
+        for record in self:
+            if record.total_health_checks > 0:
+                success = record.total_health_checks - record.failed_health_checks
+                record.health_check_success_rate = (
+                    success / record.total_health_checks
+                ) * 100
+            else:
+                record.health_check_success_rate = 0.0
+
+    _JSON_ACCESSOR_FIELDS = (
+        "api_key",
+        "api_secret",
+        "bearer_token",
+        "username",
+        "password",
+        "oauth_access_token",
+        "oauth_refresh_token",
+        "oauth_client_id",
+        "oauth_client_secret",
+    )
+
+    @api.depends("credential_data")
+    def _compute_credential_accessors(self) -> None:
+        for record in self:
+            data = record.credential_data
+            parsed: dict[str, Any] = {}
+            if data and data != "{}":
+                try:
+                    loaded = json.loads(data)
+                    if isinstance(loaded, dict):
+                        parsed = loaded
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
+                    _logger.debug(
+                        "Could not parse credential_data for %s: %s",
+                        record.id or "new",
+                        e,
+                    )
+            for field_name in self._JSON_ACCESSOR_FIELDS:
+                record[field_name] = parsed.get(field_name, False)
+
+    @api.depends("credential_value_encrypted")
+    def _compute_credential_hash(self) -> None:
+        for cred in self:
+            if cred.credential_value_encrypted:
+                encrypted = cred.credential_value_encrypted
+                if isinstance(encrypted, str):
+                    encrypted = encrypted.encode("utf-8")
+                cred.credential_hash = hashlib.sha256(encrypted).hexdigest()
+            else:
+                cred.credential_hash = False
+
+    @api.depends("encryption_key_version")
+    def _compute_encryption_key_is_current(self):
+        current_version = self._get_current_encryption_key_version() or 1
+        for record in self:
+            record.encryption_key_is_current = (
+                not record.encryption_key_version
+                or record.encryption_key_version >= current_version
+            )
+
+    def _seal_storage_method(self, target_mode: str) -> None:
+        self.ensure_one()
+        current = self.storage_method or "none"
+        if current == target_mode:
+            return
+        if current != "none":
+            raise ValidationError(
+                self.env._(
+                    "This credential is already using %(current)s storage. "
+                    "Writing through the %(target)s path would silently "
+                    "corrupt the stored value. Archive this credential and "
+                    "create a new one if you need to change storage mode.",
+                )
+                % {"current": current, "target": target_mode},
+            )
+        self.with_context(
+            **{self._INTERNAL_STORAGE_UPDATE_KEY: True},
+        ).write({self._STORAGE_METHOD_GUARD_FIELD: target_mode})
+
+    def _inverse_credential_value(self):
+        for record in self:
+            if record.credential_value:
+                value_size = len(record.credential_value.encode("utf-8"))
+                if value_size > MAX_CREDENTIAL_VALUE_SIZE:
+                    raise ValidationError(
+                        self.env._(
+                            "Credential value exceeds maximum size!\n\n"
+                            "Size: %(size)s bytes\n"
+                            "Maximum: %(max)s bytes (8KB)\n\n"
+                            "For larger data, use credential_data (JSON format, up to 64KB).",
+                        )
+                        % {
+                            "size": value_size,
+                            "max": MAX_CREDENTIAL_VALUE_SIZE,
+                        },
+                    )
+
+                record._seal_storage_method("simple")
+                record.credential_value_encrypted = record._encrypt_value(
+                    record.credential_value,
+                )
+                if record.id:
+                    record._log_access("write")
+            elif record.storage_method == "simple":
+                record.credential_value_encrypted = False
+
+    def _inverse_credential_data(self):
+        for record in self:
+            if not record.credential_data or record.credential_data == "{}":
+                if record.storage_method == "json":
+                    record.credential_value_encrypted = False
+                continue
+            record._seal_storage_method("json")
+
+            data_size = len(record.credential_data.encode("utf-8"))
+            if data_size > MAX_CREDENTIAL_DATA_SIZE:
+                raise ValidationError(
+                    self.env._(
+                        "Credential data exceeds maximum size!\n\nSize: %(size)s bytes\nMaximum: %(max)s bytes (64KB)",
+                    )
+                    % {"size": data_size, "max": MAX_CREDENTIAL_DATA_SIZE},
+                )
+
+            try:
+                parsed_data = json.loads(record.credential_data)
+            except (json.JSONDecodeError, ValueError) as e:
+                raise ValidationError(
+                    self.env._("Invalid JSON format in credential_data!\nError: %s")
+                    % str(e),
+                ) from e
+
+            try:
+                check_json_depth(parsed_data, MAX_JSON_NESTING_DEPTH)
+            except ValueError as e:
+                raise ValidationError(
+                    self.env._(
+                        "Invalid JSON structure!\n\nError: %(error)s\nMaximum nesting depth allowed: %(max)s levels",
+                    )
+                    % {"error": str(e), "max": MAX_JSON_NESTING_DEPTH},
+                ) from e
+
+            record.credential_value_encrypted = record._encrypt_value(
+                record.credential_data,
+            )
+
+    def _inverse_credential_json_field(self, field_name: str) -> None:
+        for record in self:
+            value = getattr(record, field_name)
+            if not value and record.storage_method != "json":
+                continue
+            record._seal_storage_method("json")
+            data = record._read_credential_dict_raw()
+            if value:
+                data[field_name] = value
+            else:
+                data.pop(field_name, None)
+            record.set_credential_dict(data)
+
+    def _read_credential_dict_raw(self) -> dict:
+        self.ensure_one()
+        if self.storage_method != "json":
+            return {}
+        if self.id:
+            self.env.cr.execute(
+                "SELECT id FROM credential_credential WHERE id = %s FOR NO KEY UPDATE",
+                [self.id],
+            )
+            self.invalidate_recordset(["credential_value_encrypted"])
+        encrypted = self.with_context(bin_size=False).credential_value_encrypted
+        if not encrypted:
+            return {}
+        plaintext = self._decrypt_value_safe(encrypted, default=None)
+        if not plaintext:
+            return {}
+        try:
+            parsed = json.loads(plaintext)
+        except json.JSONDecodeError, ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _inverse_credential_field_api_key(self) -> None:
+        self._inverse_credential_json_field("api_key")
+
+    def _inverse_credential_field_api_secret(self) -> None:
+        self._inverse_credential_json_field("api_secret")
+
+    def _inverse_credential_field_username(self) -> None:
+        self._inverse_credential_json_field("username")
+
+    def _inverse_credential_field_password(self) -> None:
+        self._inverse_credential_json_field("password")
+
+    def _inverse_credential_field_oauth_access_token(self) -> None:
+        self._inverse_credential_json_field("oauth_access_token")
+
+    def _inverse_credential_field_oauth_refresh_token(self) -> None:
+        self._inverse_credential_json_field("oauth_refresh_token")
+
+    def _inverse_credential_field_oauth_client_id(self) -> None:
+        self._inverse_credential_json_field("oauth_client_id")
+
+    def _inverse_credential_field_oauth_client_secret(self) -> None:
+        self._inverse_credential_json_field("oauth_client_secret")
+
+    def _inverse_credential_field_bearer_token(self) -> None:
+        self._inverse_credential_json_field("bearer_token")
+
+    @api.onchange("category_id")
+    def _onchange_category_id(self):
+        if self.category_id:
+            category = self.category_id.sudo()
+            self.enable_rate_limiting = category.default_enable_rate_limiting
+            self.rate_limit_max_attempts = category.default_rate_limit_max_attempts
+            self.auto_validate_health = category.default_auto_validate_health
+            self.allow_key_fallback = category.default_allow_key_fallback
+
+    _ENCRYPTED_FIELD_PAIRS = (
+        ("credential_value", "credential_value_encrypted", False),
+    )
+
+    def action_migrate_encryption_keys(self) -> dict[str, Any]:
+        if not self.env.user.has_group(
+            "credential.group_credential_admin",
+        ):
+            raise UserError(
+                self.env._(
+                    "Only Credential Manager administrators can migrate encryption keys."
+                ),
+            )
+        self.check_access("write")
+
+        current_version = self._get_current_encryption_key_version()
+
+        totals = {
+            "total": 0,
+            "eligible": 0,
+            "skipped": 0,
+            "migrated": 0,
+            "failed": 0,
+            "errors": [],
+            "current_key_version": current_version,
+            "models": {},
+        }
+
+        for model_name in self._get_encryption_migration_models():
+            model = self.env[model_name].sudo()
+            eligible = model.search(
+                [
+                    "|",
+                    ("encryption_key_version", "=", False),
+                    ("encryption_key_version", "<", current_version),
+                ],
+            )
+            total_all = model.search_count([])  # noqa: E8507  one query per model, not per record
+            stats = {
+                "total": total_all,
+                "eligible": len(eligible),
+                "skipped": total_all - len(eligible),
+                "migrated": 0,
+                "failed": 0,
+            }
+
+            _logger.info(
+                "Encryption key migration [%s]: %d eligible / %d total "
+                "(%d already at key version %d)",
+                model_name,
+                stats["eligible"],
+                total_all,
+                stats["skipped"],
+                current_version,
+            )
+
+            for record in eligible:
+                try:
+                    with self.env.cr.savepoint():
+                        migrated = record._reencrypt_with_current_key()
+                        if migrated:
+                            record._stamp_encryption_key_version(current_version)
+                except Exception as e:
+                    stats["failed"] += 1
+                    error_msg = f"{model_name} (ID: {record.id}): {e!s}"
+                    totals["errors"].append(error_msg)
+                    _logger.error("Failed to migrate record: %s", error_msg)
+                else:
+                    stats["migrated"] += bool(migrated)
+
+            totals["models"][model_name] = stats
+            for key in ("total", "eligible", "skipped", "migrated", "failed"):
+                totals[key] += stats[key]
+
+        _logger.info(
+            "Encryption key migration complete across %d model(s): "
+            "%d migrated, %d failed, %d skipped (key version %d)",
+            len(totals["models"]),
+            totals["migrated"],
+            totals["failed"],
+            totals["skipped"],
+            current_version,
+        )
+
+        return totals
+
+    def action_test_encryption_keys(self) -> dict[str, Any]:
+        if not self.env.user.has_group(
+            "credential.group_credential_admin",
+        ):
+            raise UserError(
+                self.env._(
+                    "Only Credential Manager administrators can test encryption keys."
+                ),
+            )
+        credentials = self
+        total = len(credentials)
+
+        results = {
+            "total": total,
+            "current_key": 0,
+            "old_keys": 0,
+            "failed": 0,
+            "details": [],
+        }
+
+        current_version = self._get_current_encryption_key_version()
+
+        for cred in credentials:
+            try:
+                if not cred.credential_value_encrypted:
+                    continue
+
+                encrypted = cred.credential_value_encrypted
+                if isinstance(encrypted, str):
+                    encrypted = encrypted.encode("utf-8")
+
+                try:
+                    cipher = Fernet(cred._get_encryption_key())
+                    cipher.decrypt(encrypted)
+                    results["current_key"] += 1
+                    results["details"].append(
+                        {
+                            "name": cred.name,
+                            "id": cred.id,
+                            "key_version": "current",
+                        },
+                    )
+                    continue
+                except InvalidToken:
+                    pass
+
+                found = False
+                for version in range(1, current_version) if current_version else []:
+                    try:
+                        old_key = cred._get_encryption_key(version=version)
+                        if old_key:
+                            cipher = Fernet(old_key)
+                            cipher.decrypt(encrypted)
+                            results["old_keys"] += 1
+                            results["details"].append(
+                                {
+                                    "name": cred.name,
+                                    "id": cred.id,
+                                    "key_version": f"v{version}",
+                                },
+                            )
+                            found = True
+                            break
+                    except Exception:
+                        _logger.debug(
+                            "Key version %s did not decrypt credential %s",
+                            version,
+                            cred.id,
+                            exc_info=True,
+                        )
+                        continue
+
+                if not found:
+                    results["failed"] += 1
+                    results["details"].append(
+                        {
+                            "name": cred.name,
+                            "id": cred.id,
+                            "key_version": "FAILED",
+                        },
+                    )
+
+            except Exception as e:
+                results["failed"] += 1
+                _logger.error("Test failed for credential %s: %s", cred.name, e)
+
+        return results
+
+    def action_validate_credential(self) -> dict[str, Any]:
+        self.ensure_one()
+
+        _logger.info(
+            "Validating credential %s (category: %s)",
+            self.name,
+            self.category_code,
+        )
+
+        result = {
+            "success": False,
+            "not_implemented": True,
+            "message": self.env._(
+                "No built-in validation for category '%s'. "
+                "Override action_validate_credential in an inheriting "
+                "module to add a service-specific probe."
+            )
+            % (self.category_code or "unknown"),
+        }
+        new_status = "unknown"
+
+        self.with_context(**{self._INTERNAL_STATS_UPDATE_KEY: True}).write(
+            {
+                "health_status": new_status,
+                "health_message": result.get("message") or result.get("error", ""),
+                "last_health_check": fields.Datetime.now(),
+            },
+        )
+
+        return result
+
+    @api.model
+    def cron_validate_credentials(self):
+        credentials = self.search(
+            [
+                ("auto_validate_health", "=", True),
+                ("active", "=", True),
+            ],
+        )
+
+        total = len(credentials)
+        healthy = 0
+        errors = 0
+        skipped = 0
+
+        _logger.info("Starting automated health validation for %d credentials", total)
+
+        for cred in credentials:
+            try:
+                result = cred.action_validate_credential()
+                if result.get("not_implemented"):
+                    skipped += 1
+                elif result.get("success"):
+                    healthy += 1
+                else:
+                    errors += 1
+            except Exception as e:
+                errors += 1
+                _logger.error(
+                    "Automated health check failed for credential %s: %s",
+                    cred.name,
+                    e,
+                )
+
+        _logger.info(
+            "Automated health validation complete: %d healthy, %d errors, "
+            "%d skipped (no built-in validator) out of %d",
+            healthy,
+            errors,
+            skipped,
+            total,
+        )
+
+        return {
+            "total": total,
+            "healthy": healthy,
+            "errors": errors,
+            "skipped": skipped,
+        }
+
+    def _expiry_warning_context(self) -> str:
+        self.ensure_one()
+        return ""
+
+    @api.model
+    def cron_check_expiring_credentials(self) -> dict[str, int]:
+        now = fields.Datetime.now()
+        threshold = now + timedelta(days=EXPIRY_WARNING_DAYS)
+
+        domain = [
+            ("date_expiration", "<=", threshold),
+            ("date_expiration", ">", now),
+            ("active", "=", True),
+        ]
+        expiring = self.sudo().search(domain)
+        unwarned = expiring.filtered(lambda cred: not cred.date_expiry_warned)
+
+        for cred in unwarned:
+            _logger.warning(
+                "Credential %s (id=%s)%s expires on %s; rotate or renew it "
+                "before that date.",
+                cred.name,
+                cred.id,
+                cred._expiry_warning_context(),
+                cred.date_expiration,
+            )
+
+        if unwarned:
+            unwarned.write({"date_expiry_warned": now})
+
+        return {
+            "expiring": len(expiring),
+            "warned": len(unwarned),
+            "window_days": EXPIRY_WARNING_DAYS,
+        }
+
+    def cron_cleanup_rate_limiter(self):
+        limiter = get_caller_rate_limiter(self.env)
+        cleaned = limiter.cleanup_old_entries(max_age_hours=24)
+        stats = limiter.get_stats()
+
+        _logger.info(
+            "Rate limiter cleanup complete: removed %d keys, tracking %d active keys with %d total attempts",
+            cleaned,
+            stats["total_keys"],
+            stats["total_attempts_tracked"],
+        )
+
+        return {
+            "cleaned": cleaned,
+            "active_keys": stats["total_keys"],
+            "total_attempts": stats["total_attempts_tracked"],
+        }
+
+    @api.model
+    def _get_active_for_category(self, code: str) -> Self:
+        category = self.env["credential.category"].search(
+            [("code", "=", code)], limit=1
+        )
+        if not category:
+            return self.browse()
+        return self.sudo().search(
+            [("category_id", "=", category.id), ("active", "=", True)],
+            order="write_date desc, id desc",
+            limit=1,
+        )
+
+    def get_credential_dict(self) -> dict[str, Any]:
+        self.ensure_one()
+
+        if self.storage_method != "json":
+            return {}
+
+        if self.credential_data and self.credential_data != "{}":
+            try:
+                return json.loads(self.credential_data)
+            except json.JSONDecodeError, ValueError:
+                _logger.warning(
+                    "Failed to parse credential_data as JSON for %s %s",
+                    self._name,
+                    self.id,
+                )
+
+        return {}
+
+    _SECRET_ACCESSOR_PRIORITY = (
+        "bearer_token",
+        "api_key",
+        "api_secret",
+        "oauth_access_token",
+        "password",
+    )
+
+    def _get_secret(self, prefer: str | None = None) -> str | bool:
+        self.ensure_one()
+        candidates = self._SECRET_ACCESSOR_PRIORITY
+        if prefer:
+            candidates = (prefer, *(f for f in candidates if f != prefer))
+        for field_name in candidates:
+            value = getattr(self, field_name, False)
+            if value:
+                return value
+        return self.credential_value or False
+
+    def _get_verification_secret(self, prefer: str | None = None) -> str | bool:
+        self.ensure_one()
+        encrypted = self.with_context(bin_size=False).credential_value_encrypted
+        if not encrypted:
+            return False
+        plaintext = self._decrypt_value_safe(encrypted, default=None)
+        if plaintext is None:
+            _logger.warning(
+                "Credential %s: could not decrypt for inbound verification "
+                "(key missing or rotated); treating as unset.",
+                self.id or "new",
+            )
+            return False
+        if self.storage_method != "json":
+            return plaintext or False
+
+        try:
+            data = json.loads(plaintext)
+        except json.JSONDecodeError, ValueError:
+            return False
+        if not isinstance(data, dict):
+            return False
+        candidates = self._SECRET_ACCESSOR_PRIORITY
+        if prefer:
+            candidates = (prefer, *(f for f in candidates if f != prefer))
+        for key in candidates:
+            if data.get(key):
+                return data[key]
+        return False
+
+    def get_basic_auth(self):
+        self.ensure_one()
+        if self.username and self.password:
+            return (self.username, self.password)
+        return None
+
+    def increment_usage(self, success: bool = True):
+        self.ensure_one()
+        vals = {
+            "usage_count": self.usage_count + 1,
+            "last_used_at": fields.Datetime.now(),
+        }
+        if success:
+            vals["success_count"] = self.success_count + 1
+        else:
+            vals["error_count"] = self.error_count + 1
+        self.with_context(**{self._INTERNAL_STATS_UPDATE_KEY: True}).write(vals)
+
+    @api.model
+    def _get_request_source_ip(self) -> str | bool:
+        try:
+            if request and hasattr(request, "httprequest"):
+                raw_ip = request.httprequest.remote_addr
+                if raw_ip:
+                    try:
+                        ipaddress.ip_address(raw_ip)
+                        return raw_ip
+                    except ValueError:
+                        _logger.warning(
+                            "Invalid IP address format in request: %s",
+                            raw_ip[:50],
+                        )
+                        return "invalid"
+        except Exception:
+            _logger.debug("No HTTP request context for access log", exc_info=True)
+        return False
+
+    def _access_log_extras(self, operation: str) -> dict:
+        self.ensure_one()
+        return {}
+
+    def _prepare_access_log_vals(self, operation: str, source_ip) -> dict:
+        self.ensure_one()
+        return {
+            "credential_id": self.id,
+            "credential_name": self.name,
+            "user_id": self.env.uid,
+            "user_login": self.env.user.login,
+            "company_id": self.company_id.id if self.company_id else False,
+            "operation": operation,
+            "timestamp": fields.Datetime.now(),
+            "source_ip": source_ip,
+            **self._access_log_extras(operation),
+        }
+
+    def _log_access(self, operation: str = "read"):
+        self.ensure_one()
+        source_ip = self._get_request_source_ip()
+        self.env["credential.access.log"].sudo().create(
+            self._prepare_access_log_vals(operation, source_ip),
+        )
+
+    def _log_access_guarded(self, operation: str = "read") -> None:
+        self.ensure_one()
+        if self.env.cr.readonly:
+            self._log_access_out_of_band(operation)
+        else:
+            self._log_access(operation)
+
+    def _enforce_access_rate_limit(self) -> None:
+        self.ensure_one()
+        if not self.id:
+            return
+        config = self.sudo()
+        if not (config.enable_rate_limiting and config.rate_limit_max_attempts > 0):
+            return
+
+        cap = config.rate_limit_max_attempts
+        if self._consume_decryption_allowance(cap):
+            return
+
+        _logger.warning(
+            "SECURITY: Rate limit exceeded for credential '%s' (id=%s) "
+            "by user %s. Limit: %d decryptions per hour.",
+            self.name,
+            self.id,
+            self.env.uid,
+            cap,
+        )
+        self._log_access_out_of_band("read_rate_limited")
+        raise ValidationError(
+            self.env._(
+                "Rate limit exceeded for credential '%(name)s'.\n\n"
+                "Limit: %(limit)s decryptions per hour, per user.\n"
+                "The allowance refills continuously; retry shortly.",
+            )
+            % {
+                "name": self.name,
+                "limit": cap,
+            },
+        )
+
+    _DECRYPT_BUCKET_MODEL = "credential.credential.decrypt"
+    _DECRYPT_WINDOW_SECONDS = 3600
+
+    def _consume_decryption_allowance(self, cap: int) -> bool:
+        self.ensure_one()
+        subject = SimpleNamespace(
+            _name=self._DECRYPT_BUCKET_MODEL,
+            id=self.id,
+            rate_limit_requests=cap,
+        )
+        bucket = (
+            self.env["rate.limit.bucket"]
+            .sudo()
+            .get_or_create_bucket(
+                subject,
+                bucket_key=f"{self._DECRYPT_BUCKET_MODEL}:{self.id}:{self.env.uid}",
+            )
+        )
+        return bucket.consume_token(
+            capacity=cap,
+            refill_rate=cap / self._DECRYPT_WINDOW_SECONDS,
+        )
+
+    def _log_access_out_of_band(self, operation: str) -> None:
+        records = self.filtered(lambda r: r.id)
+        if not records:
+            return
+        source_ip = self._get_request_source_ip()
+        vals_list = [
+            record._prepare_access_log_vals(operation, source_ip) for record in records
+        ]
+        try:
+            with self.env.registry.cursor() as cr:
+                env = self.env(cr=cr)
+                env["credential.access.log"].sudo().create(vals_list)
+        except Exception as e:
+            _logger.error(
+                "Out-of-band audit log failed for credentials %s op=%s: %s. "
+                "Falling back to rollback-coupled write.",
+                records.ids,
+                operation,
+                e,
+            )
+            for record in records:
+                try:
+                    record._log_access(operation)
+                except Exception as inner:
+                    _logger.error(
+                        "Fallback audit log ALSO failed for credential %s: %s",
+                        record.id,
+                        inner,
+                    )
+
+    def mark_as_used(self):
+        self.ensure_one()
+        self.with_context(**{self._INTERNAL_STATS_UPDATE_KEY: True}).write(
+            {"last_used_at": fields.Datetime.now()}
+        )
+        self._log_access("use")
+
+    def set_credential_dict(self, data_dict: dict[str, Any]):
+        self.ensure_one()
+
+        if not isinstance(data_dict, dict):
+            raise ValidationError(self.env._("Credential data must be a dictionary"))
+
+        self._log_access("write")
+        json_str = json.dumps(data_dict)
+
+        data_size = len(json_str.encode("utf-8"))
+        if data_size > MAX_CREDENTIAL_DATA_SIZE:
+            raise ValidationError(
+                self.env._(
+                    "Credential data exceeds maximum size!\n\nSize: %(size)s bytes\nMaximum: %(max)s bytes (64KB)",
+                )
+                % {"size": data_size, "max": MAX_CREDENTIAL_DATA_SIZE},
+            )
+
+        try:
+            check_json_depth(data_dict, MAX_JSON_NESTING_DEPTH)
+        except ValueError as e:
+            raise ValidationError(
+                self.env._(
+                    "Invalid JSON structure!\n\nError: %(error)s\nMaximum nesting depth allowed: %(max)s levels",
+                )
+                % {"error": str(e), "max": MAX_JSON_NESTING_DEPTH},
+            ) from e
+
+        if json_str and json_str != "{}":
+            self.credential_value_encrypted = self._encrypt_value(json_str)
+        else:
+            self.credential_value_encrypted = False
