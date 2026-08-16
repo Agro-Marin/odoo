@@ -316,13 +316,41 @@ def _warn_on_connection_budget() -> None:
         return
     try:
         processes, demand = _connection_budget_demand()
+        configured_port = config["db_port"]
         with contextlib.closing(db.db_connect("postgres").cursor()) as cr:
             cr.execute("SHOW max_connections")
             server_max = int(cr.fetchone()[0])
             cr.execute("SHOW superuser_reserved_connections")
             reserved = int(cr.fetchone()[0])
+            cr.execute("SELECT inet_server_port()")
+            server_port = cr.fetchone()[0]
     except Exception:
         _logger.debug("Could not check the connection budget", exc_info=True)
+        return
+
+    # Bail out when a connection pooler sits between us and PostgreSQL: the two
+    # sides of the comparison then describe different things.  Our workers
+    # contend for the pooler's client slots, while ``max_connections`` bounds
+    # the pooler's own (much smaller) server pool, which it multiplexes -- so
+    # demand legitimately exceeds it, and the advice below would be actively
+    # wrong: cutting ``db_maxconn`` to fit the backend starves the workers
+    # against a pooler sized to serve them.  The pooler's client limit is not
+    # readable from here (PgBouncer answers ``SHOW max_client_conn`` only on
+    # its admin database), so the honest move is to say we cannot check it.
+    #
+    # Detected without naming a vendor: a proxied connection reports the
+    # *backend's* port, so it differs from the port we dialed.
+    if server_port and configured_port and int(configured_port) != int(server_port):
+        _logger.info(
+            "Connection budget not checked: connected to port %s but the server "
+            "reports port %s, so a connection pooler is in between and its "
+            "client limit -- not max_connections=%d -- is what bounds this "
+            "deployment. Size db_maxconn x %d process(es) against the pooler.",
+            configured_port,
+            server_port,
+            server_max,
+            processes,
+        )
         return
 
     headroom = server_max - reserved
