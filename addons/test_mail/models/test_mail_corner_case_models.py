@@ -114,6 +114,8 @@ class MailTestTrackAllO2m(models.Model):
 
     name = fields.Char('Name')
     mail_track_all_id = fields.Many2one('mail.test.track.all')
+    currency_id = fields.Many2one('res.currency')
+    monetary_field = fields.Monetary('Monetary')
 
 
 class MailTestTrackAllPropertiesParent(models.Model):

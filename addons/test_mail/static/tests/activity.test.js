@@ -1220,3 +1220,78 @@ test("Activity View: Hide 'New' button in SelectCreateDialog based on action con
         message: "'New' button should be hidden",
     });
 });
+
+test("mock server: a cell's summaries cover done activities too", async () => {
+    // `_get_activity_data_cells` builds `summaries` from ongoing AND completed,
+    // so a cell whose work is half finished still names all of it. The mock
+    // server took only the ongoing half, and no test could see the difference.
+    const [record] = pyEnv["mail.test.activity"].search([]);
+    const activityType = pyEnv["mail.activity.type"].create({ name: "Summaries" });
+    pyEnv["mail.activity"].create([
+        {
+            activity_type_id: activityType,
+            active: true,
+            date_deadline: serializeDate(DateTime.now()),
+            res_id: record,
+            res_model: "mail.test.activity",
+            summary: "StillToDo",
+            user_id: serverState.userId,
+        },
+        {
+            activity_type_id: activityType,
+            active: false,
+            date_deadline: serializeDate(DateTime.now()),
+            date_done: serializeDate(DateTime.now()),
+            res_id: record,
+            res_model: "mail.test.activity",
+            summary: "AlreadyDone",
+            user_id: serverState.userId,
+        },
+    ]);
+    const data = pyEnv["mail.activity"].get_activity_data(
+        "mail.test.activity",
+        [["id", "=", record]],
+        0,
+        0,
+        true,
+    );
+    expect(data.grouped_activities[record][activityType].summaries).toEqual([
+        "StillToDo",
+        "AlreadyDone",
+    ]);
+});
+
+test("mock server: records with nothing left to do are ordered newest-done first", async () => {
+    // `_get_activity_data_order` sorts the completed tail by `date_done`
+    // descending; the mock sorted it ascending, so the two disagreed on every
+    // record whose activities were all finished.
+    // Fresh records: the fixture's already carry ongoing activities, which would
+    // put them in the deadline-ordered head and never exercise this branch.
+    const records = pyEnv["mail.test.activity"].create([
+        { name: "finished_oldest" },
+        { name: "finished_middle" },
+        { name: "finished_newest" },
+    ]);
+    const activityType = pyEnv["mail.activity.type"].create({ name: "Finished" });
+    records.forEach((record, index) => {
+        pyEnv["mail.activity"].create({
+            activity_type_id: activityType,
+            active: false,
+            date_deadline: serializeDate(DateTime.now().minus({ days: 10 - index })),
+            date_done: serializeDate(DateTime.now().minus({ days: 10 - index })),
+            res_id: record,
+            res_model: "mail.test.activity",
+            summary: `Done ${index}`,
+            user_id: serverState.userId,
+        });
+    });
+    const data = pyEnv["mail.activity"].get_activity_data(
+        "mail.test.activity",
+        [["id", "in", records]],
+        0,
+        0,
+        true,
+    );
+    // records[2] finished most recently, so it leads.
+    expect(data.activity_res_ids).toEqual([...records].reverse());
+});

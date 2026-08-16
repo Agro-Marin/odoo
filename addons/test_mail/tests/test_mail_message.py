@@ -335,7 +335,7 @@ class TestMessageValues(MailCommon):
             f'<img src="/web/image/{msg.attachment_ids[0].id}?access_token={msg.attachment_ids[0].access_token}" alt="image0" data-attachment-id="{msg.attachment_ids[0].id}" width="2"></p>'
         )
 
-    @mute_logger('odoo.models.unlink', 'odoo.addons.mail.models.models')
+    @mute_logger('odoo.models.unlink', 'odoo.addons.mail.models.base')
     @users('employee')
     def test_mail_message_values_fromto_long_name(self):
         """ Long headers may break in python if above 68 chars for certain

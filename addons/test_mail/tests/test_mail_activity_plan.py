@@ -2,6 +2,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
+from unittest.mock import patch
+
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
@@ -419,3 +421,110 @@ class TestActivitySchedule(ActivityScheduleCase):
                 ValidationError, msg='When selecting responsible "other", you must specify a responsible.'):
             template.responsible_type = 'other'
         template.write({'responsible_type': 'other', 'responsible_id': self.user_admin})
+
+
+@tagged('mail_activity', 'mail_activity_plan')
+class TestPlanScheduleShape(ActivityScheduleCase):
+    """What launching a plan costs, and who may be offered a model to launch on.
+
+    Every other pin in this file asserts the activities a plan produces. These
+    assert the shape of the work that produces them, which is invisible to a
+    result comparison and was linear in records x templates.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.plan = cls.env['mail.activity.plan'].create({
+            'name': 'Shape',
+            'res_model': 'mail.test.activity',
+            'template_ids': [
+                (0, 0, {
+                    'activity_type_id': cls.activity_type_todo.id,
+                    'responsible_id': cls.user_admin.id,
+                    'responsible_type': 'other',
+                    'sequence': 10 * index,
+                    'summary': f'Step {index}',
+                })
+                for index in range(3)
+            ],
+        })
+        cls.records = cls.env['mail.test.activity'].create(
+            [{'name': f'rec_{index}'} for index in range(4)])
+
+    def _wizard(self):
+        return self.env['mail.activity.schedule'].create({
+            'plan_id': self.plan.id,
+            'plan_on_demand_user_id': self.env.user.id,
+            'res_ids': str(self.records.ids),
+            'res_model': 'mail.test.activity',
+        })
+
+    def test_launching_a_plan_groups_its_creates(self):
+        """Records sharing a template and a responsible are scheduled together."""
+        wizard = self._wizard()
+        creates = []
+        Activity = type(self.env['mail.activity'])
+        origin = Activity.create
+
+        def counting_create(records, vals_list):
+            creates.append(len(vals_list) if isinstance(vals_list, list) else 1)
+            return origin(records, vals_list)
+
+        with patch.object(Activity, 'create', counting_create):
+            wizard.action_schedule_plan()
+
+        self.assertEqual(
+            len(creates), len(self.plan.template_ids),
+            'one create per template, not one per (template, record)')
+        self.assertEqual(sum(creates), len(self.plan.template_ids) * len(self.records))
+        self.assertEqual(
+            self.env['mail.activity'].search_count([
+                ('res_model', '=', 'mail.test.activity'),
+                ('res_id', 'in', self.records.ids),
+            ]),
+            len(self.plan.template_ids) * len(self.records))
+
+    def test_the_responsible_is_resolved_once_per_template_and_record(self):
+        """`_determine_responsible` feeds both errors and warnings, so it is
+        asked once for both -- hr walks a management chain inside it."""
+        wizard = self._wizard()
+        Template = type(self.env['mail.activity.plan.template'])
+        with patch.object(
+            Template, '_determine_responsible', autospec=True,
+            side_effect=lambda template, on_demand, record: {
+                'responsible': self.user_admin, 'error': False, 'warning': False},
+        ) as determine:
+            wizard.invalidate_recordset(['error', 'has_error', 'warning', 'has_warning'])
+            wizard.error
+        self.assertEqual(
+            determine.call_count, len(self.plan.template_ids) * len(self.records))
+
+    def test_a_plan_without_a_document_is_a_user_error(self):
+        wizard = self._wizard()
+        wizard.res_model = False
+        with self.assertRaises(UserError):
+            wizard.action_schedule_plan()
+
+    @users('employee')
+    def test_model_options_exclude_what_the_user_cannot_read(self):
+        """The access question is about the described model, not the ir.model row.
+
+        The row is read through sudo(), so asking *it* answers True for
+        everyone, and every activity-capable model was offered to every user.
+        """
+        options = self.env['mail.activity.schedule'].get_model_options()
+        self.assertTrue(options)
+        unreadable = [
+            model for model in options
+            if not self.env[model].has_access('read')
+        ]
+        self.assertFalse(
+            unreadable, f'offered models the user cannot read: {unreadable}')
+
+    @users('employee')
+    def test_model_options_exclude_abstract_models(self):
+        """An abstract model can hold no record, so it can hold no activity."""
+        options = self.env['mail.activity.schedule'].get_model_options()
+        abstract = [model for model in options if self.env[model]._abstract]
+        self.assertFalse(abstract, f'offered abstract models: {abstract}')

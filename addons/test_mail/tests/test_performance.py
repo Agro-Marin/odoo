@@ -281,7 +281,7 @@ class TestBaseMailPerformance(BaseMailPerformance):
     @warmup
     def test_create_mail_with_tracking(self):
         """ Create records inheriting from 'mail.thread' (with field tracking). """
-        # +2 vs the pre-fork floor: mail.followers._insert_followers wraps its
+        # +2 vs the pre-fork floor: mail.followers._add_followers wraps its
         # create in cr.savepoint(flush=False) and retries row-by-row on
         # IntegrityError, because concurrent auto-subscribes race the
         # unique(res_model, res_id, partner_id) index. SAVEPOINT + RELEASE are
@@ -356,7 +356,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
             # voip module read activity_type during create leading to one less query in enterprise on action_feedback
             _category = activity.activity_type_id.category
 
-        with self.assertQueryCount(admin=8, employee=8):  # tm: 7 / 7
+        with self.assertQueryCount(admin=9, employee=9):  # tm: 7 / 7  # +1: the systray to-do delta reads the records that are already due on the touched documents
             activity.action_feedback(feedback='Zizisse Done !')
 
     @warmup
@@ -383,7 +383,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
     def test_activity_mixin(self):
         record = self.env['mail.test.activity'].create({'name': 'Test'})
 
-        with self.assertQueryCount(admin=5, employee=5):
+        with self.assertQueryCount(admin=7, employee=7):  # +2: the to-do delta's one read, plus the res_name compute it pulls forward into the block
             activity = record.action_start('Test Start')
             # read activity_type to normalize cache between enterprise and community
             # voip module read activity_type during create leading to one less query in enterprise on action_close
@@ -391,7 +391,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
 
         record.write({'name': 'Dupe write'})
 
-        with self.assertQueryCount(admin=12, employee=12):  # tm: 11 / 11
+        with self.assertQueryCount(admin=13, employee=13):  # tm: 11 / 11  # +1: the systray to-do delta reads the records that are already due on the touched documents
             record.action_close('Dupe feedback')
 
         self.assertEqual(record.activity_ids, self.env['mail.activity'])
@@ -409,7 +409,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
             for values in self.test_attachments_vals
         ])
 
-        with self.assertQueryCount(admin=5, employee=5):
+        with self.assertQueryCount(admin=7, employee=7):  # +2: the to-do delta's one read, plus the res_name compute it pulls forward into the block
             activity = record.action_start('Test Start')
             #read activity_type to normalize cache between enterprise and community
             #voip module read activity_type during create leading to one less query in enterprise on action_close
@@ -417,7 +417,7 @@ class TestBaseAPIPerformance(BaseMailPerformance):
 
         record.write({'name': 'Dupe write'})
 
-        with self.assertQueryCount(admin=14, employee=14):  # tm 10 / 10
+        with self.assertQueryCount(admin=15, employee=15):  # tm 10 / 10  # +1: the systray to-do delta reads the records that are already due on the touched documents
             record.action_close('Dupe feedback', attachment_ids=attachments.ids)
 
         # notifications
@@ -511,7 +511,10 @@ class TestBaseAPIPerformance(BaseMailPerformance):
                 'default_template_id': test_template.id,
             }).create({})
 
-        with self.assertQueryCount(admin=67, employee=67), self.mock_mail_gateway():
+        # 79 -> 61 when _prepare_send_batch took over the per-mail pending-notification
+        # search that _mark_sending used to run (and that flushed the previous mail's
+        # write). The budget was 67 and this was one of the standing red pins.
+        with self.assertQueryCount(admin=61, employee=61), self.mock_mail_gateway():
             composer._action_send_mail()
 
         self.assertEqual(len(self._new_mails), 10)
@@ -1034,7 +1037,13 @@ class TestMailAPIPerformance(BaseMailPerformance):
     @warmup
     def test_message_get_suggested_recipients_batch(self):
         records = self.test_records_recipients.with_env(self.env)
-        with self.assertQueryCount(employee=32):  # tm: 25
+        # -6, and the floor was already breached at 33 > 32 before it: the two
+        # suggestion loops read every record's partners off a recordset union,
+        # which owns no prefetch set beyond its own ids, and computed 'is_public'
+        # -- a read_group over the portal and public groups -- once per record.
+        # 18611cec438. Measured with test_mail alone (27, the 'tm' number) and
+        # with account and marketing_card installed too (29, asserted).
+        with self.assertQueryCount(employee=29):  # tm: 27
             _recipients = records._message_get_suggested_recipients_batch(no_create=False)
 
     @mute_logger('odoo.tests', 'odoo.addons.mail.models.mail_mail', 'odoo.models.unlink')
@@ -1117,7 +1126,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
         # subscribe new followers with forced given subtypes
         # +2: the mail.followers savepoint guard (SAVEPOINT + RELEASE). Every
         # block here widens the partner set ([:4], [:6], then all), so each one
-        # does add new followers and _insert_followers takes the savepoint.
+        # does add new followers and _add_followers takes the savepoint.
         with self.assertQueryCount(admin=6, employee=6):
             rec.message_subscribe(
                 partner_ids=pids[:4],
@@ -1129,7 +1138,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
         # subscribe existing and new followers with force=False, meaning only some new followers will be added
         # +2: the mail.followers savepoint guard (SAVEPOINT + RELEASE). Every
         # block here widens the partner set ([:4], [:6], then all), so each one
-        # does add new followers and _insert_followers takes the savepoint.
+        # does add new followers and _add_followers takes the savepoint.
         with self.assertQueryCount(admin=7, employee=7):
             rec.message_subscribe(
                 partner_ids=pids[:6],
@@ -1141,7 +1150,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
         # subscribe existing and new followers with force=True, meaning all will have the same subtypes
         # +2: the mail.followers savepoint guard (SAVEPOINT + RELEASE). Every
         # block here widens the partner set ([:4], [:6], then all), so each one
-        # does add new followers and _insert_followers takes the savepoint.
+        # does add new followers and _add_followers takes the savepoint.
         with self.assertQueryCount(admin=6, employee=6):
             rec.message_subscribe(
                 partner_ids=pids,
@@ -1277,7 +1286,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
         # 71 (was 62/63): the write's tracking message now correctly notifies the
         # container followers it just auto-subscribed (the assertions below), which
         # creates their notifications + bus fan-out. Previously a flushing savepoint
-        # in _insert_followers ran _track_finalize before those followers existed,
+        # in _add_followers ran _track_finalize before those followers existed,
         # so only the assignee was notified (fewer queries, wrong result).
         with self.assertQueryCount(admin=71, employee=71):
             rec.write({
@@ -1635,13 +1644,15 @@ class TestMessageToStorePerformance(BaseMailPerformance):
         )
 
         def get_bus_params():
+            # The inbox fan-out carries no `notification_ids` and no
+            # `mail.notification`: `_get_store_defaults_fields` drops them under
+            # `mail_notify_inbox`, so each recipient stops receiving a record
+            # per *other* recipient -- O(recipients^2) payload, and every one of
+            # them naming an email address that recipient may not read. The two
+            # recipient partners left with them: they were in this payload only
+            # because the notification records referenced them.
+            # `mail/tests/test_mail_audit_v6b.py` pins both halves.
             message = self.env["mail.message"].search([], order="id desc", limit=1)
-            notif_1 = message.notification_ids.filtered(
-                lambda n: n.res_partner_id == self.user_emp_inbox.partner_id
-            )
-            notif_2 = message.notification_ids.filtered(
-                lambda n: n.res_partner_id == self.user_follower_emp_inbox.partner_id
-            )
             return (
                 [
                     (self.cr.dbname, "res.partner", self.user_emp_inbox.partner_id.id),
@@ -1682,7 +1693,6 @@ class TestMessageToStorePerformance(BaseMailPerformance):
                                         "message_type": "comment",
                                         "model": "mail.test.simple",
                                         "needaction": True,
-                                        "notification_ids": [notif_1.id, notif_2.id],
                                         "partner_ids": [],
                                         "pinned_at": False,
                                         "rating_id": False,
@@ -1704,29 +1714,10 @@ class TestMessageToStorePerformance(BaseMailPerformance):
                                         "id": self.env.ref("mail.mt_comment").id,
                                     },
                                 ],
-                                "mail.notification": [
-                                    {
-                                        "mail_email_address": False,
-                                        "failure_type": False,
-                                        "id": notif_1.id,
-                                        "mail_message_id": message.id,
-                                        "notification_status": "sent",
-                                        "notification_type": "inbox",
-                                        "res_partner_id": self.user_emp_inbox.partner_id.id,
-                                    },
-                                    {
-                                        "mail_email_address": False,
-                                        "failure_type": False,
-                                        "id": notif_2.id,
-                                        "mail_message_id": message.id,
-                                        "notification_status": "sent",
-                                        "notification_type": "inbox",
-                                        "res_partner_id": self.user_follower_emp_inbox.partner_id.id,
-                                    },
-                                ],
                                 "mail.thread": self._filter_threads_fields(
                                     {
                                         "display_name": "Test",
+                                        "has_mail_thread": True,
                                         "id": record.id,
                                         "model": "mail.test.simple",
                                         "module_icon": "/base/static/description/icon.png",
@@ -1744,19 +1735,13 @@ class TestMessageToStorePerformance(BaseMailPerformance):
                                             self.env.user.partner_id.write_date
                                         ),
                                     },
-                                    {
-                                        "email": self.user_emp_inbox.partner_id.email,
-                                        "id": self.user_emp_inbox.partner_id.id,
-                                        "name": "Ignasse Inbox",
-                                    },
-                                    {
-                                        "email": self.user_follower_emp_inbox.partner_id.email,
-                                        "id": self.user_follower_emp_inbox.partner_id.id,
-                                        "name": "Isabelle Follower Inbox",
-                                    },
                                 ),
                                 "res.users": self._filter_users_fields(
-                                    {"id": self.env.user.id, "share": False},
+                                    {
+                                        "id": self.env.user.id,
+                                        "partner_id": self.env.user.partner_id.id,
+                                        "share": False,
+                                    },
                                 ),
                             },
                         },
@@ -1795,7 +1780,6 @@ class TestMessageToStorePerformance(BaseMailPerformance):
                                         "message_type": "comment",
                                         "model": "mail.test.simple",
                                         "needaction": True,
-                                        "notification_ids": [notif_1.id, notif_2.id],
                                         "partner_ids": [],
                                         "pinned_at": False,
                                         "rating_id": False,
@@ -1817,29 +1801,10 @@ class TestMessageToStorePerformance(BaseMailPerformance):
                                         "id": self.env.ref("mail.mt_comment").id,
                                     },
                                 ],
-                                "mail.notification": [
-                                    {
-                                        "mail_email_address": False,
-                                        "failure_type": False,
-                                        "id": notif_1.id,
-                                        "mail_message_id": message.id,
-                                        "notification_status": "sent",
-                                        "notification_type": "inbox",
-                                        "res_partner_id": self.user_emp_inbox.partner_id.id,
-                                    },
-                                    {
-                                        "mail_email_address": False,
-                                        "failure_type": False,
-                                        "id": notif_2.id,
-                                        "mail_message_id": message.id,
-                                        "notification_status": "sent",
-                                        "notification_type": "inbox",
-                                        "res_partner_id": self.user_follower_emp_inbox.partner_id.id,
-                                    },
-                                ],
                                 "mail.thread": self._filter_threads_fields(
                                     {
                                         "display_name": "Test",
+                                        "has_mail_thread": True,
                                         "id": record.id,
                                         "model": "mail.test.simple",
                                         "module_icon": "/base/static/description/icon.png",
@@ -1857,19 +1822,13 @@ class TestMessageToStorePerformance(BaseMailPerformance):
                                             self.env.user.partner_id.write_date
                                         ),
                                     },
-                                    {
-                                        "email": self.user_emp_inbox.partner_id.email,
-                                        "id": self.user_emp_inbox.partner_id.id,
-                                        "name": "Ignasse Inbox",
-                                    },
-                                    {
-                                        "email": self.user_follower_emp_inbox.partner_id.email,
-                                        "id": self.user_follower_emp_inbox.partner_id.id,
-                                        "name": "Isabelle Follower Inbox",
-                                    },
                                 ),
                                 "res.users": self._filter_users_fields(
-                                    {"id": self.env.user.id, "share": False},
+                                    {
+                                        "id": self.env.user.id,
+                                        "partner_id": self.env.user.partner_id.id,
+                                        "share": False,
+                                    },
                                 ),
                             },
                         },

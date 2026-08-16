@@ -10,6 +10,8 @@ from . import test_js
 from . import test_mail_activity
 from . import test_mail_activity_mixin
 from . import test_mail_audit_v7
+from . import test_mail_audit_v8
+from . import test_mail_hardening_v21
 from . import test_mail_activity_plan
 from . import test_mail_alias
 from . import test_mail_composer
@@ -33,3 +35,4 @@ from . import test_message_post
 from . import test_message_track
 from . import test_performance
 from . import test_tracking_duration_depends
+from . import test_mail_template_audit

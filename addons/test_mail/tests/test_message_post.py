@@ -672,6 +672,28 @@ class TestMessageLog(TestMessagePostCommon):
         )
 
     @users('employee')
+    def test_message_log_batch_author_from_email(self):
+        """ Giving 'email_from' without 'author_id' on more than one record used
+        to raise "Expected singleton": _message_compute_author falls through to
+        _partner_find_from_emails_single, which is ensure_one()'d. The batch API
+        documents batch support and guards its other multi-record hazards
+        explicitly, so this one was an oversight. """
+        test_records = self.test_records.with_env(self.env)
+        self.assertGreater(len(test_records), 1, 'sanity: needs a real batch')
+        bodies = {record.id: Markup('<p>log</p>') for record in test_records}
+
+        notes = test_records._message_log_batch(bodies=bodies, email_from='ext@example.com')
+        self.assertEqual(len(notes), len(test_records))
+        self.assertEqual(set(notes.mapped('email_from')), {'ext@example.com'})
+
+        # unchanged: an explicit author still wins, and a singleton still resolves
+        # the author against the record itself
+        notes = test_records._message_log_batch(
+            bodies=bodies, email_from='ext@example.com',
+            author_id=self.partner_employee_2.id)
+        self.assertEqual(set(notes.mapped('author_id')), {self.partner_employee_2})
+
+    @users('employee')
     def test_message_log_batch(self):
         test_records = self.test_records.with_env(self.env)
         test_records.message_subscribe(self.partner_employee_2.ids)
@@ -1121,11 +1143,10 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
              f'"{self.partner_1.name}" <valid.lelitre.cc@agrolait.com>',],
             # Avoid double encapsulation
             [f'"{self.partner_1.name}" <valid.lelitre@agrolait.com>',],
-            # sent "normally": formats email based on wrong / falsy email
+            # present but unparseable: still attempted, formatted as-is
             [f'"{self.partner_1.name}" <@wrong>',],
-            [f'"{self.partner_1.name}" <@False>',],
-            [f'"{self.partner_1.name}" <@False>',],
-            [f'"{self.partner_1.name}" <@ >',],
+            # no address at all: no recipient to format (was a literal "False")
+            [], [], [],
         ]
 
         for partner_email, expected_to in zip(partner_emails, expected_tos):

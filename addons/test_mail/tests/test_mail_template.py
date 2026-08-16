@@ -251,11 +251,26 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
     def test_template_send_email_batch(self):
         """ Test 'send_email' on template in batch """
         self.env.invalidate_all()
-        # 29 (was 25): the fork's message-write / notification / envelope access
-        # enforcement adds a small, constant number of ir_rule evaluations to the
-        # batch send (verified by profiling: no per-record N+1 — the extra
-        # queries do not scale with the batch size).
-        with self.with_user(self.user_employee.login), self.assertQueryCount(29):
+        # 33 (was 29, itself was 25). The move is six queries in and two out,
+        # captured with `query_hooks` at 83d19c2d051 (29) and diffed against the
+        # trace here:
+        #   + LOCK TABLE ... IN ROW EXCLUSIVE MODE           x2
+        #   + SELECT pg_get_serial_sequence(..., 'id')       x2
+        #   + WITH RECURSIVE resolved ... (column types)     x2
+        #   - INSERT INTO mail_message_res_partner_rel       x2
+        # The six are `odoo/db/bulk.py`'s per-table setup for the COPY create
+        # path -- id sequence, row lock, column-type introspection -- one of
+        # each for `mail_message` and `mail_mail`, and cached on the cursor's
+        # `TransactionSchemaCache` for the rest of the transaction. They are the
+        # price of writing the rows with COPY instead of INSERT, so they are the
+        # same work moved rather than work added, and they do not repeat per
+        # chunk: the second chunk here costs only nextval + COPY. The two
+        # removed are recipient m2m writes the send no longer performs.
+        #
+        # What this number cannot tell you is whether the send grew a per-record
+        # query -- that would move it by a constant too. See
+        # test_template_send_email_batch_costs_per_chunk_not_per_record below.
+        with self.with_user(self.user_employee.login), self.assertQueryCount(33):
             template = self.test_template.with_env(self.env)
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 
@@ -271,6 +286,50 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
                 self.assertEqual(mail.subject, f'EnglishSubject for {record.name}')
             else:
                 self.assertEqual(mail.subject, f'SpanishSubject for {record.name}')
+
+    @mute_logger('odoo.addons.mail.models.mail_mail')
+    def test_template_send_email_batch_costs_per_chunk_not_per_record(self):
+        """The send issues no per-record query: its cost follows the number of
+        ``_get_mail_batch_size`` chunks, and nothing else.
+
+        This is the property the exact pin above cannot state. That pin sends
+        one batch size, so a per-record query inside the send path moves it by
+        a constant and reads as ordinary drift -- and the number is read for
+        every unrelated change too, which is why it has spent weeks away from
+        its floor while the send path was being reworked. Measured across a
+        chunk boundary instead: 51 records and 100 records are two chunks
+        either way, so the 49 extra records must cost nothing.
+
+        The larger batch is measured *second* on purpose. Whatever the first
+        send warms can only make the second cheaper, so the comparison is
+        one-sided in the safe direction: a per-record query would put 49
+        queries on the wrong side of it and no amount of warming could hide
+        them. The count assertion is paired with the outcome assertion,
+        because a bound alone is equally satisfied by the send not happening.
+        """
+        self.env.invalidate_all()
+        template = self.test_template.with_env(self.env)
+        record_ids = self.test_records_batch.ids
+        template.send_mail_batch(record_ids[:5])  # warm the shared caches
+
+        counts, sent = {}, {}
+        for size in (51, 100):
+            self.env.flush_all()
+            self.env.cr.flush()
+            before = self.env.cr.sql_log_count
+            mails_sudo = template.send_mail_batch(record_ids[:size])
+            self.env.flush_all()
+            self.env.cr.flush()
+            counts[size] = self.env.cr.sql_log_count - before
+            sent[size] = len(mails_sudo)
+
+        self.assertEqual(sent, {51: 51, 100: 100},
+                         'the sends have to have happened for the count to mean anything')
+        self.assertLessEqual(
+            counts[100], counts[51],
+            'send_mail_batch issued a query per record: 100 records cost '
+            f'{counts[100]} queries against {counts[51]} for 51, and both are '
+            'two chunks of at most _get_mail_batch_size')
 
     @mute_logger('odoo.addons.mail.models.mail_mail')
     @warmup
@@ -295,9 +354,11 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
     def test_template_send_email_wreport_batch(self):
         """ Test 'send_email' on template in batch with dynamic reports """
         self.env.invalidate_all()
-        # 236 (was 232): same constant access-enforcement overhead as
+        # 240 (was 236, itself was 232): the same six-in / two-out move as
         # test_template_send_email_batch, on top of the dynamic-report path.
-        with self.with_user(self.user_employee.login), self.assertQueryCount(236):
+        # Measured, not inferred -- the trace here carries the same six COPY
+        # setup queries and the baseline carried none.
+        with self.with_user(self.user_employee.login), self.assertQueryCount(240):
             template = self.test_template_wreports.with_env(self.env)
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 

@@ -711,6 +711,24 @@ class TestMailgateway(MailGatewayCommon):
         self.assertSentEmail(f'"MAILER-DAEMON" <{self.alias_bounce}@{self.alias_domain}>', ['whatever-2a840@postmaster.twitter.com'], subject='Re: Should Bounce')
 
     @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.models.unlink', 'odoo.addons.mail.models.mail_mail')
+    def test_message_process_alias_partners_bounce_no_subject(self):
+        """ A bounced mail carrying no Subject must not be answered with the
+        literal subject "Re: None" -- message.get() returns None for an absent
+        header, and the bounce values interpolated it straight into "Re: %s". """
+        self.alias.write({'alias_contact': 'partners'})
+
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE, self.email_from, f'groups@{self.alias_domain}', subject='')
+        self.assertFalse(record)
+        sent = self._find_sent_email(
+            f'"MAILER-DAEMON" <{self.alias_bounce}@{self.alias_domain}>',
+            ['whatever-2a840@postmaster.twitter.com'])
+        self.assertTrue(sent, 'the mail should still have bounced')
+        self.assertNotIn('None', sent['subject'])
+        self.assertEqual(sent['subject'], 'Re:')
+
+    @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.models.unlink', 'odoo.addons.mail.models.mail_mail')
     def test_message_process_alias_followers_bounce(self):
         """ Incoming email from unknown partner / not follower partner on a Followers only alias -> bounce """
         self.alias.write({

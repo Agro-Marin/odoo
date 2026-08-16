@@ -658,9 +658,34 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
             )
         ]
 
+    def _systray_counter(self, user):
+        """The number the systray badge shows on a reload, for `user`."""
+        groups = self.env['res.users'].with_user(user)._get_activity_groups()
+        return sum(group.get('total_count', 0) for group in groups)
+
+    def _expect_employee_diff(self, count_diff):
+        """One expected bus notification on the employee's channel."""
+        partner = self.user_employee.partner_id
+        return [
+            ([(self.env.cr.dbname, partner._name, partner.id)], [{
+                "type": "mail.activity/updated",
+                "payload": {
+                    "count_diff": count_diff,
+                } | ({"activity_created": True} if count_diff > 0 else {"activity_deleted": True}),
+            }])
+        ]
+
     @users('employee')
     def test_notify_create_unlink_activities(self):
-        """Check creating and unlinking activities notifies of the change in 'to be done' activity count per user."""
+        """Creating and unlinking activities notifies the change in "to be done"
+        count per user -- counted in the same unit as the badge it adjusts.
+
+        ``activity_vals`` puts all four activities on ONE record, of which two
+        are to-do. ``_get_activity_groups`` counts one unit per *record* holding
+        at least one to-do activity, so the delta is 1, not 2: the counter used
+        to be seeded in records and moved in activities, and a client that saw
+        +2 here dropped back to 1 as soon as the systray was opened.
+        """
         users = self.env.user + self.user_employee_2
 
         expected_create_notifs = [
@@ -668,7 +693,7 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                 "type": "mail.activity/updated",
                 "payload": {
                     "activity_created": True,
-                    "count_diff": 2,
+                    "count_diff": 1,
                 },
             }])
             for user in users
@@ -678,7 +703,7 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                 "type": "mail.activity/updated",
                 "payload": {
                     "activity_deleted": True,
-                    "count_diff": -2,
+                    "count_diff": -1,
                 },
             }])
             for user in users
@@ -689,10 +714,100 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
             (expected_unlink_notif_channels, expected_unlink_notif_message_items),
         ) in zip(users, expected_create_notifs, expected_unlink_notifs):
             user_activity_vals = [vals | {'user_id': user.id} for vals in self.activity_vals]
+            before = self._systray_counter(user)
             with self.assertBus(expected_create_notif_channels, expected_create_notif_message_items):
                 activities = self.env['mail.activity'].create(user_activity_vals)
+            # the invariant the payload exists to preserve: applying the delta to
+            # the badge lands on the value a reload would compute
+            self.assertEqual(self._systray_counter(user), before + 1)
             with self.assertBus(expected_unlink_notif_channels, expected_unlink_notif_message_items):
                 activities.unlink()
+            self.assertEqual(self._systray_counter(user), before)
+
+    @users('employee')
+    def test_notify_counts_records_not_activities(self):
+        """Two activities on one record are one unit; on two records, two."""
+        model_id = self.env['ir.model']._get_id(self.test_record._name)
+        record_2 = self.env['mail.test.activity'].sudo().create({'name': 'second'})
+        base = {
+            'res_model_id': model_id,
+            'date_deadline': datetime(2023, 12, 31, 15, 0, 0),
+            'user_id': self.env.user.id,
+        }
+        channel = [(self.env.cr.dbname, self.env.user.partner_id._name, self.env.user.partner_id.id)]
+
+        with self.assertBus(channel, [{
+            "type": "mail.activity/updated",
+            "payload": {"activity_created": True, "count_diff": 1},
+        }]):
+            same_record = self.env['mail.activity'].create([
+                base | {'res_id': self.test_record.id},
+                base | {'res_id': self.test_record.id},
+            ])
+        self.assertEqual(self._systray_counter(self.env.user), 1)
+
+        # a third activity on the same record moves nothing: the record already counts
+        self._reset_bus()
+        third = self.env['mail.activity'].create(base | {'res_id': self.test_record.id})
+        self.assertBusNotifications([], [])
+        self.assertEqual(self._systray_counter(self.env.user), 1)
+
+        # one on another record does move it
+        self._reset_bus()
+        with self.assertBus(channel, [{
+            "type": "mail.activity/updated",
+            "payload": {"activity_created": True, "count_diff": 1},
+        }]):
+            other_record = self.env['mail.activity'].create(base | {'res_id': record_2.id})
+        self.assertEqual(self._systray_counter(self.env.user), 2)
+
+        # removing one of three leaves the record counted -> no notification,
+        # where a per-activity delta would have wrongly decremented the badge
+        self._reset_bus()
+        third.unlink()
+        self.assertBusNotifications([], [])
+        self.assertEqual(self._systray_counter(self.env.user), 2)
+
+        (same_record + other_record).unlink()
+        self.assertEqual(self._systray_counter(self.env.user), 0)
+
+    @users('employee')
+    def test_notify_counts_in_the_assignee_timezone(self):
+        """The delta is decided on the assignee's own today, like ``state``.
+
+        Frozen at 2024-01-01 09:00 UTC. For an assignee at UTC-11 it is still
+        2023-12-31 there, so an activity due on the 1st is *planned* for them and
+        the badge must not count it. Deciding on the server's date instead --
+        ``date_deadline <= fields.Date.today()``, which is what create, write and
+        unlink used to do -- would have pushed +1 against a badge that computes 0
+        on reload, because the badge is built from ``state`` and ``state`` has
+        always answered in the assignee's timezone.
+        """
+        self.env.user.tz = 'Pacific/Midway'  # UTC-11
+        Activity = self.env['mail.activity']
+        self.assertEqual(Activity._compute_today_for_tz(self.env.user.tz), date(2023, 12, 31))
+        self.assertEqual(Activity._compute_today_for_tz(False), date(2024, 1, 1))
+        vals = {
+            'res_model_id': self.env['ir.model']._get_id(self.test_record._name),
+            'res_id': self.test_record.id,
+            'user_id': self.env.user.id,
+        }
+
+        self._reset_bus()
+        planned = Activity.create(vals | {'date_deadline': datetime(2024, 1, 1, 15, 0, 0)})
+        self.assertEqual(planned.state, 'planned', "today on the server, tomorrow for the assignee")
+        self.assertBusNotifications([], [])
+        self.assertEqual(self._systray_counter(self.env.user), 0)
+
+        # their own today does count
+        channel = [(self.env.cr.dbname, self.env.user.partner_id._name, self.env.user.partner_id.id)]
+        with self.assertBus(channel, [{
+            "type": "mail.activity/updated",
+            "payload": {"activity_created": True, "count_diff": 1},
+        }]):
+            due = Activity.create(vals | {'date_deadline': datetime(2023, 12, 31, 15, 0, 0)})
+        self.assertEqual(due.state, 'today')
+        self.assertEqual(self._systray_counter(self.env.user), 1)
 
     @users('employee')
     def test_notify_update_activities(self):
@@ -709,8 +824,12 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
             [{'date_deadline': datetime(2024, 1, 2, 15, 0, 0), 'active': True}, {}, {}, {}],
         ]
 
+        # All four activities sit on ONE record, so the counter moves by at most
+        # one unit per user: what changes is whether that record still carries a
+        # to-do activity, not how many it carries.
         expected_notifs = [
-            # transfer 4 activities to the second employee, 2 todos taken and 2 given
+            # transfer to the second employee: the record leaves one counter and
+            # joins the other
             [
                 ([(self.env.cr.dbname, user.partner_id._name, user.partner_id.id)], [{
                     "type": "mail.activity/updated",
@@ -719,9 +838,10 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                     } | ({"activity_created": True} if count_diff > 0 else {"activity_deleted": True}),
                 }])
                 for user, count_diff
-                in zip(self.user_employee + self.user_employee_2, [-2, 2])
+                in zip(self.user_employee + self.user_employee_2, [-1, 1])
             ],
-            # transfer 4 activities to the second employee, 2 todos are taken and 4 are given
+            # same transfer, also pulling every deadline into the past: still one
+            # record either side
             [
                 ([(self.env.cr.dbname, user.partner_id._name, user.partner_id.id)], [{
                     "type": "mail.activity/updated",
@@ -730,17 +850,19 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
                     } | ({"activity_created": True} if count_diff > 0 else {"activity_deleted": True}),
                 }])
                 for user, count_diff
-                in zip(self.user_employee + self.user_employee_2, [-2, 4])
+                in zip(self.user_employee + self.user_employee_2, [-1, 1])
             ],
-        ] + [[
-                ([(self.env.cr.dbname, self.user_employee.partner_id._name, self.user_employee.partner_id.id)], [{
-                    "type": "mail.activity/updated",
-                    "payload": {
-                        "count_diff": count_diff,
-                    } | ({"activity_created": True} if count_diff > 0 else {"activity_deleted": True}),
-                }])
-            ] for count_diff in (-2, 1, -2, 1)
         ] + [
+            # every deadline in the future -> the record stops counting
+            self._expect_employee_diff(-1),
+            # every deadline in the past: the record already counted (the active
+            # past one, and today's) and still does -> nothing to say
+            [([], [])],
+            # everything archived -> the record stops counting
+            self._expect_employee_diff(-1),
+            # unarchiving adds a third to-do activity to a record that already
+            # counts -> nothing to say
+            [([], [])],
             [([], [])],  # no change -> no notif
             [([], [])],  # no change in "todo" count -> no notif
         ]
@@ -1022,3 +1144,798 @@ class TestActivityResName(ActivityScheduleCase):
         (self.activity + sibling)._compute_res_name()
         self.assertFalse(self.activity.res_name)
         self.assertEqual(sibling.res_name, 'Survivor')
+
+
+@tests.tagged('mail_activity')
+class TestActivityAccessAndState(ActivityScheduleCase):
+    """Access, cache and idempotence properties of mail.activity."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env['mail.test.activity'].create({'name': 'Doc'})
+        cls.model_id = cls.env['ir.model']._get_id('mail.test.activity')
+        cls.other_user = mail_new_test_user(
+            cls.env, name='Colleague', login='colleague', groups='base.group_user',
+        )
+
+    def _new_activity(self, **vals):
+        return self.env['mail.activity'].create({
+            'res_model_id': self.model_id,
+            'res_id': self.record.id,
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            **vals,
+        })
+
+    def test_can_write_is_per_reader(self):
+        """``can_write`` answers for the reader, whichever identity read first.
+
+        It is a pure function of ``env.uid`` and ships to the client in
+        ``_to_store_defaults``, where it decides which buttons the chatter draws.
+        Without ``@api.depends_context("uid")`` its cache key was ``()``, so one
+        slot was shared by every environment in the transaction and a ``sudo()``
+        read anywhere earlier in the request handed its own verdict to the user.
+        """
+        activity = self._new_activity(user_id=self.user_admin.id)
+        self.env.flush_all()
+        self.assertIn(
+            'uid',
+            self.env.registry.field_depends_context[
+                self.env['mail.activity']._fields['can_write']
+            ],
+        )
+
+        as_employee = activity.with_user(self.user_employee)
+        self.env.invalidate_all()
+        employee_verdict = as_employee.can_write
+        self.env.invalidate_all()
+        sudo_verdict = activity.sudo().can_write
+        self.assertTrue(sudo_verdict, "the superuser may always write")
+
+        # whichever order they are read in, each identity gets its own answer
+        self.env.invalidate_all()
+        self.assertEqual(activity.sudo().can_write, sudo_verdict)
+        self.assertEqual(as_employee.can_write, employee_verdict)
+        self.env.invalidate_all()
+        self.assertEqual(as_employee.can_write, employee_verdict)
+        self.assertEqual(activity.sudo().can_write, sudo_verdict)
+
+    def test_can_write_reaches_the_client_per_reader(self):
+        """The same, through the RPC the chatter popover actually calls."""
+        activity = self._new_activity(user_id=self.user_admin.id)
+        self.env.flush_all()
+        as_employee = activity.with_user(self.user_employee)
+
+        self.env.invalidate_all()
+        clean = as_employee.activity_format()['mail.activity'][0]['can_write']
+        self.env.invalidate_all()
+        activity.sudo().can_write  # any sudo() touch earlier in the request
+        polluted = as_employee.activity_format()['mail.activity'][0]['can_write']
+        self.assertEqual(clean, polluted)
+
+    def test_schedule_for_another_user_on_a_read_post_document(self):
+        """A read-only document that opts into ``_mail_post_access = 'read'``
+        accepts an activity scheduled for somebody else.
+
+        ``_check_access`` states create access as "``mail_post_access`` on the
+        related document", and posting a message on such a record works. The
+        follower side effect used the public ``message_subscribe``, which
+        re-checks *write* for any partner but the caller's own, so a user could
+        schedule for themselves and not for a colleague -- failing with an
+        AccessError naming the document.
+        """
+        record = self.env['mail.test.container'].create({'name': 'Read-post doc'})
+        self.assertEqual(record._mail_post_access, 'read')
+        model_id = self.env['ir.model']._get_id(record._name)
+        as_employee = record.with_user(self.user_employee)
+        self.assertTrue(as_employee.has_access('read'))
+
+        # the policy the model states, exercised directly
+        as_employee.message_post(body='hello', message_type='comment',
+                                 subtype_xmlid='mail.mt_comment')
+
+        with self.with_user('employee'):
+            Activity = self.env['mail.activity']
+            for assignee, label in (
+                (self.env.user, 'themselves'),
+                (self.other_user, 'a colleague'),
+            ):
+                with self.subTest(assignee=label):
+                    activity = Activity.create({
+                        'res_model_id': model_id,
+                        'res_id': record.id,
+                        'user_id': assignee.id,
+                        'summary': f'for {label}',
+                    })
+                    self.assertEqual(activity.user_id, assignee)
+            # and reassigning one is the same operation from the other side
+            mine = Activity.search([('res_id', '=', record.id),
+                                    ('user_id', '=', self.env.uid)], limit=1)
+            mine.write({'user_id': self.other_user.id})
+            self.assertEqual(mine.user_id, self.other_user)
+
+    def test_action_feedback_is_not_replayed(self):
+        """Marking a done activity done again neither posts nor rewrites.
+
+        ``action_done`` filtered on ``active``; ``action_feedback`` -- the public
+        API, and the one the web client calls without disabling its button while
+        the RPC is in flight -- did not, so a double click posted a second "done"
+        message and overwrote the feedback.
+        """
+        activity = self._new_activity(user_id=self.env.uid, summary='Once')
+        self.env.flush_all()
+        activity.action_feedback(feedback='first')
+        self.env.flush_all()
+        messages = self.record.message_ids
+        date_done = activity.date_done
+
+        activity.action_feedback(feedback='second')
+        self.env.flush_all()
+        self.assertEqual(self.record.message_ids, messages, "no second done message")
+        self.assertEqual(activity.feedback, 'first', "the first feedback stands")
+        self.assertEqual(activity.date_done, date_done)
+
+    def test_feedback_and_archive_are_one_write(self):
+        """Marking done writes once, not once to archive and once for feedback."""
+        activities = self.env['mail.activity'].create([{
+            'res_model_id': self.model_id,
+            'res_id': self.record.id,
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'user_id': self.env.uid,
+            'summary': f'act {idx}',
+        } for idx in range(3)])
+        self.env.flush_all()
+
+        writes = []
+        origin = type(self.env['mail.activity']).write
+
+        def counting_write(records, vals):
+            writes.append(sorted(vals))
+            return origin(records, vals)
+
+        with patch.object(type(self.env['mail.activity']), 'write', counting_write):
+            activities.action_feedback(feedback='done')
+        self.assertEqual(writes, [['active', 'feedback']])
+
+    def test_state_survives_a_missing_deadline(self):
+        """``state`` is assigned even with no deadline, as onchange can produce."""
+        virtual = self.env['mail.activity'].new({
+            'res_model_id': self.model_id,
+            'res_id': self.record.id,
+            'user_id': self.env.uid,
+        })
+        virtual.date_deadline = False
+        self.assertFalse(virtual.state)
+
+    def test_date_done_is_the_assignee_date(self):
+        """``date_done`` records the assignee's own day, not the server's UTC one."""
+        user_ahead = mail_new_test_user(
+            self.env, name='Ahead', login='ahead', groups='base.group_user',
+            tz='Pacific/Kiritimati',  # UTC+14
+        )
+        activity = self._new_activity(user_id=user_ahead.id)
+        self.env.flush_all()
+        with freeze_time('2024-01-01 15:00:00'):  # 2024-01-02 05:00 for the assignee
+            activity.action_archive()
+            self.env.flush_all()
+            self.assertEqual(activity.date_done, date(2024, 1, 2))
+
+    def test_action_cancel_unlinks_once(self):
+        activities = self.env['mail.activity'].create([{
+            'res_model_id': self.model_id,
+            'res_id': self.record.id,
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'user_id': self.env.uid,
+            'summary': f'act {idx}',
+        } for idx in range(5)])
+        self.env.flush_all()
+
+        calls = []
+        origin = type(self.env['mail.activity']).unlink
+
+        def counting_unlink(records):
+            calls.append(len(records))
+            return origin(records)
+
+        with patch.object(type(self.env['mail.activity']), 'unlink', counting_unlink):
+            activities.action_cancel()
+        # empty calls come from cascades; what matters is that the five records
+        # are removed by one call and not one call each
+        self.assertEqual([count for count in calls if count], [5])
+        self.assertFalse(activities.exists())
+
+    def test_activity_on_a_model_without_a_chatter(self):
+        """A model with no followers still carries activities, it just gets no
+        chatter side effect.
+
+        ``res_model_id`` is a plain m2o to ir.model -- only the activity *type*
+        restricts itself to ``is_mail_thread`` -- so an activity may sit on a
+        model that has neither ``_message_subscribe`` nor
+        ``message_post_with_source``. Scheduling one for somebody else used to
+        die on the first and marking it done would have died on the second.
+        """
+        target = self.env["res.users"]
+        self.assertFalse(hasattr(target, "_message_subscribe"),
+                         "the vehicle for this test must really lack a chatter")
+        activity = self.env["mail.activity"].create({
+            "res_model_id": self.env["ir.model"]._get_id(target._name),
+            "res_id": self.user_admin.id,
+            "activity_type_id": self.env.ref("mail.mail_activity_data_todo").id,
+            "user_id": self.other_user.id,
+            "summary": "no chatter here",
+        })
+        self.env.flush_all()
+        self.assertEqual(activity.user_id, self.other_user)
+
+        # reassignment goes through the same side effect
+        activity.write({"user_id": self.user_employee.id})
+        self.assertEqual(activity.user_id, self.user_employee)
+
+        # and so does notifying, and marking done
+        activity.action_notify()
+        messages, _next = activity._action_done(feedback="done")
+        self.assertFalse(messages, "nowhere to post it")
+        self.assertFalse(activity.active)
+        self.assertEqual(activity.feedback, "done")
+
+    def test_feedback_schedule_next_wants_one_activity(self):
+        activities = self.env['mail.activity'].create([{
+            'res_model_id': self.model_id,
+            'res_id': self.record.id,
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'user_id': self.env.uid,
+            'summary': f'act {idx}',
+        } for idx in range(2)])
+        with self.assertRaises(ValueError):
+            activities.action_feedback_schedule_next()
+
+
+@tests.tagged('mail_activity')
+class TestActivitySearchPaging(ActivityScheduleCase):
+    """``_search`` filters access in Python; pagination must survive that."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env['mail.test.activity'].create({'name': 'Doc'})
+        cls.activities = cls.env['mail.activity'].create([{
+            'res_model_id': cls.env['ir.model']._get_id('mail.test.activity'),
+            'res_id': cls.record.id,
+            'activity_type_id': cls.env.ref('mail.mail_activity_data_todo').id,
+            'user_id': cls.user_employee.id,
+            'summary': f'act {idx:02d}',
+            'date_deadline': date(2024, 1, 1) + timedelta(days=idx),
+        } for idx in range(25)])
+
+    def test_pages_are_full_and_contiguous(self):
+        Activity = self.env['mail.activity'].with_user(self.user_employee)
+        domain = [('id', 'in', self.activities.ids)]
+        order = 'date_deadline ASC, id ASC'
+        everything = Activity.search(domain, order=order)
+        self.assertEqual(len(everything), 25)
+
+        for size in (1, 4, 10):
+            with self.subTest(page_size=size):
+                paged = self.env['mail.activity']
+                for offset in range(0, 25, size):
+                    page = Activity.search(domain, offset=offset, limit=size, order=order)
+                    self.assertLessEqual(len(page), size)
+                    paged |= page
+                    self.assertEqual(
+                        page.ids, everything[offset:offset + size].ids,
+                        "each page holds exactly the slice of the full result",
+                    )
+                self.assertEqual(paged.ids, everything.ids)
+
+    def test_falsy_limit_means_no_limit(self):
+        """``limit=0`` is "no limit" everywhere in the ORM (Query emits the
+        clause only ``if self.limit``), so it must not read as an empty page."""
+        Activity = self.env['mail.activity'].with_user(self.user_employee)
+        domain = [('id', 'in', self.activities.ids)]
+        self.assertEqual(len(Activity.search(domain, limit=0)), 25)
+        self.assertEqual(Activity.search_count(domain), 25)
+        self.assertEqual(len(Activity.sudo().search(domain, limit=0)), 25,
+                         "and the superuser branch agrees")
+
+    def test_inaccessible_activities_do_not_shorten_a_page(self):
+        """A page is filled with accessible rows, not truncated by hidden ones."""
+        # Activities attached to no document are readable by their assignee
+        # alone, so these are invisible to the employee whatever they can read.
+        hidden = self.env['mail.activity'].create([{
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'user_id': self.user_admin.id,
+            'summary': f'hidden {idx}',
+            'date_deadline': date(2024, 1, 1),
+        } for idx in range(10)])
+        self.env.flush_all()
+
+        Activity = self.env['mail.activity'].with_user(self.user_employee)
+        domain = [('id', 'in', (self.activities + hidden).ids)]
+        visible = Activity.search(domain)
+        self.assertFalse(visible & hidden.with_user(self.user_employee),
+                         "the employee is not the assignee of the hidden ones")
+        page = Activity.search(domain, limit=5, order='date_deadline ASC, id ASC')
+        self.assertEqual(len(page), 5, "the page is full despite the hidden rows")
+        self.assertEqual(page.ids, visible[:5].ids)
+
+
+@tests.tagged('mail_activity')
+class TestActivityGarbageCollect(ActivityScheduleCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env['mail.test.activity'].create({'name': 'Doc'})
+        cls.model_id = cls.env['ir.model']._get_id('mail.test.activity')
+
+    def setUp(self):
+        super().setUp()
+        # ir.config_parameter reads go through an ormcache the transaction
+        # rollback does not clear, so state both knobs explicitly per test.
+        for parameter in ('delete_overdue_years', 'delete_done_years'):
+            self.env['ir.config_parameter'].sudo().set_param(
+                f'mail.activity.gc.{parameter}', '0')
+
+    def _activity(self, deadline, done=False):
+        activity = self.env['mail.activity'].create({
+            'res_model_id': self.model_id,
+            'res_id': self.record.id,
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'user_id': self.env.uid,
+            'date_deadline': deadline,
+        })
+        if done:
+            activity.action_archive()
+        return activity
+
+    def test_gc_is_off_by_default_and_reports_the_contract(self):
+        Activity = self.env['mail.activity']
+        old = self._activity(date(2000, 1, 1))
+        self.assertEqual(Activity._gc_delete_old_overdue_activities(), (0, False))
+        self.assertEqual(Activity._gc_delete_old_done_activities(), (0, False))
+        self.assertTrue(old.exists())
+
+    def test_gc_overdue_reports_removed_and_more(self):
+        self.env['ir.config_parameter'].sudo().set_param(
+            'mail.activity.gc.delete_overdue_years', '5')
+        old = self._activity(date(2000, 1, 1))
+        recent = self._activity(date.today())
+        removed, more = self.env['mail.activity']._gc_delete_old_overdue_activities()
+        self.assertEqual((removed, more), (1, False))
+        self.assertFalse(old.exists())
+        self.assertTrue(recent.exists())
+
+    def test_gc_done_activities_are_collected_too(self):
+        """Completed activities are archived, so the overdue routine -- which
+        searches with the default ``active_test`` -- never saw them and nothing
+        aged them out."""
+        Activity = self.env['mail.activity']
+        with freeze_time('2000-01-01'):
+            done = self._activity(date(2000, 1, 1), done=True)
+            self.env.flush_all()
+        self.assertFalse(done.active)
+        self.assertEqual(done.date_done, date(2000, 1, 1))
+
+        self.env['ir.config_parameter'].sudo().set_param(
+            'mail.activity.gc.delete_overdue_years', '5')
+        Activity._gc_delete_old_overdue_activities()
+        self.assertTrue(done.exists(), "the overdue routine does not see archived rows")
+
+        self.env['ir.config_parameter'].sudo().set_param(
+            'mail.activity.gc.delete_done_years', '5')
+        removed, more = Activity._gc_delete_old_done_activities()
+        self.assertEqual((removed, more), (1, False))
+        self.assertFalse(done.exists())
+
+    def test_gc_refuses_a_negative_retention(self):
+        self.env['ir.config_parameter'].sudo().set_param(
+            'mail.activity.gc.delete_overdue_years', '-1')
+        old = self._activity(date(2000, 1, 1))
+        with self.assertLogs('odoo.addons.mail.models.mail_activity', 'WARNING'):
+            self.assertEqual(
+                self.env['mail.activity']._gc_delete_old_overdue_activities(), (0, False))
+        self.assertTrue(old.exists())
+
+
+@tests.tagged('mail_activity')
+class TestActivityStrandedModel(ActivityScheduleCase):
+    """An activity whose ``res_model`` names a model the registry does not have.
+
+    ``res_model_id`` is a plain m2o to ``ir.model``, and an addon installed in
+    the database but absent from ``addons_path`` leaves exactly that: the
+    ``ir.model`` row and the stored ``res_model`` string survive, the model does
+    not. Reproduced end to end by installing ``knowledge`` and re-booting
+    without ``enterprise/`` on the path; ``UPDATE`` is the cheap stand-in.
+
+    Every reader must carry such an activity like a document-less one. Before,
+    each site below raised a bare ``KeyError`` -- and ``_search`` is on the read
+    path of every user who is not the assignee, so one row took the whole list
+    down.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env['mail.test.activity'].create({'name': 'Doc'})
+        cls.other_user = mail_new_test_user(
+            cls.env, login='stranded_reader', groups='base.group_user')
+        cls.activity = cls.env['mail.activity'].create({
+            'activity_type_id': cls.env.ref('mail.mail_activity_data_todo').id,
+            'res_id': cls.record.id,
+            'res_model_id': cls.env.ref('test_mail.model_mail_test_activity').id,
+            'user_id': cls.user_employee.id,
+            'summary': 'Act',
+        })
+
+    def _strand(self):
+        """Point the activity at a model no registry entry answers for."""
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE mail_activity SET res_model = %s WHERE id = %s",
+            ('gone.module.model', self.activity.id))
+        self.env.invalidate_all()
+        self.assertNotIn('gone.module.model', self.env)
+
+    def test_search_survives_for_a_reader_who_is_not_the_assignee(self):
+        self._strand()
+        Activity = self.env['mail.activity'].with_user(self.other_user)
+        self.assertNotIn(self.activity.id, Activity.search([]).ids)
+        self.assertFalse(Activity.browse(self.activity.id).has_access('read'))
+        Activity.search_count([])
+
+    def test_the_assignee_still_sees_it(self):
+        """It stays theirs: only the document half is unreachable."""
+        self._strand()
+        Activity = self.env['mail.activity'].with_user(self.user_employee)
+        self.assertIn(self.activity.id, Activity.search([]).ids)
+        self.assertTrue(Activity.browse(self.activity.id).has_access('read'))
+
+    def test_the_systray_still_loads_for_the_assignee(self):
+        self._strand()
+        groups = self.env['res.users'].with_user(self.user_employee)._get_activity_groups()
+        models = {group['model'] for group in groups}
+        self.assertIn('mail.activity', models,
+                      'a stranded activity falls into the "Other activities" bucket')
+
+    def test_action_open_document_falls_back(self):
+        self._strand()
+        action = self.env['mail.activity'].with_user(
+            self.user_employee).browse(self.activity.id).action_open_document()
+        self.assertEqual(action['res_model'], 'mail.activity')
+        self.assertEqual(action['res_id'], self.activity.id)
+
+    def test_the_chatter_side_effects_skip_it(self):
+        self._strand()
+        activity = self.env['mail.activity'].browse(self.activity.id)
+        self.assertFalse(activity._document_backed())
+        self.assertFalse(activity._thread_backed())
+        self.assertFalse(activity._filtered_postable())
+        activity.action_notify()
+        self.assertFalse(activity.action_feedback())
+
+    def test_it_can_still_be_written_and_unlinked(self):
+        self._strand()
+        activity = self.env['mail.activity'].with_user(self.user_employee).browse(
+            self.activity.id)
+        activity.write({'summary': 'Renamed'})
+        activity.unlink()
+        self.assertFalse(activity.exists())
+
+
+@tests.tagged('mail_activity')
+class TestActivityOnAnActivity(TestActivityCommon):
+    """``_todo_key`` spells two shapes the same way, and the decode must too.
+
+    A document-less activity is keyed ``('mail.activity', its own id)``; an
+    activity filed *against* a ``mail.activity`` record is keyed
+    ``('mail.activity', that record's id)``. Both name the same record and both
+    must count once -- which is what ``_get_activity_groups`` does. But
+    ``_todo_keys_elsewhere`` used to decode the key only as the document-less
+    shape, so it never saw the other activity holding it, and the badge was
+    decremented twice for one record going quiet.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.activity_model_id = cls.env['ir.model']._get_id('mail.activity')
+
+    def _systray_counter(self):
+        groups = self.env['res.users'].with_user(
+            self.user_employee)._get_activity_groups()
+        return sum(group.get('total_count', 0) for group in groups)
+
+    def _due_activity(self, **vals):
+        return self.env['mail.activity'].create({
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'date_deadline': fields.Date.context_today(
+                self.env['mail.activity'].with_user(self.user_employee)),
+            'user_id': self.user_employee.id,
+            **vals,
+        })
+
+    def _bus_total(self, func):
+        """Sum of the count_diff the bus carried while `func` ran."""
+        seen = []
+        origin = type(self.env['res.users'])._bus_send
+
+        def spy(records, notification_type, message, /, **kwargs):
+            if notification_type == 'mail.activity/updated':
+                seen.append(message.get('count_diff', 0))
+            return origin(records, notification_type, message, **kwargs)
+
+        with patch.object(type(self.env['res.users']), '_bus_send', spy):
+            func()
+            self.env.flush_all()
+        return sum(seen)
+
+    def test_the_bus_delta_tracks_the_badge_through_a_nested_activity(self):
+        free = self._due_activity(summary='Free')
+        self.env.flush_all()
+        nested = self._due_activity(
+            summary='On the free one',
+            res_model_id=self.activity_model_id,
+            res_id=free.id,
+        )
+        self.env.flush_all()
+
+        before = self._systray_counter()
+        delta = self._bus_total(free.unlink)
+        after = self._systray_counter()
+        self.assertEqual(
+            delta, after - before,
+            'the bus must move the badge by exactly what a reload would show')
+        self.assertFalse(nested.exists(),
+                         'deleting the record cascades to activities filed on it')
+
+    def test_two_activities_on_one_record_count_once(self):
+        free = self._due_activity(summary='Free')
+        self.env.flush_all()
+        before = self._systray_counter()
+        delta = self._bus_total(lambda: self._due_activity(
+            summary='On the free one',
+            res_model_id=self.activity_model_id,
+            res_id=free.id,
+        ))
+        self.assertEqual(self._systray_counter(), before,
+                         'both activities make the same record busy')
+        self.assertEqual(delta, 0)
+
+
+@tests.tagged('mail_activity')
+class TestActivityNotifyCost(TestActivityCommon):
+    """``action_notify`` must not work for activities it will not notify.
+
+    Every query-count pin in this file exercises a single activity, so a per
+    record cost in a batch path is invisible to all of them; these assert the
+    shape at N > 1.
+    """
+
+    def _schedule(self, count, user):
+        """Create `count` activities without notifying.
+
+        `create` notifies an assignee that is not the actor, which is the thing
+        under test here -- so the fixture stays quiet and each test triggers the
+        one round it means to measure.
+        """
+        records = self.env['mail.test.activity'].create(
+            [{'name': f'Doc {index}'} for index in range(count)])
+        return self.env['mail.activity'].with_context(
+            mail_activity_quick_update=True).create([{
+                'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+                'res_id': record.id,
+                'res_model_id': self.env['ir.model']._get_id('mail.test.activity'),
+                'user_id': user.id if user else False,
+                'summary': 'Act',
+            } for record in records])
+
+    def test_unassigned_activities_render_nothing(self):
+        activities = self._schedule(5, user=None)
+        self.env.invalidate_all()
+        with patch.object(
+            type(self.env['ir.qweb']), '_render',
+            side_effect=AssertionError('rendered a notification with no assignee'),
+        ):
+            activities.action_notify()
+
+    def test_notifying_does_not_re_derive_the_document_per_activity(self):
+        """The reply-to follows the document, so it is resolved for the batch
+        rather than once per activity.
+
+        The guarantee is "not per record", not "exactly one call": a future
+        cache could reach zero, and reading an exact count as a verdict is what
+        cost two sessions an afternoon here (`coding_guidelines.rst` §6.4). So
+        bound the derivations, then assert the mechanism actually delivered.
+        """
+        activities = self._schedule(5, user=self.user_employee)
+        self.env.invalidate_all()
+        with patch.object(
+            type(self.env['mail.test.activity']), '_notify_get_reply_to',
+            autospec=True, side_effect=lambda records, **kwargs: dict.fromkeys(
+                records.ids, 'reply@test.lan'),
+        ) as reply_to:
+            activities.action_notify()
+
+        self.assertLessEqual(reply_to.call_count, 1,
+                             'derived for the batch, never once per activity')
+        if reply_to.call_count:
+            self.assertEqual(len(reply_to.call_args[0][0]), 5,
+                             'the one derivation covers all five documents')
+        messages = self.env['mail.message'].search(
+            [('model', '=', 'mail.test.activity'),
+             ('res_id', 'in', activities.mapped('res_id')),
+             ('message_type', '=', 'user_notification')])
+        self.assertEqual(len(messages), 5)
+        self.assertEqual(set(messages.mapped('reply_to')), {'reply@test.lan'},
+                         'every notification still carries the resolved reply-to')
+
+    def test_the_model_description_is_in_the_assignees_language(self):
+        """The assignee reads the notification, so the model's translated name
+        must resolve in *their* language, not in the actor's.
+
+        Hoisting `model_description` out of the per-assignee language context is
+        the easy way to lose this, and it costs nothing visible until somebody
+        runs a database with two languages.
+        """
+        self.env['res.lang']._activate_lang('fr_FR')
+        model = self.env['ir.model']._get('mail.test.activity')
+        model.with_context(lang='fr_FR').name = 'Modele De Test'
+        self.env.flush_all()
+        french_user = mail_new_test_user(
+            self.env, login='activity_fr', groups='base.group_user', lang='fr_FR')
+        record = self.env['mail.test.activity'].create({'name': 'Doc'})
+        activity = self.env['mail.activity'].with_context(
+            mail_activity_quick_update=True).create({
+                'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+                'res_id': record.id,
+                'res_model_id': self.env['ir.model']._get_id('mail.test.activity'),
+                'summary': 'Act',
+                'user_id': french_user.id,
+            })
+        activity.action_notify()
+        message = self.env['mail.message'].search(
+            [('model', '=', 'mail.test.activity'), ('res_id', '=', record.id),
+             ('message_type', '=', 'user_notification')], limit=1, order='id desc')
+        self.assertIn('Modele De Test', str(message.body))
+
+    def test_two_activities_on_one_record_each_get_their_notification(self):
+        """`_message_notify_batch` keys bodies by record, so two activities on
+        one record cannot share a batch entry -- they must go in successive
+        rounds rather than one overwriting the other."""
+        record = self.env['mail.test.activity'].create({'name': 'Doc'})
+        common = {
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'date_deadline': fields.Date.context_today(self.env['mail.activity']),
+            'res_id': record.id,
+            'res_model_id': self.env['ir.model']._get_id('mail.test.activity'),
+            'user_id': self.user_employee.id,
+        }
+        activities = self.env['mail.activity'].with_context(
+            mail_activity_quick_update=True).create([
+                {**common, 'summary': 'First'}, {**common, 'summary': 'Second'}])
+        activities.action_notify()
+        messages = self.env['mail.message'].search(
+            [('model', '=', 'mail.test.activity'), ('res_id', '=', record.id),
+             ('message_type', '=', 'user_notification')])
+        self.assertEqual(len(messages), 2, 'one notification per activity')
+        bodies = ' '.join(str(message.body) for message in messages)
+        self.assertIn('First', bodies)
+        self.assertIn('Second', bodies)
+
+    def test_one_batch_keeps_each_document_its_own_company(self):
+        """A batch spans documents; the company, alias domain and reply-to do not.
+
+        This works only because `action_notify` does NOT pre-resolve them:
+        `_message_notify_batch` derives them itself, per record. Passing them as
+        kwargs would write one value across the whole batch.
+        """
+        second_company = self.env['res.company'].create({'name': 'Second Co'})
+        domains = self.env['mail.alias.domain'].create([
+            {'name': 'one.test', 'bounce_alias': 'b1', 'catchall_alias': 'c1'},
+            {'name': 'two.test', 'bounce_alias': 'b2', 'catchall_alias': 'c2'},
+        ])
+        self.env.company.alias_domain_id = domains[0]
+        second_company.alias_domain_id = domains[1]
+        records = self.env['res.partner'].create([
+            {'name': 'in co1', 'company_id': self.env.company.id},
+            {'name': 'in co2', 'company_id': second_company.id},
+        ])
+        # same assignee, type and deadline: exactly one batch
+        self.env['mail.activity'].with_context(mail_activity_quick_update=True).create([
+            {
+                'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+                'date_deadline': date(2026, 9, 1),
+                'res_id': record.id,
+                'res_model_id': self.env['ir.model']._get_id('res.partner'),
+                'summary': 'Act',
+                'user_id': self.user_employee.id,
+            } for record in records
+        ]).action_notify()
+        messages = self.env['mail.message'].search(
+            [('model', '=', 'res.partner'), ('res_id', 'in', records.ids),
+             ('message_type', '=', 'user_notification')], order='res_id')
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages.mapped('record_company_id'),
+                         self.env.company + second_company)
+        self.assertEqual(messages.mapped('record_alias_domain_id'), domains)
+
+    def test_two_types_sharing_a_name_are_not_merged(self):
+        """The grouping key carries the activity type as a record, not as its name.
+
+        The name is translated, so keying on it would merge two types that
+        collide in the actor's language and hand one of them the other's
+        subtitle in the assignee's.
+        """
+        self.env['res.lang']._activate_lang('fr_FR')
+        types = self.env['mail.activity.type'].create([
+            {'name': 'Same Name'}, {'name': 'Same Name'}])
+        types[0].with_context(lang='fr_FR').name = 'Premier'
+        types[1].with_context(lang='fr_FR').name = 'Second'
+        french_user = mail_new_test_user(
+            self.env, login='activity_fr_types', groups='base.group_user', lang='fr_FR')
+        records = self.env['mail.test.activity'].create(
+            [{'name': 'A'}, {'name': 'B'}])
+        activities = self.env['mail.activity'].with_context(
+            mail_activity_quick_update=True).create([
+                {
+                    'activity_type_id': activity_type.id,
+                    'date_deadline': date(2026, 9, 1),
+                    'res_id': record.id,
+                    'res_model_id': self.env['ir.model']._get_id('mail.test.activity'),
+                    'user_id': french_user.id,
+                } for activity_type, record in zip(types, records, strict=True)
+            ])
+        seen = []
+        Thread = type(self.env['mail.test.activity'])
+        origin = Thread._message_notify_batch
+
+        def spy(records, bodies, **kwargs):
+            seen.append(kwargs.get('subtitles'))
+            return origin(records, bodies, **kwargs)
+
+        with patch.object(Thread, '_message_notify_batch', spy):
+            activities.action_notify()
+        self.assertEqual(len(seen), 2, 'two types, two batches')
+        self.assertIn('Activity: Premier', seen[0] + seen[1])
+        self.assertIn('Activity: Second', seen[0] + seen[1])
+
+
+@tests.tagged('mail_activity')
+class TestActivityUnlinkBookkeeping(ActivityScheduleCase):
+    """Unlinking activities that owe nothing must not go looking for keys."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env['mail.test.activity'].create({'name': 'Doc'})
+        cls.model_id = cls.env['ir.model']._get_id('mail.test.activity')
+
+    def _activity(self, **vals):
+        return self.env['mail.activity'].create({
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'res_id': self.record.id,
+            'res_model_id': self.model_id,
+            'user_id': self.env.uid,
+            **vals,
+        })
+
+    def test_unlinking_archived_activities_says_nothing(self):
+        activities = self._activity() + self._activity()
+        activities.action_archive()
+        self.env.flush_all()
+        self._reset_bus()
+        activities.with_context(active_test=False).unlink()
+        self.assertBusNotifications([], [])
+
+    def test_unlinking_a_due_activity_still_says_so(self):
+        activity = self._activity(date_deadline=date(2000, 1, 1))
+        self.env.flush_all()
+        self._reset_bus()
+        with self.assertBus(
+            [(self.env.cr.dbname, 'res.partner', self.env.user.partner_id.id)],
+            [{
+                'type': 'mail.activity/updated',
+                'payload': {'activity_deleted': True, 'count_diff': -1},
+            }],
+        ):
+            activity.unlink()

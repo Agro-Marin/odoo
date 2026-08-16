@@ -267,13 +267,84 @@ class BaseFollowersTest(MailCommon):
         test_record_copy = self.test_record.copy()
         test_records = test_record + test_record_copy
         test_record.message_subscribe([self.user_employee.partner_id.id])
+        subscription_data = self.env['mail.followers']._get_subscription_data(
+            [(test_records._name, test_records.ids)], None, include_partner=True)
+        self.assertEqual(len(subscription_data), 1)
+        fol_id, res_model, res_id, partner_id, subtype_ids, pshare, active = subscription_data[0]
+        self.assertEqual(res_model, test_records._name)
+        self.assertEqual(res_id, test_record.id)
+        self.assertEqual(partner_id, self.user_employee.partner_id.id)
+        self.assertEqual(sorted(subtype_ids), sorted(self.default_group_subtypes.ids))
+        self.assertFalse(pshare)
+        self.assertTrue(active)
+
+        # the two partner columns keep their positions when not asked for, so a
+        # caller can never unpack a shorter tuple by accident -- they just read None
+        without = self.env['mail.followers']._get_subscription_data(
+            [(test_records._name, test_records.ids)], None)
+        self.assertEqual(len(without[0]), len(subscription_data[0]))
+        # subtype_ids is an unordered array_agg: compare it as a set, or the
+        # assertion is a coin toss between two independent queries
+        self.assertEqual(without[0][:4], subscription_data[0][:4])
+        self.assertEqual(sorted(without[0][4]), sorted(subscription_data[0][4]))
+        self.assertEqual(without[0][5:], (None, None))
+
+        self.env['mail.followers'].browse(fol_id).sudo().res_id = test_record_copy
         subscription_data = self.env['mail.followers']._get_subscription_data([(test_records._name, test_records.ids)], None)
         self.assertEqual(len(subscription_data), 1)
-        self.assertEqual(subscription_data[0][1], test_record.id)
-        self.env['mail.followers'].browse(subscription_data[0][0]).sudo().res_id = test_record_copy
-        subscription_data = self.env['mail.followers']._get_subscription_data([(test_records._name, test_records.ids)], None)
-        self.assertEqual(len(subscription_data), 1)
-        self.assertEqual(subscription_data[0][1], test_record_copy.id)
+        self.assertEqual(subscription_data[0][2], test_record_copy.id)
+
+    @users('employee')
+    def test_subscriptions_data_fetch_edge_cases(self):
+        """ Empty inputs must be answered without touching the database, and a
+        follower with no subtype must report an empty list -- not ``[None]``,
+        which used to reach the ORM as ``Command.unlink(None)``. """
+        Followers = self.env['mail.followers']
+        test_record = self.test_record
+        test_record.message_subscribe([self.user_employee.partner_id.id])
+        fol = test_record.message_follower_ids.sudo()
+        fol.subtype_ids = [(5, 0, 0)]
+        fol.flush_recordset()
+
+        with self.assertQueryCount(employee=0):
+            self.assertEqual(Followers._get_subscription_data([], None), [])
+            # 'partner_id' is required: an explicitly empty filter matches nothing
+            self.assertEqual(
+                Followers._get_subscription_data([(test_record._name, test_record.ids)], []), [])
+
+        data = Followers._get_subscription_data([(test_record._name, test_record.ids)], None)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0][4], [], 'a subtype-less follower reports no subtype')
+
+    def test_followers_expose_no_partner_prose(self):
+        """ ``mail.followers`` is readable by every internal user and carries no
+        record rule, so a ``related`` field on it answers in sudo for partners the
+        partner ACL denies. Only the flag the client renders may do that. """
+        Followers = self.env['mail.followers']
+        for fname in ('name', 'email'):
+            self.assertNotIn(
+                fname, Followers._fields,
+                'a related field here discloses partner %s to any internal user, '
+                'and nothing reads it -- the client uses partner_id.name' % fname)
+        self.assertNotIn('email', Followers._to_store_defaults(None))
+        self.assertNotIn('name', Followers._to_store_defaults(None))
+
+        other_company = self.env['res.company'].sudo().create({'name': 'Followers Audit Co'})
+        secret = self.env['res.partner'].sudo().create({
+            'name': 'Followers Audit Secret', 'email': 'secret@audit.example',
+            'company_id': other_company.id,
+        })
+        self.test_record.message_subscribe(secret.ids)
+        self.env.flush_all()
+
+        employee = self.user_employee
+        self.assertFalse(
+            self.env['res.partner'].with_user(employee).search([('id', '=', secret.id)]),
+            'precondition: the partner itself is out of reach for this user')
+        rows = Followers.with_user(employee).search_read(
+            [('partner_id', '=', secret.id)], ['partner_id'])
+        self.assertTrue(rows, 'the follower row itself stays readable, as upstream')
+        self.assertFalse(rows[0]['partner_id'], 'and the partner is blanked by its own ACL')
 
 
 @tagged('mail_followers')
@@ -843,6 +914,31 @@ class RecipientsNotificationTest(MailCommon):
         # 4+: env user partner (+ admin as pid)
         recipients_data_3 = dict((r, recipients_data[r]) for r in recipients_data if r in  test_records[4:].ids)
         self.assertRecipientsData(recipients_data_3, test_records[4:], self.env.user.partner_id + self.partner_admin)
+
+        # multi mode without subtype: an explicit pid is a recipient of *every*
+        # record in scope, exactly as it is with a subtype above. 'common_partner'
+        # follows records 0-3 but not 4, and is asked for as a pid: it must show
+        # up on record 4 too, as a non-follower. The subtype-less query used to
+        # answer this shape with its own SQL that emitted a row only for the
+        # records a pid actually followed, so a partner following some of the
+        # batch went missing from the rest of it.
+        recipients_data = self.env['mail.followers']._get_recipient_data(
+            test_records, 'comment', False,
+            pids=(self.common_partner + self.partner_admin).ids
+        )
+        self.assertRecipientsData(recipients_data, test_records,
+                                  self.common_partner + self.partner_admin)
+        for record in test_records:
+            self.assertEqual(
+                recipients_data[record.id][self.common_partner.id]['is_follower'],
+                self.common_partner in record.message_partner_ids)
+
+        # 'user_notification' contacts the pids only, whatever the subtype says
+        recipients_data = self.env['mail.followers']._get_recipient_data(
+            test_records, 'user_notification', self.env.ref('mail.mt_comment').id,
+            pids=self.partner_admin.ids
+        )
+        self.assertRecipientsData(recipients_data, test_records, self.partner_admin)
 
         # multi mode, pids only
         recipients_data = self.env['mail.followers']._get_recipient_data(

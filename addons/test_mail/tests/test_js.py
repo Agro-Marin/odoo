@@ -11,9 +11,15 @@ unittest loader does not collect ``web``'s base meta-tests a second time),
 and a coverage walk fails the build the moment a new ``static/tests`` file
 is added without being selected by a method.
 
-Only the **desktop** preset is wired (mobile-tagged tests such as
-``activity_mobile`` are selected but skipped by the preset), consistent
-with ``mail``'s suite; a mobile pass can be added once validated there.
+**Both presets are wired.** Desktop alone was not enough: HOOT selects by
+tag, so ``activity_mobile.test.js`` — whose every test carries
+``describe.current.tags("mobile")`` — contributed *zero* tests to the
+desktop pass and ran in no lane at all. Being named by
+``ACTIVITY_SUITES`` did not make it execute, which is why
+``test_suite_filters_cover_every_test_file`` reported it covered while it
+was dark: that walk proves a file is *selected*, not that a preset ever
+runs it. ``MobileTestMailSuite`` below closes the second half, mirroring
+``mail``'s ``MobileMailSuite``.
 
 Fast local runs use the warm-server runner instead:
 ``tooling/hoot/hoot --db hoot_test_mail '@test_mail/activity'``.
@@ -74,3 +80,22 @@ class TestMailSuite(web_test_js.HOOTCommon):
             "test_mail test files selected by no CI suite filter (they will "
             "never run):\n- " + "\n- ".join(uncovered),
         )
+
+
+@odoo.tests.tagged("post_install", "-at_install", "test_mail_js")
+class MobileTestMailSuite(web_test_js.HOOTCommon):
+    """The mobile half of the same selection.
+
+    One method rather than two: the mobile-tagged population is a single
+    test today, and naming every prefix means a ``describe.current.tags(
+    "mobile")`` added to any test_mail file is executed the moment it
+    lands, instead of waiting for someone to notice a method list that
+    does not mention it.
+    """
+
+    browser_size = "375x667"
+    touch_enabled = True
+
+    @odoo.tests.no_retry
+    def test_all(self):
+        self._run_hoot(*ACTIVITY_SUITES, *MISC_SUITES, preset="mobile", tag="-headless")

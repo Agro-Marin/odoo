@@ -1280,6 +1280,91 @@ class TestDiscuss(MailCommon, TestRecipients):
         self.test_record.unlink()
         self.assertFalse(message.exists(), "Test message should have been deleted")
 
+    @users("employee")
+    def test_search_needaction_negative(self):
+        """'not needaction' must be the negation of 'needaction'.
+
+        Regression: the search answered 'not in' itself, by looking for a
+        notification with is_read=True. A message the reader was never notified
+        about is not needaction and has no notification row at all, so it could
+        never match and was silently dropped -- as was every record whose
+        messages are all in that state, through mail.thread's message_needaction.
+        """
+        record = self.env['mail.test.simple'].create({'name': 'needaction search'})
+        partner = self.env.user.partner_id
+        msg_unread, msg_read, msg_never = (
+            record.message_post(body=body, message_type='comment', subtype_xmlid='mail.mt_comment')
+            for body in ('unread', 'read', 'never notified')
+        )
+        self.env['mail.notification'].sudo().create([
+            {'mail_message_id': msg_unread.id, 'res_partner_id': partner.id,
+             'notification_type': 'inbox', 'notification_status': 'sent', 'is_read': False},
+            {'mail_message_id': msg_read.id, 'res_partner_id': partner.id,
+             'notification_type': 'inbox', 'notification_status': 'sent', 'is_read': True},
+        ])
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        messages = msg_unread + msg_read + msg_never
+        self.assertEqual(
+            [msg.needaction for msg in messages], [True, False, False],
+            "sanity: only the unread notification makes a message needaction")
+
+        scope = [('id', 'in', messages.ids)]
+        Message = self.env['mail.message']
+        self.assertEqual(
+            Message.search(scope + [('needaction', 'in', [True])]), msg_unread)
+        self.assertEqual(
+            Message.search(scope + [('needaction', 'not in', [True])]), msg_read + msg_never,
+            "a message with no notification at all is not needaction")
+        self.assertEqual(
+            Message.search(scope + [('needaction', '=', False)]), msg_read + msg_never)
+
+        # and through mail.thread.message_needaction, which forwards to
+        # message_ids.needaction: "has a message that is not needaction" is not
+        # the negation of "has a needaction message", so the traversal needs its
+        # own guard on top of the mail.message fix above.
+        other = self.env['mail.test.simple'].create({'name': 'no needaction'})
+        self.env.flush_all()
+        rscope = [('id', 'in', (record + other).ids)]
+        Record = self.env['mail.test.simple']
+        self.assertEqual(
+            Record.search(rscope + [('message_needaction', 'in', [True])]), record)
+        self.assertEqual(
+            Record.search(rscope + [('message_needaction', 'not in', [True])]), other)
+        self.assertEqual(
+            Record.search(rscope + [('message_needaction', '=', False)]), other,
+            "filtering on 'Action Needed' unset must not return an empty set")
+
+
+    @users("employee")
+    def test_partner_find_company_conflict(self):
+        """One address shared by records of two companies must not stamp the
+        partner with whichever record was iterated last -- that also hid the
+        contact behind the *other* company's record rules."""
+        company_b = self.env["res.company"].sudo().create({"name": "Probe Co B"})
+        Model = self.env["mail.test.gateway.company"]
+        record_a = Model.create({"name": "ra", "company_id": self.env.company.id})
+        record_b = Model.sudo().create({"name": "rb", "company_id": company_b.id})
+        self.env.flush_all()
+
+        shared = ['"Shared" <shared_company_probe@example.com>']
+        found = (record_a + record_b).sudo()._partner_find_from_emails(
+            {record_a: shared, record_b: shared}, no_create=False)
+        partner_a, partner_b = found[record_a.id], found[record_b.id]
+        self.assertEqual(partner_a, partner_b, 'one address normalises to one partner')
+        self.assertFalse(
+            partner_a.company_id,
+            'a contact shared across companies belongs to neither in particular')
+
+        # unchanged when the records agree: the company is still applied
+        record_c = Model.create({"name": "rc", "company_id": self.env.company.id})
+        self.env.flush_all()
+        agreed = ['"Agreed" <agreed_company_probe@example.com>']
+        found = (record_a + record_c).sudo()._partner_find_from_emails(
+            {record_a: agreed, record_c: agreed}, no_create=False)
+        self.assertEqual(found[record_a.id].company_id, self.env.company)
+
 
 @tagged('mail_thread')
 class TestNotification(MailCommon):

@@ -5,7 +5,7 @@ from unittest.mock import patch
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
-from odoo import fields, tests
+from odoo import exceptions, fields, tests
 from odoo.libs.datetime import timezone
 from odoo.tests import tagged, users
 from odoo.tools import mute_logger
@@ -385,13 +385,29 @@ class TestActivityMixin(TestActivityCommon):
         self.assertFalse(test_records.activity_ids)
         self.assertEqual(MailTestActivity.search([('activity_user_id', '=', False)]), test_records)
 
-        self.env['mail.activity'].create({
+        unassigned = self.env['mail.activity'].create({
             'summary': 'Test',
             'activity_type_id': self.env.ref('test_mail.mail_act_test_todo').id,
             'res_model_id': self.env.ref('test_mail.model_mail_test_activity').id,
             'res_id': self.test_record.id,
         })
+        # An unassigned activity leaves activity_user_id unset, so both records
+        # still answer "no responsible". This asserted the opposite while the
+        # search read '= True' as "has an activity row" rather than "has a
+        # responsible", which is not what the field holds.
+        self.assertFalse(unassigned.user_id)
+        self.assertFalse(self.test_record.activity_user_id)
+        self.assertEqual(MailTestActivity.search([('activity_user_id', '!=', True)]), test_records)
+        self.assertEqual(MailTestActivity.search([('activity_user_id', '=', False)]), test_records)
+
+        unassigned.user_id = self.user_employee
+        self.assertEqual(self.test_record.activity_user_id, self.user_employee)
         self.assertEqual(MailTestActivity.search([('activity_user_id', '!=', True)]), self.test_record_2)
+        self.assertEqual(MailTestActivity.search([('activity_user_id', '=', False)]), self.test_record_2)
+        self.assertEqual(
+            MailTestActivity.search([('activity_user_id', '=', self.user_employee.id)]),
+            self.test_record,
+        )
 
     def test_mail_activity_mixin_search_exception_decoration(self):
         """Test the search on "activity_exception_decoration".
@@ -729,3 +745,329 @@ class TestORM(TestActivityCommon):
         self.assertEqual(groups[0][groupby][0], pg_groups["overdue"])
         self.assertEqual(groups[1][groupby][0], pg_groups["today"])
         self.assertEqual(groups[2][groupby][0], pg_groups["planned"])
+
+
+@tagged('mail_activity', 'mail_activity_mixin')
+class TestActivityMixinProjection(TestActivityCommon):
+    """The mixin's fields project the record's activities two different ways,
+    and every one of these tests pins a case where the projection and the
+    filter used to disagree, or where the value went stale."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.model_id = cls.env['ir.model']._get('mail.test.activity').id
+        cls.type_todo = cls.env.ref('test_mail.mail_act_test_todo')
+        cls.type_meeting = cls.env.ref('test_mail.mail_act_test_meeting')
+
+    def _create_activity(self, record, **values):
+        return self.env['mail.activity'].create({
+            'res_model_id': self.model_id,
+            'res_id': record.id,
+            'date_deadline': values.pop('date_deadline', fields.Date.today()),
+            'activity_type_id': values.pop('activity_type_id', self.type_todo.id),
+            'automated': values.pop('automated', True),
+            **values,
+        })
+
+    @users('employee')
+    def test_fields_follow_the_activity_being_completed(self):
+        """Completing an activity changes the o2m's membership, which none of
+        these fields used to depend on: they kept showing the completed
+        activity for the rest of the transaction."""
+        self.type_todo.sudo().write({'decoration_type': 'warning', 'icon': 'fa-warn'})
+        for completion in ('archive', 'feedback', 'mixin_feedback'):
+            with self.subTest(completion=completion):
+                record = self.env['mail.test.activity'].create({'name': completion})
+                activity = self._create_activity(
+                    record, summary='SUMMARY', user_id=self.env.uid,
+                    date_deadline=fields.Date.today() - timedelta(days=1),
+                )
+                record.invalidate_recordset()
+                self.assertEqual(record.activity_summary, 'SUMMARY')
+                self.assertEqual(record.activity_state, 'overdue')
+
+                if completion == 'archive':
+                    activity.action_archive()
+                elif completion == 'feedback':
+                    activity.action_feedback(feedback='done')
+                else:
+                    record.activity_feedback(['test_mail.mail_act_test_todo'])
+
+                self.assertFalse(record.activity_ids)
+                self.assertFalse(record.activity_state)
+                self.assertFalse(record.activity_date_deadline)
+                self.assertFalse(record.activity_user_id)
+                self.assertFalse(record.activity_summary)
+                self.assertFalse(record.activity_type_id)
+                self.assertFalse(record.activity_type_icon)
+                self.assertFalse(record.activity_exception_decoration)
+                self.assertFalse(record.activity_exception_icon)
+                self.assertFalse(record.my_activity_date_deadline)
+
+    @users('employee')
+    def test_next_activity_searches_match_the_value_shown(self):
+        """These fields show the *first* activity; searching them used to match
+        *any*, so a record whose next activity is due today answered a filter
+        asking for next month."""
+        record = self.env['mail.test.activity'].create({'name': 'two activities'})
+        today = fields.Date.today()
+        self._create_activity(record, date_deadline=today, summary='FIRST',
+                              user_id=self.env.uid)
+        self._create_activity(record, date_deadline=today + timedelta(days=30),
+                              summary='LATER', user_id=self.env.uid,
+                              activity_type_id=self.type_meeting.id)
+        self.env.invalidate_all()
+        self.assertEqual(record.activity_date_deadline, today)
+        self.assertEqual(record.activity_summary, 'FIRST')
+        self.assertEqual(record.activity_type_id, self.type_todo)
+
+        Model = self.env['mail.test.activity']
+        far = today + timedelta(days=20)
+        self.assertFalse(Model.search([('id', '=', record.id), ('activity_date_deadline', '>=', far)]))
+        self.assertEqual(Model.search([('id', '=', record.id), ('activity_date_deadline', '=', today)]), record)
+        self.assertFalse(Model.search([('id', '=', record.id), ('activity_summary', '=', 'LATER')]))
+        self.assertEqual(Model.search([('id', '=', record.id), ('activity_summary', '=', 'FIRST')]), record)
+        self.assertEqual(Model.search([('id', '=', record.id), ('activity_summary', '!=', 'LATER')]), record)
+        self.assertFalse(Model.search([('id', '=', record.id), ('activity_type_id', '=', self.type_meeting.id)]))
+        self.assertEqual(Model.search([('id', '=', record.id), ('activity_type_id', '=', self.type_todo.id)]), record)
+
+    @users('employee')
+    def test_my_activity_deadline_does_not_double_count(self):
+        """crm and purchase_requisition ship these three filters; one record
+        used to answer both 'Late' and 'Future'."""
+        record = self.env['mail.test.activity'].create({'name': 'mine'})
+        today = fields.Date.today()
+        self._create_activity(record, date_deadline=today - timedelta(days=3), user_id=self.env.uid)
+        self._create_activity(record, date_deadline=today + timedelta(days=7), user_id=self.env.uid)
+        self.env.invalidate_all()
+        self.assertEqual(record.my_activity_date_deadline, today - timedelta(days=3))
+
+        Model = self.env['mail.test.activity']
+        domain = [('id', '=', record.id)]
+        self.assertEqual(Model.search(domain + [('my_activity_date_deadline', '<', 'today')]), record)
+        self.assertFalse(Model.search(domain + [('my_activity_date_deadline', '=', 'today')]))
+        self.assertFalse(Model.search(domain + [('my_activity_date_deadline', '>', 'today')]))
+
+    @users('employee')
+    def test_searches_ignore_completed_activities(self):
+        """A record whose only activity is done has no responsible and no
+        deadline; the 'is not set' filters used to disagree because the empty
+        test counted archived rows."""
+        record = self.env['mail.test.activity'].create({'name': 'done only'})
+        self._create_activity(record, user_id=self.env.uid).action_feedback()
+        self.env.invalidate_all()
+        self.assertFalse(record.activity_ids)
+        self.assertFalse(record.activity_user_id)
+        self.assertFalse(record.activity_date_deadline)
+
+        Model = self.env['mail.test.activity']
+        domain = [('id', '=', record.id)]
+        self.assertEqual(Model.search(domain + [('activity_user_id', '=', False)]), record)
+        self.assertFalse(Model.search(domain + [('activity_user_id', '!=', False)]))
+        self.assertEqual(Model.search(domain + [('activity_date_deadline', '=', False)]), record)
+        self.assertEqual(Model.search(domain + [('activity_state', '=', False)]), record)
+        self.assertFalse(Model.search(domain + [('activity_user_id', '=', self.env.uid)]))
+
+    @users('employee')
+    def test_exception_decoration_aggregates(self):
+        """Unlike its neighbours this field aggregates: danger outranks
+        warning outranks none. The search has to answer the same, and the icon
+        has to come from the most urgent activity, not the last one seen."""
+        urgent = self.env['mail.activity.type'].sudo().create({
+            'name': 'Urgent warn', 'decoration_type': 'warning',
+            'icon': 'fa-urgent', 'sequence': 90,
+        })
+        later = self.env['mail.activity.type'].sudo().create({
+            'name': 'Later warn', 'decoration_type': 'warning',
+            'icon': 'fa-later', 'sequence': 10,
+        })
+        self.type_meeting.sudo().decoration_type = False
+        record = self.env['mail.test.activity'].create({'name': 'decorated'})
+        today = fields.Date.today()
+        self._create_activity(record, date_deadline=today, activity_type_id=urgent.id,
+                              user_id=self.env.uid)
+        self._create_activity(record, date_deadline=today + timedelta(days=10),
+                              activity_type_id=later.id, user_id=self.env.uid)
+        self._create_activity(record, date_deadline=today + timedelta(days=20),
+                              activity_type_id=self.type_meeting.id, user_id=self.env.uid)
+        self.env.invalidate_all()
+        self.assertEqual(record.activity_exception_decoration, 'warning')
+        self.assertEqual(record.activity_exception_icon, 'fa-urgent',
+                         'the icon comes from the most urgent warning activity')
+
+        Model = self.env['mail.test.activity']
+        domain = [('id', '=', record.id)]
+        self.assertEqual(Model.search(domain + [('activity_exception_decoration', '=', 'warning')]), record)
+        self.assertFalse(Model.search(domain + [('activity_exception_decoration', '=', False)]),
+                         'a non-warning activity beside a warning one does not clear the field')
+        self.assertFalse(Model.search(domain + [('activity_exception_decoration', 'not in', ['warning'])]))
+
+        # danger outranks warning, in the field and in the filter
+        danger = self.env['mail.activity.type'].sudo().create({
+            'name': 'Danger', 'decoration_type': 'danger', 'icon': 'fa-danger',
+        })
+        self._create_activity(record, date_deadline=today + timedelta(days=30),
+                              activity_type_id=danger.id, user_id=self.env.uid)
+        self.env.invalidate_all()
+        self.assertEqual(record.activity_exception_decoration, 'danger')
+        self.assertEqual(record.activity_exception_icon, 'fa-danger')
+        self.assertEqual(Model.search(domain + [('activity_exception_decoration', '=', 'danger')]), record)
+        self.assertFalse(Model.search(domain + [('activity_exception_decoration', '=', 'warning')]))
+
+    def test_state_is_resolved_the_same_way_everywhere(self):
+        """compute, search and group-by used to be three translations of
+        'today': the group-by fell back on the *reader's* timezone where the
+        other two fall back on UTC."""
+        no_tz_user = mail_new_test_user(
+            self.env, login='act_no_tz', groups='base.group_user', name='No TZ')
+        no_tz_user.tz = False
+        record = self.env['mail.test.activity'].create({'name': 'tz'})
+        activity = self._create_activity(record, user_id=no_tz_user.id)
+        self.env.invalidate_all()
+        self.assertFalse(activity.user_tz)
+
+        for tz in ('UTC', 'Australia/Sydney', 'Pacific/Kiritimati', 'Pacific/Pago_Pago'):
+            with self.subTest(tz=tz):
+                Model = self.env['mail.test.activity'].with_context(tz=tz)
+                groups = Model._read_group([('id', '=', record.id)], ['activity_state'], ['__count'])
+                self.assertEqual(groups[0][0], 'today')
+                self.assertEqual(Model.browse(record.id).activity_state, 'today')
+                self.assertEqual(
+                    Model.search([('id', '=', record.id), ('activity_state', '=', 'today')]),
+                    record,
+                )
+
+    def test_state_survives_a_timezone_postgresql_does_not_know(self):
+        """Odoo's tz dropdown offers every zoneinfo name; PostgreSQL knows a
+        subset. user_tz is denormalised onto the activity, so one user picking
+        a legacy alias used to 500 the activity filters for everybody."""
+        self.env.cr.execute('SELECT name FROM pg_timezone_names')
+        pg_names = {name for [name] in self.env.cr.fetchall()}
+        legacy = sorted(set(dict(
+            self.env['res.users']._fields['tz']._description_selection(self.env)
+        )) - pg_names)
+        self.assertTrue(legacy, 'nothing to test if the two catalogues agree')
+        victim_tz = 'Asia/Calcutta' if 'Asia/Calcutta' in legacy else legacy[0]
+
+        user = mail_new_test_user(
+            self.env, login='act_legacy_tz', groups='base.group_user', name='Legacy')
+        user.tz = victim_tz
+        record = self.env['mail.test.activity'].create({'name': 'legacy tz'})
+        activity = self._create_activity(record, user_id=user.id)
+        self.env.flush_all()
+        self.assertEqual(activity.user_tz, victim_tz)
+
+        Model = self.env['mail.test.activity']
+        self.assertTrue(Model.search_count([('activity_state', '!=', False)]))
+        self.assertTrue(Model._read_group([], ['activity_state'], ['__count']))
+        self.assertEqual(
+            record.activity_state,
+            self.env['mail.activity']._compute_state_from_date(
+                activity.date_deadline, victim_tz),
+        )
+        # grouping a plain datetime field is the same trap, one layer down
+        self.assertTrue(
+            self.env['mail.activity'].with_context(tz=victim_tz)._read_group(
+                [], ['create_date:month'], ['__count'])
+        )
+
+    @users('employee')
+    def test_schedule_with_view_batches_and_keeps_one_note_per_record(self):
+        records = self.env['mail.test.activity'].create(
+            [{'name': f'batched {index}'} for index in range(5)])
+        view = self.env['ir.ui.view'].sudo().create({
+            'name': 'activity note', 'type': 'qweb', 'key': 'test_mail.act_note',
+            'arch_db': "<t t-name='test_mail.act_note'><p>For <t t-esc='object.name'/></p></t>",
+        })
+        caller_context = {'unrelated': 1}
+        activities = records._activity_schedule_with_view(
+            'test_mail.mail_act_test_todo', views_or_xmlid=view,
+            render_context=caller_context, user_id=self.env.uid,
+        )
+        self.assertEqual(len(activities), 5)
+        self.assertEqual(len({activity.note for activity in activities}), 5,
+                         'each record renders its own note')
+        for record, activity in zip(records, activities.sorted('res_id'), strict=True):
+            self.assertIn(record.name, str(activity.note))
+        self.assertNotIn('object', caller_context,
+                         'the caller keeps the dict it passed')
+
+    @users('employee')
+    def test_automation_helpers_return_activities(self):
+        """Every helper answers with a recordset, so a caller can chain on it
+        whatever the context, and 'nothing matched' is distinguishable."""
+        record = self.env['mail.test.activity'].create({'name': 'returns'})
+        xmlids = ['test_mail.mail_act_test_todo']
+        Activity = self.env['mail.activity']
+
+        skipped = record.with_context(mail_activity_automation_skip=True)
+        self.assertEqual(skipped.activity_schedule(xmlids[0]), Activity)
+        self.assertEqual(skipped._activity_schedule_with_view(xmlids[0]), Activity)
+        self.assertEqual(skipped.activity_search(xmlids), Activity)
+        self.assertEqual(skipped.activity_reschedule(xmlids), Activity)
+        self.assertEqual(skipped.activity_feedback(xmlids), Activity)
+        self.assertEqual(skipped.activity_unlink(xmlids), Activity)
+
+        # a manual activity is not automated, so the helpers must report that
+        # they matched nothing rather than answering True
+        manual = self._create_activity(record, automated=False, user_id=self.env.uid)
+        self.assertEqual(record.activity_feedback(xmlids), Activity)
+        self.assertTrue(manual.active)
+        self.assertEqual(record.activity_unlink(xmlids), Activity)
+        self.assertTrue(manual.exists())
+
+        scheduled = record.activity_schedule(xmlids[0], user_id=self.env.uid)
+        self.assertEqual(record.activity_feedback(xmlids), scheduled)
+        self.assertFalse(scheduled.active)
+
+    @users('employee')
+    def test_schedule_warns_on_an_unknown_activity_type(self):
+        record = self.env['mail.test.activity'].create({'name': 'typo'})
+        with self.assertLogs('odoo.addons.mail.models.mail_activity_mixin', 'WARNING') as logs:
+            activity = record.activity_schedule('test_mail.no_such_activity_type')
+        self.assertIn('no_such_activity_type', logs.output[0])
+        self.assertEqual(activity.activity_type_id, record._default_activity_type())
+
+    @users('employee')
+    @mute_logger('odoo.addons.mail.models.mail_activity_mixin')
+    def test_send_mail_refuses_a_template_of_another_model(self):
+        """A public RPC method, and every internal user may read every
+        template: without this check the composer rendered the *other* model's
+        record of the same id and posted it here."""
+        record = self.env['mail.test.activity'].create({'name': 'templated'})
+        foreign = self.env['mail.template'].sudo().create({
+            'name': 'foreign', 'model_id': self.env['ir.model']._get('res.partner').id,
+            'subject': 'Hi {{ object.name }}', 'body_html': '<p><t t-out="object.email"/></p>',
+        })
+        self.assertFalse(record.activity_send_mail(foreign.id))
+        self.assertFalse(record.message_ids.filtered(lambda m: m.subject))
+
+        own = self.env['mail.template'].sudo().create({
+            'name': 'own', 'model_id': self.model_id,
+            'subject': 'About {{ object.name }}', 'body_html': '<p>hello</p>',
+        })
+        self.assertTrue(record.activity_send_mail(own.id))
+        self.assertFalse(record.activity_send_mail(0))
+
+    def test_activity_fields_are_reserved_to_employees(self):
+        """All ten of them, not seven: three used to be ungrouped, and the
+        related one among those was readable by a portal user through the
+        restricted o2m."""
+        Model = self.env['mail.test.activity']
+        activity_fields = [
+            'activity_ids', 'activity_state', 'activity_user_id', 'activity_type_id',
+            'activity_type_icon', 'activity_date_deadline', 'my_activity_date_deadline',
+            'activity_summary', 'activity_exception_decoration', 'activity_exception_icon',
+        ]
+        for fname in activity_fields:
+            self.assertEqual(Model._fields[fname].groups, 'base.group_user', fname)
+
+        portal = mail_new_test_user(
+            self.env, login='act_portal', groups='base.group_portal', name='Portal')
+        record = Model.create({'name': 'portal'})
+        self._create_activity(record, user_id=self.env.uid)
+        self.env.invalidate_all()
+        for fname in activity_fields:
+            with self.subTest(field=fname), self.assertRaises(exceptions.AccessError):
+                record.with_user(portal).read([fname])

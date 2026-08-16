@@ -575,10 +575,10 @@ class TestMailMail(MailCommon):
                 with self.mock_mail_gateway():
                     mail.send(raise_exception=False)
                 self.assertEqual(mail.failure_reason, self.env['ir.mail_server'].NO_VALID_RECIPIENT)
-                self.assertEqual(mail.failure_type, 'mail_email_invalid', 'Mail: void recipient partner: should be missing, not invalid')
+                self.assertEqual(mail.failure_type, 'mail_email_missing', 'Mail: void recipient partner: missing, not invalid')
                 self.assertEqual(mail.state, 'exception')
                 self.assertEqual(notification.failure_reason, self.env['ir.mail_server'].NO_VALID_RECIPIENT)
-                self.assertEqual(notification.failure_type, 'mail_email_invalid', 'Mail: void recipient partner: should be missing, not invalid')
+                self.assertEqual(notification.failure_type, 'mail_email_missing', 'Mail: void recipient partner: missing, not invalid')
                 self.assertEqual(notification.notification_status, 'exception')
 
         # wrong values
@@ -657,7 +657,10 @@ class TestMailMail(MailCommon):
             self.assertFalse(mail.failure_type, 'Mail: at least one valid recipient, mail is sent to avoid send loops and spam')
             self.assertEqual(mail.state, 'sent', 'Mail: at least one valid recipient, mail is sent to avoid send loops and spam')
             self.assertEqual(notification.failure_reason, self.env['ir.mail_server'].NO_VALID_RECIPIENT)
-            self.assertEqual(notification.failure_type, 'mail_email_invalid', 'Mail: void email considered as invalid')
+            self.assertEqual(
+                notification.failure_type,
+                'mail_email_missing' if partner in partners_falsy else 'mail_email_invalid',
+                'Mail: a partner with no address is missing, one with an unparseable address is invalid')
             self.assertEqual(notification.notification_status, 'exception')
 
         # update to have valid partner and invalid partner
@@ -686,7 +689,8 @@ class TestMailMail(MailCommon):
                 self.assertFalse(notification.failure_type)
                 self.assertEqual(notification.notification_status, 'sent')
                 self.assertEqual(notification2.failure_reason, self.env['ir.mail_server'].NO_VALID_RECIPIENT)
-                self.assertEqual(notification2.failure_type, 'mail_email_invalid')
+                self.assertEqual(notification2.failure_type, 'mail_email_missing',
+                                 'Mail: partners_falsy[0] carries no address at all')
                 self.assertEqual(notification2.notification_status, 'exception')
 
         # buggy to (ascii)
@@ -732,7 +736,12 @@ class TestMailMail(MailCommon):
 
                 mail.send(raise_exception=False)
                 self.assertEqual(mail.failure_reason, msg)
-                self.assertFalse(mail.failure_type)
+                self.assertEqual(
+                    mail.failure_type, 'mail_smtp',
+                    'The mail records the same failure type it reports to its '
+                    'notifications. It used to record none, so the Technical menu '
+                    'showed an exception with an empty Failure type column in the one '
+                    'class of failure where the type is most diagnostic.')
                 self.assertEqual(mail.state, 'exception')
                 self.assertFalse(notification.failure_reason, 'Mail: failure reason not propagated')
                 self.assertEqual(notification.failure_type, 'mail_smtp')
