@@ -1,6 +1,11 @@
+import typing
+
 from markupsafe import Markup
 
 from odoo import _, fields, models
+
+if typing.TYPE_CHECKING:
+    from ..models.mail_blacklist import MailBlacklist
 
 
 class MailBlacklistRemove(models.TransientModel):
@@ -10,7 +15,7 @@ class MailBlacklistRemove(models.TransientModel):
     email = fields.Char(name="Email", readonly=True, required=True)
     reason = fields.Char(name="Reason")
 
-    def action_unblacklist_apply(self):
+    def action_unblacklist_apply(self) -> MailBlacklist:
         if self.reason:
             message = Markup("<p>%s</p>") % _(
                 "Unblock Reason: %(reason)s", reason=self.reason

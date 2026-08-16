@@ -1,12 +1,16 @@
-from odoo import api, fields, models
+import typing
+from typing import Literal, Self
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo import api, fields, models
+from odoo.api import ValuesType
+
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+
+if typing.TYPE_CHECKING:
+    from odoo.addons.bus.models.res_groups import ResGroups
 
 
 class MailCannedResponse(models.Model):
-    """Canned Response: content that automatically replaces shortcuts of your
-    choosing. This content can still be adapted before sending your message."""
-
     _name = "mail.canned.response"
     _description = "Canned Response"
     _order = "id desc"
@@ -27,7 +31,7 @@ class MailCannedResponse(models.Model):
     last_used = fields.Datetime(
         "Last Used", help="Last time this canned_response was used"
     )
-    group_ids = fields.Many2many(
+    group_ids: ResGroups = fields.Many2many(
         "res.groups",
         string="Authorized Groups",
         domain=lambda self: [("id", "in", self.env.user.all_group_ids.ids)],
@@ -43,13 +47,13 @@ class MailCannedResponse(models.Model):
     )
 
     @api.depends("group_ids")
-    def _compute_is_shared(self):
+    def _compute_is_shared(self) -> None:
         for canned_response in self:
             canned_response.is_shared = bool(canned_response.group_ids)
 
     @api.depends_context("uid")
     @api.depends("create_uid")
-    def _compute_is_editable(self):
+    def _compute_is_editable(self) -> None:
         creating = self.filtered(lambda c: not c.id)
         updating = self - creating
         editable = creating._filtered_access("create") + updating._filtered_access(
@@ -59,21 +63,21 @@ class MailCannedResponse(models.Model):
         (self - editable).is_editable = False
 
     @api.model_create_multi
-    def create(self, vals_list):
+    def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
         res._broadcast()
         return res
 
-    def write(self, vals):
+    def write(self, vals: ValuesType) -> Literal[True]:
         res = super().write(vals)
         self._broadcast()
         return res
 
-    def unlink(self):
+    def unlink(self) -> Literal[True]:
         self._broadcast(delete=True)
         return super().unlink()
 
-    def _broadcast(self, /, *, delete=False):
+    def _broadcast(self, /, *, delete: bool = False) -> None:
         for canned_response in self:
             stores = [Store(bus_channel=group) for group in canned_response.group_ids]
             stores.extend(
@@ -89,5 +93,5 @@ class MailCannedResponse(models.Model):
             for store in stores:
                 store.bus_send()
 
-    def _to_store_defaults(self, target):
+    def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return ["source", "substitution"]

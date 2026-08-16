@@ -1,4 +1,3 @@
-# core models (required for mixins)
 from . import mail_alias
 from . import mail_alias_domain
 from . import base
@@ -16,7 +15,7 @@ from . import mail_tracking_duration_mixin
 from . import template_reset_mixin
 
 from . import fetchmail
-from . import mail_notification  # keep before as decorated m2m
+from . import mail_notification
 from . import mail_activity_type
 from . import mail_activity
 from . import mail_activity_plan
@@ -31,6 +30,7 @@ from . import mail_message_schedule
 from . import mail_message_subtype
 from . import mail_message_translation
 from . import mail_message
+from . import mail_message_access
 from . import mail_mail
 from . import mail_presence
 from . import mail_push
@@ -63,8 +63,6 @@ from . import res_role
 from . import res_users
 from . import update
 
-# after mail specifically as discuss module depends on mail
 from . import discuss
 
-# discuss_channel_member must be loaded first
 from . import res_partner

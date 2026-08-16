@@ -1,7 +1,17 @@
+import typing
+from datetime import date
+from typing import Literal
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+
+if typing.TYPE_CHECKING:
+    from .mail_activity_plan import MailActivityPlan
+    from .mail_activity_type import MailActivityType
+    from odoo.addons.base.models.res_company import ResCompany
+    from odoo.addons.bus.models.res_users import ResUsers
 
 
 class MailActivityPlanTemplate(models.Model):
@@ -10,7 +20,7 @@ class MailActivityPlanTemplate(models.Model):
     _order = "sequence, id"
     _rec_name = "summary"
 
-    plan_id = fields.Many2one(
+    plan_id: MailActivityPlan = fields.Many2one(
         "mail.activity.plan",
         string="Plan",
         ondelete="cascade",
@@ -18,9 +28,9 @@ class MailActivityPlanTemplate(models.Model):
         index=True,
     )
     res_model = fields.Selection(related="plan_id.res_model")
-    company_id = fields.Many2one(related="plan_id.company_id")
+    company_id: ResCompany = fields.Many2one(related="plan_id.company_id")
     sequence = fields.Integer(default=10)
-    activity_type_id = fields.Many2one(
+    activity_type_id: MailActivityType = fields.Many2one(
         "mail.activity.type",
         "Activity Type",
         default=lambda self: self.env.ref("mail.mail_activity_data_todo"),
@@ -28,7 +38,6 @@ class MailActivityPlanTemplate(models.Model):
         ondelete="restrict",
         required=True,
     )
-    # Activity type delay fields are ignored in favor of these
     delay_count = fields.Integer(
         "Interval",
         default=0,
@@ -66,7 +75,7 @@ class MailActivityPlanTemplate(models.Model):
         store=True,
         readonly=False,
     )
-    responsible_id = fields.Many2one(
+    responsible_id: ResUsers = fields.Many2one(
         "res.users",
         "Assigned to",
         check_company=True,
@@ -75,7 +84,7 @@ class MailActivityPlanTemplate(models.Model):
         readonly=False,
     )
     note = fields.Html("Note", compute="_compute_note", store=True, readonly=False)
-    next_activity_ids = fields.Many2many(
+    next_activity_ids: MailActivityType = fields.Many2many(
         "mail.activity.type",
         string="Next Activities",
         compute="_compute_next_activity_ids",
@@ -84,12 +93,7 @@ class MailActivityPlanTemplate(models.Model):
     )
 
     @api.constrains("activity_type_id", "plan_id")
-    def _check_activity_type_res_model(self):
-        """Check that the plan models are compatible with the template activity
-        type model. Note that it depends also on "activity_type_id.res_model" and
-        "plan_id.res_model". That's why this method is called by those models
-        when the mentioned fields are updated.
-        """
+    def _check_activity_type_res_model(self) -> None:
         for template in self.filtered(lambda tpl: tpl.activity_type_id.res_model):
             if template.activity_type_id.res_model != template.plan_id.res_model:
                 raise ValidationError(
@@ -103,8 +107,7 @@ class MailActivityPlanTemplate(models.Model):
                 )
 
     @api.constrains("responsible_id", "responsible_type")
-    def _check_responsible(self):
-        """Ensure that responsible_id is set when responsible is set to "other"."""
+    def _check_responsible(self) -> None:
         for template in self:
             if template.responsible_type == "other" and not template.responsible_id:
                 raise ValidationError(
@@ -114,9 +117,7 @@ class MailActivityPlanTemplate(models.Model):
                 )
 
     @api.depends("activity_type_id")
-    def _compute_next_activity_ids(self):
-        """Update next activities only when changing activity type on template.
-        Any change on type configuration should not be propagated."""
+    def _compute_next_activity_ids(self) -> None:
         for template in self:
             activity_type = template.activity_type_id
             if activity_type.triggered_next_type_id:
@@ -127,19 +128,19 @@ class MailActivityPlanTemplate(models.Model):
                 template.next_activity_ids = False
 
     @api.depends("activity_type_id")
-    def _compute_note(self):
+    def _compute_note(self) -> None:
         for template in self:
             template.note = template.activity_type_id.default_note
 
     @api.depends("activity_type_id", "responsible_type")
-    def _compute_responsible_id(self):
+    def _compute_responsible_id(self) -> None:
         for template in self:
             template.responsible_id = template.activity_type_id.default_user_id
             if template.responsible_type != "other" and template.responsible_id:
                 template.responsible_id = False
 
     @api.depends("activity_type_id")
-    def _compute_responsible_type(self):
+    def _compute_responsible_type(self) -> None:
         for template in self:
             if template.activity_type_id.default_user_id:
                 template.responsible_type = "other"
@@ -147,12 +148,11 @@ class MailActivityPlanTemplate(models.Model):
                 template.responsible_type = "on_demand"
 
     @api.depends("activity_type_id")
-    def _compute_summary(self):
+    def _compute_summary(self) -> None:
         for template in self:
             template.summary = template.activity_type_id.summary
 
-    def _get_date_deadline(self, base_date=False):
-        """Return the deadline of the activity to be created given the base date."""
+    def _get_date_deadline(self, base_date: date | Literal[False] = False) -> date:
         self.ensure_one()
         base_date = base_date or fields.Date.context_today(self)
         delta = relativedelta(**{self.delay_unit: self.delay_count})
@@ -160,21 +160,9 @@ class MailActivityPlanTemplate(models.Model):
             return base_date + delta
         return base_date - delta
 
-    def _determine_responsible(self, on_demand_responsible, applied_on_record):
-        """Determine the responsible of the activity to create on a record.
-
-        'on_demand' uses ``on_demand_responsible``, 'other' the preset
-        ``responsible_id``.
-
-        :param recordset on_demand_responsible: 'res.users' given at launch
-        :param recordset applied_on_record: the record on which the activity
-            will be created
-        :return: {'responsible': <res.users>, 'error': str|False,
-            'warning': str|False}
-        :rtype: dict
-        """
-        # overrides may derive the responsible from the record itself, e.g. the
-        # 'coach' of an employee
+    def _determine_responsible(
+        self, on_demand_responsible: ResUsers, applied_on_record: models.BaseModel
+    ) -> dict:
         self.ensure_one()
         error = False
         warning = False

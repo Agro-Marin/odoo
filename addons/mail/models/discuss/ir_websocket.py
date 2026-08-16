@@ -4,12 +4,10 @@ from odoo import models
 
 
 class IrWebsocket(models.AbstractModel):
-    """Override to handle discuss specific features (channel in particular)."""
-
     _inherit = "ir.websocket"
 
-    def _build_bus_channel_list(self, channels):
-        channels = list(channels)  # do not alter original list
+    def _build_bus_channel_list(self, channels: list) -> list:
+        channels = list(channels)
         discuss_channel_ids = []
         for channel in list(channels):
             if isinstance(channel, str) and channel.startswith("mail.guest_"):

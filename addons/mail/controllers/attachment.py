@@ -1,35 +1,35 @@
 import base64
 import io
 import logging
+import typing
 import zipfile
+from typing import Any
 
 from werkzeug.exceptions import NotFound, UnsupportedMediaType
 
 from odoo import _, http
 from odoo.exceptions import AccessError, UserError
-from odoo.http import content_disposition, request
+from odoo.http import Response, content_disposition, request
 from odoo.tools.misc import file_open
 from odoo.tools.pdf import DependencyError, PdfReadError, extract_page
 
 from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
+if typing.TYPE_CHECKING:
+    from odoo.addons.base.models.ir_attachment import IrAttachment
+
 logger = logging.getLogger(__name__)
 
-# Upper bound on a client-supplied base64 PDF thumbnail. The update route is
-# public (ownership-token gated), so without a cap a guest holding an
-# attachment access token could store an arbitrarily large blob.
 MAX_THUMBNAIL_B64_BYTES = 10 * 1024 * 1024
 
 
 class AttachmentController(ThreadController):
-    def _make_zip(self, name, attachments):
+    def _make_zip(self, name: str, attachments: IrAttachment) -> Response:
         streams = (
             request.env["ir.binary"]._get_stream_from(record, "raw")
             for record in attachments
         )
-        # TODO: zip on-the-fly while streaming instead of loading the
-        #       entire zip in memory and sending it all at once.
         stream = io.BytesIO()
         try:
             with zipfile.ZipFile(stream, "w") as attachment_zip:
@@ -56,32 +56,23 @@ class AttachmentController(ThreadController):
     @http.route("/mail/attachment/upload", methods=["POST"], type="http", auth="public")
     @add_guest_to_context
     def mail_attachment_upload(
-        self, ufile, thread_id, thread_model, is_pending=False, **kwargs
-    ):
+        self,
+        ufile: Any,
+        thread_id: int,
+        thread_model: str,
+        is_pending: bool | str = False,
+        **kwargs,
+    ) -> Response:
         thread = self._get_thread_with_access_for_post(
             thread_model, thread_id, **kwargs
         )
         if not thread:
             raise NotFound
-        # Linkage fields only. ``_from_request_file`` owns ``name``, ``mimetype``
-        # and the bytes -- that is the whole point of handing it the request file
-        # -- and every other caller (web/binary, documents, voip) passes exactly
-        # this much. ``_from_request_file`` derives the filename and forwards it
-        # as ``name=`` to ``_create_from_stream``, so a ``name`` left in these
-        # vals arrived there twice (TypeError -> 500 on every upload that
-        # streams, i.e. everything but a resized image). ``raw`` was worse than
-        # redundant: reading the upload here defeated the streaming this call
-        # exists for AND left the file at EOF, so the mimetype sniff saw no
-        # bytes and the stream stored none.
         vals = {
-            # reuse the id already coerced and access-checked by
-            # _get_thread_with_access_for_post, not the raw client input
             "res_id": thread.id,
             "res_model": thread_model,
         }
         if is_pending and str(is_pending).lower() not in ("false", "0", ""):
-            # At this point the message related to the uploaded file does not
-            # exist yet, so use those placeholder values instead.
             vals.update(
                 {
                     "res_id": 0,
@@ -89,10 +80,6 @@ class AttachmentController(ThreadController):
                 }
             )
         try:
-            # sudo: ir.attachment - posting a new attachment on an accessible thread
-            # _from_request_file streams the payload into storage instead of
-            # holding the whole upload in the worker; DERIVE types the row
-            # exactly as create() did from the same filename.
             attachment = (
                 request.env["ir.attachment"].sudo()._from_request_file(ufile, **vals)
             )
@@ -118,7 +105,9 @@ class AttachmentController(ThreadController):
         "/mail/attachment/delete", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def mail_attachment_delete(self, attachment_id, access_token=None):
+    def mail_attachment_delete(
+        self, attachment_id: int, access_token: str | None = None
+    ) -> None:
         attachment = (
             request.env["ir.attachment"].browse(_to_record_id(attachment_id)).exists()
         )
@@ -130,28 +119,19 @@ class AttachmentController(ThreadController):
             .sudo()
             .search([("attachment_ids", "in", attachment.ids)], limit=1)
         )
-        # sudo: ir.attachment: access is validated with _has_attachments_ownership
         attachment.sudo()._delete_and_notify(message)
 
     @http.route(["/mail/attachment/zip"], methods=["POST"], type="http", auth="public")
     @add_guest_to_context
-    def mail_attachment_get_zip(self, file_ids, zip_name, **kw):
-        """route to get the zip file of the attachments.
-        :param file_ids: comma-separated ids of the files to zip.
-        :param zip_name: name of the zip file.
-        """
+    def mail_attachment_get_zip(self, file_ids: str, zip_name: str, **kw) -> Response:
         try:
             ids_list = list(map(int, file_ids.split(",")))
         except TypeError, ValueError:
             raise NotFound from None
         attachments = request.env["ir.attachment"].browse(ids_list).exists()
-        # Filter to readable attachments up front: an AccessError raised mid-stream
-        # by _get_stream_from would yield a truncated zip. Unreadable ids are
-        # skipped; a fully-inaccessible request 404s.
         accessible = attachments.filtered(lambda a: a.has_access("read"))
         if not accessible:
             raise NotFound
-        # sudo: read access verified above; sudo needed to stream (e.g. guests)
         return self._make_zip(zip_name, accessible.sudo())
 
     @http.route(
@@ -162,15 +142,15 @@ class AttachmentController(ThreadController):
         type="http",
     )
     @add_guest_to_context
-    def mail_attachment_pdf_first_page(self, attachment_id, access_token=None):
-        """Returns the first page of a pdf."""
+    def mail_attachment_pdf_first_page(
+        self, attachment_id: int, access_token: str | None = None
+    ) -> Response:
         attachment = request.env["ir.attachment"].browse(int(attachment_id)).exists()
         if not attachment or (
             not attachment.has_access("read")
             and not attachment._has_attachments_ownership([access_token])
         ):
             raise request.not_found()
-        # sudo: ir.attachment: access check is done above, sudo necessary for guests
         return self._get_pdf_first_page_response(attachment.sudo())
 
     @http.route(
@@ -181,9 +161,11 @@ class AttachmentController(ThreadController):
     )
     @add_guest_to_context
     def mail_attachment_update_thumbnail(
-        self, attachment_id, thumbnail=None, access_token=None
-    ):
-        """Updates the thumbnail of an attachment."""
+        self,
+        attachment_id: int,
+        thumbnail: str | None = None,
+        access_token: str | None = None,
+    ) -> None:
         attachment = (
             request.env["ir.attachment"].browse(_to_record_id(attachment_id)).exists()
         )
@@ -192,7 +174,6 @@ class AttachmentController(ThreadController):
             and not attachment._has_attachments_ownership([access_token])
         ):
             raise request.not_found()
-        # sudo: ir.attachment: access check is done above, sudo necessary for guests
         attachment_sudo = attachment.sudo()
         if attachment_sudo.mimetype != "application/pdf":
             raise UserError(request.env._("Only PDF files can have thumbnail."))
@@ -206,7 +187,7 @@ class AttachmentController(ThreadController):
             attachment_sudo, ["has_thumbnail"]
         ).bus_send()
 
-    def _get_pdf_first_page_response(self, attachment):
+    def _get_pdf_first_page_response(self, attachment: IrAttachment) -> Response:
         try:
             page_stream = extract_page(attachment, 0)
         except (PdfReadError, DependencyError, UnicodeDecodeError) as e:

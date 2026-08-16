@@ -7,7 +7,7 @@ class ImStatusController(http.Controller):
     @http.route(
         "/mail/set_manual_im_status", methods=["POST"], type="jsonrpc", auth="user"
     )
-    def set_manual_im_status(self, status):
+    def set_manual_im_status(self, status: str) -> None:
         if status not in ["online", "away", "busy", "offline"]:
             raise UserError(_("Unexpected IM status %(status)s", status=status))
         user = request.env.user

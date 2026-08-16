@@ -26,11 +26,7 @@ class MailIceServer(models.Model):
     username = fields.Char()
     credential = fields.Char()
 
-    def _get_local_ice_servers(self):
-        """
-        :return: List of up to 5 dict, each of which representing a stun or turn server
-        """
-        # firefox has a hard cap of 5 ice servers
+    def _get_local_ice_servers(self) -> list:
         ice_servers = self.sudo().search([], limit=5)
         formatted_ice_servers = []
         for ice_server in ice_servers:
@@ -44,16 +40,10 @@ class MailIceServer(models.Model):
             formatted_ice_servers.append(formatted_ice_server)
         return formatted_ice_servers
 
-    # Twilio TURN tokens are reusable (default TTL 24h), so cache well under that
-    # rather than let every RTC join wait on a synchronous Twilio round-trip.
     _ICE_CACHE_TTL = 3600
     _ICE_CACHE_PARAM = "mail.ice_servers_cache"
 
-    def _get_ice_servers(self):
-        """
-        :return: List of dict, each of which representing a stun or turn server,
-                formatted as expected by the specifications of RTCConfiguration.iceServers
-        """
+    def _get_ice_servers(self) -> list:
         (account_sid, auth_token) = get_twilio_credentials(self.env)
         if not (account_sid and auth_token):
             return self._get_local_ice_servers()
@@ -67,7 +57,7 @@ class MailIceServer(models.Model):
                 if datetime.datetime.fromisoformat(payload["expiry"]) > now:
                     return payload["servers"]
             except ValueError, KeyError, TypeError:
-                pass  # malformed / legacy cache: refetch below
+                pass
 
         servers = self._fetch_twilio_ice_servers(account_sid, auth_token)
         if servers is None:
@@ -85,8 +75,9 @@ class MailIceServer(models.Model):
         )
         return servers
 
-    def _fetch_twilio_ice_servers(self, account_sid, auth_token):
-        """Return Twilio's ICE server list, or None on any failure/timeout."""
+    def _fetch_twilio_ice_servers(
+        self, account_sid: str, auth_token: str
+    ) -> list | None:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Tokens.json"
         try:
             response = requests.post(url, auth=(account_sid, auth_token), timeout=5)

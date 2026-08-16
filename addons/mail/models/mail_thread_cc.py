@@ -1,4 +1,10 @@
+import typing
+from typing import Literal, Self
+
 from odoo import api, fields, models, tools
+
+if typing.TYPE_CHECKING:
+    from odoo.addons.mail.models.base import SuggestionSources
 
 
 class MailThreadCc(models.AbstractModel):
@@ -8,13 +14,9 @@ class MailThreadCc(models.AbstractModel):
 
     email_cc = fields.Char("Email cc")
 
-    def _mail_cc_sanitized_raw_dict(self, cc_string):
-        """return a dict of sanitize_email:raw_email from a string of cc"""
+    def _mail_cc_sanitized_raw_dict(self, cc_string: str | Literal[False]) -> dict:
         if not cc_string:
             return {}
-        # skip what email_normalize rejects (e.g. a bare "a@", which
-        # email_split_tuples still accepts): formataddr(False) raises
-        # AttributeError, aborting the whole inbound route on a crafted Cc header
         sanitized = {}
         for name, email in tools.mail.email_split_tuples(cc_string):
             normalized = tools.email_normalize(email)
@@ -24,7 +26,7 @@ class MailThreadCc(models.AbstractModel):
         return sanitized
 
     @api.model
-    def message_new(self, msg_dict, custom_values=None):
+    def message_new(self, msg_dict: dict, custom_values: dict | None = None) -> Self:
         if custom_values is None:
             custom_values = {}
         cc_values = {
@@ -35,8 +37,7 @@ class MailThreadCc(models.AbstractModel):
         cc_values.update(custom_values)
         return super().message_new(msg_dict, cc_values)
 
-    def message_update(self, msg_dict, update_vals=None):
-        # Adds cc email to self.email_cc while trying to keep email as raw as possible but unique
+    def message_update(self, msg_dict: dict, update_vals: dict | None = None) -> bool:
         if update_vals is None:
             update_vals = {}
         cc_values = {}
@@ -48,8 +49,10 @@ class MailThreadCc(models.AbstractModel):
         cc_values.update(update_vals)
         return super().message_update(msg_dict, cc_values)
 
-    def _message_add_suggested_recipients(self, force_primary_email=False):
-        suggested = super()._message_add_suggested_recipients(
+    def _message_get_suggested_recipients_sources(
+        self, force_primary_email: str | Literal[False] = False
+    ) -> dict[int, SuggestionSources]:
+        suggested = super()._message_get_suggested_recipients_sources(
             force_primary_email=force_primary_email
         )
         for record in self.filtered("email_cc"):

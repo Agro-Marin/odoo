@@ -19,22 +19,19 @@ _logger = logging.getLogger(__name__)
 
 
 class IrWebsocket(models.AbstractModel):
-    """Override to handle mail specific features (presence in particular)."""
-
     _inherit = "ir.websocket"
 
-    def _serve_ir_websocket(self, event_name, data):
-        """Override to process update_presence."""
+    def _serve_ir_websocket(self, event_name: str, data: dict) -> None:
         super()._serve_ir_websocket(event_name, data)
         if event_name == "update_presence":
             self._update_mail_presence(**data)
 
     @add_guest_to_context
-    def _subscribe(self, og_data):
+    def _subscribe(self, og_data: dict) -> None:
         super()._subscribe(og_data)
 
     @add_guest_to_context
-    def _update_mail_presence(self, inactivity_period):
+    def _update_mail_presence(self, inactivity_period: int) -> None:
         partner, guest = self.env["res.partner"]._get_current_persona()
         if not partner and not guest:
             return
@@ -42,7 +39,7 @@ class IrWebsocket(models.AbstractModel):
             self.env.user if partner else guest, inactivity_period
         )
 
-    def _prepare_subscribe_data(self, channels, last):
+    def _prepare_subscribe_data(self, channels: list, last: int) -> dict:
         data = super()._prepare_subscribe_data(channels, last)
         model_ids_to_token = defaultdict(dict)
         for channel in channels:
@@ -56,8 +53,6 @@ class IrWebsocket(models.AbstractModel):
                 continue
             model, record_id, token = match.groups()
             model_ids_to_token[model][int(record_id)] = token or ""
-        # sudo - res.partner, mail.guest: can access presence targets to decide whether
-        # the current user is allowed to read it or not.
         partner_ids = model_ids_to_token["res.partner"].keys()
         partners = (
             self.env["res.partner"]
@@ -67,8 +62,6 @@ class IrWebsocket(models.AbstractModel):
             .sudo(False)
         )
         partner, guest = self.env["res.partner"]._get_current_persona()
-        # One batched access check instead of N ir.rule evaluations; the token
-        # check short-circuits it for the ids that carry one.
         accessible_partner_ids = set(partners._filtered_access("read")._ids)
         allowed_partners = (
             partners.filtered(
@@ -105,9 +98,6 @@ class IrWebsocket(models.AbstractModel):
         )
         data["channels"].update((partner, "presence") for partner in allowed_partners)
         data["channels"].update((guest, "presence") for guest in allowed_guests)
-        # There is a gap between a subscription client side (which is debounced)
-        # and the actual subcription thus presences can be missed. Send a
-        # notification to avoid missing presences during a subscription.
         presence_domain = Domain(
             "last_poll", ">", datetime.now() - timedelta(seconds=2)
         ) & (
@@ -118,25 +108,22 @@ class IrWebsocket(models.AbstractModel):
             )
             | Domain("guest_id", "in", allowed_guests.ids)
         )
-        # sudo: mail.presence: access to presence was validated with access token.
         data["missed_presences"] = (
             self.env["mail.presence"].sudo().search(presence_domain)
         )
         return data
 
-    def _after_subscribe_data(self, data):
+    def _after_subscribe_data(self, data: dict) -> None:
         current_partner, current_guest = self.env["res.partner"]._get_current_persona()
         if current_partner or current_guest:
             data["missed_presences"]._send_presence(
                 bus_target=current_partner or current_guest
             )
 
-    def _on_websocket_closed(self, cookies):
+    def _on_websocket_closed(self, cookies: dict) -> None:
         super()._on_websocket_closed(cookies)
         if self.env.user and not self.env.user._is_public():
-            # sudo: mail.presence - user can update their own presence
             self.env.user.sudo().presence_ids.status = "offline"
         token = cookies.get(self.env["mail.guest"]._cookie_name, "")
         if guest := self.env["mail.guest"]._get_guest_from_token(token):
-            # sudo: mail.presence - guest can update their own presence
             guest.sudo().presence_ids.status = "offline"

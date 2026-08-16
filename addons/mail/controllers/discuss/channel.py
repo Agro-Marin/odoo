@@ -1,3 +1,5 @@
+from typing import Any
+
 from markupsafe import Markup
 from werkzeug.exceptions import NotFound
 
@@ -9,18 +11,12 @@ from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
 from odoo.addons.mail.controllers.webclient import WebclientController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
-# Upper bound on the client-supplied base64 channel avatar (a 128px image is
-# tiny); bounds the payload a member can push into image_128.
 MAX_AVATAR_B64_BYTES = 10 * 1024 * 1024
 
-# Upper bound for caller-controlled page sizes on the public channel endpoints:
-# without it an anonymous caller can pass an arbitrarily large ``limit`` and force
-# an unbounded search + Store serialization (cheap memory/CPU amplification).
 MAX_FETCH_LIMIT = 100
 
 
-def _clamp_limit(limit, default=30):
-    """Coerce a caller-supplied page size to a sane, bounded integer."""
+def _clamp_limit(limit: Any, default: int = 30) -> int:
     try:
         limit = int(limit)
     except TypeError, ValueError:
@@ -29,13 +25,10 @@ def _clamp_limit(limit, default=30):
 
 
 class DiscussChannelWebclientController(WebclientController):
-    """Override to add discuss channel specific features."""
-
     @classmethod
-    def _process_request_loop(cls, store: Store, fetch_params):
-        """Override to add discuss channel specific features."""
-        # aggregate of channels to return, to batch them in a single query when all the fetch params
-        # have been processed
+    def _process_request_loop(
+        cls, store: Store, fetch_params: list[str | list]
+    ) -> None:
         request.update_context(
             channels=request.env["discuss.channel"], add_channels_last_message=False
         )
@@ -44,13 +37,10 @@ class DiscussChannelWebclientController(WebclientController):
         if channels:
             store.add(channels)
         if request.env.context["add_channels_last_message"]:
-            # fetch channels data before messages to benefit from prefetching (channel info might
-            # prefetch a lot of data that message format could use)
             store.add(channels._get_last_messages())
 
     @classmethod
-    def _process_request_for_all(cls, store: Store, name, params):
-        """Override to return channel as member and last messages."""
+    def _process_request_for_all(cls, store: Store, name: str, params: Any) -> None:
         super()._process_request_for_all(store, name, params)
         if name == "init_messaging":
             member_domain = [
@@ -97,14 +87,14 @@ class ChannelController(http.Controller):
         readonly=True,
     )
     @add_guest_to_context
-    def discuss_channel_members(self, channel_id, known_member_ids):
+    def discuss_channel_members(
+        self, channel_id: int, known_member_ids: list[int]
+    ) -> dict:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )
         if not channel:
             raise NotFound
-        # auth="public": coerce the client-supplied id list to ints (dropping
-        # junk) so a non-numeric entry can't surface a 500 through the domain.
         unknown_members = request.env["discuss.channel.member"].search(
             domain=[
                 ("id", "not in", _to_record_ids(known_member_ids)),
@@ -116,7 +106,7 @@ class ChannelController(http.Controller):
         return store.get_result()
 
     @http.route("/discuss/channel/update_avatar", methods=["POST"], type="jsonrpc")
-    def discuss_channel_avatar_update(self, channel_id, data):
+    def discuss_channel_avatar_update(self, channel_id: int, data: str) -> None:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )
@@ -130,7 +120,9 @@ class ChannelController(http.Controller):
         "/discuss/channel/messages", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def discuss_channel_messages(self, channel_id, fetch_params=None):
+    def discuss_channel_messages(
+        self, channel_id: int, fetch_params: dict | None = None
+    ) -> dict:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )
@@ -158,7 +150,7 @@ class ChannelController(http.Controller):
         readonly=True,
     )
     @add_guest_to_context
-    def discuss_channel_pins(self, channel_id):
+    def discuss_channel_pins(self, channel_id: int) -> dict:
         channel_id = _to_record_id(channel_id)
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
@@ -170,7 +162,9 @@ class ChannelController(http.Controller):
         "/discuss/channel/mark_as_read", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def discuss_channel_mark_as_read(self, channel_id, last_message_id):
+    def discuss_channel_mark_as_read(
+        self, channel_id: int, last_message_id: int
+    ) -> None:
         member = request.env["discuss.channel.member"].search(
             [
                 ("channel_id", "=", _to_record_id(channel_id)),
@@ -178,7 +172,7 @@ class ChannelController(http.Controller):
             ]
         )
         if not member:
-            return  # ignore if the member left in the meantime
+            return
         member._mark_as_read(_to_record_id(last_message_id))
 
     @http.route(
@@ -188,7 +182,9 @@ class ChannelController(http.Controller):
         auth="public",
     )
     @add_guest_to_context
-    def discuss_channel_set_new_message_separator(self, channel_id, message_id):
+    def discuss_channel_set_new_message_separator(
+        self, channel_id: int, message_id: int
+    ) -> None:
         member = request.env["discuss.channel.member"].search(
             [
                 ("channel_id", "=", _to_record_id(channel_id)),
@@ -206,7 +202,7 @@ class ChannelController(http.Controller):
         auth="public",
     )
     @add_guest_to_context
-    def discuss_channel_notify_typing(self, channel_id, is_typing):
+    def discuss_channel_notify_typing(self, channel_id: int, is_typing: bool) -> None:
         channel_id = _to_record_id(channel_id)
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
@@ -214,8 +210,6 @@ class ChannelController(http.Controller):
         if is_typing:
             member = channel._find_or_create_member_for_self()
         else:
-            # Do not create member automatically when setting typing to `False`
-            # as it could be resulting from the user leaving.
             member = request.env["discuss.channel.member"].search(
                 [
                     ("channel_id", "=", channel_id),
@@ -233,13 +227,9 @@ class ChannelController(http.Controller):
         readonly=True,
     )
     @add_guest_to_context
-    def load_attachments(self, channel_id, limit=30, before=None):
-        """Load attachments of a channel. If before is set, load attachments
-        older than the given id.
-        :param channel_id: id of the channel
-        :param limit: maximum number of attachments to return
-        :param before: id of the attachment from which to load older attachments
-        """
+    def load_attachments(
+        self, channel_id: int, limit: int = 30, before: int | None = None
+    ) -> dict:
         channel_id = _to_record_id(channel_id)
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
@@ -250,7 +240,6 @@ class ChannelController(http.Controller):
         ]
         if before:
             domain.append(["id", "<", _to_record_id(before)])
-        # sudo: ir.attachment - reading attachments of a channel that the current user can access
         attachments = (
             request.env["ir.attachment"]
             .sudo()
@@ -265,7 +254,7 @@ class ChannelController(http.Controller):
         "/discuss/channel/join", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def discuss_channel_join(self, channel_id):
+    def discuss_channel_join(self, channel_id: int) -> dict:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )
@@ -282,15 +271,16 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_sub_channel_create(
-        self, parent_channel_id, from_message_id=None, name=None
-    ):
+        self,
+        parent_channel_id: int,
+        from_message_id: int | None = None,
+        name: str | None = None,
+    ) -> dict:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(parent_channel_id))]
         )
         if not channel:
             raise NotFound
-        # from_message_id lands in a domain inside _create_sub_channel, where a
-        # raw non-numeric value surfaces psycopg InvalidTextRepresentation
         sub_channel = channel._create_sub_channel(
             _to_record_id(from_message_id) if from_message_id else None, name
         )
@@ -307,8 +297,12 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_sub_channel_fetch(
-        self, parent_channel_id, search_term=None, before=None, limit=30
-    ):
+        self,
+        parent_channel_id: int,
+        search_term: str | None = None,
+        before: int | None = None,
+        limit: int = 30,
+    ) -> dict:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(parent_channel_id))]
         )
@@ -336,7 +330,7 @@ class ChannelController(http.Controller):
         type="jsonrpc",
         auth="user",
     )
-    def discuss_delete_sub_channel(self, sub_channel_id):
+    def discuss_delete_sub_channel(self, sub_channel_id: int) -> None:
         channel = request.env["discuss.channel"].search_fetch(
             [("id", "=", _to_record_id(sub_channel_id))]
         )
@@ -355,5 +349,4 @@ class ChannelController(http.Controller):
         channel.parent_channel_id.message_post(
             body=body, subtype_xmlid="mail.mt_comment"
         )
-        # sudo: discuss.channel - skipping ACL for users who created the thread
         channel.sudo().unlink()

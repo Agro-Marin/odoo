@@ -1,26 +1,29 @@
+import typing
 from datetime import timedelta
+from typing import Literal, Self
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.service.transaction import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
+
+if typing.TYPE_CHECKING:
+    from .discuss.mail_guest import MailGuest
+    from odoo.addons.bus.models.res_users import ResUsers
 
 UPDATE_PRESENCE_DELAY = 60
 DISCONNECTION_TIMER = UPDATE_PRESENCE_DELAY + 5
-AWAY_TIMER = 1800  # 30 minutes
-PRESENCE_OUTDATED_TIMER = 12 * 60 * 60  # 12 hours
+AWAY_TIMER = 1800
+PRESENCE_OUTDATED_TIMER = 12 * 60 * 60
 
 
 class MailPresence(models.Model):
-    """Online / away / offline presence of a user or a guest."""
-
-    # Logically a one2one, kept in its own table rather than on res_users to
-    # avoid database concurrency errors.
     _name = "mail.presence"
     _inherit = "bus.listener.mixin"
     _description = "User/Guest Presence"
     _log_access = False
 
-    user_id = fields.Many2one("res.users", "Users", ondelete="cascade")
-    guest_id = fields.Many2one("mail.guest", "Guest", ondelete="cascade")
+    user_id: ResUsers = fields.Many2one("res.users", "Users", ondelete="cascade")
+    guest_id: MailGuest = fields.Many2one("mail.guest", "Guest", ondelete="cascade")
     last_poll = fields.Datetime("Last Poll", default=lambda self: fields.Datetime.now())
     last_presence = fields.Datetime(
         "Last Presence", default=lambda self: fields.Datetime.now()
@@ -40,19 +43,19 @@ class MailPresence(models.Model):
     )
 
     @api.model_create_multi
-    def create(self, vals_list):
+    def create(self, vals_list: list[ValuesType]) -> Self:
         presences = super().create(vals_list)
         presences._send_presence()
         return presences
 
-    def write(self, vals):
+    def write(self, vals: ValuesType) -> Literal[True]:
         status_by_presence = {presence: presence.status for presence in self}
         result = super().write(vals)
         updated = self.filtered(lambda p: status_by_presence[p] != p.status)
         updated._send_presence()
         return result
 
-    def unlink(self):
+    def unlink(self) -> Literal[True]:
         guests_or_users = [presence.guest_id or presence.user_id for presence in self]
         res = super().unlink()
         for guest_or_user in guests_or_users:
@@ -62,15 +65,10 @@ class MailPresence(models.Model):
         return res
 
     @api.model
-    def _try_update_presence(self, user_or_guest, inactivity_period=0):
-        """Updates the last_poll and last_presence of the current user
-        :param inactivity_period: duration in milliseconds
-        """
-        # Called while serving the websocket `update_presence` event (see
-        # ir_websocket._update_mail_presence), whose cursor closes right after.
+    def _try_update_presence(
+        self, user_or_guest: ResUsers | MailGuest, inactivity_period: int = 0
+    ) -> None:
         try:
-            # A presence update is not essential: mute the serialization errors
-            # that presence.write() may raise instead of surfacing them.
             with tools.mute_logger("odoo.db"):
                 self._update_presence(user_or_guest, inactivity_period)
                 self.env.cr.commit()
@@ -78,14 +76,15 @@ class MailPresence(models.Model):
             return self.env.cr.rollback()
 
     @api.model
-    def _update_presence(self, user_or_guest, inactivity_period=0):
+    def _update_presence(
+        self, user_or_guest: ResUsers | MailGuest, inactivity_period: int = 0
+    ) -> None:
         values = {
             "last_poll": fields.Datetime.now(),
             "last_presence": fields.Datetime.now()
             - timedelta(milliseconds=inactivity_period),
             "status": "away" if inactivity_period > AWAY_TIMER * 1000 else "online",
         }
-        # sudo: res.users/mail.guest can update presence of accessible user/guest
         user_or_guest_sudo = user_or_guest.sudo()
         if presence := user_or_guest_sudo.presence_ids:
             presence.write(values)
@@ -93,14 +92,11 @@ class MailPresence(models.Model):
             values["guest_id" if user_or_guest._name == "mail.guest" else "user_id"] = (
                 user_or_guest.id
             )
-            # sudo: res.users/mail.guest can update presence of accessible user/guest
             self.env["mail.presence"].sudo().create(values)
 
-    def _send_presence(self, im_status=None, bus_target=None):
-        """Send notification related to bus presence update.
-
-        :param im_status: 'online', 'away' or 'offline'
-        """
+    def _send_presence(
+        self, im_status: str | None = None, bus_target: models.BaseModel | None = None
+    ) -> None:
         for presence in self:
             self._send_status_updated_notification(
                 guest_or_user=presence.guest_id or presence.user_id,
@@ -110,8 +106,12 @@ class MailPresence(models.Model):
 
     @api.model
     def _send_status_updated_notification(
-        self, *, guest_or_user, status, bus_target=None
-    ):
+        self,
+        *,
+        guest_or_user: ResUsers | MailGuest,
+        status: str,
+        bus_target: models.BaseModel | None = None,
+    ) -> None:
         identity_data = (
             {"guest_id": guest_or_user.id}
             if guest_or_user._name == "mail.guest"
@@ -128,7 +128,7 @@ class MailPresence(models.Model):
         )
 
     @api.autovacuum
-    def _gc_bus_presence(self):
+    def _gc_bus_presence(self) -> None:
         self.search(
             [
                 (

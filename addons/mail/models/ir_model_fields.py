@@ -1,3 +1,5 @@
+from typing import Literal
+
 from odoo import fields, models
 from odoo.tools import groupby
 
@@ -10,10 +12,7 @@ class IrModelFields(models.Model):
         help="If set every modification done to this field is tracked. Value is used to order tracking values.",
     )
 
-    def _reflect_field_params(self, field, model_id):
-        """Tracking value can be either a boolean enabling tracking mechanism
-        on field, either an integer giving the sequence. Default sequence is
-        set to 100."""
+    def _reflect_field_params(self, field: fields.Field, model_id: int) -> dict:
         vals = super()._reflect_field_params(field, model_id)
         tracking = getattr(field, "tracking", None)
         if tracking is True:
@@ -23,18 +22,13 @@ class IrModelFields(models.Model):
         vals["tracking"] = tracking
         return vals
 
-    def _instantiate_attrs(self, field_data):
+    def _instantiate_attrs(self, field_data: dict) -> dict:
         attrs = super()._instantiate_attrs(field_data)
         if attrs and field_data.get("tracking"):
             attrs["tracking"] = field_data["tracking"]
         return attrs
 
-    def unlink(self):
-        """When unlinking fields populate tracking value table with relevant
-        information. That way if a field is removed (custom tracked, migration
-        or any other reason) we keep the tracking and its relevant information.
-        Do it only when unlinking fields so that we don't duplicate field
-        information for most tracking."""
+    def unlink(self) -> Literal[True]:
         tracked = self.filtered("tracking")
         if tracked:
             tracking_values = self.env["mail.tracking.value"].search(
@@ -43,7 +37,6 @@ class IrModelFields(models.Model):
             field_to_trackings = groupby(tracking_values, lambda track: track.field_id)
             for field, trackings in field_to_trackings:
                 if field.model_id.model not in self.env:
-                    # Model is already deleted
                     continue
                 self.env["mail.tracking.value"].concat(*trackings).write(
                     {

@@ -1,13 +1,18 @@
+import typing
+
 from odoo import api, fields, models, tools
+
+if typing.TYPE_CHECKING:
+    from .mail_alias_domain import MailAliasDomain
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    def _default_alias_domain_id(self):
+    def _default_alias_domain_id(self) -> MailAliasDomain:
         return self.env["mail.alias.domain"]._get_default_domain()
 
-    alias_domain_id = fields.Many2one(
+    alias_domain_id: MailAliasDomain = fields.Many2one(
         "mail.alias.domain",
         string="Email Domain",
         index="btree_not_null",
@@ -22,8 +27,6 @@ class ResCompany(models.Model):
         related="alias_domain_id.default_from_email",
         readonly=True,
     )
-    # the compute method is sudo'ed because it needs to access res.partner records
-    # portal users cannot access those (but they should be able to read the company email address)
     email_formatted = fields.Char(
         string="Formatted Email", compute="_compute_email_formatted", compute_sudo=True
     )
@@ -34,11 +37,8 @@ class ResCompany(models.Model):
         "Email Button Color", default="#875A7B", readonly=False
     )
 
-    # The alias itself, not just which domain is selected: renaming a domain's
-    # bounce/catchall alias in Settings otherwise left these stale, and they are
-    # what outgoing mail carries as Return-Path and Reply-To.
     @api.depends("alias_domain_id.bounce_email", "name")
-    def _compute_bounce(self):
+    def _compute_bounce(self) -> None:
         self.bounce_email = ""
         self.bounce_formatted = ""
 
@@ -48,7 +48,7 @@ class ResCompany(models.Model):
             company.bounce_formatted = tools.formataddr((company.name, bounce_email))
 
     @api.depends("alias_domain_id.catchall_email", "name")
-    def _compute_catchall(self):
+    def _compute_catchall(self) -> None:
         self.catchall_email = ""
         self.catchall_formatted = ""
 
@@ -60,7 +60,7 @@ class ResCompany(models.Model):
             )
 
     @api.depends("partner_id", "catchall_formatted")
-    def _compute_email_formatted(self):
+    def _compute_email_formatted(self) -> None:
         for company in self:
             if company.partner_id.email_formatted:
                 company.email_formatted = company.partner_id.email_formatted

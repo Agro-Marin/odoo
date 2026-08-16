@@ -1,15 +1,16 @@
+import typing
+from types import NotImplementedType
+from typing import Any
+
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError
 from odoo.tools import SQL
 
+if typing.TYPE_CHECKING:
+    from .res_partner import ResPartner
+
 
 class MailThreadBlacklist(models.AbstractModel):
-    """Mixin for models supporting opt out. Stores in ``email_normalized`` a
-    normalized email (lowercased, address only, no 'Name <>') derived from
-    ``_primary_email`` (default 'email', overridable on the parent model). This
-    enables fast blacklist lookups by equality instead of a costly regex.
-    Requires mail.thread."""
-
     _name = "mail.thread.blacklist"
     _inherit = ["mail.thread"]
     _description = "Mail Blacklist mixin"
@@ -20,14 +21,9 @@ class MailThreadBlacklist(models.AbstractModel):
         compute="_compute_email_normalized",
         compute_sudo=True,
         store=True,
-        # indexed (NULLs skipped): the gateway searches this column by equality
-        # once per blacklist-enabled model for every inbound email
-        # (_routing_reset_bounce) and every bounce (_routing_handle_bounce)
         index="btree_not_null",
         help="This field is used to search on email address as the primary email field can contain more than strictly an email address.",
     )
-    # Note : is_blacklisted should only be used for display. As the compute is not depending on the blacklist,
-    # once read, it won't be re-computed again if the blacklist is modified in the same request.
     is_blacklisted = fields.Boolean(
         string="Blacklist",
         compute="_compute_is_blacklisted",
@@ -44,7 +40,7 @@ class MailThreadBlacklist(models.AbstractModel):
     )
 
     @api.depends(lambda self: [self._primary_email])
-    def _compute_email_normalized(self):
+    def _compute_email_normalized(self) -> None:
         self._assert_primary_email()
         for record in self:
             record.email_normalized = tools.email_normalize(
@@ -52,7 +48,9 @@ class MailThreadBlacklist(models.AbstractModel):
             )
 
     @api.model
-    def _search_is_blacklisted(self, operator, value):
+    def _search_is_blacklisted(
+        self, operator: str, value: Any
+    ) -> list | NotImplementedType:
         if operator not in ("in", "not in"):
             return NotImplemented
         self.flush_model(["email_normalized"])
@@ -81,14 +79,10 @@ class MailThreadBlacklist(models.AbstractModel):
                 SQL.identifier(self._table),
             )
 
-        # no need to probe the subquery first: when it is empty, ``id IN (…)``
-        # already matches no row
         return [("id", "in", SQL("(%s)", sql))]
 
     @api.depends("email_normalized")
-    def _compute_is_blacklisted(self):
-        # TODO : Should remove the sudo as compute_sudo defined on methods.
-        # But if user doesn't have access to mail.blacklist, doesn't work without sudo().
+    def _compute_is_blacklisted(self) -> None:
         blacklist = set(
             self.env["mail.blacklist"]
             .sudo()
@@ -99,7 +93,7 @@ class MailThreadBlacklist(models.AbstractModel):
         for record in self:
             record.is_blacklisted = record.email_normalized in blacklist
 
-    def _assert_primary_email(self):
+    def _assert_primary_email(self) -> None:
         if not hasattr(self, "_primary_email") or not isinstance(
             self._primary_email, str
         ):
@@ -110,22 +104,16 @@ class MailThreadBlacklist(models.AbstractModel):
         ):
             raise UserError(_("Invalid primary email field on model %s", self._name))
 
-    def _message_receive_bounce(self, email, partner):
-        """Override of mail.thread generic method. Purpose is to increment the
-        bounce counter of the record."""
+    def _message_receive_bounce(self, email: str, partner: ResPartner) -> None:
         super()._message_receive_bounce(email, partner)
         for record in self:
-            record.message_bounce = record.message_bounce + 1
+            record.message_bounce += 1
 
-    def _message_reset_bounce(self, email):
-        """Override of mail.thread generic method. Purpose is to reset the
-        bounce counter of the record."""
+    def _message_reset_bounce(self, email: str) -> None:
         super()._message_reset_bounce(email)
         self.write({"message_bounce": 0})
 
-    def mail_action_blacklist_remove(self):
-        # wizard access rights currently not working as expected and allows users without access to
-        # open this wizard, therefore we check to make sure they have access before the wizard opens.
+    def mail_action_blacklist_remove(self) -> dict:
         can_access = self.env["mail.blacklist"].has_access("write")
         if can_access:
             return {
@@ -143,9 +131,5 @@ class MailThreadBlacklist(models.AbstractModel):
             )
 
     @api.model
-    def _detect_loop_sender_domain(self, email_from_normalized):
-        """Return the domain to be used to detect duplicated records created by alias.
-
-        :param email_from_normalized: FROM of the incoming email, normalized
-        """
+    def _detect_loop_sender_domain(self, email_from_normalized: str) -> list:
         return [("email_normalized", "=", email_from_normalized)]

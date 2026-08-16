@@ -1,12 +1,15 @@
+import typing
+
 from odoo import fields, models
 from odoo.exceptions import UserError
 
 from odoo.addons.mail.tools.parser import parse_res_ids
 
+if typing.TYPE_CHECKING:
+    from ..models.res_partner import ResPartner
+
 
 class MailFollowersEdit(models.TransientModel):
-    """Wizard to edit partners (or channels) to add/remove them to/from followers list."""
-
     _name = "mail.followers.edit"
     _description = "Followers edit wizard"
 
@@ -23,11 +26,13 @@ class MailFollowersEdit(models.TransientModel):
         required=True,
         default="add",
     )
-    partner_ids = fields.Many2many("res.partner", required=True, string="Followers")
+    partner_ids: ResPartner = fields.Many2many(
+        "res.partner", required=True, string="Followers"
+    )
     message = fields.Html("Message")
     notify = fields.Boolean("Notify Recipients", default=False)
 
-    def edit_followers(self):
+    def edit_followers(self) -> dict:
         for wizard in self:
             res_ids = parse_res_ids(wizard.res_ids, self.env)
             documents = self.env[wizard.res_model].browse(res_ids)
@@ -71,7 +76,9 @@ class MailFollowersEdit(models.TransientModel):
             },
         }
 
-    def _prepare_message_values(self, documents, model_name):
+    def _prepare_message_values(
+        self, documents: models.BaseModel, model_name: str
+    ) -> dict:
         return {
             "body": (
                 (

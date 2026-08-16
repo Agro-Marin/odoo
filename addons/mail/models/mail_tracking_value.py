@@ -1,7 +1,16 @@
+import typing
 from collections import defaultdict
 from datetime import datetime
+from typing import Any, Literal, Self
 
 from odoo import api, fields, models
+
+if typing.TYPE_CHECKING:
+    from odoo.api import Environment
+
+    from .mail_message import MailMessage
+    from odoo.addons.base.models.ir_model_fields import IrModelFields
+    from odoo.addons.base.models.res_currency import ResCurrency
 
 
 class MailTrackingValue(models.Model):
@@ -10,7 +19,7 @@ class MailTrackingValue(models.Model):
     _rec_name = "field_id"
     _order = "id DESC"
 
-    field_id = fields.Many2one(
+    field_id: IrModelFields = fields.Many2one(
         "ir.model.fields",
         required=False,
         readonly=True,
@@ -31,7 +40,7 @@ class MailTrackingValue(models.Model):
     new_value_text = fields.Text("New Value Text", readonly=True)
     new_value_datetime = fields.Datetime("New Value Datetime", readonly=True)
 
-    currency_id = fields.Many2one(
+    currency_id: ResCurrency = fields.Many2one(
         "res.currency",
         "Currency",
         readonly=True,
@@ -39,19 +48,12 @@ class MailTrackingValue(models.Model):
         help="Used to display the currency when tracking monetary values",
     )
 
-    mail_message_id = fields.Many2one(
+    mail_message_id: MailMessage = fields.Many2one(
         "mail.message", "Message ID", required=True, index=True, ondelete="cascade"
     )
 
-    def _filter_has_field_access(self, env):
-        """Return the subset of self readable by the user of ``env``.
-
-        This model is admin-only, hence generally accessed as sudo: the env to
-        check against is given explicitly. A tracking linked to a field requires
-        read access on that field, otherwise "base.group_system" membership.
-        """
-
-        def has_field_access(tracking):
+    def _filter_has_field_access(self, env: Environment) -> Self:
+        def has_field_access(tracking: MailTrackingValue) -> bool:
             if not tracking.field_id:
                 return env.is_system()
             model = env[tracking.field_id.model]
@@ -62,12 +64,8 @@ class MailTrackingValue(models.Model):
 
         return self.filtered(has_field_access)
 
-    def _filter_free_field_access(self):
-        """Return the subset of self which is available for all users: trackings
-        linked to an existing field without access group. It is used notably
-        when sending tracking summary through notifications."""
-
-        def has_free_access(tracking):
+    def _filter_free_field_access(self) -> Self:
+        def has_free_access(tracking: MailTrackingValue) -> bool:
             if not tracking.field_id:
                 return False
             model_field = self.env[tracking.field_id.model]._fields.get(
@@ -79,23 +77,13 @@ class MailTrackingValue(models.Model):
 
     @api.model
     def _create_tracking_values(
-        self, initial_value, new_value, col_name, col_info, record
-    ):
-        """Prepare values to create a mail.tracking.value. It prepares old and
-        new value according to the field type.
-
-        :param initial_value: field value before the change, could be text, int,
-          date, datetime, ...;
-        :param new_value: field value after the change, could be text, int,
-          date, datetime, ...;
-        :param str col_name: technical field name, column name (e.g. 'user_id');
-        :param dict col_info: result of fields_get(col_name);
-        :param recordset record: record on which tracking is performed, used for
-          related computation e.g. finding currency of monetary fields;
-
-        :return: values valid for 'mail.tracking.value' creation;
-        :rtype: dict
-        """
+        self,
+        initial_value: Any,
+        new_value: Any,
+        col_name: str,
+        col_info: dict,
+        record: models.Model,
+    ) -> dict:
         field = self.env["ir.model.fields"]._get(record._name, col_name)
         if not field:
             raise ValueError(f"Unknown field {col_name} on model {record._name}")
@@ -163,10 +151,6 @@ class MailTrackingValue(models.Model):
                 }
             )
         elif col_info["type"] == "many2one":
-            # Can be:
-            # - False value
-            # - recordset, in case of standard field
-            # - (id, display name), in case of properties (read format)
             if not initial_value:
                 initial_value = (0, "")
             elif isinstance(initial_value, models.BaseModel):
@@ -186,10 +170,6 @@ class MailTrackingValue(models.Model):
                 }
             )
         elif col_info["type"] in {"one2many", "many2many", "tags"}:
-            # Can be:
-            # - False value
-            # - recordset, in case of standard field
-            # - [(id, display name), ...], in case of properties (read format)
             model_name = self.env["ir.model"]._get(field.relation).display_name
             if not initial_value:
                 old_value_char = ""
@@ -235,21 +215,21 @@ class MailTrackingValue(models.Model):
 
     @api.model
     def _create_tracking_values_property(
-        self, initial_value, col_name, col_info, record
-    ):
-        """Generate the 'mail.tracking.value' values corresponding to a property."""
-        col_info = col_info | {
+        self,
+        initial_value: dict,
+        col_name: str,
+        col_info: dict,
+        record: models.Model,
+    ) -> dict:
+        property_col_info = col_info | {
             "type": initial_value["type"],
             "selection": initial_value.get("selection"),
         }
-
         if initial_value["type"] == "monetary" and "currency_field" not in col_info:
-            col_info = col_info | {
-                "currency_field": initial_value.get("currency_field")
-            }
+            property_col_info["currency_field"] = initial_value.get("currency_field")
 
         field_info = {
-            "desc": f"{col_info['string']}: {initial_value['string']}",
+            "desc": f"{property_col_info['string']}: {initial_value['string']}",
             "name": col_name,
             "type": initial_value["type"],
         }
@@ -258,17 +238,11 @@ class MailTrackingValue(models.Model):
             value = [t for t in initial_value.get("tags", []) if t[0] in value]
 
         tracking_values = self.env["mail.tracking.value"]._create_tracking_values(
-            value, False, col_name, col_info, record
+            value, False, col_name, property_col_info, record
         )
         return {**tracking_values, "field_info": field_info}
 
-    def _tracking_value_format(self):
-        """Return chatter-ready tracking values, formatted per tracked model.
-
-        :return: for each tracking value in self, their formatted display
-          values given as a dict;
-        :rtype: list[dict]
-        """
+    def _tracking_value_format(self) -> list:
         model_ids = defaultdict(list)
         for tracking in self:
             model = tracking.field_id.model or tracking.mail_message_id.model
@@ -278,14 +252,7 @@ class MailTrackingValue(models.Model):
             formatted += self.browse(ids)._tracking_value_format_model(model)
         return formatted
 
-    def _tracking_value_format_model(self, model):
-        """Return chatter-ready tracking values, sorted by ascending sequence,
-        then properties last, then field name.
-
-        :return: for each tracking value in self, their formatted display
-          values given as a dict;
-        :rtype: list[dict]
-        """
+    def _tracking_value_format_model(self, model: str | Literal[False]) -> list:
         if not self:
             return []
 
@@ -323,7 +290,7 @@ class MailTrackingValue(models.Model):
             for tracking in self
         )
 
-        def sort_tracking_info(tracking_info_tuple):
+        def sort_tracking_info(tracking_info_tuple: tuple) -> tuple:
             tracking = tracking_info_tuple[0]
             field_name = tracking.field_id.name or (
                 tracking.field_info["name"] if tracking.field_info else "unknown"
@@ -356,15 +323,7 @@ class MailTrackingValue(models.Model):
             )
         ]
 
-    def _format_display_value(self, field_type, new=True):
-        """Format value of 'mail.tracking.value', according to the field type.
-
-        :param str field_type: Odoo field type;
-        :param bool new: if True, display the 'new' value. Otherwise display
-          the 'old' one.
-        :return: one formatted value per record in self;
-        :rtype: list
-        """
+    def _format_display_value(self, field_type: str, new: bool = True) -> list:
         field_mapping = {
             "boolean": ("old_value_integer", "new_value_integer"),
             "date": ("old_value_datetime", "new_value_datetime"),

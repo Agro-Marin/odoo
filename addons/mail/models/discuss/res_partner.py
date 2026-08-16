@@ -1,3 +1,5 @@
+import typing
+
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
@@ -5,11 +7,16 @@ from odoo.tools import SQL, email_normalize, single_email_re
 
 from odoo.addons.mail.tools.discuss import Store
 
+if typing.TYPE_CHECKING:
+    from .discuss_channel import DiscussChannel
+    from .discuss_channel_member import DiscussChannelMember
+    from .discuss_channel_rtc_session import DiscussChannelRtcSession
+
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    channel_ids = fields.Many2many(
+    channel_ids: DiscussChannel = fields.Many2many(
         "discuss.channel",
         "discuss_channel_member",
         "partner_id",
@@ -17,30 +24,26 @@ class ResPartner(models.Model):
         string="Channels",
         copy=False,
     )
-    channel_member_ids = fields.One2many("discuss.channel.member", "partner_id")
+    channel_member_ids: DiscussChannelMember = fields.One2many(
+        "discuss.channel.member", "partner_id"
+    )
     is_in_call = fields.Boolean(
         compute="_compute_is_in_call", groups="base.group_system"
     )
-    rtc_session_ids = fields.One2many("discuss.channel.rtc.session", "partner_id")
+    rtc_session_ids: DiscussChannelRtcSession = fields.One2many(
+        "discuss.channel.rtc.session", "partner_id"
+    )
 
     @api.depends("rtc_session_ids")
-    def _compute_is_in_call(self):
+    def _compute_is_in_call(self) -> None:
         for partner in self:
             partner.is_in_call = bool(partner.rtc_session_ids)
 
     @api.readonly
     @api.model
-    def search_for_channel_invite(self, search_term, channel_id=None, limit=30):
-        """Returns partners matching search_term that can be invited to a channel.
-
-        - If `channel_id` is specified, only partners that can actually be invited to the channel
-          are returned (not already members, and in accordance to the channel configuration).
-
-        - If no matching partners are found and the search term is a valid email address,
-          then the method may return `selectable_email` as a fallback direct email invite, provided that
-          the channel allows invites by email.
-
-        """
+    def search_for_channel_invite(
+        self, search_term: str, channel_id: int | None = None, limit: int = 30
+    ) -> dict:
         store = Store()
         channel_invites = self._search_for_channel_invite(
             store, search_term, channel_id, limit
@@ -64,7 +67,6 @@ class ResPartner(models.Model):
                 "discuss.channel.member"
             ].search_count(member_domain):
                 selectable_email = email
-                # sudo - mail.mail: checking mail records to determine if an email was already sent is acceptable.
                 email_already_sent = (
                     self.env["mail.mail"]
                     .sudo()
@@ -88,8 +90,12 @@ class ResPartner(models.Model):
     @api.readonly
     @api.model
     def _search_for_channel_invite(
-        self, store: Store, search_term, channel_id=None, limit=30
-    ):
+        self,
+        store: Store,
+        search_term: str,
+        channel_id: int | None = None,
+        limit: int = 30,
+    ) -> dict:
         domain = Domain.AND(
             [
                 Domain("name", "ilike", search_term)
@@ -110,7 +116,6 @@ class ResPartner(models.Model):
                     "user_ids.all_group_ids", "in", channel.group_public_id.id
                 )
         query = self._search(domain, limit=limit)
-        # bypass lack of support for case insensitive order in search()
         query.order = SQL(
             'LOWER(%s), "res_partner"."id"', self._field_to_sql(self._table, "name")
         )
@@ -121,17 +126,16 @@ class ResPartner(models.Model):
             "partner_ids": selectable_partners.ids,
         }
 
-    def _search_for_channel_invite_to_store(self, store: Store, channel):
+    def _search_for_channel_invite_to_store(
+        self, store: Store, channel: DiscussChannel
+    ) -> None:
         store.add(self)
 
     @api.readonly
     @api.model
-    def get_mention_suggestions_from_channel(self, channel_id, search, limit=8):
-        """Return 'limit'-first partners' such that the name or email matches a 'search' string.
-        Prioritize partners that are also (internal) users, and then extend the research to all partners.
-        Only members of the given channel are returned.
-        The return format is a list of partner data (as per returned by `_to_store()`).
-        """
+    def get_mention_suggestions_from_channel(
+        self, channel_id: int, search: str, limit: int = 8
+    ) -> dict | list:
         channel = self.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
             return []

@@ -6,8 +6,8 @@ class IrUiView(models.Model):
 
     type = fields.Selection(selection_add=[("activity", "Activity")])
 
-    def _is_qweb_based_view(self, view_type):
+    def _is_qweb_based_view(self, view_type: str) -> bool:
         return view_type == "activity" or super()._is_qweb_based_view(view_type)
 
-    def _get_view_info(self):
+    def _get_view_info(self) -> dict:
         return {"activity": {"icon": "fa-regular fa-clock"}} | super()._get_view_info()

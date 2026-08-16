@@ -1,9 +1,10 @@
+from typing import Literal, Self
+
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 
 
 class MailMessageSubtype(models.Model):
-    """Subtype of a message, used to tune which of them a follower is notified about."""
-
     _name = "mail.message.subtype"
     _description = "Message subtypes"
     _order = "sequence, id"
@@ -26,7 +27,7 @@ class MailMessageSubtype(models.Model):
         "Internal Only",
         help="Messages with internal subtypes will be visible only by employees, aka members of base_user group",
     )
-    parent_id = fields.Many2one(
+    parent_id: MailMessageSubtype = fields.Many2one(
         "mail.message.subtype",
         string="Parent",
         ondelete="set null",
@@ -54,30 +55,20 @@ class MailMessageSubtype(models.Model):
     )
 
     @api.model_create_multi
-    def create(self, vals_list):
-        self.env.registry.clear_cache()  # _get_auto_subscription_subtypes
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        self.env.registry.clear_cache()
         return super().create(vals_list)
 
-    def write(self, vals):
-        self.env.registry.clear_cache()  # _get_auto_subscription_subtypes
+    def write(self, vals: ValuesType) -> Literal[True]:
+        self.env.registry.clear_cache()
         return super().write(vals)
 
-    def unlink(self):
-        self.env.registry.clear_cache()  # _get_auto_subscription_subtypes
+    def unlink(self) -> Literal[True]:
+        self.env.registry.clear_cache()
         return super().unlink()
 
     @tools.ormcache("model_name")
-    def _get_auto_subscription_subtypes(self, model_name):
-        """Return auto-subscription data for the given child model (e.g. a task),
-        matching its subtypes against those of its parents (e.g. a project).
-
-        :param str model_name: child model to match subtypes for
-        :return: (child_ids, def_ids, all_int_ids, parent, relation) -- ids of the
-          generic/model subtypes, of the default ones, of the internal-only ones,
-          then {parent subtype id: child subtype id} and
-          {parent model: {relation fields}}
-        :rtype: tuple
-        """
+    def _get_auto_subscription_subtypes(self, model_name: str) -> tuple:
         child_ids, def_ids = [], []
         all_int_ids = []
         parent, relation = {}, {}
@@ -100,14 +91,12 @@ class MailMessageSubtype(models.Model):
                 relation.setdefault(subtype.res_model, set()).add(
                     subtype.relation_field
                 )
-            # required for backward compatibility
             if subtype.internal:
                 all_int_ids += subtype.ids
         return child_ids, def_ids, all_int_ids, parent, relation
 
     @api.model
-    def default_subtypes(self, model_name):
-        """Retrieve the default subtypes (all, internal, external) for the given model."""
+    def default_subtypes(self, model_name: str) -> tuple:
         subtype_ids, internal_ids, external_ids = self._default_subtypes(model_name)
         return (
             self.browse(subtype_ids),
@@ -116,7 +105,7 @@ class MailMessageSubtype(models.Model):
         )
 
     @tools.ormcache("self.env.uid", "self.env.su", "model_name")
-    def _default_subtypes(self, model_name):
+    def _default_subtypes(self, model_name: str) -> tuple:
         domain = [
             ("default", "=", True),
             "|",

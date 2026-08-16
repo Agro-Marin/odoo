@@ -1,4 +1,6 @@
 import re
+import typing
+from typing import Self
 from urllib.parse import urlparse
 
 import requests
@@ -9,8 +11,12 @@ from psycopg import IntegrityError
 from odoo import api, fields, models, tools
 from odoo.tools.misc import OrderedSet
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 from odoo.addons.mail.tools.link_preview import get_link_preview_from_url
+
+if typing.TYPE_CHECKING:
+    from .mail_message import MailMessage
+    from .mail_message_link_preview import MessageMailLinkPreview
 
 
 class MailLinkPreview(models.Model):
@@ -35,14 +41,16 @@ class MailLinkPreview(models.Model):
     og_mimetype = fields.Char("MIME type")
     image_mimetype = fields.Char("Image MIME type")
     create_date = fields.Datetime(index=True)
-    message_link_preview_ids = fields.One2many(
+    message_link_preview_ids: MessageMailLinkPreview = fields.One2many(
         "mail.message.link.preview", "link_preview_id", groups="base.group_erp_manager"
     )
 
     _unique_source_url = models.UniqueIndex("(source_url)")
 
     @api.model
-    def _create_from_message_and_notify(self, message, request_url=None):
+    def _create_from_message_and_notify(
+        self, message: MailMessage, request_url: str | None = None
+    ) -> None:
         urls = []
         if not tools.is_html_empty(message.body):
             urls = OrderedSet(
@@ -55,15 +63,14 @@ class MailLinkPreview(models.Model):
                 urls = list(filter(lambda url: not ignore_pattern.match(url), urls))
         requests_session = requests.Session()
         message_link_previews_ok = self.env["mail.message.link.preview"]
-        link_previews_values = []  # list of (sequence, values)
-        message_link_previews_values = []  # list of (sequence, mail.link.preview record)
+        link_previews_values = []
+        message_link_previews_values = []
         message_link_preview_by_url = {
             message_link_preview.link_preview_id.source_url: message_link_preview
             for message_link_preview in message.sudo().message_link_preview_ids
         }
         link_preview_by_url = {}
         if len(message_link_preview_by_url) != len(urls):
-            # don't make the query if all `mail.message.link.preview` have been found
             link_preview_by_url = {
                 link_preview.source_url: link_preview
                 for link_preview in self.env["mail.link.preview"].search(
@@ -87,8 +94,6 @@ class MailLinkPreview(models.Model):
                 + len(link_previews_values)
                 >= 5
             ):
-                # cap at 5: the check runs after this iteration appended, so a
-                # ``> 5`` test would let a 6th through.
                 break
         new_link_preview_by_url = {
             link_preview.source_url: link_preview
@@ -120,26 +125,22 @@ class MailLinkPreview(models.Model):
         ).add(message, "message_link_preview_ids").bus_send()
 
     @api.model
-    def _is_link_preview_enabled(self):
+    def _is_link_preview_enabled(self) -> bool:
         link_preview_throttle = self.env["ir.config_parameter"]._get_int_param(
             "mail.link_preview_throttle", 99
         )
         return link_preview_throttle > 0
 
     @api.depends("source_url")
-    def _compute_source_url_netloc(self):
+    def _compute_source_url_netloc(self) -> None:
         for preview in self:
             preview.source_url_netloc = urlparse(preview.source_url or "").netloc
 
-    def _is_domain_thottled(self, url):
+    def _is_domain_thottled(self, url: str) -> bool:
         domain = urlparse(url).netloc
-        # cr.now(), not datetime.now(): the latter is naive *local* time while
-        # create_date is naive UTC, skewing this window by the UTC offset.
         date_interval = fields.Datetime.to_string(
             self.env.cr.now() - relativedelta(seconds=10)
         )
-        # Count same-host previews through the indexed netloc column rather than
-        # re-parsing every source_url of the window in Python.
         call_counter = self.env["mail.link.preview"].search_count(
             [
                 ("create_date", ">", date_interval),
@@ -152,16 +153,7 @@ class MailLinkPreview(models.Model):
         return call_counter > link_preview_throttle
 
     @api.model
-    def _create_from_values_race_safe(self, values_list):
-        """Create one link preview per entry of ``values_list``, tolerating a
-        concurrent creation of the same ``source_url``.
-
-        :rtype: <mail.link.preview>
-        """
-        # The callers' search-then-create has an outbound HTTP fetch in the race
-        # window, so two requests previewing the same new URL both create and one
-        # hits _unique_source_url: re-fetch the other transaction's row instead
-        # (same savepoint pattern as reactions and followers).
+    def _create_from_values_race_safe(self, values_list: list[dict]) -> Self:
         previews = self.browse()
         for values in values_list:
             url = values["source_url"]
@@ -173,8 +165,7 @@ class MailLinkPreview(models.Model):
         return previews
 
     @api.model
-    def _search_or_create_from_url(self, url):
-        """Return the URL preview, first from the database if available otherwise make the request."""
+    def _search_or_create_from_url(self, url: str) -> Self:
         preview = self.env["mail.link.preview"].search([("source_url", "=", url)])
         if not preview:
             if self._is_domain_thottled(url):
@@ -185,7 +176,7 @@ class MailLinkPreview(models.Model):
             preview = self._create_from_values_race_safe([preview_values])
         return preview
 
-    def _to_store_defaults(self, target):
+    def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return [
             "image_mimetype",
             "og_description",
@@ -198,13 +189,7 @@ class MailLinkPreview(models.Model):
         ]
 
     @api.autovacuum
-    def _gc_link_previews(self):
-        """Vacuum previews no message references anymore and older than a fortnight.
-
-        A row is cached per unique source_url and reused across messages, so only
-        the <mail.message.link.preview> through-rows cascade away. The next post
-        re-fetches the URL, which also refreshes a stale preview.
-        """
+    def _gc_link_previews(self) -> None:
         threshold = fields.Datetime.now() - relativedelta(weeks=2)
         self.search(
             [

@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 from datetime import timedelta
+from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
@@ -11,17 +12,10 @@ _logger = logging.getLogger(__name__)
 
 
 class MailTrackingDurationMixin(models.AbstractModel):
-    # The rotting feature enables resources to mark themselves as stale if enough time has passed
-    # since their stage was last updated.
-    # Consult _is_rotting_feature_enabled() documentation for configuration instructions
     _name = "mail.tracking.duration.mixin"
     _description = "Mixin to compute the time a record has spent in each value a many2one field can take"
     _inherit = ["mail.thread"]
 
-    # Name of the datetime field holding the last time the tracked value
-    # changed, used by the rotting feature. Subclasses that rename it (e.g.
-    # project.task -> "date_last_status_change") only override this attribute
-    # instead of re-implementing every rotting method.
     _track_duration_last_update_field = "date_last_stage_update"
 
     duration_tracking = fields.Json(
@@ -40,29 +34,12 @@ class MailTrackingDurationMixin(models.AbstractModel):
         search="_search_is_rotting",
     )
 
-    def _get_duration_tracking_depends_fields(self):
-        """The tracked many2one, or nothing on a model that declares none.
-
-        Mirrors ``_get_rotting_depends_fields``: the field name is per-model, so
-        the dependency has to be resolved per model rather than written literally.
-        """
+    def _get_duration_tracking_depends_fields(self) -> list:
         field_name = getattr(self, "_track_duration_field", None)
         return [field_name] if field_name else []
 
-    # Every mail.tracking.value this reads exists *because* the tracked many2one
-    # changed, so that field is the whole dependency. Without it the buckets were
-    # computed once and never invalidated: moving a record to another stage and
-    # reading it back in the same request -- which is what a kanban drag-and-drop
-    # does -- returned the time spent in the *previous* stage.
     @api.depends(lambda self: self._get_duration_tracking_depends_fields())
-    def _compute_duration_tracking(self):
-        """Compute duration_tracking, a Json mapping each id taken by the tracked
-        many2one field to the seconds spent on it, e.g. {"1": 1230, "5": 14}.
-
-        The model using the mixin must set `_track_duration_field` to a many2one
-        field having tracking enabled.
-        """
-
+    def _compute_duration_tracking(self) -> None:
         field = (
             self.env["ir.model.fields"]
             .sudo()
@@ -80,9 +57,6 @@ class MailTrackingDurationMixin(models.AbstractModel):
             self._track_duration_field not in self._track_get_fields()
             or self._fields[self._track_duration_field].type != "many2one"
         ):
-            # Misconfiguration is a developer error, but this is a non-stored
-            # compute rendered in list/kanban/form views: raising here would 500
-            # the whole view. Degrade gracefully (no duration) and log loudly.
             _logger.warning(
                 "Field %r on model %r must be a tracked Many2one for duration "
                 "tracking; leaving duration_tracking empty.",
@@ -117,29 +91,16 @@ class MailTrackingDurationMixin(models.AbstractModel):
         else:
             trackings = []
 
-        # Bucket the single fetch once by res_id instead of rescanning the full
-        # tracking list per record (was O(records x trackings)). The SQL is
-        # ordered by v.id, so append preserves per-record chronological order.
         trackings_by_res = defaultdict(list)
         for tracking in trackings:
             trackings_by_res[tracking["res_id"]].append(tracking)
         for record in self:
-            # Copy: _get_duration_from_tracking appends synthetic entries to the
-            # list it receives. Records sharing an _origin.id -- every unsaved
-            # NewId shares False -- would otherwise accumulate each other's
-            # buckets, so the second record reported the first one's stage times.
             record.duration_tracking = record._get_duration_from_tracking(
                 list(trackings_by_res[record._origin.id])
             )
 
     @api.depends(lambda self: self._get_rotting_depends_fields())
-    def _compute_rotting(self):
-        """Flag records matching _get_rotting_domain() whose tracked value has not
-        changed for more days than that value's rotting_threshold_days.
-
-        Records never rot when the tracked model has no rotting_threshold_days
-        field, or when its value is 0.
-        """
+    def _compute_rotting(self) -> None:
         if not self._is_rotting_feature_enabled():
             self.is_rotting = False
             self.rotting_days = 0
@@ -169,7 +130,7 @@ class MailTrackingDurationMixin(models.AbstractModel):
         others.is_rotting = False
         others.rotting_days = 0
 
-    def _search_is_rotting(self, operator, value):
+    def _search_is_rotting(self, operator: str, value: Any) -> list:
         if operator not in ["in", "not in"]:
             raise ValueError(
                 self.env._(
@@ -183,21 +144,16 @@ class MailTrackingDurationMixin(models.AbstractModel):
         model_depends = [
             fname for fname in self._get_rotting_depends_fields() if "." not in fname
         ]
-        self.flush_model(model_depends)  # flush fields to make sure DB is up to date
+        self.flush_model(model_depends)
         self.env[self[self._track_duration_field]._name].flush_model(
             ["rotting_threshold_days"]
         )
         base_query = self._search(self._get_rotting_domain())
 
-        # Our query needs to JOIN the stage field's table.
-        # This JOIN needs to use the same alias as the base query to avoid non-matching alias issues
-        # Note that query objects do not make their alias table available trivially,
-        # but the alias can be inferred by consulting the _joins attribute and compare it to the result of make_alias()
         stage_table_alias_name = base_query.make_alias(
             self._table, self._track_duration_field
         )
 
-        # We only need to add a JOIN if the stage table is not already present in the query's _joins attribute.
         from_add_join = ""
         if not base_query._joins or stage_table_alias_name not in base_query._joins:
             from_add_join = """
@@ -205,26 +161,12 @@ class MailTrackingDurationMixin(models.AbstractModel):
                     ON %(stage_table_alias_name)s.id = %(table)s.%(stage_field)s
             """
 
-        # Records whose last update (_track_duration_last_update_field) is older
-        # than that number of months are not returned by the search.
-        #
-        # Deliberately a *search-only* bound: _compute_rotting applies no such
-        # window, so a record past it still reports is_rotting=True on its own
-        # form while every "Rotting" filter hides it. That divergence is pinned
-        # by test_mail's test_resource_rotting_search_max_months_window; changing
-        # it is a product decision, not a cleanup.
-        #
-        # The key is read from a mail-owned name, falling back to the historical
-        # crm-namespaced one: this mixin is generic (project, helpdesk,
-        # hr_recruitment and crm all inherit it), so tuning a helpdesk ticket's
-        # rotting window should not mean setting a "crm.lead.*" parameter.
         icp = self.env["ir.config_parameter"]
         max_rotting_months = icp._get_int_param(
             "mail.rotting.max.months",
             icp._get_int_param("crm.lead.rot.max.months", 12),
         )
 
-        # We use a F-string so that the from_add_join is added with its %s parameters before the query string is processed
         query = f"""
             WITH perishables AS (
                 SELECT  %(table)s.id AS id,
@@ -261,24 +203,11 @@ class MailTrackingDurationMixin(models.AbstractModel):
         rows = self.env.cr.dictfetchall()
         return [("id", operator, [r["id"] for r in rows])]
 
-    def _get_duration_from_tracking(self, trackings):
-        """Calculate the duration spent in each value from the given trackings.
-
-        A "fake" tracking is appended to account for the time spent in the current value.
-
-        :param trackings: list of tracking dicts, each with a ``create_date`` and an
-            ``old_value_integer`` (the ID of the previous value).
-        :return: dict mapping each value ID to its duration in seconds.
-        """
+    def _get_duration_from_tracking(self, trackings: list[dict]) -> dict:
         self.ensure_one()
         json = defaultdict(lambda: 0)
         previous_date = self.create_date or self.env.cr.now()
 
-        # If there is a tracking value to be created, but still in the
-        # precommit values, create a fake one to take it into account.
-        # Otherwise, the duration_tracking value will add time spent on
-        # previous tracked field value to the time spent in the new value
-        # (after writing the stage on the record)
         if f"mail.tracking.{self._name}" in self.env.cr.precommit.data:
             if data := self.env.cr.precommit.data.get(
                 f"mail.tracking.{self._name}", {}
@@ -292,7 +221,6 @@ class MailTrackingDurationMixin(models.AbstractModel):
                         }
                     )
 
-        # add "fake" tracking for time spent in the current value
         trackings.append(
             {
                 "create_date": self.env.cr.now(),
@@ -308,12 +236,7 @@ class MailTrackingDurationMixin(models.AbstractModel):
 
         return json
 
-    def _get_rotting_depends_fields(self):
-        """Return the fields whose change can affect a record's ability to rot.
-
-        Fields added by an override should likely also appear in the matching
-        _get_rotting_domain() override.
-        """
+    def _get_rotting_depends_fields(self) -> list:
         if (
             hasattr(self, "_track_duration_field")
             and "rotting_threshold_days" in self[self._track_duration_field]
@@ -324,30 +247,15 @@ class MailTrackingDurationMixin(models.AbstractModel):
             ]
         return []
 
-    def _get_rotting_domain(self):
-        """Return the conditions a record must meet to be considered rotting.
-
-        Fields added by an override should likely also appear in the matching
-        _get_rotting_depends_fields() override.
-
-        :rtype: Domain
-        """
+    def _get_rotting_domain(self) -> Domain:
         return Domain(f"{self._track_duration_field}.rotting_threshold_days", "!=", 0)
 
-    def _is_rotting_feature_enabled(self):
-        """Rotting requires the '_track_duration_field' target model to have an
-        integer 'rotting_threshold_days' (days before a record rots), this model to
-        have a '_track_duration_last_update_field' datetime field, and — on a
-        non-empty recordset — one tracked value with a non-zero threshold.
-
-        :return: whether the rotting feature has been configured for this model;
-        :rtype: bool
-        """
+    def _is_rotting_feature_enabled(self) -> bool:
         return (
             "rotting_threshold_days" in self[self._track_duration_field]
             and self._track_duration_last_update_field in self
             and (
-                not self  # api.model call
+                not self
                 or any(
                     stage.rotting_threshold_days
                     for stage in self[self._track_duration_field]

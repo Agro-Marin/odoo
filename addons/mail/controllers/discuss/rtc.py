@@ -3,7 +3,7 @@ from collections import defaultdict
 from werkzeug.exceptions import NotFound
 
 from odoo import http
-from odoo.http import request
+from odoo.http import Response, request
 from odoo.tools import file_open
 
 from odoo.addons.mail.controllers.thread import (
@@ -13,9 +13,6 @@ from odoo.addons.mail.controllers.thread import (
 )
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
-# Generous bounds for peer-to-peer WebRTC signaling relayed through the public
-# session_call_notify route (SDP/ICE payloads are small; a request carries a
-# handful of entries). They exist to cap abuse, not to constrain real use.
 _MAX_PEER_NOTIFICATIONS = 100
 _MAX_PEER_CONTENT_LEN = 100_000
 
@@ -28,19 +25,8 @@ class RtcController(http.Controller):
         auth="public",
     )
     @add_guest_to_context
-    def session_call_notify(self, peer_notifications):
-        """Sends content to other session of the same channel, only works if the user is the user of that session.
-        This is used to send peer to peer information between sessions.
-
-        :param peer_notifications: list of tuple with the following elements:
-            - int sender_session_id: id of the session from which the content is sent
-            - list target_session_ids: list of the ids of the sessions that should receive the content
-            - string content: the content to send to the other sessions
-        """
+    def session_call_notify(self, peer_notifications: list) -> None:
         guest = request.env["mail.guest"]._get_guest_from_context()
-        # auth="public": unpacking a malformed entry would 500 an anonymous caller,
-        # and relaying unbounded content is bus amplification. Malformed entries
-        # are skipped rather than fatal; the caps are generous for SDP/ICE.
         if not isinstance(peer_notifications, (list, tuple)):
             raise NotFound
         notifications_by_session = defaultdict(list)
@@ -50,7 +36,6 @@ class RtcController(http.Controller):
             sender_session_id, target_session_ids, content = notification
             if isinstance(content, str) and len(content) > _MAX_PEER_CONTENT_LEN:
                 continue
-            # sudo: discuss.channel.rtc.session - only keeping sessions matching the current user
             session_sudo = (
                 request.env["discuss.channel.rtc.session"]
                 .sudo()
@@ -79,16 +64,10 @@ class RtcController(http.Controller):
         auth="public",
     )
     @add_guest_to_context
-    def session_update_and_broadcast(self, session_id, values):
-        """Update a RTC session and broadcasts the changes to the members of its channel,
-        only works of the user is the user of that session.
-        :param int session_id: id of the session to update
-        :param dict values: write dict for the fields to update
-        """
+    def session_update_and_broadcast(self, session_id: int, values: dict) -> None:
         if request.env.user._is_public():
             guest = request.env["mail.guest"]._get_guest_from_context()
             if guest:
-                # sudo: discuss.channel.rtc.session - only keeping sessions matching the current user
                 session = (
                     guest.env["discuss.channel.rtc.session"]
                     .sudo()
@@ -99,7 +78,6 @@ class RtcController(http.Controller):
                     session._update_and_broadcast(values)
                     return
             return
-        # sudo: discuss.channel.rtc.session - only keeping sessions matching the current user
         session = (
             request.env["discuss.channel.rtc.session"]
             .sudo()
@@ -113,10 +91,12 @@ class RtcController(http.Controller):
         "/mail/rtc/channel/join_call", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def channel_call_join(self, channel_id, check_rtc_session_ids=None, camera=False):
-        """Joins the RTC call of a channel if the user is a member of that channel
-        :param int channel_id: id of the channel to join
-        """
+    def channel_call_join(
+        self,
+        channel_id: int,
+        check_rtc_session_ids: list[int] | None = None,
+        camera: bool = False,
+    ) -> dict:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )
@@ -126,7 +106,6 @@ class RtcController(http.Controller):
         if not member:
             raise NotFound
         store = Store()
-        # sudo: discuss.channel.rtc.session - member of current user can join call
         member.sudo()._rtc_join_call(
             store, check_rtc_session_ids=check_rtc_session_ids, camera=camera
         )
@@ -136,17 +115,14 @@ class RtcController(http.Controller):
         "/mail/rtc/channel/leave_call", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def channel_call_leave(self, channel_id, session_id=None):
-        """Disconnects the current user from a rtc call and clears any invitation sent to that user on this channel
-        :param int channel_id: id of the channel from which to disconnect
-        :param int session_id: id of the leaving session
-        """
+    def channel_call_leave(
+        self, channel_id: int, session_id: int | None = None
+    ) -> None:
         member = request.env["discuss.channel.member"].search(
             [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
         )
         if not member:
             raise NotFound
-        # sudo: discuss.channel.rtc.session - member of current user can leave call
         member.sudo()._rtc_leave_call(session_id)
 
     @http.route(
@@ -155,7 +131,7 @@ class RtcController(http.Controller):
         type="jsonrpc",
         auth="user",
     )
-    def channel_upgrade(self, channel_id):
+    def channel_upgrade(self, channel_id: int) -> None:
         member = request.env["discuss.channel.member"].search(
             [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
         )
@@ -170,25 +146,16 @@ class RtcController(http.Controller):
         auth="public",
     )
     @add_guest_to_context
-    def channel_call_cancel_invitation(self, channel_id, member_ids=None):
-        """
-        :param member_ids: members whose invitation is to cancel
-        :type member_ids: list(int) or None
-        """
+    def channel_call_cancel_invitation(
+        self, channel_id: int, member_ids: list[int] | None = None
+    ) -> None:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )
         if not channel:
             raise NotFound
-        # Require membership, not read access: any internal user can read a
-        # group-open channel, and a non-participant must not cancel other
-        # members' ringing invitations.
         if not channel.self_member_id:
             raise NotFound
-        # Reject a malformed list instead of dropping bad entries: an empty
-        # member_ids means "cancel *every* invitation on this channel", so
-        # trimming ["abc"] to [] would escalate a typo into cancelling all of them.
-        # sudo: discuss.channel.rtc.session - can cancel invitations in accessible channel
         channel.sudo()._rtc_cancel_invitations(
             member_ids=_to_record_ids_strict(member_ids) if member_ids else None
         )
@@ -200,11 +167,7 @@ class RtcController(http.Controller):
         auth="public",
         readonly=True,
     )
-    def audio_worklet_processor(self):
-        """Returns a JS file that declares a WorkletProcessor class in
-        a WorkletGlobalScope, which means that it cannot be added to the
-        bundles like other assets.
-        """
+    def audio_worklet_processor(self) -> Response:
         with file_open("mail/static/src/worklets/audio_processor.js", "rb") as f:
             data = f.read()
         return request.make_response(
@@ -220,13 +183,17 @@ class RtcController(http.Controller):
         "/discuss/channel/ping", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def channel_ping(self, channel_id, rtc_session_id=None, check_rtc_session_ids=None):
+    def channel_ping(
+        self,
+        channel_id: int,
+        rtc_session_id: int | None = None,
+        check_rtc_session_ids: list[int] | None = None,
+    ) -> dict:
         member = request.env["discuss.channel.member"].search(
             [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
         )
         if not member:
             raise NotFound
-        # sudo: discuss.channel.rtc.session - member of current user can access related sessions
         channel_member_sudo = member.sudo()
         if rtc_session_id:
             domain = [
@@ -235,7 +202,7 @@ class RtcController(http.Controller):
             ]
             channel_member_sudo.channel_id.rtc_session_ids.filtered_domain(
                 domain
-            ).write({})  # update write_date
+            ).write({})
         current_rtc_sessions, outdated_rtc_sessions = (
             channel_member_sudo._rtc_sync_sessions(check_rtc_session_ids)
         )

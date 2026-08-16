@@ -1,13 +1,18 @@
+import typing
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+
+if typing.TYPE_CHECKING:
+    from .mail_message import MailMessage
 
 
 class MailMessageTranslation(models.Model):
     _name = "mail.message.translation"
     _description = "Message Translation"
 
-    message_id = fields.Many2one(
+    message_id: MailMessage = fields.Many2one(
         "mail.message", "Message", required=True, ondelete="cascade"
     )
     source_lang = fields.Char(
@@ -31,6 +36,6 @@ class MailMessageTranslation(models.Model):
     _unique = models.UniqueIndex("(message_id, target_lang)")
 
     @api.autovacuum
-    def _gc_translations(self):
+    def _gc_translations(self) -> None:
         treshold = fields.Datetime().now() - relativedelta(weeks=2)
         self.search([("create_date", "<", treshold)]).unlink()

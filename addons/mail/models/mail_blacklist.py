@@ -1,11 +1,13 @@
+from typing import Literal, Self
+
 from odoo import _, api, fields, models, tools
+from odoo.api import DomainType, ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.tools import Query
 
 
 class MailBlacklist(models.Model):
-    """Model of blacklisted email addresses to stop sending emails."""
-
     _name = "mail.blacklist"
     _inherit = ["mail.thread"]
     _description = "Mail Blacklist"
@@ -26,8 +28,7 @@ class MailBlacklist(models.Model):
     )
 
     @api.model_create_multi
-    def create(self, vals_list):
-        # First of all, extract values to ensure emails are really unique (and don't modify values in place)
+    def create(self, vals_list: list[ValuesType]) -> Self:
         new_values = []
         all_emails = []
         for value in vals_list:
@@ -40,7 +41,6 @@ class MailBlacklist(models.Model):
             new_value = dict(value, email=email)
             new_values.append(new_value)
 
-        # return existing records to avoid a unique-email crash during import
         to_create = []
         bl_entries = {}
         if new_values:
@@ -50,23 +50,18 @@ class MailBlacklist(models.Model):
             bl_entries = dict(self.env.cr.fetchall())
             to_create = [v for v in new_values if v["email"] not in bl_entries]
 
-        # TODO reorder ids according to incoming ids.
         results = super().create(to_create)
         return self.env["mail.blacklist"].browse(bl_entries.values()) | results
 
-    def write(self, vals):
+    def write(self, vals: ValuesType) -> Literal[True]:
         if "email" in vals:
-            # validate like create(): 'email' is NOT NULL, so an unnormalizable
-            # value would reach the database as an IntegrityError
             normalized = tools.email_normalize(vals["email"])
             if not normalized:
                 raise UserError(_("Invalid email address “%s”", vals["email"]))
             vals["email"] = normalized
         return super().write(vals)
 
-    def _search(self, domain, *args, **kwargs):
-        """Normalize the value of every 'email' condition before searching, as
-        stored addresses are normalized."""
+    def _search(self, domain: DomainType, *args, **kwargs) -> Query:
         domain = Domain(domain).map_conditions(
             lambda cond: (
                 Domain(cond.field_expr, cond.operator, norm_value)
@@ -78,7 +73,7 @@ class MailBlacklist(models.Model):
         )
         return super()._search(domain, *args, **kwargs)
 
-    def _add(self, email, message=None):
+    def _add(self, email: str, message: str | None = None) -> Self:
         normalized = tools.email_normalize(email)
         record = (
             self.env["mail.blacklist"]
@@ -98,7 +93,7 @@ class MailBlacklist(models.Model):
                 )
         return record
 
-    def _remove(self, email, message=None):
+    def _remove(self, email: str, message: str | None = None) -> Self:
         normalized = tools.email_normalize(email)
         record = (
             self.env["mail.blacklist"]
@@ -118,7 +113,7 @@ class MailBlacklist(models.Model):
                 )
         return record
 
-    def mail_action_blacklist_remove(self):
+    def mail_action_blacklist_remove(self) -> dict:
         return {
             "name": _("Are you sure you want to unblacklist this email address?"),
             "type": "ir.actions.act_window",
@@ -128,5 +123,5 @@ class MailBlacklist(models.Model):
             "context": {"dialog_size": "medium"},
         }
 
-    def action_add(self):
+    def action_add(self) -> None:
         self._add(self.email)

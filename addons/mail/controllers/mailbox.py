@@ -12,13 +12,12 @@ class MailboxController(http.Controller):
         auth="user",
         readonly=True,
     )
-    def discuss_inbox_messages(self, fetch_params=None):
+    def discuss_inbox_messages(self, fetch_params: dict | None = None) -> dict:
         domain = [("needaction", "=", True)]
         res = request.env["mail.message"]._message_fetch(
             domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
         )
         messages = res.pop("messages")
-        # sudo: bus.bus: reading non-sensitive last id
         bus_last_id = request.env["bus.bus"].sudo()._bus_last_id()
         store = Store().add(
             messages,
@@ -26,7 +25,6 @@ class MailboxController(http.Controller):
                 Store.One(
                     "thread",
                     [
-                        # sudo: mail.thread: users can read their own message_needaction_counter on the thread
                         Store.Attr("message_needaction_counter", sudo=True),
                         Store.Attr("message_needaction_counter_bus_id", bus_last_id),
                     ],
@@ -48,8 +46,14 @@ class MailboxController(http.Controller):
         auth="user",
         readonly=True,
     )
-    def discuss_history_messages(self, fetch_params=None):
-        domain = [("needaction", "=", False)]
+    def discuss_history_messages(self, fetch_params: dict | None = None) -> dict:
+        notification_ids = request.env["mail.notification"]._search(
+            [
+                ("res_partner_id", "=", request.env.user.partner_id.id),
+                ("is_read", "=", True),
+            ]
+        )
+        domain = [("notification_ids", "in", notification_ids)]
         res = request.env["mail.message"]._message_fetch(
             domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
         )
@@ -67,7 +71,7 @@ class MailboxController(http.Controller):
         auth="user",
         readonly=True,
     )
-    def discuss_starred_messages(self, fetch_params=None):
+    def discuss_starred_messages(self, fetch_params: dict | None = None) -> dict:
         domain = [("starred_partner_ids", "in", [request.env.user.partner_id.id])]
         res = request.env["mail.message"]._message_fetch(
             domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)

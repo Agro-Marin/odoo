@@ -2,39 +2,44 @@ import datetime
 import functools
 import logging
 import poplib
+import typing
+from collections.abc import Iterator
 from imaplib import IMAP4, IMAP4_SSL
 from poplib import POP3, POP3_SSL
 from socket import gaierror
 from ssl import SSLError
+from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+
+if typing.TYPE_CHECKING:
+    from .mail_mail import MailMail
+    from odoo.addons.base.models.ir_model import IrModel
 
 _logger = logging.getLogger(__name__)
 MAIL_TIMEOUT = 60
 MAIL_SERVER_DOMAIN = Domain("state", "=", "done") & Domain("server_type", "!=", "local")
-MAIL_SERVER_DEACTIVATE_TIME = datetime.timedelta(
-    days=5
-)  # failure age after which a failing server is set back to draft
+MAIL_SERVER_DEACTIVATE_TIME = datetime.timedelta(days=5)
 
-# poplib caps a response line at 2048 chars, too small for real-world headers
 poplib._MAXLINE = 65536
 
 
 class OdooIMAP4(IMAP4):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._unread_messages = None
 
-    def check_unread_messages(self):
+    def check_unread_messages(self) -> int:
         self.select()
         _result, data = self.search(None, "(UNSEEN)")
         self._unread_messages = data[0].split() if data and data[0] else []
         self._unread_messages.reverse()
         return len(self._unread_messages)
 
-    def retrieve_unread_messages(self):
+    def retrieve_unread_messages(self) -> Iterator[tuple[bytes, bytes]]:
         assert self._unread_messages is not None
         while self._unread_messages:
             num = self._unread_messages.pop()
@@ -42,10 +47,10 @@ class OdooIMAP4(IMAP4):
             self.store(num, "-FLAGS", "\\Seen")
             yield num, data[0][1]
 
-    def handled_message(self, num):
+    def handled_message(self, num: bytes) -> None:
         self.store(num, "+FLAGS", "\\Seen")
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self._unread_messages is not None:
             self.close()
         self.logout()
@@ -56,27 +61,27 @@ class OdooIMAP4_SSL(OdooIMAP4, IMAP4_SSL):
 
 
 class OdooPOP3(POP3):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._unread_messages = None
 
-    def check_unread_messages(self):
+    def check_unread_messages(self) -> int:
         (num_messages, _total_size) = self.stat()
         self.list()
         self._unread_messages = list(range(num_messages, 0, -1))
         return num_messages
 
-    def retrieve_unread_messages(self):
+    def retrieve_unread_messages(self) -> Iterator[tuple[int, bytes]]:
         while self._unread_messages:
             num = self._unread_messages.pop()
             (_header, messages, _octets) = self.retr(num)
             message = (b"\n").join(messages)
             yield num, message
 
-    def handled_message(self, num):
+    def handled_message(self, num: int) -> None:
         self.dele(num)
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         self.quit()
 
 
@@ -85,8 +90,6 @@ class OdooPOP3_SSL(OdooPOP3, POP3_SSL):
 
 
 class FetchmailServer(models.Model):
-    """Incoming mail server account (IMAP, POP or local script)"""
-
     _name = "fetchmail.server"
     _description = "Incoming Mail Server"
     _order = "priority"
@@ -147,13 +150,18 @@ class FetchmailServer(models.Model):
     error_message = fields.Text(string="Last Error Message", readonly=True)
     user = fields.Char(string="Username", readonly=False)
     password = fields.Char()
-    object_id = fields.Many2one(
+    object_id: IrModel = fields.Many2one(
         "ir.model",
         string="Create a New Record",
         help="Process each incoming mail as part of a conversation "
         "corresponding to this document type. This will create "
         "new documents for new conversations, or attach follow-up "
         "emails to the existing conversations (documents).",
+        domain=[
+            ("is_mail_thread", "=", True),
+            ("abstract", "=", False),
+            ("transient", "=", False),
+        ],
     )
     priority = fields.Integer(
         string="Server Priority",
@@ -161,14 +169,14 @@ class FetchmailServer(models.Model):
         help="Defines the order of processing, lower values mean higher priority",
         default=5,
     )
-    message_ids = fields.One2many(
+    message_ids: MailMail = fields.One2many(
         "mail.mail", "fetchmail_server_id", string="Messages", readonly=True
     )
     configuration = fields.Text("Configuration", readonly=True)
     script = fields.Char(readonly=True, default="/mail/static/scripts/odoo-mailgate.py")
 
     @api.depends("server_type")
-    def _compute_server_type_info(self):
+    def _compute_server_type_info(self) -> None:
         for server in self:
             if server.server_type == "local":
                 server.server_type_info = _(
@@ -178,7 +186,7 @@ class FetchmailServer(models.Model):
                 server.server_type_info = False
 
     @api.onchange("server_type", "is_ssl", "object_id")
-    def onchange_server_type(self):
+    def onchange_server_type(self) -> None:
         self.port = 0
         if self.server_type == "pop":
             self.port = (self.is_ssl and 995) or 110
@@ -202,30 +210,26 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
         )
 
     @api.model_create_multi
-    def create(self, vals_list):
+    def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
         self._update_cron()
         return res
 
-    def write(self, vals):
+    def write(self, vals: ValuesType) -> Literal[True]:
         res = super().write(vals)
         self._update_cron()
         return res
 
-    def unlink(self):
+    def unlink(self) -> Literal[True]:
         res = super().unlink()
         self._update_cron()
         return res
 
-    def set_draft(self):
+    def set_draft(self) -> bool:
         self.write({"state": "draft"})
         return True
 
-    def _connect__(self, allow_archived=False):
-        """
-        :param bool allow_archived: by default (False), an exception is raised when calling this method on an
-           archived record. It can be set to True for testing so that the exception is no longer raised.
-        """
+    def _connect__(self, allow_archived: bool = False) -> Any:
         self.ensure_one()
         if not allow_archived and not self.active:
             raise UserError(
@@ -250,23 +254,15 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                 if is_ssl
                 else OdooPOP3(server, port, timeout=MAIL_TIMEOUT)
             )
-            # TODO: use this to remove only unread messages
-            # connection.user("recent:"+server.user)
             connection.user(self.user)
             connection.pass_(self.password)
         return connection
 
-    def _imap_login__(self, connection):
-        """Authenticate the IMAP connection.
-
-        Can be overridden in other module for different authentication methods.
-
-        :param connection: The IMAP connection to authenticate
-        """
+    def _imap_login__(self, connection: OdooIMAP4) -> None:
         self.ensure_one()
         connection.login(self.user, self.password)
 
-    def button_confirm_login(self):
+    def button_confirm_login(self) -> bool:
         for server in self:
             connection = None
             try:
@@ -302,54 +298,39 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                     if connection:
                         connection.disconnect()
                 except Exception:  # noqa: S110
-                    # ignored, just a consequence of the previous exception
                     pass
         return True
 
-    def fetch_mail(self):
-        """Action to fetch the mail from the current server."""
+    def fetch_mail(self) -> None:
         self.ensure_one().check_access("write")
         exception = self.sudo()._fetch_mail()
         if exception is not None:
             raise exception
 
     @api.model
-    def _fetch_mails(self, **kw):
-        """Method called by cron to fetch mails from servers"""
+    def _fetch_mails(self, **kw) -> None:
         assert (
             self.env.context.get("cron_id")
             == self.env.ref("mail.ir_cron_mail_gateway_action").id
         ), "Meant for cron usage only"
-        # priority first (lowest first), then oldest 'date': it is updated once the
-        # server is processed, which rotates the servers across cron runs
         custom_order = "priority asc, date asc nulls first, id asc"
         records = self.search(MAIL_SERVER_DOMAIN, order=custom_order)
-        # 4s of extra budget per server (worst case 2s to connect + 2s to check an
-        # empty inbox), so every inbox can be looped over within a single run
         time_buffer = self.env.context["cron_end_time"] + (4 * len(records))
         records.with_context(cron_end_time=time_buffer)._fetch_mail(**kw)
         if not self.search_count(MAIL_SERVER_DOMAIN):
             self.env["ir.cron"]._commit_progress(deactivate=True)
 
-    def _fetch_mail(self, batch_limit=50) -> Exception | None:
-        """Fetch e-mails from multiple servers, committing after each message.
-
-        :return: last general failure caught while fetching, None if every server
-          succeeded
-        :rtype: Exception | None
-        """
+    def _fetch_mail(self, batch_limit: int = 50) -> Exception | None:
         result_exception = None
         servers = self.with_context(fetchmail_cron_running=True)
-        total_remaining = len(
-            servers
-        )  # number of unseen messages + number of unchecked servers
+        total_remaining = len(servers)
         self.env["ir.cron"]._commit_progress(remaining=total_remaining)
         _logger.info(
             "Fetchmail servers (in order) to be processed %s", servers.mapped("name")
         )
 
         for server in servers:
-            total_remaining -= 1  # the server is checked
+            total_remaining -= 1
             if not server.try_lock_for_update(allow_referencing=True).filtered_domain(
                 MAIL_SERVER_DOMAIN
             ):
@@ -361,13 +342,12 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
             server_type_and_name = (
                 server.server_type,
                 server.name,
-            )  # avoid reading this after each commit
+            )
             _logger.info(
                 "Start checking for new emails on %s server %s", *server_type_and_name
             )
             count, failed = 0, 0
 
-            # processing messages in a separate transaction to keep lock on the server
             server_connection = None
             message_cr = None
             try:
@@ -413,8 +393,6 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                             *server_type_and_name,
                             exc_info=True,
                         )
-                        # mail failed, but is still acked below (IMAP \Seen, POP3
-                        # dele), so one unit of work
                         remaining_time = MailThread.env["ir.cron"]._commit_progress(1)
                     server_connection.handled_message(message_num)
                     if count >= batch_limit or not remaining_time:
@@ -448,11 +426,6 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                     if server_connection:
                         server_connection.disconnect()
                 except OSError, poplib.error_proto, IMAP4.error:
-                    # POP3 quit() raises poplib.error_proto and IMAP4
-                    # close()/logout() raise IMAP4.error (of which IMAP4.abort
-                    # is a subclass) — neither derives from OSError. Catch them
-                    # so a teardown hiccup on one server does not abort the whole
-                    # fetch loop. Matches the handler in button_confirm_login.
                     _logger.warning(
                         "Failed to properly finish %s connection: %s.",
                         *server_type_and_name,
@@ -466,10 +439,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                 failed,
             )
             server.write({"date": fields.Datetime.now()})
-            # commit before updating the progress: messages update it from
-            # another transaction, so skipping it raises a serialization error
             self.env.cr.commit()
-            # checked server, so one unit of work done (even if no messages fetched on server)
             remaining_time = self.env["ir.cron"]._commit_progress(
                 1, remaining=total_remaining
             )
@@ -477,20 +447,15 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
                 break
         return result_exception
 
-    def _get_connection_type(self):
-        """Return which connection must be used for this mail server (IMAP or POP).
-        Can be overridden in sub-module to define which connection to use for a specific
-        "server_type" (e.g. Gmail server).
-        """
+    def _get_connection_type(self) -> str:
         self.ensure_one()
         return self.server_type
 
     @api.model
-    def _update_cron(self):
+    def _update_cron(self) -> None:
         if self.env.context.get("fetchmail_cron_running"):
             return
         try:
-            # enable/disable cron based on the number of 'done' non-local servers
             cron = self.env.ref("mail.ir_cron_mail_gateway_action")
             cron.toggle(model=self._name, domain=MAIL_SERVER_DOMAIN)
         except ValueError:

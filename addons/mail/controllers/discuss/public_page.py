@@ -1,13 +1,19 @@
+import typing
+from typing import Literal
+
 import psycopg.errors
 from werkzeug.exceptions import NotFound
 
 from odoo import _, http
 from odoo.exceptions import UserError
-from odoo.http import request
+from odoo.http import Response, request
 from odoo.tools import consteq, email_normalize, replace_exceptions
 from odoo.tools.misc import verify_hash_signed
 
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
+
+if typing.TYPE_CHECKING:
+    from odoo.addons.mail.models.discuss.discuss_channel import DiscussChannel
 
 
 class PublicPageController(http.Controller):
@@ -21,7 +27,9 @@ class PublicPageController(http.Controller):
         auth="public",
     )
     @add_guest_to_context
-    def discuss_channel_chat_from_token(self, create_token, channel_name=None):
+    def discuss_channel_chat_from_token(
+        self, create_token: str, channel_name: str | None = None
+    ) -> Response:
         return self._response_discuss_channel_from_token(
             create_token=create_token, channel_name=channel_name
         )
@@ -36,7 +44,9 @@ class PublicPageController(http.Controller):
         auth="public",
     )
     @add_guest_to_context
-    def discuss_channel_meet_from_token(self, create_token, channel_name=None):
+    def discuss_channel_meet_from_token(
+        self, create_token: str, channel_name: str | None = None
+    ) -> Response:
         return self._response_discuss_channel_from_token(
             create_token=create_token,
             channel_name=channel_name,
@@ -51,14 +61,13 @@ class PublicPageController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_invitation(
-        self, channel_id, invitation_token, email_token=None
-    ):
+        self, channel_id: int, invitation_token: str, email_token: str | None = None
+    ) -> Response:
         guest_email = email_token and verify_hash_signed(
             self.env(su=True), "mail.invite_email", email_token
         )
         guest_email = email_normalize(guest_email)
         channel = request.env["discuss.channel"].browse(channel_id).exists()
-        # sudo: discuss.channel - channel access is validated with invitation_token
         if (
             not channel
             or not channel.sudo().uuid
@@ -72,32 +81,31 @@ class PublicPageController(http.Controller):
         "/discuss/channel/<int:channel_id>", methods=["GET"], type="http", auth="public"
     )
     @add_guest_to_context
-    def discuss_channel(self, channel_id, *, highlight_message_id=None):
-        # highlight_message_id is used JS side by parsing the query string
+    def discuss_channel(
+        self, channel_id: int, *, highlight_message_id: int | None = None
+    ) -> Response:
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
             raise NotFound
         return self._response_discuss_public_template(Store(), channel)
 
     def _response_discuss_channel_from_token(
-        self, create_token, channel_name=None, default_display_mode=False
-    ):
-        # sudo: ir.config_parameter - reading hard-coded key and using it in a simple condition
+        self,
+        create_token: str,
+        channel_name: str | None = None,
+        default_display_mode: str | Literal[False] = False,
+    ) -> Response:
         if (
             not request.env["ir.config_parameter"]
             .sudo()
             .get_param("mail.chat_from_token")
         ):
             raise NotFound
-        # sudo: discuss.channel - channel access is validated with invitation_token
         channel_sudo = (
             request.env["discuss.channel"].sudo().search([("uuid", "=", create_token)])
         )
         if not channel_sudo:
             try:
-                # Isolate the racy INSERT in a savepoint: on a concurrent create
-                # the UniqueViolation aborts only the savepoint, leaving the
-                # request transaction usable (a commit() here would not).
                 with request.env.cr.savepoint():
                     channel_sudo = channel_sudo.create(
                         {
@@ -109,18 +117,15 @@ class PublicPageController(http.Controller):
                         }
                     )
             except psycopg.errors.UniqueViolation:
-                # concurrent insert: another request created the channel first;
-                # the savepoint rolled its failed INSERT back, so read the winner.
                 channel_sudo = channel_sudo.search([("uuid", "=", create_token)])
         store = Store().add_global_values(isChannelTokenSecret=False)
         return self._response_discuss_channel_invitation(
             store, channel_sudo.sudo(False)
         )
 
-    def _response_discuss_channel_invitation(self, store, channel, guest_email=None):
-        # group restriction takes precedence over token
-        # sudo - res.groups: can access group public id of parent channel to determine if we
-        # can access the channel.
+    def _response_discuss_channel_invitation(
+        self, store: Store, channel: DiscussChannel, guest_email: str | None = None
+    ) -> Response:
         group_public_id = (
             channel.group_public_id or channel.parent_channel_id.sudo().group_public_id
         )
@@ -128,21 +133,21 @@ class PublicPageController(http.Controller):
             raise request.not_found()
         guest_already_known = channel.env["mail.guest"]._get_guest_from_context()
         with replace_exceptions(UserError, by=NotFound()):
-            # sudo: mail.guest - creating a guest and its member inside a channel of which they have the token
             __, guest = channel.sudo()._find_or_create_persona_for_channel(
                 guest_name=guest_email or _("Guest"),
                 country_code=request.geoip.country_code,
                 timezone=request.env["mail.guest"]._get_timezone_from_request(request),
             )
         if guest_email and not guest.email:
-            # sudo - mail.guest: writing email address of self guest is allowed
             guest.sudo().email = guest_email
         if guest and not guest_already_known:
             store.add_global_values(is_welcome_page_displayed=True)
             channel = channel.with_context(guest=guest)
         return self._response_discuss_public_template(store, channel)
 
-    def _response_discuss_public_template(self, store: Store, channel):
+    def _response_discuss_public_template(
+        self, store: Store, channel: DiscussChannel
+    ) -> Response:
         store.add_global_values(
             companyName=request.env.company.name,
             inPublicPage=True,

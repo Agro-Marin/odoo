@@ -1,16 +1,14 @@
+import typing
+
 from odoo import _, api, fields, models, tools
 
 from .mail_render_mixin import BYPASS_RESTRICTED_RENDERING
 
+if typing.TYPE_CHECKING:
+    from .mail_template import MailTemplate
 
-# The mixin hides the details of subject and body computation and rendering
-# from a mail.template, and gives the base tools controlling who is allowed to
-# edit the body, notably when dealing with a templating language like
-# inline_template or qweb.
+
 class MailComposerMixin(models.AbstractModel):
-    """Mixin used to edit and render some fields used when sending emails or
-    notifications based on a mail template."""
-
     _name = "mail.composer.mixin"
     _inherit = ["mail.render.mixin"]
     _description = "Mail Composer Mixin"
@@ -36,10 +34,9 @@ class MailComposerMixin(models.AbstractModel):
         "Body content is the same as the template",
         compute="_compute_body_has_template_value",
     )
-    template_id = fields.Many2one(
+    template_id: MailTemplate = fields.Many2one(
         "mail.template", "Mail Template", domain="[('model', '=', render_model)]"
     )
-    # Language: override mail.render.mixin field, copy template value
     lang = fields.Char(
         compute="_compute_lang",
         precompute=True,
@@ -53,8 +50,7 @@ class MailComposerMixin(models.AbstractModel):
     can_edit_body = fields.Boolean("Can Edit Body", compute="_compute_can_edit_body")
 
     @api.depends("template_id")
-    def _compute_subject(self):
-        """Copy the value from the template when set; reset it when the template is removed."""
+    def _compute_subject(self) -> None:
         for composer_mixin in self:
             if composer_mixin.template_id.subject:
                 composer_mixin.subject = composer_mixin.template_id.subject
@@ -62,8 +58,7 @@ class MailComposerMixin(models.AbstractModel):
                 composer_mixin.subject = False
 
     @api.depends("template_id")
-    def _compute_body(self):
-        """Copy the value from the template when set; reset it when the template is removed."""
+    def _compute_body(self) -> None:
         for composer_mixin in self:
             if not tools.is_html_empty(composer_mixin.template_id.body_html):
                 composer_mixin.body = composer_mixin.template_id.body_html
@@ -71,16 +66,13 @@ class MailComposerMixin(models.AbstractModel):
                 composer_mixin.body = False
 
     @api.depends("body", "template_id")
-    def _compute_body_has_template_value(self):
-        """Set whether the body matches the template's, comparing both the raw
-        and sanitized values to avoid editor discrepancies."""
+    def _compute_body_has_template_value(self) -> None:
         for composer_mixin in self:
             if (
                 not tools.is_html_empty(composer_mixin.body)
                 and composer_mixin.template_id
             ):
                 template_value = composer_mixin.template_id.body_html
-                # matching email_outgoing sanitize level
                 sanitize_vals = {
                     "output_method": "xml",
                     "sanitize_attributes": False,
@@ -103,8 +95,7 @@ class MailComposerMixin(models.AbstractModel):
                 composer_mixin.body_has_template_value = False
 
     @api.depends("template_id")
-    def _compute_lang(self):
-        """Copy the value from the template when set; reset it when the template is removed."""
+    def _compute_lang(self) -> None:
         for composer_mixin in self:
             if composer_mixin.template_id.lang:
                 composer_mixin.lang = composer_mixin.template_id.lang
@@ -112,7 +103,7 @@ class MailComposerMixin(models.AbstractModel):
                 composer_mixin.lang = False
 
     @api.depends_context("uid")
-    def _compute_is_mail_template_editor(self):
+    def _compute_is_mail_template_editor(self) -> None:
         is_mail_template_editor = self.env.is_admin() or self.env.user.has_group(
             "mail.group_mail_template_editor"
         )
@@ -120,25 +111,14 @@ class MailComposerMixin(models.AbstractModel):
             record.is_mail_template_editor = is_mail_template_editor
 
     @api.depends("template_id", "is_mail_template_editor")
-    def _compute_can_edit_body(self):
+    def _compute_can_edit_body(self) -> None:
         for record in self:
             record.can_edit_body = (
                 record.is_mail_template_editor or not record.template_id
             )
 
-    def _render_lang(self, res_ids, engine="inline_template"):
-        """Return the lang for each record from the template lang field or a
-        context key. Whitelists qweb rendering (otherwise reserved for the
-        'mail.group_mail_template_editor' group) when safe, i.e. the content comes
-        from the validated template. Heuristic:
-
-          * if no template, do not bypass the check;
-          * if record lang and template lang are the same, bypass the check for
-            non-editors (editors need no bypass);
-        """
-
+    def _render_lang(self, res_ids: list[int], engine: str = "inline_template") -> dict:
         if not self.template_id:
-            # Do not need to bypass the verification
             return super()._render_lang(res_ids, engine=engine)
 
         composer_value = self.lang
@@ -151,10 +131,6 @@ class MailComposerMixin(models.AbstractModel):
         if not self.is_mail_template_editor and equality:
             bypass = True
 
-        # Lift only the qweb whitelist (like _render_field), NOT full sudo:
-        # self.sudo() also makes env.is_admin() True, so the lang template would
-        # evaluate with record rules bypassed — a broader elevation than the rest
-        # of the render layer. bypass_restricted_rendering keeps ACLs enforced.
         record = (
             self.with_context(bypass_restricted_rendering=BYPASS_RESTRICTED_RENDERING)
             if bypass
@@ -162,21 +138,7 @@ class MailComposerMixin(models.AbstractModel):
         )
         return super(MailComposerMixin, record)._render_lang(res_ids, engine=engine)
 
-    def _render_field(self, field, res_ids, *args, **kwargs):
-        """Render the given field on the given records. Whitelists qweb rendering
-        (otherwise reserved for the 'mail.group_mail_template_editor' group) when
-        safe, i.e. the content comes from the validated template.
-        Heuristic:
-
-          * if no template, do not bypass the check;
-          * if current user is a template editor, do not bypass the check;
-          * if record value and template value are the same (or equals the
-            sanitized value in case of an HTML field), bypass the check;
-          * for body: if current user cannot edit it, force template value back
-            then bypass the check;
-
-        Also fetches translations from the template (translated on the master
-        template, not the composer) when the composer value is unmodified."""
+    def _render_field(self, field: str, res_ids: list[int], *args, **kwargs) -> dict:
         if field not in self:
             raise ValueError(
                 _(
@@ -186,7 +148,6 @@ class MailComposerMixin(models.AbstractModel):
             )
 
         if not self.template_id:
-            # Do not need to bypass the verification
             return super()._render_field(field, res_ids, *args, **kwargs)
 
         template_field = {
@@ -216,7 +177,6 @@ class MailComposerMixin(models.AbstractModel):
             and (not self.can_edit_body or self.body_has_template_value)
         ):
             call_sudo = True
-            # take the previous body which we can trust without HTML editor reformatting
             self.body = self.template_id.body_html
         if (
             not self.is_mail_template_editor
@@ -226,8 +186,6 @@ class MailComposerMixin(models.AbstractModel):
             call_sudo = True
 
         if translation_asked and equality:
-            # use possibly custom lang template changed on composer instead of
-            # original template one
             if not kwargs.get("res_ids_lang"):
                 kwargs["res_ids_lang"] = self._render_lang(res_ids)
             template = (

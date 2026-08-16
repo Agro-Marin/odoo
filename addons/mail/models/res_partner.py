@@ -1,16 +1,21 @@
 import re
+import typing
+from collections.abc import Callable
+from typing import Any, Self
 
 from odoo import _, api, fields, models, tools
+from odoo.api import DomainType
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import limited_field_access_token
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
+
+if typing.TYPE_CHECKING:
+    from odoo.addons.bus.models.res_users import ResUsers
 
 
 class ResPartner(models.Model):
-    """Add chatter tracking, activities, blacklist and presence status to partners."""
-
     _name = "res.partner"
     _inherit = ["res.partner", "mail.activity.mixin", "mail.thread.blacklist"]
     _mail_flat_thread = False
@@ -18,17 +23,14 @@ class ResPartner(models.Model):
     name = fields.Char(tracking=1)
     email = fields.Char(tracking=1)
     phone = fields.Char(tracking=2)
-    parent_id = fields.Many2one(tracking=3)
-    user_id = fields.Many2one(tracking=4)
+    parent_id: ResPartner = fields.Many2one(tracking=3)
+    user_id: ResUsers = fields.Many2one(tracking=4)
     vat = fields.Char(tracking=5)
-    # tracked field used for chatter logging purposes
-    # we need this to be readable inline as tracking messages use inline HTML nodes
     contact_address_inline = fields.Char(
         compute="_compute_contact_address_inline",
         string="Inlined Complete Address",
         tracking=True,
     )
-    # sudo: res.partner - can access presence of accessible partner
     im_status = fields.Char(
         "IM Status", compute="_compute_im_status", compute_sudo=True
     )
@@ -37,15 +39,14 @@ class ResPartner(models.Model):
     )
 
     @api.depends("contact_address")
-    def _compute_contact_address_inline(self):
-        """Compute an inline-friendly address based on contact_address."""
+    def _compute_contact_address_inline(self) -> None:
         for partner in self:
             partner.contact_address_inline = (
                 re.sub(r"\n(\s|\n)*", ", ", partner.contact_address).strip().strip(",")
             )
 
     @api.depends("user_ids.manual_im_status", "user_ids.presence_ids.status")
-    def _compute_im_status(self):
+    def _compute_im_status(self) -> None:
         for partner in self:
             all_status = partner.user_ids.presence_ids.mapped(
                 lambda p: (
@@ -75,8 +76,7 @@ class ResPartner(models.Model):
         if odoobot in self:
             odoobot.im_status = "bot"
 
-    def _get_needaction_count(self):
-        """compute the number of needaction of the current partner"""
+    def _get_needaction_count(self) -> int:
         self.ensure_one()
         self.env["mail.notification"].flush_model(["is_read", "res_partner_id"])
         self.env.cr.execute(
@@ -88,18 +88,18 @@ class ResPartner(models.Model):
         )
         return self.env.cr.dictfetchall()[0].get("needaction_count")
 
-    def _mail_get_partners(self, introspect_fields=False):
+    def _mail_get_partners(self, introspect_fields: bool = False) -> dict:
         return {partner.id: partner for partner in self}
 
     @api.model
-    def _get_view_cache_key(self, view_id=None, view_type="form", **options):
-        """Add context variable force_email in the key as _get_view depends on it."""
+    def _get_view_cache_key(
+        self, view_id: int | None = None, view_type: str = "form", **options
+    ) -> tuple:
         key = super()._get_view_cache_key(view_id, view_type, **options)
         return key + (self.env.context.get("force_email"),)
 
     @api.model
-    def find_or_create(self, email, assert_valid_email=False):
-        """Override to use the email_normalized field."""
+    def find_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
         if not email:
             raise ValueError(_("An email is required for find_or_create to work"))
 
@@ -117,50 +117,22 @@ class ResPartner(models.Model):
             if partners:
                 return partners
 
-        # Skip super() to avoid a second, slower `email =ilike` search
-        # (email_normalized is btree-indexed). Overrides of find_or_create should
-        # depend on `mail`.
         create_values = {self._rec_name: parsed_name or parsed_email_normalized}
-        if parsed_email_normalized:  # otherwise keep default_email in context
+        if parsed_email_normalized:
             create_values["email"] = parsed_email_normalized
         return self.create(create_values)
 
     @api.model
     def _find_or_create_from_emails(
         self,
-        emails,
-        ban_emails=None,
-        filter_found=None,
-        additional_values=None,
-        no_create=False,
-        sort_key=None,
-        sort_reverse=True,
-    ):
-        """Based on a list of emails, find or (optionally) create partners.
-
-        If an email is not unique (e.g. multi-email input), only its first found
-        valid occurrence is considered. An invalid but not void email is used for
-        search or create, so it can be fixed afterwards e.g. on notification resend.
-
-        :param list emails: list of emails that can be formatted;
-        :param list ban_emails: optional list of banished emails e.g. because
-          it may interfere with master data like aliases;
-        :param callable filter_found: if given, filters found partners based on emails;
-        :param dict additional_values: additional values per normalized or
-          raw invalid email given to partner creation. Typically used to
-          propagate a company_id and customer information from related record.
-          If email cannot be normalized, raw value is used as dict key instead;
-        :param bool no_create: skip the 'create' part of 'find or create'. Allows
-          to use tool as 'find and sort' without adding new partners in db;
-        :param sort_key: an optional sorting key for sorting partners before
-          finding one with matching email normalized. Default ordering is 'id ASC',
-          aka older partners first as they are considered as more relevant;
-        :param bool sort_reverse: given to sorted (see 'reverse' argument of sort);
-
-        :return: res.partner records in a list, following order of emails. Using
-          a list allows to keep Falsy values when no match;
-        :rtype: list
-        """
+        emails: list[str],
+        ban_emails: list[str] | None = None,
+        filter_found: Callable[[Self], bool] | None = None,
+        additional_values: dict | None = None,
+        no_create: bool = False,
+        sort_key: Callable[[Self], Any] | None = None,
+        sort_reverse: bool = True,
+    ) -> list:
         additional_values = additional_values or {}
         partners, tocreate_vals_list = self.env["res.partner"], []
         name_emails = [tools.parse_contact_from_email(email) for email in emails]
@@ -170,8 +142,6 @@ class ResPartner(models.Model):
             for _name, email_normalized in name_emails
             if email_normalized and email_normalized not in (ban_emails or [])
         }
-        # find partners for invalid (but not void) emails, aka either invalid email
-        # either no email and a name that will be used as email
         names = {
             name.strip()
             for name, email_normalized in name_emails
@@ -190,8 +160,6 @@ class ResPartner(models.Model):
                 partners = partners.filtered(filter_found)
 
         if not no_create:
-            # create partners for valid emails without any existing partner, keeping
-            # only the first found occurrence of each normalized email
             seen = set()
             notfound_emails = emails_normalized - set(
                 partners.mapped("email_normalized")
@@ -212,8 +180,6 @@ class ResPartner(models.Model):
                 for name, email_normalized in notfound_name_emails
                 if email_normalized not in (ban_emails or [])
             ]
-            # create partners for invalid emails (aka name and not email_normalized)
-            # without any existing partner
             tocreate_vals_list += [
                 {
                     self._rec_name: name,
@@ -224,7 +190,6 @@ class ResPartner(models.Model):
                 if name not in partners.mapped("email")
                 and name not in (ban_emails or [])
             ]
-            # create partners once, avoid current user being followers of those
             if tocreate_vals_list:
                 partners += self.with_context(mail_create_nosubscribe=True).create(
                     tocreate_vals_list
@@ -252,28 +217,20 @@ class ResPartner(models.Model):
             )
         ]
 
-    def _get_im_status_access_token(self):
-        """Return a scoped access token for the `im_status` field. The token is used in
-        `ir_websocket._prepare_subscribe_data` to grant access to presence channels.
-
-        :rtype: str
-        """
+    def _get_im_status_access_token(self) -> str:
         self.ensure_one()
         return limited_field_access_token(self, "im_status", scope="mail.presence")
 
-    def _get_mention_token(self):
-        """Return a scoped limited access token that indicates the current partner
-        can be mentioned in messages.
-
-        :rtype: str
-        """
+    def _get_mention_token(self) -> str:
         self.ensure_one()
         return limited_field_access_token(self, "id", scope="mail.message_mention")
 
-    def _get_store_mention_fields(self):
+    def _get_store_mention_fields(self) -> list[StoreFieldSpec]:
         return [Store.Attr("mention_token", lambda p: p._get_mention_token())]
 
-    def _get_store_avatar_card_fields(self, target):
+    def _get_store_avatar_card_fields(
+        self, target: Store.Target
+    ) -> list[StoreFieldSpec]:
         fields = [
             "im_status",
             "name",
@@ -283,7 +240,7 @@ class ResPartner(models.Model):
             fields.extend(["email", "phone"])
         return fields
 
-    def _field_store_repr(self, field_name):
+    def _field_store_repr(self, field_name: str) -> list:
         if field_name == "avatar_128":
             return [
                 Store.Attr(
@@ -301,13 +258,12 @@ class ResPartner(models.Model):
             ]
         return [field_name]
 
-    def _to_store_defaults(self, target: Store.Target):
+    def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         res = [
             "active",
             "avatar_128",
             "im_status",
             "is_company",
-            # sudo: res.partner - to access portal user of another company in chatter
             Store.One("main_user_id", ["partner_id", "share"], sudo=True),
             "name",
         ]
@@ -317,14 +273,7 @@ class ResPartner(models.Model):
 
     @api.readonly
     @api.model
-    def get_mention_suggestions(self, search, limit=8):
-        """Return 'limit'-first partners such that the name or email matches a 'search'
-        string, prioritizing partners that are also (internal) users, and then extending
-        the research to all partners. Matching roles are added as well.
-
-        :return: store data of the matched partners and roles
-        :rtype: dict
-        """
+    def get_mention_suggestions(self, search: str, limit: int = 8) -> dict:
         domain = self._get_mention_suggestions_domain(search)
         partners = self._search_mention_suggestions(domain, limit)
         store = Store().add(partners, extra_fields=partners._get_store_mention_fields())
@@ -336,13 +285,15 @@ class ResPartner(models.Model):
         return store.get_result()
 
     @api.model
-    def _get_mention_suggestions_domain(self, search):
+    def _get_mention_suggestions_domain(self, search: str) -> Domain:
         return (
             Domain("name", "ilike", search) | Domain("email", "ilike", search)
         ) & Domain("active", "=", True)
 
     @api.model
-    def _search_mention_suggestions(self, domain, limit, extra_domain=None):
+    def _search_mention_suggestions(
+        self, domain: DomainType, limit: int, extra_domain: DomainType | None = None
+    ) -> Self:
         domain = Domain(domain)
         domain_is_user = (
             Domain("user_ids", "!=", False)
@@ -350,12 +301,9 @@ class ResPartner(models.Model):
             & domain
         )
         priority_conditions = [
-            domain_is_user
-            & Domain(
-                "partner_share", "=", False
-            ),  # Search partners that are internal users
-            domain_is_user,  # Search partners that are users
-            domain,  # Search partners that are not users
+            domain_is_user & Domain("partner_share", "=", False),
+            domain_is_user,
+            domain,
         ]
         if extra_domain:
             priority_conditions.append(Domain(extra_domain))
@@ -364,9 +312,6 @@ class ResPartner(models.Model):
             remaining_limit = limit - len(partners)
             if remaining_limit <= 0:
                 break
-            # We are using _search to avoid the default order that is
-            # automatically added by the search method. "Order by" makes the query
-            # really slow.
             query = self._search(
                 Domain("id", "not in", partners.ids) & domain, limit=remaining_limit
             )
@@ -374,10 +319,16 @@ class ResPartner(models.Model):
         return partners
 
     @api.model
-    def _get_current_persona(self):
+    def _get_current_persona(self) -> tuple:
         if not self.env.user or self.env.user._is_public():
             return (
                 self.env["res.partner"],
                 self.env["mail.guest"]._get_guest_from_context(),
             )
         return (self.env.user.partner_id, self.env["mail.guest"])
+
+
+class ResPartnerCategory(models.Model):
+    _inherit = "res.partner.category"
+
+    _mail_partner_fields = ()

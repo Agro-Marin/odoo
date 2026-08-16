@@ -5,13 +5,6 @@ from odoo.exceptions import ValidationError
 
 
 class MailGatewayAllowed(models.Model):
-    """Trusted senders exempted from the incoming mail gateway quota.
-
-    Inbound emails are otherwise capped, per 'mail.gateway.loop.minutes'
-    window, by 'mail.gateway.loop.threshold' records created or replies posted
-    through an alias, which a legit automated source would exceed.
-    """
-
     _name = "mail.gateway.allowed"
     _description = "Mail Gateway Allowed"
 
@@ -24,21 +17,18 @@ class MailGatewayAllowed(models.Model):
     )
 
     @api.depends("email")
-    def _compute_email_normalized(self):
+    def _compute_email_normalized(self) -> None:
         for record in self:
             record.email_normalized = tools.email_normalize(record.email)
 
     @api.constrains("email")
-    def _check_email_normalizes(self):
-        """Reject an entry whose address does not normalize."""
-        # 'email' is only required, so a value like "Support Team" would store a
-        # NULL 'email_normalized': a dead row loop detection can never match
+    def _check_email_normalizes(self) -> None:
         for record in self:
             if not tools.email_normalize(record.email):
                 raise ValidationError(_("Invalid email address “%s”", record.email))
 
     @api.model
-    def get_empty_list_help(self, help_message):
+    def get_empty_list_help(self, help_message: str) -> str:
         icp = self.env["ir.config_parameter"]
         LOOP_MINUTES = icp._get_int_param("mail.gateway.loop.minutes", 120)
         LOOP_THRESHOLD = icp._get_int_param("mail.gateway.loop.threshold", 20)

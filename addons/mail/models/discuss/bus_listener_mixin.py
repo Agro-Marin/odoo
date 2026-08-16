@@ -6,8 +6,7 @@ from odoo import models
 class BusListenerMixin(models.AbstractModel):
     _inherit = "bus.listener.mixin"
 
-    def _bus_send_transient_message(self, channel, content):
-        """Posts a fake message in the given ``channel``, only visible for ``self`` listeners."""
+    def _bus_send_transient_message(self, channel: models.Model, content: str) -> None:
         self._bus_send(
             "discuss.channel/transient_message",
             {

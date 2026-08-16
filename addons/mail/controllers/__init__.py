@@ -11,5 +11,4 @@ from . import webclient
 from . import webmanifest
 from . import websocket
 
-# after mail specifically as discuss module depends on mail
 from . import discuss

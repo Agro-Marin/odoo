@@ -1,4 +1,7 @@
+from typing import Literal
+
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 
 
@@ -19,15 +22,10 @@ class IrModel(models.Model):
         default=False,
     )
 
-    def unlink(self):
-        """Delete mail data (followers, messages, activities, attachments)
-        associated with the models being deleted.
-        """
+    def unlink(self) -> Literal[True]:
         if not self:
             return True
 
-        # activities, activity types, followers and messages, unless one of those
-        # mail models is itself part of the deletion
         mail_models = self.search(
             [
                 (
@@ -60,7 +58,6 @@ class IrModel(models.Model):
             query = "DELETE FROM mail_message WHERE model = ANY(%s)"
             self.env.cr.execute(query, [models])
 
-        # Get files attached solely to the models being deleted (and none other)
         models = list(self.mapped("model"))
         query = """
             SELECT DISTINCT store_fname
@@ -78,12 +75,11 @@ class IrModel(models.Model):
         self.env.cr.execute(query, [models])
 
         for (fname,) in fnames:
-            # key-axis dispatch: deletes follow the store key's backend
             self.env["ir.attachment"]._storage_delete(fname)
 
         return super().unlink()
 
-    def write(self, vals):
+    def write(self, vals: ValuesType) -> Literal[True]:
         if self and (
             "is_mail_thread" in vals
             or "is_mail_activity" in vals
@@ -109,10 +105,8 @@ class IrModel(models.Model):
                 )
             res = super().write(vals)
             self.env.flush_all()
-            # setup models; this reloads custom models in registry
             model_names = self.mapped("model")
             self.pool._setup_models__(self.env.cr, model_names)
-            # update database schema of models
             model_names = self.pool.descendants(model_names, "_inherits")
             self.pool.init_models(
                 self.env.cr,
@@ -123,7 +117,7 @@ class IrModel(models.Model):
             res = super().write(vals)
         return res
 
-    def _reflect_model_params(self, model):
+    def _reflect_model_params(self, model: models.Model) -> dict:
         vals = super()._reflect_model_params(model)
         vals["is_mail_thread"] = isinstance(model, self.pool["mail.thread"])
         vals["is_mail_activity"] = isinstance(model, self.pool["mail.activity.mixin"])
@@ -133,7 +127,7 @@ class IrModel(models.Model):
         return vals
 
     @api.model
-    def _instantiate_attrs(self, model_data):
+    def _instantiate_attrs(self, model_data: dict) -> dict:
         attrs = super()._instantiate_attrs(model_data)
         if (
             model_data.get("is_mail_blacklist")
@@ -157,7 +151,7 @@ class IrModel(models.Model):
             attrs["_inherit"] = parents + ["mail.activity.mixin"]
         return attrs
 
-    def _get_definitions(self, model_names):
+    def _get_definitions(self, model_names: list[str]) -> dict:
         model_definitions = super()._get_definitions(model_names)
         for model_name, model_definition in model_definitions.items():
             model = self.env[model_name]
@@ -173,7 +167,7 @@ class IrModel(models.Model):
                 model_definition["has_activities"] = True
         return model_definitions
 
-    def _get_model_definitions(self, model_names_to_fetch):
+    def _get_model_definitions(self, model_names_to_fetch: list[str]) -> dict:
         model_definitions = super()._get_model_definitions(model_names_to_fetch)
         for model_name, model_definition in model_definitions.items():
             model = self.env[model_name]

@@ -1,15 +1,18 @@
+import typing
+from typing import Literal, Self
+
 from odoo import _, api, exceptions, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.tools import ormcache
 
 from odoo.addons.mail.models.mail_alias import dot_atom_text
 
+if typing.TYPE_CHECKING:
+    from odoo.addons.base.models.res_company import ResCompany
+
 
 class MailAliasDomain(models.Model):
-    """Company-specific email domains used by catchall/bounce aliases and
-    mail.alias reply redirection.
-    """
-
     _name = "mail.alias.domain"
     _description = "Email Domain"
     _order = "sequence ASC, id ASC"
@@ -19,7 +22,7 @@ class MailAliasDomain(models.Model):
         required=True,
         help="Email domain e.g. 'example.com' in 'odoo@example.com'",
     )
-    company_ids = fields.One2many(
+    company_ids: ResCompany = fields.One2many(
         "res.company",
         "alias_domain_id",
         string="Companies",
@@ -63,22 +66,19 @@ class MailAliasDomain(models.Model):
     )
 
     @api.depends("bounce_alias", "name")
-    def _compute_bounce_email(self):
+    def _compute_bounce_email(self) -> None:
         self.bounce_email = ""
         for domain in self.filtered("bounce_alias"):
             domain.bounce_email = f"{domain.bounce_alias}@{domain.name}"
 
     @api.depends("catchall_alias", "name")
-    def _compute_catchall_email(self):
+    def _compute_catchall_email(self) -> None:
         self.catchall_email = ""
         for domain in self.filtered("catchall_alias"):
             domain.catchall_email = f"{domain.catchall_alias}@{domain.name}"
 
     @api.depends("default_from", "name")
-    def _compute_default_from_email(self):
-        """Default from may be a valid complete email and not only a left-part
-        like bounce or catchall aliases. Adding domain name should therefore
-        be done only if necessary."""
+    def _compute_default_from_email(self) -> None:
         self.default_from_email = ""
         for domain in self.filtered("default_from"):
             if "@" in domain.default_from:
@@ -87,7 +87,7 @@ class MailAliasDomain(models.Model):
                 domain.default_from_email = f"{domain.default_from}@{domain.name}"
 
     @api.constrains("bounce_alias", "catchall_alias")
-    def _check_bounce_catchall_uniqueness(self):
+    def _check_bounce_catchall_uniqueness(self) -> None:
         names = self.filtered("bounce_alias").mapped("bounce_alias") + self.filtered(
             "catchall_alias"
         ).mapped("catchall_alias")
@@ -123,7 +123,6 @@ class MailAliasDomain(models.Model):
                     )
                 )
 
-        # search on left-part only to speedup, then filter on right part
         potential_aliases = self.env["mail.alias"].search(
             [("alias_name", "in", list(set(names))), ("alias_domain_id", "!=", False)]
         )
@@ -138,7 +137,6 @@ class MailAliasDomain(models.Model):
         )
         if existing:
             document_name = False
-            # If owner or target: display document name also in the warning
             if existing.alias_parent_model_id and existing.alias_parent_thread_id:
                 document_name = (
                     self.env[existing.alias_parent_model_id.model]
@@ -169,9 +167,7 @@ class MailAliasDomain(models.Model):
             )
 
     @api.constrains("name")
-    def _check_name(self):
-        """Should match a sanitized version of itself, otherwise raise to warn
-        user (do not dynamically change it, would be confusing)."""
+    def _check_name(self) -> None:
         for domain in self:
             if not domain.name:
                 raise exceptions.ValidationError(
@@ -187,19 +183,7 @@ class MailAliasDomain(models.Model):
 
     @api.model
     @ormcache(cache="stable")
-    def _get_config(self):
-        """Return every alias domain's routing-relevant values, cached.
-
-        A handful of effectively immutable rows, yet read from a dozen call sites
-        (several times per inbound ``message_process`` or composer send), hence
-        cached like ``ir.config_parameter`` (``cache="stable"``, invalidated by
-        the CRUD methods below).
-
-        :return: tuple of (ids, names, bounce_emails, catchall_emails,
-            default_from_emails), each a tuple, ordered by ``_order``.
-        """
-        # sudo and cached registry-wide: the model has no record rule and is
-        # readable by every internal user, so values are not caller-dependent
+    def _get_config(self) -> tuple:
         domains = self.sudo().search([])
         return (
             tuple(domains.ids),
@@ -210,30 +194,28 @@ class MailAliasDomain(models.Model):
         )
 
     @api.model
-    def _get_domain_names(self):
+    def _get_domain_names(self) -> tuple[str, ...]:
         return self._get_config()[1]
 
     @api.model
-    def _get_bounce_emails(self):
+    def _get_bounce_emails(self) -> tuple[str, ...]:
         return self._get_config()[2]
 
     @api.model
-    def _get_catchall_emails(self):
+    def _get_catchall_emails(self) -> tuple[str, ...]:
         return self._get_config()[3]
 
     @api.model
-    def _get_default_from_emails(self):
+    def _get_default_from_emails(self) -> tuple[str, ...]:
         return self._get_config()[4]
 
     @api.model
-    def _get_default_domain(self):
-        """The first alias domain per ``_order``, as a recordset (may be void)."""
+    def _get_default_domain(self) -> Self:
         ids = self._get_config()[0]
         return self.browse(ids[:1])
 
     @api.model_create_multi
-    def create(self, vals_list):
-        """Sanitize bounce_alias / catchall_alias / default_from"""
+    def create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
             self._sanitize_configuration(vals)
 
@@ -242,8 +224,6 @@ class MailAliasDomain(models.Model):
         alias_domains._check_default_from_not_used_by_users()
 
         if alias_domains and self.search_count([]) == len(alias_domains):
-            # at first init this alias domain is attributed to all companies,
-            # archived ones included, hence the active_test=False below
             self.env["res.company"].with_context(active_test=False).search(
                 [("alias_domain_id", "=", False)]
             ).alias_domain_id = alias_domains[0].id
@@ -253,22 +233,18 @@ class MailAliasDomain(models.Model):
 
         return alias_domains
 
-    def write(self, vals):
-        """Sanitize bounce_alias / catchall_alias / default_from"""
+    def write(self, vals: ValuesType) -> Literal[True]:
         self._sanitize_configuration(vals)
         ret = super().write(vals)
-        # every cached value derives from stored fields of this model
-        # (name / bounce_alias / catchall_alias / default_from)
         self.env.registry.clear_cache("stable")
         self._check_default_from_not_used_by_users()
         return ret
 
-    def unlink(self):
+    def unlink(self) -> Literal[True]:
         self.env.registry.clear_cache("stable")
         return super().unlink()
 
-    def _check_default_from_not_used_by_users(self):
-        """Check that the default from is not used by a personal mail server."""
+    def _check_default_from_not_used_by_users(self) -> None:
         match_from_filter = self.env["ir.mail_server"]._match_from_filter
         personal_mail_servers = (
             self.env["ir.mail_server"].sudo().search([("owner_user_id", "!=", False)])
@@ -283,11 +259,7 @@ class MailAliasDomain(models.Model):
             )
 
     @api.model
-    def _sanitize_configuration(self, config_values):
-        """Sanitize the local-part configuration values of domains."""
-        # ``name`` is deliberately left alone: _check_name raises on an invalid
-        # domain instead of rewriting it, and sanitizing here would mask the very
-        # inputs it must reject (e.g. 'provaïder.cöm' -> 'provaider.com')
+    def _sanitize_configuration(self, config_values: dict) -> dict:
         if config_values.get("bounce_alias"):
             config_values["bounce_alias"] = self.env["mail.alias"]._sanitize_alias_name(
                 config_values["bounce_alias"]
@@ -303,13 +275,7 @@ class MailAliasDomain(models.Model):
         return config_values
 
     @api.model
-    def _find_aliases(self, email_list):
-        """Find both alias domain addresses (bounce, catchall or default from)
-        and mail.alias addresses within an email list.
-
-        :param list email_list: list of normalized emails; normalization / removing
-            wrong emails is considered as being caller's job
-        """
+    def _find_aliases(self, email_list: list[str]) -> list:
         filtered_emails = [e for e in email_list if e and "@" in e]
         if not filtered_emails:
             return filtered_emails
@@ -335,8 +301,6 @@ class MailAliasDomain(models.Model):
                 email.partition("@")[0] for email in filtered_emails if email
             ]
 
-        # search on aliases using the proposed list, as we could have a lot of aliases
-        # better than returning 'all alias emails'
         potential_aliases = self.env["mail.alias"].search(
             [
                 "|",
@@ -346,14 +310,12 @@ class MailAliasDomain(models.Model):
                 ("alias_incoming_local", "=", True),
             ]
         )
-        # Global aliases match by full name
         aliases.update(
             potential_aliases.filtered(lambda x: not x.alias_incoming_local).mapped(
                 "alias_full_name"
             )
         )
 
-        # Local aliases for validated local part + domain checking
         local_alias_names = set(
             potential_aliases.filtered(lambda x: x.alias_incoming_local).mapped(
                 "alias_name"
@@ -375,11 +337,7 @@ class MailAliasDomain(models.Model):
         return res
 
     @api.model
-    def _migrate_icp_to_domain(self):
-        """Compatibility layer helping going from pre-v17 ICP to alias
-        domains. Mainly used when base mail configuration is done with 'base'
-        module only and 'mail' is installed afterwards: configuration should
-        not be lost (odoo.sh use case)."""
+    def _migrate_icp_to_domain(self) -> Self:
         Icp = self.env["ir.config_parameter"].sudo()
         alias_domain = Icp.get_param("mail.catchall.domain")
         if alias_domain:

@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from odoo import tools
 
@@ -9,15 +10,14 @@ _flanker_lib_warning = False
 try:
     from flanker.addresslib import address
 
-    # Avoid warning each time a mx server is not reachable by flanker
     logging.getLogger("flanker.addresslib.validate").setLevel(logging.ERROR)
 
-    def mail_validate(email):
+    def mail_validate(email: str) -> bool:
         return bool(address.validate_address(email))
 
 except ImportError:
 
-    def mail_validate(email):
+    def mail_validate(email: str) -> str | Literal[False]:
         global _flanker_lib_warning  # noqa: PLW0603
         if not _flanker_lib_warning:
             _flanker_lib_warning = True

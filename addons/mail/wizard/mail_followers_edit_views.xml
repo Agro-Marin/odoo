@@ -2,7 +2,6 @@
 <odoo>
     <data>
 
-        <!-- wizard view -->
         <record model="ir.ui.view" id="mail_followers_edit_form">
             <field name="name">mail.followers.edit.form</field>
             <field name="model">mail.followers.edit</field>

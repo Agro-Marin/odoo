@@ -1,20 +1,24 @@
+import typing
+
 from odoo import api, fields, models
+
+if typing.TYPE_CHECKING:
+    from .discuss.mail_guest import MailGuest
+    from .res_partner import ResPartner
+    from odoo.addons.bus.models.res_users_settings import ResUsersSettings
 
 
 class ResUsersSettingsVolumes(models.Model):
-    """Represents the volume of the sound that the user of user_setting_id will receive from partner_id."""
-
     _name = "res.users.settings.volumes"
     _description = "User Settings Volumes"
 
-    user_setting_id = fields.Many2one(
+    user_setting_id: ResUsersSettings = fields.Many2one(
         "res.users.settings", required=True, ondelete="cascade", index=True
     )
-    partner_id = fields.Many2one("res.partner", ondelete="cascade", index=True)
-    # comodel is mail.guest, not res.partner: callers pass a mail.guest id (as JS
-    # volume_model.js does). A res.partner FK here would bind the guest volume to
-    # whatever partner shares that id, leaking its name.
-    guest_id = fields.Many2one("mail.guest", ondelete="cascade", index=True)
+    partner_id: ResPartner = fields.Many2one(
+        "res.partner", ondelete="cascade", index=True
+    )
+    guest_id: MailGuest = fields.Many2one("mail.guest", ondelete="cascade", index=True)
     volume = fields.Float(
         default=0.5,
         help="Ranges between 0.0 and 1.0, scale depends on the browser implementation",
@@ -32,11 +36,11 @@ class ResUsersSettingsVolumes(models.Model):
     )
 
     @api.depends("user_setting_id", "partner_id", "guest_id")
-    def _compute_display_name(self):
+    def _compute_display_name(self) -> None:
         for rec in self:
             rec.display_name = f"{rec.user_setting_id.user_id.name} - {rec.partner_id.name or rec.guest_id.name}"
 
-    def _discuss_users_settings_volume_format(self):
+    def _discuss_users_settings_volume_format(self) -> list:
         return [
             {
                 "id": volume_setting.id,

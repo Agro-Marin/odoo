@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import time
+from typing import Any
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -15,11 +16,14 @@ class InvalidVapidError(Exception):
 
 
 class Algorithm(enum.Enum):
-    ES256 = "ES256"  # ECDSA SHA-256
-    HS256 = "HS256"  # HMAC SHA-256
+    ES256 = "ES256"
+    HS256 = "HS256"
 
 
-def _generate_keys(key_encoding, key_format) -> (bytes, bytes):
+def _generate_keys(
+    key_encoding: serialization.Encoding,
+    key_format: serialization.PublicFormat,
+) -> tuple[bytes, bytes]:
     private_object = ec.generate_private_key(ec.SECP256R1())
     private_int = private_object.private_numbers().private_value
     private_bytes = private_int.to_bytes(32, "big")
@@ -31,15 +35,7 @@ def _generate_keys(key_encoding, key_format) -> (bytes, bytes):
     return private_bytes, public_bytes
 
 
-def generate_vapid_keys() -> (str, str):
-    """
-    Generate the VAPID (Voluntary Application Server Identification) used for the Web Push
-    This function generates a signing key pair usable with the Elliptic Curve Digital
-    Signature Algorithm (ECDSA) over the P-256 curve.
-    https://www.rfc-editor.org/rfc/rfc8292
-
-    :return: tuple (private_key, public_key)
-    """
+def generate_vapid_keys() -> tuple[str, str]:
     private, public = _generate_keys(
         serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
     )
@@ -52,7 +48,7 @@ def base64_decode_with_padding(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "==")
 
 
-def _generate_jwt(claims: dict, key: str, algorithm: Algorithm) -> str:
+def _generate_jwt(claims: dict[str, Any], key: str, algorithm: Algorithm) -> str:
     JOSE_header = base64.urlsafe_b64encode(
         json.dumps({"typ": "JWT", "alg": algorithm.value}).encode()
     )
@@ -69,7 +65,6 @@ def _generate_jwt(claims: dict, key: str, algorithm: Algorithm) -> str:
             ).digest()
             sig = base64.urlsafe_b64encode(signature)
         case Algorithm.ES256:
-            # Retrieve the private key using a P256 elliptic curve
             private_key = ec.derive_private_key(
                 int(binascii.hexlify(key_decoded), 16), ec.SECP256R1()
             )
@@ -86,23 +81,9 @@ def _generate_jwt(claims: dict, key: str, algorithm: Algorithm) -> str:
     return "{}.{}".format(unsigned_token, sig.decode().strip("="))
 
 
-def sign(claims: dict, key: str, ttl: int, algorithm: Algorithm) -> str:
-    """
-    A JSON Web Token is a signed pair of JSON objects, turned into base64 strings.
-
-    RFC: https://www.rfc-editor.org/rfc/rfc7519
-
-    :param claims: the payload of the jwt: https://www.rfc-editor.org/rfc/rfc7519#section-4.1
-    :param key: base64 string
-    :param ttl: the time to live of the token in seconds ('exp' claim)
-    :param algorithm: to use to sign the token
-    :return: JSON Web Token
-    """
+def sign(claims: dict[str, Any], key: str, ttl: int, algorithm: Algorithm) -> str:
     non_padded_key = key.strip("=")
     if not ttl:
-        # guard the 'exp' claim without an assert (stripped under `python -O`),
-        # which would otherwise let ttl=0 mint an already-expired token.
         raise ValueError("A JWT requires a non-zero ttl for its 'exp' claim.")
-    # do not mutate the caller-owned claims dict as a side effect of signing.
     claims = {**claims, "exp": int(time.time()) + ttl}
     return _generate_jwt(claims, non_padded_key, algorithm=algorithm)

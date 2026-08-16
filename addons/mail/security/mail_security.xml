@@ -54,15 +54,7 @@
                             ("channel_id.group_public_id", "in", user.all_group_ids.ids),
                 ]
             </field>
-            <!--
-                create() is controlled by other rules because create() rules are applied after the record contains
-                its data, which means just using 'is_self' would allow any user to add themselves in any channel.
-            -->
             <field name="perm_create" eval="False"/>
-            <!--
-                read() is controlled by other rules, in particular the current rule for reading self member is
-                "contained" within the rule for reading any member of accessible channel which is more generic.
-            -->
             <field name="perm_read" eval="False"/>
         </record>
 
@@ -115,10 +107,6 @@
                         ('channel_id.group_public_id', 'in', user.all_group_ids.ids)
                 ]
             </field>
-            <!--
-                This is the only case where the current user can join themselves (is_self = True) when the channel
-                is already created, in all other cases they must be invited by someone else.
-            -->
             <field name="perm_read" eval="False"/>
             <field name="perm_write" eval="False"/>
             <field name="perm_unlink" eval="False"/>
@@ -153,10 +141,6 @@
                     ('channel_id.is_member', '=', True)
                 ]
             </field>
-            <!--
-                create() for the current user is controlled by other rules because create() rules are applied after the record
-                contains its data, which means allowing 'is_self' would allow any user to add themselves in any channel.
-            -->
             <field name="perm_read" eval="False"/>
             <field name="perm_write" eval="False"/>
             <field name="perm_unlink" eval="False"/>
@@ -324,8 +308,6 @@
             <field name="perm_create" eval="False"/>
         </record>
 
-        <!-- Internal user: rationale is that they read their own or the one belonging to
-        their user groups. They can modify only their own -->
         <record id="ir_rule_mail_canned_response_user_read" model="ir.rule">
             <field name="name">Canned response: User read: own or in groups</field>
             <field name="model_id" ref="model_mail_canned_response"/>

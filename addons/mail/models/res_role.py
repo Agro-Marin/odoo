@@ -1,4 +1,9 @@
+import typing
+
 from odoo import fields, models
+
+if typing.TYPE_CHECKING:
+    from odoo.addons.bus.models.res_users import ResUsers
 
 
 class ResRole(models.Model):
@@ -10,7 +15,7 @@ class ResRole(models.Model):
     )
 
     name = fields.Char(required=True)
-    user_ids = fields.Many2many(
+    user_ids: ResUsers = fields.Many2many(
         "res.users", relation="res_role_res_users_rel", string="Users"
     )
 

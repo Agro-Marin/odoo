@@ -7,14 +7,11 @@ from odoo.addons.mail.tools.discuss import Store
 class IrHttp(models.AbstractModel):
     _inherit = "ir.http"
 
-    def session_info(self):
-        """Override to add the current user data (partner or guest) if applicable."""
+    def session_info(self) -> dict:
         result = super().session_info()
         store = Store()
         ResUsers = self.env["res.users"]
         if cids := request.cookies.get("cids", False):
-            # skip non-numeric parts: a corrupted cookie (e.g. "cids=undefined")
-            # would otherwise 500 every page load until cleared by hand
             allowed_company_ids = [
                 company_id
                 for company_id in (int(cid) for cid in cids.split("-") if cid.isdigit())

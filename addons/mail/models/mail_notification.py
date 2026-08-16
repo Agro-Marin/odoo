@@ -1,11 +1,20 @@
+import typing
+from typing import Literal, Self
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.tools.translate import _
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+
+if typing.TYPE_CHECKING:
+    from .mail_mail import MailMail
+    from .mail_message import MailMessage
+    from .res_partner import ResPartner
 
 
 class MailNotification(models.Model):
@@ -15,21 +24,21 @@ class MailNotification(models.Model):
     _log_access = False
     _description = "Message Notifications"
 
-    author_id = fields.Many2one("res.partner", "Author", ondelete="set null")
-    mail_message_id = fields.Many2one(
+    author_id: ResPartner = fields.Many2one(
+        "res.partner", "Author", ondelete="set null"
+    )
+    mail_message_id: MailMessage = fields.Many2one(
         "mail.message", "Message", index=True, ondelete="cascade", required=True
     )
-    mail_mail_id = fields.Many2one(
+    mail_mail_id: MailMail = fields.Many2one(
         "mail.mail",
         "Mail",
         index=True,
         help="Optional mail_mail ID. Used mainly to optimize searches.",
     )
-    res_partner_id = fields.Many2one(
+    res_partner_id: ResPartner = fields.Many2one(
         "res.partner", "Recipient", index=True, ondelete="cascade"
     )
-    # set if no matching partner exists (mass mail)
-    # must be normalized except if notification is cancel/failure from invalid email
     mail_email_address = fields.Char(help="Recipient email address")
     notification_type = fields.Selection(
         [("inbox", "Inbox"), ("email", "Email")],
@@ -41,11 +50,11 @@ class MailNotification(models.Model):
     notification_status = fields.Selection(
         [
             ("ready", "Ready to Send"),
-            ("process", "Processing"),  # being checked by intermediary like IAP for sms
+            ("process", "Processing"),
             (
                 "pending",
                 "Sent",
-            ),  # used with SMS; mail does not differentiate sent from delivered
+            ),
             ("sent", "Delivered"),
             ("bounce", "Bounced"),
             ("exception", "Exception"),
@@ -94,19 +103,17 @@ class MailNotification(models.Model):
     )
 
     @api.model_create_multi
-    def create(self, vals_list):
+    def create(self, vals_list: list[ValuesType]) -> Self:
         messages = self.env["mail.message"].browse(
             vals["mail_message_id"] for vals in vals_list
         )
-        # A notification grants its recipient read access to the message, so
-        # forging one must require write access on it (notify pipelines run sudo).
         messages.check_access("write")
         for vals in vals_list:
             if vals.get("is_read"):
                 vals["read_date"] = fields.Datetime.now()
         return super().create(vals_list)
 
-    def write(self, vals):
+    def write(self, vals: ValuesType) -> Literal[True]:
         if (
             "mail_message_id" in vals or "res_partner_id" in vals
         ) and not self.env.is_admin():
@@ -118,7 +125,7 @@ class MailNotification(models.Model):
         return super().write(vals)
 
     @api.model
-    def _gc_notifications(self, max_age_days=180):
+    def _gc_notifications(self, max_age_days: int = 180) -> tuple:
         domain = [
             ("is_read", "=", True),
             (
@@ -126,15 +133,13 @@ class MailNotification(models.Model):
                 "<",
                 fields.Datetime.now() - relativedelta(days=max_age_days),
             ),
-            # Terminal statuses only, and regardless of recipient type: adding a
-            # partner_share predicate here leaks rows forever on portal DBs.
             ("notification_status", "in", ("sent", "canceled")),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
-        return len(records), len(records) == GC_UNLINK_LIMIT  # done, remaining
+        return len(records), len(records) == GC_UNLINK_LIMIT
 
-    def format_failure_reason(self):
+    def format_failure_reason(self) -> str:
         self.ensure_one()
         if self.failure_type != "unknown":
             return dict(self._fields["failure_type"].selection).get(
@@ -145,10 +150,8 @@ class MailNotification(models.Model):
                 return _("Unknown error: %(error)s", error=self.failure_reason)
             return _("Unknown error")
 
-    def _filtered_for_web_client(self):
-        """Returns only the notifications to show on the web client."""
-
-        def _filter_unimportant_notifications(notif):
+    def _filtered_for_web_client(self) -> Self:
+        def _filter_unimportant_notifications(notif: MailNotification) -> bool:
             if (
                 notif.notification_status in ["bounce", "exception", "canceled"]
                 or notif.res_partner_id.partner_share
@@ -160,7 +163,7 @@ class MailNotification(models.Model):
 
         return self.filtered(_filter_unimportant_notifications)
 
-    def _to_store_defaults(self, target):
+    def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return [
             "mail_email_address",
             "failure_type",

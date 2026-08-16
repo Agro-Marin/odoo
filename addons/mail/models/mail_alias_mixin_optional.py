@@ -1,17 +1,19 @@
 import logging
+import typing
+from collections.abc import Collection
+from typing import Any, Literal, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
+
+if typing.TYPE_CHECKING:
+    from .mail_alias import MailAlias
+    from .mail_alias_domain import MailAliasDomain
 
 _logger = logging.getLogger(__name__)
 
 
 class MailAliasMixinOptional(models.AbstractModel):
-    """A mixin for models that handles underlying 'mail.alias' records to use
-    the mail gateway. Field is not mandatory and its creation is done dynamically
-    based on given 'alias_name', allowing to gradually populate the alias table
-    without having void aliases as when used with an inherits-like implementation.
-    """
-
     _name = "mail.alias.mixin.optional"
     _description = "Email Aliases Mixin (light)"
     ALIAS_WRITEABLE_FIELDS = [
@@ -22,11 +24,11 @@ class MailAliasMixinOptional(models.AbstractModel):
         "alias_bounced_content",
     ]
 
-    alias_id = fields.Many2one(
+    alias_id: MailAlias = fields.Many2one(
         "mail.alias", string="Alias", ondelete="restrict", required=False, copy=False
     )
     alias_name = fields.Char(related="alias_id.alias_name", readonly=False)
-    alias_domain_id = fields.Many2one(
+    alias_domain_id: MailAliasDomain = fields.Many2one(
         "mail.alias.domain",
         string="Alias Domain",
         related="alias_id.alias_domain_id",
@@ -39,22 +41,16 @@ class MailAliasMixinOptional(models.AbstractModel):
     )
 
     @api.depends("alias_domain", "alias_name")
-    def _compute_alias_email(self):
-        """Alias email can be used in views, as it is Falsy when having no domain
-        or no name. Alias display name itself contains more info and cannot be
-        used as it is in views."""
+    def _compute_alias_email(self) -> None:
         self.alias_email = False
         for record in self.filtered(lambda rec: rec.alias_name and rec.alias_domain):
             record.alias_email = f"{record.alias_name}@{record.alias_domain}"
 
-    def _search_alias_email(self, operator, operand):
+    def _search_alias_email(self, operator: str, operand: Any) -> list:
         return [("alias_id.alias_full_name", operator, operand)]
 
     @api.model_create_multi
-    def create(self, vals_list):
-        """Create aliases using sudo if an alias is required, notably if its
-        name is given."""
-        # prefetch company information, used for alias domain
+    def create(self, vals_list: list[ValuesType]) -> Self:
         company_fname = self._mail_get_company_field()
         if company_fname:
             company_id_default = (
@@ -111,8 +107,6 @@ class MailAliasMixinOptional(models.AbstractModel):
 
         records = super().create(valid_vals_list)
 
-        # update alias values with values coming from record, post-create to have
-        # access to all its values (notably its ID)
         records_walias = records.filtered("alias_id")
         for record in records_walias:
             alias_values = record._alias_get_creation_values()
@@ -120,11 +114,7 @@ class MailAliasMixinOptional(models.AbstractModel):
 
         return records
 
-    def write(self, vals):
-        """Split writable fields of mail.alias and other fields alias fields will
-        write with sudo and the other normally. Also handle alias_domain_id
-        update. If alias does not exist and we try to set a name, create the
-        alias automatically."""
+    def write(self, vals: ValuesType) -> Literal[True]:
         if vals.get("alias_name"):
             alias_create_values = [
                 dict(
@@ -154,21 +144,18 @@ class MailAliasMixinOptional(models.AbstractModel):
             for record, alias_domain_id in alias_domain_values.items():
                 record.sudo().alias_domain_id = alias_domain_id.id
 
-        # check on 'self', not on an empty recordset: an alias-only write (no
-        # record_vals) must also honor the record rules, not only the model ACL
         if alias_vals and (record_vals or self.has_access("write")):
             self.mapped("alias_id").sudo().write(alias_vals)
 
         return True
 
-    def unlink(self):
-        """Delete the given records, and cascade-delete their corresponding alias."""
+    def unlink(self) -> Literal[True]:
         aliases = self.mapped("alias_id")
         res = super().unlink()
         aliases.sudo().unlink()
         return res
 
-    def copy_data(self, default=None):
+    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
         not_writable_fields = set(self.env["mail.alias"]._fields.keys()) - set(
             self.ALIAS_WRITEABLE_FIELDS
@@ -180,20 +167,10 @@ class MailAliasMixinOptional(models.AbstractModel):
         return vals_list
 
     @api.model
-    def _require_new_alias(self, record_vals):
-        """Create only if no existing alias, and if a name is given, to avoid
-        creating inactive aliases (falsy name)."""
+    def _require_new_alias(self, record_vals: dict) -> bool:
         return not record_vals.get("alias_id") and record_vals.get("alias_name")
 
-    def _alias_get_alias_domain_id(self):
-        """Return the alias domain to synchronize with the owner's company.
-
-        :return: alias domain per record
-        :rtype: dict
-        """
-        # a tool method rather than a compute: 'alias_domain_id' is related to
-        # 'alias_id', and the create / write overrides below do not always
-        # trigger the compute
+    def _alias_get_alias_domain_id(self) -> dict:
         alias_domain_values = {}
         record_companies = self._mail_get_companies()
         for record in self:
@@ -205,10 +182,7 @@ class MailAliasMixinOptional(models.AbstractModel):
             )
         return alias_domain_values
 
-    def _alias_get_creation_values(self):
-        """Return values to create an alias, or to write on the alias after its
-        creation.
-        """
+    def _alias_get_creation_values(self) -> dict:
         values = {
             "alias_parent_thread_id": self.id or False,
             "alias_parent_model_id": self.env["ir.model"]._get_id(self._name),
@@ -217,9 +191,9 @@ class MailAliasMixinOptional(models.AbstractModel):
             values["alias_domain_id"] = self.env.context["default_alias_domain_id"]
         return values
 
-    def _alias_filter_fields(self, values, filters=False):
-        """Split the vals dict into two dictionnary of vals, one for alias
-        field and the other for other fields"""
+    def _alias_filter_fields(
+        self, values: dict, filters: Collection[str] | Literal[False] = False
+    ) -> tuple:
         if not filters:
             filters = self.env["mail.alias"]._fields.keys()
         alias_values, record_values = {}, {}

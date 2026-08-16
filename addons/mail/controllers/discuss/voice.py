@@ -1,5 +1,5 @@
 from odoo import http
-from odoo.http import request
+from odoo.http import Response, request
 from odoo.tools import file_open
 
 
@@ -11,7 +11,7 @@ class VoiceController(http.Controller):
         auth="public",
         readonly=True,
     )
-    def voice_worklet_processor(self):
+    def voice_worklet_processor(self) -> Response:
         with file_open(
             "mail/static/src/discuss/voice_message/worklets/processor.js", "rb"
         ) as f:

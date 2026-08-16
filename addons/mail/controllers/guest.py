@@ -12,10 +12,7 @@ class GuestController(http.Controller):
         "/mail/guest/update_name", methods=["POST"], type="jsonrpc", auth="public"
     )
     @add_guest_to_context
-    def mail_guest_update_name(self, guest_id, name):
-        # Coerce the client-supplied id like the sibling public routes: browse()
-        # on a raw string or list reaches SQL / _update_name's ensure_one() as an
-        # anonymous 500, where a 404 is the right answer.
+    def mail_guest_update_name(self, guest_id: int, name: str) -> None:
         guest = request.env["mail.guest"]._get_guest_from_context()
         guest_to_rename_sudo = (
             guest.env["mail.guest"].browse(_to_record_id(guest_id)).sudo().exists()

@@ -4,7 +4,9 @@ from odoo import models
 class BasePartnerMergeAutomaticWizard(models.TransientModel):
     _inherit = "base.partner.merge.automatic.wizard"
 
-    def _log_merge_operation(self, src_partners, dst_partner):
+    def _log_merge_operation(
+        self, src_partners: models.BaseModel, dst_partner: models.BaseModel
+    ) -> None:
         super()._log_merge_operation(src_partners, dst_partner)
         dst_partner.message_post(
             body=self.env._(

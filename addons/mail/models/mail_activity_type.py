@@ -1,18 +1,25 @@
+import typing
+from datetime import date
+from typing import Literal
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, exceptions, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
+
+if typing.TYPE_CHECKING:
+    from .mail_template import MailTemplate
+    from odoo.addons.bus.models.res_users import ResUsers
 
 
 class MailActivityType(models.Model):
-    """Category of activity (call, mail, meeting), generic or specific to a model."""
-
     _name = "mail.activity.type"
     _description = "Activity Type"
     _order = "sequence, id"
     _rec_name = "name"
 
-    def _get_model_selection(self):
+    def _get_model_selection(self) -> list:
         return [
             (model.model, model.name)
             for model in self.env["ir.model"]
@@ -24,7 +31,7 @@ class MailActivityType(models.Model):
     summary = fields.Char("Default Summary", translate=True)
     sequence = fields.Integer("Sequence", default=10)
     active = fields.Boolean(default=True)
-    create_uid = fields.Many2one("res.users", index=True)
+    create_uid: ResUsers = fields.Many2one("res.users", index=True)
     delay_count = fields.Integer(
         "Schedule",
         default=0,
@@ -60,7 +67,7 @@ class MailActivityType(models.Model):
         help="Specify a model if the activity should be specific to a model"
         " and not available when managing activities for other models.",
     )
-    triggered_next_type_id = fields.Many2one(
+    triggered_next_type_id: MailActivityType = fields.Many2one(
         "mail.activity.type",
         string="Trigger",
         compute="_compute_triggered_next_type_id",
@@ -77,7 +84,7 @@ class MailActivityType(models.Model):
         required=True,
         default="suggest",
     )
-    suggested_next_type_ids = fields.Many2many(
+    suggested_next_type_ids: MailActivityType = fields.Many2many(
         "mail.activity.type",
         "mail_activity_rel",
         "activity_id",
@@ -90,7 +97,7 @@ class MailActivityType(models.Model):
         readonly=False,
         help="Suggest these activities once the current one is marked as done.",
     )
-    previous_type_ids = fields.Many2many(
+    previous_type_ids: MailActivityType = fields.Many2many(
         "mail.activity.type",
         "mail_activity_rel",
         "recommended_id",
@@ -108,8 +115,10 @@ class MailActivityType(models.Model):
         string="Action",
         help="Actions may trigger specific behavior like opening calendar view or automatically mark as done when a document is uploaded",
     )
-    mail_template_ids = fields.Many2many("mail.template", string="Email templates")
-    default_user_id = fields.Many2one("res.users", string="Default User")
+    mail_template_ids: MailTemplate = fields.Many2many(
+        "mail.template", string="Email templates"
+    )
+    default_user_id: ResUsers = fields.Many2one("res.users", string="Default User")
     default_note = fields.Html(string="Default Note", translate=True)
 
     initial_res_model = fields.Selection(
@@ -124,13 +133,13 @@ class MailActivityType(models.Model):
     )
 
     @api.constrains("res_model")
-    def _check_activity_type_res_model(self):
+    def _check_activity_type_res_model(self) -> None:
         self.env["mail.activity.plan.template"].search(
             [("activity_type_id", "in", self.ids)]
         )._check_activity_type_res_model()
 
     @api.onchange("res_model")
-    def _onchange_res_model(self):
+    def _onchange_res_model(self) -> None:
         self.mail_template_ids = self.sudo().mail_template_ids.filtered(
             lambda template: template.model_id.model == self.res_model
         )
@@ -138,16 +147,12 @@ class MailActivityType(models.Model):
             self.initial_res_model and self.initial_res_model != self.res_model
         )
 
-    # No @api.depends on purpose: this snapshots res_model as it was when the
-    # form opened, so that _compute_res_model_change can spot a pending change.
-    # Declaring the dependency would refresh the snapshot to the new value and
-    # the comparison would never fire.
-    def _compute_initial_res_model(self):
+    def _compute_initial_res_model(self) -> None:
         for activity_type in self:
             activity_type.initial_res_model = activity_type.res_model
 
     @api.depends("delay_unit", "delay_count")
-    def _compute_delay_label(self):
+    def _compute_delay_label(self) -> None:
         selection_description_values = {
             e[0]: e[1]
             for e in self._fields["delay_unit"]._description_selection(self.env)
@@ -157,34 +162,30 @@ class MailActivityType(models.Model):
             activity_type.delay_label = "%s %s" % (activity_type.delay_count, unit)
 
     @api.depends("chaining_type")
-    def _compute_suggested_next_type_ids(self):
-        """suggested_next_type_ids and triggered_next_type_id should be mutually exclusive"""
+    def _compute_suggested_next_type_ids(self) -> None:
         for activity_type in self:
             if activity_type.chaining_type == "trigger":
                 activity_type.suggested_next_type_ids = False
 
-    def _inverse_suggested_next_type_ids(self):
+    def _inverse_suggested_next_type_ids(self) -> None:
         for activity_type in self:
             if activity_type.suggested_next_type_ids:
                 activity_type.chaining_type = "suggest"
 
     @api.depends("chaining_type")
-    def _compute_triggered_next_type_id(self):
-        """suggested_next_type_ids and triggered_next_type_id should be mutually exclusive"""
+    def _compute_triggered_next_type_id(self) -> None:
         for activity_type in self:
             if activity_type.chaining_type == "suggest":
                 activity_type.triggered_next_type_id = False
 
-    def _inverse_triggered_next_type_id(self):
+    def _inverse_triggered_next_type_id(self) -> None:
         for activity_type in self:
             if activity_type.triggered_next_type_id:
                 activity_type.chaining_type = "trigger"
             else:
                 activity_type.chaining_type = "suggest"
 
-    def write(self, vals):
-        # Protect some master types against model change when they are used
-        # as default in apps, in business flows, plans, ...
+    def write(self, vals: ValuesType) -> Literal[True]:
         if "res_model" in vals:
             xmlid_to_model = {
                 xmlid: info["res_model"]
@@ -193,7 +194,6 @@ class MailActivityType(models.Model):
             modified = self.browse()
             for xml_id, model in xmlid_to_model.items():
                 activity_type = self.env.ref(xml_id, raise_if_not_found=False)
-                # beware '' and False for void res_model
                 if (
                     activity_type
                     and (vals["res_model"] or False) != (model or False)
@@ -210,7 +210,7 @@ class MailActivityType(models.Model):
         return super().write(vals)
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_except_todo(self):
+    def _unlink_except_todo(self) -> None:
         master_data = self.browse()
         for xml_id in [
             xmlid
@@ -228,7 +228,7 @@ class MailActivityType(models.Model):
                 )
             )
 
-    def action_archive(self):
+    def action_archive(self) -> bool:
         if self.env.ref("mail.mail_activity_data_todo") in self:
             raise UserError(
                 _(
@@ -237,13 +237,8 @@ class MailActivityType(models.Model):
             )
         return super().action_archive()
 
-    def unlink(self):
-        """When removing an activity type, put activities into a Todo."""
+    def unlink(self) -> Literal[True]:
         todo_type = self.env.ref("mail.mail_activity_data_todo")
-        # sudo: mail.activity - activity_type_id is ondelete="restrict", so every
-        # referencing row must be reassigned, including those the deleter cannot
-        # read, else super().unlink() hits the FK. Same reason for active_test=False:
-        # completed activities are archived (_action_done) but still reference the type.
         self.env["mail.activity"].sudo().with_context(active_test=False).search(
             [("activity_type_id", "in", self.ids)]
         ).write(
@@ -253,10 +248,7 @@ class MailActivityType(models.Model):
         )
         return super().unlink()
 
-    def _get_date_deadline(self):
-        """Return the activity deadline, computed from the activity_previous_deadline
-        context variable when delay_from asks for it, else from today.
-        """
+    def _get_date_deadline(self) -> date:
         self.ensure_one()
         if self.delay_from == "previous_activity" and self.env.context.get(
             "activity_previous_deadline"
@@ -269,20 +261,14 @@ class MailActivityType(models.Model):
         return base + relativedelta(**{self.delay_unit: self.delay_count})
 
     @api.model
-    def _get_model_info_by_xmlid(self):
-        """Get model info based on xml ids."""
+    def _get_model_info_by_xmlid(self) -> dict:
         return {
-            # generic call, used notably in VOIP, ... no unlink, necessary for VOIP
             "mail.mail_activity_data_call": {"res_model": False, "unlink": False},
-            # generic meeting, used in calendar, hr, ... no unlink, necessary for appointment, appraisals
             "mail.mail_activity_data_meeting": {"res_model": False, "unlink": False},
-            # generic todo, used in plans, ... no unlink, basic generic fallback data
             "mail.mail_activity_data_todo": {"res_model": False, "unlink": False},
-            # generic upload, used in documents, accounting, ...
             "mail.mail_activity_data_upload_document": {
                 "res_model": False,
                 "unlink": True,
             },
-            # generic warning, used in plans, business flows, ...
             "mail.mail_activity_data_warning": {"res_model": False, "unlink": True},
         }

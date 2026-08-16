@@ -1,4 +1,9 @@
+import typing
+
 from odoo import api, fields, models
+
+if typing.TYPE_CHECKING:
+    from .res_users_settings_volumes import ResUsersSettingsVolumes
 
 
 class ResUsersSettings(models.Model):
@@ -23,7 +28,7 @@ class ResUsersSettings(models.Model):
         default=200,
         help="How long the audio broadcast will remain active after passing the volume threshold",
     )
-    volume_settings_ids = fields.One2many(
+    volume_settings_ids: ResUsersSettingsVolumes = fields.One2many(
         "res.users.settings.volumes",
         "user_setting_id",
         string="Volumes of other partners",
@@ -36,7 +41,7 @@ class ResUsersSettings(models.Model):
     )
 
     @api.model
-    def _format_settings(self, fields_to_format):
+    def _format_settings(self, fields_to_format: list[str]) -> dict:
         res = super()._format_settings(fields_to_format)
         if "volume_settings_ids" in fields_to_format:
             volume_settings = (
@@ -46,18 +51,14 @@ class ResUsersSettings(models.Model):
             res["volumes"] = [("ADD", volume_settings)]
         return res
 
-    def set_res_users_settings(self, new_settings):
+    def set_res_users_settings(self, new_settings: dict) -> dict:
         formatted = super().set_res_users_settings(new_settings)
         self._bus_send("res.users.settings", formatted)
         return formatted
 
-    def set_volume_setting(self, partner_id, volume, guest_id=None):
-        """Save the volume of a guest or a partner, one of which must be given.
-
-        :param int partner_id: partner the volume applies to
-        :param float volume: the selected volume, between 0 and 1
-        :param int guest_id: guest the volume applies to
-        """
+    def set_volume_setting(
+        self, partner_id: int, volume: float, guest_id: int | None = None
+    ) -> None:
         self.ensure_one()
         volume_setting = self.env["res.users.settings.volumes"].search(
             [

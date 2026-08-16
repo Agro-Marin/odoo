@@ -1,4 +1,10 @@
+import typing
+
 from odoo import api, fields, models
+
+if typing.TYPE_CHECKING:
+    from ..mail_message import MailMessage
+    from .discuss_channel import DiscussChannel
 
 
 class DiscussCallHistory(models.Model):
@@ -6,13 +12,13 @@ class DiscussCallHistory(models.Model):
     _order = "start_dt DESC, id DESC"
     _description = "Keep the call history"
 
-    channel_id = fields.Many2one(
+    channel_id: DiscussChannel = fields.Many2one(
         "discuss.channel", index=True, required=True, ondelete="cascade"
     )
     duration_hour = fields.Float(compute="_compute_duration_hour")
     start_dt = fields.Datetime(index=True, required=True)
     end_dt = fields.Datetime()
-    start_call_message_id = fields.Many2one("mail.message", index=True)
+    start_call_message_id: MailMessage = fields.Many2one("mail.message", index=True)
 
     _channel_id_not_null_constraint = models.Constraint(
         "CHECK (channel_id IS NOT NULL)", "Call history must have a channel"
@@ -27,7 +33,7 @@ class DiscussCallHistory(models.Model):
     _channel_id_end_dt_idx = models.Index("(channel_id, end_dt) WHERE end_dt IS NULL")
 
     @api.depends("start_dt", "end_dt")
-    def _compute_duration_hour(self):
+    def _compute_duration_hour(self) -> None:
         for record in self:
             end_dt = record.end_dt or fields.Datetime.now()
             record.duration_hour = (end_dt - record.start_dt).total_seconds() / 3600

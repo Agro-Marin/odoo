@@ -1,18 +1,16 @@
 import ast
+import typing
 
 from odoo.exceptions import ValidationError
 from odoo.tools import is_list_of
 
+if typing.TYPE_CHECKING:
+    from odoo.api import Environment
 
-def parse_res_ids(res_ids, env):
-    """Returns the already valid list/tuple of int or returns the literal eval
-    of the string as a list/tuple of int. Void strings / missing values are
-    returned unchanged.
 
-    :param str|tuple|list res_ids: a list of ids, tuple or list;
-    :raises ValidationError: if res_ids has an incorrect type or invalid format
-    :return: a list/tuple of ids, or the void value received unchanged
-    """
+def parse_res_ids(
+    res_ids: str | list[int] | bool | None, env: Environment
+) -> list[int] | str | bool | None:
     if is_list_of(res_ids, int) or not res_ids:
         return res_ids
     error_msg = env._(

@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from typing import Any
 
 from werkzeug.exceptions import HTTPException
 
@@ -14,28 +15,26 @@ _logger = logging.getLogger(__name__)
 
 
 class WebclientController(ThreadController):
-    """Routes for the web client."""
-
     @http.route("/mail/action", methods=["POST"], type="jsonrpc", auth="public")
     @add_guest_to_context
-    def mail_action(self, fetch_params, context=None):
-        """Execute actions and returns data depending on request parameters.
-        This is similar to /mail/data except this method can have side effects.
-        """
+    def mail_action(
+        self, fetch_params: list[str | list], context: dict | None = None
+    ) -> dict:
         return self._process_request(fetch_params, context=context)
 
     @http.route(
         "/mail/data", methods=["POST"], type="jsonrpc", auth="public", readonly=True
     )
     @add_guest_to_context
-    def mail_data(self, fetch_params, context=None):
-        """Returns data depending on request parameters.
-        This is similar to /mail/action except this method should be read-only.
-        """
+    def mail_data(
+        self, fetch_params: list[str | list], context: dict | None = None
+    ) -> dict:
         return self._process_request(fetch_params, context=context)
 
     @classmethod
-    def _process_request(cls, fetch_params, context):
+    def _process_request(
+        cls, fetch_params: list[str | list], context: dict | None
+    ) -> dict:
         store = Store()
         if context:
             request.update_context(**context)
@@ -43,7 +42,9 @@ class WebclientController(ThreadController):
         return store.get_result()
 
     @classmethod
-    def _process_request_loop(cls, store: Store, fetch_params):
+    def _process_request_loop(
+        cls, store: Store, fetch_params: list[str | list]
+    ) -> None:
         for fetch_param in fetch_params:
             name, params, data_id = (
                 (fetch_param, None, None)
@@ -55,16 +56,7 @@ class WebclientController(ThreadController):
         store.data_id = None
 
     @classmethod
-    def _process_one_request(cls, store: Store, name, params):
-        """Run a single fetch param, isolated from its siblings.
-
-        These routes batch independent requests into one round-trip (the client
-        asks for ``failures``, ``systray_get_activities`` and ``init_messaging``
-        in a single call on every boot), so a crash in a best-effort handler must
-        not discard the whole batch. Deliberate signals still propagate.
-        """
-        # The savepoint reverts database work only: whatever the failed handler
-        # already added to `store` stays, harmless as idempotent upsert data.
+    def _process_one_request(cls, store: Store, name: str, params: Any) -> None:
         try:
             with request.env.cr.savepoint():
                 cls._process_request_for_all(store, name, params)
@@ -73,18 +65,13 @@ class WebclientController(ThreadController):
                 if request.env.user._is_internal():
                     cls._process_request_for_internal_user(store, name, params)
         except HTTPException, AccessError, AccessDenied:
-            # deliberate signals: redirects / 404s and permission decisions.
             raise
         except MissingError:
-            # A record vanished under us. This subclasses UserError but is a
-            # data condition, not a message for the user, so it belongs with
-            # the isolated failures below rather than with the re-raised ones.
             _logger.info(
                 "Discarding fetch param %r: a record it needed no longer exists.",
                 name,
             )
         except UserError:
-            # user-actionable, and already carries the message to show.
             raise
         except Exception:
             _logger.exception(
@@ -94,7 +81,7 @@ class WebclientController(ThreadController):
             )
 
     @classmethod
-    def _process_request_for_all(cls, store: Store, name, params):
+    def _process_request_for_all(cls, store: Store, name: str, params: Any) -> None:
         if name == "init_messaging":
             if not request.env.user._is_public():
                 user = request.env.user.sudo(False)
@@ -107,9 +94,6 @@ class WebclientController(ThreadController):
                 **params.get("access_params", {}),
             )
             if not thread:
-                # thread_model is already validated by _get_thread_with_access
-                # above; coerce the raw client thread_id so the browse + Store
-                # serialization can't surface an InvalidTextRepresentation 500.
                 store.add(
                     request.env[params["thread_model"]].browse(
                         _to_record_id(params["thread_id"])
@@ -121,7 +105,9 @@ class WebclientController(ThreadController):
                 store.add(thread, request_list=params["request_list"], as_thread=True)
 
     @classmethod
-    def _process_request_for_logged_in_user(cls, store: Store, name, params):
+    def _process_request_for_logged_in_user(
+        cls, store: Store, name: str, params: Any
+    ) -> None:
         if name == "failures":
             domain = [
                 ("author_id", "=", request.env.user.partner_id.id),
@@ -130,18 +116,12 @@ class WebclientController(ThreadController):
                 ("mail_message_id.model", "!=", False),
                 ("mail_message_id.res_id", "!=", 0),
             ]
-            # sudo as to not check ACL, which is far too costly
-            # sudo: mail.notification - return only failures of current user as author
             notifications = (
                 request.env["mail.notification"].sudo().search(domain, limit=100)
             )
             found = defaultdict(list)
             for message in notifications.mail_message_id:
                 found[message.model].append(message.res_id)
-            # 'mail.message.model' is a plain Char with no constraint, so it can
-            # name a model that is no longer in the registry: treat that as
-            # "document gone" (the collection below reaps the rows) instead of
-            # dereferencing it into a KeyError that breaks the failure list.
             existing = {
                 model: set(request.env[model].browse(ids).exists().ids)
                 for model, ids in found.items()
@@ -154,17 +134,15 @@ class WebclientController(ThreadController):
                 )
             )
             lost = notifications - valid
-            # Garbage-collect notifications whose document was deleted, but not on
-            # the readonly=True /mail/data cursor where the unlink would raise and
-            # break the response; the next read/write request cleans them up.
             if lost and not request.env.cr.readonly:
-                lost.sudo().unlink()  # no unlink right except admin, ok to remove as lost anyway
+                lost.sudo().unlink()
             valid.mail_message_id._message_notifications_to_store(store)
 
     @classmethod
-    def _process_request_for_internal_user(cls, store: Store, name, params):
+    def _process_request_for_internal_user(
+        cls, store: Store, name: str, params: Any
+    ) -> None:
         if name == "systray_get_activities":
-            # sudo: bus.bus: reading non-sensitive last id
             bus_last_id = request.env["bus.bus"].sudo()._bus_last_id()
             groups = request.env["res.users"]._get_activity_groups()
             store.add_global_values(

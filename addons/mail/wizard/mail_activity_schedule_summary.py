@@ -1,4 +1,10 @@
+import typing
+
 from odoo import fields, models
+
+if typing.TYPE_CHECKING:
+    from .mail_activity_schedule import MailActivitySchedule
+    from odoo.addons.bus.models.res_users import ResUsers
 
 
 class MailActivityScheduleSummary(models.TransientModel):
@@ -7,7 +13,7 @@ class MailActivityScheduleSummary(models.TransientModel):
     _order = "line_date_deadline asc, id asc"
     _rec_name = "activity_schedule_id"
 
-    activity_schedule_id = fields.Many2one(
+    activity_schedule_id: MailActivitySchedule = fields.Many2one(
         "mail.activity.schedule",
         string="Activity Schedule",
         required=True,
@@ -15,4 +21,6 @@ class MailActivityScheduleSummary(models.TransientModel):
     )
     line_description = fields.Char("Line Description")
     line_date_deadline = fields.Date("Date Deadline")
-    responsible_user_id = fields.Many2one("res.users", string="Responsible User")
+    responsible_user_id: ResUsers = fields.Many2one(
+        "res.users", string="Responsible User"
+    )

@@ -1,24 +1,27 @@
+import typing
+
 from odoo import fields, models
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+
+if typing.TYPE_CHECKING:
+    from .mail_message import MailMessage
+    from odoo.addons.bus.models.ir_attachment import IrAttachment
 
 
 class MailThreadMainAttachment(models.AbstractModel):
-    """Mixin that adds main attachment support to the MailThread class."""
-
     _name = "mail.thread.main.attachment"
     _inherit = ["mail.thread"]
     _description = "Mail Main Attachment management"
 
-    message_main_attachment_id = fields.Many2one(
+    message_main_attachment_id: IrAttachment = fields.Many2one(
         string="Main Attachment",
         comodel_name="ir.attachment",
         copy=False,
         index="btree_not_null",
     )
 
-    def _message_post_after_hook(self, message, msg_values):
-        """Set main attachment field if necessary"""
+    def _message_post_after_hook(self, message: MailMessage, msg_values: dict) -> None:
         super()._message_post_after_hook(message, msg_values)
         self.sudo()._message_set_main_attachment_id(
             self.env["ir.attachment"].browse(
@@ -30,18 +33,8 @@ class MailThreadMainAttachment(models.AbstractModel):
         )
 
     def _message_set_main_attachment_id(
-        self, attachments, force=False, filter_xml=True
-    ):
-        """Update 'main' attachment.
-
-        :param recordset attachments: candidate 'ir.attachment' records; if
-          several are given, we search for pdf or image first;
-        :param bool force: if set, replace an existing attachment; otherwise
-          update is skipped;
-        :param bool filter_xml: filters out xml (and octet-stream) attachments,
-          as in most cases you don't want that kind of file to end up as main
-          attachment of records;
-        """
+        self, attachments: IrAttachment, force: bool = False, filter_xml: bool = True
+    ) -> None:
         if attachments and (force or not self.message_main_attachment_id):
             if filter_xml:
                 attachments = attachments.filtered(
@@ -51,7 +44,6 @@ class MailThreadMainAttachment(models.AbstractModel):
                     )
                 )
 
-            # Assign one of the attachments as the main according to the following priority: pdf, image, other types.
             if attachments:
                 self.with_context(
                     tracking_disable=True
@@ -63,7 +55,13 @@ class MailThreadMainAttachment(models.AbstractModel):
                     ),
                 ).id
 
-    def _thread_to_store(self, store: Store, fields, *, request_list=None):
+    def _thread_to_store(
+        self,
+        store: Store,
+        fields: StoreFieldsInput,
+        *,
+        request_list: list[str] | None = None,
+    ) -> None:
         super()._thread_to_store(store, fields, request_list=request_list)
         if request_list and "attachments" in request_list:
             store.add(

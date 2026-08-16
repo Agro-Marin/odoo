@@ -1,7 +1,14 @@
+import typing
+
 from odoo import fields, models
 from odoo.tools import groupby
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
+
+if typing.TYPE_CHECKING:
+    from .discuss.mail_guest import MailGuest
+    from .mail_message import MailMessage
+    from .res_partner import ResPartner
 
 
 class MailMessageReaction(models.Model):
@@ -10,7 +17,7 @@ class MailMessageReaction(models.Model):
     _order = "id desc"
     _log_access = False
 
-    message_id = fields.Many2one(
+    message_id: MailMessage = fields.Many2one(
         string="Message",
         comodel_name="mail.message",
         ondelete="cascade",
@@ -19,13 +26,13 @@ class MailMessageReaction(models.Model):
         index=True,
     )
     content = fields.Char(string="Content", required=True, readonly=True)
-    partner_id = fields.Many2one(
+    partner_id: ResPartner = fields.Many2one(
         string="Reacting Partner",
         comodel_name="res.partner",
         ondelete="cascade",
         readonly=True,
     )
-    guest_id = fields.Many2one(
+    guest_id: MailGuest = fields.Many2one(
         string="Reacting Guest",
         comodel_name="mail.guest",
         ondelete="cascade",
@@ -44,15 +51,9 @@ class MailMessageReaction(models.Model):
         "A message reaction must be from a partner or from a guest.",
     )
 
-    def _to_store(self, store: Store, fields):
+    def _to_store(self, store: Store, fields: list[StoreFieldSpec]) -> None:
         if fields:
             raise NotImplementedError("Fields are not supported for reactions.")
-        # Every reactor in the batch, resolved once, purely to seed the prefetch
-        # of the per-group sets below. ``union()`` returns a recordset whose
-        # prefetch covers only its own group, so serializing a message with N
-        # distinct reactions would read one reactor per group -- N round trips
-        # for what is one set of partners. Prefetching over the whole batch lets
-        # the first group's read cover every later one.
         all_partner_ids = self.partner_id._ids
         all_guest_ids = self.guest_id._ids
         for (message, content), reactions in groupby(

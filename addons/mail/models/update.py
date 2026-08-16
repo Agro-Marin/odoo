@@ -19,7 +19,7 @@ class Publisher_WarrantyContract(AbstractModel):
     _description = "Publisher Warranty Contract"
 
     @api.model
-    def _get_message(self):
+    def _get_message(self) -> dict:
         Users = self.env["res.users"]
         IrParamSudo = self.env["ir.config_parameter"].sudo()
 
@@ -73,8 +73,7 @@ class Publisher_WarrantyContract(AbstractModel):
         return msg
 
     @api.model
-    def _get_sys_logs(self):
-        """Utility method to send a publisher warranty get logs messages."""
+    def _get_sys_logs(self) -> dict:
         msg = self._get_message()
         arguments = {"arg0": str(msg), "action": "update"}
 
@@ -84,24 +83,17 @@ class Publisher_WarrantyContract(AbstractModel):
         r.raise_for_status()
         return literal_eval(r.text)
 
-    def update_notification(self, cron_mode=True):
-        """Send a message to Odoo's publisher warranty server to check the
-        validity of the contracts, get notifications, etc...
-
-        :param bool cron_mode: if true, catch all exceptions (appropriate for
-            usage in a cron)
-        """
+    def update_notification(self, cron_mode: bool = True) -> bool:
         try:
             try:
                 result = self._get_sys_logs()
             except Exception:
-                if cron_mode:  # we don't want to see any stack trace in cron
+                if cron_mode:
                     return False
                 _logger.debug("Exception while sending a get logs messages", exc_info=1)
                 raise UserError(
                     _("Error during communication with the publisher warranty server.")
                 ) from None
-            # notifications are posted as mail.message, hence best-effort below
             user = self.env["res.users"].sudo().browse(SUPERUSER_ID)
             poster = self.sudo().env.ref("mail.channel_all_employees")
             for message in result["messages"]:
@@ -144,7 +136,7 @@ class Publisher_WarrantyContract(AbstractModel):
 
         except Exception:
             if cron_mode:
-                return False  # we don't want to see any stack trace in cron
+                return False
             else:
                 raise
         return True

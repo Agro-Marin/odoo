@@ -1,13 +1,19 @@
+import typing
+from typing import Literal
+
 from odoo import _, fields, models
+
+if typing.TYPE_CHECKING:
+    from ..models.mail_template import MailTemplate
 
 
 class MailTemplateReset(models.TransientModel):
     _name = "mail.template.reset"
     _description = "Mail Template Reset"
 
-    template_ids = fields.Many2many("mail.template")
+    template_ids: MailTemplate = fields.Many2many("mail.template")
 
-    def reset_template(self):
+    def reset_template(self) -> dict | Literal[False]:
         if not self.template_ids:
             return False
         self.template_ids.reset_template()

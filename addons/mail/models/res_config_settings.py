@@ -1,13 +1,14 @@
 import datetime
+import typing
 
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 
+if typing.TYPE_CHECKING:
+    from .mail_alias_domain import MailAliasDomain
+
 
 class ResConfigSettings(models.TransientModel):
-    """Inherit the base settings to add a counter of failed email + configure
-    the alias domain."""
-
     _inherit = "res.config.settings"
 
     external_email_server_default = fields.Boolean(
@@ -15,7 +16,7 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="base_setup.default_external_email_server",
     )
     fail_counter = fields.Integer("Fail Mail", compute="_compute_fail_counter")
-    alias_domain_id = fields.Many2one(
+    alias_domain_id: MailAliasDomain = fields.Many2one(
         "mail.alias.domain",
         "Alias Domain",
         readonly=False,
@@ -75,7 +76,7 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="mail.google_translate_api_key",
     )
 
-    def _compute_fail_counter(self):
+    def _compute_fail_counter(self) -> None:
         previous_date = fields.Datetime.now() - datetime.timedelta(days=30)
 
         self.fail_counter = (
@@ -89,7 +90,7 @@ class ResConfigSettings(models.TransientModel):
             )
         )
 
-    def open_email_layout(self):
+    def open_email_layout(self) -> dict:
         layout = self.env.ref("mail.mail_notification_layout", raise_if_not_found=False)
         if not layout:
             raise UserError(_("This layout seems to no longer exist."))
@@ -101,7 +102,7 @@ class ResConfigSettings(models.TransientModel):
             "res_model": "ir.ui.view",
         }
 
-    def open_mail_templates(self):
+    def open_mail_templates(self) -> dict:
         return self.env["ir.actions.actions"]._for_xml_id(
             "mail.action_email_template_tree_all"
         )

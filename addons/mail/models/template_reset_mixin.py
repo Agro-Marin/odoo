@@ -1,8 +1,10 @@
 import json
+from typing import Self
 
 from lxml import etree
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.modules.module import get_resource_from_path
 from odoo.tools.convert import xml_import
@@ -21,34 +23,28 @@ class TemplateResetMixin(models.AbstractModel):
     )
 
     @api.model_create_multi
-    def create(self, vals_list):
+    def create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
             if "template_fs" not in vals and "install_filename" in self.env.context:
-                # we store the relative path to the resource instead of the absolute path, if found
-                # (it will be missing e.g. when importing data-only modules using base_import_module)
                 path_info = get_resource_from_path(self.env.context["install_filename"])
                 if path_info:
                     vals["template_fs"] = "/".join(path_info[0:2])
         return super().create(vals_list)
 
-    def _load_records_write(self, values):
-        # OVERRIDE to make the fields blank that are not present in xml record
+    def _load_records_write(self, values: dict) -> None:
         if self.env.context.get("reset_template"):
-            # We don't want to change anything for magic columns, values present in XML record, and 'template_fs'
             fields_in_xml_record = values.keys()
             fields_not_to_touch = (
                 set(models.MAGIC_COLUMNS) | fields_in_xml_record | {"template_fs"}
             )
             fields_to_empty = self._fields.keys() - fields_not_to_touch
-            # For the fields not defined in xml record, if they have default values, we should not
-            # enforce empty values for them and the default values should be kept
             field_defaults = self.default_get(list(fields_to_empty))
             values.update(field_defaults)
-            fields_to_empty = fields_to_empty - set(field_defaults.keys())
+            fields_to_empty -= set(field_defaults.keys())
             values.update(dict.fromkeys(fields_to_empty, False))
         return super()._load_records_write(values)
 
-    def _override_translation_term(self, module_name, xml_ids):
+    def _override_translation_term(self, module_name: str, xml_ids: list[str]) -> None:
         translation_importer = TranslationImporter(self.env.cr)
 
         for lang, _name in self.env["res.lang"].get_installed():
@@ -57,10 +53,7 @@ class TemplateResetMixin(models.AbstractModel):
 
         translation_importer.save(overwrite=True, force_overwrite=True)
 
-    def reset_template(self):
-        """Reset the template with the values of its source file, and reimport
-        the translation terms of every installed language from the module '.po'
-        files. Templates overridden in another module are not handled."""
+    def reset_template(self) -> None:
         expr = "//*[local-name() = $tag and (@id = $xml_id or @id = $external_id)]"
         templates_with_missing_source = []
         lang_false = {
@@ -80,8 +73,6 @@ class TemplateResetMixin(models.AbstractModel):
                 for rec in doc.xpath(
                     expr, tag="record", xml_id=xml_id, external_id=external_id
                 ):
-                    # We don't have a way to pass context while loading record from a file, so we use this hack
-                    # to pass the context key that is needed to reset the fields not available in data file
                     rec.set("context", json.dumps({"reset_template": "True"}))
                     obj = xml_import(
                         template.env, module, {}, mode="init", xml_filename=fullpath

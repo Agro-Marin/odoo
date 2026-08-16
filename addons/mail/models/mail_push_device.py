@@ -1,15 +1,16 @@
 import json
 import logging as logger
+import typing
 
 from odoo import api, fields, models
 
 from ..tools.jwt import InvalidVapidError, generate_vapid_keys
 
+if typing.TYPE_CHECKING:
+    from .res_partner import ResPartner
+
 _logger = logger.getLogger(__name__)
 
-# Upper bound on stored push subscriptions per partner: register_devices is gated
-# only by the (non-secret) VAPID public key, so an authenticated caller could
-# otherwise register unbounded endpoints for the web-push cron to POST to.
 MAX_DEVICES_PER_PARTNER = 20
 
 
@@ -17,7 +18,7 @@ class MailPushDevice(models.Model):
     _name = "mail.push.device"
     _description = "Push Notification Device"
 
-    partner_id = fields.Many2one(
+    partner_id: ResPartner = fields.Many2one(
         "res.partner",
         string="Partner",
         index=True,
@@ -43,12 +44,12 @@ class MailPushDevice(models.Model):
     )
 
     @api.model
-    def get_web_push_vapid_public_key(self):
+    def get_web_push_vapid_public_key(self) -> str:
         ir_params_sudo = self.env["ir.config_parameter"].sudo()
         public_key = "mail.web_push_vapid_public_key"
         public_key_value = ir_params_sudo.get_param(public_key)
         if not public_key_value:
-            self.sudo().search([]).unlink()  # Reset all devices (ServiceWorker)
+            self.sudo().search([]).unlink()
             private_key_value, public_key_value = generate_vapid_keys()
             ir_params_sudo.set_param(
                 "mail.web_push_vapid_private_key", private_key_value
@@ -58,7 +59,7 @@ class MailPushDevice(models.Model):
         return public_key_value
 
     @api.model
-    def register_devices(self, **kw):
+    def register_devices(self, **kw) -> None:
         sw_vapid_public_key = kw.get("vapid_public_key")
         valid_sub = self._verify_vapid_public_key(sw_vapid_public_key)
         if not valid_sub:
@@ -67,24 +68,14 @@ class MailPushDevice(models.Model):
         browser_keys = kw.get("keys")
         if not endpoint or not browser_keys:
             return
-        # Accept both spellings of the previous-endpoint hint: the web client
-        # sends snake_case (previous_endpoint) while the service worker's
-        # pushsubscriptionchange handler sends camelCase (previousEndpoint).
         search_endpoint = (
             kw.get("previousEndpoint") or kw.get("previous_endpoint") or endpoint
         )
-        # @api.model + sudo() bypasses the group_system ACL, so ownership is
-        # enforced here: only the caller's own rows are touched, else knowing
-        # another user's endpoint would hijack or overwrite their device.
         partner = self.env.user.partner_id
         mail_push_device = self.sudo().search(
             [("endpoint", "=", search_endpoint), ("partner_id", "=", partner.id)]
         )
         if mail_push_device:
-            # Endpoint-rotation path: always refresh, else the row keeps pointing
-            # at a dead endpoint and web push silently stops. The new endpoint may
-            # already sit on another row (same browser, other login), and endpoint
-            # is globally unique, so drop that superseded row first.
             conflicting = self.sudo().search(
                 [("endpoint", "=", endpoint), ("id", "!=", mail_push_device.id)]
             )
@@ -98,8 +89,6 @@ class MailPushDevice(models.Model):
                 }
             )
         elif not self.sudo().search_count([("endpoint", "=", endpoint)], limit=1):
-            # Do not create when the endpoint already belongs to someone else:
-            # skip silently rather than raise on _endpoint_unique or steal it.
             self.sudo().create(
                 [
                     {
@@ -110,8 +99,6 @@ class MailPushDevice(models.Model):
                     }
                 ]
             )
-            # Keep only this partner's MAX_DEVICES_PER_PARTNER most recent
-            # subscriptions so repeated registrations cannot grow the table.
             devices = self.sudo().search(
                 [("partner_id", "=", partner.id)], order="id desc"
             )
@@ -119,12 +106,10 @@ class MailPushDevice(models.Model):
                 devices[MAX_DEVICES_PER_PARTNER:].unlink()
 
     @api.model
-    def unregister_devices(self, **kw):
+    def unregister_devices(self, **kw) -> None:
         endpoint = kw.get("endpoint")
         if not endpoint:
             return
-        # Scope to the caller's own device so a leaked endpoint cannot be used
-        # to unregister (deny notifications to) another user's subscription.
         mail_push_device = self.sudo().search(
             [
                 ("endpoint", "=", endpoint),
@@ -134,7 +119,7 @@ class MailPushDevice(models.Model):
         if mail_push_device:
             mail_push_device.unlink()
 
-    def _verify_vapid_public_key(self, sw_public_key):
+    def _verify_vapid_public_key(self, sw_public_key: str) -> bool:
         ir_params_sudo = self.env["ir.config_parameter"].sudo()
         db_public_key = ir_params_sudo.get_param("mail.web_push_vapid_public_key")
         return db_public_key == sw_public_key

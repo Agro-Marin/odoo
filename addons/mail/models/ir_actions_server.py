@@ -1,19 +1,28 @@
+import typing
+from typing import Self
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 
+if typing.TYPE_CHECKING:
+    from .mail_activity_type import MailActivityType
+    from .mail_template import MailTemplate
+    from .res_partner import ResPartner
+    from odoo.addons.base.models.ir_model import IrModel
+    from odoo.addons.base.models.ir_model_fields import IrModelFields
+    from odoo.addons.bus.models.res_users import ResUsers
+
 
 class IrActionsServer(models.Model):
-    """Add mail.thread related options in server actions."""
-
     _name = "ir.actions.server"
     _description = "Server Action"
     _inherit = ["ir.actions.server", "mail.thread", "mail.activity.mixin"]
 
     name = fields.Char(tracking=True)
-    model_id = fields.Many2one(tracking=True)
-    crud_model_id = fields.Many2one(tracking=True)
-    link_field_id = fields.Many2one(tracking=True)
+    model_id: IrModel = fields.Many2one(tracking=True)
+    crud_model_id: IrModel = fields.Many2one(tracking=True)
+    link_field_id: IrModelFields = fields.Many2one(tracking=True)
     update_path = fields.Char(tracking=True)
     value = fields.Text(tracking=True)
     evaluation_type = fields.Selection(tracking=True)
@@ -55,11 +64,11 @@ class IrActionsServer(models.Model):
         readonly=False,
         store=True,
     )
-    partner_ids = fields.Many2many(
+    partner_ids: ResPartner = fields.Many2many(
         "res.partner", compute="_compute_followers_info", readonly=False, store=True
     )
 
-    template_id = fields.Many2one(
+    template_id: MailTemplate = fields.Many2one(
         "mail.template",
         "Email Template",
         domain="[('model_id', '=', model_id)]",
@@ -82,7 +91,7 @@ class IrActionsServer(models.Model):
         store=True,
     )
 
-    activity_type_id = fields.Many2one(
+    activity_type_id: MailActivityType = fields.Many2one(
         "mail.activity.type",
         string="Activity Type",
         domain="['|', ('res_model', '=', False), ('res_model', '=', model_name)]",
@@ -118,7 +127,7 @@ class IrActionsServer(models.Model):
         store=True,
         help="Use 'Specific User' to always assign the same user on the next activity. Use 'Dynamic User' to specify the field name of the user to choose on the record.",
     )
-    activity_user_id = fields.Many2one(
+    activity_user_id: ResUsers = fields.Many2one(
         "res.users",
         string="Responsible",
         compute="_compute_activity_user_info",
@@ -129,10 +138,10 @@ class IrActionsServer(models.Model):
         "User Field", compute="_compute_activity_user_info", readonly=False, store=True
     )
 
-    def _name_depends(self):
+    def _name_depends(self) -> list:
         return [*super()._name_depends(), "template_id", "activity_type_id"]
 
-    def _generate_action_name(self):
+    def _generate_action_name(self) -> str:
         self.ensure_one()
         if self.state == "mail_post" and self.template_id:
             return _("Send %(template_name)s", template_name=self.template_id.name)
@@ -143,7 +152,7 @@ class IrActionsServer(models.Model):
         return super()._generate_action_name()
 
     @api.depends("state")
-    def _compute_available_model_ids(self):
+    def _compute_available_model_ids(self) -> None:
         mail_thread_based = self.filtered(
             lambda action: (
                 action.state
@@ -159,7 +168,7 @@ class IrActionsServer(models.Model):
         super(IrActionsServer, self - mail_thread_based)._compute_available_model_ids()
 
     @api.depends("model_id", "state")
-    def _compute_template_id(self):
+    def _compute_template_id(self) -> None:
         to_reset = self.filtered(
             lambda act: (
                 act.state != "mail_post" or (act.model_id != act.template_id.model_id)
@@ -169,7 +178,7 @@ class IrActionsServer(models.Model):
             to_reset.template_id = False
 
     @api.depends("state", "mail_post_method")
-    def _compute_mail_post_autofollow(self):
+    def _compute_mail_post_autofollow(self) -> None:
         to_reset = self.filtered(
             lambda act: act.state != "mail_post" or act.mail_post_method == "email"
         )
@@ -180,7 +189,7 @@ class IrActionsServer(models.Model):
             other.mail_post_autofollow = True
 
     @api.depends("state")
-    def _compute_mail_post_method(self):
+    def _compute_mail_post_method(self) -> None:
         to_reset = self.filtered(lambda act: act.state != "mail_post")
         if to_reset:
             to_reset.mail_post_method = False
@@ -189,7 +198,7 @@ class IrActionsServer(models.Model):
             other.mail_post_method = "comment"
 
     @api.depends("model_id", "state")
-    def _compute_followers_type(self):
+    def _compute_followers_type(self) -> None:
         to_reset = self.filtered(
             lambda act: (
                 not act.model_id or act.state not in ["followers", "remove_followers"]
@@ -200,7 +209,7 @@ class IrActionsServer(models.Model):
         to_default.followers_type = "specific"
 
     @api.depends("followers_type")
-    def _compute_followers_info(self):
+    def _compute_followers_info(self) -> None:
         for action in self:
             if action.followers_type == "specific":
                 action.followers_partner_field_name = False
@@ -222,7 +231,7 @@ class IrActionsServer(models.Model):
                 action.followers_partner_field_name = False
 
     @api.depends("model_id", "state")
-    def _compute_activity_info(self):
+    def _compute_activity_info(self) -> None:
         to_reset = self.filtered(
             lambda act: not act.model_id or act.state != "next_activity"
         )
@@ -247,7 +256,7 @@ class IrActionsServer(models.Model):
                 action.activity_user_type = "specific"
 
     @api.depends("model_id", "activity_user_type")
-    def _compute_activity_user_info(self):
+    def _compute_activity_user_info(self) -> None:
         to_compute = self.filtered("activity_user_type")
         (self - to_compute).activity_user_id = False
         (self - to_compute).activity_user_field_name = False
@@ -267,7 +276,7 @@ class IrActionsServer(models.Model):
                 ).name
 
     @api.model
-    def _warning_depends(self):
+    def _warning_depends(self) -> list[str]:
         return super()._warning_depends() + [
             "activity_date_deadline_range",
             "model_id",
@@ -279,7 +288,7 @@ class IrActionsServer(models.Model):
             "activity_user_field_name",
         ]
 
-    def _get_warning_messages(self):
+    def _get_warning_messages(self) -> list:
         warnings = super()._get_warning_messages()
 
         if self.activity_date_deadline_range < 0:
@@ -349,7 +358,7 @@ class IrActionsServer(models.Model):
 
         return warnings
 
-    def _run_action_followers_multi(self, eval_context=None):
+    def _run_action_followers_multi(self, eval_context: dict | None = None) -> bool:
         Model = self.env[self.model_name]
         if hasattr(Model, "message_subscribe"):
             records = Model.browse(
@@ -363,7 +372,9 @@ class IrActionsServer(models.Model):
             records.message_subscribe(partner_ids=partner_ids.ids)
         return False
 
-    def _run_action_remove_followers_multi(self, eval_context=None):
+    def _run_action_remove_followers_multi(
+        self, eval_context: dict | None = None
+    ) -> bool:
         Model = self.env[self.model_name]
         if hasattr(Model, "message_unsubscribe"):
             records = Model.browse(
@@ -377,15 +388,7 @@ class IrActionsServer(models.Model):
             records.message_unsubscribe(partner_ids=partner_ids.ids)
         return False
 
-    def _is_recompute(self):
-        """Whether the current write is an extraneous one triggered by a recompute,
-        in which case the action must not run again.
-
-        Fields present in the 'domain_post' context key are ignored: a computed
-        field meant to trigger the action does not count.
-
-        :rtype: bool
-        """
+    def _is_recompute(self) -> bool:
         records = self.env[self.model_name].browse(
             self.env.context.get("active_ids", self.env.context.get("active_id"))
         )
@@ -405,15 +408,11 @@ class IrActionsServer(models.Model):
             ]
             if fields_to_check:
                 field = records._fields[fields_to_check[0]]
-                # Pick an arbitrary field; if it is marked to be recomputed,
-                # it means we are in an extraneous write triggered by the recompute.
-                # In this case, the calling action must not run again.
                 if records & self.env.records_to_compute(field):
                     return True
         return False
 
-    def _run_action_mail_post_multi(self, eval_context=None):
-        # CLEANME: when going to new api with server action, remove action
+    def _run_action_mail_post_multi(self, eval_context: dict | None = None) -> bool:
         if (
             not self.template_id
             or (
@@ -427,14 +426,10 @@ class IrActionsServer(models.Model):
             "active_ids", [self.env.context.get("active_id")]
         )
 
-        # Clean default_type / default_parent_id from the context to avoid making
-        # attachments with wrong values in subsequent operations
         cleaned_ctx = dict(self.env.context)
         cleaned_ctx.pop("default_type", None)
         cleaned_ctx.pop("default_parent_id", None)
-        cleaned_ctx["mail_post_autofollow_author_skip"] = (
-            True  # do not subscribe random people to records
-        )
+        cleaned_ctx["mail_post_autofollow_author_skip"] = True
         cleaned_ctx["mail_post_autofollow"] = self.mail_post_autofollow
 
         if self.mail_post_method in ("comment", "note"):
@@ -461,7 +456,7 @@ class IrActionsServer(models.Model):
                 template.send_mail(res_id, force_send=False, raise_exception=False)
         return False
 
-    def _run_action_next_activity(self, eval_context=None):
+    def _run_action_next_activity(self, eval_context: dict | None = None) -> bool:
         if (
             not self.activity_type_id
             or not self.env.context.get("active_id")
@@ -491,23 +486,14 @@ class IrActionsServer(models.Model):
                 user = self.activity_user_id
             elif self.activity_user_type == "generic" and self.activity_user_field_name:
                 user = record.mapped(self.activity_user_field_name)
-            # Per-record copy: a stale user_id must not leak from one record to
-            # the next when the "generic" user field resolves empty for some
-            # records (they should fall back to activity_schedule's default).
             record_vals = dict(vals)
             if user:
-                # if x2m field, assign to the first user found
-                # (same behavior as Field.traverse_related)
                 record_vals["user_id"] = user.ids[0]
             record.activity_schedule(**record_vals)
         return False
 
     @api.model
-    def _get_eval_context(self, action=None):
-        """Add 'mail_notify_force_send' set to False to the evaluation context,
-        which is also the context of all subsequent calls: notification emails
-        linked to the executed action are queued instead of sent directly, avoiding
-        possible breaks in transactions."""
+    def _get_eval_context(self, action: Self | None = None) -> dict:
         return super(
             IrActionsServer, self.with_context(mail_notify_force_send=False)
         )._get_eval_context(action=action)

@@ -1,3 +1,4 @@
+import typing
 from datetime import timedelta
 
 import babel
@@ -6,20 +7,15 @@ import requests
 from odoo import fields
 from odoo.http import Controller, request, route
 
-# Per-user cap on the number of NEW translations (each = a paid Google API
-# round-trip) created within a rolling 24h window. 0 disables the cap.
+if typing.TYPE_CHECKING:
+    from odoo.addons.mail.models.mail_message import MailMessage
+
 TRANSLATION_DAILY_LIMIT_PARAM = "mail.translation.daily_limit"
 TRANSLATION_DAILY_LIMIT_DEFAULT = 1000
 
 
 class GoogleTranslateController(Controller):
-    def _translation_rate_limited(self):
-        """Whether the current user has hit the daily new-translation cap.
-
-        Cached translations are free (served without an external call), so only
-        creations count. Bounds a caller from iterating distinct message ids to
-        burn Google Translate quota/billing.
-        """
+    def _translation_rate_limited(self) -> bool:
         cap = request.env["ir.config_parameter"]._get_int_param(
             TRANSLATION_DAILY_LIMIT_PARAM, TRANSLATION_DAILY_LIMIT_DEFAULT
         )
@@ -36,7 +32,7 @@ class GoogleTranslateController(Controller):
         return count >= cap
 
     @route("/mail/message/translate", type="jsonrpc", auth="user")
-    def translate(self, message_id):
+    def translate(self, message_id: int) -> dict:
         message = request.env["mail.message"].search([("id", "=", message_id)])
         if not message:
             raise request.not_found()
@@ -44,7 +40,6 @@ class GoogleTranslateController(Controller):
             ("message_id", "=", message.id),
             ("target_lang", "=", request.env.user.lang.split("_")[0]),
         ]
-        # sudo: mail.message.translation - searching translations of a message that can be read with standard ACL
         translation = request.env["mail.message.translation"].sudo().search(domain)
         if not translation:
             if self._translation_rate_limited():
@@ -64,7 +59,6 @@ class GoogleTranslateController(Controller):
                     "source_lang": source_lang,
                     "target_lang": target_lang,
                 }
-                # sudo: mail.message.translation - create translation of a message that can be read with standard ACL
                 translation = (
                     request.env["mail.message.translation"].sudo().create(vals)
                 )
@@ -81,8 +75,7 @@ class GoogleTranslateController(Controller):
             "lang_name": lang_name,
         }
 
-    def _detect_source_lang(self, message):
-        # sudo: mail.message.translation - searching translations of a message that can be read with standard ACL
+    def _detect_source_lang(self, message: MailMessage) -> str:
         translation = (
             request.env["mail.message.translation"]
             .sudo()
@@ -93,14 +86,13 @@ class GoogleTranslateController(Controller):
         response = self._post(endpoint="detect", data={"q": str(message.body)})
         return response.json()["data"]["detections"][0][0]["language"]
 
-    def _get_translation(self, body, source_lang, target_lang):
+    def _get_translation(self, body: str, source_lang: str, target_lang: str) -> str:
         response = self._post(
             data={"q": body, "target": target_lang, "source": source_lang}
         )
         return response.json()["data"]["translations"][0]["translatedText"]
 
-    def _post(self, endpoint="", data=None):
-        # sudo: ir.config_parameter - reading google translate api key, using it to make the request
+    def _post(self, endpoint: str = "", data: dict | None = None) -> requests.Response:
         api_key = (
             request.env["ir.config_parameter"]
             .sudo()

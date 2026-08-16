@@ -1,6 +1,13 @@
+import typing
+
 from odoo import fields, models
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+
+if typing.TYPE_CHECKING:
+    from .mail_link_preview import MailLinkPreview
+    from .mail_message import MailMessage
+    from .res_partner import ResPartner
 
 
 class MessageMailLinkPreview(models.Model):
@@ -9,43 +16,40 @@ class MessageMailLinkPreview(models.Model):
     _description = "Link between link previews and messages"
     _order = "sequence, id"
 
-    message_id = fields.Many2one(
+    message_id: MailMessage = fields.Many2one(
         "mail.message", required=True, index=True, ondelete="cascade"
     )
-    link_preview_id = fields.Many2one(
+    link_preview_id: MailLinkPreview = fields.Many2one(
         "mail.link.preview", index=True, required=True, ondelete="cascade"
     )
     sequence = fields.Integer("Sequence")
     is_hidden = fields.Boolean()
-    author_id = fields.Many2one(related="message_id.author_id")
+    author_id: ResPartner = fields.Many2one(related="message_id.author_id")
 
     _unique_message_link_preview = models.UniqueIndex("(message_id, link_preview_id)")
 
-    def _bus_channel(self):
+    def _bus_channel(self) -> models.Model:
         return self.message_id._bus_channel()
 
-    def _hide_and_notify(self):
+    def _hide_and_notify(self) -> None:
         if not self:
             return
         self.is_hidden = True
         for message_link_preview in self:
-            # per-record channel: _bus_channel() delegates to message_id, which
-            # ensure_one()s, so `self` spanning two messages must not compute it.
             Store(bus_channel=message_link_preview._bus_channel()).delete(
                 message_link_preview
             ).bus_send()
 
-    def _unlink_and_notify(self):
+    def _unlink_and_notify(self) -> None:
         if not self:
             return
         for message_link_preview in self:
-            # per-record channel, see _hide_and_notify.
             Store(bus_channel=message_link_preview._bus_channel()).delete(
                 message_link_preview
             ).bus_send()
         self.unlink()
 
-    def _to_store_defaults(self, target):
+    def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return [
             Store.One("link_preview_id", sudo=True),
             Store.One("message_id", [], sudo=True),

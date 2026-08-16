@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from dateutil.relativedelta import relativedelta
 
@@ -10,13 +11,7 @@ from odoo.addons.mail.controllers.thread import _to_record_id
 
 class DiscussSettingsController(Controller):
     @route("/discuss/settings/mute", methods=["POST"], type="jsonrpc", auth="user")
-    def discuss_mute(self, minutes, channel_id):
-        """Mute notifications for the given number of minutes.
-        :param minutes: (integer) number of minutes to mute notifications, -1 means mute until the user unmutes
-        :param channel_id: (integer) id of the discuss.channel record
-        """
-        # search (not browse): browse is truthy for any int, so a non-existent or
-        # inaccessible id would slip past the guard and 500 in member creation.
+    def discuss_mute(self, minutes: int, channel_id: int) -> None:
         channel = request.env["discuss.channel"].search(
             [("id", "=", _to_record_id(channel_id))]
         )
@@ -41,14 +36,11 @@ class DiscussSettingsController(Controller):
         type="jsonrpc",
         auth="user",
     )
-    def discuss_custom_notifications(self, custom_notifications, channel_id=None):
-        """Set custom notifications for the given channel or general user settings.
-        :param custom_notifications: (false|all|mentions|no_notif) custom notifications to set
-        :param channel_id: (integer) id of the discuss.channel record, if not set, set for res.users.settings
-        """
-        # Validate against the Selection values before writing: an arbitrary
-        # string would otherwise raise ValueError deep in the ORM write -> 500.
-        # The per-member field allows "mentions"; the user-settings one does not.
+    def discuss_custom_notifications(
+        self,
+        custom_notifications: str | Literal[False],
+        channel_id: int | None = None,
+    ) -> None:
         allowed = (
             {False, "all", "mentions", "no_notif"}
             if channel_id

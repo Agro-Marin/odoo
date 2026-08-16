@@ -1,19 +1,5 @@
 #!/usr/bin/env python3
-#
-# odoo-mailgate
-#
-# This program will read an email from stdin and forward it to odoo. Configure
-# a pipe alias in your mail server to use it, postfix uses a syntax that looks
-# like:
-#
-# email@address: "|/home/odoo/src/odoo-mail.py"
-#
-# while exim uses a syntax that looks like:
-#
-# *: |/home/odoo/src/odoo-mail.py
 
-# Dev Note exit codes should comply with https://www.unix.com/man-page/freebsd/3/sysexits/
-# see http://www.postfix.org/aliases.5.html, output may end up in bounce mails
 EX_USAGE = 64
 EX_NOUSER = 67
 EX_NOHOST = 68
@@ -31,32 +17,35 @@ try:
     import traceback
     import xmlrpc.client as xmlrpclib
     from optparse import OptionParser as _OptionParser  # noqa: TID251
+    from typing import NoReturn
 except ImportError as e:
     sys.stderr.write("%s\n" % e)
     sys.exit(EX_SOFTWARE)
 
 
 class OptionParser(_OptionParser):
-    def exit(self, status=0, msg=None):
+    def exit(self, status: int = 0, msg: str | None = None) -> NoReturn:
         if msg:
             sys.stderr.write(msg)
         sys.stderr.write(" optparse status: %s\n" % status)
         sys.exit(EX_USAGE)
 
 
-def postfix_exit(exit_code=EX_SOFTWARE, message=None, debug=False):
+def postfix_exit(
+    exit_code: int = EX_SOFTWARE, message: str | None = None, debug: bool = False
+) -> NoReturn:
     try:
         if debug:
             traceback.print_exc(None, sys.stderr)
         if message:
             sys.stderr.write(message)
     except Exception:  # noqa: S110
-        pass  # error handling failed, exit silently
+        pass
     finally:
         sys.exit(exit_code)
 
 
-def main():
+def main() -> None:
     op = OptionParser(usage="usage: %prog [options]", version="%prog v1.3")
     op.add_option(
         "-d",
@@ -165,7 +154,4 @@ try:
     if __name__ == "__main__":
         main()
 except Exception:
-    # Handle all unhandled exceptions to prevent postfix from sending
-    # a bounce mail that includes the invoked command with args which
-    # may include the password for the odoo user.
     postfix_exit(EX_SOFTWARE, "", True)

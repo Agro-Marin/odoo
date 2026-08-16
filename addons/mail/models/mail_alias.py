@@ -1,28 +1,28 @@
 import ast
 import contextlib
 import re
+import typing
 from collections import defaultdict
+from email.message import EmailMessage
+from typing import Literal, Self
 
 from markupsafe import Markup
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import is_html_empty, remove_accents
 
-# see rfc5322 section 3.2.3
+if typing.TYPE_CHECKING:
+    from .mail_alias_domain import MailAliasDomain
+    from odoo.addons.base.models.ir_model import IrModel
+
 atext = r"[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]"
 dot_atom_text = re.compile(r"^%s+(\.%s+)*$" % (atext, atext))
 
 
 class MailAlias(models.Model):
-    """Mapping of an email address with an Odoo document model, used by the mail
-    gateway on incoming emails: a message whose recipients match an alias is
-    attached to the record it replies to, otherwise a new record of the aliased
-    model is created. Meant to be used with a catch-all configuration on the
-    company's mail server, so a new alias is immediately usable.
-    """
-
     _name = "mail.alias"
     _description = "Email Aliases"
     _order = "alias_model_id, alias_name"
@@ -40,14 +40,14 @@ class MailAlias(models.Model):
         store=True,
         index="btree_not_null",
     )
-    alias_domain_id = fields.Many2one(
+    alias_domain_id: MailAliasDomain = fields.Many2one(
         "mail.alias.domain",
         string="Alias Domain",
         ondelete="restrict",
         default=lambda self: self.env.company.alias_domain_id,
     )
     alias_domain = fields.Char("Alias domain name", related="alias_domain_id.name")
-    alias_model_id = fields.Many2one(
+    alias_model_id: IrModel = fields.Many2one(
         "ir.model",
         "Aliased Model",
         required=True,
@@ -56,9 +56,7 @@ class MailAlias(models.Model):
         "corresponds. Any incoming email that does not reply to an "
         "existing record will cause the creation of a new record "
         "of this model (e.g. a Project Task)",
-        # hack to only allow selecting mail_thread models (we might
-        # have a few false positives, though)
-        domain="[('field_id.name', '=', 'message_ids')]",
+        domain="[('field_id.name', '=', 'message_ids'), ('abstract', '=', False), ('transient', '=', False)]",
     )
     alias_defaults = fields.Text(
         "Default Values",
@@ -72,7 +70,7 @@ class MailAlias(models.Model):
         help="Optional ID of a thread (record) to which all incoming messages will be attached, even "
         "if they did not reply to it. If set, this will disable the creation of new records completely.",
     )
-    alias_parent_model_id = fields.Many2one(
+    alias_parent_model_id: IrModel = fields.Many2one(
         "ir.model",
         "Parent Model",
         help="Parent model holding the alias. The model holding the alias reference "
@@ -127,14 +125,8 @@ class MailAlias(models.Model):
         "alias_parent_thread_id",
         "alias_model_id",
     )
-    def _check_alias_domain_id_mc(self):
-        """Check for invalid alias domains based on company configuration.
-        When having a parent record and/or updating an existing record alias
-        domain should match the one used on the related record."""
-
-        # in sudo, to be able to read alias_parent_model_id (ir.model)
+    def _check_alias_domain_id_mc(self) -> None:
         tocheck = self.sudo().filtered(lambda alias: alias.alias_domain_id.company_ids)
-        # transient check, mainly for tests / install
         tocheck = tocheck.filtered(
             lambda alias: (
                 (
@@ -150,34 +142,32 @@ class MailAlias(models.Model):
         if not tocheck:
             return
 
-        def _owner_model(alias):
+        def _owner_model(alias: MailAlias) -> str:
             return alias.alias_parent_model_id.model
 
-        def _owner_env(alias):
+        def _owner_env(alias: MailAlias) -> models.Model:
             return self.env[_owner_model(alias)]
 
-        def _target_model(alias):
+        def _target_model(alias: MailAlias) -> str:
             return alias.alias_model_id.model
 
-        def _target_env(alias):
+        def _target_env(alias: MailAlias) -> models.Model:
             return self.env[_target_model(alias)]
 
         recs_by_model = defaultdict(list)
         for alias in tocheck:
-            # owner record (like 'project.project' for aliases creating new 'project.task')
             if alias.alias_parent_model_id and alias.alias_parent_thread_id:
                 if _owner_env(alias)._mail_get_company_field():
                     recs_by_model[_owner_model(alias)].append(
                         alias.alias_parent_thread_id
                     )
-            # target record (like 'mail.group' updating a given group)
             if alias.alias_model_id and alias.alias_force_thread_id:
                 if _target_env(alias)._mail_get_company_field():
                     recs_by_model[_target_model(alias)].append(
                         alias.alias_force_thread_id
                     )
 
-        def _fetch_owner(alias):
+        def _fetch_owner(alias: MailAlias) -> models.Model | None:
             if (
                 alias.alias_parent_thread_id
                 in recs_by_model[alias.alias_parent_model_id.model]
@@ -189,7 +179,7 @@ class MailAlias(models.Model):
                 )
             return None
 
-        def _fetch_target(alias):
+        def _fetch_target(alias: MailAlias) -> models.Model | None:
             if alias.alias_force_thread_id in recs_by_model[alias.alias_model_id.model]:
                 return (
                     _target_env(alias)
@@ -241,10 +231,7 @@ class MailAlias(models.Model):
                     )
 
     @api.constrains("alias_name")
-    def _check_alias_is_ascii(self):
-        """Reject any local-part that is not an ASCII dot-atom: quoted-string and
-        international characters are not allowed (rfc5322 sections 3.4.1 and 3.2.3).
-        """
+    def _check_alias_is_ascii(self) -> None:
         for alias in self.filtered("alias_name"):
             if not dot_atom_text.match(alias.alias_name):
                 raise ValidationError(
@@ -255,7 +242,7 @@ class MailAlias(models.Model):
                 )
 
     @api.constrains("alias_defaults")
-    def _check_alias_defaults(self):
+    def _check_alias_defaults(self) -> None:
         for alias in self:
             try:
                 dict(ast.literal_eval(alias.alias_defaults))
@@ -267,9 +254,7 @@ class MailAlias(models.Model):
                 ) from e
 
     @api.constrains("alias_name", "alias_domain_id")
-    def _check_alias_domain_clash(self):
-        """Within a given alias domain, aliases should not conflict with bounce
-        or catchall email addresses, as emails should be unique for the gateway."""
+    def _check_alias_domain_clash(self) -> None:
         failing = self.filtered(
             lambda alias: (
                 alias.alias_name
@@ -289,9 +274,7 @@ class MailAlias(models.Model):
             )
 
     @api.depends("alias_domain_id.name", "alias_name")
-    def _compute_alias_full_name(self):
-        """A bit like display_name, but without the 'inactive alias' UI display.
-        Moreover it is stored, allowing to search on it."""
+    def _compute_alias_full_name(self) -> None:
         for record in self:
             if record.alias_domain_id and record.alias_name:
                 record.alias_full_name = (
@@ -303,10 +286,7 @@ class MailAlias(models.Model):
                 record.alias_full_name = False
 
     @api.depends("alias_domain", "alias_name")
-    def _compute_display_name(self):
-        """Return the mail alias display alias_name, including the catchall
-        domain if found otherwise "Inactive Alias". e.g.`jobs@mail.odoo.com`
-        or `jobs` or 'Inactive Alias'"""
+    def _compute_display_name(self) -> None:
         for record in self:
             if record.alias_name and record.alias_domain:
                 record.display_name = f"{record.alias_name}@{record.alias_domain}"
@@ -316,19 +296,11 @@ class MailAlias(models.Model):
                 record.display_name = _("Inactive Alias")
 
     @api.depends("alias_contact", "alias_defaults", "alias_model_id")
-    def _compute_alias_status(self):
-        """Reset alias_status to "not_tested" when fields, that can be the source of an error, are modified."""
+    def _compute_alias_status(self) -> None:
         self.alias_status = "not_tested"
 
     @api.model_create_multi
-    def create(self, vals_list):
-        """Create mail.alias records from ``vals_list``, sanitizing 'alias_name'
-        by replacing certain unsafe characters and setting the default alias
-        domain if not given.
-
-        :raises UserError: if given (alias_name, alias_domain_id) already exists
-          or if there are duplicates in given vals_list;
-        """
+    def create(self, vals_list: list[ValuesType]) -> Self:
         alias_names, alias_domains = [], []
         for vals in vals_list:
             vals["alias_name"] = self._sanitize_alias_name(vals.get("alias_name"))
@@ -343,20 +315,13 @@ class MailAlias(models.Model):
         self._check_unique(alias_names, alias_domains)
         return super().create(vals_list)
 
-    def write(self, vals):
-        """Raise UserError with a meaningful message instead of letting the
-        uniqueness constraint raise an SQL error. To check uniqueness we have
-        to rebuild pairs of names / domains to validate, taking into account
-        that a void alias_domain_id is acceptable (but also raises for
-        uniqueness).
-        """
+    def write(self, vals: ValuesType) -> Literal[True]:
         alias_names, alias_domains = [], []
         if "alias_name" in vals:
             vals["alias_name"] = self._sanitize_alias_name(vals["alias_name"])
         if vals.get("alias_name") and self.ids:
             alias_names = [vals["alias_name"]] * len(self)
         elif "alias_name" not in vals and "alias_domain_id" in vals:
-            # avoid checking when writing the same value
             if [vals["alias_domain_id"]] != self.alias_domain_id.ids:
                 alias_names = self.filtered("alias_name").mapped("alias_name")
 
@@ -374,20 +339,10 @@ class MailAlias(models.Model):
 
         return super().write(vals)
 
-    def _check_unique(self, alias_names, alias_domains):
-        """Check unicity constraint won't be raised, otherwise raise a UserError
-        with a complete error message.
-
-        :param list alias_names: a list of names (considered as sanitized
-          and ready to be sent to DB);
-        :param list alias_domains: list of alias_domain records under which
-          the check is performed, as uniqueness is performed for given pair
-          (name, alias_domain);
-        """
+    def _check_unique(
+        self, alias_names: list[str], alias_domains: MailAliasDomain
+    ) -> None:
         if len(alias_names) != len(alias_domains):
-            # Build the diagnostic defensively: alias_names may hold False (a
-            # sanitized-away name) and alias_domains is a plain list, so joining
-            # them raw or 'mapped' would raise and mask this coherency error.
             names_repr = ", ".join(str(name) for name in alias_names)
             domains_repr = ", ".join(domain.display_name for domain in alias_domains)
             msg = (
@@ -396,7 +351,6 @@ class MailAlias(models.Model):
             )
             raise ValueError(msg)
 
-        # reorder per alias domain, keep only not void alias names (void domain also checks uniqueness)
         domain_to_names = defaultdict(list)
         for alias_name, alias_domain in zip(alias_names, alias_domains, strict=False):
             if alias_name and alias_name in domain_to_names[alias_domain]:
@@ -447,10 +401,7 @@ class MailAlias(models.Model):
         raise UserError(f"{msg_begin} {msg_end}")  # pylint: disable=missing-gettext
 
     @api.model
-    def _sanitize_allowed_domains(self, allowed_domains):
-        """When having aliases checked on email left-part only we may define
-        an allowed list for right-part filtering, allowing more fine-grain than
-        either alias domain, either everything. This method sanitized its value."""
+    def _sanitize_allowed_domains(self, allowed_domains: str) -> str:
         value = [
             domain.strip().lower()
             for domain in allowed_domains.split(",")
@@ -467,19 +418,9 @@ class MailAlias(models.Model):
         return ",".join(value)
 
     @api.model
-    def _sanitize_alias_name(self, name, is_email=False):
-        """Cleans and sanitizes the alias name. In some cases we want the alias
-        to be a complete email instead of just a left-part (when sanitizing
-        default.from for example). In that case we extract the right part and
-        put it back after sanitizing the left part.
-
-        :param str name: the alias name to sanitize;
-        :param bool is_email: whether to keep a right part, otherwise only
-          left part is kept;
-
-        :return: sanitized alias name, False if nothing survives sanitization
-        :rtype: str | bool
-        """
+    def _sanitize_alias_name(
+        self, name: str, is_email: bool = False
+    ) -> str | Literal[False]:
         sanitized_name = name.strip() if name else ""
         if is_email:
             right_part = sanitized_name.lower().partition("@")[2]
@@ -487,15 +428,10 @@ class MailAlias(models.Model):
             right_part = False
         if sanitized_name:
             sanitized_name = remove_accents(sanitized_name).lower().split("@")[0]
-            # cannot start and end with dot
             sanitized_name = re.sub(r"^\.+|\.+$|\.+(?=\.)", "", sanitized_name)
-            # subset of allowed characters
             sanitized_name = re.sub(
                 r"[^\w!#$%&\'*+\-/=?^_`{|}~.]+", "-", sanitized_name
             )
-            # Drop (not "?"-replace) the non-ASCII word chars \w let through
-            # (Cyrillic/CJK): "?" is a valid atext, so replacing them would keep a
-            # garbage-but-"valid" alias, while dropping leaves "", rejected below.
             sanitized_name = sanitized_name.encode("ascii", errors="ignore").decode()
         if not sanitized_name.strip():
             return False
@@ -506,18 +442,14 @@ class MailAlias(models.Model):
         )
 
     @api.model
-    def _is_encodable(self, alias_name, charset="ascii"):
-        """Whether alias_name can be encoded in ``charset`` (default ascii, as
-        UTF-8 requires a specific extension and is not recommended for outgoing
-        aliases). Accents are removed first, as name sanitization does it anyway.
-        """
+    def _is_encodable(self, alias_name: str, charset: str = "ascii") -> bool:
         try:
             remove_accents(alias_name).encode(charset)
         except UnicodeEncodeError:
             return False
         return True
 
-    def open_document(self):
+    def open_document(self) -> dict | Literal[False]:
         if not self.alias_model_id or not self.alias_force_thread_id:
             return False
         return {
@@ -527,7 +459,7 @@ class MailAlias(models.Model):
             "type": "ir.actions.act_window",
         }
 
-    def open_parent_document(self):
+    def open_parent_document(self) -> dict | Literal[False]:
         if not self.alias_parent_model_id or not self.alias_parent_thread_id:
             return False
         return {
@@ -537,14 +469,7 @@ class MailAlias(models.Model):
             "type": "ir.actions.act_window",
         }
 
-    def _get_alias_bounced_body(self, message_dict):
-        """Get the body of the email return in case of bounced email when the
-        alias does not accept incoming email e.g. contact is not allowed.
-
-        :param dict message_dict: dictionary holding parsed message variables
-
-        :return: HTML to use as email body
-        """
+    def _get_alias_bounced_body(self, message_dict: dict) -> Markup:
         lang_author = False
         if message_dict.get("author_id"):
             with contextlib.suppress(Exception):
@@ -565,8 +490,7 @@ class MailAlias(models.Model):
             minimal_qcontext=True,
         )
 
-    def _get_alias_bounced_body_fallback(self, message_dict):
-        """Default body of bounced emails. See '_get_alias_bounced_body'"""
+    def _get_alias_bounced_body_fallback(self, message_dict: dict) -> Markup:
         contact_description = self._get_alias_contact_description()
         default_email = (
             self.env.company.partner_id.email_formatted
@@ -590,19 +514,12 @@ class MailAlias(models.Model):
             "regards": _("Kind Regards"),
         }
 
-    def _get_alias_contact_description(self):
+    def _get_alias_contact_description(self) -> str:
         if self.alias_contact == "partners":
             return _("addresses linked to registered partners")
         return _("some specific addresses")
 
-    def _get_alias_invalid_body(self, message_dict):
-        """Get the body of the bounced email returned when the alias is incorrectly
-        configured e.g. error in alias_defaults.
-
-        :param dict message_dict: dictionary holding parsed message variables
-
-        :return: HTML to use as email body
-        """
+    def _get_alias_invalid_body(self, message_dict: dict) -> Markup:
         content = Markup(
             _("""The message below could not be accepted by the address %(alias_display_name)s.
 Please try again later or contact %(company_name)s instead.""")
@@ -626,19 +543,9 @@ Please try again later or contact %(company_name)s instead.""")
             minimal_qcontext=True,
         )
 
-    def _alias_bounce_incoming_email(self, message, message_dict, set_invalid=True):
-        """Set alias status to invalid and create bounce message to the sender.
-
-        This method must be called when a message received on the alias has
-        caused an error due to the mis-configuration of the alias.
-
-        :param EmailMessage message: email message that is invalid and is about
-          to bounce;
-        :param dict message_dict: dictionary holding parsed message variables
-        :param bool set_invalid: set alias as invalid, to be done notably if
-          bounce is considered as coming from a configuration error instead of
-          being rejected due to alias rules;
-        """
+    def _alias_bounce_incoming_email(
+        self, message: EmailMessage, message_dict: dict, set_invalid: bool = True
+    ) -> None:
         self.ensure_one()
         if set_invalid:
             self.alias_status = "invalid"
@@ -649,8 +556,5 @@ Please try again later or contact %(company_name)s instead.""")
             message_dict["email_from"],
             body,
             message,
-            # must carry the loop-detection tag like every other bounce emitter:
-            # this path returns no route, so _detect_loop_sender never runs and the
-            # tag read by _detect_loop_headers is the only guard against a loop.
             references=self.env["mail.thread"]._routing_bounce_references(message_dict),
         )

@@ -1,22 +1,29 @@
 import logging
+import typing
 from collections import defaultdict
+from typing import Literal, Self
 
 from odoo import Command, _, api, fields, models, modules, tools
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.tools import email_normalize, str2bool
 
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
+
+if typing.TYPE_CHECKING:
+    from .mail_mail import MailMail
+    from .mail_presence import MailPresence
+    from .res_role import ResRole
+    from odoo.addons.base.models.ir_mail_server import IrMail_Server
 
 _logger = logging.getLogger(__name__)
 
 
 class ResUsers(models.Model):
-    """Add notification preferences, out-of-office and personal mail server to users."""
-
     _inherit = "res.users"
 
-    role_ids = fields.Many2many(
+    role_ids: ResRole = fields.Many2many(
         "res.role",
         relation="res_role_res_users_rel",
         string="User Roles",
@@ -35,7 +42,7 @@ class ResUsers(models.Model):
         "- By Emails: notifications are sent to your email address\n"
         "- In Odoo: notifications appear in your Odoo Inbox",
     )
-    presence_ids = fields.One2many(
+    presence_ids: MailPresence = fields.One2many(
         "mail.presence", "user_id", groups="base.group_system"
     )
     out_of_office_from = fields.Datetime()
@@ -44,7 +51,6 @@ class ResUsers(models.Model):
     is_out_of_office = fields.Boolean(
         "Out of Office", compute="_compute_is_out_of_office"
     )
-    # sudo: res.users - can access presence of accessible user
     im_status = fields.Char(
         "IM Status", compute="_compute_im_status", compute_sudo=True
     )
@@ -53,7 +59,7 @@ class ResUsers(models.Model):
         string="IM status manually set by the user",
     )
 
-    outgoing_mail_server_id = fields.Many2one(
+    outgoing_mail_server_id: IrMail_Server = fields.Many2one(
         "ir.mail_server",
         "Outgoing Mail Server",
         compute="_compute_outgoing_mail_server_id",
@@ -71,7 +77,7 @@ class ResUsers(models.Model):
         compute="_compute_has_external_mail_server"
     )
 
-    def _compute_has_external_mail_server(self):
+    def _compute_has_external_mail_server(self) -> None:
         self.has_external_mail_server = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -84,9 +90,7 @@ class ResUsers(models.Model):
     )
 
     @api.depends("share", "all_group_ids")
-    def _compute_notification_type(self):
-        # Recomputed on any group change (all_group_ids), so the filtered_domain
-        # calls below skip records whose notification_type is already correct.
+    def _compute_notification_type(self) -> None:
         inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "mail.group_mail_notification_type_inbox"
         )
@@ -101,7 +105,6 @@ class ResUsers(models.Model):
             ]
         ).notification_type = "email"
 
-        # Special case: internal users with inbox notifications converted to portal must be converted to email users
         new_portal_users = self.filtered_domain(
             [("share", "=", True), ("notification_type", "=", "inbox")]
         )
@@ -109,10 +112,7 @@ class ResUsers(models.Model):
         new_portal_users.write({"group_ids": [Command.unlink(inbox_group_id)]})
 
     @api.depends("out_of_office_from", "out_of_office_to")
-    def _compute_is_out_of_office(self):
-        """Out-of-office is active once out_of_office_from is set in the past."""
-        # "to" is optional: users may simply deactivate OOO when coming back if
-        # the leave timerange is unknown.
+    def _compute_is_out_of_office(self) -> None:
         now = self.env.cr.now()
         todo = self.filtered(lambda u: u.out_of_office_from and u._is_internal())
         for user in todo:
@@ -125,7 +125,7 @@ class ResUsers(models.Model):
         (self - todo).is_out_of_office = False
 
     @api.depends("manual_im_status", "presence_ids.status")
-    def _compute_im_status(self):
+    def _compute_im_status(self) -> None:
         for user in self:
             user.im_status = (
                 "offline"
@@ -133,18 +133,18 @@ class ResUsers(models.Model):
                 else user.manual_im_status or user.presence_ids.status
             )
 
-    def _inverse_notification_type(self):
+    def _inverse_notification_type(self) -> None:
         inbox_group = self.env.ref("mail.group_mail_notification_type_inbox")
         inbox_users = self.filtered(lambda user: user.notification_type == "inbox")
         inbox_users.write({"group_ids": [Command.link(inbox_group.id)]})
         (self - inbox_users).write({"group_ids": [Command.unlink(inbox_group.id)]})
 
     @api.depends_context("uid")
-    def _compute_can_edit_role(self):
+    def _compute_can_edit_role(self) -> None:
         self.can_edit_role = self.env["res.role"].sudo(False).has_access("write")
 
     @api.depends("email")
-    def _compute_outgoing_mail_server_id(self):
+    def _compute_outgoing_mail_server_id(self) -> None:
         mail_servers = (
             self.env["ir.mail_server"]
             .sudo()
@@ -178,7 +178,7 @@ class ResUsers(models.Model):
             )
 
     @property
-    def SELF_READABLE_FIELDS(self):
+    def SELF_READABLE_FIELDS(self) -> list[str]:
         return super().SELF_READABLE_FIELDS + [
             "can_edit_role",
             "is_out_of_office",
@@ -193,7 +193,7 @@ class ResUsers(models.Model):
         ]
 
     @property
-    def SELF_WRITEABLE_FIELDS(self):
+    def SELF_WRITEABLE_FIELDS(self) -> list[str]:
         return super().SELF_WRITEABLE_FIELDS + [
             "notification_type",
             "out_of_office_from",
@@ -202,11 +202,9 @@ class ResUsers(models.Model):
         ]
 
     @api.model_create_multi
-    def create(self, vals_list):
-
+    def create(self, vals_list: list[ValuesType]) -> Self:
         users = super().create(vals_list)
 
-        # log a portal status change (manual tracking)
         log_portal_access = not self.env.context.get(
             "mail_create_nolog"
         ) and not self.env.context.get("mail_notrack")
@@ -221,7 +219,7 @@ class ResUsers(models.Model):
                     )
         return users
 
-    def write(self, vals):
+    def write(self, vals: ValuesType) -> Literal[True]:
         log_portal_access = (
             "group_ids" in vals
             and not self.env.context.get("mail_create_nolog")
@@ -245,7 +243,6 @@ class ResUsers(models.Model):
 
         write_res = super().write(vals)
 
-        # log a portal status change (manual tracking)
         if log_portal_access:
             for user in self:
                 user_has_group = user._is_portal()
@@ -271,7 +268,6 @@ class ResUsers(models.Model):
                 _("Your account password has been updated"),
             )
         if "email" in vals:
-            # when the email is modified, we want notify the previous address (and not the new one)
             for user, previous_email in previous_email_by_user.items():
                 self._notify_security_setting_update(
                     _("Security Update: Email Changed"),
@@ -289,7 +285,7 @@ class ResUsers(models.Model):
 
         return write_res
 
-    def action_archive(self):
+    def action_archive(self) -> bool:
         activities_to_delete = (
             self.env["mail.activity"].sudo().search([("user_id", "in", self.ids)])
         )
@@ -297,17 +293,12 @@ class ResUsers(models.Model):
         return super().action_archive()
 
     def _notify_security_setting_update(
-        self, subject, content, mail_values=None, **kwargs
-    ):
-        """Warn the concerned user by email that a sensitive account change occurred.
-
-        :param str subject: subject of the sent email
-        :param str content: text embedded in the security alert template
-        :param dict mail_values: optional overrides of the mail.mail values
-        :param kwargs: 'suggest_password_reset' (default True) and 'force_email'
-        :return: the created mails
-        :rtype: recordset
-        """
+        self,
+        subject: str,
+        content: str,
+        mail_values: dict | None = None,
+        **kwargs,
+    ) -> MailMail:
 
         mail_create_values = []
         for user in self:
@@ -353,8 +344,6 @@ class ResUsers(models.Model):
         try:
             mails.send()
         except Exception:
-            # a delivery failure must not block the account change it notifies,
-            # but must not pass silently either
             _logger.warning(
                 "Could not send security notification email(s) %s",
                 mails.ids,
@@ -362,8 +351,9 @@ class ResUsers(models.Model):
             )
         return mails
 
-    def _notify_security_setting_update_prepare_values(self, content, **kwargs):
-        """Prepare rendering values for the 'mail.account_security_alert' template."""
+    def _notify_security_setting_update_prepare_values(
+        self, content: str, **kwargs
+    ) -> dict:
         reset_password_enabled = str2bool(
             self.env["ir.config_parameter"]
             .sudo()
@@ -409,7 +399,7 @@ class ResUsers(models.Model):
                 values["useros"] = request.httprequest.user_agent.platform.capitalize()
         return values
 
-    def _get_portal_access_update_body(self, access_granted):
+    def _get_portal_access_update_body(self, access_granted: bool) -> str:
         body = (
             _("Portal Access Granted") if access_granted else _("Portal Access Revoked")
         )
@@ -417,10 +407,7 @@ class ResUsers(models.Model):
             return "%s (%s)" % (body, self.partner_id.email)
         return body
 
-    def _deactivate_portal_user(self, **post):
-        """Log on the related partner why the account is archived, and blacklist
-        the user email when 'request_blacklist' is set.
-        """
+    def _deactivate_portal_user(self, **post) -> None:
         current_user = self.env.user
         for user in self:
             user.partner_id._message_log(
@@ -455,10 +442,8 @@ class ResUsers(models.Model):
             )
 
     @api.model
-    def _init_store_data(self, store: Store):
-        """Initialize the store of the user."""
+    def _init_store_data(self, store: Store) -> None:
         xmlid_to_res_id = self.env["ir.model.data"]._xmlid_to_res_id
-        # sudo: res.partner - exposing OdooBot data is considered acceptable
         odoobot = self.env.ref("base.partner_root").sudo()
         if not self.env.user._is_public():
             odoobot = odoobot.with_prefetch((odoobot + self.env.user.partner_id).ids)
@@ -499,15 +484,13 @@ class ResUsers(models.Model):
                 settings=settings._res_users_settings_format(),
             )
         if guest := self.env["mail.guest"]._get_guest_from_context():
-            # sudo: mail.guest - adding current guest data is acceptable
             store.add_global_values(
                 self_guest=Store.One(guest.sudo(), ["avatar_128", "name"])
             )
 
-    def _init_messaging(self, store: Store):
+    def _init_messaging(self, store: Store) -> None:
         self.ensure_one()
         self = self.with_user(self)
-        # sudo: bus.bus - reading non-sensitive last id
         bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
         store.add_global_values(
             inbox={
@@ -527,7 +510,7 @@ class ResUsers(models.Model):
         )
 
     @api.model
-    def _get_activity_groups(self):
+    def _get_activity_groups(self) -> list:
         search_limit = self.env["ir.config_parameter"]._get_int_param(
             "mail.activity.systray.limit", 1000
         )
@@ -546,13 +529,12 @@ class ResUsers(models.Model):
         activities_rec_ids = defaultdict(lambda: defaultdict(list))
 
         for activity in activities:
-            if activity.res_model:
+            if activity.res_model and activity.res_model in self.env:
                 activities_rec_ids[activity.res_model][activity.res_id].append(
                     activity.id
                 )
             else:
                 activities_rec_ids["mail.activity"][activity.id].append(activity.id)
-        # prefetch state for all activities to avoid per-record compute
         activities.mapped("state")
         model_activity_states = {
             "mail.activity": {
@@ -567,14 +549,12 @@ class ResUsers(models.Model):
             res_ids = record_activity_ids.keys()
             Model = self.env[model_name]
             has_model_access_right = Model.has_access("read")
-            # also filters out non existing records (db cascade)
             existing = Model.browse(res_ids).exists()
             if has_model_access_right:
                 allowed_records = existing._filtered_access("read")
             else:
                 allowed_records = Model
             unallowed_records = Model.browse(res_ids) - allowed_records
-            # We remove from not allowed records, records that the user has access to through others of his companies
             if (
                 has_model_access_right
                 and unallowed_records
@@ -585,9 +565,6 @@ class ResUsers(models.Model):
                     .with_context(allowed_company_ids=user_company_ids)
                     ._filtered_access("read")
                 )
-            # setdefault, not assignment: the "mail.activity" bucket is shared by
-            # model-less activities and by activities on unreadable records, so
-            # re-assigning it here would drop counts already collected.
             model_activity_states.setdefault(
                 model_name,
                 {
@@ -597,7 +574,6 @@ class ResUsers(models.Model):
                     "total_count": 0,
                 },
             )
-            # pre-compute sets for O(1) membership checks
             unallowed_ids = set(unallowed_records._ids)
             allowed_ids = set(allowed_records._ids)
             for record_id, activity_ids in record_activity_ids.items():
@@ -639,7 +615,6 @@ class ResUsers(models.Model):
                 "model": model_name,
                 "type": "activity",
                 "icon": icon,
-                # activity more important than archived status, active_test is too broad
                 "domain": [("active", "in", [True, False])]
                 if model_name != "mail.activity" and "active" in Model
                 else [],
@@ -653,7 +628,9 @@ class ResUsers(models.Model):
                 user_activities[model_name]["activity_ids"] = activities.ids
         return list(user_activities.values())
 
-    def _get_store_avatar_card_fields(self, target):
+    def _get_store_avatar_card_fields(
+        self, target: Store.Target
+    ) -> list[StoreFieldSpec]:
         return [
             "share",
             Store.One(
@@ -662,10 +639,7 @@ class ResUsers(models.Model):
         ]
 
     @api.autovacuum
-    def _gc_personal_mail_servers(self):
-        """Delete personal mail servers no longer current for their owner (e.g. email
-        changed) or left archived by an unfinished setup.
-        """
+    def _gc_personal_mail_servers(self) -> None:
         self.env["ir.mail_server"].with_context(active_test=False).search(
             [("owner_user_id", "!=", False)]
         ).filtered(
@@ -673,12 +647,11 @@ class ResUsers(models.Model):
         ).unlink()
 
     @api.model
-    def _get_mail_server_values(self, server_type):
+    def _get_mail_server_values(self, server_type: str) -> dict:
         return {}
 
     @api.model
-    def action_setup_outgoing_mail_server(self, server_type):
-        """Configure the outgoing mail servers."""
+    def action_setup_outgoing_mail_server(self, server_type: str) -> dict:
         user = self.env.user
         if not user.has_external_mail_server:
             raise UserError(_("You are not allowed to create a personal mail server."))
@@ -718,13 +691,11 @@ class ResUsers(models.Model):
         if (
             not normalized_email
             or "@" not in normalized_email
-            # Be sure it's well parsed by `ir.mail_server`
             or self.env["ir.mail_server"]._parse_from_filter(normalized_email)
             != [normalized_email]
         ):
             raise UserError(_("Wrong email address %s.", email))
 
-        # Check that the user's email is not used by `mail.alias.domain` to avoid leaking the outgoing emails
         alias_domain = self.env["mail.alias.domain"].sudo().search([])
         cli_default_from = tools.config.get("email_from")
         match_from_filter = self.env["ir.mail_server"]._match_from_filter
@@ -751,9 +722,6 @@ class ResUsers(models.Model):
             existing_mail_server.unlink()
 
         values = {
-            # Will be un-archived once logged in
-            # Archived personal server will be deleted in GC CRON
-            # to clean pending connection that didn't finish
             "active": False,
             "name": _("%s's outgoing email", user.name),
             "smtp_user": normalized_email,
@@ -768,7 +736,7 @@ class ResUsers(models.Model):
         return self._get_mail_server_setup_end_action(smtp_server)
 
     @api.model
-    def action_test_outgoing_mail_server(self):
+    def action_test_outgoing_mail_server(self) -> dict:
         user = self.env.user
         if not user.has_external_mail_server:
             raise UserError(_("You are not allowed to test personal mail servers."))
@@ -792,5 +760,5 @@ class ResUsers(models.Model):
         }
 
     @api.model
-    def _get_mail_server_setup_end_action(self, smtp_server):
+    def _get_mail_server_setup_end_action(self, smtp_server: IrMail_Server) -> dict:
         raise NotImplementedError

@@ -1,10 +1,11 @@
 import logging
+import typing
+
+if typing.TYPE_CHECKING:
+    from odoo.db.cursor import Cursor
 
 _logger = logging.getLogger(__name__)
 
-# Font Awesome style classes (FA7 long form + FA5 shorthands). One of these must
-# be present for an icon to render: FA7 sets font-family/weight on the style
-# class, not on the bare ``fa`` base class that FA4/5 relied on.
 _FA_STYLE_TOKENS = {
     "fa-solid",
     "fa-regular",
@@ -21,23 +22,15 @@ _FA_STYLE_TOKENS = {
 }
 
 
-def _to_fa7(icon):
-    """Normalize a legacy Font Awesome icon class to FA7.
-
-    The chatter/activity templates dropped the ``fa`` base class they used to
-    prepend (``fa #{icon} fa-fw`` -> ``#{icon}``), so a stored value like
-    ``fa-envelope`` or ``fa fa-envelope`` now renders as an empty box: FA7 only
-    attaches the font to a style class. Ensure one is present.
-    """
+def _to_fa7(icon: str) -> str:
     tokens = icon.split()
-    # The lone ``fa`` base class carries no font in FA7; drop it.
     tokens = [tok for tok in tokens if tok != "fa"]
     if not any(tok in _FA_STYLE_TOKENS for tok in tokens):
         tokens.insert(0, "fa-solid")
     return " ".join(tokens)
 
 
-def migrate(cr, version):
+def migrate(cr: Cursor, version: str | None) -> None:
     if not version:
         return
     cr.execute(

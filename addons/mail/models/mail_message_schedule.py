@@ -1,36 +1,38 @@
 import json
 import logging
+import typing
 from datetime import UTC, datetime
+from typing import Self
 
 from odoo import api, fields, models, modules
+from odoo.api import ValuesType
 from odoo.service.transaction import PG_CONCURRENCY_ERRORS_TO_RETRY
+
+if typing.TYPE_CHECKING:
+    from .mail_message import MailMessage
 
 _logger = logging.getLogger(__name__)
 
 
 class MailMessageSchedule(models.Model):
-    """Queue to delay a message's notifications. Unlike mail.mail's
-    scheduled_date, this also delays the <bus.bus> notifications.
-    """
-
     _name = "mail.message.schedule"
     _description = "Scheduled Messages"
     _order = "scheduled_datetime DESC, id DESC"
     _rec_name = "mail_message_id"
 
-    mail_message_id = fields.Many2one(
+    mail_message_id: MailMessage = fields.Many2one(
         "mail.message", string="Message", ondelete="cascade", required=True
     )
     notification_parameters = fields.Text("Notification Parameter")
     scheduled_datetime = fields.Datetime(
         "Scheduled Send Date",
         required=True,
-        index=True,  # the cron selects and orders the due queue by this column
+        index=True,
         help="Datetime at which notification should be sent.",
     )
 
     @api.model_create_multi
-    def create(self, vals_list):
+    def create(self, vals_list: list[ValuesType]) -> Self:
         schedules = super().create(vals_list)
         if schedules:
             self.env.ref("mail.ir_cron_send_scheduled_message")._trigger_list(
@@ -39,21 +41,10 @@ class MailMessageSchedule(models.Model):
         return schedules
 
     @api.model
-    def _send_notifications_cron(self):
+    def _send_notifications_cron(self) -> None:
         batch_size = self.env["ir.config_parameter"]._get_int_param(
             "mail.scheduled_notification.batch.size", 500
         )
-        # limit + 1: detect whether a follow-up run is needed without a count().
-        # Force oldest-due-first: the model default order is
-        # ``scheduled_datetime DESC, id DESC`` (right for the list view, wrong for
-        # a queue). A *static* backlog still drains under that order, merely in
-        # reverse; what it cannot survive is sustained load. Measured with
-        # batch_size 2 and two due arrivals per tick, three old schedules were
-        # served 0 times in 6 ticks and stayed queued indefinitely, because every
-        # tick refilled the top of a DESC window. Oldest-first serves them in the
-        # first two ticks and defers the newest instead -- which is the direction
-        # a delay-then-notify queue should fail in.
-        # ``mail.mail.process_email_queue`` forces FIFO for the same reason.
         messages_scheduled = self.env["mail.message.schedule"].search(
             [("scheduled_datetime", "<=", datetime.now(UTC))],
             limit=batch_size + 1,
@@ -64,10 +55,6 @@ class MailMessageSchedule(models.Model):
         if not messages_scheduled:
             return
         _logger.info("Send %s scheduled messages", len(messages_scheduled))
-        # Commit per schedule and drop failed rows (as
-        # mail.scheduled.message._post_message does): a single failing
-        # _notify_thread must not roll back the batch and wedge the queue on every
-        # tick. skip_existing=True guards against re-notifying on replay.
         auto_commit = not modules.module.current_test
         for schedule in messages_scheduled:
             try:
@@ -77,9 +64,6 @@ class MailMessageSchedule(models.Model):
             except Exception as error:
                 if auto_commit:
                     self.env.cr.rollback()
-                # Only deterministic failures (broken template, bad lang,
-                # uninstalled model) are dropped. Dropping on a transient DB error
-                # would silently lose a real message's whole notification fan-out.
                 if getattr(error, "sqlstate", None) in PG_CONCURRENCY_ERRORS_TO_RETRY:
                     _logger.warning(
                         "Transient DB error sending scheduled notification %s; "
@@ -104,26 +88,14 @@ class MailMessageSchedule(models.Model):
                         self.env.cr.rollback()
                 if auto_commit:
                     self.env.cr.commit()
-        # More than one batch was due: re-trigger so the queue drains promptly
-        # instead of waiting for the cron's next natural tick.
         if has_more:
             self.env.ref("mail.ir_cron_send_scheduled_message")._trigger()
 
-    def force_send(self):
-        """Launch notification process independently from the expected date."""
+    def force_send(self) -> None:
         return self._send_notifications()
 
-    def _send_notifications(self, default_notify_kwargs=None):
-        """Send notification for scheduled messages.
-
-        :param dict default_notify_kwargs: optional parameters to propagate to
-          ``notify_thread``. Those are default values overridden by content of
-          ``notification_parameters`` field.
-        """
+    def _send_notifications(self, default_notify_kwargs: dict | None = None) -> bool:
         for model, schedules in self._group_by_model().items():
-            # Resolve the record per schedule: two schedules may share a
-            # mail_message_id, so a mapped()+zip() would drop the tail ones (and
-            # then unlink them unsent). One browse up front, for prefetching.
             existing_ids = ()
             if model:
                 res_ids = schedules.mapped("mail_message_id.res_id")
@@ -142,8 +114,6 @@ class MailMessageSchedule(models.Model):
                         schedule._deserialize_notification_parameters()
                     )
                 except Exception:
-                    # Fall back to defaults, but leave a trace: a silently-dropped
-                    # payload sends with the wrong company branding / auto-delete.
                     _logger.warning(
                         "Invalid notification_parameters on mail.message.schedule %s; "
                         "using defaults.",
@@ -162,21 +132,14 @@ class MailMessageSchedule(models.Model):
         return True
 
     @api.model
-    def _serialize_notification_parameters(self, notify_kwargs):
-        """JSON-encode notify kwargs for the ``notification_parameters`` field.
-
-        :rtype: str
-        """
+    def _serialize_notification_parameters(self, notify_kwargs: dict) -> str:
         serializable = dict(notify_kwargs)
-        # ``force_email_company`` may be a <res.company>, which json cannot
-        # encode: store its id, rebuilt by _deserialize_notification_parameters.
         company = serializable.get("force_email_company")
         if company is not None and not isinstance(company, (bool, int)):
             serializable["force_email_company"] = company.id
         return json.dumps(serializable)
 
-    def _deserialize_notification_parameters(self):
-        """Decode ``notification_parameters``, rebuilding recordset-valued kwargs."""
+    def _deserialize_notification_parameters(self) -> dict:
         self.ensure_one()
         params = json.loads(self.notification_parameters or "{}")
         company_id = params.get("force_email_company")
@@ -185,18 +148,9 @@ class MailMessageSchedule(models.Model):
         return params
 
     @api.model
-    def _send_message_notifications(self, messages, default_notify_kwargs=None):
-        """Send scheduled notification for given messages.
-
-        :param <mail.message> messages: scheduled sending related to those messages
-          will be sent now;
-        :param dict default_notify_kwargs: optional parameters to propagate to
-          ``notify_thread``. Those are default values overridden by content of
-          ``notification_parameters`` field.
-
-        :returns: False if no schedule has been found, True otherwise
-        :rtype: bool
-        """
+    def _send_message_notifications(
+        self, messages: MailMessage, default_notify_kwargs: dict | None = None
+    ) -> bool:
         messages_scheduled = self.search([("mail_message_id", "in", messages.ids)])
         if not messages_scheduled:
             return False
@@ -207,17 +161,9 @@ class MailMessageSchedule(models.Model):
         return True
 
     @api.model
-    def _update_message_scheduled_datetime(self, messages, new_datetime):
-        """Update scheduled datetime for scheduled sending related to messages.
-
-        :param <mail.message> messages: scheduled sending related to those messages
-          will be updated. Missing one are skipped;
-        :param datetime new_datetime: new datetime for sending. New triggers
-          are created based on it;
-
-        :returns: False if no schedule has been found, True otherwise
-        :rtype: bool
-        """
+    def _update_message_scheduled_datetime(
+        self, messages: MailMessage, new_datetime: datetime
+    ) -> bool:
         messages_scheduled = self.search([("mail_message_id", "in", messages.ids)])
         if not messages_scheduled:
             return False
@@ -226,7 +172,7 @@ class MailMessageSchedule(models.Model):
         self.env.ref("mail.ir_cron_send_scheduled_message")._trigger(new_datetime)
         return True
 
-    def _group_by_model(self):
+    def _group_by_model(self) -> dict:
         grouped = {}
         for schedule in self:
             model = (
