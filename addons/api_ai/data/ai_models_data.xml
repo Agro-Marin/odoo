@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="ai_model_claude_sonnet_5" model="ai.model">
+        <field name="provider_id" ref="ai_provider_anthropic" />
+        <field name="name">Claude Sonnet 5</field>
+        <field name="code">claude-sonnet-5</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1000000</field>
+        <field name="max_output_tokens">8192</field>
+        <field name="cost_per_1m_input">3.00</field>
+        <field name="cost_per_1m_output">15.00</field>
+        <field name="cost_per_1m_image">4.80</field>
+        <field name="accuracy_rating">5</field>
+        <field name="speed_rating">4</field>
+    </record>
+
+    <record id="ai_model_openai_gpt_4o_mini" model="ai.model">
+        <field name="provider_id" ref="ai_provider_openai" />
+        <field name="name">GPT-4o mini</field>
+        <field name="code">gpt-4o-mini</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">128000</field>
+        <field name="max_output_tokens">16384</field>
+        <field name="cost_per_1m_input">2.50</field>
+        <field name="cost_per_1m_output">10.00</field>
+        <field name="cost_per_1m_image">2.125</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">4</field>
+    </record>
+
+    <record id="ai_model_openai_whisper_1" model="ai.model">
+        <field name="provider_id" ref="ai_provider_openai" />
+        <field name="name">Whisper</field>
+        <field name="code">whisper-1</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="20" />
+        <field name="supports_streaming" eval="False" />
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">4</field>
+    </record>
+
+    <record id="ai_model_gemini_2_0_flash_exp" model="ai.model">
+        <field name="provider_id" ref="ai_provider_google" />
+        <field name="name">Gemini 2.0 Flash (experimental)</field>
+        <field name="code">gemini-2.0-flash-exp</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1048576</field>
+        <field name="max_output_tokens">8192</field>
+        <field name="cost_per_1m_input">0.075</field>
+        <field name="cost_per_1m_output">0.30</field>
+        <field name="cost_per_1m_image">0.001315</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">5</field>
+    </record>
+
+    <record id="ai_model_deepseek_chat" model="ai.model">
+        <field name="provider_id" ref="ai_provider_deepseek" />
+        <field name="name">DeepSeek Chat</field>
+        <field name="code">deepseek-chat</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">64000</field>
+        <field name="max_output_tokens">8192</field>
+        <field name="cost_per_1m_input">0.14</field>
+        <field name="cost_per_1m_output">0.28</field>
+        <field name="accuracy_rating">3</field>
+        <field name="speed_rating">5</field>
+    </record>
+
+    <record id="ai_model_deepgram_nova_3" model="ai.model">
+        <field name="provider_id" ref="ai_provider_deepgram" />
+        <field name="name">Nova 3</field>
+        <field name="code">nova-3</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="10" />
+        <field name="supports_streaming" eval="True" />
+        <field name="cost_per_audio_minute">0.0043</field>
+        <field name="accuracy_rating">5</field>
+        <field name="speed_rating">5</field>
+    </record>
+
+    <record id="ai_model_groq_llama_3_3_70b" model="ai.model">
+        <field name="provider_id" ref="ai_provider_groq" />
+        <field name="name">Llama 3.3 70B Versatile</field>
+        <field name="code">llama-3.3-70b-versatile</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="has_vision" eval="False" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">131072</field>
+        <field name="max_output_tokens">32768</field>
+        <field name="accuracy_rating">3</field>
+        <field name="speed_rating">5</field>
+    </record>
+
+    <record id="ai_model_groq_llama_4_scout" model="ai.model">
+        <field name="provider_id" ref="ai_provider_groq" />
+        <field name="name">Llama 4 Scout 17B</field>
+        <field name="code">meta-llama/llama-4-scout-17b-16e-instruct</field>
+        <field name="kind">vision</field>
+        <field name="sequence" eval="20" />
+        <field name="has_vision" eval="True" />
+        <field name="supports_streaming" eval="True" />
+        <field name="max_context_window">131072</field>
+        <field name="max_output_tokens">32768</field>
+        <field name="accuracy_rating">3</field>
+        <field name="speed_rating">5</field>
+    </record>
+
+    <record id="ai_model_groq_whisper_large_v3_turbo" model="ai.model">
+        <field name="provider_id" ref="ai_provider_groq" />
+        <field name="name">Whisper Large v3 Turbo</field>
+        <field name="code">whisper-large-v3-turbo</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="30" />
+        <field name="supports_streaming" eval="False" />
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">5</field>
+    </record>
+
+    <record id="ai_model_moonshot_kimi_k3" model="ai.model">
+        <field name="provider_id" ref="ai_provider_moonshot" />
+        <field name="name">Kimi K3</field>
+        <field name="code">kimi-k3</field>
+        <field name="kind">chat</field>
+        <field name="sequence" eval="10" />
+        <field name="supports_streaming" eval="True" />
+        <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">131072</field>
+        <field name="max_output_tokens">32768</field>
+        <field name="accuracy_rating">4</field>
+        <field name="speed_rating">2</field>
+    </record>
+
+    <record id="ai_provider_anthropic" model="ai.provider">
+        <field name="default_model_id" ref="ai_model_claude_sonnet_5" />
+    </record>
+
+    <record id="ai_provider_openai" model="ai.provider">
+        <field name="default_model_id" ref="ai_model_openai_gpt_4o_mini" />
+    </record>
+
+    <record id="ai_provider_google" model="ai.provider">
+        <field name="default_model_id" ref="ai_model_gemini_2_0_flash_exp" />
+    </record>
+
+    <record id="ai_provider_deepseek" model="ai.provider">
+        <field name="default_model_id" ref="ai_model_deepseek_chat" />
+    </record>
+
+    <record id="ai_provider_deepgram" model="ai.provider">
+        <field name="default_model_id" ref="ai_model_deepgram_nova_3" />
+    </record>
+
+    <record id="ai_provider_groq" model="ai.provider">
+        <field name="default_model_id" ref="ai_model_groq_llama_3_3_70b" />
+    </record>
+
+    <record id="ai_provider_moonshot" model="ai.provider">
+        <field name="default_model_id" ref="ai_model_moonshot_kimi_k3" />
+    </record>
+
+</odoo>

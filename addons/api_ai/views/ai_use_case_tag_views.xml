@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_ai_use_case_tag_list" model="ir.ui.view">
+        <field name="name">ai.use.case.tag.list</field>
+        <field name="model">ai.use.case.tag</field>
+        <field name="arch" type="xml">
+            <list string="AI Use Case Tags" create="1" delete="1" editable="bottom">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="code" />
+                <field name="color" widget="color_picker" />
+                <field name="active" widget="boolean_toggle" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_ai_use_case_tag_form" model="ir.ui.view">
+        <field name="name">ai.use.case.tag.form</field>
+        <field name="model">ai.use.case.tag</field>
+        <field name="arch" type="xml">
+            <form string="AI Use Case Tag">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Inactive"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="code" />
+                            <field name="sequence" />
+                        </group>
+                        <group>
+                            <field name="color" widget="color_picker" />
+                            <field name="active" widget="boolean_toggle" />
+                        </group>
+                    </group>
+                    <group>
+                        <field
+                            name="description"
+                            placeholder="Describe when this use case applies..." />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_ai_use_case_tag_search" model="ir.ui.view">
+        <field name="name">ai.use.case.tag.search</field>
+        <field name="model">ai.use.case.tag</field>
+        <field name="arch" type="xml">
+            <search string="AI Use Case Tags">
+                <field name="name" />
+                <field name="code" />
+                <filter
+                    string="Active"
+                    name="filter_active"
+                    domain="[('active', '=', True)]" />
+                <filter
+                    string="Inactive"
+                    name="filter_inactive"
+                    domain="[('active', '=', False)]" />
+            </search>
+        </field>
+    </record>
+
+    <record id="action_ai_use_case_tag" model="ir.actions.act_window">
+        <field name="name">AI Use Case Tags</field>
+        <field name="res_model">ai.use.case.tag</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first AI Use Case Tag
+            </p>
+            <p>
+                Use case tags help categorize AI operations (vision, reasoning, speed, etc.)
+                to match them with optimal providers.
+            </p>
+        </field>
+    </record>
+
+</odoo>

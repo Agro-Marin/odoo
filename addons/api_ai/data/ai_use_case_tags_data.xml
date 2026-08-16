@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="tag_vision" model="ai.use.case.tag">
+        <field name="name">Vision Processing</field>
+        <field name="code">vision</field>
+        <field name="sequence" eval="10" />
+        <field
+            name="description">Image and document analysis, OCR, visual understanding</field>
+        <field name="color" eval="1" />
+    </record>
+
+    <record id="tag_reasoning" model="ai.use.case.tag">
+        <field name="name">Complex Reasoning</field>
+        <field name="code">reasoning</field>
+        <field name="sequence" eval="20" />
+        <field
+            name="description">Complex problem solving, logical analysis, multi-step tasks</field>
+        <field name="color" eval="2" />
+    </record>
+
+    <record id="tag_speed" model="ai.use.case.tag">
+        <field name="name">Fast Response</field>
+        <field name="code">speed</field>
+        <field name="sequence" eval="30" />
+        <field
+            name="description">Real-time interactions requiring quick responses</field>
+        <field name="color" eval="3" />
+    </record>
+
+    <record id="tag_budget" model="ai.use.case.tag">
+        <field name="name">Cost Optimized</field>
+        <field name="code">budget</field>
+        <field name="sequence" eval="40" />
+        <field
+            name="description">Budget-friendly options for high-volume operations</field>
+        <field name="color" eval="4" />
+    </record>
+
+    <record id="tag_accuracy" model="ai.use.case.tag">
+        <field name="name">High Accuracy</field>
+        <field name="code">accuracy</field>
+        <field name="sequence" eval="50" />
+        <field name="description">Critical tasks requiring maximum accuracy</field>
+        <field name="color" eval="5" />
+    </record>
+
+    <record id="tag_long_context" model="ai.use.case.tag">
+        <field name="name">Long Context</field>
+        <field name="code">long_context</field>
+        <field name="sequence" eval="60" />
+        <field
+            name="description">Tasks requiring large context windows (documents, code review)</field>
+        <field name="color" eval="6" />
+    </record>
+
+    <record id="tag_ocr" model="ai.use.case.tag">
+        <field name="name">OCR</field>
+        <field name="code">ocr</field>
+        <field name="sequence" eval="70" />
+        <field
+            name="description">Optical character recognition and document extraction</field>
+        <field name="color" eval="7" />
+    </record>
+
+    <record id="tag_embeddings" model="ai.use.case.tag">
+        <field name="name">Embeddings</field>
+        <field name="code">embeddings</field>
+        <field name="sequence" eval="80" />
+        <field
+            name="description">Text and image embedding generation for semantic search</field>
+        <field name="color" eval="8" />
+    </record>
+
+    <record id="tag_chat" model="ai.use.case.tag">
+        <field name="name">Conversational</field>
+        <field name="code">chat</field>
+        <field name="sequence" eval="90" />
+        <field name="description">Interactive chat and conversational AI</field>
+        <field name="color" eval="9" />
+    </record>
+
+    <record id="tag_content_generation" model="ai.use.case.tag">
+        <field name="name">Content Generation</field>
+        <field name="code">content_generation</field>
+        <field name="sequence" eval="100" />
+        <field
+            name="description">Marketing copy, blog posts, product descriptions</field>
+        <field name="color" eval="10" />
+    </record>
+
+    <record id="tag_audio" model="ai.use.case.tag">
+        <field name="name">Speech and Audio</field>
+        <field name="code">audio</field>
+        <field name="sequence" eval="110" />
+        <field
+            name="description">Transcription, speaker diarization, voice synthesis</field>
+        <field name="color" eval="11" />
+    </record>
+
+</odoo>

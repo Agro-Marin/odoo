@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_groups_privilege_api_ai" model="res.groups.privilege">
+        <field name="name">AI Providers</field>
+        <field name="category_id" ref="credential.module_category_integration" />
+        <field name="sequence" eval="30" />
+    </record>
+
+    <record id="group_ai_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="privilege_id" ref="res_groups_privilege_api_ai" />
+        <field name="sequence" eval="10" />
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
+        <field
+            name="comment">Can view AI provider configuration and use case tags.</field>
+    </record>
+
+    <record id="group_ai_admin" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="privilege_id" ref="res_groups_privilege_api_ai" />
+        <field name="sequence" eval="20" />
+        <field name="implied_ids" eval="[Command.link(ref('group_ai_user'))]" />
+        <field
+            name="comment">Configures AI providers: capabilities, pricing, quality
+            ratings and fallback chains.</field>
+    </record>
+
+    <record id="credential.group_integration_user" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('group_ai_user'))]" />
+    </record>
+
+    <record id="credential.group_integration_admin" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('group_ai_admin'))]" />
+    </record>
+
+</odoo>
