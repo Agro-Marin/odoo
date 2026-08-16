@@ -78,6 +78,7 @@ enforce them.
 | [0014](0014-packagize-service-db.md) | Packagize service/db.py into `odoo/service/db/` | Accepted |
 | [0015](0015-batch-reservation-in-action-assign.md) | Decide a batch's reservation before writing any of it | Accepted |
 | [0016](0016-root-modules-are-foundational.md) | The root modules are foundational | Accepted |
+| [0017](0017-t-out-on-a-recordset.md) | What `t-out` should render when the value is a recordset | Proposed |
 
 ## Template
 

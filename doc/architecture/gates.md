@@ -294,7 +294,7 @@ database**:
 |---|---|---|
 | `base` | `ci_smoke` | less the excluded `TestReportsRendering` and `TestIrModelFieldsTranslation` |
 | `test_http` | `ci_http` | |
-| `test_orm` | `ci_orm` | added 2026-08-08. **1,110 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
+| `test_orm` | `ci_orm` | added 2026-08-08. **1,130 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
 | `mrp` | `ci_mrp` | the first suite here that is not a `test_*` addon. Recursive BoM explosion, backorder splitting, multi-level procurement and compute chains across four models make it the deepest ORM consumer among the bundled addons; installing it gives `stock`, `product`, `uom` and `resource` their first DB-backed exercise through a real consumer |
 
 Adding `test_orm` paid for itself on the first run:

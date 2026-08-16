@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.12
-:Date: 2026-08-10
+:Version: 5.15
+:Date: 2026-08-15
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -2523,8 +2523,35 @@ Structure each test as setup → action → assertion, separated by blank lines.
 
 * Use the ``Form`` simulator (``from odoo.tests import Form``) to test onchange
   behaviour without HTTP.
-* **Lock hot paths with ``assertQueryCount``.** A query-count increase is a
-  regression; ``@warmup`` primes caches first.
+* **Lock hot paths with ``assertQueryCount``.** ``@warmup`` primes caches first.
+* **A moved count is a question, not a verdict** ``[review]``. A count changes
+  when the work *moves* as readily as when it grows, and the number cannot tell
+  those apart — only the stack of the extra calls can. Two sessions misread one
+  on 2026-08-15, in opposite directions, and both were a call site away from the
+  wrong remedy. A pin asserting *exactly* one QWeb compile per batch read **0**
+  once the compiled template outlived the call: that reads as a regression and
+  was the fix landing. A pin asserting one ``_notify_get_reply_to`` for five
+  records read **6** against another session's in-flight tree: read as their
+  regression it invited deleting the local hoist, which was the very thing their
+  fix had been written to honour. Get the stack before moving a pin, then move it
+  and say in the commit what each unit bought. ``marketing_card``'s send pin went
+  54 → 56 because two reads stopped being warmed incidentally by a scan that was
+  removed — the same reads, in the window that needs them, against 25 fewer
+  elsewhere. That is not the same fact as two reads being added, and only the
+  second is a regression.
+* **Pin the guarantee, not the arithmetic** ``[review]``. Where the mechanism is
+  what you mean, assert a bound and then assert the mechanism:
+  ``assertEqual(compiles, 1)`` breaks the day caching improves it to zero, while
+  ``assertLessEqual(compiles, 1)`` followed by a second render asserting zero
+  says *compiled once, never again* — which is the property, and survives the
+  improvement. **Both halves are required: a bound alone is satisfied by the
+  work not happening at all.** Applied to the
+  ``_notify_get_reply_to`` pin this rule is drawn from, the second half failed
+  on its first run — ten notifications where five were expected — because the
+  class fixture assigned an activity before each test and notified once more.
+  The exact-count pin had never seen it, counting only calls inside the patched
+  block; asserting the outcome exposed a fixture that had been doubling every
+  test in the class.
 
 6.5 Raw SQL in tests
 --------------------
@@ -2669,6 +2696,21 @@ tag is ``REF``.
    Task ID: 17012
 
 The ``Solution:`` block and the ``Task ID`` line are mandatory.
+
+**Name files in a pathspec, never a directory** ``[review]``. ``git commit --
+<path>`` records the *working tree* at that path, deletions included, and a
+directory pathspec sweeps in every deletion under it. Measured:
+
+.. code-block::
+
+   rm research/note.md              # missing from the working tree
+
+   git commit -m A -- research/keep.md    # note.md survives
+   git commit -m B -- research            # note.md deleted, unmentioned
+
+Branch B is how a 567-line note was removed by a commit whose message described
+only an edit to its sibling. Naming the files is the fix; reading ``git status``
+for ``D`` lines before committing is the check that catches the rest.
 
 7.2 Branches and task IDs
 -------------------------
@@ -3494,6 +3536,38 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.15
+     - 2026-08-15
+     - **§7.1 requires a pathspec to name files, not a directory.** ``git commit
+       -- <path>`` records the working tree at that path, deletions included, so
+       a directory pathspec sweeps in every deletion under it — which is how a
+       567-line research note was removed by a commit whose message described
+       only an edit to its sibling. Measured both ways: naming the file leaves a
+       missing sibling untouched, naming the directory deletes it. §12 of the
+       workspace ``CLAUDE.md`` already warned about the additions half of this
+       trap — another session's staged work riding along under your message —
+       and this is the deletions half, which needs no second session to happen.
+   * - 5.14
+     - 2026-08-15
+     - **§6.4 splits the query-count rule in three.** "A query-count increase is
+       a regression" was the whole of it, and on one day two sessions acted on
+       that sentence and both readings were wrong — in opposite directions. A
+       pin asserting exactly one QWeb compile per batch read **0** once
+       ``mail``'s template node cache let compiled code outlive the call, which
+       looks like a regression and was the fix landing; a pin asserting one
+       ``_notify_get_reply_to`` per batch read **6** against another session's
+       in-flight tree, and reading it as their regression invited deleting a
+       local hoist their fix had been written to honour. Both needed the *stack*
+       of the extra calls, not the number. The rule now separates locking a hot
+       path from interpreting a move, and adds: pin the guarantee rather than
+       the arithmetic — ``assertLessEqual`` plus a second call asserting zero
+       says *compiled once, never again*, and survives the improvement that
+       ``assertEqual(…, 1)`` breaks on. Both halves are required, and the
+       second earned its keep the same day: applied to the
+       ``_notify_get_reply_to`` pin, asserting the outcome failed at once on a
+       class fixture that had been doubling every test's notifications, which
+       the exact-count pin could not see because it counted only inside the
+       patched block.
    * - 5.13
      - 2026-08-11
      - **§2.9.14 gains ``_defer()``**: a job saying "not finished, and nothing
