@@ -2,7 +2,7 @@
 import { Component, useExternalListener, useRef } from "@odoo/owl";
 
 export class ApiKeyModal extends Component {
-    static template = "web.DocApiKeyModal";
+    static template = "api_doc.DocApiKeyModal";
 
     static components = {};
     static props = {};
@@ -24,7 +24,9 @@ export class ApiKeyModal extends Component {
     }
 
     save() {
-        this.env.modelStore.setAPIKey(this.modalRef.el.querySelector(":scope input").value.trim());
+        this.env.modelStore.setAPIKey(
+            this.modalRef.el.querySelector(":scope input").value.trim(),
+        );
         this.env.modelStore.showApiKeyModal = false;
     }
 
@@ -33,6 +35,9 @@ export class ApiKeyModal extends Component {
     }
 
     async openAPIKeyForm() {
-        window.open(`${window.location.origin}/odoo/action-doc_api_key_wizard`, "_blank");
+        window.open(
+            `${window.location.origin}/odoo/action-doc_api_key_wizard`,
+            "_blank",
+        );
     }
 }

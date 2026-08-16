@@ -1,11 +1,11 @@
 /** @odoo-module native */
+import { createRequestCode, LANGUAGES } from "@api_doc/utils/doc_code_gen";
 import { Component, useState } from "@odoo/owl";
-import { LANGUAGES, createRequestCode } from "@api_doc/utils/doc_code_gen";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { browser } from "@web/core/browser/browser";
 
 class CopyableCodeEditor extends CodeEditor {
-    static template = "web.DocRequest.CodeEditor";
+    static template = "api_doc.DocRequest.CodeEditor";
 
     copyToClipboard() {
         navigator?.clipboard?.writeText(this.aceEditor.getValue());
@@ -17,7 +17,7 @@ class CopyableCodeEditor extends CodeEditor {
 }
 
 export class DocRequest extends Component {
-    static template = "web.DocRequest";
+    static template = "api_doc.DocRequest";
 
     static components = {
         CodeEditor: CopyableCodeEditor,
@@ -25,10 +25,8 @@ export class DocRequest extends Component {
     static props = {
         url: String,
         request: { optional: true },
-        method: { type: String, optional: true },
-    };
-    static defaultProps = {
-        httpMethod: "POST",
+        // the reflected method this request illustrates, passed by DocMethod
+        method: { type: Object, optional: true },
     };
 
     setup() {
@@ -73,7 +71,7 @@ export class DocRequest extends Component {
         this.state.response = {};
         const result = await this.env.modelStore.executeRequest(
             this.props.url,
-            this.state.requestCode
+            this.state.requestCode,
         );
         if (result) {
             this.state.response = result;
@@ -84,9 +82,21 @@ export class DocRequest extends Component {
         this.state.showTraceback = !this.state.showTraceback;
     }
 
+    // `error` is an object only when the body parsed as JSON; a plain string is
+    // what a proxy, or any non-JSON 500, gives us instead.
+    get errorTitle() {
+        const error = this.state.response.error;
+        return typeof error === "string" ? error : (error?.title ?? "");
+    }
+
+    get errorTraceback() {
+        const error = this.state.response.error;
+        return typeof error === "string" ? "" : (error?.traceback ?? "");
+    }
+
     onClickClipboard() {
         browser.navigator.clipboard.writeText(
-            `Error ${this.state.response.status}:\n\n${this.responseText.title}\n\n${this.responseText.traceback}`
+            `Error ${this.state.response.status}:\n\n${this.errorTitle}\n\n${this.errorTraceback}`,
         );
     }
 }

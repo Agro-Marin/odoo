@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
-<t t-name="web.DocApiKeyModal">
+<t t-name="api_doc.DocApiKeyModal">
     <div class="modal-bg d-flex flex-nowrap justify-content-center align-items-center">
         <div class="modal h-auto p-3 d-flex flex-nowrap flex-column mb-2" style="width: 25rem" t-ref="modalRef">
             <h2 class="mb-2">API key</h2>

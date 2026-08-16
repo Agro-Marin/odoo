@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
-<t t-name="web.DocSearchModal">
+<t t-name="api_doc.DocSearchModal">
     <div class="modal-bg d-flex flex-nowrap justify-content-center align-items-center">
         <div class="modal p-2 d-flex flew-nowrap flex-column mb-2" style="height: 40rem; width: 40rem" t-ref="modalRef">
             <input

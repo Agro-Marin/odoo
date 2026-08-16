@@ -13,8 +13,14 @@ const FIELDS_DEFAULT = [
         value: false,
     },
     {
-        types: ["datetime", "date"],
-        value: Date.now.toString(),
+        // `Date.now.toString()` stringified the *function*, so every required
+        // date field's example read "function now() { [native code] }".
+        types: ["datetime"],
+        value: "2024-01-01 00:00:00",
+    },
+    {
+        types: ["date"],
+        value: "2024-01-01",
     },
     {
         types: ["binary"],
@@ -122,28 +128,60 @@ export function getCrudMethodsExamples(model) {
                 domain: [["display_name", "ilike", "a%"]],
             },
         },
+        // The signature's own defaults are an empty groupby and no aggregate,
+        // which the ORM rejects outright ("returned more columns than
+        // expected"). A curated example is the difference between a Run button
+        // that demonstrates the method and one that only ever errors.
+        formatted_read_group: {
+            request: {
+                domain: [["display_name", "ilike", "a%"]],
+                groupby: ["create_date:month"],
+                aggregates: ["__count"],
+            },
+        },
     };
+}
+
+// Keyed by the OUTERMOST type of the annotation, which is the one that decides
+// the shape of the value: `dict[str, list[str]]` wants {}, `list[dict]` wants
+// [], and a substring search cannot tell those apart.
+const ANNOTATION_DEFAULTS = {
+    domaintype: () => [["display_name", "ilike", "a%"]],
+    dict: () => ({}),
+    mapping: () => ({}),
+    valuestype: () => ({}),
+    list: () => [],
+    sequence: () => [],
+    collection: () => [],
+    iterable: () => [],
+    tuple: () => [],
+    set: () => [],
+    bool: () => false,
+    int: () => 0,
+    float: () => 0,
+    complex: () => 0,
+    str: () => "",
+};
+
+/**
+ * The leading type name of an annotation, lowercased and undotted.
+ * `collections.abc.Sequence[str] | None` -> "sequence"
+ */
+function annotationHead(annotation) {
+    const match = /^\s*([A-Za-z_][\w.]*)/.exec(annotation ?? "");
+    return match ? match[1].split(".").at(-1).toLowerCase() : "";
 }
 
 export function getParameterDefaultValue(name, parameter) {
     if ("default" in parameter) {
         return parameter.default;
-    } else if (/\bdomaintype\b/i.test(parameter.type)) {
-        return [[ "display_name", "ilike", "a%"]];
-    } else if (/\bstr\b/i.test(parameter.type)) {
-        return "";
-    } else if (/\b(int|float|complex)\b/i.test(parameter.type)) {
-        return 0;
-    } else if (/\bbool\b/i.test(parameter.type)) {
-        return false;
-    } else if (
-        /args/i.test(name) ||
-        /\b(list|sequence|collection|tuple|range|set)\b/i.test(parameter.annotation)
-    ) {
-        return [];
-    } else if (/dict/i.test(parameter.annotation)) {
-        return {};
-    } else {
-        return "";
     }
+    // `parameter.annotation` is the key the server publishes. Reading
+    // `parameter.type` here -- a key that has never existed in the payload --
+    // sent every domain out as "", which the server rejects outright.
+    const build = ANNOTATION_DEFAULTS[annotationHead(parameter.annotation)];
+    if (build) {
+        return build();
+    }
+    return /args/i.test(name) ? [] : "";
 }

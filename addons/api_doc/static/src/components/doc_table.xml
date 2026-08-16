@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
-<t t-name="web.DocTable">
+<t t-name="api_doc.DocTable">
     <div class="overflow-auto w-100 p-1">
         <table class="o-doc-table rounded bg-1 w-100">
             <tr t-if="props.data.headers" class="bg-1">

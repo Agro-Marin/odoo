@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { Component, useRef, onMounted, useExternalListener, useState } from "@odoo/owl";
-import { useDebounced } from "@web/core/utils/timing";
 import { search } from "@api_doc/utils/doc_model_search";
+import { Component, onMounted, useExternalListener, useRef, useState } from "@odoo/owl";
+import { useDebounced } from "@web/core/utils/timing";
 
 export class SearchModal extends Component {
-    static template = "web.DocSearchModal";
+    static template = "api_doc.DocSearchModal";
 
     static components = {};
     static props = {
@@ -31,7 +31,11 @@ export class SearchModal extends Component {
         });
 
         this.search = useDebounced((query) => {
-            this.results = search(this.env.modelStore.models, query, this.state.activeFilters);
+            this.results = search(
+                this.env.modelStore.models,
+                query,
+                this.state.activeFilters,
+            );
             this.state.resultCount = this.results.length;
             this.scrollRef.el.scrollTop = 0;
             this.onScroll(this.scrollRef.el);
@@ -55,9 +59,9 @@ export class SearchModal extends Component {
     }
 
     onInput(event) {
-        if (event.target.value.trim()) {
-            this.search(event.target.value.trim());
-        }
+        // Emptying the box has to search too, otherwise the previous results
+        // stay on screen with nothing left that produced them.
+        this.search(event.target.value.trim());
     }
 
     onSelect(result) {

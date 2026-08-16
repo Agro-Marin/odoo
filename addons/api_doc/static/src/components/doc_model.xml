@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
-<t t-name="web.DocModel">
-    <div t-if="!state.error" class="o-doc-model position-relative d-flex flex-nowrap flex-fill flex-column p-3">
+<t t-name="api_doc.DocModel">
+    <div class="o-doc-model position-relative d-flex flex-nowrap flex-fill flex-column p-3">
         <h2 class="w-100 mb-2 mt-2" t-out="this.state.model?.name ?? ''"></h2>
         <DocTable data="state.modelData"/>
 
@@ -31,7 +31,7 @@
         <div style="min-height: 30vh"/>
     </div>
 
-    <aside t-if="!ui.isSmall and !state.error" class="o-doc-model-aside overflow-auto position-sticky d-block flex-fill bg-default pt-2 pb-2 ps-3 pe-3 border-start">
+    <aside t-if="!ui.isSmall" class="o-doc-model-aside overflow-auto position-sticky d-block flex-fill bg-default pt-2 pb-2 ps-3 pe-3 border-start">
         <div
             class="d-flex flex-nowrap w-100 cursor-pointer text-capitalize align-items-center"
             t-on-click="() => this.state.showModulesFilter = !this.state.showModulesFilter"
@@ -76,16 +76,6 @@
         </a>
     </aside>
 
-    <div
-        t-if="state.error and !modelStore.activeModel"
-        class="d-flex flex-nowrap align-items-center justify-content-center w-100 h-100"
-    >
-        <DocErrorDialog
-            name="modelStore.error.name"
-            status="modelStore.error.status"
-            traceback="modelStore.error.traceback"
-        />
-    </div>
 </t>
 
 </templates>

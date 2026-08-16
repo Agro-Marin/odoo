@@ -1,5 +1,11 @@
 /** @odoo-module native */
-import { Component, useState, useExternalListener, useRef, onWillRender } from "@odoo/owl";
+import {
+    Component,
+    onWillRender,
+    useExternalListener,
+    useRef,
+    useState,
+} from "@odoo/owl";
 
 export const TABLE_TYPES = {
     Id: "id",
@@ -9,7 +15,7 @@ export const TABLE_TYPES = {
 
 export class DocTable extends Component {
     static components = { DocTable };
-    static template = "web.DocTable";
+    static template = "api_doc.DocTable";
 
     static props = {
         data: true,
@@ -47,8 +53,12 @@ export class DocTable extends Component {
     }
 
     showDynamicTooltip(event, content) {
-        if (this.requestAnim) cancelAnimationFrame(this.requestAnim);
-        if (this.hideTimeout) clearTimeout(this.hideTimeout);
+        if (this.requestAnim) {
+            cancelAnimationFrame(this.requestAnim);
+        }
+        if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+        }
 
         this.activeHoverTarget = event.target;
         this.isHovering = true;
@@ -73,7 +83,9 @@ export class DocTable extends Component {
     }
 
     scheduleHide(event) {
-        if (this.hideTimeout) clearTimeout(this.hideTimeout);
+        if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+        }
         const currentTarget = event.target;
         this.isHovering = false;
 
@@ -95,7 +107,9 @@ export class DocTable extends Component {
     }
 
     keepAlive() {
-        if (this.hideTimeout) clearTimeout(this.hideTimeout);
+        if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+        }
         this.isHovering = true;
     }
 

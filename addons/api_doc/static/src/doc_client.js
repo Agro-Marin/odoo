@@ -1,12 +1,18 @@
 /** @odoo-module native */
-import { Component, useState, onMounted, useSubEnv } from "@odoo/owl";
-import { ModelStore } from "@api_doc/doc_model_store";
-import { useDocUI } from "@api_doc/utils/doc_ui_store";
+import { DocErrorDialog } from "@api_doc/components/doc_error_dialog";
 import { ApiKeyModal } from "@api_doc/components/doc_modal_api_key";
 import { SearchModal } from "@api_doc/components/doc_modal_search";
-import { DocSidebar } from "@api_doc/components/doc_sidebar";
 import { DocModel } from "@api_doc/components/doc_model";
-import { DocErrorDialog } from "@api_doc/components/doc_error_dialog";
+import { DocSidebar } from "@api_doc/components/doc_sidebar";
+import { ModelStore } from "@api_doc/doc_model_store";
+import { useDocUI } from "@api_doc/utils/doc_ui_store";
+import {
+    Component,
+    onMounted,
+    useExternalListener,
+    useState,
+    useSubEnv,
+} from "@odoo/owl";
 
 export class DocClient extends Component {
     static template = "api_doc.DocClient";
@@ -34,7 +40,9 @@ export class DocClient extends Component {
             this.selectUrlModel();
         });
 
-        window.addEventListener("popstate", () => {
+        // useExternalListener rather than addEventListener: the raw listener
+        // outlives the component and keeps it alive with it.
+        useExternalListener(window, "popstate", () => {
             this.selectUrlModel();
         });
     }

@@ -7,9 +7,11 @@ export class DocErrorDialog extends Component {
         <div class="alert error mt-1 d-flex flex-column" role="alert">
             <div class="d-flex align-items-center mb-2">
                 <i class="pe-2 fa-solid fa-exclamation-triangle fa-lg" aria-hidden="true"/>
-                <h5 class="m-0 text-danger">Error while loading models: <strong t-out="props.name"/></h5>
+                <h5 class="m-0 text-danger">
+                    <t t-esc="title"/>: <strong t-out="props.name"/>
+                </h5>
             </div>
-            <t t-if="props.traceback">
+            <t t-if="traceback">
                 <div t-if="state.showTraceback" class="overflow-auto position-relative" style="max-height: 500px;">
                     <button
                         class="btn bg-100 position-absolute top-0 end-0"
@@ -18,7 +20,7 @@ export class DocErrorDialog extends Component {
                     >
                         <span class="fa-solid fa-paste"/>
                     </button>
-                    <pre class="small text-break p-4" t-out="props.traceback"/>
+                    <pre class="small text-break p-4" t-out="traceback"/>
                 </div>
                 <button
                     class="btn btn-sm mt-2 align-self-center"
@@ -29,15 +31,36 @@ export class DocErrorDialog extends Component {
         </div>
     `;
     static props = {
-        name: {type: String},
-        status: {type: Number, optional: true},
-        traceback: {type: String, optional: true},
+        name: { type: String },
+        // What failed, so a single model's failure is not reported as "error
+        // while loading models" with no way to tell which one.
+        subject: { type: String, optional: true },
+        status: { type: [Number, { value: null }], optional: true },
+        // tryFetch puts the caught exception here when the failure was not an
+        // HTTP one, so this is not always a string.
+        traceback: { optional: true },
     };
 
     setup() {
         this.state = useState({
-            showTraceback: false
+            showTraceback: false,
         });
+    }
+
+    get title() {
+        return this.props.subject
+            ? `Error while loading ${this.props.subject}`
+            : "Error while loading models";
+    }
+
+    get traceback() {
+        const traceback = this.props.traceback;
+        if (!traceback) {
+            return "";
+        }
+        return traceback instanceof Error
+            ? (traceback.stack ?? String(traceback))
+            : String(traceback);
     }
 
     toggleTraceback() {
@@ -45,8 +68,11 @@ export class DocErrorDialog extends Component {
     }
 
     onClickClipboard() {
+        // `props.message` and `this.contextDetails` never existed: this used to
+        // copy the word "undefined" twice into the reader's clipboard.
+        const status = this.props.status ? ` (HTTP ${this.props.status})` : "";
         browser.navigator.clipboard.writeText(
-            `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.props.traceback}`
+            `${this.title}: ${this.props.name}${status}\n\n${this.traceback}`,
         );
     }
 }

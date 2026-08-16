@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-<t t-name="web.DocMethod">
+<t t-name="api_doc.DocMethod">
     <article class="o-doc-method mb-2 rounded" t-att-class="props.class" t-att-id="this.method.name">
         <div
             class="o-doc-method-header position-sticky d-flex flex-nowrap w-100 cursor-pointer rounded bg-1"

@@ -1,11 +1,10 @@
 /** @odoo-module native */
-import { Component, useState, useEffect, onPatched, markup } from "@odoo/owl";
+import { DocLoadingIndicator } from "@api_doc/components/doc_loading_indicator";
+import { DocMethod } from "@api_doc/components/doc_method";
 import { DocTable, TABLE_TYPES } from "@api_doc/components/doc_table";
 import { getCrudMethodsExamples } from "@api_doc/utils/doc_model_utils";
-import { DocMethod } from "@api_doc/components/doc_method";
-import { DocLoadingIndicator } from "@api_doc/components/doc_loading_indicator";
 import { useDocUI } from "@api_doc/utils/doc_ui_store";
-import { DocErrorDialog } from "@api_doc/components/doc_error_dialog";
+import { Component, markup, onPatched, useEffect, useState } from "@odoo/owl";
 
 const TYPE_COLORS = {
     "text-success": ["integer", "char", "boolean", "selection", "float"],
@@ -40,15 +39,14 @@ function getTypeData(fieldData) {
     }
 
     return data;
-};
+}
 
 export class DocModel extends Component {
-    static template = "web.DocModel";
+    static template = "api_doc.DocModel";
     static components = {
         DocTable,
         DocMethod,
         DocLoadingIndicator,
-        DocErrorDialog,
     };
     static props = {};
 
@@ -58,12 +56,14 @@ export class DocModel extends Component {
             modelData: { items: [] },
             crudMethods: [],
             methods: [],
-            fields: { data: { items: [] }},
+            fields: { data: { items: [] } },
             modules: [],
-            activeModules: {
-                core: true,
-                base: false,
-            },
+            // Every module a model contributes to is shown until the reader
+            // says otherwise. Seeding this with {core: true, base: false} left
+            // res.partner rendering 2 of its 75 fields on arrival, because
+            // every module absent from the literal read as undefined, i.e.
+            // hidden -- the page opened on an all-but-empty table.
+            activeModules: {},
             showModulesFilter: true,
         });
 
@@ -82,22 +82,20 @@ export class DocModel extends Component {
             ],
         );
 
-        let lastFocusedElement = null
-        onPatched(
-            () => {
-                let el = null;
-                if (this.modelStore.activeMethod) {
-                    el = document.getElementById(this.modelStore.activeMethod);
-                }
-                if (this.modelStore.activeField) {
-                    el = document.getElementById(this.modelStore.activeField);
-                }
-                if (el && el != lastFocusedElement) {
-                    lastFocusedElement = el;
-                    el.scrollIntoView({ behavior: "smooth" });
-                }
+        let lastFocusedElement = null;
+        onPatched(() => {
+            let el = null;
+            if (this.modelStore.activeMethod) {
+                el = document.getElementById(this.modelStore.activeMethod);
             }
-        );
+            if (this.modelStore.activeField) {
+                el = document.getElementById(this.modelStore.activeField);
+            }
+            if (el && el !== lastFocusedElement) {
+                lastFocusedElement = el;
+                el.scrollIntoView({ behavior: "smooth" });
+            }
+        });
     }
 
     get modelName() {
@@ -105,7 +103,10 @@ export class DocModel extends Component {
     }
 
     async update() {
-        if (!this.state.model || this.state.model.model !== this.modelStore.activeModel.model) {
+        if (
+            !this.state.model ||
+            this.state.model.model !== this.modelStore.activeModel.model
+        ) {
             this.updateModel(this.modelStore.activeModel);
         }
 
@@ -126,9 +127,12 @@ export class DocModel extends Component {
         this.state.methods = [];
         this.state.modules = [];
 
-        this.modelStore.loadModel(modelId)
+        this.modelStore
+            .loadModel(modelId)
             .then((model) => {
-                if (this.state.model.model !== model.model) {
+                // null means the fetch failed; the store holds the error and
+                // the client renders it.
+                if (!model || this.state.model.model !== model.model) {
                     return;
                 }
 
@@ -137,7 +141,7 @@ export class DocModel extends Component {
                     items: [
                         ["Model Name", { type: "code", value: model.model }],
                         ...(model.doc ? [["Description", model.doc]] : []),
-                    ]
+                    ],
                 };
 
                 this.updateModules();
@@ -155,12 +159,12 @@ export class DocModel extends Component {
             })
             .catch((error) => {
                 console.error(error);
-                this.state.error = error;
+                this.modelStore.error = error;
             });
     }
 
     isModuleActive(module) {
-        return !module || this.state.activeModules[module];
+        return !module || this.state.activeModules[module] !== false;
     }
 
     updateModules() {
@@ -170,8 +174,15 @@ export class DocModel extends Component {
         Object.values(model.methods).forEach((m) => m.module && modules.add(m.module));
 
         modules = [...modules];
-        modules.sort((a, b) => (a === "core" ? -1 : b === "core" ? 1 : a.localeCompare(b)));
+        modules.sort((a, b) =>
+            a === "core" ? -1 : b === "core" ? 1 : a.localeCompare(b),
+        );
         this.state.modules = modules;
+        for (const module of modules) {
+            if (!(module in this.state.activeModules)) {
+                this.state.activeModules[module] = true;
+            }
+        }
     }
 
     updateMethods() {
@@ -201,7 +212,14 @@ export class DocModel extends Component {
             });
         }
 
-        const crudOrder = ["search_read", "search", "read", "create", "write", "unlink"];
+        const crudOrder = [
+            "search_read",
+            "search",
+            "read",
+            "create",
+            "write",
+            "unlink",
+        ];
         methods.sort((a, b) => {
             const aIndex = crudOrder.indexOf(a.name);
             const bIndex = crudOrder.indexOf(b.name);
@@ -212,7 +230,7 @@ export class DocModel extends Component {
             } else if (bIndex >= 0) {
                 return 1;
             }
-            return a.name.localeCompare(b.name)
+            return a.name.localeCompare(b.name);
         });
         this.state.methods = methods;
     }
@@ -230,7 +248,7 @@ export class DocModel extends Component {
             .filter((fieldData) => this.isModuleActive(fieldData.module))
             .map((fieldData, index) => {
                 if (fieldData.name === this.modelStore.activeField) {
-                    activeIndex = index
+                    activeIndex = index;
                 }
                 return [
                     { type: TABLE_TYPES.Code, value: fieldData.name },
@@ -249,7 +267,7 @@ export class DocModel extends Component {
                         type: TABLE_TYPES.Code,
                         value: fieldData.module || "",
                     },
-                ]
+                ];
             });
 
         fields.sort((a, b) => a[0].value.localeCompare(b[0].value));

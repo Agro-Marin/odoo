@@ -18,24 +18,27 @@ async function tryFetch(input) {
         try {
             responseJson = await response.json();
         } catch (err) {
-            throw new DocAPIError ({
+            throw new DocAPIError({
                 name: "Invalid JSON Response",
                 status: response.status,
                 traceback: err,
             });
         }
         if (!response.ok) {
-            throw new DocAPIError ({
-                name: response.status === 500
-                    ? "Internal Server Error"
-                    : `HTTP ${response.status}`,
+            throw new DocAPIError({
+                name:
+                    response.status === 500
+                        ? "Internal Server Error"
+                        : `HTTP ${response.status}`,
                 status: response.status,
                 traceback: responseJson.debug,
             });
         }
         return responseJson;
-    } catch(err) {
-        if (err instanceof DocAPIError) throw err;
+    } catch (err) {
+        if (err instanceof DocAPIError) {
+            throw err;
+        }
         throw new DocAPIError({
             name: "Network Error",
             status: null,
@@ -75,6 +78,7 @@ export class ModelStore extends SignalStore {
 
     async loadModels() {
         try {
+            this.error = null;
             console.info("Loading Models...");
             const response = await tryFetch(`/doc/index.json`);
 
@@ -116,6 +120,9 @@ export class ModelStore extends SignalStore {
 
     async loadModel(modelId) {
         try {
+            // A previous model's failure must not outlive the navigation away
+            // from it.
+            this.error = null;
             const model = await tryFetch(`/doc/${modelId}.json`);
 
             if (model.doc) {
@@ -129,7 +136,13 @@ export class ModelStore extends SignalStore {
             console.info("Model Loaded: ", model);
             return model;
         } catch (e) {
+            // Name what failed: reporting one model's failure as "error while
+            // loading models" leaves the reader guessing which one.
+            e.subject = modelId;
             this.error = e;
+            // An explicit null, so the caller does not read `.model` off
+            // undefined and turn a handled failure into a TypeError.
+            return null;
         }
     }
 
@@ -195,9 +208,9 @@ export class ModelStore extends SignalStore {
                 result.error = !json
                     ? body
                     : {
-                        title: json.message,
-                        traceback: json.debug,
-                    };
+                          title: json.message,
+                          traceback: json.debug,
+                      };
             }
         } catch (error) {
             result.error = error;

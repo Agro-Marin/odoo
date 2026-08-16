@@ -1,14 +1,24 @@
 import inspect
-import textwrap
 from datetime import datetime, timedelta
 from http import HTTPStatus
+from unittest.mock import patch
 
 from odoo.fields import Command
 from odoo.models import Model
 from odoo.tests import new_test_user, tagged
 
 from .dummy_methods import DummyMethods
-from odoo.addons.api_doc.controllers.api_doc import is_public_method, parse_signature
+from odoo.addons.api_doc.tools.cache import (
+    ACCESS_CACHE_SEQUENCES,
+    doc_cache_generation,
+    stale_index_domain,
+)
+from odoo.addons.api_doc.tools.registry import (
+    describe_method,
+    is_public_method,
+    public_method_names,
+    reflect_callable,
+)
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 
@@ -61,16 +71,7 @@ class TestDoc(HttpCaseWithUserDemo):
         self.assertEqual(res.headers.get('Content-Type'), 'application/json; charset=utf-8')
 
         json = res.json()
-        self.assertEqual(set(json), {'models', 'modules'})
-
-        self.assertGreater(set(json['modules']), {'base', 'web', 'api_doc'})
-        # if we ever enable module sorting
-        # self.assertLess(
-        #     json['modules'].index('base'),
-        #     json['modules'].index('web'),
-        #     "verify that both base and web are installed, and that "
-        #     "they are ordered according to the dependency graph",
-        # )
+        self.assertEqual(set(json), {'models'})
 
         res_partner = next(
             (model for model in json['models'] if model['model'] == 'res.partner'),
@@ -102,11 +103,10 @@ class TestDoc(HttpCaseWithUserDemo):
         fields = json.pop('fields', None)
         methods = json.pop('methods', None)
         self.maxDiff = None
-        self.assertEqual(json, {
-            'model': 'res.partner',
-            'name': 'Contact',
-            'doc': None,
-        })
+        self.assertEqual(json.pop('model'), 'res.partner')
+        self.assertEqual(json.pop('name'), 'Contact')
+        self.assertEqual(set(json), {'doc'}, "no other top-level key is published")
+
         self.assertGreater(set(fields), {'id', 'create_uid', 'lang', 'tz'})
         fields['id'].pop('ai', None)
         self.assertEqual(fields['id'], {
@@ -127,54 +127,56 @@ class TestDoc(HttpCaseWithUserDemo):
             'string': 'ID',
             'type': 'integer',
         })
+
+        # `search` is pinned for its *shape*, not for the prose of a core
+        # docstring: pinning the rendered docstring of an ORM method makes this
+        # module's suite fail whenever the ORM edits a sentence, which is what
+        # it did until this was rewritten.
         self.assertGreater(set(methods), {'search', 'create_company'})
-        self.assertEqual(methods['search'], {
-            'model': 'core',
-            'module': 'core',
-            'signature': '(domain, offset=0, limit=None, order=None) -> list[int]',
-            'parameters': {
-                'domain': {
-                    'annotation': 'DomainType',
-                    'doc': textwrap.dedent("""\
-                        <p><tt class="docutils literal">A search domain &lt;reference/orm/domains&gt;</tt>. Use an empty
-                        list to match all records.</p>""",
-                    ),
-                },
-                'offset': {
-                    'default': 0,
-                    'annotation': 'int',
-                    'doc': """<p>number of results to ignore (default: none)</p>""",
-                },
-                'limit': {
-                    'default': None,
-                    'annotation': 'int | None',
-                    'doc': """<p>maximum number of records to return (default: all)</p>""",
-                },
-                'order': {
-                    'default': None,
-                    'annotation': 'str | None',
-                    'doc': """<p>sort string</p>""",
-                }
-            },
-            'doc': textwrap.dedent("""\
-                <div class="document">
+        search = methods['search']
+        self.assertEqual(search['model'], 'core')
+        self.assertEqual(search['module'], 'core')
+        self.assertEqual(
+            search['signature'],
+            '(domain, offset=0, limit=None, order=None) -> list[int]',
+            "Self must be published as what RPC really returns",
+        )
+        self.assertEqual(set(search['parameters']), {'domain', 'offset', 'limit', 'order'})
+        self.assertEqual(search['parameters']['domain']['annotation'], 'DomainType')
+        self.assertEqual(search['parameters']['offset']['default'], 0)
+        self.assertEqual(search['api'], ['model', 'readonly'])
+        self.assertEqual(search['return']['annotation'], 'list[int]')
 
+    def test_doc_model_publishes_no_unreflectable_method(self):
+        """Every documented method reflects: none falls back to the stub.
 
-                <p>Search for the records that satisfy the given
-                <tt class="docutils literal">search domain &lt;reference/orm/domains&gt;</tt>.</p>
-                <p>This is a high-level method, which should not be overridden. Its actual
-                implementation is done by method <tt class="docutils literal">_search</tt>.</p>
-                </div>"""
-            ),
-            'raise': {
-                'AccessError': """<p>if user is not allowed to access requested information</p>""",
-            },
-            'return': {
-                'annotation': 'list[int]',
-                'doc': """<p>at most <tt class="docutils literal">limit</tt> records matching the search criteria</p>""",
-            },
-            'api': ['model', 'readonly'],
-        })
+        The stub exists for a callable nothing can introspect. It used to catch
+        a whole class of ORM methods instead, because their annotations name
+        types imported under ``if TYPE_CHECKING:``.
+        """
+        self.authenticate('demo', 'demo')
+        res = self.url_open('/doc/res.partner.json', allow_redirects=False)
+        res.raise_for_status()
+        stubbed = [
+            name for name, method in res.json()['methods'].items()
+            if method['signature'] == '(...)'
+        ]
+        self.assertEqual(stubbed, [], "these methods could not be reflected")
+
+    def test_doc_model_signatures_keep_their_markers(self):
+        """A published signature is one a reader can copy into a call."""
+        self.authenticate('demo', 'demo')
+        res = self.url_open('/doc/res.partner.json', allow_redirects=False)
+        res.raise_for_status()
+        methods = res.json()['methods']
+        for name, method in methods.items():
+            for param_name, param in method['parameters'].items():
+                if param.get('kind') == 'VAR_KEYWORD':
+                    with self.subTest(method=name):
+                        self.assertIn(f'**{param_name}', method['signature'])
+                elif param.get('kind') == 'VAR_POSITIONAL':
+                    with self.subTest(method=name):
+                        self.assertIn(f'*{param_name}', method['signature'])
 
     def test_doc_cache(self):
         self.authenticate('demo', 'demo')
@@ -210,6 +212,17 @@ class TestDoc(HttpCaseWithUserDemo):
         self.assertTrue(etag_admin)
         self.assertNotEqual(etag_demo, etag_admin)
 
+    def test_doc_model_etag_is_a_quoted_entity_tag(self):
+        """RFC 9110 wants an ETag quoted; a cache in front of us may insist."""
+        self.authenticate('demo', 'demo')
+        res = self.url_open('/doc/res.partner.json', allow_redirects=False)
+        res.raise_for_status()
+        etag = res.headers['ETag']
+        self.assertTrue(
+            etag.startswith('"') and etag.endswith('"'),
+            f"ETag is not a quoted-string: {etag}",
+        )
+
     def test_doc_index_no_cache_refreshes_stale_attachment(self):
         """
         A client sending ``Cache-Control: no-cache`` must always get the
@@ -228,7 +241,7 @@ class TestDoc(HttpCaseWithUserDemo):
         index_attach = self.env['ir.attachment'].sudo().search(
             [('name', 'like', 'odoo-doc-index-%')], limit=1)
         self.assertTrue(index_attach, "the /doc/index.json cache attachment must exist")
-        index_attach.raw = b'{"modules": ["__stale__"], "models": []}'
+        index_attach.raw = b'{"models": [{"model": "__stale__"}]}'
 
         res = self.url_open(
             '/doc/index.json',
@@ -238,9 +251,70 @@ class TestDoc(HttpCaseWithUserDemo):
         res.raise_for_status()
         json = res.json()
         self.assertNotEqual(
-            json.get('modules'), ['__stale__'],
+            [m['model'] for m in json['models']], ['__stale__'],
             "no-cache must bypass the stale server-side attachment cache")
-        self.assertIn('base', json.get('modules', []))
+
+    def test_doc_index_is_cached_once_per_audience(self):
+        """A second request reuses the attachment instead of storing another.
+
+        Without that, every concurrent first request stores a duplicate row
+        under the same name and nothing ever collects them.
+        """
+        Attachment = self.env['ir.attachment'].sudo()
+        Attachment.search([('name', 'like', 'odoo-doc-index-%')]).unlink()
+        self.authenticate('demo', 'demo')
+        for _ in range(3):
+            self.url_open('/doc/index.json', allow_redirects=False).raise_for_status()
+        names = Attachment.search([('name', 'like', 'odoo-doc-index-%')]).mapped('name')
+        self.assertEqual(len(names), len(set(names)), f"duplicate cache rows: {names}")
+        self.assertEqual(len(names), 1)
+
+    def test_an_acl_write_invalidates_a_cache_group_the_key_tracks(self):
+        """First half of the staleness guarantee: the ORM tells us.
+
+        An ``ir.model.access`` write invalidates a cache group; if that group
+        is not one the key is built from, a reader who has just lost access to
+        a model keeps being served a document that still lists it.
+        """
+        self.env.registry.cache_invalidated.clear()
+        self.env['ir.model.access'].sudo().search(
+            [('model_id.model', '=', 'res.country')], limit=1
+        ).write({'perm_read': False})
+        self.env.flush_all()
+        self.assertTrue(
+            set(self.env.registry.cache_invalidated) & set(ACCESS_CACHE_SEQUENCES),
+            f"an ACL write invalidated {sorted(self.env.registry.cache_invalidated)}, "
+            f"none of which the /doc cache key tracks",
+        )
+
+    def test_the_cache_generation_moves_with_the_groups_it_tracks(self):
+        """Second half: a moved sequence is a new generation.
+
+        And `default` deliberately does not move it -- that group is bumped by
+        ordinary ORM cache invalidation, which cannot change a line of the
+        document but would rebuild a multi-megabyte index.
+        """
+        registry_sequence, sequences = self.env.registry.get_sequences(self.env.cr)
+        baseline = doc_cache_generation(self.env)
+
+        def frozen(moved):
+            return lambda self_registry, cr: (registry_sequence, moved)
+
+        for name in ACCESS_CACHE_SEQUENCES:
+            moved = dict(sequences, **{name: sequences[name] + 1})
+            with (
+                self.subTest(sequence=name),
+                patch.object(type(self.env.registry), 'get_sequences', frozen(moved)),
+            ):
+                self.assertNotEqual(
+                    doc_cache_generation(self.env), baseline,
+                    f"moving the {name!r} sequence must invalidate the documents")
+
+        noisy = dict(sequences, default=sequences['default'] + 1)
+        with patch.object(type(self.env.registry), 'get_sequences', frozen(noisy)):
+            self.assertEqual(
+                doc_cache_generation(self.env), baseline,
+                "the 'default' sequence must not rebuild the index")
 
     def test_parse_signature(self):
         def clean_doc(d):
@@ -252,7 +326,7 @@ class TestDoc(HttpCaseWithUserDemo):
                 continue
             with self.subTest(method=name):
                 self.assertEqual(
-                    clean_doc(parse_signature(method).as_dict()),
+                    clean_doc(reflect_callable(method).as_dict()),
                     clean_doc(method.expected),
                 )
 
@@ -278,6 +352,7 @@ class TestDoc(HttpCaseWithUserDemo):
         })
         FakeModel = FakeCls(self.env, (), ())
         assert is_public_method(FakeModel, 'one_arg')
+        self.assertIn('one_arg', public_method_names(FakeModel))
 
         for method_name in (
             'class_method',
@@ -288,3 +363,79 @@ class TestDoc(HttpCaseWithUserDemo):
             with self.subTest(method_name=method_name):
                 assert hasattr(FakeModel, method_name)
                 self.assertFalse(is_public_method(FakeModel, method_name))
+                self.assertNotIn(method_name, public_method_names(FakeModel))
+
+    def test_describe_method_borrows_the_nearest_docstring(self):
+        """An override that documents nothing keeps the documentation it replaced.
+
+        `res.users.name_search` is the live case: the effective implementation
+        is documented and the mixin that introduced the name is not, and before
+        this the documented one was the one thrown away.
+        """
+        described = describe_method(self.env['res.users'], 'name_search')
+        self.assertIn('doc', described, "name_search must publish a docstring")
+        # provenance stays with whoever introduced the name, so the module
+        # filter keeps meaning "what does this layer add"
+        self.assertEqual(described['module'], 'core')
+
+    def test_describe_method_keeps_the_introducing_signature(self):
+        """The signature comes from the base, which is the complete one.
+
+        An override narrowed to ``(*args, **kwargs)`` documents nothing useful.
+        """
+        described = describe_method(self.env['res.partner'], 'search')
+        self.assertEqual(
+            described['signature'],
+            '(domain, offset=0, limit=None, order=None) -> list[int]',
+        )
+
+    def test_model_doc_is_the_model_s_own(self):
+        """A mixin's prose is not the model's documentation.
+
+        Every mixin `res.partner` inherits sits in the same MRO with its own
+        docstring; walking it blindly documents Contact with `mail.thread`'s
+        "allow sending messages related to the current model".
+        """
+        from odoo.addons.api_doc.tools.registry import describe_model_doc
+
+        Partner = self.env['res.partner']
+        doc = describe_model_doc(Partner)
+        if doc is not None:
+            for mixin in ('mail.thread', 'avatar.mixin', 'image.mixin'):
+                if mixin in self.env:
+                    mixin_doc = type(self.env[mixin]).__doc__
+                    if mixin_doc:
+                        self.assertNotIn(mixin_doc.strip()[:40], doc)
+
+    def test_model_doc_of_a_documented_model(self):
+        """A class that documents itself has that prose published."""
+        from odoo.addons.api_doc.tools.registry import describe_model_doc
+
+        # A throwaway model class carrying a docstring: that is the prose the
+        # page must publish.
+        FakeCls = type('DocumentedDummy', (Model,), {
+            '_name': 'documented.dummy',
+            '_register': False,
+            '__module__': 'odoo.addons.api_doc',
+            '__doc__': 'A documented dummy model.',
+        })
+        self.assertIn(
+            'A documented dummy model.',
+            describe_model_doc(FakeCls(self.env, (), ())),
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestDocIndexGeneration(HttpCaseWithUserDemo):
+    def test_stale_domain_matches_other_generations_only(self):
+        Attachment = self.env['ir.attachment'].sudo()
+        Attachment.search([('name', 'like', 'odoo-doc-index-%')]).unlink()
+        generation = doc_cache_generation(self.env)
+        current = Attachment.create({
+            'name': f'odoo-doc-index-{generation}-deadbeef.json', 'raw': b'{}'})
+        stale = Attachment.create({
+            'name': 'odoo-doc-index-0000000000-deadbeef.json', 'raw': b'{}'})
+
+        matched = Attachment.search(stale_index_domain(generation))
+        self.assertIn(stale, matched)
+        self.assertNotIn(current, matched)

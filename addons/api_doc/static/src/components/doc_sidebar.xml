@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
-<t t-name="web.DocSidebar">
+<t t-name="api_doc.DocSidebar">
     <div class="o-doc-sidebar pt-3 ps-3 position-sticky bg-1 border-end d-flex flex-nowrap flex-column">
         <div class="pe-4 pb-4">
             <input t-on-input="onSearchInput" class="w-100" placeholder="Search for models..."/>

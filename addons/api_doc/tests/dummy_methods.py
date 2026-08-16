@@ -178,6 +178,53 @@ class DummyMethods:
         </div>""",
     }
 
+    # A `:type:` field is the only annotation an unannotated parameter gets.
+    def type_field_only(self, a):
+        """
+        :param a: an A
+        :type a: SomeCustomType
+        """
+        pass
+
+    type_field_only.expected = {
+        "signature": "(a)",
+        "parameters": {"a": {"annotation": "SomeCustomType", "doc": "<p>an A</p>"}},
+        "doc": '<div class="document"></div>',
+    }
+
+    # Every parameter marker has to survive into the rendered signature: a
+    # reader copying `(a, kwargs)` writes a call that cannot work.
+    def every_parameter_kind(self, pos, /, normal, *args, kw_only=1, **kwargs):
+        """
+        :param pos: positional-only
+        :param kwargs: the rest
+        """
+        pass
+
+    every_parameter_kind.expected = {
+        "signature": "(pos, /, normal, *args, kw_only=1, **kwargs)",
+        "parameters": {
+            "pos": {"kind": "POSITIONAL_ONLY", "doc": "<p>positional-only</p>"},
+            "normal": {},
+            "args": {"kind": "VAR_POSITIONAL"},
+            "kw_only": {"kind": "KEYWORD_ONLY", "default": 1},
+            "kwargs": {"kind": "VAR_KEYWORD", "doc": "<p>the rest</p>"},
+        },
+        "doc": '<div class="document"></div>',
+    }
+
+    # Annotations naming a type imported under `if TYPE_CHECKING:` must reflect
+    # as written rather than raise NameError. `Sequence` is not imported here on
+    # purpose -- this is the shape most of the ORM has.
+    def deferred_annotation(self, names: Sequence[str]) -> Sequence[int]:  # noqa: F821 - the point of the fixture
+        pass
+
+    deferred_annotation.expected = {
+        "signature": "(names) -> Sequence[int]",
+        "parameters": {"names": {"annotation": "Sequence[str]"}},
+        "return": {"annotation": "Sequence[int]"},
+    }
+
     # Those methods cannot be called over RPC and should not appear in /doc
     @classmethod
     def class_method(cls):
