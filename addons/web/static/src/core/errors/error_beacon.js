@@ -27,6 +27,30 @@ const KINDS = new Set([
     "asset_load_error",
 ]);
 
+// Browser-generated `window.onerror` messages that report no application
+// fault. A ResizeObserver whose callback resizes the observed element defers
+// the next round to the following frame and tells the page so — spec-defined
+// behaviour, not a bug. Chrome surfaces it as an error event with no Error
+// object, hence no stack and no filename, so the beacon carries nothing to act
+// on while occupying a WARNING line and a `web.js.error` row on every deploy.
+// Match on prefix: the trailing wording differs between engines.
+// Copy in module_loader.js — keep both in step.
+const IGNORED_MESSAGE_PREFIXES = [
+    "ResizeObserver loop completed with undelivered notifications",
+    "ResizeObserver loop limit exceeded",
+];
+
+/**
+ * Whether *message* is browser noise the beacon must drop. Copy in
+ * module_loader.js — keep both in step.
+ *
+ * @param {string} message
+ * @returns {boolean}
+ */
+function isIgnoredMessage(message) {
+    return IGNORED_MESSAGE_PREFIXES.some((prefix) => message.startsWith(prefix));
+}
+
 /**
  * Inlined, not imported: this module must carry no imports. Copy in
  * module_loader.js — keep both in step.
@@ -116,7 +140,7 @@ function serializeCause(cause) {
  */
 export function reportJsError(info) {
     const message = String(info?.message ?? "");
-    if (!message) {
+    if (!message || isIgnoredMessage(message)) {
         return false;
     }
     const line = (info.line ?? 0) | 0;

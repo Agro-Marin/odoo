@@ -193,8 +193,25 @@
     // a leak. Insertion order makes dropping the oldest the right eviction.
     const MAX_SEEN_KEYS = 512;
 
+    // Browser-generated `window.onerror` messages that report no application
+    // fault: a ResizeObserver whose callback resizes the observed element
+    // defers the next round to the following frame and tells the page so --
+    // spec-defined behaviour, not a bug. Chrome raises it with no Error object,
+    // so the beacon carries no stack and no filename to act on. Copy in
+    // core/errors/error_beacon.js -- keep both in step.
+    const IGNORED_MESSAGE_PREFIXES = [
+        "ResizeObserver loop completed with undelivered notifications",
+        "ResizeObserver loop limit exceeded",
+    ];
+    function isIgnoredMessage(message) {
+        return IGNORED_MESSAGE_PREFIXES.some((prefix) => message.startsWith(prefix));
+    }
+
     const seenErrors = new Set();
     function reportError(payload) {
+        if (isIgnoredMessage(String(payload.message || ""))) {
+            return;
+        }
         // Stack AND cause discriminate. OWL builds its generic lifecycle
         // wrapper inside handleError (owl.es.js:1661), so the wrapper's stack is
         // the scheduler frames — identical for two component crashes flushed in
