@@ -24,11 +24,10 @@ import { useService } from "@web/core/utils/hooks";
 import { MeetingSideActions } from "./meeting_side_actions.js";
 
 /** @typedef {"chat"|"invite"} MeetingPanel */
-
 /**
  * @typedef {Object} Props
  * @property {ThreadActionDefinition.id} [autoOpenAction]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Meeting extends Component {
     static template = "mail.Meeting";

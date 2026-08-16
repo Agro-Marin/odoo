@@ -11,6 +11,11 @@ export class Mp3Encoder {
     /** @type {Int16Array} */
     samplesMono;
 
+    /**
+     * @param {Object} [config={}]
+     * @param {number} [config.sampleRate=44100]
+     * @param {number} [config.bitRate=128]
+     */
     constructor(config = {}) {
         this.config = {
             sampleRate: 44100,
@@ -31,10 +36,15 @@ export class Mp3Encoder {
         this.dataBuffer = [];
     }
 
+    /** @param {ArrayBuffer|Int8Array} buffer */
     appendToBuffer(buffer) {
         this.dataBuffer.push(new Int8Array(buffer));
     }
 
+    /**
+     * @param {Float32Array} input
+     * @param {Int16Array} output
+     */
     floatTo16BitPCM(input, output) {
         for (let i = 0; i < input.length; i++) {
             const s = Math.max(-1, Math.min(1, input[i]));
@@ -42,6 +52,10 @@ export class Mp3Encoder {
         }
     }
 
+    /**
+     * @param {Float32Array} arrayBuffer
+     * @returns {Int16Array}
+     */
     convertBuffer(arrayBuffer) {
         const data = new Float32Array(arrayBuffer);
         const out = new Int16Array(arrayBuffer.length);
@@ -49,12 +63,11 @@ export class Mp3Encoder {
         return out;
     }
 
+    /** @param {Float32Array} arrayBuffer */
     encode(arrayBuffer) {
         this.encoding = true;
         this.samplesMono = this.convertBuffer(arrayBuffer);
         let remaining = this.samplesMono.length;
-        // `> 0`, not `>= 0`: an exact multiple of MAX_SAMPLES would otherwise
-        // run one extra iteration and encode an empty buffer.
         for (let i = 0; remaining > 0; i += MAX_SAMPLES) {
             const left = this.samplesMono.subarray(i, i + MAX_SAMPLES);
             const mp3buffer = this.mp3Encoder.encodeBuffer(left);

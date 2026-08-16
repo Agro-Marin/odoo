@@ -4,12 +4,30 @@ import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+/** @type {Object<string, string>} */
 const PROTOCOLS_TEXT = { host: "HOST", srflx: "STUN", prflx: "STUN", relay: "TURN" };
+
+/**
+ * @typedef {Object} FormattedTransportStats
+ * @property {RTCIceCandidateType|""} [localCandidateType]
+ * @property {RTCIceCandidateType|""} [remoteCandidateType]
+ * @property {RTCDtlsTransportState} [dtlsState]
+ * @property {RTCIceTransportState} [iceState]
+ * @property {number} [packetsSent]
+ * @property {number} [packetsReceived]
+ * @property {number} [availableOutgoingBitrate]
+ */
+/**
+ * @typedef {Object} FormattedProducerStats
+ * @property {string} [codec]
+ * @property {number} [clockRate]
+ */
 
 export class CallContextMenu extends Component {
     static props = ["rtcSession", "close?"];
     static template = "discuss.CallContextMenu";
 
+    /** @type {number|undefined} */
     updateStatsTimeout;
     rtcConnectionTypes = CONNECTION_TYPES;
 
@@ -18,9 +36,13 @@ export class CallContextMenu extends Component {
         this.store = useService("mail.store");
         this.rtc = useService("discuss.rtc");
         this.state = useState({
+            /** @type {FormattedTransportStats} */
             downloadStats: {},
+            /** @type {FormattedTransportStats} */
             uploadStats: {},
+            /** @type {Object<string, FormattedProducerStats>} */
             producerStats: {},
+            /** @type {import("@mail/discuss/call/common/peer_to_peer").FormattedPeerStats} */
             peerStats: {},
             rangeVolume: this.volume,
         });
@@ -63,7 +85,7 @@ export class CallContextMenu extends Component {
 
     /**
      * @param {string} candidateType
-     * @returns {string} a formatted string that describes the connection type e.g: "prflx (STUN)"
+     * @returns {string}
      */
     formatProtocol(candidateType) {
         if (!candidateType) {
@@ -83,6 +105,7 @@ export class CallContextMenu extends Component {
                 if (!uploadStats || !downloadStats) {
                     return;
                 }
+                /** @type {FormattedTransportStats} */
                 const formattedUploadStats = {};
                 for (const value of uploadStats.values?.() || []) {
                     switch (value.type) {
@@ -102,6 +125,7 @@ export class CallContextMenu extends Component {
                             break;
                     }
                 }
+                /** @type {FormattedTransportStats} */
                 const formattedDownloadStats = {};
                 for (const value of downloadStats.values?.() || []) {
                     switch (value.type) {
@@ -120,8 +144,10 @@ export class CallContextMenu extends Component {
                             break;
                     }
                 }
+                /** @type {Object<string, FormattedProducerStats>} */
                 const formattedProducerStats = {};
                 for (const [type, stat] of Object.entries(producerStats)) {
+                    /** @type {FormattedProducerStats} */
                     const currentTypeStats = {};
                     for (const value of stat.values()) {
                         switch (value.type) {
@@ -144,6 +170,7 @@ export class CallContextMenu extends Component {
         );
     }
 
+    /** @param {Event & {target: HTMLInputElement}} ev */
     onChangeVolume(ev) {
         const volume = Number(ev.target.value);
         this.rtc.setVolume(this.props.rtcSession, volume);

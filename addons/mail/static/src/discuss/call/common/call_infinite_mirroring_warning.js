@@ -4,7 +4,7 @@ import { Component } from "@odoo/owl";
 /**
  * @typedef {Object} Props
  * @property {Function} onClose
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class CallInfiniteMirroringWarning extends Component {
     static template = "discuss.CallInfiniteMirroringWarning";

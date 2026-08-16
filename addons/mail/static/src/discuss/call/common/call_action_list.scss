@@ -2,14 +2,8 @@
     animation: o-pulse 1s 10;
 }
 
-
-// The dark half, folded in from `call_action_list.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // = Call Action List
-        // ============================================================================
-        // No CSS hacks, variables overrides only
-
         .o-discuss-CallActionList-pushToTalk {
             @include button-variant(
                 $o-dark-bs-primary,

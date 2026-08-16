@@ -7,7 +7,6 @@
     }
 
     i {
-        // fa icons have a line height of 1 by default which breaks alignment
         line-height: 1.5;
 
         &.o-second {
@@ -16,12 +15,13 @@
     }
 }
 
-
-// The dark half, folded in from `message_seen_indicator.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-MessageSeenIndicator {
-            --mail-MessageSeenIndicator-hasEveryoneSeenColor: #{lighten($o-dark-bs-primary, 15%)};
+            --mail-MessageSeenIndicator-hasEveryoneSeenColor: #{lighten(
+                    $o-dark-bs-primary,
+                    15%
+                )};
         }
     }
 }

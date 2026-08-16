@@ -107,7 +107,6 @@ class DiscussCommand extends Component {
     }
 }
 
-// add @ namespace + provider
 commandSetupRegistry.add("@", {
     debounceDelay: 200,
     emptyMessage: _t("No conversation found"),
@@ -132,6 +131,7 @@ export class DiscussCommandPalette {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {import("services").ServiceFactories} env.services
+     * @param {Object} options
      */
     constructor(env, options) {
         this.env = env;
@@ -149,12 +149,12 @@ export class DiscussCommandPalette {
 
     async fetch() {
         await Promise.all([
-            this.store.channels.fetch(), // FIXME: needed to search group chats without explicit name
+            this.store.channels.fetch(),
             this.store.searchConversations(this.cleanedTerm),
         ]);
     }
 
-    /** @param {Set<Record>} [filtered] personas/threads already listed in another category */
+    /** @param {Set<Record>} [filtered] */
     buildResults(filtered) {
         const TOTAL_LIMIT = this.ui.isSmall ? 7 : 10;
         const remaining = TOTAL_LIMIT - (filtered ? filtered.size : 0);
@@ -174,7 +174,6 @@ export class DiscussCommandPalette {
             ? this.store.self_partner
             : undefined;
         if (selfPartner) {
-            // selfPersona filtered here to put at the bottom as lowest priority
             partners = partners.filter((p) => p.notEq(selfPartner));
         }
         const channels = Object.values(this.store.Thread.records)
@@ -194,7 +193,6 @@ export class DiscussCommandPalette {
                 return c1.id - c2.id;
             })
             .slice(0, TOTAL_LIMIT);
-        // balance remaining: half personas, half channels
         const elligiblePersonas = [];
         const elligibleChannels = [];
         let i = 0;
@@ -220,11 +218,16 @@ export class DiscussCommandPalette {
             this.commands.push(this.makeDiscussCommand(channel));
         }
         if (selfPartner && i < remaining) {
-            // put self persona as lowest priority item
             this.commands.push(this.makeDiscussCommand(selfPartner));
         }
     }
 
+    /**
+     * @param {import("models").Thread|import("models").Persona|symbol} threadOrPersona
+     * @param {string} [category]
+     * @returns {Object}
+     * @throws {Error}
+     */
     makeDiscussCommand(threadOrPersona, category) {
         if (threadOrPersona?.Model?.name === "Thread") {
             /** @type {import("models").Thread} */
@@ -302,6 +305,11 @@ export class DiscussCommandPalette {
 
 commandProviderRegistry.add("find_or_start_conversation", {
     namespace: "@",
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {Object} options
+     * @returns {Promise<Object[]>}
+     */
     async provide(env, options) {
         const palette = new DiscussCommandPalette(env, options);
         await palette.fetch();

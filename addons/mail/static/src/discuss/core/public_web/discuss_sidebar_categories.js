@@ -48,7 +48,10 @@ export class DiscussSidebarSubchannel extends Component {
         return this.props.thread;
     }
 
-    /** @param {MouseEvent} ev */
+    /**
+     * @param {MouseEvent} ev
+     * @param {import("models").Thread} thread
+     */
     openThread(ev, thread) {
         markEventHandled(ev, "sidebar.openThread");
         thread.open();
@@ -152,6 +155,10 @@ export class DiscussSidebarChannel extends Component {
         return this.env.filteredThreads?.(this.thread.sub_channel_ids) ?? [];
     }
 
+    /**
+     * @param {import("models").Thread} sub
+     * @returns {boolean}
+     */
     showThread(sub) {
         if (sub.eq(this.store.discuss.thread)) {
             return true;
@@ -181,7 +188,10 @@ export class DiscussSidebarChannel extends Component {
         );
     }
 
-    /** @param {MouseEvent} ev */
+    /**
+     * @param {MouseEvent} ev
+     * @param {import("models").Thread} thread
+     */
     openThread(ev, thread) {
         markEventHandled(ev, "sidebar.openThread");
         thread.open();
@@ -212,6 +222,7 @@ export class DiscussSidebarCategory extends Component {
         this.floating = useDropdownState();
     }
 
+    /** @param {boolean} hovering */
     onHover(hovering) {
         this.floating.isOpen = hovering;
     }
@@ -236,7 +247,7 @@ export class DiscussSidebarCategory extends Component {
 
 /**
  * @typedef {Object} Props
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSidebarCategories extends Component {
     static template = "mail.DiscussSidebarCategories";
@@ -253,10 +264,15 @@ export class DiscussSidebarCategories extends Component {
         this.discusscorePublicWebService = useService("discuss.core.public.web");
         this.orm = useService("orm");
         useSubEnv({
+            /** @param {import("models").Thread[]} threads */
             filteredThreads: (threads) => this.filteredThreads(threads),
         });
     }
 
+    /**
+     * @param {import("models").Thread[]} threads
+     * @returns {import("models").Thread[]}
+     */
     filteredThreads(threads) {
         return threads.filter((thread) => thread.displayInSidebar);
     }

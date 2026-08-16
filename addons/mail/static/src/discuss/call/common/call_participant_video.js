@@ -11,7 +11,7 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {import("models").RtcSession} session
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class CallParticipantVideo extends Component {
     static props = ["session", "type", "inset?"];
@@ -36,9 +36,6 @@ export class CallParticipantVideo extends Component {
         const stream = this.props.session?.getStream(this.props.type);
         const srcObject = stream ?? null;
         if (this.root.el.srcObject === srcObject) {
-            // onPatched runs on every parent re-render: reassigning the same
-            // stream and calling load() restarts the media pipeline, flickering
-            // a black frame per render
             return;
         }
         this.root.el.srcObject = srcObject;

@@ -5,9 +5,9 @@ import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 /**
  * @typedef {Object} Props
- * @property {import("@mail/core/common/thread_model").Thread} thread
+ * @property {import("models").Thread} thread
  * @property {string} [className]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class PinnedMessagesPanel extends Component {
     static components = {
@@ -22,20 +22,17 @@ export class PinnedMessagesPanel extends Component {
         onWillStart(() => {
             this.props.thread.fetchPinnedMessages();
         });
-        onWillUpdateProps((nextProps) => {
-            if (nextProps.thread.notEq(this.props.thread)) {
-                nextProps.thread.fetchPinnedMessages();
-            }
-        });
+        onWillUpdateProps(
+            /** @param {{thread: import("models").Thread}} nextProps */ (nextProps) => {
+                if (nextProps.thread.notEq(this.props.thread)) {
+                    nextProps.thread.fetchPinnedMessages();
+                }
+            },
+        );
     }
 
-    /**
-     * Get the message to display when the pinned-message list is empty.
-     */
     get emptyText() {
         if (this.props.thread.pinnedMessagesState === "error") {
-            // distinct from "no pinned messages": a fetch failure is not an
-            // empty channel
             return _t("Pinned messages could not be loaded.");
         }
         if (this.props.thread.channel_type === "channel") {

@@ -21,24 +21,18 @@ import { debounce } from "@web/core/utils/timing";
 
 import { CallAction, computeActionsStack } from "./call_actions.js";
 
-// re-exported from their new homes to keep the historical import path stable
-// (tests and downstream modules import these from rtc_service).
 export { CONNECTION_TYPES, Network } from "@mail/discuss/call/common/call_transport";
 export {
     CROSS_TAB_CLIENT_MESSAGE,
     CROSS_TAB_HOST_MESSAGE,
 } from "@mail/discuss/call/common/cross_tab_sync";
 
+/** @typedef {'audio' | 'camera' | 'screen' } streamType */
 /**
- * @typedef {'audio' | 'camera' | 'screen' } streamType
- */
-
-/**
- *
  * @param {EventTarget} target
  * @param {string} event
- * @param {Function} f event listener callback
- * @return {Function} unsubscribe function
+ * @param {Function} f
+ * @return {Function}
  */
 function subscribe(target, event, f) {
     target.addEventListener(event, f);
@@ -50,11 +44,6 @@ const SW_MESSAGE_TYPE = {
     POST_RTC_LOGS: "POST_RTC_LOGS",
 };
 
-/**
- * Read through the `browser` seam and at call time, not at module load: a
- * module-level snapshot of the bare globals cannot be mocked, so the
- * unsupported-browser path was unreachable from tests.
- */
 function isClientRtcCompatible() {
     return Boolean(browser.RTCPeerConnection && browser.MediaStream);
 }
@@ -63,23 +52,43 @@ function GET_DEFAULT_ICE_SERVERS() {
         { urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
     ];
 }
-/**
- * How long a session info payload may wait for its session record before it is
- * dropped: applying an update parked for a long time on `getWhenReady` would
- * overwrite fresher state with stale data.
- */
 const SESSION_INFO_APPLY_TIMEOUT = 5_000;
 const UNAVAILABLE_AS_REMOTE = _t("This action can only be done in the call tab.");
 const CALL_FULLSCREEN_ID = Symbol("CALL_FULLSCREEN");
 
+/**
+ * @typedef {Object} RtcCallState
+ * @property {string} [connectionType]
+ * @property {boolean} hasPendingRequest
+ * @property {import("models").Thread} [channel]
+ * @property {Object} logs
+ * @property {boolean} sendCamera
+ * @property {boolean} sendScreen
+ * @property {(() => void) & {cancel: () => void}} [updateAndBroadcastDebounce]
+ * @property {MediaStreamTrack} [micAudioTrack]
+ * @property {MediaStreamTrack} [screenAudioTrack]
+ * @property {MediaStreamTrack} [audioTrack]
+ * @property {MediaStreamTrack} [cameraTrack]
+ * @property {MediaStreamTrack} [screenTrack]
+ * @property {(() => void)} [disconnectAudioMonitor]
+ * @property {number} [pttReleaseTimeout]
+ * @property {MediaStream|null} [sourceCameraStream]
+ * @property {MediaStream|null} [sourceScreenStream]
+ * @property {boolean} fallbackMode
+ * @property {boolean} isPipMode
+ * @property {boolean} isFullscreen
+ * @property {number} [remoteSessionId]
+ * @property {number} [remoteChannelId]
+ */
 export class Rtc extends Record {
     notifications = reactive(new Map());
-    /** @type {Map<string, number>} timeoutId by notificationId for call notifications */
+    /** @type {Map<string, number>} */
     timeouts = new Map();
-    /** @type {Map<number, number>} timeoutId by sessionId for download pausing delay */
+    /** @type {Map<number, number>} */
     downloadTimeouts = new Map();
     /** @type {{urls: string[]}[]} */
     iceServers = fields.Attr(undefined, {
+        /** @this {import("models").Rtc} */
         compute() {
             return this.iceServers ? this.iceServers : GET_DEFAULT_ICE_SERVERS();
         },
@@ -89,17 +98,14 @@ export class Rtc extends Record {
     /** @type {"granted" | "denied" | "prompt" | undefined} */
     cameraPermission;
     /**
-     * RtcSession of the current user for the call hosted by this tab, only set
-     * when this tab is the cross-tab host. Use `selfSession` for the session of
-     * the call regardless of which tab of this browser hosts it.
+     * @type {ReturnType<typeof import("@mail/discuss/call/common/pip_service").callPipService.start>}
      */
+    pipService;
+    /** @type {ReturnType<typeof import("@mail/core/common/mail_fullscreen").fullscreenService.start>} */
+    fullscreen;
     localSession = fields.One("discuss.channel.rtc.session");
-    /**
-     * RtcSession shared between tabs, set if any tab of this browser is in a
-     * call. Connection data (stats, streams,...) is only reachable through
-     * `localSession`, on the hosting tab.
-     */
     selfSession = fields.One("discuss.channel.rtc.session", {
+        /** @this {import("models").Rtc} */
         compute() {
             return (
                 this.localSession ||
@@ -108,6 +114,7 @@ export class Rtc extends Record {
                 )
             );
         },
+        /** @this {import("models").Rtc} */
         onDelete() {
             if (this.channel) {
                 this.channel.promoteFullscreen = CALL_PROMOTE_FULLSCREEN.INACTIVE;
@@ -115,6 +122,7 @@ export class Rtc extends Record {
         },
     });
     channel = fields.One("Thread", {
+        /** @this {import("models").Rtc} */
         compute() {
             if (this.state.channel) {
                 return this.state.channel;
@@ -126,6 +134,7 @@ export class Rtc extends Record {
                 });
             }
         },
+        /** @this {import("models").Rtc} */
         onUpdate() {
             if (!this.channel) {
                 return;
@@ -136,41 +145,26 @@ export class Rtc extends Record {
             });
         },
     });
-    /**
-     * Html element embedding the rtc service. Used to scope the dialog to the correct
-     * document fragment (either the actual document or the active shadow root).
-     * @type {HTMLElement|undefined}
-     */
+    /** @type {HTMLElement|undefined} */
     rootEl;
-    /**
-     * Network/SfuClient lifecycle component (created in `start()`).
-     * @type {import("@mail/discuss/call/common/call_transport").CallTransport}
-     */
+    /** @type {import("@mail/discuss/call/common/call_transport").CallTransport} */
     transport;
     /**
-     * Local MediaStreamTrack ownership component (created in `start()`).
      * @type {import("@mail/discuss/call/common/local_media_controller").LocalMediaController}
      */
     media;
-    /**
-     * Cross-tab host/remote protocol component (created in `start()`).
-     * @type {import("@mail/discuss/call/common/cross_tab_sync").CrossTabSync}
-     */
+    /** @type {import("@mail/discuss/call/common/cross_tab_sync").CrossTabSync} */
     crossTab;
 
-    /** @type {Array<string>} Array of action names representing the stack of currently active actions */
+    /** @type {Array<string>} */
     actionsStack = [];
-    /** @type {string|undefined} String representing the last call action activated, or undefined if none are */
+    /** @type {string|undefined} */
     lastSelfCallAction = undefined;
-    /** callbacks to be called when cleaning the state up after a call */
+    /** @type {Array<() => void>} */
     cleanups = [];
-    /**
-     * Monotonic write stamp of the last session info received, by session id.
-     * Used to drop out-of-order/stale info applications.
-     * @type {Map<number, number>}
-     */
+    /** @type {Map<number, number>} */
     _sessionInfoStamps = new Map();
-    /** @type {number|undefined} keep-alive interval, live only during a call */
+    /** @type {number|undefined} */
     _pingIntervalId;
 
     /** @type {import("@mail/discuss/call/common/call_transport").Network|undefined} */
@@ -184,25 +178,20 @@ export class Rtc extends Record {
     get serverInfo() {
         return this.transport?.serverInfo;
     }
+    /** @param {import("@mail/discuss/call/common/call_transport").ServerInfo} serverInfo */
     set serverInfo(serverInfo) {
-        // call data only exists once `start()` has created the transport
         this.transport.serverInfo = serverInfo;
     }
 
-    /**
-     * Whether this tab serves as a remote for a call hosted on another tab.
-     */
     get isRemote() {
         return Boolean(this.state.remoteChannelId);
     }
-    /**
-     * Whether the current tab is the host of the call.
-     */
     get isHost() {
         return Boolean(this.localSession);
     }
 
     callActions = fields.Attr([], {
+        /** @this {import("models").Rtc} */
         compute() {
             const transformedActions = registry
                 .category("discuss.call/actions")
@@ -216,6 +205,7 @@ export class Rtc extends Record {
             }
             return transformedActions;
         },
+        /** @this {import("models").Rtc} */
         onUpdate() {
             this.actionsStack = computeActionsStack(
                 this.actionsStack,
@@ -228,6 +218,7 @@ export class Rtc extends Record {
     });
 
     setup() {
+        /** @type {RtcCallState} */
         this.state = reactive({
             connectionType: undefined,
             hasPendingRequest: false,
@@ -241,26 +232,13 @@ export class Rtc extends Record {
             audioTrack: undefined,
             cameraTrack: undefined,
             screenTrack: undefined,
-            /**
-             * callback to properly end the audio monitoring.
-             * If set it indicates that we are currently monitoring the local
-             * micAudioTrack for the voice activation feature.
-             */
             disconnectAudioMonitor: undefined,
             pttReleaseTimeout: undefined,
             sourceCameraStream: null,
             sourceScreenStream: null,
-            /**
-             * Whether the network fell back to p2p mode in a SFU call.
-             */
             fallbackMode: false,
             isPipMode: false,
             isFullscreen: false,
-            /**
-             * Id of the rtc session/channel of the call hosted by a tab of
-             * this browser, as advertised over the BroadcastChannel. Written
-             * by `CrossTabSync`; read by the `selfSession`/`channel` computes.
-             */
             remoteSessionId: undefined,
             remoteChannelId: undefined,
         });
@@ -273,9 +251,7 @@ export class Rtc extends Record {
         this.dialog = services.dialog;
         this.soundEffectsService = services["mail.sound_effects"];
         this.pttExtService = services["discuss.ptt_extension"];
-        /**
-         * @type {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer}
-         */
+        /** @type {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} */
         this.p2pService = services["discuss.p2p"];
         this.transport = new CallTransport({
             getP2p: () => this.p2pService,
@@ -390,8 +366,6 @@ export class Rtc extends Record {
         );
         onChange(this.store.settings, "audioInputDeviceId", async () => {
             if (this.localSession) {
-                // restore the mute state: switching microphone while muted
-                // must not silently unmute the user
                 await this.resetMicAudioTrack({ force: true, unmute: false });
             }
         });
@@ -417,6 +391,7 @@ export class Rtc extends Record {
         browser.addEventListener("blur", () => this.onBlur());
         browser.addEventListener(
             "keydown",
+            /** @param {KeyboardEvent} ev */
             (ev) => {
                 this.onKeyDown(ev);
             },
@@ -424,6 +399,7 @@ export class Rtc extends Record {
         );
         browser.addEventListener(
             "keyup",
+            /** @param {KeyboardEvent} ev */
             (ev) => {
                 this.onKeyUp(ev);
             },
@@ -439,31 +415,12 @@ export class Rtc extends Record {
                     },
                 });
                 const blob = new Blob([data], { type: "application/json" });
-                // using sendBeacon allows sending a post request even when the
-                // browser prevents async requests from firing when the browser
-                // is closed. Alternatives like synchronous XHR are not reliable.
                 browser.navigator.sendBeacon("/mail/rtc/channel/leave_call", blob);
                 this.sfuClient?.disconnect();
             }
         });
     }
 
-    /**
-     * Start the call keep-alive: periodically call the sessions that have no
-     * peerConnection yet, to recover connections that never started. Distinct
-     * from `PeerToPeer._recover`, which restores established connections.
-     *
-     * Owned by the call, not by the service. This used to be started inline in
-     * `start()` while `_stopPing()` was called from `clear()`, which paired a
-     * once-per-page start with a once-per-call stop: the first time a user left
-     * a call the keep-alive was cleared for the life of the page, and no later
-     * call ever recovered a stalled connection again. `joinCall` already called
-     * `_startPing()` — the method simply did not exist, so joining a call threw
-     * a TypeError that also skipped the rest of `joinCall` (the `beforeunload`
-     * cleanup and `focusAvailableVideo`).
-     *
-     * Idempotent: a re-join must not leave the previous interval running.
-     */
     _startPing() {
         this._stopPing();
         this._pingIntervalId = browser.setInterval(async () => {
@@ -477,10 +434,7 @@ export class Rtc extends Record {
                     return;
                 }
                 await this.call();
-            } catch {
-                // best-effort keep-alive: a network blip must not surface as
-                // an unhandled rejection, the next interval will retry.
-            }
+            } catch {}
         }, PING_INTERVAL);
     }
 
@@ -494,14 +448,15 @@ export class Rtc extends Record {
             .displaySurface;
     }
 
+    /**
+     * @param {KeyboardEvent|Event} ev
+     * @returns {boolean}
+     */
     isPushToTalkRelease(ev) {
         if (
             !this.state.channel ||
             !this.store.settings.use_push_to_talk ||
             (ev instanceof KeyboardEvent && !this.store.settings.isPushToTalkKey(ev)) ||
-            // optional chain: state.channel is set before the local session
-            // is inserted (joinCall) — a keypress in that window must not
-            // throw in a capture-phase listener
             !this.localSession?.isTalking ||
             this.pttExtService.voiceActivated
         ) {
@@ -510,6 +465,7 @@ export class Rtc extends Record {
         return true;
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeyDown(ev) {
         if (!this.store.settings.isPushToTalkKey(ev)) {
             return;
@@ -517,6 +473,7 @@ export class Rtc extends Record {
         this.onPushToTalk();
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeyUp(ev) {
         if (!this.isPushToTalkRelease(ev)) {
             return;
@@ -537,11 +494,19 @@ export class Rtc extends Record {
         this.removeMirroringWarning = this.overlay.add(
             CallInfiniteMirroringWarning,
             {
+                /**
+                 * @param {Object} [options]
+                 * @param {boolean} [options.stopScreensharing]
+                 */
                 onClose: ({ stopScreensharing } = {}) => {
                     this.removeMirroringWarning({ stopScreensharing });
                 },
             },
             {
+                /**
+                 * @param {Object} [options]
+                 * @param {boolean} [options.stopScreensharing]
+                 */
                 onRemove: ({ stopScreensharing } = {}) => {
                     if (stopScreensharing) {
                         this.toggleVideo("screen", false);
@@ -554,14 +519,12 @@ export class Rtc extends Record {
         this.state.screenTrack.addEventListener("ended", trackEndedFn, { once: true });
     }
 
+    /** @param {number} [duration=PTT_RELEASE_DURATION] */
     setPttReleaseTimeout(duration = PTT_RELEASE_DURATION) {
-        // a keyup/blur pair may schedule twice: an orphaned timer would later
-        // cut the mic in the middle of the next transmission.
         browser.clearTimeout(this.state.pttReleaseTimeout);
         this.state.pttReleaseTimeout = browser.setTimeout(
             () => {
                 this.setTalking(false);
-                // this.localSession is unset once the call is left: no beep
                 if (this.localSession && !this.localSession.isMute) {
                     this.soundEffectsService.play("ptt-release");
                 }
@@ -573,7 +536,6 @@ export class Rtc extends Record {
     onPushToTalk() {
         if (
             !this.state.channel ||
-            // see isPushToTalkRelease: keypress before the session insert
             !this.localSession ||
             this.store.settings.isRegisteringKey ||
             !this.store.settings.use_push_to_talk
@@ -587,6 +549,7 @@ export class Rtc extends Record {
         this.setTalking(true);
     }
 
+    /** @param {Object} [options] */
     async openPip(options) {
         if (this.isHost) {
             this.exitFullscreen();
@@ -626,56 +589,41 @@ export class Rtc extends Record {
         );
     }
 
-    /**
-     * @param {any} id
-     */
+    /** @param {any} id */
     removeCallNotification(id) {
         browser.clearTimeout(this.timeouts.get(id));
         this.notifications.delete(id);
         this.timeouts.delete(id);
     }
 
-    /**
-     * Notifies the server and does the cleanup of the current call.
-     */
+    /** @param {import("models").Thread} [channel=this.state.channel] */
     async leaveCall(channel = this.state.channel) {
         if (channel.eq(this.state.channel)) {
-            // leaving another channel's call (e.g. rejecting an invitation)
-            // must not exit the fullscreen of the ongoing call
             this.store.fullscreenChannel = null;
         }
         this.state.hasPendingRequest = true;
         try {
             await this.rpcLeaveCall(channel);
         } catch {
-            // best-effort: hanging up offline must still run the local cleanup,
-            // otherwise the mic and camera stay live with no way to stop them.
         } finally {
-            // a stuck flag would permanently disable every join/leave action
             this.state.hasPendingRequest = false;
         }
         this.endCall(channel);
     }
 
-    /**
-     * @param {import("models").Thread} [channel]
-     */
+    /** @param {import("models").Thread} [channel] */
     endCall(channel = this.state.channel) {
         if (channel.self_member_id) {
             channel.self_member_id.rtc_inviting_session_id = undefined;
         }
         channel.activeRtcSession = undefined;
         if (channel.eq(this.state.channel)) {
-            // only for the active call: a CLOSE broadcast for an unrelated
-            // channel would tear down the call this tab hosts or mirrors
             try {
                 this._endHost();
                 this.state.logs.end = new Date().toISOString();
                 this.dumpLogs();
                 this.pttExtService.unsubscribe();
             } finally {
-                // teardown must run even if a diagnostic above throws, else the
-                // transport socket, peer connections and local tracks leak
                 this.transport?.disconnect();
                 this.clear();
                 this.soundEffectsService.play("call-leave");
@@ -714,6 +662,10 @@ export class Rtc extends Record {
         }
     }
 
+    /**
+     * @param {import("models").RtcSession} session
+     * @param {number} volume
+     */
     setVolume(session, volume) {
         session.volume = volume;
         this.store.settings.saveVolumeSetting({
@@ -733,7 +685,7 @@ export class Rtc extends Record {
         this.soundEffectsService.play("mic-off");
     }
 
-    /** @param {Object} props Properties to pass to the meeting component. */
+    /** @param {Object} props */
     async enterFullscreen(props) {
         const Meeting = registry.category("discuss.call/components").get("Meeting");
         this.store.fullscreenChannel = this.channel;
@@ -762,9 +714,6 @@ export class Rtc extends Record {
             this.clear();
             return;
         }
-        // no lazy load needed here: ``selfie_segmentation.js`` ships in
-        // ``web.assets_backend``, so ``window.SelfieSegmentation`` exists
-        // before any call starts.
         if (this.state.hasPendingRequest) {
             return;
         }
@@ -774,8 +723,6 @@ export class Rtc extends Record {
         }
         if (!isActiveCall) {
             const joinCallOpts = { audio, camera };
-            // only a KNOWN not-granted state joins muted: undefined means the
-            // permission is unknowable here and getUserMedia must be tried
             if (["denied", "prompt"].includes(this.microphonePermission)) {
                 joinCallOpts.audio = false;
             }
@@ -791,8 +738,6 @@ export class Rtc extends Record {
 
     async toggleDeafen() {
         if (!this.selfSession) {
-            // the Call component (and its shift+d hotkey) is also mounted
-            // for ongoing calls the user has NOT joined
             return;
         }
         if (this.selfSession.is_deaf) {
@@ -807,7 +752,6 @@ export class Rtc extends Record {
 
     async toggleMicrophone() {
         if (!this.selfSession) {
-            // see toggleDeafen (shift+m on a non-joined call view)
             return;
         }
         if (this.selfSession.isMute) {
@@ -845,6 +789,12 @@ export class Rtc extends Record {
         );
     }
 
+    /**
+     * @param {Object} media
+     * @param {boolean} [media.microphone]
+     * @param {boolean} [media.camera]
+     * @param {boolean} [media.screen]
+     */
     showMediaUnavailableWarning({ microphone, camera, screen }) {
         let errorMessage;
         if (microphone && camera) {
@@ -863,15 +813,17 @@ export class Rtc extends Record {
         this.notification.add(errorMessage, { type: "warning" });
     }
 
+    /**
+     * @param {Object} request
+     * @param {boolean} [request.audio]
+     * @param {boolean} [request.video]
+     */
     async askForBrowserPermission({ audio, video }) {
         try {
             const stream = await browser.navigator.mediaDevices.getUserMedia({
                 audio: audio ? this.store.settings.audioConstraints : false,
                 video: video ? this.store.settings.cameraConstraints : false,
             });
-            // a successful acquisition IS the permission proof: engines whose
-            // permissions.query rejects on these names leave the flags
-            // undefined, and this method would then always return false
             if (audio) {
                 this.microphonePermission = "granted";
             }
@@ -911,10 +863,6 @@ export class Rtc extends Record {
     }
 
     /**
-     * Best-effort update of one outbound track through the active network.
-     * Never rejects: several call sites are fire-and-forget and would
-     * otherwise leak unhandled rejections.
-     *
      * @param {streamType} type
      * @param {MediaStreamTrack | undefined} track
      */
@@ -939,11 +887,7 @@ export class Rtc extends Record {
         });
     }
 
-    /**
-     * Send an action to the host tab of the call
-     *
-     * @param {Object} changes
-     */
+    /** @param {Object} changes */
     _remoteAction(changes) {
         this.crossTab.requestAction(changes);
     }
@@ -965,6 +909,7 @@ export class Rtc extends Record {
         this.crossTab?.endHost();
     }
 
+    /** @param {Object<number, Object>} changes */
     _updateRemoteTabs(changes) {
         this.crossTab.updateRemoteTabs(
             this.state.channel.id,
@@ -973,10 +918,12 @@ export class Rtc extends Record {
         );
     }
 
+    /** @param {Object} message */
     _postToTabs(message) {
         this.crossTab?.post(message);
     }
 
+    /** @param {Object<string, any>} [actions={}] */
     async _localAction(actions = {}) {
         const promises = [];
         for (const [key, value] of Object.entries(actions)) {
@@ -1021,9 +968,9 @@ export class Rtc extends Record {
      * @param {String} entry
      * @param {Object} [param2]
      * @param {Error} [param2.error]
-     * @param {String} [param2.step] current step of the flow
-     * @param {String} [param2.state] current state of the connection
-     * @param {Boolean} [param2.important] if the log is important and should be kept even if logRtc is disabled
+     * @param {String} [param2.step]
+     * @param {String} [param2.state]
+     * @param {Boolean} [param2.important]
      */
     log(session, entry, param2 = {}) {
         if (!session) {
@@ -1070,9 +1017,9 @@ export class Rtc extends Record {
     }
 
     /**
-     * @param {CustomEvent} param0
+     * @param {Object} param0
      * @param {Object} param0.detail
-     * @param {String} param0.detail.name
+     * @param {string} param0.detail.name
      * @param {any} param0.detail.payload
      */
     async _handleNetworkUpdates({ detail: { name, payload } }) {
@@ -1152,11 +1099,7 @@ export class Rtc extends Record {
                     );
                     try {
                         await this.handleRemoteTrack({ session, track, type, active });
-                    } catch {
-                        // ignored, the session may be closing.
-                        // this can happen when you join a call from another tab in which you have another session.
-                    }
-                    // makes sure we are not downloading a video that is not displayed
+                    } catch {}
                     browser.setTimeout(() => {
                         this.updateVideoDownload(session);
                     }, 2000);
@@ -1166,7 +1109,7 @@ export class Rtc extends Record {
                 const { id } = payload;
                 const session = this.store["discuss.channel.rtc.session"].get(id);
                 if (
-                    this.selfSession?.persona?.main_user_id?.share !== false ||
+                    this.selfSession?.partner_id?.main_user_id?.share !== false ||
                     this.serverInfo ||
                     this.state.fallbackMode ||
                     !session?.channel.eq(this.state.channel)
@@ -1178,6 +1121,7 @@ export class Rtc extends Record {
         }
     }
 
+    /** @param {Object|undefined} payload */
     updateSessionInfo(payload) {
         if (!payload) {
             return;
@@ -1187,8 +1131,6 @@ export class Rtc extends Record {
         }
         for (const [id, info] of Object.entries(payload)) {
             const sessionId = Number(id);
-            // stamp each application so a payload parked on `getWhenReady`
-            // cannot overwrite a fresher one once it resolves.
             const stamp = (this._sessionInfoStamps.get(sessionId) ?? 0) + 1;
             this._sessionInfoStamps.set(sessionId, stamp);
             this._applySessionInfo(sessionId, info, stamp);
@@ -1198,25 +1140,22 @@ export class Rtc extends Record {
     /**
      * @param {number} sessionId
      * @param {import("#src/models/session.js").SessionInfo} info
-     * @param {number} stamp value of `_sessionInfoStamps` at scheduling time
+     * @param {number} stamp
      */
     async _applySessionInfo(sessionId, info, stamp) {
         let timeoutId;
         const session = await Promise.race([
             this.store["discuss.channel.rtc.session"].getWhenReady(sessionId),
-            // bounded wait: past this delay the info is likely stale, drop it
-            // instead of applying it whenever the session finally shows up.
             new Promise((resolve) => {
                 timeoutId = browser.setTimeout(resolve, SESSION_INFO_APPLY_TIMEOUT);
             }),
         ]).finally(() => browser.clearTimeout(timeoutId));
         if (this._sessionInfoStamps.get(sessionId) !== stamp) {
-            return; // a newer info payload for this session superseded this one
+            return;
         }
         if (!session || session.eq(this.localSession) || !this.channel) {
             return;
         }
-        // `isRaisingHand` is turned into the Date `raisingHand`
         this.setRemoteRaiseHand(session, info.isRaisingHand);
         assignDefined(session, {
             is_muted: info.isSelfMuted ?? info.is_muted,
@@ -1228,24 +1167,20 @@ export class Rtc extends Record {
     }
 
     /**
-     * Connects to the other call participants through the current connection
-     * type (see `CallTransport.call`).
-     *
      * @param {Object} [options]
      * @param {boolean} [options.asFallback=false]
      * @return {Promise<void>}
      */
     async call(options) {
-        // `?.`: out of a call (or before `start()`) there is no transport,
-        // and the old implementation was a no-op in that situation too.
         return this.transport?.call(options);
     }
 
     /**
-     * @param {import("models").RtcSession} session
-     * @param {MediaStreamTrack} track
-     * @param {streamType} type
-     * @param {boolean} active false if the track is muted/disabled
+     * @param {Object} param0
+     * @param {import("models").RtcSession} param0.session
+     * @param {MediaStreamTrack} param0.track
+     * @param {streamType} param0.type
+     * @param {boolean} [param0.active=true]
      */
     async handleRemoteTrack({ session, track, type, active = true }) {
         session.updateStreamState(type, active);
@@ -1259,8 +1194,8 @@ export class Rtc extends Record {
     /**
      * @param {import("models").Thread} channel
      * @param {object} [initialState]
-     * @param {boolean} [initialState.audio] whether to request and use the user audio input (microphone) at start
-     * @param {boolean} [initialState.camera] whether to request and use the user video input (camera) at start
+     * @param {boolean} [initialState.audio]
+     * @param {boolean} [initialState.camera]
      */
     async joinCall(channel, { audio = true, camera = false } = {}) {
         if (!isClientRtcCompatible()) {
@@ -1269,12 +1204,6 @@ export class Rtc extends Record {
             });
             return;
         }
-        // Leave whatever call is in progress, including one on *this* channel:
-        // joinCall only clear()s, and clear() -> transport.dispose() skips
-        // disconnect() (it trusts endCall to have run). Without leaving, the
-        // previous peer connections and SFU socket leak, p2p listeners keep
-        // firing, updateUpload replaceTracks to the old participants, and no
-        // leave_call RPC is sent.
         if (this.state.channel) {
             await this.leaveCall(this.state.channel);
         }
@@ -1297,10 +1226,8 @@ export class Rtc extends Record {
             this.pttExtService.unsubscribe();
             throw error;
         } finally {
-            // a stuck flag would permanently disable every join/leave action
             this.state.hasPendingRequest = false;
         }
-        // Initializing a new session implies closing the current session.
         this.clear();
         this.state.channel = channel;
         this.store.insert(data);
@@ -1346,11 +1273,13 @@ export class Rtc extends Record {
         this._host();
         this._startPing();
         this.cleanups.push(
-            // only register the beforeunload event if there is a call as FireFox will not place
-            // the pages with beforeunload listeners in the bfcache.
-            subscribe(browser, "beforeunload", (event) => {
-                event.preventDefault();
-            }),
+            subscribe(
+                browser,
+                "beforeunload",
+                /** @param {BeforeUnloadEvent} event */ (event) => {
+                    event.preventDefault();
+                },
+            ),
         );
         this.channel?.focusAvailableVideo();
     }
@@ -1367,7 +1296,7 @@ export class Rtc extends Record {
 
     /**
      * @param {Object} [param0={}]
-     * @param  {boolean} [param0.download=false] true if we want to download the logs
+     * @param {boolean} [param0.download=false]
      */
     dumpLogs({ download = false } = {}) {
         const logs = [];
@@ -1393,9 +1322,6 @@ export class Rtc extends Record {
     buildSnapshot() {
         const server = {};
         if (this.state.connectionType === CONNECTION_TYPES.SERVER) {
-            // Never serialize call credentials into the snapshot: it lands in
-            // the user-downloadable RTC log bundle. The SFU jsonWebToken is a
-            // replayable channel credential and TURN entries carry secrets.
             const { jsonWebToken, iceServers, ...safeInfo } =
                 toRaw(this.serverInfo) ?? {};
             server.info = {
@@ -1414,6 +1340,9 @@ export class Rtc extends Record {
             server.errors = this.sfuClient?.errors.map((error) => error.message);
         }
         const sessions = this.state.channel.rtc_session_ids.map((session) => {
+            /**
+             * @type {{ id: number, channelMemberId: number|undefined, state: string, audioError: string|undefined, videoError: string|undefined, sfuConsumers: any, isSelf?: boolean, audio?: Object, peer?: Object, }}
+             */
             const sessionInfo = {
                 id: session.id,
                 channelMemberId: session.channel_member_id?.id,
@@ -1458,7 +1387,6 @@ export class Rtc extends Record {
 
     logSnapshot() {
         if (!this.state.channel) {
-            // a snapshot out of a call would not collect any data
             return;
         }
         browser.navigator.serviceWorker?.controller?.postMessage({
@@ -1467,6 +1395,7 @@ export class Rtc extends Record {
         });
     }
 
+    /** @param {import("models").Thread} channel */
     async rpcLeaveCall(channel) {
         await rpc(
             "/mail/rtc/channel/leave_call",
@@ -1492,11 +1421,10 @@ export class Rtc extends Record {
         this.store.insert(data);
     }
 
+    /** @param {import("models").RtcSession} session */
     disconnect(session) {
         const downloadTimeout = this.downloadTimeouts.get(session.id);
         if (downloadTimeout) {
-            // browser.clearTimeout: the id comes from browser.setTimeout —
-            // the bare global doesn't clear mocked timers in tests
             browser.clearTimeout(downloadTimeout);
             this.downloadTimeouts.delete(session.id);
         }
@@ -1524,15 +1452,12 @@ export class Rtc extends Record {
             }
         }
         this.exitFullscreen();
-        // cross-tab host bookkeeping and its watchdog timeout
         this.crossTab?.dispose();
         this._sessionInfoStamps.clear();
         for (const timeoutId of this.downloadTimeouts.values()) {
             browser.clearTimeout(timeoutId);
         }
         this.downloadTimeouts.clear();
-        // stale call notifications (e.g. "raised hand") must not survive
-        // into the next call.
         for (const timeoutId of this.timeouts.values()) {
             browser.clearTimeout(timeoutId);
         }
@@ -1540,12 +1465,9 @@ export class Rtc extends Record {
         this.notifications.clear();
         browser.clearTimeout(this.state.pttReleaseTimeout);
         this.cleanups.splice(0).forEach((cleanup) => cleanup());
-        // aborts any in-flight `initConnection` run and resets the per-call
-        // transport state (sfu timeout, clients, serverInfo, connectionType)
         this.transport?.dispose();
         this.closeCallPermissionDialog?.();
         this.state.updateAndBroadcastDebounce?.cancel();
-        // stops every local track/stream, the audio mix and the blur pipeline
         this.media?.dispose();
         this.state.isPipMode = false;
         this.update({ localSession: undefined });
@@ -1556,9 +1478,7 @@ export class Rtc extends Record {
         this.pipService?.closePip();
     }
 
-    /**
-     * @param {Boolean} is_deaf
-     */
+    /** @param {Boolean} is_deaf */
     async setDeaf(is_deaf) {
         this.updateAndBroadcast({ is_deaf });
         for (const session of this.state.channel.rtc_session_ids) {
@@ -1570,6 +1490,7 @@ export class Rtc extends Record {
         await this.refreshMicAudioStatus();
     }
 
+    /** @param {string} deviceId */
     async setOutputDevice(deviceId) {
         const promises = [];
         for (const session of this.state.channel.rtc_session_ids) {
@@ -1581,17 +1502,13 @@ export class Rtc extends Record {
         await Promise.all(promises);
     }
 
-    /**
-     * @param {Boolean} is_muted
-     */
+    /** @param {Boolean} is_muted */
     async setMute(is_muted) {
         this.updateAndBroadcast({ is_muted });
         await this.refreshMicAudioStatus();
     }
 
-    /**
-     * @param {Boolean} raise
-     */
+    /** @param {Boolean} raise */
     async raiseHand(raise) {
         if (this.isRemote) {
             this._remoteAction({ raisingHand: raise });
@@ -1604,9 +1521,7 @@ export class Rtc extends Record {
         await this._updateInfo();
     }
 
-    /**
-     * @param {boolean} isTalking
-     */
+    /** @param {boolean} isTalking */
     async setTalking(isTalking) {
         if (!this.localSession || isTalking === this.localSession.isTalking) {
             return;
@@ -1619,17 +1534,15 @@ export class Rtc extends Record {
     }
 
     /**
-     * Applies blur effect to a video stream using BlurManager.
-     *
-     * @param {MediaStream} videoStream - input video stream.
-     * @returns {Promise<BlurManager>} - BlurManager instance.
+     * @param {MediaStream} videoStream
+     * @returns {Promise<BlurManager>}
      */
     async applyBlurEffect(videoStream) {
         return this.media.applyBlurEffect(videoStream);
     }
 
     /**
-     * @param {string} type
+     * @param {Exclude<streamType, "audio">} type
      * @param {Object} [param1]
      * @param {boolean} [param1.force]
      * @param {boolean} [param1.env]
@@ -1712,10 +1625,6 @@ export class Rtc extends Record {
                     break;
                 }
             }
-            // broadcast the new state before (and independently of) the
-            // transport fan-out: the upload can lag for seconds behind a
-            // stuck peer handshake and must not delay what the other
-            // participants see.
             switch (type) {
                 case "camera": {
                     this.updateAndBroadcast({
@@ -1736,16 +1645,13 @@ export class Rtc extends Record {
         await this._updateTrackUpload(type, updatedTrack);
     }
 
+    /** @param {Object} data */
     updateAndBroadcast(data) {
         this._updateRemoteTabs({ [this.localSession.id]: data });
         assignDefined(this.localSession, data);
         this.state.updateAndBroadcastDebounce?.();
     }
 
-    /**
-     * Sets the enabled property of the local microphone audio track based on the
-     * current session state. And notifies peers of the new audio state.
-     */
     async refreshMicAudioStatus() {
         if (!this.state.micAudioTrack) {
             return;
@@ -1757,15 +1663,13 @@ export class Rtc extends Record {
     /**
      * @param {Object} param0
      * @param {boolean} [param0.force=false]
-     * @param {boolean} [param0.unmute=true] see LocalMediaController
+     * @param {boolean} [param0.unmute=true]
      */
     async resetMicAudioTrack({ force = false, unmute = true }) {
         return this.media.resetMicAudioTrack({ force, unmute });
     }
 
-    /**
-     * @param {import("models").id} id
-     */
+    /** @param {number} id */
     deleteSession(id) {
         const session = this.store["discuss.channel.rtc.session"].get(id);
         if (session) {
@@ -1787,21 +1691,10 @@ export class Rtc extends Record {
         });
     }
 
-    /**
-     * Pure read of the session info shared with the other call participants.
-     * Callers that need the video flags realigned with the actual local
-     * tracks must call `_syncVideoInfo()` first.
-     */
     formatInfo() {
         return this.localSession.info;
     }
 
-    /**
-     * Realigns the shared video flags with the actual local tracks. To be
-     * called before advertising the session info over a fresh transport
-     * (`is_camera_on`/`is_screen_sharing_on` are otherwise maintained by
-     * `toggleVideo`).
-     */
     _syncVideoInfo() {
         this.localSession.is_camera_on = Boolean(this.state.cameraTrack);
         this.localSession.is_screen_sharing_on = Boolean(this.state.screenTrack);
@@ -1823,15 +1716,9 @@ export class Rtc extends Record {
             audioElement.load();
             audioElement.muted = mute;
             audioElement.volume = this.store.settings.getVolume(session);
-            // Using both autoplay and play() as safari may prevent play() outside of user interactions
-            // while some browsers may not support or block autoplay.
             audioElement.autoplay = true;
             session.audioElement = audioElement;
             session.audioStream = stream;
-            // do NOT reset is_muted here: peers upload their audio track
-            // regardless of mute (mute is track.enabled + session info), so
-            // every (re)negotiation briefly rendered a muted participant as
-            // unmuted until the next info_change corrected it
             session.isTalking = false;
             await session.playAudio();
         }
@@ -1849,7 +1736,7 @@ export class Rtc extends Record {
     /**
      * @param {import("models").RtcSession} session
      * @param {Object} [param1]
-     * @param {String} [param1.type]
+     * @param {streamType} [param1.type]
      * @param {boolean} [param1.cleanup]
      */
     removeVideoFromSession(session, { type, cleanup = true } = {}) {
@@ -1859,9 +1746,6 @@ export class Rtc extends Record {
                 closeStream(session.videoStreams.get(type));
             }
             session.videoStreams.delete(type);
-            // the session that just lost its last video can no longer be the
-            // focused one (this read `this.selfSession` regardless of which
-            // session was passed, which only agreed while the two coincided)
             if (
                 session.videoStreams.size === 0 &&
                 session.eq(this.state.channel.activeRtcSession)
@@ -1877,18 +1761,14 @@ export class Rtc extends Record {
             session.videoStreams.clear();
         }
     }
-    /**
-     * @param {import("models").RtcSession} session
-     */
+    /** @param {import("models").RtcSession} session */
     removeAudioFromSession(session) {
         closeStream(session.audioStream);
         if (session.audioElement) {
             session.audioElement.pause();
             try {
                 session.audioElement.srcObject = undefined;
-            } catch {
-                // ignore error during remove, the value will be overwritten at next usage anyway
-            }
+            } catch {}
         }
         session.audioStream = undefined;
     }
@@ -1936,13 +1816,11 @@ export class Rtc extends Record {
     /**
      * @param {import("models").RtcSession} rtcSession
      * @param {Object} [param1]
-     * @param {number} [param1.viewCountIncrement=0] negative value to decrement
+     * @param {number} [param1.viewCountIncrement=0]
      */
     updateVideoDownload(rtcSession, { viewCountIncrement = 0 } = {}) {
         rtcSession.videoComponentCount += viewCountIncrement;
         if (!this.state.channel) {
-            // out of a call (e.g. delayed timeout firing after `clear()`):
-            // nothing to download, and no timeout should be (re)scheduled.
             return;
         }
         const downloadTimeout = this.downloadTimeouts.get(rtcSession.id);
@@ -1956,8 +1834,6 @@ export class Rtc extends Record {
                 screen: true,
             });
         } else {
-            // delay the pause to avoid flickering when the download is
-            // resumed soon after
             this.downloadTimeouts.set(
                 rtcSession.id,
                 browser.setTimeout(() => {
@@ -2026,10 +1902,7 @@ export const rtcService = {
                 rtc.microphonePermission = status.state;
                 status.onchange = () => (rtc.microphonePermission = status.state);
             })
-            .catch(() => {
-                // engines that don't recognize the permission name reject: the
-                // flag stays undefined and askForBrowserPermission sets it
-            });
+            .catch(() => {});
         browser.navigator.permissions
             ?.query({ name: "camera" })
             .then((status) => {
@@ -2038,25 +1911,26 @@ export const rtcService = {
             })
             .catch(() => {});
         rtc.p2pService = services["discuss.p2p"];
-        rtc.p2pService.acceptOffer = async (id, sequence) => {
-            const session = await store["discuss.channel.rtc.session"].getWhenReady(
-                Number(id),
-            );
-            // accept offers for new connections (higher sequence) and
-            // renegotiations of an existing one (same sequence)
-            return sequence >= session?.sequence;
-        };
+        rtc.p2pService.acceptOffer =
+            /**
+             * @param {number|string} id
+             * @param {number} sequence
+             * @returns {Promise<boolean>}
+             */ async (id, sequence) => {
+                const session = await store["discuss.channel.rtc.session"].getWhenReady(
+                    Number(id),
+                );
+                return sequence >= session?.sequence;
+            };
         services["bus_service"].subscribe(
             "discuss.channel.rtc.session/sfu_hot_swap",
+            /** @param {{serverInfo: Object}} payload */
             async ({ serverInfo }) => {
                 if (!rtc.localSession) {
                     return;
                 }
                 if (rtc.serverInfo?.channelUUID === serverInfo.channelUUID) {
-                    // we clear peers as inbound p2p connections may still be active
                     rtc.p2pService.removeALlPeers();
-                    // no reason to swap if the server is the same, if at some point we want to force a swap
-                    // there should be an explicit flag in the event payload.
                     return;
                 }
                 rtc.serverInfo = serverInfo;
@@ -2065,6 +1939,7 @@ export const rtcService = {
         );
         services["bus_service"].subscribe(
             "discuss.channel.rtc.session/ended",
+            /** @param {{sessionId: number}} payload */
             ({ sessionId }) => {
                 if (rtc.localSession?.id === sessionId) {
                     rtc.notifyServerDisconnect();
@@ -2072,24 +1947,24 @@ export const rtcService = {
                 }
             },
         );
-        services["bus_service"].subscribe("res.users.settings.volumes", (payload) => {
-            if (payload) {
-                rtc.store.Volume.insert(payload);
-            }
-        });
+        services["bus_service"].subscribe(
+            "res.users.settings.volumes",
+            /** @param {Object} payload */ (payload) => {
+                if (payload) {
+                    rtc.store.Volume.insert(payload);
+                }
+            },
+        );
         services["bus_service"].subscribe(
             "discuss.channel.rtc.session/update_and_broadcast",
+            /** @param {{data: Object, channelId: number}} payload */
             (payload) => {
                 const { data, channelId } = payload;
-                // for the current call the info is already shared in real time
-                // over the connection: this broadcast is less accurate
                 if (channelId !== rtc.channel?.id) {
                     rtc.store.insert(data);
                 }
             },
         );
-        // medias cannot be played on a window that was never interacted with:
-        // retry on the first sign of presence
         services["presence"].bus.addEventListener(
             "presence",
             () => {

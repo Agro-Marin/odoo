@@ -14,6 +14,7 @@ const discussAppPatch = {
                     : c1.name.localeCompare(c2.name),
         });
         this.channels = fields.One("DiscussAppCategory", {
+            /** @this {import("models").DiscussApp} */
             compute() {
                 return {
                     addTitle: _t("Add or join a channel"),
@@ -28,6 +29,7 @@ const discussAppPatch = {
             },
         });
         this.chats = fields.One("DiscussAppCategory", {
+            /** @this {import("models").DiscussApp} */
             compute() {
                 return this.computeChats();
             },

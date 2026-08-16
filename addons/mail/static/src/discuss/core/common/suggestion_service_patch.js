@@ -5,8 +5,20 @@ import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 const commandRegistry = registry.category("discuss.channel_commands");
 
-/** @type {SuggestionService} */
+/**
+ * @typedef {import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}} ChannelCommandSuggestion
+ */
+/**
+ * @typedef {SuggestionService & { getChannelCommands: (thread?: import("models").Thread) => ChannelCommandSuggestion[], searchChannelCommand: ( cleanedSearchTerm: string, thread?: import("models").Thread, ) => {type: string, suggestions: ChannelCommandSuggestion[]}, }} PatchedSuggestionService
+ */
+/**
+ * @type {Partial<PatchedSuggestionService> & ThisType<PatchedSuggestionService>}
+ */
 const suggestionServicePatch = {
+    /**
+     * @param {import("models").Thread} [thread]
+     * @returns {ChannelCommandSuggestion[]}
+     */
     getChannelCommands(thread) {
         if (!thread || thread.model !== "discuss.channel") {
             return [];
@@ -28,12 +40,19 @@ const suggestionServicePatch = {
                 return passesCondition && passesChannelType;
             });
     },
+    /**
+     * @param {import("models").Thread} [thread]
+     * @param {import("@web/env").OdooEnv} [env]
+     * @returns {Array<[string, number?, number?]>}
+     */
     getSupportedDelimiters(thread, env) {
         const res = super.getSupportedDelimiters(...arguments);
         return thread?.model === "discuss.channel" ? [...res, ["/", 0]] : res;
     },
     /**
-     * @override
+     * @param {import("models").ResPartner} partner
+     * @param {import("models").Thread} [thread]
+     * @returns {boolean}
      */
     isSuggestionValid(partner, thread) {
         if (thread?.model === "discuss.channel" && partner.eq(this.store.odoobot)) {
@@ -42,7 +61,8 @@ const suggestionServicePatch = {
         return super.isSuggestionValid(...arguments);
     },
     /**
-     * @override
+     * @param {import("models").Thread} [thread]
+     * @returns {import("models").ResPartner[]}
      */
     getPartnerSuggestions(thread) {
         const isNonPublicChannel =
@@ -52,8 +72,6 @@ const suggestionServicePatch = {
                 (thread.channel_type === "channel" &&
                     (thread.parent_channel_id || thread).group_public_id));
         if (isNonPublicChannel) {
-            // On a group-restricted channel, only suggest its members:
-            // mentioning an outsider would notify them of a private message.
             const partnersById = new Map(
                 [
                     ...thread.channel_member_ids,
@@ -74,7 +92,12 @@ const suggestionServicePatch = {
         }
     },
     /**
-     * @override
+     * @param {Object} search
+     * @param {string} search.delimiter
+     * @param {string} search.term
+     * @param {Object} [options]
+     * @param {import("models").Thread} [options.thread]
+     * @returns {{type: string, suggestions: Object[]}}
      */
     searchSuggestions({ delimiter, term }, { thread } = {}) {
         if (delimiter === "/") {
@@ -82,14 +105,23 @@ const suggestionServicePatch = {
         }
         return super.searchSuggestions(...arguments);
     },
+    /**
+     * @param {string} cleanedSearchTerm
+     * @param {import("models").Thread} [thread]
+     * @returns {{type: string, suggestions: ChannelCommandSuggestion[]}}
+     */
     searchChannelCommand(cleanedSearchTerm, thread) {
         if (thread?.model !== "discuss.channel") {
-            // channel commands are channel specific
             return { type: "ChannelCommand", suggestions: [] };
         }
         const commands = this.getChannelCommands(thread).filter(({ name }) =>
             cleanTerm(name).includes(cleanedSearchTerm),
         );
+        /**
+         * @param {ChannelCommandSuggestion} c1
+         * @param {ChannelCommandSuggestion} c2
+         * @returns {number}
+         */
         const sortFunc = (c1, c2) => {
             if (c1.channel_types && !c2.channel_types) {
                 return -1;
@@ -124,10 +156,11 @@ const suggestionServicePatch = {
             suggestions: commands.sort(sortFunc),
         };
     },
-    /** @override */
+    /**
+     * @param {import("models").Thread} [thread]
+     * @returns {Object}
+     */
     sortPartnerSuggestionsContext(thread) {
-        // forward: dropping the argument here severs the chain, so an override
-        // patched below this one never sees the thread (@see isSuggestionValid)
         return Object.assign(super.sortPartnerSuggestionsContext(...arguments), {
             recentChatPartnerIds: this.store.getRecentChatPartnerIds(),
             memberPartnerIds: new Set(

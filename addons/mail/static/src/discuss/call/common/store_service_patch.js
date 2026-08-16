@@ -3,11 +3,14 @@ import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { router } from "@web/core/browser/router";
 import { patch } from "@web/core/utils/patch";
-/** @type {import("models").Store} */
+/**
+ * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
+ */
 const StorePatch = {
     setup() {
         super.setup(...arguments);
         this.rtc = fields.One("Rtc", {
+            /** @this {import("models").Store} */
             compute() {
                 return {};
             },
@@ -28,9 +31,11 @@ const StorePatch = {
         this.nextTalkingTime = 1;
         this.fullscreenChannel = fields.One("Thread");
         this._hasFullscreenUrl = fields.Attr(false, {
+            /** @this {import("models").Store} */
             compute() {
                 return this.discuss?.thread?.eq(this.fullscreenChannel);
             },
+            /** @this {import("models").Store} */
             onUpdate() {
                 if (!this.discuss?.hasRestoredThread) {
                     return;
@@ -49,10 +54,6 @@ const StorePatch = {
         super.onStarted(...arguments);
         this.rtc.start();
     },
-    /**
-     * Lives in the call layer because every dependency does: `createGroupChat`
-     * comes from discuss and `discuss.rtc` from the call layer.
-     */
     async startMeeting() {
         const thread = await this.createGroupChat({
             default_display_mode: "video_full_screen",
@@ -65,12 +66,15 @@ const StorePatch = {
             this.rtc.enterFullscreen({ autoOpenAction: "invite-people" });
         }
     },
+    /**
+     * @param {import("models").ChannelMember} m1
+     * @param {import("models").ChannelMember} m2
+     * @returns {number}
+     */
     sortMembers(m1, m2) {
         const m1HasRtc = Boolean(m1.rtcSession);
         const m2HasRtc = Boolean(m2.rtcSession);
         if (m1HasRtc === m2HasRtc) {
-            // falsy raisingHand becomes Infinity so it sorts last in this
-            // oldest-first comparison
             const m1RaisingValue = m1.rtcSession?.raisingHand || Infinity;
             const m2RaisingValue = m2.rtcSession?.raisingHand || Infinity;
             if (m1HasRtc && m1RaisingValue !== m2RaisingValue) {

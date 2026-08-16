@@ -59,7 +59,6 @@ export class CallActionList extends Component {
         });
     }
 
-    /** @deprecated */
     get isPromotingFullscreen() {
         return Boolean(
             !this.env.pipWindow &&

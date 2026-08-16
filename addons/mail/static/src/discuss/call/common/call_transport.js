@@ -10,10 +10,7 @@ import { debounce } from "@web/core/utils/timing";
 let sequence = 1;
 export const getSequence = () => sequence++;
 
-/**
- * @typedef {'audio' | 'camera' | 'screen' } streamType
- */
-
+/** @typedef {'audio' | 'camera' | 'screen' } streamType */
 export const CONNECTION_TYPES = { P2P: "p2p", SERVER: "server" };
 
 /**
@@ -22,11 +19,6 @@ export const CONNECTION_TYPES = { P2P: "p2p", SERVER: "server" };
 const loadSfuAssets = memoize(async () => await loadBundle("mail.assets_odoo_sfu"));
 
 /**
- * Default SfuClient factory: loads the (lazy) SFU asset bundle and returns a
- * fresh client with the state enum of the loaded module. Injectable on
- * `CallTransport` for tests. The caller owns the returned client (keep it only
- * if it is still the latest connection attempt, disconnect it otherwise).
- *
  * @returns {Promise<{ sfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: Object }>}
  */
 export async function loadSfuClient() {
@@ -41,7 +33,6 @@ export async function loadSfuClient() {
     try {
         return await load();
     } catch {
-        // trying again with a delay in case of race condition with the asset loading.
         return new Promise((resolve, reject) => {
             browser.setTimeout(async () => {
                 try {
@@ -60,6 +51,7 @@ export async function loadSfuClient() {
  */
 export function hasTurn(iceServers) {
     return iceServers.some((server) => {
+        /** @param {string} url */
         const isTurnUrl = (url) => /^turns?:/.test(url);
         let hasTurn = false;
         if (server.url) {
@@ -76,11 +68,6 @@ export function hasTurn(iceServers) {
     });
 }
 
-/**
- * Allows to use both peer to peer and SFU connections simultaneously, which makes it possible to
- * establish a connection with other call participants with the SFU when possible, and still handle
- * peer-to-peer for the participants who did not manage to establish a SFU connection.
- */
 export class Network {
     /** @type {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} */
     p2p;
@@ -97,6 +84,10 @@ export class Network {
         this.sfu = sfu;
     }
 
+    /**
+     * @param {number} sessionId
+     * @returns {Array<{type: string, state: string}>}
+     */
     getSfuConsumerStats(sessionId) {
         const consumers = this.sfu?._consumers.get(sessionId);
         if (!consumers) {
@@ -121,18 +112,12 @@ export class Network {
         });
     }
 
-    /**
-     * add a SFU to the network.
-     * @param {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient} sfu
-     */
+    /** @param {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient} sfu */
     addSfu(sfu) {
         if (this.sfu) {
             this.removeSfu();
         }
         this.sfu = sfu;
-        // listeners registered before the SFU existed (p2p listeners are
-        // attached at network creation, the SFU bundle loads seconds later)
-        // must reach the SFU too
         for (const { name, f } of this._listeners) {
             sfu.addEventListener(name, f);
         }
@@ -145,8 +130,6 @@ export class Network {
             this.sfu.removeEventListener(name, f);
         }
         this.sfu.disconnect();
-        // full teardown: a kept reference would still show up in stats, be
-        // disconnected again and accumulate listeners on the next `addSfu`.
         this.sfu = undefined;
     }
     /**
@@ -160,8 +143,7 @@ export class Network {
     }
     /**
      * @param {streamType} type
-     * @param {MediaStreamTrack | null} track track to be sent to the other call participants,
-     * not setting it will remove the track from the server
+     * @param {MediaStreamTrack | null} track
      */
     async updateUpload(type, track) {
         const proms = [this.p2p.updateUpload(type, track)];
@@ -171,21 +153,16 @@ export class Network {
         await Promise.all(proms);
     }
     /**
-     * Stop or resume the consumption of tracks from the other call participants.
-     *
      * @param {number} sessionId
-     * @param {Object<[streamType, boolean]>} states e.g: { audio: true, camera: false }
+     * @param {Object<[streamType, boolean]>} states
      */
     updateDownload(sessionId, states) {
         this.p2p.updateDownload(sessionId, states);
         this.sfu?.updateDownload(sessionId, states);
     }
     /**
-     * Updates the server with the info of the session (isTalking, isCameraOn,...) so that it can broadcast it to the
-     * other call participants.
-     *
      * @param {import("#src/models/session.js").SessionInfo} info
-     * @param {Object} [options] see documentation of respective classes
+     * @param {Object} [options]
      */
     updateInfo(info, options = {}) {
         this.p2p.updateInfo(info, options);
@@ -202,64 +179,47 @@ export class Network {
 }
 
 /**
- * Delegate surface the coordinator (Rtc) provides to the transport. Every
- * UI/store concern goes through these callbacks so the transport state
- * machine stays headless-testable.
- *
- * @typedef {Object} CallTransportHooks
- * @property {() => Array<RTCIceServer>} getIceServers
- * @property {() => Object} getFreshInfo session info with the video flags
- *  realigned to the actual local tracks (advertised over a fresh transport)
- * @property {() => number[]} getPeerSessionIds ids of the remote rtc sessions
- *  of the current call channel (excluding the local session)
- * @property {(state: string) => void} setLocalConnectionState
- * @property {() => void} updateUpload fan out all local tracks (audio,
- *  camera, screen) through the network
- * @property {(event: CustomEvent) => void} onNetworkUpdate "update" listener
- * @property {(event: CustomEvent) => void} onNetworkLog "log" listener
- * @property {(entry: string, options?: Object) => void} log logs against the
- *  local session
- * @property {(text: string) => void} notify warning notification
- * @property {() => void} leaveCall used when the SFU closes with "full"
+ * @typedef {Object} ServerInfo
+ * @property {string} url
+ * @property {string} jsonWebToken
+ * @property {string} channelUUID
  */
 
 /**
- * Owns the network lifecycle of a call: p2p vs SFU selection, the SfuClient
- * connect/downgrade/hot-swap state machine, the connect-epoch logic and the
- * p2p offer sequence numbers. Holds no OWL/store state of its own beyond the
- * shared reactive `state` slots it is given (`connectionType`,
- * `fallbackMode`, `channel`).
+ * @typedef {Object} CallTransportHooks
+ * @property {() => Array<RTCIceServer>} getIceServers
+ * @property {() => Object} getFreshInfo
+ * @property {() => number[]} getPeerSessionIds
+ * @property {(state: string) => void} setLocalConnectionState
+ * @property {() => void} updateUpload
+ * @property {(event: CustomEvent) => void} onNetworkUpdate
+ * @property {(event: CustomEvent) => void} onNetworkLog
+ * @property {(entry: string, options?: Object) => void} log
+ * @property {(text: string) => void} notify
+ * @property {() => void} leaveCall
  */
 export class CallTransport {
-    /** @type {Network|undefined} per-call composite network */
+    /** @type {Network|undefined} */
     network;
     /** @type {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient|undefined} */
     sfuClient;
-    /** State enum of the loaded SFU module (set by the client factory). */
+    /** @type {import("@mail/../lib/odoo_sfu/odoo_sfu").SFU_CLIENT_STATE|undefined} */
     SFU_CLIENT_STATE;
-    /** Server info of the SFU attributed to the current call, if any. */
+    /** @type {ServerInfo|undefined} */
     serverInfo;
-    /** @type {number} watchdog for the whole SFU connection sequence */
+    /** @type {number} */
     sfuTimeout;
-    /**
-     * Generation token for `initConnection`: bumped at each new connection
-     * attempt (and on `dispose()`) so a stale run aborts after each await
-     * instead of clobbering the state of a newer one.
-     * @type {number}
-     */
+    /** @type {number} */
     _connectEpoch = 0;
-    /** @type {number} count of how many times the p2p service attempted a connection recovery */
+    /** @type {number} */
     _p2pRecoveryCount = 0;
 
     /**
      * @param {Object} param0
      * @param {() => import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} param0.getP2p
-     *  accessor (the p2p service is assigned to the coordinator after setup)
-     * @param {Object} param0.state shared reactive call state; the transport
-     *  reads `channel` and owns `connectionType` / `fallbackMode`
+     * @param {import("@mail/discuss/call/common/rtc_service").RtcCallState} param0.state
      * @param {CallTransportHooks} param0.hooks
-     * @param {typeof loadSfuClient} [param0.loadSfuClient] injectable
-     *  SfuClient factory
+     * @param {typeof loadSfuClient} [param0.loadSfuClient]
      */
     constructor({ getP2p, state, hooks, loadSfuClient: loadSfuClientFn }) {
         this._getP2p = getP2p;
@@ -282,13 +242,8 @@ export class CallTransport {
     }
 
     /**
-     * (Re)establishes the network of the call: always connects p2p (peers who
-     * failed to reach the SFU still connect that way), and adds a SFU client
-     * when `serverInfo` is set. A run that is no longer the latest (`epoch`)
-     * aborts after each await.
-     *
      * @param {Object} param0
-     * @param {number} param0.sessionId id of the local rtc session
+     * @param {number} param0.sessionId
      * @param {number} param0.channelId
      */
     async initConnection({ sessionId, channelId }) {
@@ -302,10 +257,6 @@ export class CallTransport {
             iceServers: this.hooks.getIceServers(),
         });
         this.network = new Network(this.p2p);
-        // register BEFORE any await: a p2p-fallback participant can complete
-        // its handshake while the SFU bundle loads, and TRACK/BROADCAST events
-        // emitted with no listener are dropped for good. addSfu() forwards
-        // these listeners to the SFU client once it is ready.
         this.network.addEventListener("stateChange", this._handleSfuStateChange);
         this.network.addEventListener("update", this.hooks.onNetworkUpdate);
         this.network.addEventListener("log", this.hooks.onNetworkLog);
@@ -319,8 +270,6 @@ export class CallTransport {
             try {
                 const { sfuClient, SFU_CLIENT_STATE } = await this._loadSfuClient();
                 if (epoch !== this._connectEpoch) {
-                    // a newer connection attempt (or the end of the call)
-                    // superseded this run.
                     sfuClient.disconnect();
                     return;
                 }
@@ -356,13 +305,8 @@ export class CallTransport {
     }
 
     /**
-     * Connects to the other call participants through the current connection
-     * type: SFU handshake when on server mode, p2p offers otherwise.
-     *
      * @param {Object} [param0={}]
-     * @param {boolean} [param0.asFallback=false] whether the call is made as a fallback to the SFU, in which case
-     * p2p connections are offered more eagerly as other participants may not offer them if their primary connection
-     * type is SFU.
+     * @param {boolean} [param0.asFallback=false]
      * @return {Promise<void>}
      */
     async call({ asFallback = false } = {}) {
@@ -371,10 +315,6 @@ export class CallTransport {
         }
         if (this.state.connectionType === CONNECTION_TYPES.SERVER) {
             if (this.sfuClient.state === this.SFU_CLIENT_STATE.DISCONNECTED) {
-                // Watchdog for the whole connection sequence: `connect()`
-                // resolves at AUTHENTICATED, before the transports are ready,
-                // so the timeout must stay armed until the CONNECTED state
-                // change (which clears it), or until `downgrade`.
                 browser.clearTimeout(this.sfuTimeout);
                 this.sfuTimeout = browser.setTimeout(() => {
                     this.hooks.log("sfu connection timeout", {
@@ -392,9 +332,6 @@ export class CallTransport {
                         },
                     );
                 } catch (error) {
-                    // single failure funnel with the timeout above: fall back
-                    // to p2p locally instead of letting the rejection abort
-                    // the caller (e.g. the rest of the `joinCall` setup).
                     this.hooks.log("failed to connect to the SFU server", {
                         error,
                         important: true,
@@ -414,14 +351,8 @@ export class CallTransport {
         }
     }
 
-    /**
-     * Falls the call back to peer-to-peer, dropping the SFU client.
-     */
     async downgrade() {
         if (this.state.connectionType !== CONNECTION_TYPES.SERVER) {
-            // already downgraded: the 10s connection timeout and a
-            // `connect()` rejection can both fire for the same failure, keep
-            // a single funnel.
             return;
         }
         browser.clearTimeout(this.sfuTimeout);
@@ -434,13 +365,7 @@ export class CallTransport {
         this.hooks.updateUpload();
     }
 
-    /**
-     * Called when the p2p service attempted a connection recovery while on a
-     * pure p2p call: past the first attempt (or right away without a TURN
-     * server) we ask the server for a SFU upgrade.
-     *
-     * @param {boolean} hasTurnServer
-     */
+    /** @param {boolean} hasTurnServer */
     onP2pRecovery(hasTurnServer) {
         this._p2pRecoveryCount++;
         if (this._p2pRecoveryCount > 1 || !hasTurnServer) {
@@ -460,21 +385,20 @@ export class CallTransport {
         );
     }
 
+    /** @param {CustomEvent<{state: string, cause?: string}>} ev */
     async _handleSfuStateChange({ detail: { state, cause } }) {
         this.hooks.log(`connection state change: ${state}`, { state, cause });
         this.hooks.setLocalConnectionState(state);
         switch (state) {
             case this.SFU_CLIENT_STATE.AUTHENTICATED:
-                // if we are hot-swapping connection type, we clear the p2p as late as possible
                 this.p2p.removeALlPeers();
                 this.sfuClient.broadcast({ sequence: getSequence() });
                 break;
             case this.SFU_CLIENT_STATE.CONNECTED:
                 browser.clearTimeout(this.sfuTimeout);
                 this.sfuClient.updateInfo(this.hooks.getFreshInfo(), {
-                    needRefresh: true, // asks the server to send the info from all the channel
+                    needRefresh: true,
                 });
-                // fan out through the Network so p2p and SFU stay consistent
                 this.hooks.updateUpload();
                 return;
             case this.SFU_CLIENT_STATE.CLOSED:
@@ -499,21 +423,11 @@ export class CallTransport {
         }
     }
 
-    /**
-     * Disconnects the whole network (p2p and SFU) without resetting the
-     * per-call state; part of the end-of-call sequence, before `dispose()`.
-     */
     disconnect() {
         this.network?.disconnect();
     }
 
-    /**
-     * Resets the per-call transport state. Does not disconnect the network:
-     * the end-of-call path (`endCall`) disconnects explicitly before the
-     * cleanup, while cross-tab remotes never had a network to disconnect.
-     */
     dispose() {
-        // abort any in-flight `initConnection` run
         this._connectEpoch++;
         browser.clearTimeout(this.sfuTimeout);
         this.sfuClient = undefined;

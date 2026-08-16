@@ -27,8 +27,6 @@
     --popover-border-color: #{o-token(--secondary, $secondary)};
 }
 
-
-// The dark half, folded in from `avatar_card_popover.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o_avatar_card {

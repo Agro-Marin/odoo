@@ -4,12 +4,14 @@ import { browser } from "@web/core/browser/browser";
 import { isBrowserChrome } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+/** @type {Set<string>} */
 const deviceKind = new Set(["audioinput", "videoinput", "audiooutput"]);
 
 export class DeviceSelect extends Component {
     static props = {
         kind: {
             type: String,
+            /** @param {string} string */
             validate: (string) => deviceKind.has(string),
         },
     };
@@ -26,7 +28,6 @@ export class DeviceSelect extends Component {
         this.isBrowserChrome = isBrowserChrome();
         onWillStart(async () => {
             if (!browser.navigator.mediaDevices) {
-                // zxing-js: isMediaDevicesSuported or canEnumerateDevices is false.
                 this.notification.add(
                     _t("Media devices unobtainable. SSL might not be set up properly."),
                     { type: "warning" },
@@ -70,13 +71,10 @@ export class DeviceSelect extends Component {
                     signal,
                 });
             }
-        } catch {
-            // engines that don't recognize these permission names reject on
-            // every open of the select; permission-change refresh is
-            // best-effort (devicechange still updates the list)
-        }
+        } catch {}
     }
 
+    /** @param {"audioinput"|"videoinput"|"audiooutput"} kind */
     async showPermissionDialog(kind) {
         if (kind === "videoinput") {
             if (this.store.rtc.cameraPermission === "denied") {
@@ -95,6 +93,10 @@ export class DeviceSelect extends Component {
         }
     }
 
+    /**
+     * @param {string} id
+     * @returns {boolean}
+     */
     isSelected(id) {
         switch (this.props.kind) {
             case "audioinput":
@@ -106,6 +108,7 @@ export class DeviceSelect extends Component {
         }
     }
 
+    /** @param {Event} ev */
     onChangeSelectAudioInput(ev) {
         switch (this.props.kind) {
             case "audioinput":
@@ -120,6 +123,10 @@ export class DeviceSelect extends Component {
         }
     }
 
+    /**
+     * @param {"audioinput"|"videoinput"|"audiooutput"} kind
+     * @returns {boolean}
+     */
     isPermissionGranted(kind) {
         if (kind === "videoinput") {
             return this.store.rtc.cameraPermission === "granted";

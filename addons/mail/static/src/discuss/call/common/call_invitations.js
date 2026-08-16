@@ -18,6 +18,10 @@ export class CallInvitations extends Component {
 
 export const callInvitationsService = {
     dependencies: ["discuss.rtc", "mail.store", "overlay"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ "discuss.rtc": any, "mail.store": any, overlay: any }} services
+     */
     start(env, services) {
         const store = services["mail.store"];
         let removeOverlay;

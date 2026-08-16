@@ -8,10 +8,10 @@ declare module "models" {
     }
     export interface Message {
         channelMemberHaveSeen: Readonly<ChannelMember[]>;
-        hasEveryoneSeen: boolean|undefined;
+        hasEveryoneSeen: boolean | undefined;
         hasNewMessageSeparator: boolean;
-        hasSomeoneFetched: boolean|undefined;
-        hasSomeoneSeen: boolean|undefined;
+        hasSomeoneFetched: boolean | undefined;
+        hasSomeoneSeen: boolean | undefined;
         isMessagePreviousToLastSelfMessageSeenByEveryone: boolean;
         mentionedChannelPromises: Promise<Thread>[];
         threadAsFirstUnread: Thread;
@@ -22,8 +22,15 @@ declare module "models" {
     export interface Store {
         channel_types_with_seen_infos: string[];
         channelIdsFetchingDeferred: Map<number, Deferred>;
-        createGroupChat: (param0: { default_display_mode: string, partners_to: number[], name: string }) => Promise<Thread>;
-        "discuss.channel.member": StaticMailRecord<ChannelMember, typeof ChannelMemberClass>;
+        createGroupChat: (param0: {
+            default_display_mode: string;
+            partners_to: number[];
+            name: string;
+        }) => Promise<Thread>;
+        "discuss.channel.member": StaticMailRecord<
+            ChannelMember,
+            typeof ChannelMemberClass
+        >;
         fetchChannel: (channelId: number) => Promise<void>;
         getRecentChatPartnerIds: () => number[];
         onlineMemberStatuses: Readonly<string[]>;
@@ -34,15 +41,23 @@ declare module "models" {
     export interface Thread {
         _computeOfflineMembers: () => ChannelMember[];
         allow_invite_by_email: Readonly<boolean>;
+        allowedToLeaveChannelTypes: Readonly<string[]>;
+        allowedToUnpinChannelTypes: Readonly<string[]>;
         areAllMembersLoaded: Readonly<boolean>;
+        avatar_cache_key: string;
         channel_member_ids: ChannelMember[];
         channel_name_member_ids: ChannelMember[];
+        channel_type: string;
         computeCorrespondent: () => ChannelMember;
         correspondent: ChannelMember;
         correspondentCountry: Country;
         correspondents: Readonly<ChannelMember[]>;
-        default_display_mode: "video_full_screen"|undefined;
-        fetchChannelInfoState: "not_fetched"|"fetching"|"fetched";
+        default_display_mode: "video_full_screen" | undefined;
+        executeCommand: (
+            command: import("@mail/discuss/core/common/channel_commands").ChannelCommand,
+            body?: string,
+        ) => Promise<any>;
+        fetchChannelInfoState: "not_fetched" | "fetching" | "fetched";
         fetchChannelMembers: () => Promise<void>;
         fetchMoreAttachments: (limit: number) => Promise<void>;
         firstUnreadMessage: Message;
@@ -55,12 +70,16 @@ declare module "models" {
         invited_member_ids: ChannelMember[];
         last_interest_dt: import("luxon").DateTime;
         lastInterestDt: import("luxon").DateTime;
-        lastMessageSeenByAllId: undefined|number;
+        lastMessageSeenByAllId: undefined | number;
         lastSelfMessageSeenByEveryone: Message;
+        leaveChannel: (options?: { force?: boolean }) => Promise<void>;
+        markAsFetched: () => Promise<void>;
         markedAsUnread: boolean;
         markingAsRead: boolean;
         markReadSequential: () => Promise<any>;
-        member_count: number|undefined;
+        maxFetchedMessageIdByOthers: number;
+        maxSeenMessageIdByOthers: number;
+        member_count: number | undefined;
         membersThatCanSeen: Readonly<ChannelMember[]>;
         name: string;
         offlineMembers: ChannelMember[];
@@ -73,6 +92,7 @@ declare module "models" {
         showCorrespondentCountry: Readonly<boolean>;
         showUnreadBanner: Readonly<boolean>;
         toggleBusSubscription: boolean;
+        typesAllowingCalls: Readonly<string[]>;
         typingMembers: ChannelMember[];
         unknownMembersCount: Readonly<number>;
     }

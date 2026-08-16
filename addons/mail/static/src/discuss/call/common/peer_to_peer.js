@@ -37,10 +37,10 @@ const ORDERED_TRANSCEIVER_TYPES = [
     STREAM_TYPE.SCREEN,
 ];
 const DEFAULT_BUS_BATCH_DELAY = 100;
-const INITIAL_RECONNECT_DELAY = 2_000 + Math.random() * 1_000; // the initial delay between reconnection attempts
-const MAXIMUM_RECONNECT_DELAY = 25_000 + Math.random() * 5_000; // the longest delay possible between reconnection attempts
-// how many times a failed notification batch is retried before giving up
+const INITIAL_RECONNECT_DELAY = 2_000 + Math.random() * 1_000;
+const MAXIMUM_RECONNECT_DELAY = 25_000 + Math.random() * 5_000;
 export const MAX_NOTIFICATION_RETRIES = 5;
+/** @type {Set<RTCIceConnectionState>} */
 const INVALID_ICE_CONNECTION_STATES = new Set(["disconnected", "failed", "closed"]);
 const IS_CLIENT_RTC_COMPATIBLE = Boolean(
     window.RTCPeerConnection && window.MediaStream,
@@ -52,14 +52,12 @@ const DEFAULT_NOTIFICATION_ROUTE = "/mail/rtc/session/notify_call_members";
 
 /**
  * @typedef {Object} Media
- * @property {MediaStreamTrack | null} track the track of the associated RtcRtpTransceiver, its presence does not
- *     imply active streaming as it exists for the whole lifetime transceiver (since webRTC 'unified plan').
- * @property {boolean} active represents whether the remote (peer) is actively streaming this track
- * @property {boolean} accepted represents whether the local (current user) wants to download this track
+ * @property {MediaStreamTrack | null} track
+ * @property {boolean} active
+ * @property {boolean} accepted
  */
-
 /**
- * @typedef {Object} Info (sealed)
+ * @typedef {Object} Info
  * @property {boolean} isSelfMuted
  * @property {boolean} isRaisingHand
  * @property {boolean} isDeaf
@@ -67,7 +65,39 @@ const DEFAULT_NOTIFICATION_ROUTE = "/mail/rtc/session/notify_call_members";
  * @property {boolean} isCameraOn
  * @property {boolean} isScreenSharingOn
  */
-
+/**
+ * @typedef {Object} QueuedNotification
+ * @property {number} sender
+ * @property {number[]} targets
+ * @property {INTERNAL_EVENT[keyof INTERNAL_EVENT]} event
+ * @property {number} channelId
+ * @property {NotificationPayload} payload
+ */
+/**
+ * @typedef {Object} NotificationPayload
+ * @property {RTCSessionDescriptionInit} [sdp]
+ * @property {RTCIceCandidateInit} [candidate]
+ * @property {number} [sequence]
+ * @property {boolean} [isTalking]
+ * @property {boolean} [isCameraOn]
+ * @property {boolean} [isScreenSharingOn]
+ * @property {boolean} [isSelfMuted]
+ * @property {boolean} [isRaisingHand]
+ * @property {boolean} [isDeaf]
+ */
+/**
+ * @typedef {Object} FormattedPeerStats
+ * @property {RTCPeerConnectionState} [connectionState]
+ * @property {RTCIceConnectionState} [iceConnectionState]
+ * @property {RTCIceGatheringState} [iceGatheringState]
+ * @property {RTCIceCandidateType | ""} [localCandidateType]
+ * @property {RTCIceCandidateType | ""} [remoteCandidateType]
+ * @property {RTCDataChannelState} [dataChannelState]
+ * @property {RTCDtlsTransportState} [dtlsState]
+ * @property {RTCIceTransportState} [iceState]
+ * @property {number} [packetsReceived]
+ * @property {number} [packetsSent]
+ */
 export class Peer {
     /** @type {number} */
     id;
@@ -104,8 +134,9 @@ export class Peer {
      * @param {Object} param2
      * @param {RTCPeerConnection} param2.connection
      * @param {RTCDataChannel} param2.dataChannel
-     * @param {boolean} hasPriority true if this peer offers should have priority in case of collisions
-     * @param {number} [connectRetryDelay=INITIAL_RECONNECT_DELAY]
+     * @param {boolean} [param2.hasPriority=false]
+     * @param {number} [param2.connectRetryDelay=INITIAL_RECONNECT_DELAY]
+     * @param {number} [param2.sequence=0]
      */
     constructor(
         id,
@@ -132,16 +163,12 @@ export class Peer {
             for (const sender of RTCRtpSenders) {
                 try {
                     this.connection.removeTrack(sender);
-                } catch {
-                    // ignore error
-                }
+                } catch {}
             }
             for (const transceiver of this.connection.getTransceivers()) {
                 try {
                     transceiver.stop();
-                } catch {
-                    // transceiver may already be stopped by the remote.
-                }
+                } catch {}
             }
         }
         this.ready.resolve?.();
@@ -155,7 +182,7 @@ export class Peer {
     }
     /**
      * @param {STREAM_TYPE[keyof STREAM_TYPE]} streamType
-     * @param {boolean} canUpload whether this transceiver needs upload capability (outbound stream)
+     * @param {boolean} canUpload
      * @returns {RTCRtpTransceiverDirection}
      */
     getRecommendedTransceiverDirection(streamType, canUpload = false) {
@@ -167,11 +194,10 @@ export class Peer {
     }
     /**
      * @param {STREAM_TYPE[keyof STREAM_TYPE]} streamType
-     * @returns {RTCRtpTransceiver | undefined} the transceiver used for this trackKind.
+     * @returns {RTCRtpTransceiver | undefined}
      */
     getTransceiver(streamType) {
         if (!this.connection) {
-            // may be disconnected
             return;
         }
         const transceivers = this.connection.getTransceivers();
@@ -187,24 +213,16 @@ export class Peer {
     }
 }
 
-/**
- * This class represents a network of peers and handles peer to peer connections.
- *
- *  @fires PeerToPeer#update
- */
 export class PeerToPeer extends EventTarget {
     /** @type {number} */
     selfId;
-    /** @type {number}*/
+    /** @type {number} */
     channelId;
-    /** @type {Map<number, Peer>}*/
+    /** @type {Map<number, Peer>} */
     peers = new Map();
     /**
-     * Predicate to check if we accept the offer from a peer, this can be useful if we want to prevent
-     * negotiations for connections that we do not want to manage.
-     *
-     * @param {number} id the id of the peer to check if we accept the offer
-     * @param {number} sequence the sequence of the offer, it indicates the order of the connection
+     * @param {number} id
+     * @param {number} sequence
      */
     acceptOffer = async (id, sequence) => true;
     /** @type {number} */
@@ -221,14 +239,14 @@ export class PeerToPeer extends EventTarget {
     /** @type {Array<RTCIceServer>} */
     _iceServers;
     _isPendingNotify = false;
+    /**
+     * @type {Map<string|number, QueuedNotification>}
+     */
     _notificationsToSend = new Map();
     _isAntiGlareEnabled = true;
-    /**
-     * id of notification transaction
-     * @type {number}
-     */
+    /** @type {number} */
     _tmpNotificationId = 0;
-    /** @type {Map<number, number>} timeoutId by peer id */
+    /** @type {Map<number, number>} */
     _recoverTimeouts = new Map();
     /** @type {String} */
     _notificationRoute;
@@ -240,6 +258,9 @@ export class PeerToPeer extends EventTarget {
         [STREAM_TYPE.SCREEN]: null,
         [STREAM_TYPE.CAMERA]: null,
     });
+    /**
+     * @type {Object<string, (id: number, message: string) => void>}
+     */
     _loggingFunctions = {
         [LOG_LEVEL.DEBUG]: () => {},
         [LOG_LEVEL.INFO]: () => {},
@@ -251,13 +272,11 @@ export class PeerToPeer extends EventTarget {
     }
     /**
      * @param {object} [options]
-     * @param {String} [options.notificationRoute] the route used to communicate with the odoo server
+     * @param {String} [options.notificationRoute]
      * @param {LOG_LEVEL[keyof LOG_LEVEL]} [options.logLevel=LOG_LEVEL.NONE]
-     * @param {boolean} [options.antiGlare=true] whether or not to use the rollback feature to manage offer collisions,
-     *        ids provided for peers should be comparable for this feature to work.
+     * @param {boolean} [options.antiGlare=true]
      * @param {number} [options.batchDelay=DEFAULT_BUS_BATCH_DELAY]
-     * @param {boolean} [options.enableStreaming=true] whether or not setting the peer connections with audio and video
-     *        transceivers to allow streaming features.
+     * @param {boolean} [options.enableStreaming=true]
      */
     constructor({
         notificationRoute = DEFAULT_NOTIFICATION_ROUTE,
@@ -275,11 +294,11 @@ export class PeerToPeer extends EventTarget {
     }
 
     /**
-     * @param {any} selfId should be comparable to benefit from the anti glare (offer collisions)
-     * @param {any} channelId
+     * @param {number} selfId
+     * @param {number} channelId
      * @param {object} [options]
-     * @param {Info} [options.info={}]
-     * @param {array} [options.iceServers=DEFAULT_ICE_SERVERS]
+     * @param {Partial<Info>} [options.info={}]
+     * @param {RTCIceServer[]} [options.iceServers=DEFAULT_ICE_SERVERS]
      */
     connect(selfId, channelId, { info = {}, iceServers = DEFAULT_ICE_SERVERS } = {}) {
         if (!IS_CLIENT_RTC_COMPATIBLE) {
@@ -314,14 +333,9 @@ export class PeerToPeer extends EventTarget {
         });
     }
     /**
-     * Adds a peer and starts connection establishment; the whole peer
-     * lifecycle (including recovery attempts) is then handled internally until
-     * `removePeer()` or `disconnect()`. An already registered peer is returned
-     * as is, so `addPeer` never resets a live connection.
-     *
      * @param {number} id
-     * @param {object} [options={}] options for the Peer constructor
-     * @returns {Promise<Peer>} resolved when the dataChannel is open
+     * @param {object} [options={}]
+     * @returns {Promise<Peer>}
      */
     async addPeer(id, options = {}) {
         const peer = this.peers.get(id);
@@ -332,6 +346,7 @@ export class PeerToPeer extends EventTarget {
         await newPeer.ready;
         return newPeer;
     }
+    /** @param {number} id */
     removePeer(id) {
         const recoverTimeoutId = this._recoverTimeouts.get(id);
         browser.clearTimeout(recoverTimeoutId);
@@ -344,30 +359,17 @@ export class PeerToPeer extends EventTarget {
         peer.disconnect();
     }
 
-    /**
-     * Broadcast a message to all peers
-     * @param message any JSON serializable
-     */
+    /** @param {any} message */
     broadcast(message) {
         this._dataChannelBroadcast(INTERNAL_EVENT.BROADCAST, message);
     }
     /**
-     * @param id
-     * @return {{
-     *     connectionState: RTCPeerConnection.connectionState
-     *     iceConnectionState: RTCPeerConnection.iceConnectionState
-     *     iceGatheringState: RTCPeerConnection.iceGatheringState
-     *     localCandidateType: RTCIceCandidatePairStats.candidateType
-     *     remoteCandidateType: RTCIceCandidatePairStats.candidateType
-     *     dataChannelState:  RTCDataChannelStats.state
-     *     dtlsState: RTCTransportStats.dtpsState,
-     *     iceState: RTCTransportStats.iceState,
-     *     packetsReceived: RTCTransportStats.packetsReceived,
-     *     packetsSent: RTCTransportStats.packetsSent,
-     * } | {}}
+     * @param {number} id
+     * @return {Promise<FormattedPeerStats>}
      */
     async getFormattedStats(id) {
         const peer = this.peers.get(id);
+        /** @type {FormattedPeerStats} */
         const formattedStats = {};
         if (!peer) {
             return formattedStats;
@@ -400,24 +402,24 @@ export class PeerToPeer extends EventTarget {
         return formattedStats;
     }
     /**
-     * Stop or resume the consumption of tracks from the other call participants.
-     *
      * @param {number} id
-     * @param {Object<[STREAM_TYPE[keyof STREAM_TYPE], boolean]>} states e.g: { screen: true, camera: false }
+     * @param {Object<string, boolean>} states
      */
     updateDownload(id, states) {
         const peer = this.peers.get(id);
         if (!peer) {
             return;
         }
-        for (const [streamType, accepted] of Object.entries(states)) {
+        for (const [rawStreamType, accepted] of Object.entries(states)) {
+            const streamType = /** @type {STREAM_TYPE[keyof STREAM_TYPE]} */ (
+                rawStreamType
+            );
             peer.medias[streamType].accepted = accepted;
             const transceiver = peer.getTransceiver(streamType);
             if (!transceiver) {
                 this._recover(id, `no transceiver available when updating direction`);
                 continue;
             }
-            // changing the direction triggers a negotiation-needed
             transceiver.direction = peer.getRecommendedTransceiverDirection(
                 streamType,
                 Boolean(this._tracks[streamType]),
@@ -427,7 +429,7 @@ export class PeerToPeer extends EventTarget {
 
     /**
      * @param {STREAM_TYPE[keyof STREAM_TYPE]} streamType
-     * @param {MediaStreamTrack | null} [track] track to be sent to the other call participants
+     * @param {MediaStreamTrack | null} [track]
      */
     async updateUpload(streamType, track) {
         this._tracks[streamType] = track || null;
@@ -436,26 +438,22 @@ export class PeerToPeer extends EventTarget {
             isCameraOn: Boolean(this._tracks[STREAM_TYPE.CAMERA]),
         });
         for (const peer of this.peers.values()) {
-            // Fan out in the background: awaiting `ready` would block the
-            // caller behind a single stuck handshake. `_updateRemote` reads
-            // `this._tracks` at execution time, so a late peer still picks up
-            // the latest track.
             peer.ready.then(() => this._updateRemote(peer, streamType));
         }
     }
-    /**
-     * @param {Info} info
-     */
+    /** @param {Partial<Info>} info */
     updateInfo(info) {
         this._localInfo = Object.assign(this._localInfo, info);
         this._dataChannelBroadcast(INTERNAL_EVENT.INFO, this._localInfo);
     }
     /**
-     * @param id id of the peer sending the notification
-     * @param {string} content JSON
+     * @param {number} id
+     * @param {string} content
      */
     async handleNotification(id, content) {
-        /** @type {{ event: INTERNAL_EVENT[keyof INTERNAL_EVENT], channelId, payload: Object }} */
+        /**
+         * @type {{ event: INTERNAL_EVENT[keyof INTERNAL_EVENT], channelId: number, payload: NotificationPayload, }}
+         */
         const { event, channelId, payload } = JSON.parse(content);
         this._emitLog(id, `received notification: ${event}`, LOG_LEVEL.DEBUG);
         if (channelId !== this.channelId) {
@@ -490,7 +488,6 @@ export class PeerToPeer extends EventTarget {
                         id,
                         "answer handling: Failed at setting remoteDescription",
                     );
-                    // ignored the transaction may have been resolved by another concurrent offer.
                 }
                 break;
             }
@@ -545,8 +542,6 @@ export class PeerToPeer extends EventTarget {
                         return;
                     }
                 } catch (error) {
-                    // `acceptOffer` is caller-supplied: treat a throw like an
-                    // explicit rejection rather than advancing the negotiation.
                     this._emitLog(id, `offer rejected: ${error}`, LOG_LEVEL.INFO);
                     return;
                 }
@@ -634,15 +629,20 @@ export class PeerToPeer extends EventTarget {
             }
         }
     }
-    /**
-     * @param {LOG_LEVEL[keyof LOG_LEVEL]} logLevel
-     */
+    /** @param {LOG_LEVEL[keyof LOG_LEVEL]} logLevel */
     setLoggingLevel(logLevel) {
-        const makeLog = (level) => (id, message) => {
-            this.dispatchEvent(
-                new CustomEvent("log", { detail: { id, level, message } }),
-            );
-        };
+        /** @param {LOG_LEVEL[keyof LOG_LEVEL]} level */
+        const makeLog =
+            (level) =>
+            /**
+             * @param {number} id
+             * @param {string} message
+             */
+            (id, message) => {
+                this.dispatchEvent(
+                    new CustomEvent("log", { detail: { id, level, message } }),
+                );
+            };
         this._loggingFunctions = {
             [LOG_LEVEL.DEBUG]: () => {},
             [LOG_LEVEL.INFO]: () => {},
@@ -665,7 +665,7 @@ export class PeerToPeer extends EventTarget {
     }
     /**
      * @param {INTERNAL_EVENT[keyof INTERNAL_EVENT]} internalEvent
-     * @param message any JSON serializable
+     * @param {any} message
      */
     _dataChannelBroadcast(internalEvent, message) {
         for (const peer of this.peers.values()) {
@@ -681,14 +681,12 @@ export class PeerToPeer extends EventTarget {
             );
         }
     }
-    /**
-     * @param {any} detail
-     */
+    /** @param {any} detail */
     _emitUpdate(detail) {
         this.dispatchEvent(new CustomEvent("update", { detail }));
     }
     /**
-     * @param id
+     * @param {number} id
      * @param {string} message
      * @param {LOG_LEVEL[keyof LOG_LEVEL]} [level=LOG_LEVEL.DEBUG]
      */
@@ -696,7 +694,7 @@ export class PeerToPeer extends EventTarget {
         this._loggingFunctions[level](id, message);
     }
     /**
-     * @param id
+     * @param {number} id
      * @param {string} reason
      */
     _recover(id, reason = "") {
@@ -708,7 +706,6 @@ export class PeerToPeer extends EventTarget {
         if (!peer) {
             return;
         }
-        // Retry connecting with an exponential backoff.
         const delay =
             Math.min(peer.connectRetryDelay * 1.5, MAXIMUM_RECONNECT_DELAY) +
             1000 * Math.random();
@@ -717,14 +714,11 @@ export class PeerToPeer extends EventTarget {
             browser.setTimeout(async () => {
                 const peer = this.peers.get(id);
                 this._recoverTimeouts.delete(id);
-                // guard before any `peer.connection` read: the peer may have
-                // been removed/disconnected by the time the timeout fires.
                 if (!peer?.connection || !this.channelId) {
                     return;
                 }
                 const connectionSuccess =
-                    peer.connection.connectionState === "connected" ||
-                    peer.connection.connectionState === "completed";
+                    peer.connection.connectionState === "connected";
                 const iceSuccess =
                     peer.connection.iceConnectionState === "connected" ||
                     peer.connection.iceConnectionState === "completed";
@@ -735,9 +729,6 @@ export class PeerToPeer extends EventTarget {
                     peer.connection.connectionState === "connecting" ||
                     peer.connection.iceConnectionState === "checking"
                 ) {
-                    // still progressing: slow ICE (TURN allocation, mobile
-                    // networks) routinely exceeds the first timer, and tearing
-                    // the handshake down would restart it with a longer backoff
                     this._recover(peer.id, `${reason} (still progressing)`);
                     return;
                 }
@@ -771,10 +762,9 @@ export class PeerToPeer extends EventTarget {
                 if (!this.isActive || this._notificationsToSend.size === 0) {
                     return;
                 }
-                // Snapshot each notification alongside its id: an OFFER reuses
-                // a per-target key, so a fresher offer queued during the RPC
-                // must not be deleted by id below before being sent.
+                /** @type {[string|number, QueuedNotification][]} */
                 const sent = [];
+                /** @type {[number, number[], string][]} */
                 const notifications = [];
                 this._notificationsToSend.forEach((notification, id) => {
                     sent.push([id, notification]);
@@ -799,16 +789,11 @@ export class PeerToPeer extends EventTarget {
                 } catch {
                     failedAttempts++;
                     if (failedAttempts > MAX_NOTIFICATION_RETRIES) {
-                        // Give up (probably offline): peers run their own
-                        // recovery flow, and retrying forever would hammer a
-                        // dead network.
                         this._emitLog(
                             this.selfId,
                             "too many failed attempts to send notifications, giving up",
                             LOG_LEVEL.ERROR,
                         );
-                        // Drop only what was actually tried (by identity), so
-                        // notifications queued during the backoff survive.
                         for (const [id, notification] of sent) {
                             if (this._notificationsToSend.get(id) === notification) {
                                 this._notificationsToSend.delete(id);
@@ -816,7 +801,6 @@ export class PeerToPeer extends EventTarget {
                         }
                         return;
                     }
-                    // retry with an exponential backoff
                     await new Promise((resolve) =>
                         browser.setTimeout(resolve, retryDelay),
                     );
@@ -826,9 +810,6 @@ export class PeerToPeer extends EventTarget {
                 failedAttempts = 0;
                 retryDelay = INITIAL_RECONNECT_DELAY;
                 for (const [id, notification] of sent) {
-                    // Only clear entries not superseded while the RPC was in
-                    // flight; a newer notification under the same key must
-                    // survive to be sent on the next iteration.
                     if (this._notificationsToSend.get(id) === notification) {
                         this._notificationsToSend.delete(id);
                     }
@@ -842,14 +823,12 @@ export class PeerToPeer extends EventTarget {
      * @param {INTERNAL_EVENT[keyof INTERNAL_EVENT]} event
      * @param {Object} [options]
      * @param {Object} [options.payload]
-     * @param {number[]} [options.targets] list of the ids of peers to send the message to,
-     * sends to all peers if no specified target(s)
+     * @param {number[]} [options.targets]
      */
     async _busNotify(event, { payload, targets } = {}) {
         targets = targets || Array.from(this.peers.keys());
         let id;
         if (event === INTERNAL_EVENT.OFFER) {
-            // offers are always single-target, ensures that only 1 offer (the latest) per target is kept
             id = `latestOffer_to:${targets[0]}`;
         } else {
             id = ++this._tmpNotificationId;
@@ -887,9 +866,6 @@ export class PeerToPeer extends EventTarget {
         }
     }
     /**
-     * Creates a new peer.
-     * If a peer of this id already exists, it is cleared.
-     *
      * @param {number} id
      * @param {object} [options={}]
      * @returns {Peer}
@@ -914,20 +890,24 @@ export class PeerToPeer extends EventTarget {
             payload: { id, peer, state: "searching for network" },
         });
         this.peers.set(id, peer);
-        peerConnection.addEventListener("icecandidate", async (event) => {
-            if (!event.candidate) {
-                return;
-            }
-            if (!this.isActive || !this.peers.has(id)) {
-                return;
-            }
-            await this._busNotify(INTERNAL_EVENT.ICE_CANDIDATE, {
-                payload: {
-                    candidate: event.candidate,
-                },
-                targets: [id],
-            });
-        });
+        peerConnection.addEventListener(
+            "icecandidate",
+            /** @param {RTCPeerConnectionIceEvent} event */
+            async (event) => {
+                if (!event.candidate) {
+                    return;
+                }
+                if (!this.isActive || !this.peers.has(id)) {
+                    return;
+                }
+                await this._busNotify(INTERNAL_EVENT.ICE_CANDIDATE, {
+                    payload: {
+                        candidate: event.candidate,
+                    },
+                    targets: [id],
+                });
+            },
+        );
         peerConnection.addEventListener("iceconnectionstatechange", async () => {
             switch (peerConnection.iceConnectionState) {
                 case "closed":
@@ -966,9 +946,13 @@ export class PeerToPeer extends EventTarget {
                 LOG_LEVEL.INFO,
             );
         });
-        peerConnection.addEventListener("icecandidateerror", async (error) => {
-            this._recover(id, `ice candidate error: ${error.errorText}`);
-        });
+        peerConnection.addEventListener(
+            "icecandidateerror",
+            /** @param {RTCPeerConnectionIceErrorEvent} error */
+            async (error) => {
+                this._recover(id, `ice candidate error: ${error.errorText}`);
+            },
+        );
         peerConnection.addEventListener("negotiationneeded", async () => {
             peer.isBuildingOffer = true;
             try {
@@ -995,36 +979,43 @@ export class PeerToPeer extends EventTarget {
                 targets: [id],
             });
         });
-        peerConnection.addEventListener("track", async ({ transceiver, track }) => {
-            if (!peer?.id || !this.peers.has(peer.id)) {
-                return;
-            }
-            const streamType = peer.getTransceiverStreamType(transceiver);
-            if (!streamType) {
-                this._recover(id, "received track for unknown transceiver");
-                return;
-            }
-            peer.medias[streamType].track = track;
-            if (!(await peer.ready)) {
-                return;
-            }
-            this._emitUpdate({
-                name: UPDATE_EVENT.TRACK,
-                payload: {
-                    sessionId: id,
-                    type: streamType,
-                    track,
-                    active: peer.medias[streamType].active,
-                    sequence: peer.sequence,
-                },
-            });
-        });
-        dataChannel.addEventListener("message", async (event) => {
-            await this.handleNotification(id, event.data);
-        });
+        peerConnection.addEventListener(
+            "track",
+            /** @param {RTCTrackEvent} ev */
+            async ({ transceiver, track }) => {
+                if (!peer?.id || !this.peers.has(peer.id)) {
+                    return;
+                }
+                const streamType = peer.getTransceiverStreamType(transceiver);
+                if (!streamType) {
+                    this._recover(id, "received track for unknown transceiver");
+                    return;
+                }
+                peer.medias[streamType].track = track;
+                if (!(await peer.ready)) {
+                    return;
+                }
+                this._emitUpdate({
+                    name: UPDATE_EVENT.TRACK,
+                    payload: {
+                        sessionId: id,
+                        type: streamType,
+                        track,
+                        active: peer.medias[streamType].active,
+                        sequence: peer.sequence,
+                    },
+                });
+            },
+        );
+        dataChannel.addEventListener(
+            "message",
+            /** @param {MessageEvent} event */
+            async (event) => {
+                await this.handleNotification(id, event.data);
+            },
+        );
         dataChannel.addEventListener("open", () => {
             if (dataChannel.readyState !== "open") {
-                // can be closed by the time the event is emitted
                 return;
             }
             dataChannel.send(

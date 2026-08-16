@@ -21,43 +21,51 @@ export class DiscussCorePublicWeb {
             );
             this.sidebarCategoriesBroadcast.addEventListener(
                 "message",
+                /** @param {MessageEvent<{id: number, open: boolean}>} ev */
                 ({ data: { id, open } }) => {
                     const category = this.store.DiscussAppCategory.get(id);
-                    // mirror locally only: the full `open` setter re-issues the
-                    // set_res_users_settings RPC, once per listening tab
                     category?.applyBroadcastedOpen(open);
                 },
             );
-        } catch {
-            // BroadcastChannel API is not supported (e.g. Safari < 15.4), so disabling it.
-        }
-        this.busService.subscribe("discuss.channel/joined", async (payload) => {
-            const {
-                data,
-                channel_id,
-                invite_to_rtc_call,
-                invited_by_user_id: invitedByUserId,
-            } = payload;
-            this.store.insert(data);
-            await this.store.fetchChannel(channel_id);
-            const thread = this.store.Thread.get({
-                id: channel_id,
-                model: "discuss.channel",
-            });
-            if (
-                thread &&
-                invitedByUserId &&
-                invitedByUserId !== this.store.self.main_user_id?.id &&
-                !invite_to_rtc_call
-            ) {
-                this.notificationService.add(
-                    _t("You have been invited to #%s", thread.displayName),
-                    { type: "info" },
-                );
-            }
-        });
+        } catch {}
+        this.busService.subscribe(
+            "discuss.channel/joined",
+            /**
+             * @param {Object} payload
+             * @param {Object} payload.data
+             * @param {number} payload.channel_id
+             * @param {boolean} [payload.invite_to_rtc_call]
+             * @param {number} [payload.invited_by_user_id]
+             */
+            async (payload) => {
+                const {
+                    data,
+                    channel_id,
+                    invite_to_rtc_call,
+                    invited_by_user_id: invitedByUserId,
+                } = payload;
+                this.store.insert(data);
+                await this.store.fetchChannel(channel_id);
+                const thread = this.store.Thread.get({
+                    id: channel_id,
+                    model: "discuss.channel",
+                });
+                if (
+                    thread &&
+                    invitedByUserId &&
+                    invitedByUserId !== this.store.self_partner?.main_user_id?.id &&
+                    !invite_to_rtc_call
+                ) {
+                    this.notificationService.add(
+                        _t("You have been invited to #%s", thread.displayName),
+                        { type: "info" },
+                    );
+                }
+            },
+        );
         browser.navigator.serviceWorker?.addEventListener(
             "message",
+            /** @param {MessageEvent<{action: string, data: Object}>} ev */
             async ({ data: { action, data } }) => {
                 if (action === "OPEN_CHANNEL") {
                     const channel = await this.store.Thread.getOrFetch({
@@ -93,11 +101,7 @@ export class DiscussCorePublicWeb {
         );
     }
 
-    /**
-     * Send the state of a category to the other tabs.
-     *
-     * @param {import("models").DiscussAppCategory} category
-     */
+    /** @param {import("models").DiscussAppCategory} category */
     broadcastCategoryState(category) {
         this.sidebarCategoriesBroadcast?.postMessage({
             id: category.id,

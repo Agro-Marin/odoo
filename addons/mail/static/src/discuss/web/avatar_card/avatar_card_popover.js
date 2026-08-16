@@ -12,6 +12,7 @@ export class AvatarCardPopover extends Component {
         close: { type: Function, required: true },
         model: {
             type: String,
+            /** @param {string} m */
             validate: (m) => ["res.users", "res.partner"].includes(m),
             optional: true,
         },
@@ -78,6 +79,7 @@ export class AvatarCardPopover extends Component {
         this.props.close();
     }
 
+    /** @param {boolean} newWindow */
     async onClickViewProfile(newWindow) {
         const action = await this.getProfileAction();
         this.props.close();

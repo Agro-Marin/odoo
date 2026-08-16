@@ -28,6 +28,7 @@ export class NotificationSettings extends Component {
         this.ui = useService("ui");
     }
 
+    /** @param {number} minutes */
     setMute(minutes) {
         this.store.settings.setMuteDuration(minutes, this.props.thread);
         this.props.close?.();

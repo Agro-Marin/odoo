@@ -16,7 +16,7 @@ const WAVE_COLOR = "#7775";
 /**
  * @typedef {Object} Props
  * @property {import("models").Attachment} attachment
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class VoicePlayer extends Component {
     static props = ["attachment"];
@@ -34,6 +34,7 @@ export class VoicePlayer extends Component {
     gainNode;
     /** @type {AudioContext} */
     audioCtx;
+    /** @type {number|undefined} */
     scheduledPause;
     /** @type {AudioBuffer} */
     buffer;
@@ -63,7 +64,6 @@ export class VoicePlayer extends Component {
         /** @type {import("@mail/discuss/voice_message/common/voice_message_service").VoiceMessageService} */
         this.voiceMessageService = useService("discuss.voice_message");
         this.state = useState({
-            /** the audio file could not be fetched or decoded */
             failed: false,
             paused: true,
             playing: false,
@@ -71,6 +71,7 @@ export class VoicePlayer extends Component {
             visualTime: "-- : --",
         });
         useEffect(
+            /** @param {boolean} playing */
             (playing) => {
                 if (playing) {
                     this.addOnAudioProcess();
@@ -79,6 +80,7 @@ export class VoicePlayer extends Component {
             () => [this.state.playing],
         );
         useEffect(
+            /** @param {boolean} uploading */
             (uploading) => {
                 if (uploading) {
                     return;
@@ -92,19 +94,22 @@ export class VoicePlayer extends Component {
         );
         onMounted(() => {
             this.initElements();
-            this.wrapper.addEventListener("click", (e) => {
-                if (this.props.attachment.uploading) {
-                    return;
-                }
-                const clientX = (e.targetTouches ? e.targetTouches[0] : e).clientX;
-                const bcr = this.wrapper.getBoundingClientRect();
-                const progressPixels = clientX - bcr.left;
-                const progress = Math.min(
-                    Math.max(0, progressPixels / this.wrapper.scrollWidth),
-                    1,
-                );
-                this.seekTo(progress);
-            });
+            this.wrapper.addEventListener(
+                "click",
+                /** @param {MouseEvent & {targetTouches?: TouchList}} e */ (e) => {
+                    if (this.props.attachment.uploading) {
+                        return;
+                    }
+                    const clientX = (e.targetTouches ? e.targetTouches[0] : e).clientX;
+                    const bcr = this.wrapper.getBoundingClientRect();
+                    const progressPixels = clientX - bcr.left;
+                    const progress = Math.min(
+                        Math.max(0, progressPixels / this.wrapper.scrollWidth),
+                        1,
+                    );
+                    this.seekTo(progress);
+                },
+            );
             if (!this.props.attachment.uploading) {
                 this.makeAudio();
             }
@@ -131,17 +136,23 @@ export class VoicePlayer extends Component {
         )
             .then((arrayBuffer) => this.drawBuffer(arrayBuffer))
             .catch(() => {
-                // fetch (e.g. deleted attachment: 404) or decode failure:
-                // leave the player disabled (no `buffer`) instead of leaking
-                // an unhandled rejection.
                 this.state.failed = true;
             });
     }
 
+    /**
+     * @param {...any} args
+     * @returns {Promise<Response>}
+     */
     _fetch(...args) {
         return fetch(...args);
     }
 
+    /**
+     * @param {string} url
+     * @returns {Promise<ArrayBuffer>}
+     * @throws {Error}
+     */
     async fetchFile(url) {
         const response = await this._fetch(url);
         if (!response.ok) {
@@ -177,6 +188,11 @@ export class VoicePlayer extends Component {
         this.state.paused = false;
     }
 
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.end]
+     * @param {boolean} [options.continue]
+     */
     pause(options) {
         this.voiceMessageService.activePlayer = null;
         if (options?.end) {
@@ -191,9 +207,6 @@ export class VoicePlayer extends Component {
                 if (e.name !== "InvalidStateError") {
                     throw e;
                 }
-                // never-started source: fall through — returning here would
-                // skip the paused/playing bookkeeping below and desync the
-                // player UI state
             }
         }
         if (!options?.continue) {
@@ -205,8 +218,6 @@ export class VoicePlayer extends Component {
     getPeaks() {
         const peaks = [];
         const sampleSize = this.buffer.length / this.width;
-        // never 0: a 0 step would make the inner loop below spin forever on
-        // buffers shorter than 10 samples per pixel (very short recordings).
         const sampleStep = Math.max(1, Math.floor(sampleSize / 10));
         const chan = this.buffer.getChannelData(0);
         let i;
@@ -238,11 +249,11 @@ export class VoicePlayer extends Component {
     }
 
     /**
-     * @param {number} [start] float representing start time
-     * @param {number} [end] float representing end time
-     * @returns {Object} res
-     * @returns {number} res.start
-     * @returns {number} res.end
+     * @param {number} [start]
+     * @param {number} [end]
+     * @returns {Object}
+     * @returns {number}
+     * @returns {number}
      */
     seekToElapsed(start, end) {
         this.scheduledPause = null;
@@ -260,6 +271,7 @@ export class VoicePlayer extends Component {
         return { start, end };
     }
 
+    /** @param {number} progress */
     onProgress(progress) {
         const position = Math.round(progress * this.width);
         if (position < this.lastPos || position - this.lastPos >= 1) {
@@ -268,9 +280,9 @@ export class VoicePlayer extends Component {
         }
     }
 
+    /** @param {number} progress */
     seekTo(progress) {
         if (!this.buffer) {
-            // not decoded yet, or the fetch/decode failed
             return;
         }
         if (this.state.playing) {
@@ -286,10 +298,9 @@ export class VoicePlayer extends Component {
         }
     }
 
+    /** @param {ArrayBuffer} arrayBuffer */
     async drawBuffer(arrayBuffer) {
         if (status(this) === "destroyed") {
-            // unmounted while fetching: `audioCtx` is closed and the canvas
-            // contexts are gone.
             return;
         }
         const buffer = await this.audioCtx.decodeAudioData(arrayBuffer);
@@ -333,6 +344,10 @@ export class VoicePlayer extends Component {
         }
     }
 
+    /**
+     * @param {number} timeInSecond
+     * @returns {string}
+     */
     generateTime(timeInSecond) {
         const second = timeInSecond % 60;
         const minute = Math.floor(timeInSecond / 60);
@@ -365,6 +380,10 @@ export class VoicePlayer extends Component {
         this.progressCtx.fillStyle = this.progressColor;
     }
 
+    /**
+     * @param {number[]} peaks
+     * @returns {number}
+     */
     drawWave(peaks) {
         return requestAnimationFrame(() => {
             this.drawLines(peaks);
@@ -372,6 +391,12 @@ export class VoicePlayer extends Component {
         });
     }
 
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     */
     fillRect(x, y, width, height) {
         const intersection = {
             x1: x,
@@ -389,16 +414,27 @@ export class VoicePlayer extends Component {
         }
     }
 
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} width
+     * @param {number} height
+     */
     fillRects(x, y, width, height) {
         this.waveCtx.fillRect(x, y, width, height);
         this.progressCtx.fillRect(x, y, width, height);
     }
 
+    /** @param {number[]} peaks */
     drawLines(peaks) {
         this.drawLineToContext(this.waveCtx, peaks);
         this.drawLineToContext(this.progressCtx, peaks);
     }
 
+    /**
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number[]} peaks
+     */
     drawLineToContext(ctx, peaks) {
         const maxPeak = Math.max(...peaks);
         let i, peak;

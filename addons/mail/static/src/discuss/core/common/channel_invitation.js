@@ -52,6 +52,7 @@ export class ChannelInvitation extends Component {
         return this.props.state?.selectablePartners ?? this.state.selectablePartners;
     }
 
+    /** @param {import("models").ResPartner[]} partners */
     set selectablePartners(partners) {
         if (this.props.state?.selectablePartners) {
             this.props.state.selectablePartners = partners;
@@ -64,6 +65,7 @@ export class ChannelInvitation extends Component {
         return this.props.state?.selectedPartners ?? this.state.selectedPartners;
     }
 
+    /** @param {import("models").ResPartner[]} partners */
     set selectedPartners(partners) {
         if (this.props.state?.selectedPartners) {
             this.props.state.selectedPartners = partners;
@@ -76,6 +78,7 @@ export class ChannelInvitation extends Component {
         return this.props.state?.searchStr ?? this.state.searchStr;
     }
 
+    /** @param {string} newSearchStr */
     set searchStr(newSearchStr) {
         if (this.props.state?.searchStr !== undefined) {
             this.props.state.searchStr = newSearchStr;
@@ -135,13 +138,12 @@ export class ChannelInvitation extends Component {
 
     onInput() {
         this.searchStr = this.inputRef.el.value;
-        // same gate as onWillStart: guests may see the panel (to copy the
-        // invite link) but may not call the partner-search RPC
         if (this.store.self_partner) {
             this.debouncedFetchPartnersToInvite();
         }
     }
 
+    /** @param {import("models").ResPartner} partner */
     onClickSelectablePartner(partner) {
         if (partner.in(this.selectedPartners)) {
             const index = this.selectedPartners.indexOf(partner);
@@ -153,6 +155,7 @@ export class ChannelInvitation extends Component {
         this.selectedPartners.push(partner);
     }
 
+    /** @param {string} email */
     onClickSelectableEmail(email) {
         const index = this.state.selectedEmails.indexOf(email);
         if (index !== -1) {
@@ -162,20 +165,24 @@ export class ChannelInvitation extends Component {
         this.state.selectedEmails.push(email);
     }
 
+    /** @param {import("models").ResPartner} partner */
     onClickSelectedPartner(partner) {
         const index = this.selectedPartners.indexOf(partner);
         this.selectedPartners.splice(index, 1);
     }
 
+    /** @param {string} email */
     onClickSelectedEmail(email) {
         const index = this.state.selectedEmails.indexOf(email);
         this.state.selectedEmails.splice(index, 1);
     }
 
+    /** @param {FocusEvent} ev */
     onFocusInvitationLinkInput(ev) {
         ev.target.select();
     }
 
+    /** @param {MouseEvent} ev */
     async onClickCopy(ev) {
         let notification = _t("Invitation link copied!");
         let type = "success";

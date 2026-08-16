@@ -18,20 +18,23 @@ import { patch } from "@web/core/utils/patch";
 import { getOrigin, imageUrl } from "@web/core/utils/urls";
 const commandRegistry = registry.category("discuss.channel_commands");
 
-/** @type {typeof Thread} */
+/** @type {Partial<typeof Thread> & ThisType<typeof Thread>} */
 const threadStaticPatch = {
     new() {
         const thread = super.new(...arguments);
-        // Handles subscriptions for non-members. Subscriptions for channels
-        // that the user is a member of are handled by
-        // `ir_websocket@_build_bus_channel_list`.
         effectWithCleanup({
+            /**
+             * @param {string|false} busChannel
+             * @param {ReturnType<typeof import("@bus/services/bus_service").busService.start>} busService
+             * @returns {(() => void)|undefined}
+             */
             effect(busChannel, busService) {
                 if (busService && busChannel) {
                     busService.addChannel(busChannel);
                     return () => busService.deleteChannel(busChannel);
                 }
             },
+            /** @param {import("models").Thread} thread */
             dependencies: (thread) => [
                 thread.shouldSubscribeToBusChannel && thread.busChannel,
                 thread.store.env.services.bus_service,
@@ -40,6 +43,11 @@ const threadStaticPatch = {
         });
         return thread;
     },
+    /**
+     * @param {{model: string, id: number}} data
+     * @param {string[]} [fieldNames=[]]
+     * @returns {Promise<import("models").Thread|undefined>}
+     */
     async getOrFetch(data, fieldNames = []) {
         if (data.model !== "discuss.channel" || data.id < 1) {
             return super.getOrFetch(...arguments);
@@ -49,8 +57,6 @@ const threadStaticPatch = {
             return Promise.resolve(thread);
         }
         if (thread?.channel_type && thread.self_member_id) {
-            // already fully delivered by another channel payload (e.g. the
-            // `channels_as_member` sidebar fetch): re-fetching is redundant
             thread.fetchChannelInfoState = "fetched";
             return Promise.resolve(thread);
         }
@@ -82,8 +88,6 @@ const threadStaticPatch = {
                     id: data.id,
                     model: data.model,
                 });
-                // Resolve (never reject) so the fire-and-forget awaits raise
-                // no unhandled rejection; every caller null-checks the result.
                 def.resolve(thread?.exists() ? thread : undefined);
             },
         );
@@ -92,7 +96,9 @@ const threadStaticPatch = {
 };
 patch(Thread, threadStaticPatch);
 
-/** @type {import("models").Thread} */
+/**
+ * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
+ */
 const threadPatch = {
     setup() {
         super.setup();
@@ -150,13 +156,12 @@ const threadPatch = {
                 ) {
                     return null;
                 }
-                // try to find a perfect match according to the member's separator
                 let message = this.store["mail.message"].get({ id: separator });
                 if (!message || this.notEq(message.thread)) {
                     message = nearestGreaterThanOrEqual(
                         messages,
                         separator,
-                        (msg) => msg.id,
+                        /** @param {import("models").Message} msg */ (msg) => msg.id,
                     );
                 }
                 return message;
@@ -201,8 +206,6 @@ const threadPatch = {
                 );
             },
         });
-        // Thread-level maxima (excluding the self member) so the per-message
-        // seen indicators resolve in O(1) instead of scanning the members.
         this.maxSeenMessageIdByOthers = fields.Attr(0, {
             /** @this {import("models").Thread} */
             compute() {
@@ -211,8 +214,6 @@ const threadPatch = {
                 }
                 let max = 0;
                 for (const member of this.channel_member_ids) {
-                    // persona check mirrors hasSomeoneSeen: a member whose
-                    // persona is not inserted yet cannot count
                     if (
                         member.notEq(this.self_member_id) &&
                         member.persona &&
@@ -232,7 +233,6 @@ const threadPatch = {
                 }
                 let max = 0;
                 for (const member of this.channel_member_ids) {
-                    // persona check mirrors hasSomeoneFetched
                     if (
                         member.notEq(this.self_member_id) &&
                         member.persona &&
@@ -245,12 +245,12 @@ const threadPatch = {
             },
         });
         this.lastSelfMessageSeenByEveryone = fields.One("mail.message", {
+            /** @this {import("models").Thread} */
             compute() {
                 if (!this.lastMessageSeenByAllId) {
                     return false;
                 }
                 let res;
-                // starts from most recent persistent messages to find early
                 for (let i = this.persistentMessages.length - 1; i >= 0; i--) {
                     const message = this.persistentMessages[i];
                     if (
@@ -271,7 +271,7 @@ const threadPatch = {
         this.markingAsRead = false;
         /** @type {number|undefined} */
         this.member_count = undefined;
-        /** @type {string} name: only for channel. For generic thread, @see display_name */
+        /** @type {string} */
         this.name = undefined;
         this.channel_name_member_ids = fields.Many("discuss.channel.member");
         this.onlineMembers = fields.Many("discuss.channel.member", {
@@ -281,13 +281,14 @@ const threadPatch = {
                     .filter((member) =>
                         this.store.onlineMemberStatuses.includes(member.im_status),
                     )
-                    .sort((m1, m2) => this.store.sortMembers(m1, m2)); // FIXME: sort are prone to infinite loop (see test "Display livechat custom name in typing status")
+                    .sort((m1, m2) => this.store.sortMembers(m1, m2));
             },
         });
         this.offlineMembers = fields.Many("discuss.channel.member", {
+            /** @this {import("models").Thread} */
             compute() {
-                return this._computeOfflineMembers().sort(
-                    (m1, m2) => this.store.sortMembers(m1, m2), // FIXME: sort are prone to infinite loop (see test "Display livechat custom name in typing status")
+                return this._computeOfflineMembers().sort((m1, m2) =>
+                    this.store.sortMembers(m1, m2),
                 );
             },
         });
@@ -312,6 +313,7 @@ const threadPatch = {
                         this.store.env.services.bus_service.startedAt
                 );
             },
+            /** @this {import("models").Thread} */
             onUpdate() {
                 this.store.updateBusSubscription();
             },
@@ -326,23 +328,18 @@ const threadPatch = {
             (member) => !this.store.onlineMemberStatuses.includes(member.im_status),
         );
     },
-    /** @override */
     get isChannelKind() {
         return this.model === "discuss.channel";
     },
-    /** @override */
     get isDirectChat() {
         return this.channel_type === "chat";
     },
-    /** @override */
     get isChatChannel() {
         return ["chat", "group"].includes(this.channel_type);
     },
-    /** Channel types the current user is allowed to leave. */
     get allowedToLeaveChannelTypes() {
         return ["channel", "group"];
     },
-    /** @override */
     get canLeave() {
         return (
             this.allowedToLeaveChannelTypes.includes(this.channel_type) &&
@@ -350,22 +347,15 @@ const threadPatch = {
             this.store.self_partner
         );
     },
-    /** Channel types the current user is allowed to unpin. */
     get allowedToUnpinChannelTypes() {
         return ["chat"];
     },
-    /** @override */
     get canUnpin() {
         return (
             this.allowedToUnpinChannelTypes.includes(this.channel_type) ||
             super.canUnpin
         );
     },
-    /**
-     * @override
-     * Note: `parent_channel_id` is only populated once the public_web layer
-     * is loaded; the optional chaining keeps this compute safe without it.
-     */
     computeDisplayToSelf() {
         return (
             this.self_member_id?.is_pinned ||
@@ -374,11 +364,9 @@ const threadPatch = {
                 !this.parent_channel_id)
         );
     },
-    /** Channel types on which calls can be started. */
     get typesAllowingCalls() {
         return ["chat", "channel", "group"];
     },
-    /** @override */
     get allowCalls() {
         return (
             !this.isTransient &&
@@ -386,70 +374,65 @@ const threadPatch = {
             !this.correspondent?.persona.eq(this.store.odoobot)
         );
     },
-    /** @override */
     get supportsCustomChannelName() {
         return this.isChatChannel && this.channel_type !== "group";
     },
-    /** @override */
     get allowDescription() {
         return ["channel", "group"].includes(this.channel_type);
     },
-    /** @override */
     get invitationLink() {
         if (!this.uuid || this.channel_type === "chat") {
             return undefined;
         }
         return `${getOrigin()}/chat/${this.id}/${this.uuid}`;
     },
-    /** @override */
     get hasAttachmentPanel() {
         return this.isChannelKind;
     },
-    /** @override */
     get canFetchMessages() {
         return this.isChannelKind || super.canFetchMessages;
     },
-    /** @override */
     get busKeepsMessagesFresh() {
         return this.isChannelKind || super.busKeepsMessagesFresh;
     },
-    /** @override */
     getFetchParams() {
         if (this.isChannelKind) {
             return { channel_id: this.id };
         }
         return super.getFetchParams();
     },
-    /** @override */
     getFetchRoute() {
         if (this.isChannelKind) {
             return "/discuss/channel/messages";
         }
         return super.getFetchRoute();
     },
-    /** @override */
     get imStatusMember() {
         return this.channel_type === "chat" ? this.correspondent : undefined;
     },
-    /** @override */
+    /**
+     * @param {import("models").Persona} persona
+     * @returns {boolean}
+     */
     isChatWith(persona) {
         return (
             this.channel_type === "chat" &&
             Boolean(this.correspondent?.persona.eq(persona))
         );
     },
-    /** @override */
     get chatWindowComposerType() {
         return this.isChannelKind ? undefined : super.chatWindowComposerType;
     },
-    /** @override */
     get composerPlaceholder() {
         if (this.channel_type === "channel") {
             return _t("Message #%(threadName)s…", { threadName: this.displayName });
         }
         return super.composerPlaceholder;
     },
-    /** @override */
+    /**
+     * @param {import("models").Message} message
+     * @returns {string}
+     */
     outOfFocusNotificationTitle(message) {
         if (this.channel_type === "channel") {
             return _t("%(author name)s from %(channel name)s", {
@@ -459,18 +442,15 @@ const threadPatch = {
         }
         return super.outOfFocusNotificationTitle(...arguments);
     },
-    /** @override */
     get hasStartOfConversationBanner() {
         return ["channel", "group", "chat"].includes(this.channel_type);
     },
-    /** @override */
     get conversationStartTitle() {
         if (this.channel_type === "channel") {
             return _t("Welcome to #%(channelName)s!", { channelName: this.name });
         }
         return super.conversationStartTitle;
     },
-    /** @override */
     get conversationStartSubtitle() {
         if (this.channel_type === "channel") {
             return _t("This is the start of the #%(channelName)s channel", {
@@ -486,15 +466,17 @@ const threadPatch = {
             userName: this.displayName,
         });
     },
-    /** @override */
     get newMessageSeparatorId() {
         return this.self_member_id?.new_message_separator_ui;
     },
-    /** @override */
     _getActualModelName() {
         return this.isChannelKind ? "discuss.channel" : super._getActualModelName();
     },
-    /** @param {import("@mail/core/common/store_service").ChannelCommand} command */
+    /**
+     * @param {import("@mail/discuss/core/common/channel_commands").ChannelCommand} command
+     * @param {string} [body=""]
+     * @returns {Promise<any>}
+     */
     executeCommand(command, body = "") {
         return this.store.env.services.orm.call(
             "discuss.channel",
@@ -510,13 +492,17 @@ const threadPatch = {
             [[this.id]],
         );
     },
-    /** @param {string} data base64 representation of the binary */
+    /** @param {string} data */
     async notifyAvatarToServer(data) {
         await rpc("/discuss/channel/update_avatar", {
             channel_id: this.id,
             data,
         });
     },
+    /**
+     * @param {string} description
+     * @throws {Error}
+     */
     async notifyDescriptionToServer(description) {
         const previousDescription = this.description;
         this.description = description;
@@ -528,13 +514,11 @@ const threadPatch = {
                 { description },
             );
         } catch (e) {
-            // revert the optimistic write so the UI doesn't diverge from the
-            // server until a reload
             this.description = previousDescription;
             throw e;
         }
     },
-    /** @override */
+    /** @param {string} name */
     async rename(name) {
         const newName = name.trim();
         if (
@@ -552,7 +536,7 @@ const threadPatch = {
                         { name: newName },
                     );
                 } catch (e) {
-                    this.name = previousName; // revert optimistic write
+                    this.name = previousName;
                     throw e;
                 }
             } else if (this.supportsCustomChannelName) {
@@ -570,7 +554,7 @@ const threadPatch = {
                     );
                 } catch (e) {
                     if (member) {
-                        member.custom_channel_name = previousCustomName; // revert
+                        member.custom_channel_name = previousCustomName;
                     }
                     throw e;
                 }
@@ -578,10 +562,14 @@ const threadPatch = {
         }
         return super.rename(...arguments);
     },
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.force=false]
+     */
     async leaveChannel({ force = false } = {}) {
         if (
             this.channel_type !== "group" &&
-            this.create_uid?.eq(this.store.self.main_user_id) &&
+            this.create_uid?.eq(this.store.self_partner?.main_user_id) &&
             !force
         ) {
             await this.askLeaveConfirmation(
@@ -604,7 +592,6 @@ const threadPatch = {
             [this.id],
         );
     },
-    /** Equivalent to DiscussChannel._allow_invite_by_email */
     get allow_invite_by_email() {
         return (
             this.channel_type === "group" ||
@@ -625,11 +612,9 @@ const threadPatch = {
         }
         return super.avatarUrl;
     },
-    /** @override */
     async checkReadAccess() {
         const res = await super.checkReadAccess();
         if (!res && this.model === "discuss.channel") {
-            // channel is assumed to be readable if its channel_type is known
             return this.channel_type;
         }
         return res;
@@ -641,11 +626,9 @@ const threadPatch = {
         }
         const correspondents = this.correspondents;
         if (correspondents.length === 1) {
-            // 2 members chat.
             return correspondents[0];
         }
         if (correspondents.length === 0 && this.channel_member_ids.length === 1) {
-            // Self-chat.
             return this.channel_member_ids[0];
         }
         return undefined;
@@ -668,8 +651,6 @@ const threadPatch = {
         }
         if (this.channel_name_member_ids.length && !this.name) {
             const nameParts = [...this.channel_name_member_ids]
-                // copy before sorting: `.sort()` would mutate the reactive
-                // Many in place, and this getter runs on the render path
                 .sort((m1, m2) => m1.id - m2.id)
                 .slice(0, 3)
                 .map((member) => member.name);
@@ -708,6 +689,7 @@ const threadPatch = {
         this.fetchMembersState = "fetched";
         this.store.insert(data);
     },
+    /** @param {number} [limit=30] */
     async fetchMoreAttachments(limit = 30) {
         if (this.isLoadingAttachments || this.areAttachmentsLoaded) {
             return;
@@ -733,7 +715,6 @@ const threadPatch = {
     get hasSelfAsMember() {
         return Boolean(this.self_member_id);
     },
-    /** @override */
     get importantCounter() {
         if (this.isChatChannel && this.self_member_id?.message_unread_counter_ui) {
             return this.self_member_id.message_unread_counter_ui;
@@ -751,7 +732,6 @@ const threadPatch = {
         }
         return super.importantCounter;
     },
-    /** @override */
     isDisplayedOnUpdate() {
         super.isDisplayedOnUpdate(...arguments);
         if (!this.self_member_id) {
@@ -766,7 +746,6 @@ const threadPatch = {
     get isUnread() {
         return this.self_member_id?.message_unread_counter > 0 || super.isUnread;
     },
-    /** @override */
     markAsRead() {
         super.markAsRead(...arguments);
         if (!this.self_member_id) {
@@ -782,9 +761,6 @@ const threadPatch = {
         if (alreadyReadBySelf) {
             return;
         }
-        // Reset inside the callback, not on the outer markReadSequential
-        // promise: useSequential resolves superseded calls early, so an outer
-        // .finally() would clear the flag while an RPC is still in flight.
         this.markReadSequential(async () => {
             this.markingAsRead = true;
             try {
@@ -805,22 +781,16 @@ const threadPatch = {
             }
         });
     },
-    /**
-     * To be overridden.
-     * The purpose is to exclude technical channel_member_ids like bots and avoid
-     * "wrong" seen message indicator
-     * @returns {import("models").ChannelMember[]}
-     */
+    /** @returns {import("models").ChannelMember[]} */
     get membersThatCanSeen() {
         return this.channel_member_ids;
     },
-    /** @override */
     get needactionCounter() {
         return this.isChatChannel
             ? (this.self_member_id?.message_unread_counter ?? 0)
             : super.needactionCounter;
     },
-    /** @override */
+    /** @param {import("models").Message} message */
     onNewSelfMessage(message) {
         if (
             !this.self_member_id ||
@@ -834,7 +804,10 @@ const threadPatch = {
             this.self_member_id.new_message_separator;
         this.markedAsUnread = false;
     },
-    /** @override */
+    /**
+     * @param {Object} [options]
+     * @returns {boolean}
+     */
     openChatUI(options) {
         if (!this.isChannelKind) {
             return super.openChatUI(...arguments);
@@ -845,11 +818,15 @@ const threadPatch = {
         this.openChatWindow(options);
         return true;
     },
-    /** @override */
     get hasOptimisticPost() {
         return this.isChannelKind;
     },
-    /** @override */
+    /**
+     * @param {number} tmpId
+     * @param {ReturnType<import("@odoo/owl").markup>} body
+     * @param {Object} postData
+     * @returns {Promise<import("models").Message|undefined>}
+     */
     async makeOptimisticPendingMessage(tmpId, body, postData) {
         if (!this.hasOptimisticPost) {
             return super.makeOptimisticPendingMessage(...arguments);

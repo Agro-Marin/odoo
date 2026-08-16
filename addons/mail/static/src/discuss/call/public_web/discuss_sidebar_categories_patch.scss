@@ -4,8 +4,6 @@
     );
 }
 
-
-// The dark half, folded in from `discuss_sidebar_categories_patch.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-DiscussSidebarChannel-container {

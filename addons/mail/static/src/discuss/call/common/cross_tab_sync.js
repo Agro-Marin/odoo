@@ -2,56 +2,42 @@
 import { browser } from "@web/core/browser/browser";
 
 export const CROSS_TAB_HOST_MESSAGE = {
-    PING: "PING", // signals that the host is still active
-    UPDATE_REMOTE: "UPDATE_REMOTE", // sent with updated state of the remote rtc sessions of the call
-    CLOSE: "CLOSE", // sent when the host ends the call
-    PIP_CHANGE: "PIP_CHANGE", // sent when the host changes the pip mode
+    PING: "PING",
+    UPDATE_REMOTE: "UPDATE_REMOTE",
+    CLOSE: "CLOSE",
+    PIP_CHANGE: "PIP_CHANGE",
 };
 export const CROSS_TAB_CLIENT_MESSAGE = {
-    INIT: "INIT", // sent by a tab to signal its presence and receive a state update
-    REQUEST_ACTION: "REQUEST_ACTION", // request that an action be executed by the host (mute, deaf,...)
-    LEAVE: "LEAVE", // request the host to leave the call
-    UPDATE_VOLUME: "UPDATE_VOLUME", // sent by a tab to signal a volume change
+    INIT: "INIT",
+    REQUEST_ACTION: "REQUEST_ACTION",
+    LEAVE: "LEAVE",
+    UPDATE_VOLUME: "UPDATE_VOLUME",
 };
 export const PING_INTERVAL = 30_000;
 
 /**
- * Delegate surface the coordinator (Rtc) provides to the cross-tab sync.
- *
  * @typedef {Object} CrossTabSyncHooks
- * @property {() => boolean} isHost whether the current tab hosts the call
- * @property {(changes: Object) => void} onRemoteUpdate session info payload
- *  received from the host tab
- * @property {() => void} onHostClosed the host ended the call (or timed out)
+ * @property {() => boolean} isHost
+ * @property {(changes: Object) => void} onRemoteUpdate
+ * @property {() => void} onHostClosed
  * @property {(isPipMode: boolean) => void} onPipChange
- * @property {() => void} onRemoteTabInit a new tab asked for the host state
- * @property {(changes: Object) => Promise} onActionRequest a remote tab asked
- *  the host to run an action (mute, deaf,...)
- * @property {() => Promise} onLeaveRequest a remote tab asked to leave
+ * @property {() => void} onRemoteTabInit
+ * @property {(changes: Object) => Promise} onActionRequest
+ * @property {() => Promise} onLeaveRequest
  * @property {(changes: {sessionId: number, volume: number}) => void} onVolumeChange
  * @property {(entry: string, options?: Object) => void} log
- */
-
-/**
- * Host/remote-action protocol between the tabs of the same browser: the tab
- * that owns the connections and streams (the host) mirrors its call state to
- * the other tabs and executes the actions they request. The remote host ids
- * live in the shared reactive `state` (`remoteSessionId`, `remoteChannelId`)
- * so the coordinator's computed fields track them.
  */
 export class CrossTabSync {
     /** @type {BroadcastChannel|undefined} */
     _broadcastChannel;
-    /** @type {number} id of the watchdog timeout for a silent host */
+    /** @type {number} */
     _crossTabTimeoutId;
 
     /**
      * @param {Object} param0
-     * @param {Object} param0.state shared reactive call state; the sync owns
-     *  the `remoteSessionId` / `remoteChannelId` slots and writes `isPipMode`
+     * @param {import("@mail/discuss/call/common/rtc_service").RtcCallState} param0.state
      * @param {CrossTabSyncHooks} param0.hooks
      * @param {() => BroadcastChannel} [param0.createBroadcastChannel]
-     *  injectable channel factory
      */
     constructor({ state, hooks, createBroadcastChannel }) {
         this.state = state;
@@ -62,16 +48,10 @@ export class CrossTabSync {
         )();
     }
 
-    /**
-     * Whether this tab serves as a remote for a call hosted on another tab.
-     */
     get isRemote() {
         return Boolean(this.state.remoteChannelId);
     }
 
-    /**
-     * Starts listening to the other tabs and signals this tab's presence.
-     */
     start() {
         if (this._broadcastChannel) {
             this._broadcastChannel.onmessage = this._onMessage.bind(this);
@@ -79,6 +59,7 @@ export class CrossTabSync {
         }
     }
 
+    /** @param {Object} message */
     post(message) {
         if (!this._broadcastChannel) {
             this.hooks.log("broadcast channel not available");
@@ -93,11 +74,7 @@ export class CrossTabSync {
         }
     }
 
-    /**
-     * Marks this tab as the host of the call.
-     *
-     * @param {number} sessionId id of the local rtc session
-     */
+    /** @param {number} sessionId */
     host(sessionId) {
         this.state.remoteChannelId = undefined;
         this.state.remoteSessionId = sessionId;
@@ -111,11 +88,9 @@ export class CrossTabSync {
     }
 
     /**
-     * Sends the updated state of the call sessions to the other tabs.
-     *
      * @param {number} channelId
-     * @param {number} sessionId id of the local (hosting) rtc session
-     * @param {Object} changes session info payloads by session id
+     * @param {number} sessionId
+     * @param {Object} changes
      */
     updateRemoteTabs(channelId, sessionId, changes) {
         this.post({
@@ -126,11 +101,7 @@ export class CrossTabSync {
         });
     }
 
-    /**
-     * Requests that an action be executed by the host tab of the call.
-     *
-     * @param {Object} changes
-     */
+    /** @param {Object} changes */
     requestAction(changes) {
         this.post({
             type: CROSS_TAB_CLIENT_MESSAGE.REQUEST_ACTION,
@@ -142,7 +113,7 @@ export class CrossTabSync {
         this.post({ type: CROSS_TAB_CLIENT_MESSAGE.LEAVE });
     }
 
-    /** @param {number} sessionId id of the local (hosting) rtc session */
+    /** @param {number} sessionId */
     ping(sessionId) {
         this.post({
             type: CROSS_TAB_HOST_MESSAGE.PING,
@@ -176,6 +147,7 @@ export class CrossTabSync {
         }, PING_INTERVAL + 10_000);
     }
 
+    /** @param {MessageEvent} ev */
     async _onMessage({ data: { type, hostedChannelId, hostedSessionId, changes } }) {
         switch (type) {
             case CROSS_TAB_HOST_MESSAGE.UPDATE_REMOTE:
@@ -188,8 +160,6 @@ export class CrossTabSync {
                 this.hooks.onRemoteUpdate(changes);
                 return;
             case CROSS_TAB_HOST_MESSAGE.CLOSE: {
-                // a host owns its call and must never obey a CLOSE: a remote
-                // tab broadcasts the host's own session id
                 if (
                     this.hooks.isHost() ||
                     this.state.remoteSessionId !== hostedSessionId
@@ -207,9 +177,6 @@ export class CrossTabSync {
                 return;
             }
             case CROSS_TAB_HOST_MESSAGE.PING: {
-                // only a remote mirroring THIS host is kept alive by its pings:
-                // arming the watchdog on another call's heartbeat would clear()
-                // this tab's own live call when it fires
                 if (!this.isRemote || this.state.remoteSessionId !== hostedSessionId) {
                     return;
                 }
@@ -244,10 +211,6 @@ export class CrossTabSync {
         }
     }
 
-    /**
-     * Resets the per-call cross-tab state. The BroadcastChannel itself stays
-     * open: it is shared by every call over the lifetime of the tab.
-     */
     dispose() {
         browser.clearTimeout(this._crossTabTimeoutId);
         this.state.remoteSessionId = undefined;

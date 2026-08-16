@@ -8,10 +8,13 @@ declare module "models" {
         voice_ids: VoiceMetadata[];
     }
     export interface Composer {
-        voiceAttachment: Readonly<Attachment|undefined>;
+        voiceAttachment: Readonly<Attachment | undefined>;
     }
     export interface Store {
-        "discuss.voice.metadata": StaticMailRecord<VoiceMetadata, typeof VoiceMetadataClass>;
+        "discuss.voice.metadata": StaticMailRecord<
+            VoiceMetadata,
+            typeof VoiceMetadataClass
+        >;
     }
 
     export interface Models {

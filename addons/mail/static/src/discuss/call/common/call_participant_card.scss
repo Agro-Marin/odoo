@@ -78,7 +78,7 @@
 }
 
 .o-discuss-CallParticipantCard-avatar img {
-    max-height: #{"min(100%, 100px)"}; // interpolated as not supported by Sass
+    max-height: #{"min(100%, 100px)"};
     max-width: #{"min(100%, 100px)"};
     aspect-ratio: 1;
     border: none;

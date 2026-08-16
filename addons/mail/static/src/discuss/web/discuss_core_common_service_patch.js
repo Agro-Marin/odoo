@@ -3,6 +3,10 @@ import { DiscussCoreCommon } from "@mail/discuss/core/common/discuss_core_common
 import { applyCounterDelta } from "@mail/utils/common/counters";
 import { patch } from "@web/core/utils/patch";
 patch(DiscussCoreCommon.prototype, {
+    /**
+     * @param {import("models").Thread} thread
+     * @param {{notifId: number}} metadata
+     */
     _handleNotificationChannelDelete(thread, metadata) {
         const { notifId } = metadata;
         const filteredStarredMessages = [];

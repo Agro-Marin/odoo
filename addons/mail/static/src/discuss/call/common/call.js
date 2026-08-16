@@ -18,9 +18,9 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
-import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 /**
  * @typedef CardData
  * @property {string} key
@@ -33,7 +33,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
  * @property {boolean} [compact]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Call extends Component {
     static components = {
@@ -47,6 +47,7 @@ export class Call extends Component {
     static defaultProps = { hasOverlay: true };
     static template = "discuss.Call";
 
+    /** @type {number|undefined} */
     overlayTimeout;
 
     setup() {
@@ -185,14 +186,15 @@ export class Call extends Component {
         );
     }
 
+    /** @param {MouseEvent} ev */
     onMouseleaveMain(ev) {
         if (ev.relatedTarget && ev.relatedTarget.closest(".o-dropdown--menu")) {
-            // the overlay should not be hidden when the cursor leaves to enter the controller dropdown
             return;
         }
         this.state.overlay = false;
     }
 
+    /** @param {MouseEvent} ev */
     onMousemoveMain(ev) {
         if (isEventHandled(ev, "CallMain.MousemoveOverlay")) {
             return;
@@ -200,6 +202,7 @@ export class Call extends Component {
         this.showOverlay();
     }
 
+    /** @param {MouseEvent} ev */
     onMousemoveOverlay(ev) {
         markEventHandled(ev, "CallMain.MousemoveOverlay");
         this.state.overlay = true;
@@ -214,27 +217,24 @@ export class Call extends Component {
         }, 3000);
     }
 
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.remeasure=false]
+     */
     arrangeTiles({ remeasure = false } = {}) {
         if (!this.grid.el) {
             return;
         }
         const aspectRatio = this.minimized ? 1 : 16 / 9;
         const tileCount = this.grid.el.children.length;
-        // onPatched calls this without `remeasure` on every render of the call;
-        // size changes come separately from the ResizeObserver. Bail out before
-        // getBoundingClientRect(), which forces a synchronous layout.
         const cheapKey = `${aspectRatio},${tileCount}`;
         if (!remeasure && cheapKey === this._lastCheapKey) {
             return;
         }
         this._lastCheapKey = cheapKey;
-        // measure BEFORE writing: the grid size does not depend on the tile
-        // custom properties, so writing first only costs an extra layout
         const { width, height } = this.grid.el.getBoundingClientRect();
         const inputsKey = `${width},${height},${aspectRatio},${tileCount}`;
         if (inputsKey === this._lastTileInputsKey) {
-            // size unchanged (e.g. a remeasure from a no-op resize): skip the
-            // loop and the style writes
             return;
         }
         this._lastTileInputsKey = inputsKey;

@@ -8,6 +8,7 @@ patch(Discuss.prototype, {
         super.setup();
         this.title = useService("title");
         useEffect(
+            /** @param {string|undefined} threadName */
             (threadName) => {
                 if (threadName) {
                     this.title.setParts({ action: threadName });

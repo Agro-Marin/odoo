@@ -37,8 +37,6 @@
     font-size: 5rem;
 }
 
-
-// The dark half, folded in from `gif_picker.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-discuss-GifPicker {

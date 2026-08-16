@@ -6,7 +6,7 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 /** @type {Thread} */
 const threadPatch = {
-    /** @override */
+    /** @param {import("models").Thread} thread */
     applyScrollContextually(thread) {
         if (thread.self_member_id && thread.scrollUnread) {
             if (thread.firstUnreadMessage) {
@@ -30,14 +30,11 @@ const threadPatch = {
                 this.setScroll(scrollTop);
             }
             thread.scrollUnread = false;
-            // setScroll() saved the resulting scroll position, so the shared
-            // helper's "bottom" check matches the isAtBottom state here.
             markThreadAsReadIfAtBottom(thread);
         } else {
             super.applyScrollContextually(...arguments);
         }
     },
-    /** @override */
     fetchMessages() {
         if (this.props.thread.self_member_id && this.props.thread.scrollUnread) {
             toRaw(this.props.thread).loadAround(

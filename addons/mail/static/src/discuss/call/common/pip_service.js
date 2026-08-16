@@ -29,7 +29,7 @@ export const callPipService = {
             pipWindow?.close();
         }
         /**
-         * @param {Object} [param0] native pip options
+         * @param {Object} [param0]
          * @param {Component} [param0.context]
          */
         async function openPip({ context }) {
@@ -43,12 +43,18 @@ export const callPipService = {
                 props: { isPip: true },
                 options: { useAlternativeAssets: isShadowRoot },
             });
-            pipWindow.addEventListener("keydown", (ev) => {
-                rtc.onKeyDown(ev);
-            });
-            pipWindow.addEventListener("keyup", (ev) => {
-                rtc.onKeyUp(ev);
-            });
+            pipWindow.addEventListener(
+                "keydown",
+                /** @param {KeyboardEvent} ev */ (ev) => {
+                    rtc.onKeyDown(ev);
+                },
+            );
+            pipWindow.addEventListener(
+                "keyup",
+                /** @param {KeyboardEvent} ev */ (ev) => {
+                    rtc.onKeyUp(ev);
+                },
+            );
             pipWindow.document.body.style.backgroundColor = "black";
             pipWindow.document.body.style.overflow = "hidden";
             pipWindow.document.body.style.display = "block";

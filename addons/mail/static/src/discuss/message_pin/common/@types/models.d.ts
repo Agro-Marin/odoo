@@ -7,6 +7,6 @@ declare module "models" {
     export interface Thread {
         fetchPinnedMessages: () => Promise<void>;
         pinnedMessages: Message[];
-        pinnedMessagesState: 'loaded'|'loading'|'error'|undefined;
+        pinnedMessagesState: "loaded" | "loading" | "error" | undefined;
     }
 }

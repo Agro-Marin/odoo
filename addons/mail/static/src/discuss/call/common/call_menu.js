@@ -18,8 +18,6 @@ export class CallMenu extends Component {
     }
 
     get icon() {
-        // `Action.icon` already resolves a function definition, so the value
-        // here is never callable.
         return (
             this.rtc.callActions.find(
                 (action) => action.id === this.rtc.lastSelfCallAction,

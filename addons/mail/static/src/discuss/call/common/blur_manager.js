@@ -1,11 +1,14 @@
 /** @odoo-module native */
 import { closeStream } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
-const FPS = 30; // Frames per second for the blurred background stream
+const FPS = 30;
 
+/**
+ * @param {CanvasImageSource & {width: number, height: number}} image
+ * @param {number} blurAmount
+ * @param {HTMLCanvasElement} canvas
+ */
 function drawAndBlurImageOnCanvas(image, blurAmount, canvas) {
-    // Assigning canvas.width/height reallocates the backing store and resets
-    // the 2D context: only do it when the dimensions actually change.
     if (canvas.width !== image.width) {
         canvas.width = image.width;
     }
@@ -19,7 +22,6 @@ function drawAndBlurImageOnCanvas(image, blurAmount, canvas) {
     }
     ctx.clearRect(0, 0, image.width, image.height);
     ctx.save();
-    // FIXME : Does not work on safari https://bugs.webkit.org/show_bug.cgi?id=198416
     ctx.filter = `blur(${blurAmount}px)`;
     ctx.drawImage(image, 0, 0, image.width, image.height);
     ctx.restore();
@@ -29,23 +31,34 @@ export class BlurManager {
     canvas = document.createElement("canvas");
     canvasBlur = document.createElement("canvas");
     canvasMask = document.createElement("canvas");
+    /** @type {MediaStream} */
     canvasStream;
     isVideoDataLoaded = false;
+    /** @type {(reason?: any) => void} */
     rejectStreamPromise;
+    /** @type {(stream: MediaStream) => void} */
     resolveStreamPromise;
     selfieSegmentation = new window.SelfieSegmentation({
+        /** @param {string} file */
         locateFile: (file) =>
             `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${file}`,
     });
     /**
-     * @type {Promise<MediaStream>} resolved once selfieSegmentation started
-     * painting on the canvas, with the blurred version of the input stream.
-     * Rejected if the source stream is removed or the model fails to load.
+     * @type {Promise<MediaStream>}
      */
     stream;
     video = document.createElement("video");
+    /** @type {Worker|null} */
     worker;
 
+    /**
+     * @param {MediaStream} stream
+     * @param {Object} [options]
+     * @param {number} [options.backgroundBlur=10]
+     * @param {number} [options.edgeBlur=10]
+     * @param {number} [options.modelSelection=1]
+     * @param {boolean} [options.selfieMode=false]
+     */
     constructor(
         stream,
         {
@@ -59,7 +72,7 @@ export class BlurManager {
         this.backgroundBlur = backgroundBlur;
         this._onVideoPlay = this._onVideoPlay.bind(this);
         this.video.addEventListener("loadeddata", this._onVideoPlay);
-        this.canvas.getContext("2d"); // canvas.captureStream() doesn't work on firefox before getContext() is called.
+        this.canvas.getContext("2d");
         this.canvasStream = this.canvas.captureStream();
         let rejectStreamPromise;
         let resolveStreamPromise;
@@ -75,7 +88,8 @@ export class BlurManager {
             this.worker = new Worker(
                 "/mail/static/src/discuss/call/common/tick_worker.js",
             );
-            this.worker.onmessage = (e) => this._handleWorkerMessage(e);
+            this.worker.onmessage = /** @param {MessageEvent} e */ (e) =>
+                this._handleWorkerMessage(e);
             this.worker.onerror = () => {
                 this._terminateWorker();
                 this._requestFrame();
@@ -89,7 +103,10 @@ export class BlurManager {
             selfieMode,
             modelSelection,
         });
-        this.selfieSegmentation.onResults((r) => this._onSelfieSegmentationResults(r));
+        this.selfieSegmentation.onResults(
+            /** @param {{image: CanvasImageSource, segmentationMask: CanvasImageSource}} r */
+            (r) => this._onSelfieSegmentationResults(r),
+        );
         this.video.autoplay = true;
         Promise.resolve(this.video.play()).catch(() => {});
     }
@@ -98,9 +115,6 @@ export class BlurManager {
         this.video.removeEventListener("loadeddata", this._onVideoPlay);
         this.video.srcObject = null;
         this.isVideoDataLoaded = false;
-        // close(), not reset(): each BlurManager constructs its own
-        // SelfieSegmentation, so a kept WASM context leaks one heap per
-        // camera/blur toggle for the lifetime of the tab
         Promise.resolve(this.selfieSegmentation.close?.()).catch(() => {});
         closeStream(this.canvasStream);
         this.canvasStream = null;
@@ -114,22 +128,14 @@ export class BlurManager {
         }
     }
 
-    /**
-     * @private
-     * @param {MessageEvent} e
-     */
+    /** @param {MessageEvent} e */
     async _handleWorkerMessage(e) {
         if (e.data.command === "tick") {
             await this._onFrame();
-            // close() can run during the awaited frame: _terminateWorker
-            // nulled the slot and posting would throw
             this.worker?.postMessage({ command: "tock" });
         }
     }
 
-    /**
-     * @private
-     */
     _terminateWorker() {
         if (this.worker) {
             this.worker.postMessage({ command: "stop" });
@@ -138,14 +144,15 @@ export class BlurManager {
         this.worker = null;
     }
 
+    /**
+     * @param {CanvasImageSource} image
+     * @param {GlobalCompositeOperation} compositeOperation
+     */
     _drawWithCompositing(image, compositeOperation) {
         this.canvas.getContext("2d").globalCompositeOperation = compositeOperation;
         this.canvas.getContext("2d").drawImage(image, 0, 0);
     }
 
-    /**
-     * @private
-     */
     _onVideoPlay() {
         this.isVideoDataLoaded = true;
         if (this.worker) {
@@ -155,9 +162,6 @@ export class BlurManager {
         }
     }
 
-    /**
-     * @private
-     */
     async _onFrame() {
         if (!this.selfieSegmentation) {
             return;
@@ -171,10 +175,7 @@ export class BlurManager {
         try {
             await this.selfieSegmentation.send({ image: this.video });
         } catch (error) {
-            // the mediapipe model/WASM files load at runtime from a CDN: when
-            // unreachable, send() rejects, no result callback ever fires and the
-            // `stream` promise would stay pending forever
-            this.isVideoDataLoaded = false; // stop the tick/rAF loop
+            this.isVideoDataLoaded = false;
             if (this.resolveStreamPromise) {
                 this.rejectStreamPromise(error);
                 this.resolveStreamPromise = null;
@@ -183,7 +184,9 @@ export class BlurManager {
     }
 
     /**
-     * @private
+     * @param {Object} results
+     * @param {CanvasImageSource & {width: number, height: number}} results.image
+     * @param {CanvasImageSource} results.segmentationMask
      */
     _onSelfieSegmentationResults(results) {
         drawAndBlurImageOnCanvas(results.image, this.backgroundBlur, this.canvasBlur);
@@ -210,9 +213,6 @@ export class BlurManager {
         }
     }
 
-    /**
-     * @private
-     */
     _requestFrame() {
         if (!this.isVideoDataLoaded) {
             return;

@@ -10,12 +10,11 @@ patch(Thread.prototype, {
         /** @type {'loaded'|'loading'|'error'|undefined} */
         this.pinnedMessagesState = undefined;
         this.pinnedMessages = fields.Many("mail.message", {
+            /** @this {import("models").Thread} */
             compute() {
                 return this.allMessages.filter((m) => m.pinned_at);
             },
             sort: (m1, m2) => {
-                // pinned_at is a luxon DateTime: distinct objects are never
-                // ===, so compare by value; equal timestamps tiebreak on id.
                 if (m1.pinned_at.equals(m2.pinned_at)) {
                     return m1.id - m2.id;
                 }
@@ -38,8 +37,6 @@ patch(Thread.prototype, {
                 channel_id: this.id,
             });
         } catch {
-            // Surface the failure through the reactive state: both callers are
-            // fire-and-forget, so a re-throw would reach no handler.
             this.pinnedMessagesState = "error";
             return;
         }

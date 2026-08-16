@@ -22,23 +22,28 @@ declare module "models" {
         _hasFullscreenUrl: boolean;
         _hasFullscreenUrlOnUpdate: () => void;
         allActiveRtcSessions: RtcSession[];
-        "discuss.channel.rtc.session": StaticMailRecord<RtcSession, typeof RtcSessionClass>;
+        "discuss.channel.rtc.session": StaticMailRecord<
+            RtcSession,
+            typeof RtcSessionClass
+        >;
         fullscreenChannel: Thread;
         meetingViewOpened: boolean;
         nextTalkingTime: number;
         ringingThreads: Thread[];
         rtc: Rtc;
+        startMeeting: () => Promise<void>;
         Rtc: StaticMailRecord<Rtc, typeof RtcClass>;
     }
     export interface Thread {
         activeRtcSession: RtcSession;
-        cancelRtcInvitationTimeout: number|undefined;
+        cancelRtcInvitationTimeout: number | undefined;
         focusAvailableVideo: () => void;
         focusStack: RtcSession[];
         hadSelfSession: boolean;
         isCallDisplayedInChatWindow: boolean;
+        isSelfInCall: RtcSession | undefined | false;
         lastSessionIds: Set<number>;
-        promoteFullscreen: typeof CALL_PROMOTE_FULLSCREEN[keyof CALL_PROMOTE_FULLSCREEN];
+        promoteFullscreen: (typeof CALL_PROMOTE_FULLSCREEN)[keyof CALL_PROMOTE_FULLSCREEN];
         rtc_session_ids: RtcSession[];
         showCallView: Readonly<boolean>;
         updateCallFocusStack: (session: RtcSession) => void;

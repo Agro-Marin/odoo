@@ -10,6 +10,10 @@ patch(ChannelMemberList.prototype, {
             position: "right",
         });
     },
+    /**
+     * @param {MouseEvent} ev
+     * @param {import("models").ChannelMember} member
+     */
     onClickAvatar(ev, member) {
         if (!this.canOpenChatWith(member)) {
             return;

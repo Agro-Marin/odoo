@@ -3,6 +3,14 @@ import { partnerCompareRegistry } from "@mail/core/common/partner_compare";
 
 partnerCompareRegistry.add(
     "discuss.recent-chats",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @param {Object} params
+     * @param {import("@web/env").OdooEnv} params.env
+     * @param {{recentChatPartnerIds?: number[]}} params.context
+     * @returns {number|undefined}
+     */
     (p1, p2, { env, context }) => {
         const recentChatPartnerIds =
             context.recentChatPartnerIds ||
@@ -28,6 +36,14 @@ partnerCompareRegistry.add(
 
 partnerCompareRegistry.add(
     "discuss.members",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @param {Object} params
+     * @param {import("models").Thread} [params.thread]
+     * @param {{memberPartnerIds: Set<number>}} params.context
+     * @returns {number|undefined}
+     */
     (p1, p2, { thread, context: { memberPartnerIds } }) => {
         if (thread?.model === "discuss.channel") {
             const isMember1 = memberPartnerIds.has(p1.id);

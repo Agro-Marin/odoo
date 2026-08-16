@@ -1,6 +1,7 @@
 /** @odoo-module native */
 /* eslint-disable no-restricted-globals */
 
+/** @type {number|null} */
 let intervalId = null;
 let awaitingTock = false;
 let isRunning = false;
@@ -14,6 +15,7 @@ function reset() {
     isRunning = false;
 }
 
+/** @param {number} [fps=30] */
 function startProcessing(fps) {
     if (isRunning) {
         return;
@@ -31,7 +33,7 @@ function startProcessing(fps) {
     );
 }
 
-self.onmessage = (e) => {
+self.onmessage = /** @param {MessageEvent} e */ (e) => {
     if (!e.data?.command) {
         return;
     }

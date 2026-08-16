@@ -11,9 +11,6 @@ export class DiscussAppCategory extends Record {
      */
     sortThreads(t1, t2) {
         if (this.id === "channels") {
-            // `name` can be transiently undefined during an insert-time
-            // resort (partially inserted channel): a bare localeCompare
-            // would throw inside the eager sort (cf. store.sortMembers)
             return (t1.name || "").localeCompare(t2.name || "");
         }
         if (this.id === "chats") {
@@ -21,8 +18,6 @@ export class DiscussAppCategory extends Record {
                 compareDatetime(t2.lastInterestDt, t1.lastInterestDt) || t2.id - t1.id
             );
         }
-        // unknown category (e.g. one added by another addon): stable order
-        // instead of an implicit `undefined` return.
         return t2.id - t1.id;
     }
 
@@ -44,19 +39,17 @@ export class DiscussAppCategory extends Record {
     id;
     /** @type {string} */
     name;
-    // Hide categories from the devtools if really bothered.
     hidden = fields.Attr(undefined, {
+        /** @this {import("models").DiscussAppCategory} */
         compute() {
             return Boolean(
                 localStorage.getItem(`mail.sidebar_category_${this.id}_hidden`),
             );
         },
+        /** @this {import("models").DiscussAppCategory} */
         onUpdate() {
             const key = `mail.sidebar_category_${this.id}_hidden`;
             if (!this.hidden && this.hidden !== undefined) {
-                // Only remove an existing key: this compute fires on every
-                // record creation, and tests that patch removeItem log each
-                // call (e.g. clickbot's ``only one app``).
                 if (localStorage.getItem(key) !== null) {
                     localStorage.removeItem(key);
                 }
@@ -68,22 +61,23 @@ export class DiscussAppCategory extends Record {
     hideWhenEmpty = false;
     canView = false;
     app = fields.One("DiscussApp", {
+        /** @this {import("models").DiscussAppCategory} */
         compute() {
             return this.store.discuss;
         },
     });
     _openLocally = false;
     localStateKey = fields.Attr(null, {
+        /** @this {import("models").DiscussAppCategory} */
         compute() {
             if (this.saveStateToServer) {
                 return null;
             }
             return `discuss_sidebar_category_${this.id}_open`;
         },
+        /** @this {import("models").DiscussAppCategory} */
         onUpdate() {
             if (this.localStateKey) {
-                // storage may hold the literal string "undefined", which is
-                // truthy (so `??` misses it) and breaks JSON.parse
                 const raw = browser.localStorage.getItem(this.localStateKey) ?? "true";
                 try {
                     this._openLocally = raw === "undefined" ? true : JSON.parse(raw);
@@ -103,9 +97,13 @@ export class DiscussAppCategory extends Record {
     }
 
     get saveStateToServer() {
-        return this.serverStateKey && this.store.self?.main_user_id?.share === false;
+        return (
+            this.serverStateKey &&
+            this.store.self_partner?.main_user_id?.share === false
+        );
     }
 
+    /** @param {boolean} value */
     set open(value) {
         if (this.saveStateToServer) {
             this.store.settings[this.serverStateKey] = value;
@@ -125,12 +123,7 @@ export class DiscussAppCategory extends Record {
         }
     }
 
-    /**
-     * Applies a state change broadcast by another tab: updates the local
-     * mirror WITHOUT re-persisting, since the originating tab already saved.
-     *
-     * @param {boolean} value
-     */
+    /** @param {boolean} value */
     applyBroadcastedOpen(value) {
         if (this.saveStateToServer) {
             this.store.settings[this.serverStateKey] = value;
@@ -142,6 +135,7 @@ export class DiscussAppCategory extends Record {
     /** @type {string} */
     serverStateKey;
     threads = fields.Many("Thread", {
+        /** @this {import("models").DiscussAppCategory} */
         sort(t1, t2) {
             return this.sortThreads(t1, t2);
         },

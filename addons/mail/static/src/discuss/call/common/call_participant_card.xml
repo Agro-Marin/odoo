@@ -21,7 +21,6 @@
  t-on-touchmove="onTouchMove"
  t-ref="root"
  >
- <!-- card -->
  <t t-if="showPausedScreenStream">
  <div class="o-text-white display-5 gap-3">
  <button class="pe-auto bg-transparent o-text-white border-0 opacity-25 opacity-75-hover" t-ref="resumeStream" t-on-click.stop="resumeScreenStream">
@@ -37,7 +36,6 @@
  }"/>
  </div>
  <t t-if="rtcSession">
- <!-- overlay -->
  <span class="o-discuss-CallParticipantCard-overlay o-discuss-CallParticipantCard-overlayBottom z-1 position-absolute bottom-0 start-0 d-flex overflow-hidden rounded-1" t-att-class="{ 'o-proportional-container w-50': isSmall }" t-att-data-connection-state="rtcSession.connectionState">
  <span t-if="!props.minimized and !props.inset" class="rounded-1 text-truncate opacity-75 w-100 o-proportional-text o-discuss-CallParticipantCard-overlayBottomName" t-att-class="{'o-minimized px-1': isSmall, 'p-0': !isSmall }" t-esc="name"/>
  <small t-if="rtcSession.is_screen_sharing_on and props.minimized and !isOfActiveCall" class="user-select-none o-proportional-text o-minimized rounded text-bg-danger d-flex align-items-center fw-bolder p-1" title="live" aria-label="live">

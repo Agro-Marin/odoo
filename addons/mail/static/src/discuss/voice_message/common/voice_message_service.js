@@ -9,12 +9,11 @@ const loader = {
 export async function loadLamejs() {
     try {
         await loader.loadLamejs();
-    } catch {
-        // Could be intentional (tour ended successfully while lamejs still loading)
-    }
+    } catch {}
 }
 
 export class VoiceMessageService {
+    /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
         /** @type {import("@mail/discuss/voice_message/common/voice_player").VoicePlayer} */
         this.activePlayer = null;
@@ -22,6 +21,9 @@ export class VoiceMessageService {
 }
 
 export const voiceMessageService = {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     */
     start(env) {
         return new VoiceMessageService(env);
     },

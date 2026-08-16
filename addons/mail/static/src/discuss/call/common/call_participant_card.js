@@ -16,6 +16,7 @@ import { isMobileOS } from "@web/core/browser/feature_detection";
 import { rpc } from "@web/core/network";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+/** @type {Set<string>} */
 const HIDDEN_CONNECTION_STATES = new Set(["connected", "completed"]);
 
 export class CallParticipantCard extends Component {
@@ -53,8 +54,6 @@ export class CallParticipantCard extends Component {
             });
         });
         onWillUnmount(() => {
-            // drop any drag listeners still attached to document if the card
-            // unmounts mid-drag
             this._removeDragListeners?.();
             if (!this.rtcSession) {
                 return;
@@ -98,16 +97,6 @@ export class CallParticipantCard extends Component {
         return this.env.pipWindow || window;
     }
 
-    /**
-     * Whether this card is the local user's own screen share, currently
-     * paused (the infinite-mirroring warning disables the track). Only then
-     * may the card offer to resume it.
-     *
-     * `rtc.state.screenTrack` is the LOCAL upload and exists only on the tab
-     * hosting the call, so testing it alone matched every OTHER participant's
-     * screen tile too: their stream was replaced by a "Stream paused" button
-     * that resumed this user's upload instead of showing their video.
-     */
     get showPausedScreenStream() {
         return Boolean(
             !this.props.isSidebarItem &&
@@ -119,8 +108,6 @@ export class CallParticipantCard extends Component {
     }
 
     resumeScreenStream() {
-        // optional chain: the share can end between the render that showed the
-        // button and the click that reaches here
         if (this.rtc.state.screenTrack) {
             this.rtc.state.screenTrack.enabled = true;
         }
@@ -179,9 +166,6 @@ export class CallParticipantCard extends Component {
         }
     }
 
-    /**
-     * @deprecated use `showConnectionState` instead
-     */
     get showServerState() {
         return false;
     }
@@ -224,6 +208,7 @@ export class CallParticipantCard extends Component {
         );
     }
 
+    /** @param {MouseEvent} ev */
     async onClick(ev) {
         if (isEventHandled(ev, "CallParticipantCard.clickVolumeAnchor")) {
             return;
@@ -263,16 +248,13 @@ export class CallParticipantCard extends Component {
             return;
         }
         this._removeDragListeners?.();
-        const onMousemove = (ev) => this.drag(ev);
+        const onMousemove = /** @param {MouseEvent} ev */ (ev) => this.drag(ev);
         const onMouseup = () => {
-            // The card can unmount mid-drag (e.g. the remote stops screen-share).
-            // Only run the snapping DOM work when the element still exists, but
-            // always remove the document listeners below.
             const insetEl = this.root.el;
             if (insetEl) {
                 const bottomOffset = this.env.inChatWindow
                     ? this.window.innerHeight * 0.05
-                    : 0; // 5vh in pixels
+                    : 0;
                 if (parseInt(insetEl.style.left) < insetEl.parentNode.offsetWidth / 2) {
                     insetEl.style.left = "1vh";
                     insetEl.style.right = "";
@@ -304,6 +286,7 @@ export class CallParticipantCard extends Component {
         document.addEventListener("mousemove", onMousemove);
     }
 
+    /** @param {TouchEvent} ev */
     onTouchMove(ev) {
         if (!this.props.inset) {
             return;
@@ -311,11 +294,10 @@ export class CallParticipantCard extends Component {
         this.drag(ev);
     }
 
+    /** @param {MouseEvent|TouchEvent} ev */
     drag(ev) {
         const insetEl = this.root.el;
         if (!insetEl) {
-            // unmounted mid-drag: stop the pointer tracking instead of throwing
-            // on every mouse move.
             this._removeDragListeners?.();
             return;
         }
@@ -324,7 +306,7 @@ export class CallParticipantCard extends Component {
         const boundingRect =
             this.parentBoundingRect ||
             (this.parentBoundingRect = parent.getBoundingClientRect());
-        const bottomOffset = this.env.inChatWindow ? this.window.innerHeight * 0.05 : 0; // 5vh in pixels
+        const bottomOffset = this.env.inChatWindow ? this.window.innerHeight * 0.05 : 0;
         const clientX = Math.max(
             (ev.clientX ?? ev.touches[0].clientX) - boundingRect.left,
             0,
@@ -349,9 +331,6 @@ export class CallParticipantCard extends Component {
     }
 
     onFullScreenChange() {
-        // Reset the drag offset: a string like "left:''; top:''" is an invalid
-        // CSS declaration, and the ref may be unmounted (this fires for every
-        // card on any fullscreen change).
         if (this.root.el) {
             this.root.el.style.left = "";
             this.root.el.style.top = "";

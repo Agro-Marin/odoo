@@ -1,9 +1,5 @@
-// ------------------------------------------------------------------
-// Layout
-// ------------------------------------------------------------------
-
 .o-discuss-Call {
-    height: 50%; // ensures that the view returns to the right height when resized
+    height: 50%;
     min-height: 50%;
     background-color: inherit;
 
@@ -21,7 +17,7 @@
     }
 
     &.o-minimized {
-        height: 20%; // ensures that the view returns to the right height when resized
+        height: 20%;
         min-height: #{"max(20%, 130px)"};
         &.o-compact {
             height: 10%;
@@ -79,10 +75,6 @@
     right: 0;
 }
 
-// ------------------------------------------------------------------
-// Style
-// ------------------------------------------------------------------
-
 .o-discuss-Call-sidebar {
     &::-webkit-scrollbar {
         background: o-palette-token(--o-gray-900, map-get($grays, "900"));
@@ -100,14 +92,8 @@
     background-color: lighten(black, 10%);
 }
 
-
-// The dark half, folded in from `call.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // = Call
-        // ============================================================================
-        // No CSS hacks, variables overrides only
-
         .o-discuss-Call {
             --o-discuss-Call-bgColor: black;
         }

@@ -2,7 +2,10 @@
 import { registerComposerAction } from "@mail/core/common/composer_actions";
 import { Component, xml } from "@odoo/owl";
 import { _t } from "@web/core/translation";
+
+/** @typedef {import("@mail/core/common/composer_actions").ActionParams} ActionParams */
 registerComposerAction("voice-start", {
+    /** @param {ActionParams} params */
     condition: ({ composer, owner }) =>
         composer.targetThread?.model === "discuss.channel" &&
         owner.voiceRecorder &&
@@ -10,15 +13,18 @@ registerComposerAction("voice-start", {
         !composer.voiceAttachment,
     icon: "fa-solid fa-microphone",
     name: _t("Voice Message"),
+    /** @param {ActionParams} params */
     onSelected: ({ owner }) => owner.voiceRecorder.onClick(),
     sequence: 10,
 });
 registerComposerAction("voice-stop", {
+    /** @param {ActionParams} params */
     condition: ({ composer, owner }) =>
         composer.targetThread?.model === "discuss.channel" &&
         owner.voiceRecorder?.recording,
     icon: "fa-solid fa-circle text-danger o-mail-VoiceRecorder-dot",
     name: _t("Stop Recording"),
+    /** @param {ActionParams} params */
     onSelected: ({ owner }) => owner.voiceRecorder.onClick(),
     sequence: 10,
 });
@@ -37,7 +43,9 @@ registerComposerAction("voice-recording", {
             return _t("Stop Recording");
         }
     },
+    /** @param {ActionParams} params */
     componentProps: ({ composer, owner }) => ({ composer, state: owner.voiceRecorder }),
+    /** @param {ActionParams} params */
     condition: ({ composer, owner }) =>
         composer.targetThread?.model === "discuss.channel" &&
         owner.voiceRecorder?.recording,

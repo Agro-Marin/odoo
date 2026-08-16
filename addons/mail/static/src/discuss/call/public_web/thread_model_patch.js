@@ -1,7 +1,9 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { patch } from "@web/core/utils/patch";
-/** @type {import("models").Thread} */
+/**
+ * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
+ */
 const ThreadPatch = {
     get isCallDisplayedInChatWindow() {
         return (

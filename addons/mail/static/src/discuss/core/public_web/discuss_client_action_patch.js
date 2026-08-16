@@ -6,6 +6,10 @@ patch(DiscussClientAction.prototype, {
         await this.store.channels.fetch();
         return super.restoreDiscussThread(...arguments);
     },
+    /**
+     * @param {string|number} rawActiveId
+     * @returns {[string, number]|undefined}
+     */
     parseActiveId(rawActiveId) {
         if (typeof rawActiveId === "number") {
             return ["discuss.channel", rawActiveId];
@@ -16,7 +20,6 @@ patch(DiscussClientAction.prototype, {
         }
         const [model, id] = parsedActiveId;
         if (model === "mail.channel") {
-            // legacy format (sent in old emails, shared links, ...)
             return ["discuss.channel", id];
         }
         return [model, id];

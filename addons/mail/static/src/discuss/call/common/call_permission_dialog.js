@@ -9,6 +9,7 @@ export class CallPermissionDialog extends Component {
         close: Function,
         media: {
             type: String,
+            /** @param {string} s */
             validate: (s) => ["camera", "microphone"].includes(s),
         },
         useMicrophone: Function,

@@ -43,7 +43,6 @@ export class CallSettings extends Component {
         useExternalListener(browser, "keyup", this._onKeyUp, { capture: true });
         onWillStart(async () => {
             if (!browser.navigator.mediaDevices) {
-                // zxing-js: isMediaDevicesSuported or canEnumerateDevices is false.
                 this.notification.add(
                     _t("Media devices unobtainable. SSL might not be set up properly."),
                     { type: "warning" },
@@ -69,6 +68,10 @@ export class CallSettings extends Component {
     get pushToTalkKeyText() {
         const { shiftKey, ctrlKey, altKey, key } =
             this.store.settings.pushToTalkKeyFormat();
+        /**
+         * @param {boolean} k
+         * @param {string} name
+         */
         const f = (k, name) => (k ? name : "");
         const keys = [
             f(ctrlKey, "Ctrl"),
@@ -83,6 +86,7 @@ export class CallSettings extends Component {
         return isMobileOS();
     }
 
+    /** @param {KeyboardEvent} ev */
     _onKeyDown(ev) {
         if (!this.store.settings.isRegisteringKey) {
             return;
@@ -92,6 +96,7 @@ export class CallSettings extends Component {
         this.store.settings.setPushToTalkKey(ev);
     }
 
+    /** @param {KeyboardEvent} ev */
     _onKeyUp(ev) {
         if (!this.store.settings.isRegisteringKey) {
             return;
@@ -101,10 +106,12 @@ export class CallSettings extends Component {
         this.store.settings.isRegisteringKey = false;
     }
 
+    /** @param {Event} ev */
     onChangeLogRtc(ev) {
         this.store.settings.logRtc = ev.target.checked;
     }
 
+    /** @param {Event} ev */
     onChangeSelectAudioInput(ev) {
         this.store.settings.setAudioInputDevice(ev.target.value);
     }
@@ -117,14 +124,17 @@ export class CallSettings extends Component {
         this.store.settings.isRegisteringKey = !this.store.settings.isRegisteringKey;
     }
 
+    /** @param {Event} ev */
     onChangeDelay(ev) {
         this.store.settings.setDelayValue(ev.target.value);
     }
 
+    /** @param {Event} ev */
     onChangeBlur(ev) {
         this.store.settings.setUseBlur(ev.target.checked);
     }
 
+    /** @param {Event} ev */
     onChangeShowOnlyVideo(ev) {
         const showOnlyVideo = ev.target.checked;
         this.store.settings.showOnlyVideo = showOnlyVideo;
@@ -142,11 +152,13 @@ export class CallSettings extends Component {
         }
     }
 
+    /** @param {Event} ev */
     onChangeBackgroundBlurAmount(ev) {
         this.store.settings.backgroundBlurAmount = Number(ev.target.value);
         this.saveBackgroundBlurAmount();
     }
 
+    /** @param {Event} ev */
     onChangeEdgeBlurAmount(ev) {
         this.store.settings.edgeBlurAmount = Number(ev.target.value);
         this.saveEdgeBlurAmount();

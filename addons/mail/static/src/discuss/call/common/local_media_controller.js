@@ -18,59 +18,31 @@ const SCREEN_CONFIG = {
 };
 
 /**
- * Delegate surface the coordinator (Rtc) provides to the media controller.
- * Session state, broadcasting and UI feedback go through these callbacks so
- * the track lifecycle stays headless-testable.
- *
  * @typedef {Object} LocalMediaHooks
  * @property {() => import("models").Settings} getSettings
  * @property {() => import("models").RtcSession|undefined} getLocalSession
  * @property {() => import("models").RtcSession|undefined} getSelfSession
  * @property {(type: string, track: MediaStreamTrack|undefined) => Promise} updateTrackUpload
- *  best-effort upload of one outbound track through the active network
  * @property {(isMute: boolean) => Promise} setMute
  * @property {(media: {microphone?: boolean, camera?: boolean, screen?: boolean}) => void} onMediaUnavailable
  * @property {(type: string, options: Object|boolean) => Promise} toggleVideo
- *  used by the video track "ended" listeners
  * @property {(soundName: string) => void} playSound
- * @property {(text: string) => void} notify warning notification
+ * @property {(text: string) => void} notify
  * @property {(isTalking: boolean) => void} setTalking
- * @property {() => Promise} refreshMicAudioStatus applies the mic track state
- *  and broadcasts the new session info
- */
-
-/**
- * Owns every local MediaStreamTrack of a call: microphone, camera and screen
- * tracks, the mic/screen audio mixing AudioContext, the blur pipeline and the
- * voice activation monitor. Every track stop/close belongs here. The tracks
- * live in the shared reactive `state`; this controller is their single writer.
+ * @property {() => Promise} refreshMicAudioStatus
  */
 export class LocalMediaController {
-    /** @type {AudioContext} AudioContext used to mix screen and mic audio */
+    /** @type {AudioContext} */
     audioContext;
     /** @type {BlurManager|undefined} */
     blurManager;
-    /**
-     * Serializes `updateAudioTrack` runs: concurrent runs would race on the
-     * shared mix AudioContext (double close/create, context leak).
-     */
     _audioTrackMutex = new Mutex();
-    /**
-     * Serializes `setVideo` runs per type: two overlapping runs each acquire a
-     * stream, and the loser's would be overwritten without `closeStream`,
-     * leaking a live camera/screen capture.
-     */
     _videoMutexes = { camera: new Mutex(), screen: new Mutex() };
-    /**
-     * Serializes `linkVoiceActivation` runs: monitorAudio spins an
-     * AudioContext/worklet, so overlapping runs would leak a context.
-     */
     _voiceActivationMutex = new Mutex();
 
     /**
      * @param {Object} param0
-     * @param {Object} param0.state shared reactive call state; the controller
-     *  owns the track/stream/send slots
+     * @param {import("@mail/discuss/call/common/rtc_service").RtcCallState} param0.state
      * @param {LocalMediaHooks} param0.hooks
      */
     constructor({ state, hooks }) {
@@ -80,10 +52,8 @@ export class LocalMediaController {
     }
 
     /**
-     * Applies blur effect to a video stream using BlurManager.
-     *
-     * @param {MediaStream} videoStream - input video stream.
-     * @returns {Promise<BlurManager>} - BlurManager instance.
+     * @param {MediaStream} videoStream
+     * @returns {Promise<BlurManager>}
      */
     async applyBlurEffect(videoStream) {
         const settings = this.hooks.getSettings();
@@ -93,22 +63,15 @@ export class LocalMediaController {
         });
     }
 
-    /**
-     * Sets the enabled property of the local microphone audio track based on
-     * the current session state.
-     */
     applyMicState() {
         const session = this.hooks.getLocalSession();
         this.state.micAudioTrack.enabled = !session.isMute && session.isTalking;
     }
 
     /**
-     * @param {MediaStreamTrack|undefined} track current track of that type
-     * @param {String} type 'camera' or 'screen'
-     * @param {Object|boolean} [options]
-     * @param {Boolean} [options.activateVideo=false]
-     * @param {Env} [options.env]
-     * @param {Boolean} [options.refreshStream] whether to request a new stream
+     * @param {MediaStreamTrack|undefined} track
+     * @param {"camera"|"screen"} type
+     * @param {SetVideoOptions|boolean} [options]
      */
     async setVideo(track, type, options) {
         return this._videoMutexes[type].exec(() =>
@@ -116,15 +79,28 @@ export class LocalMediaController {
         );
     }
 
+    /**
+     * @typedef {Object} SetVideoOptions
+     * @property {boolean} [activateVideo=false]
+     * @property {import("@web/env").OdooEnv} [env]
+     * @property {boolean} [refreshStream]
+     */
+    /**
+     * @param {MediaStreamTrack|undefined} track
+     * @param {"camera"|"screen"} type
+     * @param {SetVideoOptions|boolean} [options]
+     */
     async _setVideo(track, type, options) {
         const settings = this.hooks.getSettings();
         let activateVideo;
         let env;
+        let refreshStream;
         if (typeof options === "boolean") {
             activateVideo = options ?? false;
         } else {
             activateVideo = options?.activateVideo ?? false;
             env = options?.env;
+            refreshStream = options?.refreshStream;
         }
         const stopVideo = async () => {
             if (track) {
@@ -139,8 +115,6 @@ export class LocalMediaController {
                 }
                 case "screen": {
                     this.state.screenTrack = undefined;
-                    // also stop the captured tab/system audio, else it stays in
-                    // the outgoing mix after screen-sharing stopped
                     this.state.screenAudioTrack?.stop();
                     this.state.screenAudioTrack = undefined;
                     closeStream(this.state.sourceScreenStream);
@@ -165,7 +139,7 @@ export class LocalMediaController {
         const sourceWindow = env?.pipWindow ?? browser;
         try {
             if (type === "camera") {
-                if (this.state.sourceCameraStream && !options?.refreshStream) {
+                if (this.state.sourceCameraStream && !refreshStream) {
                     sourceStream = this.state.sourceCameraStream;
                 } else {
                     closeStream(this.state.sourceCameraStream);
@@ -221,8 +195,6 @@ export class LocalMediaController {
             this.blurManager = undefined;
             try {
                 this.blurManager = await this.applyBlurEffect(sourceStream);
-                // bounded wait: the mediapipe assets load at runtime from a
-                // CDN, and a hang would block here with the camera LED on
                 const blurredStream = await Promise.race([
                     this.blurManager.stream,
                     new Promise((_, reject) =>
@@ -236,7 +208,6 @@ export class LocalMediaController {
             } catch (_e) {
                 this.hooks.notify(_e.message);
                 settings.setUseBlur(false);
-                // don't leave the failed pipeline running against the stream
                 this.blurManager?.close();
                 this.blurManager = undefined;
                 outputTrack = sourceStream.getVideoTracks()[0];
@@ -269,12 +240,6 @@ export class LocalMediaController {
         }
     }
 
-    /**
-     * Rebuilds `state.audioTrack` from the current mic/screen audio tracks
-     * (mixing them when both are present) and updates the outbound upload
-     * accordingly. Serialized behind a mutex: concurrent runs would race on
-     * the shared mix AudioContext (double close/create, context leak).
-     */
     updateAudioTrack() {
         return this._audioTrackMutex.exec(async () => {
             const { micAudioTrack, screenAudioTrack } = this.state;
@@ -292,9 +257,6 @@ export class LocalMediaController {
                 screenSource.connect(destination);
                 this.state.audioTrack = destination.stream.getAudioTracks()[0];
             } else {
-                // At most one source remains: no mixing needed. Browsers cap
-                // concurrent AudioContexts, so tear the mix down and stop the
-                // now-unused mixed destination track.
                 if (this.audioContext) {
                     await this.audioContext.close();
                     this.audioContext = undefined;
@@ -305,17 +267,14 @@ export class LocalMediaController {
                     previousTrack.stop();
                 }
             }
-            // always resynchronize the senders, including with no track at
-            // all: they must not keep streaming an ended track.
             await this.hooks.updateTrackUpload("audio", this.state.audioTrack);
         });
     }
 
     /**
      * @param {Object} [options]
-     * @param {boolean} [options.force] re-acquire a microphone track
-     * @param {boolean} [options.unmute] whether a successful re-acquisition
-     *  unmutes the user, or restores the mute state from before the reset
+     * @param {boolean} [options.force]
+     * @param {boolean} [options.unmute]
      */
     async resetMicAudioTrack({ force = false, unmute = true }) {
         const wasMuted = Boolean(this.hooks.getLocalSession()?.is_muted);
@@ -325,10 +284,6 @@ export class LocalMediaController {
             this.state.audioTrack &&
             this.state.audioTrack !== this.state.screenAudioTrack
         ) {
-            // `audioTrack` is then the mic track or the mixed destination
-            // track, both owned here. Without the guard it can be the live
-            // screen-capture audio track, which cannot be restarted once
-            // stopped, silencing the shared audio for every participant.
             this.state.audioTrack.stop();
         }
         this.state.audioTrack = undefined;
@@ -350,19 +305,14 @@ export class LocalMediaController {
                 }
             } catch {
                 this.hooks.onMediaUnavailable({ microphone: true });
-                // still rebuild the outgoing audio (the screen audio may
-                // remain) so the senders do not keep an ended track.
                 await this.updateAudioTrack();
                 return;
             }
             if (!this.hooks.getLocalSession()) {
-                // The getUserMedia promise could resolve when the call is ended
-                // in which case the track is no longer relevant.
                 micAudioTrack.stop();
                 return;
             }
             micAudioTrack.addEventListener("ended", async () => {
-                // this mostly happens when the user retracts microphone permission.
                 await this.resetMicAudioTrack({ force: false });
                 await this.hooks.setMute(true);
             });
@@ -374,10 +324,6 @@ export class LocalMediaController {
         await this.updateAudioTrack();
     }
 
-    /**
-     * Updates the way broadcast of the local audio track is handled,
-     * attaches an audio monitor for voice activation if necessary.
-     */
     async linkVoiceActivation() {
         return this._voiceActivationMutex.exec(async () => {
             this.state.disconnectAudioMonitor?.();
@@ -386,9 +332,6 @@ export class LocalMediaController {
                 return;
             }
             const settings = this.hooks.getSettings();
-            // Capture the track we monitor: monitorAudio clones it and takes a
-            // multi-hundred-ms window, during which dispose() (or a newer track)
-            // can supersede it.
             const micAudioTrack = this.state.micAudioTrack;
             if (settings.use_push_to_talk || !this.state.channel || !micAudioTrack) {
                 session.isTalking = false;
@@ -397,22 +340,18 @@ export class LocalMediaController {
             }
             try {
                 const disconnect = await monitorAudio(micAudioTrack, {
+                    /** @param {boolean} isAboveThreshold */
                     onThreshold: async (isAboveThreshold) => {
                         this.hooks.setTalking(isAboveThreshold);
                     },
                     volumeThreshold: settings.voiceActivationThreshold,
                 });
                 if (this.state.micAudioTrack !== micAudioTrack) {
-                    // Superseded while awaiting: the slot was cleared without a
-                    // chance to disconnect this monitor, so stop its cloned
-                    // capture now instead of storing a dangling cleanup.
                     disconnect?.();
                     return;
                 }
                 this.state.disconnectAudioMonitor = disconnect;
             } catch {
-                // probably a missing AudioContext: without voice activation the
-                // microphone is always 'on'
                 this.hooks.notify(_t("Your browser does not support voice activation"));
                 session.isTalking = true;
             }
@@ -420,12 +359,7 @@ export class LocalMediaController {
         });
     }
 
-    /**
-     * Stops and releases every local media resource and resets the shared
-     * state slots this controller owns.
-     */
     dispose() {
-        // Cancel any queued run so it cannot re-arm a monitor after teardown.
         this.linkVoiceActivationDebounce?.cancel?.();
         this.state.disconnectAudioMonitor?.();
         this.state.micAudioTrack?.stop();

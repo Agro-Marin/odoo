@@ -14,59 +14,75 @@ export class DiscussCoreCommon {
     }
 
     setup() {
-        this.busService.subscribe("discuss.channel/delete", (payload, metadata) => {
-            const thread = this.store.Thread.insert({
-                id: payload.id,
-                model: "discuss.channel",
-            });
-            this._handleNotificationChannelDelete(thread, metadata);
-        });
+        this.busService.subscribe(
+            "discuss.channel/delete",
+            /**
+             * @param {{id: number}} payload
+             * @param {{id: number}} metadata
+             */
+            (payload, metadata) => {
+                const thread = this.store.Thread.insert({
+                    id: payload.id,
+                    model: "discuss.channel",
+                });
+                this._handleNotificationChannelDelete(thread, metadata);
+            },
+        );
         this.busService.subscribe(
             "discuss.channel/new_message",
+            /**
+             * @param {{data: Object, id: number, message_id?: number, silent?: boolean, temporary_id?: number}} payload
+             * @param {{id: number}} metadata
+             */
             (payload, metadata) => {
-                // Insert should always be done before any async operation. Indeed,
-                // awaiting before the insertion could lead to overwritting newer
-                // state coming from more recent `mail.record/insert` notifications.
                 this.store.insert(payload.data);
                 this._handleNotificationNewMessage(payload, metadata);
             },
         );
-        this.busService.subscribe("discuss.channel/transient_message", (payload) => {
-            const { body, channel_id } = payload;
-            const message = this.store["mail.message"].insert({
-                author_id: this.store.odoobot,
-                body: markup(body),
-                // getNextTemporaryId() (not getLastMessageId()+0.01, which only
-                // tracks persistent messages) keeps back-to-back ids distinct
-                id: this.store.getNextTemporaryId(),
-                subtype_id: this.store.mt_note,
-                is_transient: true,
-                thread: { id: channel_id, model: "discuss.channel" },
-            });
-            message.thread.messages.push(message);
-            message.thread.transientMessages.push(message);
-        });
-        this.busService.subscribe("discuss.channel.member/fetched", (payload) => {
-            const { channel_id, id, last_message_id, partner_id } = payload;
-            this.store["discuss.channel.member"].insert({
-                id,
-                fetched_message_id: { id: last_message_id },
-                partner_id: { id: partner_id },
-                thread: { id: channel_id, model: "discuss.channel" },
-            });
-        });
+        this.busService.subscribe(
+            "discuss.channel/transient_message",
+            /** @param {{body: string, channel_id: number}} payload */ (payload) => {
+                const { body, channel_id } = payload;
+                const message = this.store["mail.message"].insert({
+                    author_id: this.store.odoobot,
+                    body: markup(body),
+                    id: this.store.getNextTemporaryId(),
+                    subtype_id: this.store.mt_note,
+                    is_transient: true,
+                    thread: { id: channel_id, model: "discuss.channel" },
+                });
+                message.thread.messages.push(message);
+                message.thread.transientMessages.push(message);
+            },
+        );
+        this.busService.subscribe(
+            "discuss.channel.member/fetched",
+            /**
+             * @param {Object} payload
+             * @param {number} payload.channel_id
+             * @param {number} payload.id
+             * @param {number} payload.last_message_id
+             * @param {number} payload.partner_id
+             */
+            (payload) => {
+                const { channel_id, id, last_message_id, partner_id } = payload;
+                this.store["discuss.channel.member"].insert({
+                    id,
+                    fetched_message_id: { id: last_message_id },
+                    partner_id: { id: partner_id },
+                    thread: { id: channel_id, model: "discuss.channel" },
+                });
+            },
+        );
         this.env.bus.addEventListener(
             "mail.message/delete",
+            /** @param {CustomEvent<{message: import("models").Message, notifId: number}>} ev */
             ({ detail: { message, notifId } }) => {
                 if (message.thread) {
                     const { self_member_id } = message.thread;
                     if (
                         self_member_id &&
-                        // mirror the increment's guard: notification-type
-                        // messages never count up, so must not count down
                         !message.isNotification &&
-                        // no seen message means nothing was seen yet: the
-                        // deleted message was necessarily unread.
                         message.id > (self_member_id.seen_message_id?.id ?? 0)
                     ) {
                         applyCounterDelta(
@@ -91,20 +107,24 @@ export class DiscussCoreCommon {
         thread.delete();
     }
 
+    /**
+     * @param {Object} payload
+     * @param {Object} payload.data
+     * @param {number} payload.id
+     * @param {number} [payload.message_id]
+     * @param {boolean} [payload.silent]
+     * @param {number} [payload.temporary_id]
+     * @param {{id: number}} metadata
+     */
     async _handleNotificationNewMessage(payload, { id: notifId }) {
         const { data, id: channelId, message_id, silent, temporary_id } = payload;
         const channel = await this.store.Thread.getOrFetch({
             model: "discuss.channel",
             id: channelId,
         });
-        // Re-guard after the await: a `discuss.channel/delete` in the same bus
-        // batch can delete the thread while the fetch is pending.
         if (!channel?.exists()) {
             return;
         }
-        // `message_id` explicitly identifies the posted message. Fall back on
-        // the first "mail.message" of the payload for older payloads (that
-        // convention only holds by Python Store insertion order).
         const message = this.store["mail.message"].get(
             message_id ?? data["mail.message"]?.[0],
         );
@@ -121,9 +141,6 @@ export class DiscussCoreCommon {
                 channel.status === "loading" &&
                 message.notIn(channel.pendingNewMessages)
             ) {
-                // Guard against bus replay (e.g. after reconnect) queuing the
-                // same message twice: fetchMoreMessages would then insert the
-                // duplicate into `messages`.
                 channel.pendingNewMessages.push(message);
             }
             if (message.isSelfAuthored) {
@@ -153,8 +170,6 @@ export class DiscussCoreCommon {
             this.store.self_partner &&
             channel.self_member_id
         ) {
-            // disabled on non-channel threads and
-            // on "channel" channels for performance reasons
             channel.markAsFetched();
         }
         if (

@@ -15,15 +15,12 @@ export class ChannelMember extends Record {
     create_date;
     /** @type {string} */
     custom_channel_name;
-    /**
-     * false means using the custom_notifications from user settings.
-     *
-     * @type {false|"all"|"mentions"|"no_notif"}
-     */
+    /** @type {false|"all"|"mentions"|"no_notif"} */
     custom_notifications;
     /** @type {number} */
     id;
     is_pinned = fields.Attr(undefined, {
+        /** @this {import("models").ChannelMember} */
         compute() {
             return (
                 !this.unpin_dt ||
@@ -46,6 +43,7 @@ export class ChannelMember extends Record {
     }
     channel_id = fields.One("Thread", { inverse: "channel_member_ids" });
     threadAsSelf = fields.One("Thread", {
+        /** @this {import("models").ChannelMember} */
         compute() {
             if (this.store.self?.eq(this.persona)) {
                 return this.channel_id;
@@ -79,8 +77,10 @@ export class ChannelMember extends Record {
             }
         },
     });
+    /** @type {number|null} */
     new_message_separator_ui = null;
     isTyping = fields.Attr(false, {
+        /** @this {import("models").ChannelMember} */
         onUpdate() {
             browser.clearTimeout(this.typingTimeoutId);
             if (this.isTyping) {
@@ -89,6 +89,7 @@ export class ChannelMember extends Record {
         },
     });
     is_typing_dt = fields.Datetime({
+        /** @this {import("models").ChannelMember} */
         onUpdate() {
             browser.clearTimeout(this.typingTimeoutId);
             if (
@@ -109,9 +110,11 @@ export class ChannelMember extends Record {
         );
     }
     threadAsTyping = fields.One("Thread", {
+        /** @this {import("models").ChannelMember} */
         compute() {
             return this.isTyping ? this.channel_id : undefined;
         },
+        /** @this {import("models").ChannelMember} */
         onDelete() {
             browser.clearTimeout(this.typingTimeoutId);
         },
@@ -135,23 +138,17 @@ export class ChannelMember extends Record {
         return this.partner_id?.im_status || this.guest_id?.im_status;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string|undefined} */
     getLangName() {
-        return this.persona.lang_name;
+        return this.partner_id?.lang_name;
     }
 
     get memberSince() {
         return this.create_date ? deserializeDateTime(this.create_date) : undefined;
     }
 
-    /**
-     * @param {import("models").Message} message
-     */
+    /** @param {import("models").Message} message */
     hasSeen(message) {
-        // persona can be unset while the member's partner or guest is not
-        // inserted yet (seen computes run eagerly on insert)
         return (
             this.persona?.eq(message.author) || this.seen_message_id?.id >= message.id
         );

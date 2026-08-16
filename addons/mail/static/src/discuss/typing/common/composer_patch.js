@@ -10,9 +10,6 @@ import { useDebounced } from "@web/core/utils/timing";
 const commandRegistry = registry.category("discuss.channel_commands");
 
 export const SHORT_TYPING = 5000;
-// Must stay well below OTHER_LONG_TYPING (60s, the receiving side's
-// expiry, see channel_member_model.js): the re-notification below is what
-// keeps a continuously-typing user's indicator alive on the other clients.
 export const LONG_TYPING = 50000;
 
 patch(Composer, {
@@ -20,9 +17,6 @@ patch(Composer, {
 });
 
 patch(Composer.prototype, {
-    /**
-     * @override
-     */
     setup() {
         super.setup();
         this.typingNotified = false;
@@ -35,11 +29,7 @@ patch(Composer.prototype, {
             this.stopTyping();
         });
     },
-    /**
-     * Notify the server of the current typing status
-     *
-     * @param {boolean} [is_typing=true]
-     */
+    /** @param {boolean} [is_typing=true] */
     notifyIsTyping(is_typing = true) {
         if (this.thread?.model === "discuss.channel" && this.thread.id > 0) {
             rpc(
@@ -52,7 +42,7 @@ patch(Composer.prototype, {
             );
         }
     },
-    /** @override */
+    /** @param {InputEvent} ev */
     onInput(ev) {
         super.onInput(ev);
         this.detectTyping(ev);
@@ -66,7 +56,7 @@ patch(Composer.prototype, {
             const [firstWord] = value.substring(1).split(/\s/);
             const command = commandRegistry.get(firstWord, false);
             if (
-                value === "/" || // suggestions not yet started
+                value === "/" ||
                 this.hasSuggestions ||
                 (command &&
                     (!command.condition ||
@@ -83,14 +73,8 @@ patch(Composer.prototype, {
         }
         if (!this.typingNotified && value) {
             this.typingNotified = true;
-            // distinct from typingNotified: "the server was told we type"
-            // (cleared by an explicit stop) vs "a re-notification is due"
-            // (cleared by the LONG_TYPING timer below)
             this.serverKnowsTyping = true;
             this.notifyIsTyping();
-            // After LONG_TYPING of continuous typing, clear the flag so the next
-            // keystroke re-notifies. Track the timer so it can be cleared on
-            // stop/destroy instead of leaking (and stacking) live 50s timers.
             browser.clearTimeout(this._typingNotifiedTimeout);
             this._typingNotifiedTimeout = browser.setTimeout(
                 () => (this.typingNotified = false),
@@ -99,9 +83,6 @@ patch(Composer.prototype, {
         }
         this.stopTypingDebounced();
     },
-    /**
-     * @override
-     */
     async sendMessage() {
         await super.sendMessage();
         this.stopTyping();
@@ -114,6 +95,10 @@ patch(Composer.prototype, {
             this.notifyIsTyping(false);
         }
     },
+    /**
+     * @param {string} str
+     * @returns {boolean|undefined}
+     */
     addEmoji(str) {
         const res = super.addEmoji(str);
         this.detectTyping();

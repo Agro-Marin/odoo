@@ -15,6 +15,7 @@ class MessageSeenIndicatorDialog extends Component {
         useExternalListener(
             browser,
             "click",
+            /** @param {MouseEvent} ev */
             (ev) => {
                 if (!this.contentRef?.el.contains(ev.target)) {
                     this.props.close();
@@ -29,7 +30,7 @@ class MessageSeenIndicatorDialog extends Component {
  * @typedef {Object} Props
  * @property {import("models").Message} message
  * @property {import("models").Thread} thread
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class MessageSeenIndicator extends Component {
     static template = "mail.MessageSeenIndicator";

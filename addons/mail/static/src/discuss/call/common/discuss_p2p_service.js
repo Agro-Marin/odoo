@@ -14,6 +14,7 @@ export const discussP2P = {
         });
         services["bus_service"].subscribe(
             "discuss.channel.rtc.session/peer_notification",
+            /** @param {{sender: number, notifications: Array<string>}} payload */
             ({ sender, notifications }) => {
                 for (const content of notifications) {
                     p2p.handleNotification(sender, content);

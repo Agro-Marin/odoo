@@ -16,13 +16,17 @@ patch(DiscussSidebarCallParticipants.prototype, {
             "o-active cursor-pointer rounded-4": this.session.persona?.main_user_id,
         };
     },
+    /**
+     * @param {MouseEvent} ev
+     * @param {import("models").RtcSession} session
+     */
     onClickParticipant(ev, session) {
-        if (!session.persona?.main_user_id) {
+        if (!session.partner_id?.main_user_id) {
             return;
         }
         if (!this.avatarCard.isOpen) {
             this.avatarCard.open(ev.currentTarget, {
-                id: session.persona.main_user_id.id,
+                id: session.partner_id.main_user_id.id,
             });
         }
     },

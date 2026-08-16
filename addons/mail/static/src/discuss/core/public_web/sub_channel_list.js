@@ -11,9 +11,9 @@ import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 /**
  * @typedef {Object} Props
- * @property {import("@mail/core/common/thread_model").Thread} thread
+ * @property {import("models").Thread} thread
  * @property {function} [close]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class SubChannelList extends Component {
     static template = "mail.SubChannelList";
@@ -33,16 +33,20 @@ export class SubChannelList extends Component {
         this.searchRef = useRef("search");
         this.sequential = makeSequential();
         useAutofocus({ refName: "search" });
-        this.loadMoreState = useVisible("load-more", (isVisible) => {
-            if (isVisible) {
-                this.props.thread.loadMoreSubChannels({
-                    searchTerm: this.state.searching
-                        ? this.state.searchTerm
-                        : undefined,
-                });
-            }
-        });
+        this.loadMoreState = useVisible(
+            "load-more",
+            /** @param {boolean} isVisible */ (isVisible) => {
+                if (isVisible) {
+                    this.props.thread.loadMoreSubChannels({
+                        searchTerm: this.state.searching
+                            ? this.state.searchTerm
+                            : undefined,
+                    });
+                }
+            },
+        );
         useEffect(
+            /** @param {string|undefined} searchTerm */
             (searchTerm) => {
                 if (!searchTerm) {
                     this.clearSearch();
@@ -58,6 +62,7 @@ export class SubChannelList extends Component {
         });
     }
 
+    /** @param {import("models").Thread} subThread */
     async onClickSubThread(subThread) {
         if (!subThread.hasSelfAsMember) {
             await rpc("/discuss/channel/join", { channel_id: subThread.id });
@@ -74,13 +79,12 @@ export class SubChannelList extends Component {
         this.state.searching = false;
         this.state.loading = false;
         this.state.subChannels = this.props.thread.sub_channel_ids;
-        // Drop the search pagination cursor too, so re-running the *same*
-        // query later starts from the first page.
         this.props.thread.subChannelSearchTerm = "";
         this.props.thread.lastSearchSubChannelLoaded = null;
         this.props.thread.searchSubChannelsDone = false;
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydownSearch(ev) {
         if (ev.key === "Enter") {
             this.search();
@@ -118,7 +122,7 @@ export class SubChannelList extends Component {
         this.state.subChannels = fuzzyLookup(
             this.state.searchTerm ?? "",
             this.props.thread.sub_channel_ids,
-            ({ name }) => name,
+            /** @param {import("models").Thread} thread */ ({ name }) => name,
         );
     }
 }

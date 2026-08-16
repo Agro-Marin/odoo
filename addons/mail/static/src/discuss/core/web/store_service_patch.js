@@ -3,19 +3,13 @@ import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";
-/** @type {import("models").Store} */
+/**
+ * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
+ */
 const StorePatch = {
     setup() {
         super.setup(...arguments);
         this.initChannelsUnreadCounter = 0;
-        /**
-         * Channels carrying unread or needaction messages, maintained by each
-         * thread (@see Thread.storeAsCounterChannel). Scanning `Thread.records`
-         * for them made `globalCounter` an observer of the counters of every
-         * thread in the store, so it re-ran in full on every message that
-         * changed one: measured at ~1.1ms per recompute with 200 threads
-         * loaded, i.e. ~34ms across a burst of twenty messages.
-         */
         this.counterChannels = fields.Many("Thread", {
             inverse: "storeAsCounterChannel",
         });
@@ -24,16 +18,9 @@ const StorePatch = {
         if (!this.Thread) {
             return super.computeGlobalCounter();
         }
-        // single pass over Thread.records: this eager compute re-runs on every
-        // thread counter mutation (its onUpdate refreshes the app badge)
         const channelsFetched = this.channels.status === "fetched";
         let channelsContribution = channelsFetched ? 0 : this.initChannelsUnreadCounter;
-        // Needactions are already counted in the super call, but we want to
-        // discard them for channels so there is only +1 per channel.
         let channelsNeedactionCounter = 0;
-        // Only channels with something to count: membership already implies the
-        // "has unread or needaction" test the contribution used to make, and a
-        // channel outside the set adds 0 to the needaction sum by definition.
         for (const thread of this.counterChannels) {
             if (
                 channelsFetched &&

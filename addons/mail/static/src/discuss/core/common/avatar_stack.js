@@ -4,14 +4,11 @@ import { Component } from "@odoo/owl";
 /**
  * @typedef {Object} Props
  * @prop {(persona: import("models").ResPartner|import("models").MailGuest) => string} [avatarClass]
- * Function used to determine extra classes for the avatars.
- * @prop {Array} personas List of personas to display in the stack.
- * @prop {"v"|"h"} [direction] Determine the direction of the
- * stack (vertical or horizontal).
- * @prop {number} [max] Maximum number of personas to display in the stack. An
- * hidden count will be displayed if there are more personas than max.
- * @prop {number} [size] Size of the avatars, in pixel.
- * @extends {Component<Props, Env>}
+ * @prop {Array} personas
+ * @prop {"v"|"h"} [direction]
+ * @prop {number} [max]
+ * @prop {number} [size]
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class AvatarStack extends Component {
     static template = "mail.AvatarStack";
@@ -20,6 +17,7 @@ export class AvatarStack extends Component {
         direction: {
             type: String,
             optional: true,
+            /** @param {string} d */
             validate: (d) => ["v", "h"].includes(d),
         },
         avatarClass: { type: Function, optional: true },
@@ -37,6 +35,10 @@ export class AvatarStack extends Component {
         direction: "h",
     };
 
+    /**
+     * @param {number} index
+     * @returns {string}
+     */
     getStyle(index) {
         const styles = [
             "box-sizing: content-box",

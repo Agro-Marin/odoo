@@ -5,11 +5,14 @@ import { compareDatetime } from "@mail/utils/common/misc";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-/** @type {import("models").Thread} */
+/**
+ * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
+ */
 const threadPatch = {
     setup() {
         super.setup(...arguments);
         this.appAsUnreadChannels = fields.One("DiscussApp", {
+            /** @this {import("models").Thread} */
             compute() {
                 return this.channel_type === "channel" && this.isUnread
                     ? this.store.discuss
@@ -17,6 +20,7 @@ const threadPatch = {
             },
         });
         this.categoryAsThreadWithCounter = fields.One("DiscussAppCategory", {
+            /** @this {import("models").Thread} */
             compute() {
                 return this.displayInSidebar && this.importantCounter > 0
                     ? this.discussAppCategory
@@ -24,12 +28,14 @@ const threadPatch = {
             },
         });
         this.discussAppCategory = fields.One("DiscussAppCategory", {
+            /** @this {import("models").Thread} */
             compute() {
                 return this._computeDiscussAppCategory();
             },
         });
         this.from_message_id = fields.One("mail.message");
         this.parent_channel_id = fields.One("Thread", {
+            /** @this {import("models").Thread} */
             onDelete() {
                 this.delete();
             },
@@ -40,6 +46,7 @@ const threadPatch = {
                 compareDatetime(b.lastInterestDt, a.lastInterestDt) || b.id - a.id,
         });
         this.displayInSidebar = fields.Attr(false, {
+            /** @this {import("models").Thread} */
             compute() {
                 return this._computeDisplayInSidebar();
             },
@@ -47,8 +54,6 @@ const threadPatch = {
         this.loadSubChannelsDone = false;
         /** @type {import("models").Thread|null} */
         this.lastSubChannelLoaded = null;
-        // Searching paginates independently of the full list: the two cursors
-        // describe different result sets and must never write each other.
         this.searchSubChannelsDone = false;
         /** @type {import("models").Thread|null} */
         this.lastSearchSubChannelLoaded = null;
@@ -57,18 +62,15 @@ const threadPatch = {
     get canLeave() {
         return !this.parent_channel_id && super.canLeave;
     },
-    /** @override */
     get canUnpin() {
         return Boolean(this.parent_channel_id) || super.canUnpin;
     },
-    /** @override */
     get fullNameWithParent() {
         if (this.parent_channel_id) {
             return `${this.parent_channel_id.displayName} > ${this.displayName}`;
         }
         return super.fullNameWithParent;
     },
-    /** @override */
     get composerPlaceholder() {
         if (this.channel_type === "channel" && this.parent_channel_id) {
             return _t('Message "%(subChannelName)s"', {
@@ -77,14 +79,12 @@ const threadPatch = {
         }
         return super.composerPlaceholder;
     },
-    /** @override */
     get conversationStartTitle() {
         if (this.parent_channel_id) {
             return this.name;
         }
         return super.conversationStartTitle;
     },
-    /** @override */
     get conversationStartSubtitle() {
         if (this.parent_channel_id) {
             const authorName = Object.values(this.store["res.partner"].records).find(
@@ -149,7 +149,6 @@ const threadPatch = {
      */
     async loadMoreSubChannels({ searchTerm } = {}) {
         if (searchTerm && searchTerm !== this.subChannelSearchTerm) {
-            // New query: restart its pagination from the top.
             this.subChannelSearchTerm = searchTerm;
             this.lastSearchSubChannelLoaded = null;
             this.searchSubChannelsDone = false;
@@ -178,8 +177,6 @@ const threadPatch = {
             this.eq(thread.parent_channel_id),
         );
         if (searchTerm) {
-            // Advance the *search* cursor only, and judge exhaustion on what
-            // the server returned, not on what survives the parent filter.
             this.lastSearchSubChannelLoaded = subChannels.reduce(
                 (min, channel) => (!min || channel.id < min.id ? channel : min),
                 this.lastSearchSubChannelLoaded,
@@ -187,8 +184,6 @@ const threadPatch = {
             if (sub_channel_ids.length < limit) {
                 this.searchSubChannelsDone = true;
             }
-            // Return nothing: the caller renders search results from the
-            // store, not from this (possibly holed) slice.
             return;
         }
         this.lastSubChannelLoaded = subChannels.reduce(
@@ -209,7 +204,6 @@ const threadPatch = {
             this.sub_channel_ids.forEach((c) => (c.isLocallyPinned = false));
         }
     },
-    /** @override */
     openChannel() {
         if (this.store.discuss.isActive && !this.store.env.services.ui.isSmall) {
             this.setAsDiscussThread();

@@ -9,6 +9,8 @@ import { Component, xml } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { Dialog } from "@web/ui/dialog";
 import { usePopover } from "@web/ui/popover";
+
+/** @typedef {import("@mail/core/common/thread_actions").ActionParams} ActionParams */
 class ChannelActionDialog extends Component {
     static props = ["title", "contentComponent", "contentProps", "close?"];
     static components = { Dialog };
@@ -21,10 +23,12 @@ class ChannelActionDialog extends Component {
 
 registerThreadAction("notification-settings", {
     actionPanelComponent: NotificationSettings,
+    /** @param {ActionParams} params */
     condition: ({ owner, store, thread }) =>
         thread?.model === "discuss.channel" &&
         store.self_partner &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen),
+    /** @param {ActionParams} params */
     setup({ owner }) {
         if (!owner.props.chatWindow) {
             this.popover = usePopover(NotificationSettings, {
@@ -35,6 +39,7 @@ registerThreadAction("notification-settings", {
             });
         }
     },
+    /** @param {ActionParams} params */
     open({ owner, store, thread }) {
         if (owner.isDiscussSidebarChannelActions || owner.env.inMeetingView) {
             store.env.services.dialog?.add(ChannelActionDialog, {
@@ -49,7 +54,9 @@ registerThreadAction("notification-settings", {
             });
         }
     },
+    /** @param {ActionParams} params */
     close: ({ action }) => action.popover?.close(),
+    /** @param {ActionParams} params */
     icon: ({ thread }) =>
         thread.self_member_id?.mute_until_dt
             ? "fa-solid fa-bell-slash text-danger"
@@ -62,6 +69,7 @@ registerThreadAction("notification-settings", {
 });
 registerThreadAction("attachments", {
     actionPanelComponent: AttachmentPanel,
+    /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
         thread?.hasAttachmentPanel &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen) &&
@@ -74,17 +82,22 @@ registerThreadAction("attachments", {
 });
 registerThreadAction("invite-people", {
     actionPanelComponent: ChannelInvitation,
+    /** @param {ActionParams} params */
     actionPanelComponentProps: ({ action }) => ({ close: () => action.close() }),
+    /** @param {ActionParams} params */
     close: ({ action }) => action.popover?.close(),
+    /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
         thread?.model === "discuss.channel" &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen),
+    /** @param {ActionParams} params */
     panelOuterClass: ({ owner }) =>
         `o-discuss-ChannelInvitation ${
             owner.props.chatWindow ? "bg-inherit" : ""
         } bg-100 border border-secondary`,
     icon: "oi oi-fw oi-user-plus",
     name: _t("Invite People"),
+    /** @param {ActionParams} params */
     open({ owner, store, thread }) {
         if (owner.isDiscussSidebarChannelActions) {
             store.env.services.dialog?.add(ChannelActionDialog, {
@@ -103,8 +116,10 @@ registerThreadAction("invite-people", {
             });
         }
     },
+    /** @param {ActionParams} params */
     sequence: ({ owner }) => (owner.isDiscussSidebarChannelActions ? 20 : 10),
     sequenceGroup: 20,
+    /** @param {ActionParams} params */
     setup({ owner }) {
         if (!owner.props.chatWindow && !owner.env.inMeetingView) {
             this.popover = usePopover(ChannelInvitation, {
@@ -116,11 +131,13 @@ registerThreadAction("invite-people", {
     toggle: true,
 });
 registerThreadAction("mark-read", {
+    /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
         thread?.self_member_id &&
         thread.self_member_id.message_unread_counter > 0 &&
         !thread.self_member_id.mute_until_dt &&
         owner.isDiscussSidebarChannelActions,
+    /** @param {ActionParams} params */
     open: ({ owner }) => owner.thread.markAsRead(),
     icon: "fa-solid fa-check",
     name: _t("Mark Read"),
@@ -129,22 +146,25 @@ registerThreadAction("mark-read", {
 });
 registerThreadAction("delete-thread", {
     actionPanelComponent: DeleteThreadDialog,
+    /** @param {ActionParams} params */
     actionPanelComponentProps({ action }) {
         return { close: () => action.close() };
     },
+    /** @param {ActionParams} params */
     condition({ owner, store, thread }) {
         return (
             thread?.parent_channel_id &&
-            store.self.main_user_id?.eq(thread.create_uid) &&
+            store.self_partner?.main_user_id?.eq(thread.create_uid) &&
             !owner.isDiscussContent
         );
     },
     panelOuterClass: "bg-100",
     icon: "fa-solid fa-trash-can",
-    iconLarge: "fa-solid fa-trash-can fa-lg",
     name: _t("Delete Thread"),
+    /** @param {ActionParams} params */
     close: ({ action }) => action.popover?.close(),
     toggle: true,
+    /** @param {ActionParams} params */
     open: ({ action, owner, store, thread }) => {
         if (owner.isDiscussSidebarChannelActions) {
             store.env.services.dialog?.add(ChannelActionDialog, {
@@ -157,6 +177,7 @@ registerThreadAction("delete-thread", {
             });
         }
     },
+    /** @param {ActionParams} params */
     sequence: ({ owner }) => (owner.props.chatWindow ? 50 : 40),
     sequenceGroup: 40,
     tags: [ACTION_TAGS.DANGER],

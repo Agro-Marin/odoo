@@ -8,12 +8,14 @@ import { rpc } from "@web/core/network";
 import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-// Server page size for /discuss/gif/favorites.
 const GIF_FAVORITES_LIMIT = 20;
+/**
+ * @param {...any} args
+ * @returns {ReturnType<typeof usePicker>}
+ */
 export function useGifPicker(...args) {
     return usePicker(GifPicker, ...args);
 }
-
 /**
  * @typedef {Object} TenorCategory
  * @property {string} searchterm
@@ -21,7 +23,6 @@ export function useGifPicker(...args) {
  * @property {string} image
  * @property {string} name
  */
-
 /**
  * @typedef {Object} TenorMediaFormat
  * @property {string} url
@@ -30,7 +31,6 @@ export function useGifPicker(...args) {
  * @property {number[]} dims
  * @property {number} size
  */
-
 /**
  * @typedef {Object} TenorGif
  * @property {string} id
@@ -44,14 +44,13 @@ export function useGifPicker(...args) {
  * @property {boolean} hasaudio
  * @property {{ tinygif: TenorMediaFormat }} media_formats
  */
-
 /**
  * @typedef {Object} Props
- * @property {function} onSelect Callback to use when the gif is selected
+ * @property {function} onSelect
  * @property {string} [className]
  * @property {function} [close]
  * @property {Object} [state]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 
 export class GifPicker extends Component {
@@ -97,13 +96,11 @@ export class GifPicker extends Component {
             evenGif: {
                 /** @type {Map<Number, TenorGif>} */
                 gifs: new Map(),
-                /** Size, in pixel, of the column. */
                 columnSize: 0,
             },
             oddGif: {
                 /** @type {Map<Number, TenorGif>} */
                 gifs: new Map(),
-                /** Size, in pixel, of the column. */
                 columnSize: 0,
             },
             focused: false,
@@ -142,6 +139,7 @@ export class GifPicker extends Component {
         return this.props.state ? this.props.state.searchTerm : this.state.searchTerm;
     }
 
+    /** @param {string} value */
     set searchTerm(value) {
         if (this.props.state) {
             this.props.state.searchTerm = value;
@@ -197,8 +195,6 @@ export class GifPicker extends Component {
             }
             const term = this.searchTerm;
             const res = await this.sequential(async () => {
-                // build params inside the callback so a queued call uses the
-                // up-to-date pagination token, not the one captured on schedule
                 const params = {
                     country: region,
                     locale: `${language}_${region}`,
@@ -217,8 +213,6 @@ export class GifPicker extends Component {
                 }
             });
             if (res && term === this.searchTerm) {
-                // a stale response would repollute the cleared columns and
-                // poison `next` with a token bound to the previous query
                 const { next, results } = res;
                 this.next = next;
                 for (const gif of results) {
@@ -231,9 +225,7 @@ export class GifPicker extends Component {
         }
     }
 
-    /**
-     * @param {TenorGif} gif
-     */
+    /** @param {TenorGif} gif */
     pushGif(gif) {
         if (this.state.evenGif.columnSize <= this.state.oddGif.columnSize) {
             this.state.evenGif.gifs.set(gif.id, gif);
@@ -244,9 +236,7 @@ export class GifPicker extends Component {
         }
     }
 
-    /**
-     * @param {TenorGif} gif
-     */
+    /** @param {TenorGif} gif */
     onClickGif(gif) {
         this.props.onSelect(gif, true);
         this.props.close?.();
@@ -257,14 +247,10 @@ export class GifPicker extends Component {
         this.state.evenGif.columnSize = 0;
         this.state.oddGif.gifs.clear();
         this.state.oddGif.columnSize = 0;
-        // the pagination token is bound to the previous query: reusing it for
-        // a new search term returns a wrong/empty page.
         this.next = "";
     }
 
-    /**
-     * @param {TenorCategory} category
-     */
+    /** @param {TenorCategory} category */
     async onClickCategory(category) {
         this.clear();
         this.searchTerm = category.searchterm;
@@ -272,9 +258,7 @@ export class GifPicker extends Component {
         this.closeCategories();
     }
 
-    /**
-     * @param {TenorGif} gif
-     */
+    /** @param {TenorGif} gif */
     async onClickFavorite(gif) {
         if (!this.isFavorite(gif)) {
             this.state.favorites.gifs.push(gif);
@@ -295,8 +279,6 @@ export class GifPicker extends Component {
             );
         }
         if (this.showFavorite) {
-            // the favorites view renders from the evenGif/oddGif columns, not
-            // state.favorites.gifs: rebuild them to reflect the toggle
             this.clear();
             for (const favorite of this.state.favorites.gifs) {
                 this.pushGif(favorite);
@@ -305,8 +287,6 @@ export class GifPicker extends Component {
     }
 
     async loadFavorites() {
-        // Reentrancy guard: onWillStart and the bottom-scroll debounce both
-        // call this, and overlapping runs would read the same `offset`.
         if (
             !this.store.hasGifPickerFeature ||
             this.favoritesAllLoaded ||
@@ -325,15 +305,11 @@ export class GifPicker extends Component {
             this.offset += results.length;
             this.state.favorites.gifs.push(...results);
             if (this.showFavorite) {
-                // the favorites view renders from the evenGif/oddGif columns,
-                // so pages after the first must be pushed into them too
                 for (const gif of results) {
                     this.pushGif(gif);
                 }
             }
             if (results.length < GIF_FAVORITES_LIMIT) {
-                // Short (or empty) page => end of list; stop paginating so
-                // bottom-scrolling doesn't fire endless empty RPCs.
                 this.favoritesAllLoaded = true;
             }
         } catch {
@@ -344,9 +320,7 @@ export class GifPicker extends Component {
         }
     }
 
-    /**
-     * @param {TenorGif} gif
-     */
+    /** @param {TenorGif} gif */
     isFavorite(gif) {
         return this.state.favorites.gifs
             .map((favorite) => favorite.id)
@@ -354,8 +328,6 @@ export class GifPicker extends Component {
     }
 
     onClickFavoritesCategory() {
-        // clear the previous category/search results first, otherwise
-        // favorites stack under them and duplicate on toggling back
         this.clear();
         this.showFavorite = true;
         for (const gif of this.state.favorites.gifs) {

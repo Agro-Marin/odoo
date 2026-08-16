@@ -6,7 +6,7 @@ import { _t } from "@web/core/translation";
  * @property {import("models").Thread} channel
  * @property {string} [size]
  * @property {boolean} [displayText]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Typing extends Component {
     static defaultProps = {

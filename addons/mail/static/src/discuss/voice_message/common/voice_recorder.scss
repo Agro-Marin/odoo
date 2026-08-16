@@ -20,8 +20,6 @@
     }
 }
 
-
-// The dark half, folded in from `voice_recorder.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-VoiceRecorder.o-recording {

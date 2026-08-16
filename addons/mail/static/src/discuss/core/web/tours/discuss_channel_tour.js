@@ -56,6 +56,7 @@ registry.category("web_tour.tours").add("discuss_channel_tour", {
                 ".o-mail-Message[data-persistent] [title='Add Star']:not(:visible)",
             content: _t("Hover on your message and add a star"),
             tooltipPosition: "top",
+            /** @param {import("@web_tour/js/tour_automatic/tour_helpers").TourHelpers} helpers */
             async run(helpers) {
                 await delay(1000);
                 await helpers.click();

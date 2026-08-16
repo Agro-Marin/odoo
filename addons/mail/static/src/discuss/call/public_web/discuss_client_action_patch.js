@@ -8,10 +8,6 @@ patch(DiscussClientAction.prototype, {
         super.setup(...arguments);
         this.rtc = useService("discuss.rtc");
     },
-    /**
-     * Checks if we are in a client action and if we have a query parameter requesting to join a call,
-     * if so, the call is joined on the current discuss thread.
-     */
     async restoreDiscussThread() {
         const hasFullScreenUrl = new URL(browser.location.href).searchParams.has(
             "fullscreen",

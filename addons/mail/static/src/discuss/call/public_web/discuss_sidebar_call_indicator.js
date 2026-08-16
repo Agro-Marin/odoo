@@ -6,7 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {import(models").Thread} thread
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSidebarCallIndicator extends Component {
     static template = "mail.DiscussSidebarCallIndicator";

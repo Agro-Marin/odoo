@@ -1,18 +1,15 @@
 .o-mail-CallContextMenu-volumeTooltip {
-    /* Visibility */
     visibility: hidden;
     opacity: 0;
     transition:
         visibility 0s,
         opacity 0.2s ease-out;
 
-    /* Positioning */
     position: absolute;
     bottom: 150%;
     left: calc(var(--progress) - 0.13 * (var(--progress)));
     transform: translateX(calc(-50% + 8px));
 
-    /* Appearance */
     background-color: #212529;
     color: #f9fafb;
     padding: 4px 10px;

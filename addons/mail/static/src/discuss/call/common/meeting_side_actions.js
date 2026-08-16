@@ -6,8 +6,8 @@ import { useService } from "@web/core/utils/hooks";
 
 /**
  * @typedef {Object} Props
- * @property {import("@mail/core/common/thread_actions").UseThreadActions} threadActions
- * @extends {Component<Props, Env>}
+ * @property {ReturnType<typeof import("@mail/core/common/thread_actions").useThreadActions>} threadActions
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class MeetingSideActions extends Component {
     static template = "mail.MeetingSideActions";

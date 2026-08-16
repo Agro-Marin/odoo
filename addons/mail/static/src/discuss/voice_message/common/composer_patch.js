@@ -15,6 +15,7 @@ patch(Composer.prototype, {
     get isSendButtonDisabled() {
         return this.voiceRecorder?.recording || super.isSendButtonDisabled;
     },
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         if (ev.key === "Enter" && this.voiceRecorder?.recording) {
             ev.preventDefault();

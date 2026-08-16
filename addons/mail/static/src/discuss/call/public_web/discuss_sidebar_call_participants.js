@@ -13,7 +13,7 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSidebarCallParticipants extends Component {
     static template = "mail.DiscussSidebarCallParticipants";
@@ -36,6 +36,10 @@ export class DiscussSidebarCallParticipants extends Component {
         this.CALL_ICON_DEAFEN = CALL_ICON_DEAFEN;
         this.CALL_ICON_MUTED = CALL_ICON_MUTED;
         useEffect(
+            /**
+             * @param {import("models").RtcSession|undefined} selfSession
+             * @param {boolean} compact
+             */
             (selfSession, compact) => {
                 if (selfSession?.in(this.sessions) && !compact) {
                     this.state.expanded = true;
@@ -94,9 +98,7 @@ export class DiscussSidebarCallParticipants extends Component {
         });
     }
 
-    /**
-     * @param {import("models").Persona} persona
-     */
+    /** @param {import("models").Persona} persona */
     avatarClass(persona) {
         return persona.currentRtcSession?.isActuallyTalking
             ? "o-mail-DiscussSidebarCallParticipants-avatar o-isTalking"
@@ -116,5 +118,9 @@ export class DiscussSidebarCallParticipants extends Component {
             : _t("Expand participants");
     }
 
+    /**
+     * @param {MouseEvent} ev
+     * @param {import("models").RtcSession} session
+     */
     onClickParticipant(ev, session) {}
 }

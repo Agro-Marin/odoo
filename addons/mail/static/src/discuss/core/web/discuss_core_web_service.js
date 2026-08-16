@@ -19,10 +19,8 @@ export class DiscussCoreWeb {
     setup() {
         this.busService.subscribe(
             "res.users/connection",
+            /** @param {{partnerId: number, username: string}} payload */
             async ({ partnerId, username }) => {
-                // If the current user invited a new user, and the new user is
-                // connecting for the first time while the current user is present
-                // then open a chat for the current user with the new user.
                 const notification = _t(
                     "%(user)s just connected for the first time. Wish them luck!",
                     {
@@ -41,15 +39,12 @@ export class DiscussCoreWeb {
         );
         this.env.bus.addEventListener(
             "mail.message/delete",
+            /** @param {CustomEvent<{message: import("models").Message}>} ev */
             ({ detail: { message } }) => {
                 if (
                     message.thread?.model === "discuss.channel" &&
                     this.store.channels.status !== "fetched"
                 ) {
-                    // initChannelsUnreadCounter (used only until the channel
-                    // list is fetched) becomes unreliable: drop the cached
-                    // result so the channels are fetched again. Once fetched,
-                    // the counter derives from Thread records instead.
                     this.store.channels.invalidate();
                     this.store.channels.fetch();
                 }

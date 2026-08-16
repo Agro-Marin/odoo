@@ -11,7 +11,7 @@
     }
 
     &.o-isOdooCommunity {
-        height: $o-navbar-height - 20px !important; // same button height as in enterprise.
+        height: $o-navbar-height - 20px !important;
         overflow: hidden;
         color: o-token(--o-action, $o-action) !important;
     }

@@ -22,6 +22,7 @@ export class WelcomePage extends Component {
         });
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydownInput(ev) {
         if (ev.key === "Enter") {
             this.joinChannel();

@@ -9,7 +9,6 @@ patch(DiscussClientAction.prototype, {
     setup() {
         super.setup(...arguments);
         if (this.store.isChannelTokenSecret) {
-            // Change the URL to avoid leaking the invitation link.
             browser.history.replaceState(
                 browser.history.state,
                 null,
@@ -19,8 +18,6 @@ patch(DiscussClientAction.prototype, {
         const url = new URL(browser.location.href);
         url.searchParams.delete("email_token");
         browser.history.replaceState(browser.history.state, null, url.toString());
-        // useExternalListener auto-removes on unmount, unlike a bare
-        // browser.addEventListener which would leak on every remount
         useExternalListener(browser, "popstate", () =>
             this.restoreDiscussThread(this.props),
         );

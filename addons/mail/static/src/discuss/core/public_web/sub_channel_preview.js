@@ -9,6 +9,10 @@ export class SubChannelPreview extends Component {
     static template = "mail.SubChannelPreview";
     static props = ["class?", "onClick?", "thread"];
 
+    /**
+     * @param {import("models").Message} message
+     * @returns {string}
+     */
     dateText(message) {
         if (isToday(message.datetime)) {
             return message.datetime?.toLocaleString(DateTime.TIME_SIMPLE);

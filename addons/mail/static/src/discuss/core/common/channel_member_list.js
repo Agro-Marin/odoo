@@ -17,11 +17,13 @@ export class ChannelMemberList extends Component {
                 this.props.thread.fetchChannelMembers();
             }
         });
-        onWillUpdateProps((nextProps) => {
-            if (nextProps.thread.fetchMembersState === "not_fetched") {
-                nextProps.thread.fetchChannelMembers();
-            }
-        });
+        onWillUpdateProps(
+            /** @param {{thread: import("models").Thread}} nextProps */ (nextProps) => {
+                if (nextProps.thread.fetchMembersState === "not_fetched") {
+                    nextProps.thread.fetchChannelMembers();
+                }
+            },
+        );
     }
 
     get onlineSectionText() {
@@ -36,12 +38,22 @@ export class ChannelMemberList extends Component {
         });
     }
 
+    /**
+     * @param {import("models").ChannelMember} member
+     * @returns {boolean}
+     */
     canOpenChatWith(member) {
         return (
-            !this.store.inPublicPage && !member.guest_id && member.persona.main_user_id
+            !this.store.inPublicPage &&
+            !member.guest_id &&
+            member.partner_id.main_user_id
         );
     }
 
+    /**
+     * @param {MouseEvent} ev
+     * @param {import("models").ChannelMember} member
+     */
     onClickAvatar(ev, member) {
         if (!this.canOpenChatWith(member)) {
             return;

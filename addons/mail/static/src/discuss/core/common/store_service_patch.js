@@ -3,19 +3,15 @@ import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";
 import { debounce } from "@web/core/utils/timing";
-/** @type {import("models").Store} */
+/**
+ * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
+ */
 const storeServicePatch = {
-    /** @override */
     setup() {
         super.setup();
         /** @type {Map<number, Deferred>} */
         this.channelIdsFetchingDeferred = new Map();
-        /**
-         * Defines channel types that have the message seen indicator/info feature.
-         * @see `discuss.channel`._types_allowing_seen_infos()
-         *
-         * @type {string[]}
-         */
+        /** @type {string[]} */
         this.channel_types_with_seen_infos = [];
         this.updateBusSubscription = debounce(
             () => this.env.services.bus_service.forceUpdateChannels(),
@@ -54,12 +50,7 @@ const storeServicePatch = {
             await this.fetchStoreData("discuss.channel", [channelId]);
         }
     },
-    /**
-     * List of known partner ids with a direct chat, ordered
-     * by most recent interest (1st item being the most recent)
-     *
-     * @returns {number[]}
-     */
+    /** @returns {number[]} */
     getRecentChatPartnerIds() {
         return Object.values(this.Thread.records)
             .filter(
@@ -77,9 +68,6 @@ const storeServicePatch = {
      * @param {import("models").ChannelMember} m2
      */
     sortMembers(m1, m2) {
-        // a member's name can be non-string: `false` for a nameless partner,
-        // `undefined` while the persona is not inserted yet (member sorts run
-        // eagerly on insert). Fall back to id order in those cases.
         return (m1.name || "").localeCompare(m2.name || "") || m1.id - m2.id;
     },
     /** @param {number[]} partnerIds */

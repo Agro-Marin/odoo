@@ -8,7 +8,9 @@ export const CALL_PROMOTE_FULLSCREEN = Object.freeze({
     DISCARDED: "DISCARDED",
 });
 
-/** @type {import("models").Thread} */
+/**
+ * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
+ */
 const ThreadPatch = {
     setup() {
         super.setup(...arguments);
@@ -49,9 +51,9 @@ const ThreadPatch = {
                     (id) => !this.lastSessionIds.has(id),
                 );
                 if (
-                    !hadSelfSession || // sound for self-join is played instead
-                    !this.hadSelfSession || // sound for self-leave is played instead
-                    !(await this.store.env.services["multi_tab"].isOnMainTab()) // another tab playing sound
+                    !hadSelfSession ||
+                    !this.hadSelfSession ||
+                    !(await this.store.env.services["multi_tab"].isOnMainTab())
                 ) {
                     return;
                 }
@@ -65,11 +67,13 @@ const ThreadPatch = {
             },
         });
         this.videoCountNotSelf = fields.Attr(0, {
+            /** @this {import("models").Thread} */
             compute() {
                 return this.rtc_session_ids.filter(
                     (s) => s.hasVideo && s.notEq(this.store.rtc.selfSession),
                 ).length;
             },
+            /** @this {import("models").Thread} */
             onUpdate() {
                 if (this.promoteFullscreen === CALL_PROMOTE_FULLSCREEN.DISCARDED) {
                     return;
@@ -81,6 +85,7 @@ const ThreadPatch = {
             },
         });
         this.videoCount = fields.Attr(0, {
+            /** @this {import("models").Thread} */
             compute() {
                 return this.rtc_session_ids.filter((s) => s.hasVideo).length;
             },
@@ -88,6 +93,7 @@ const ThreadPatch = {
         this.focusStack = fields.Many("discuss.channel.rtc.session");
         /** @type {import("@mail/discuss/call/common/call").CardData[]} */
         this.visibleCards = fields.Attr([], {
+            /** @this {import("models").Thread} */
             compute() {
                 const raisingHandCards = [];
                 const sessionCards = [];
@@ -153,9 +159,6 @@ const ThreadPatch = {
                 ) {
                     return this.store.rtc.selfSession.is_camera_on;
                 }
-                // guard the parse: a missing key can read back as ``undefined``
-                // (test storage patches) or as the literal string "undefined",
-                // and ``JSON.parse`` throws on both, aborting the store insert
                 const raw = localStorage.getItem(
                     `discuss_channel_camera_default_${this.id}`,
                 );
@@ -209,15 +212,14 @@ const ThreadPatch = {
         otherStreamingSession.mainVideoStreamType =
             otherStreamingSession.is_screen_sharing_on ? "screen" : "camera";
     },
+    /** @param {Object} [options] */
     open(options) {
         if (this.store.fullscreenChannel?.notEq(this)) {
             this.store.rtc.exitFullscreen();
         }
         return super.open(...arguments);
     },
-    /**
-     * @param {import("models").RtcSession} session
-     */
+    /** @param {import("models").RtcSession} session */
     updateCallFocusStack(session) {
         if (
             this.notEq(this.store.rtc?.channel) ||

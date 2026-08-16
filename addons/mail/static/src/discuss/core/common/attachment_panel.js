@@ -9,7 +9,7 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class AttachmentPanel extends Component {
     static components = { ActionPanel, AttachmentList, DateSection };
@@ -25,21 +25,24 @@ export class AttachmentPanel extends Component {
         onWillStart(() => {
             this.props.thread.fetchMoreAttachments();
         });
-        onWillUpdateProps((nextProps) => {
-            if (nextProps.thread.notEq(this.props.thread)) {
-                nextProps.thread.fetchMoreAttachments();
-            }
-        });
-        useVisible("load-older", (isVisible) => {
-            if (isVisible) {
-                this.props.thread.fetchMoreAttachments();
-            }
-        });
+        onWillUpdateProps(
+            /** @param {{thread: import("models").Thread}} nextProps */ (nextProps) => {
+                if (nextProps.thread.notEq(this.props.thread)) {
+                    nextProps.thread.fetchMoreAttachments();
+                }
+            },
+        );
+        useVisible(
+            "load-older",
+            /** @param {boolean} isVisible */ (isVisible) => {
+                if (isVisible) {
+                    this.props.thread.fetchMoreAttachments();
+                }
+            },
+        );
     }
 
-    /**
-     * @return {Object<string, import("models").Attachment[]>}
-     */
+    /** @return {Object<string, import("models").Attachment[]>} */
     get attachmentsByDate() {
         const attachmentsByDate = {};
         for (const attachment of this.props.thread.attachments) {

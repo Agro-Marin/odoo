@@ -11,10 +11,6 @@ import {
 import { getFirstElementOfNode } from "@web/components/dropdown";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
-/**
- * CallDropdown is an alternative to the web popover for calls to make them available
- * in cases where they cannot be overlays (main components), such as in picture-in-picture mode.
- */
 export class CallDropdown extends Component {
     static template = "discuss.CallDropdown";
     static props = {
@@ -57,6 +53,7 @@ export class CallDropdown extends Component {
         });
         this.handleClick = this.handleClick.bind(this);
         useEffect(
+            /** @param {HTMLElement|null} triggerEl */
             (triggerEl) => {
                 if (triggerEl) {
                     triggerEl.addEventListener("click", this.handleClick);
@@ -92,12 +89,14 @@ export class CallDropdown extends Component {
         this.state.isOpen = false;
     }
 
+    /** @param {MouseEvent} ev */
     handleClick(ev) {
         ev.preventDefault();
         ev.stopPropagation();
         this.toggle();
     }
 
+    /** @param {MouseEvent} ev */
     onClickAway(ev) {
         if (!this.isOpen) {
             return;
@@ -110,10 +109,12 @@ export class CallDropdown extends Component {
         }
     }
 
+    /** @param {MouseEvent} ev */
     onClickMenu(ev) {
         ev.stopPropagation();
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         if (ev.key === "Escape" && this.isOpen) {
             ev.preventDefault();

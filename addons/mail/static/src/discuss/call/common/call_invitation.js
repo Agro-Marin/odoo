@@ -42,8 +42,6 @@ export class CallInvitation extends Component {
     get acceptOrRejectActions() {
         const joinUpdated = {
             ...joinAction,
-            // btnClass is optional on the action definitions; avoid the literal
-            // "undefined o-me-0_5" class string when it is unset
             btnClass: (joinAction.btnClass ?? "") + " o-me-0_5",
             onSelected: () => this.joinCall(),
         };
