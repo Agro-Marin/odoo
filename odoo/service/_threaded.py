@@ -169,7 +169,12 @@ class ThreadedServer(CommonServer):
 
         def _run_cron(cr):
             pg_conn = cr.connection
-            arm_cron_listen(cr, cron_logger, channel=channel)
+            arm_cron_listen(
+                cr,
+                cron_logger,
+                channel=channel,
+                disable_idle_timeout=True,
+            )
             cr.commit()
             check_all_time = float("-inf")
             all_db_names = []

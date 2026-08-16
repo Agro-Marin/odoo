@@ -52,10 +52,17 @@ def arm_cron_listen(
     standby (LISTEN/NOTIFY does not work in recovery — the driver falls back to
     its periodic full scan).  The caller commits.
 
-    ``disable_idle_timeout=True`` issues ``SET idle_session_timeout = 0`` first,
-    for ``WorkerCron`` / ``WorkerJob`` whose dedicated connection sits idle
-    waiting for a NOTIFY and must survive PG 18's idle-session reaper.  The
-    threaded drivers recycle on an age limit instead, so they leave it untouched.
+    ``disable_idle_timeout=True`` issues ``SET idle_session_timeout = 0`` first.
+    Every driver that owns a dedicated LISTEN connection needs it: that
+    connection is *designed* to sit idle waiting for a NOTIFY, and it issues no
+    SQL while it waits (``drain_cron_notifies`` reads the socket buffer, which
+    PostgreSQL never sees), so PG 18's idle-session reaper eventually terminates
+    it.  This applies to the prefork ``WorkerCron`` / ``WorkerJob`` *and* to the
+    threaded ``ThreadedServer._listen_thread``: the threaded drivers do recycle
+    on ``limit_time_worker_cron``, but that option defaults to 0 (disabled), so
+    relying on it left the connection reaped every ``idle_session_timeout`` —
+    a WARNING plus a window in which triggers NOTIFYed to the dead session were
+    lost until the next full scan.
     """
     cr.execute("SELECT pg_is_in_recovery()")
     if cr.fetchone()[0]:
