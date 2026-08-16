@@ -32,7 +32,11 @@ from odoo.db import db_connect
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
 from odoo.libs.constants import ODOO_EXTERNAL_LIBS
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
+from odoo.tools.assets.esbuild import (
+    EsbuildCompiler,
+    EsbuildResult,
+    is_module_exact_specifier,
+)
 from odoo.tools.assets.esm_graph import (
     _BridgeExportResolver,
     _scan_import_specifiers,
@@ -2271,4 +2275,81 @@ class TestSecondaryBundleSingletonsBuild(TransactionCase):
             'odoo.loader.modules.get("@web/core/browser/browser")',
             aliased,
             "aliased build must reach browser via the loader singleton",
+        )
+
+
+@tagged("web_unit", "web_assets")
+class TestDynamicChildSpecPartition(TransactionCase):
+    """Every dynamic-child specifier must reach one of the two outcomes that
+    keep the child's module OUT of the parent bundle: a loader shim, or
+    ``--external``.
+
+    Regression guard. ``ir.qweb`` used to call a specifier aliasable whenever it
+    was not a relative ``@web/../lib/…`` form, but the esbuild layer can only
+    wire a MODULE-EXACT ``--alias`` — a bare package specifier (``@spreadsheet``,
+    which is what ``spreadsheet/static/src/index.js`` maps to) was silently
+    dropped there AND excluded from ``dynamic_child_specs``, so it reached
+    neither outcome and resolved through the ``@addon`` package alias instead:
+    a second copy of the whole child package inlined into ``web.assets_web``,
+    with the child bundle registering its own. It announced itself as an
+    ``esbuild: event=bare_package_stub_skipped`` WARNING on every rebuild.
+    """
+
+    def test_partition_is_total(self):
+        """No specifier is lost: the two halves reconstruct the input."""
+        specs = {
+            "@web/core/registry",
+            "@spreadsheet",
+            "@web/../lib/foo/bar",
+            "../relative/mod",
+        }
+        aliasable, externals = self.env["ir.qweb"]._partition_dynamic_child_specs(specs)
+        self.assertEqual(aliasable | externals, specs)
+        self.assertFalse(aliasable & externals)
+
+    def test_bare_package_specifiers_are_externalized(self):
+        """A bare ``@addon`` specifier cannot be shimmed, so it must go external."""
+        aliasable, externals = self.env["ir.qweb"]._partition_dynamic_child_specs(
+            {"@spreadsheet", "@spreadsheet_account", "@web/core/registry"}
+        )
+        self.assertEqual(aliasable, frozenset({"@web/core/registry"}))
+        self.assertEqual(externals, frozenset({"@spreadsheet", "@spreadsheet_account"}))
+
+    def test_relative_specifiers_stay_external(self):
+        """esbuild normalises ``/../`` away, so those keep their old outcome."""
+        _aliasable, externals = self.env["ir.qweb"]._partition_dynamic_child_specs(
+            {"@web/../lib/foo/bar", "../relative/mod"}
+        )
+        self.assertEqual(externals, frozenset({"@web/../lib/foo/bar", "../relative/mod"}))
+
+    def test_every_aliasable_spec_is_stubbable_by_esbuild(self):
+        """The invariant the two layers must agree on, checked against the REAL
+        dynamic children of ``web.assets_web`` in this database.
+
+        ``is_module_exact_specifier`` is the esbuild layer's own admission rule;
+        anything ``ir.qweb`` hands it as a stub must pass it, or the stub is
+        dropped and the module gets inlined.
+        """
+        IrQweb = self.env["ir.qweb"]
+        parent = "web.assets_web"
+        asset_bundle = IrQweb._get_asset_bundle(
+            parent, js=True, css=False, debug_assets=False, assets_params=None
+        )
+        parent_specs = {a.module_path for a in asset_bundle.native_modules}
+        child_specs = {
+            asset.module_path
+            for child_ab in IrQweb._get_dynamic_child_bundles(
+                parent, None, debug_assets=False
+            )
+            for asset in child_ab.native_modules
+        } - parent_specs
+        self.assertTrue(child_specs, f"expected dynamic children for {parent!r}")
+        aliasable, _externals = IrQweb._partition_dynamic_child_specs(child_specs)
+        unstubbable = sorted(s for s in aliasable if not is_module_exact_specifier(s))
+        self.assertFalse(
+            unstubbable,
+            msg=(
+                f"{unstubbable} would be handed to esbuild as stubs and dropped, "
+                f"then inlined into {parent!r} as a second copy"
+            ),
         )

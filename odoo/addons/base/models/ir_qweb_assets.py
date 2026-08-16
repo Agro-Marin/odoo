@@ -30,7 +30,11 @@ from odoo.libs.constants import (
     TEMPLATE_EXTENSIONS,
 )
 from odoo.modules import module as _module
-from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
+from odoo.tools.assets.esbuild import (
+    EsbuildCompiler,
+    EsbuildResult,
+    is_module_exact_specifier,
+)
 from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,
 )
@@ -1032,19 +1036,15 @@ class IrQweb(models.AbstractModel):
                     )
                     dynamic_child_specs = None
                     if _child_specs:
-                        aliasable = {
-                            s
-                            for s in _child_specs
-                            if "/../" not in s and not s.startswith("../")
-                        }
+                        aliasable, externals = self._partition_dynamic_child_specs(
+                            _child_specs
+                        )
                         if aliasable:
                             child_stubs = asset_bundle._bridges.build_shim_sources(
                                 aliasable
                             )
                             secondary_stubs = {**child_stubs, **secondary_stubs}
-                        dynamic_child_specs = (
-                            frozenset(_child_specs - aliasable) or None
-                        )
+                        dynamic_child_specs = externals or None
                     try:
                         esbuild_result = asset_bundle.esbuild_native_bundle(
                             timeout_s=self._get_esbuild_setting(
@@ -1249,6 +1249,42 @@ class IrQweb(models.AbstractModel):
                 bundle=include_name,
             )
         return include_names
+
+    @staticmethod
+    def _partition_dynamic_child_specs(
+        child_specs: set[str],
+    ) -> tuple[frozenset[str], frozenset[str]]:
+        """Split a parent bundle's dynamic-child specifiers into
+        ``(aliased_to_a_shim, left_external)``.
+
+        Both halves keep the child's module out of the parent bundle; they
+        differ only in how the parent's import of it is resolved. A shim is
+        preferred — it is inlined in place of the module and reads
+        ``odoo.loader.modules`` at eval time, so it works even on a page whose
+        import map does not carry the specifier. It requires a MODULE-EXACT
+        esbuild ``--alias``, so it is available only for the specifiers
+        :func:`is_module_exact_specifier` accepts, and not for a relative
+        ``@web/../lib/…`` / ``../…`` form, which esbuild normalises away.
+
+        Everything else must go to ``--external``, the ONLY other outcome that
+        keeps the module out: a specifier that is neither aliased nor external
+        falls through to the ``@addon`` package alias and esbuild inlines a
+        SECOND copy of the child package into the parent bundle — bundle bloat
+        plus a split singleton, since the child bundle registers its own. That
+        is exactly what a bare package specifier used to do here: it survived
+        this filter, was dropped by the esbuild layer as un-aliasable, and so
+        reached neither outcome. The child bundles are declared as dynamic
+        precisely because the page's import map resolves them, so ``--external``
+        is sound for them.
+        """
+        aliasable = frozenset(
+            spec
+            for spec in child_specs
+            if is_module_exact_specifier(spec)
+            and "/../" not in spec
+            and not spec.startswith("../")
+        )
+        return aliasable, frozenset(child_specs) - aliasable
 
     def _secondary_shared_specs(
         self,

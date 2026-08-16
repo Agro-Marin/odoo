@@ -54,6 +54,19 @@ EXTERNAL_BARE_SPECIFIERS = frozenset(
 )
 
 
+def is_module_exact_specifier(spec: str) -> bool:
+    """Can *spec* be wired as a MODULE-EXACT esbuild ``--alias``?
+
+    Only a specifier naming a module INSIDE a package (``@web/core/registry``)
+    can: esbuild resolves ``--alias:pkg=target`` as a PACKAGE alias, so a bare
+    ``--alias:@spreadsheet=<stub>`` would also capture every ``@spreadsheet/…``
+    subpath and redirect it into the one-module stub. Callers that build loader
+    shims must route the bare specifiers this rejects to ``--external`` instead,
+    which leaves the import untouched for the page's import map to resolve.
+    """
+    return "/" in spec
+
+
 class EsbuildResult(NamedTuple):
     """Outcome of one esbuild compilation."""
 
@@ -515,7 +528,7 @@ class EsbuildCompiler:
             exact_stubs = {
                 spec: shim_js
                 for spec, shim_js in secondary_parent_stubs.items()
-                if "/" in spec
+                if is_module_exact_specifier(spec)
             }
             bare_specs = sorted(secondary_parent_stubs.keys() - exact_stubs.keys())
             if bare_specs:
