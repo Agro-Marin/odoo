@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Iterable
 from typing import Final
 
 STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
@@ -107,7 +107,7 @@ mutated in place and never rebound.
 """
 
 
-def register_condition_operators(operators: Collection[str]) -> frozenset[str]:
+def register_condition_operators(operators: Iterable[str]) -> frozenset[str]:
     operators = frozenset(operators)
     if not operators:
         raise ValueError("Missing operator to register")

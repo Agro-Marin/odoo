@@ -1,5 +1,6 @@
 import functools
 import logging
+import posixpath
 import re
 from collections import deque
 from collections.abc import Collection, Iterable, Mapping
@@ -182,7 +183,9 @@ def find_escaping_relative_imports(
         for spec in sorted(specs):
             if not spec.startswith("."):
                 continue
-            resolved = _resolve_export_specifier(module.module_path, spec)
+            resolved = _resolve_export_specifier(
+                module.module_path, spec, getattr(module, "url", "") or None
+            )
             if resolved and resolved not in member_specs:
                 escapes.append((module.module_path, spec, resolved))
     return escapes
@@ -207,7 +210,9 @@ def discover_transitive_import_specifiers(
             continue
         for target in _scan_import_specifiers(src):
             if target.startswith("."):
-                abs_spec = _resolve_export_specifier(spec, target)
+                abs_spec = _resolve_export_specifier(
+                    spec, target, resolver.resolve_url(spec)
+                )
                 if abs_spec and abs_spec not in scanned:
                     scanned.add(abs_spec)
                     queue.append(abs_spec)
@@ -229,12 +234,32 @@ def discover_transitive_import_specifiers(
     return discovered
 
 
+def _source_map_url(source_map: object, spec: str | None) -> str | None:
+    resolve = getattr(source_map, "resolve_url", None)
+    return resolve(spec) if callable(resolve) and spec else None
+
+
+def _resolve_relative_url(importing_url: str, target_path: str) -> str | None:
+    joined = posixpath.normpath(
+        posixpath.join(posixpath.dirname(importing_url), target_path)
+    )
+    try:
+        return url_to_module_path(joined)
+    except ValueError:
+        return None
+
+
 def _resolve_export_specifier(
     importing_specifier: str | None,
     target_path: str,
+    importing_url: str | None = None,
 ) -> str | None:
     if not target_path.startswith("."):
         return target_path.removesuffix(".js")
+    if importing_url:
+        resolved = _resolve_relative_url(importing_url, target_path)
+        if resolved is not None:
+            return resolved
     if not importing_specifier:
         return None
     parent_parts = importing_specifier.rsplit("/", 1)
@@ -254,6 +279,7 @@ def _extract_esm_exports(
     src: str,
     source_map: dict[str, str] | None = None,
     importing_specifier: str | None = None,
+    importing_url: str | None = None,
     _visited: set[str] | None = None,
     _exports_cache: dict[str, set[str]] | None = None,
 ) -> tuple[set[str], bool]:
@@ -261,7 +287,9 @@ def _extract_esm_exports(
     names: set[str] = set()
 
     def expand_star(raw_target: str) -> None:
-        target_spec = _resolve_export_specifier(importing_specifier, raw_target)
+        target_spec = _resolve_export_specifier(
+            importing_specifier, raw_target, importing_url
+        )
         if _exports_cache is not None and target_spec in _exports_cache:
             names.update(_exports_cache[target_spec])
             return
@@ -275,6 +303,7 @@ def _extract_esm_exports(
             target_src,
             source_map=source_map,
             importing_specifier=target_spec,
+            importing_url=_source_map_url(source_map, target_spec),
             _visited=visited,
             _exports_cache=_exports_cache,
         )
@@ -410,6 +439,7 @@ class _BridgeExportResolver:
                 src,
                 source_map=self,
                 importing_specifier=spec,
+                importing_url=self.resolve_url(spec),
                 _exports_cache=self._star_cache,
             )
         self._exports_cache[spec] = result
@@ -425,19 +455,42 @@ def _bridge_shim_source(
     src_names: set[str],
     has_default: bool,
 ) -> tuple[str, bool]:
-    lines = [
-        f"const _m = odoo.loader.modules.get({json.dumps(specifier)});",
-        "const _d = _m?.default ?? _m;",
-        "export default _d;",
+    """Emit the shim that re-publishes one specifier from ``odoo.loader.modules``.
+
+    The bindings are ``let`` re-exported by name, never ``const`` and never
+    ``export default <expr>``, and that is the whole point: both of those
+    snapshot at evaluation. A shim reached before its producer registered bound
+    ``undefined`` for every export and kept it, permanently, because an
+    import-map entry cannot be re-mapped once the document holds it — so the
+    consumer had no second chance either.
+
+    ``export { _d as default }`` IS a live binding where ``export default _d``
+    is not; the spelling matters.
+
+    ``_s`` runs once at evaluation and again on the loader's ``registered``
+    event, then unsubscribes. Consumers that read at use time
+    (``registry.category(...)``, ``_t(...)``) pick the value up. A consumer that
+    reads at module scope — ``class X extends Y`` — still cannot, which is why
+    `TestDynamicBundleIntegrity` refuses a lazy bundle whose producer the page
+    never registers at all: this makes ordering survivable, not absence.
+    """
+    names = [
+        name
+        for name in sorted(src_names)
+        if name != "default" and _VALID_EXPORT_NAME.match(name)
     ]
-    aliases = []
-    for name in sorted(src_names):
-        if name == "default" or not _VALID_EXPORT_NAME.match(name):
-            continue
-        local = f"_e{len(aliases)}"
-        lines.append(f"const {local} = _m?.{name};")
-        aliases.append(f"{local} as {name}")
-    if aliases:
-        lines.append("export { " + ", ".join(aliases) + " };")
+    locals_ = ["_d", *(f"_e{i}" for i in range(len(names)))]
+    lines = [f"let {', '.join(locals_)};"]
+    lines.append("function _s() {")
+    lines.append(f"  const _m = odoo.loader.modules.get({json.dumps(specifier)});")
+    lines.append("  if (_m === undefined) { return; }")
+    lines.append("  _d = _m.default ?? _m;")
+    lines.extend(f"  _e{i} = _m.{name};" for i, name in enumerate(names))
+    lines.append('  odoo.loader.bus.removeEventListener("registered", _s);')
+    lines.append("}")
+    lines.append("_s();")
+    lines.append('odoo.loader.bus.addEventListener("registered", _s);')
+    exported = ["_d as default", *(f"_e{i} as {n}" for i, n in enumerate(names))]
+    lines.append("export { " + ", ".join(exported) + " };")
     is_star_fallback = not src_names and not has_default and "__default__" not in kinds
     return "\n".join(lines), is_star_fallback

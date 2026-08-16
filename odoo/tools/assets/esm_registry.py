@@ -10,6 +10,8 @@ from odoo.libs.asset_log import get_asset_logger, log_event
 __all__ = [
     "EsmRegistry",
     "esm_registry",
+    "external_bare_specifiers",
+    "external_libs",
     "invalidate_esm_registry",
     "validate_esm_config",
 ]
@@ -20,7 +22,9 @@ _ESM_MANIFEST_KEYS = frozenset(
     {
         "bundles",
         "dynamic_children",
+        "external_libs",
         "import_map_includes",
+        "runtime_bundles",
         "secondary_import_map_includes",
         "standalone_bundles",
     }
@@ -37,6 +41,8 @@ class EsmRegistry(NamedTuple):
     secondary_parents: Mapping = MappingProxyType({})
     secondary_bundle_names: frozenset = frozenset()
     standalone_bundles: frozenset = frozenset()
+    external_libs: Mapping = MappingProxyType({})
+    runtime_bundle_names: frozenset = frozenset()
 
 
 _lock = threading.Lock()
@@ -56,6 +62,20 @@ def invalidate_esm_registry() -> None:
         _cache[0] = None
 
 
+def external_libs() -> Mapping:
+    return esm_registry().external_libs
+
+
+def external_bare_specifiers() -> frozenset:
+    from odoo.tools.assets.esbuild import EsbuildCompiler
+
+    return frozenset(
+        spec
+        for spec in external_libs()
+        if not spec.startswith("@odoo/") and spec not in EsbuildCompiler._LIB_CANDIDATES
+    )
+
+
 def _merge_mapping(target: dict, declared: Mapping, *, module: str, key: str) -> None:
     if not isinstance(declared, Mapping):
         raise TypeError(
@@ -71,6 +91,31 @@ def _merge_mapping(target: dict, declared: Mapping, *, module: str, key: str) ->
         target.setdefault(parent, []).extend(children)
 
 
+def _merge_external_libs(
+    target: dict, declared: Mapping, owner_by_spec: dict, *, module: str
+) -> None:
+    if not isinstance(declared, Mapping):
+        raise TypeError(
+            f"Module {module!r}: manifest 'esm.external_libs' must be a dict "
+            f"(bare specifier -> URL), got {type(declared).__name__}"
+        )
+    for spec, url in declared.items():
+        if not isinstance(url, str) or not url.startswith("/"):
+            raise TypeError(
+                f"Module {module!r}: 'esm.external_libs[{spec!r}]' must be a "
+                f"root-relative URL string, got {url!r}"
+            )
+        owner = owner_by_spec.get(spec)
+        if owner is not None and target[spec] != url:
+            raise ValueError(
+                f"External lib specifier {spec!r} is declared by {owner!r} as "
+                f"{target[spec]!r} and by {module!r} as {url!r}. One specifier "
+                f"resolves to one URL; the owning module declares it."
+            )
+        target[spec] = url
+        owner_by_spec[spec] = module
+
+
 def _build() -> EsmRegistry:
     from odoo.modules import Manifest
 
@@ -79,6 +124,9 @@ def _build() -> EsmRegistry:
     import_map_includes: dict = {}
     secondary_includes: dict = {}
     standalone_bundles: set = set()
+    runtime_bundles: set = set()
+    external_libs: dict = {}
+    external_lib_owner: dict = {}
     declaring_modules = 0
     for manifest in Manifest.all_addon_manifests():
         esm = manifest.get("esm")
@@ -111,6 +159,20 @@ def _build() -> EsmRegistry:
                 f"a list, not a bare string"
             )
         standalone_bundles.update(declared_standalone)
+        declared_runtime = esm.get("runtime_bundles", ())
+        if isinstance(declared_runtime, str):
+            raise TypeError(
+                f"Module {manifest.name!r}: 'esm.runtime_bundles' must be "
+                f"a list, not a bare string"
+            )
+        runtime_bundles.update(declared_runtime)
+        if "external_libs" in esm:
+            _merge_external_libs(
+                external_libs,
+                esm["external_libs"],
+                external_lib_owner,
+                module=manifest.name,
+            )
         for target, key in (
             (dynamic_children, "dynamic_children"),
             (import_map_includes, "import_map_includes"),
@@ -125,6 +187,7 @@ def _build() -> EsmRegistry:
         import_map_includes,
         secondary_includes,
         standalone_bundles=standalone_bundles,
+        runtime_bundles=runtime_bundles,
     )
     registry = EsmRegistry(
         bundles=frozenset(bundles),
@@ -159,6 +222,15 @@ def _build() -> EsmRegistry:
             child for children in secondary_includes.values() for child in children
         ),
         standalone_bundles=frozenset(standalone_bundles),
+        external_libs=MappingProxyType(dict(external_libs)),
+        # A dynamic child is fetched at runtime by definition, so it stays in the
+        # set without needing a second declaration. The explicit key exists for
+        # the bundle that is fetched from more than one page -- or from none in
+        # particular -- where naming a parent said nothing true.
+        runtime_bundle_names=frozenset(runtime_bundles)
+        | frozenset(
+            child for children in dynamic_children.values() for child in children
+        ),
     )
     log_event(
         _registry_log,
@@ -168,6 +240,7 @@ def _build() -> EsmRegistry:
         bundles=len(registry.bundles),
         dynamic=len(registry.dynamic_bundle_names),
         includes=len(registry.import_map_included_bundles),
+        external_libs=len(registry.external_libs),
     )
     return registry
 
@@ -179,6 +252,7 @@ def validate_esm_config(
     secondary_import_map_includes: Mapping,
     *,
     standalone_bundles: set = frozenset(),
+    runtime_bundles: set = frozenset(),
 ) -> None:
     for mapping_name, mapping in (
         ("dynamic_children", dynamic_children),
@@ -225,6 +299,13 @@ def validate_esm_config(
         for children in mapping.values()
         for child in children
     }
+    for name in runtime_bundles:
+        if name not in bundles:
+            raise ValueError(
+                f"esm.runtime_bundles entry {name!r} is not a registered ESM "
+                f"bundle (add it to the same module's 'esm.bundles')"
+            )
+
     for name in standalone_bundles:
         if name not in bundles:
             raise ValueError(

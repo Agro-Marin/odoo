@@ -2290,9 +2290,7 @@ class TestExpDuplicateRollback:
         (from_fs / "marker.txt").write_text("hello")
 
         stack = ExitStack()
-        stack.enter_context(
-            patch.dict(db_mod.lifecycle.odoo.tools.config.options, {"list_db": True})
-        )
+        stack.enter_context(db_mod.lifecycle.odoo.tools.config.patch(list_db=True))
         stack.enter_context(patch.object(db_mod.lifecycle.odoo.db, "close_db"))
         stack.enter_context(
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db)
@@ -2404,9 +2402,7 @@ class TestExpRenameRollback:
         (old_fs / "data.txt").write_text("attachment payload")
 
         stack = ExitStack()
-        stack.enter_context(
-            patch.dict(db_mod.lifecycle.odoo.tools.config.options, {"list_db": True})
-        )
+        stack.enter_context(db_mod.lifecycle.odoo.tools.config.patch(list_db=True))
         stack.enter_context(
             patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "delete")
         )

@@ -97,7 +97,9 @@ class TestScopedPatch(unittest.TestCase):
 
     def test_patch_dict_on_the_chainmap_is_why_this_exists(self):
         before = dict(self.config._override_options)
-        with patch.dict(self.config.options, {"db_maxconn": 4242}):
+        with patch.dict(  # noqa: E8510  this test IS the demonstration of the corruption
+            self.config.options, {"db_maxconn": 4242}
+        ):
             pass
         self.assertNotEqual(
             self.config._override_options,

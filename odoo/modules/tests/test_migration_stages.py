@@ -85,7 +85,7 @@ class TestStagesAreDeclaredOnce:
         assert MIGRATION_STAGES == ("pre", "post", "end")
 
 
-class TestTheDocstringFigureIsMeasured:
+class TestNoScriptIsSilentlySkipped:
     @staticmethod
     def _scripts():
         root = Path(__file__).resolve().parents[3]
@@ -97,14 +97,8 @@ class TestTheDocstringFigureIsMeasured:
             if path.name != "__init__.py"
         ]
 
-    def test_the_measured_script_count_is_current(self):
-        scripts = self._scripts()
-        assert scripts, "no migration scripts found — the glob has rotted"
-        docstring = _warn_unstaged_scripts.__doc__ or ""
-        assert f"{len(scripts)} migration scripts" in docstring, (
-            f"the docstring's script count is stale: measured {len(scripts)} "
-            f"across odoo/addons + addons"
-        )
+    def test_the_glob_still_finds_scripts(self):
+        assert self._scripts(), "no migration scripts found — the glob has rotted"
 
     def test_none_of_them_is_skipped(self):
         unstaged = sorted(

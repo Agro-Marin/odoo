@@ -1,12 +1,9 @@
-from types import MappingProxyType
-
 __all__ = [
     "ANY_UNIQUE",
     "ASSET_EXTENSIONS",
     "DOTTED_ASSET_EXTENSIONS",
     "EXTENSION_TO_WEB_MIMETYPES",
     "EXTERNAL_ASSET",
-    "ODOO_EXTERNAL_LIBS",
     "SCRIPT_EXTENSIONS",
     "STYLE_EXTENSIONS",
     "TEMPLATE_EXTENSIONS",
@@ -44,56 +41,3 @@ EXTENSION_TO_WEB_MIMETYPES = {
     ".html": "text/html",
 }
 """Mapping of web file extensions to MIME types."""
-
-ODOO_EXTERNAL_LIBS = MappingProxyType(
-    {
-        "@odoo/owl": "/web/static/lib/owl/owl.es.js",
-        "@odoo/hoot": "/web/static/lib/hoot/hoot.js",
-        "@odoo/hoot-dom": "/web/static/lib/hoot-dom/hoot-dom.js",
-        "@odoo/hoot-mock": "/web/static/lib/hoot/hoot-mock.js",
-        "@odoo/hoot-dom-helpers-dom": "/web/static/lib/hoot-dom/helpers/dom.js",
-        "@odoo/hoot-dom-helpers-events": "/web/static/lib/hoot-dom/helpers/events.js",
-        "@odoo/hoot-dom-helpers-time": "/web/static/lib/hoot-dom/helpers/time.js",
-        "@odoo/hoot-dom-utils": "/web/static/lib/hoot-dom/hoot_dom_utils.js",
-        "@popperjs/core": "/web/static/lib/popper_compat/popper_compat.esm.js",
-        "luxon": "/web/static/lib/luxon/luxon.js",
-        "dompurify": "/web/static/lib/dompurify/purify.es.js",
-        "signature_pad": "/web/static/lib/signature_pad/signature_pad.js",
-        "zxing-library": "/web/static/lib/zxing-library/zxing-library.js",
-        "pdfjs-dist": "/web/static/lib/pdfjs/build/pdf.js",
-        "chart.js": "/web/static/lib/Chart/Chart.js",
-        "chart.js/helpers": "/web/static/lib/Chart/helpers.js",
-        "chartjs-adapter-luxon": (
-            "/web/static/lib/chartjs-adapter-luxon/chartjs-adapter-luxon.js"
-        ),
-        "chartjs-chart-geo": (
-            "/spreadsheet/static/lib/chartjs-chart-geo/chartjs-chart-geo.js"
-        ),
-        "chartjs-chart-treemap": "/spreadsheet/static/lib/chart_js_treemap.js",
-        "chartjs-plugin-datalabels": (
-            "/survey/static/lib/chartjs-plugin-datalabels.js"
-        ),
-        "@fullcalendar/core": "/web/static/lib/fullcalendar/fullcalendar.esm.js",
-        "@fullcalendar/core/locales-all": (
-            "/web/static/lib/fullcalendar/locales-all.esm.js"
-        ),
-        "ol": "/geoengine/static/lib/ol/ol.esm.js",
-        "chroma-js": "/geoengine/static/lib/chroma-js/chroma.esm.js",
-        "geostats": "/geoengine/static/lib/geostats/geostats.js",
-    }
-)
-"""Import-map entries for esbuild-externalized libraries (spec -> URL).
-
-An addon that ships an externalized JavaScript library adds its entry here.
-That makes this table an extension point implemented as a hardcoded dict, which
-is why several of its rows name addons that the framework does not depend on;
-see ``ODOO_EXTERNAL_LIBS`` in the audit notes. Turning it into a real
-registration surface is a separate change -- this one only puts it in the right
-layer.
-
-Three rows (``ol``, ``chroma-js``, ``geostats``) point outside this repository
-altogether, into ``geoengine`` in the AgroMarin addons checkout. Nothing breaks
-when that checkout is absent -- an entry whose addon is not on the addons path
-is skipped rather than raising -- but it does mean this table cannot be read as
-an inventory of what any given deployment serves.
-"""

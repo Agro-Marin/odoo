@@ -23,7 +23,7 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 
-PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[object, object], bool]] = {
+PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[typing.Any, typing.Any], bool]] = {
     "<": pyoperator.lt,
     ">": pyoperator.gt,
     "<=": pyoperator.le,
@@ -39,6 +39,13 @@ class _FieldSqlMixin(_FieldStubs):
             raise ValueError(f"Cannot convert {self} to SQL because it is not stored")
         sql_field = SQL.identifier(alias, self.name, to_flush=self)
         if self.company_dependent:
+            underlying = self._column_type
+            if underlying is None:
+                raise ValueError(
+                    f"Cannot convert {self} to SQL: it is company-dependent, so "
+                    f"its column is jsonb and the casts below need the "
+                    f"underlying column type, which it does not declare"
+                )
             fallback = self.get_company_dependent_fallback(model)
             fallback = self.convert_to_column(
                 self.convert_to_write(fallback, model), model
@@ -48,11 +55,11 @@ class _FieldSqlMixin(_FieldStubs):
                 column=sql_field,
                 company_id=str(model.env.company.id),
                 fallback=fallback,
-                column_type=SQL(self._column_type[1]),
+                column_type=SQL(underlying[1]),
             )
             if self.type in ("boolean", "integer", "float", "monetary"):
-                return SQL("(%s)::%s", sql_field, SQL(self._column_type[1]))
-            return SQL("(%s->>0)::%s", sql_field, SQL(self._column_type[1]))
+                return SQL("(%s)::%s", sql_field, SQL(underlying[1]))
+            return SQL("(%s->>0)::%s", sql_field, SQL(underlying[1]))
 
         return sql_field
 

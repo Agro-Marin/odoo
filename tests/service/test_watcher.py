@@ -57,7 +57,7 @@ class TestFSWatcherBase:
         """
         import odoo.tools
 
-        with patch.dict(odoo.tools.config.options, {"dev_mode": ["reload"]}):
+        with odoo.tools.config.patch(dev_mode=["reload"]):
             yield
 
     def test_valid_py_triggers_restart(self, watcher, tmp_path):

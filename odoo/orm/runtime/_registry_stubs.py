@@ -8,14 +8,19 @@ if typing.TYPE_CHECKING:
 
 
 class _RegistryStubs:
-    __slots__ = ()
-
     if typing.TYPE_CHECKING:
         models: dict[str, type[BaseModel]]
         """Owned by ``_RegistryModelsMixin``; declared for the sibling mixins."""
 
-        init_phase: InitModelsPhase
-        """Owned by ``_RegistryInitPhaseMixin``; raises outside the window."""
+        @property
+        def init_phase(self) -> InitModelsPhase:
+            """Owned by ``_RegistryInitPhaseMixin``; raises outside the window.
+
+            Declared as a read-only property, not a writeable attribute: the
+            owner implements it with ``@property`` and nothing anywhere assigns
+            it, so an attribute declaration here was the narrower shape lying
+            about the wider one.
+            """
 
         has_unaccent: FunctionStatus
         """Tri-state, NOT a bool — see ``_RegistryCapabilitiesMixin``, which owns

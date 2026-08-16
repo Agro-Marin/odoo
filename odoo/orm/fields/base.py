@@ -1,3 +1,4 @@
+import builtins
 import collections
 import functools
 import itertools
@@ -298,7 +299,7 @@ class Field[T](
     default_export_compatible: bool = False
     exportable: bool = True
 
-    _by_type__: dict[str, Field] = {}
+    _by_type__: dict[str, builtins.type[Field]] = {}
     _register_type: typing.ClassVar[bool] = True
 
     def __init__(self, string: str | Sentinel = SENTINEL, **kwargs):
@@ -680,7 +681,7 @@ class Field[T](
     def base_field(self) -> Self:
         return self.inherited_field.base_field if self.inherited_field else self
 
-    def get_company_dependent_fallback(self, records: BaseModel) -> typing.Any:
+    def get_company_dependent_fallback(self, records: ModelLike) -> typing.Any:
         assert self.company_dependent
         fallback = self._company_dependent_fallback_raw(records)
         fallback = self.convert_to_cache(fallback, records, validate=False)

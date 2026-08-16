@@ -1,11 +1,13 @@
 import typing
 
 if typing.TYPE_CHECKING:
+    from collections.abc import MutableMapping
+
     from odoo.tools import Query
 
     from .._typing import BaseModel, ModelLike
     from ..domain import Domain
-    from ..primitives import ContextType
+    from ..primitives import ContextType, IdType
     from ..runtime import Environment
 
 
@@ -26,7 +28,13 @@ class _FieldStubs:
         aggregator: str | None
         falsy_value: typing.Any
         inherited_field: typing.Any
+        is_temporal: bool
         _column_type: tuple[str, str] | None
+
+        @property
+        def column_type(self) -> tuple[str, str] | None:
+            """Owned by ``_FieldMetadataMixin``; the public read of
+            ``_column_type``, which several sibling mixins branch on."""
 
         bypass_search_access: bool
         check_company: bool
@@ -57,3 +65,26 @@ class _FieldStubs:
         def _get_stored_translations(
             self, record: BaseModel
         ) -> dict[str, str] | None: ...
+
+        # The value-conversion seam, owned by _FieldConvertMixin, and the cache
+        # accessor owned by Field itself. _FieldSqlMixin calls all four while
+        # building a column expression; without them here every such call read
+        # as an attribute error on the mixin, which is the only scope a type
+        # checker sees them in.
+        def get_company_dependent_fallback(self, records: ModelLike) -> typing.Any: ...
+        def convert_to_column(
+            self,
+            value: typing.Any,
+            record: ModelLike,
+            values: dict[str, typing.Any] | None = None,
+            validate: bool = True,
+        ) -> typing.Any: ...
+        def convert_to_write(
+            self, value: typing.Any, record: ModelLike
+        ) -> typing.Any: ...
+        def convert_to_cache(
+            self, value: typing.Any, record: ModelLike, validate: bool = True
+        ) -> typing.Any: ...
+        def _get_cache(
+            self, env: Environment
+        ) -> MutableMapping[IdType, typing.Any]: ...

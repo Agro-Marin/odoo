@@ -77,8 +77,14 @@ def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
     worse failure than the one being reported.
 
     Measured over **this repository's two addon trees** (``odoo/addons`` and
-    ``addons``): 132 migration scripts, all correctly prefixed, 0 skipped —
-    re-derived by ``test_migration_stages.test_the_measured_script_count_is_current``.
+    ``addons``) on 2026-08-15: 145 migration scripts, all correctly prefixed,
+    0 skipped. The *property* is what is pinned —
+    ``test_migration_stages.test_none_of_them_is_skipped`` re-derives it from the
+    tree on every run and names any script no stage would claim. The count beside
+    it is a dated measurement, not a pin: it moves whenever any author in either
+    tree adds a script, and a live pin on it made this file a serialization point
+    for all of them.
+
     The scope is this repo on purpose. The figure here read "223 across this
     workspace's five addon trees", which CI could never reproduce because it
     checks out this repo alone, so the number could be neither confirmed nor

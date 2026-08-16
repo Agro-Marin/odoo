@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     class _MetricsHost(Protocol):
         _thread: threading.Thread
 
+        sql_log_count: int
+
 
 class _MetricsMixin:
     sql_from_log: dict[str, tuple[int, float]]

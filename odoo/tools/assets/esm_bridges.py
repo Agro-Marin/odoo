@@ -8,7 +8,6 @@ from odoo.api import SUPERUSER_ID, Environment
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.tools import config
-from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
 from odoo.tools.assets.esbuild import EsbuildCompiler
 from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
@@ -17,6 +16,7 @@ from odoo.tools.assets.esm_graph import (
     _extract_esm_exports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
+from odoo.tools.assets.esm_registry import external_libs
 
 __all__ = ["BridgeShimManager", "NativeModuleLike"]
 
@@ -91,7 +91,7 @@ class BridgeShimManager:
         from odoo.http import request
 
         if not request:
-            self.env["ir.attachment"].sudo().create(to_create)
+            self.env["ir.attachment"].with_user(SUPERUSER_ID).create(to_create)
             log_event(
                 _bridge_log,
                 logging.INFO,
@@ -166,6 +166,7 @@ class BridgeShimManager:
                 src,
                 source_map=source_map,
                 importing_specifier=specifier,
+                importing_url=asset.url or None,
                 _exports_cache=exports_cache,
             )
             shim, _star = _bridge_shim_source(
@@ -233,7 +234,7 @@ class BridgeShimManager:
         if not specifiers:
             return {}
         resolver = _BridgeExportResolver(
-            ODOO_EXTERNAL_LIBS, EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
+            external_libs(), EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
         )
         shims: dict[str, str] = {}
         for spec in sorted(specifiers):
@@ -252,10 +253,10 @@ class BridgeShimManager:
         if modules is None:
             modules = self.native_modules
         discovered, ext_seen = self._discover_bridge_specifiers(
-            native_specifiers, set(ODOO_EXTERNAL_LIBS), modules=modules
+            native_specifiers, set(external_libs()), modules=modules
         )
         resolver = _BridgeExportResolver(
-            ODOO_EXTERNAL_LIBS, EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
+            external_libs(), EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
         )
 
         shims_by_spec: dict[str, str] = {}

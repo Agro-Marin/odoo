@@ -20,27 +20,6 @@ _esbuild_log = get_asset_logger("esbuild")
 
 EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 
-EXTERNAL_BARE_SPECIFIERS = frozenset(
-    {
-        "luxon",
-        "dompurify",
-        "signature_pad",
-        "zxing-library",
-        "pdfjs-dist",
-        "chart.js",
-        "chart.js/helpers",
-        "chartjs-adapter-luxon",
-        "chartjs-chart-geo",
-        "chartjs-chart-treemap",
-        "chartjs-plugin-datalabels",
-        "@fullcalendar/core",
-        "@fullcalendar/core/locales-all",
-        "ol",
-        "chroma-js",
-        "geostats",
-    }
-)
-
 
 class EsbuildResult(NamedTuple):
     code: str
@@ -174,9 +153,11 @@ class EsbuildCompiler:
 
     @classmethod
     def resolves_specifier(cls, spec: str) -> bool:
+        from odoo.tools.assets.esm_registry import external_bare_specifiers
+
         return (
             spec.startswith(EXTERNAL_SPECIFIER_PREFIX)
-            or spec in EXTERNAL_BARE_SPECIFIERS
+            or spec in external_bare_specifiers()
             or spec in cls._LIB_CANDIDATES
         )
 
@@ -301,6 +282,8 @@ class EsbuildCompiler:
         dynamic_child_specs: frozenset[str] | None = None,
         secondary_parent_stubs: dict[str, str] | None = None,
     ) -> EsbuildResult:
+        from odoo.tools.assets.esm_registry import external_bare_specifiers
+
         timeout_s, target, source_maps = self._esbuild_resolve_opts(
             timeout_s, target, source_maps
         )
@@ -371,7 +354,7 @@ class EsbuildCompiler:
             "--keep-names",
             f"--external:{EXTERNAL_SPECIFIER_PREFIX}*",
             "--external:/web/static/lib/*",
-            *(f"--external:{spec}" for spec in sorted(EXTERNAL_BARE_SPECIFIERS)),
+            *(f"--external:{spec}" for spec in sorted(external_bare_specifiers())),
             *external_flags,
             f"--target={target}",
             "--resolve-extensions=.js,.mjs,.json",

@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import patch
 
 import odoo.db as D
 from odoo.db.budget import ConnectionBudget
@@ -35,7 +34,7 @@ class _BudgetCase(unittest.TestCase):
             "db_app_name": "odoo",
         }
         base.update(overrides)
-        return patch.dict(D.tools.config.options, base)
+        return D.tools.config.patch(**base)
 
 
 class TestOneBudgetPerServer(_BudgetCase):

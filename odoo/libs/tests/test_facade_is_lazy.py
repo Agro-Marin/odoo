@@ -1,8 +1,30 @@
+import json
 import subprocess
 import sys
 import textwrap
 
 _HEAVY = ("lxml", "markupsafe", "arabic_reshaper")
+
+
+def _probe(code: str) -> str:
+    """Run *code* in a subprocess and return what it printed.
+
+    Every assertion about the facade has to be made against the REAL module.
+    In-process, ``from odoo import libs`` reaches the Tier-1 stub instead: a
+    bare ``ModuleType`` carrying nothing but a ``__path__`` (see
+    ``odoo/_testing_bootstrap.py``), because these suites deliberately avoid
+    running ``odoo/__init__.py``. Against that stub ``libs.__all__`` raises
+    AttributeError and ``libs.anything`` raises it too -- which is how
+    ``test_unknown_attribute_still_raises_attribute_error`` used to pass while
+    proving nothing at all. A subprocess has no stubs registered.
+    """
+    completed = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(code)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip()
 
 
 def _modules_after(code: str) -> set[str]:
@@ -47,34 +69,49 @@ def test_the_text_area_is_still_reachable_and_still_the_heavy_one():
 
 
 def test_all_matches_the_export_table():
-    from odoo import libs
-
-    advertised, resolvable = set(libs.__all__), set(libs._AREA_OF)
+    table = json.loads(_probe("""
+        import json
+        from odoo import libs
+        print(json.dumps({
+            "advertised": sorted(libs.__all__),
+            "resolvable": sorted(libs._AREA_OF),
+            "duplicated": len(libs.__all__) != len(set(libs.__all__)),
+        }))
+    """))
+    advertised, resolvable = set(table["advertised"]), set(table["resolvable"])
     assert advertised == resolvable, (
         "__all__ and _EXPORTS disagree -- advertised but unresolvable: "
         f"{sorted(advertised - resolvable)}; resolvable but unadvertised: "
         f"{sorted(resolvable - advertised)}"
     )
-    assert len(libs.__all__) == len(advertised), "__all__ has duplicates"
+    assert not table["duplicated"], "__all__ has duplicates"
 
 
 def test_every_advertised_name_resolves():
-    from odoo import libs
-
-    unresolved = []
-    for name in libs.__all__:
-        try:
-            getattr(libs, name)
-        except AttributeError:
-            unresolved.append(name)
+    unresolved = json.loads(_probe("""
+        import json
+        from odoo import libs
+        unresolved = []
+        for name in libs.__all__:
+            try:
+                getattr(libs, name)
+            except AttributeError:
+                unresolved.append(name)
+        print(json.dumps(unresolved))
+    """))
     assert unresolved == [], f"advertised but unresolvable: {unresolved}"
 
 
 def test_unknown_attribute_still_raises_attribute_error():
-    from odoo import libs
-
-    try:
-        libs.definitely_not_a_real_helper
-    except AttributeError:
-        return
-    raise AssertionError("__getattr__ must raise AttributeError for unknown names")
+    raised = _probe("""
+        from odoo import libs
+        try:
+            libs.definitely_not_a_real_helper
+        except AttributeError:
+            print("AttributeError")
+        else:
+            print("nothing")
+    """)
+    assert raised == "AttributeError", (
+        "__getattr__ must raise AttributeError for unknown names, got: " + raised
+    )

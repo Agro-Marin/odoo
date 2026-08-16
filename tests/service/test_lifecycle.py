@@ -217,7 +217,7 @@ class TestNarrowingTestSpec:
     def _with_tags(self, tags):
         import odoo.tools
 
-        return patch.dict(odoo.tools.config.options, {"test_tags": tags})
+        return odoo.tools.config.patch(test_tags=tags)
 
     @pytest.mark.parametrize("tags", ["", None, "+standard"])
     def test_implicit_selection_is_not_narrowing(self, spec, tags):
