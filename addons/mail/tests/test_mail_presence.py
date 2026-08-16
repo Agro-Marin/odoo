@@ -14,8 +14,6 @@ from odoo.addons.bus.models.bus import channel_with_db, json_dump
 class TestMailPresence(HttpCase):
     def test_bus_presence_auto_vacuum(self):
         user = new_test_user(self.env, login="bob_user")
-        # UTC, matching the fields.Datetime.now() that the presence model stores
-        # in last_poll and garbage-collects against in _gc_bus_presence().
         more_than_away_timer_ago = fields.Datetime.now() - timedelta(
             seconds=PRESENCE_OUTDATED_TIMER + 1
         )
@@ -38,7 +36,7 @@ class TestMailPresence(HttpCase):
             inactivity_period=0, user_or_guest=bob
         )
         self.env["mail.presence"].search([("user_id", "=", bob.id)]).unlink()
-        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+        self.env.cr.precommit.run()
         channel = json_dump(
             channel_with_db(self.env.cr.dbname, (bob.partner_id, "presence"))
         )

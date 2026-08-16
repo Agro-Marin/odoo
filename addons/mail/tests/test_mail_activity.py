@@ -43,11 +43,6 @@ class TestMailActivityChatter(HttpCase):
 @tagged("-at_install", "post_install", "mail_activity")
 class TestMailActivityIntegrity(ActivityScheduleCase):
     def test_mail_activity_type_master_data(self):
-        """Test master data integrity
-
-        * 'call', 'meeting', 'todo', 'upload document' and 'warning' should always be cross model;
-        * 'call', 'meeting' and 'todo' cannot be removed
-        """
         call = self.env.ref("mail.mail_activity_data_call")
         meeting = self.env.ref("mail.mail_activity_data_meeting")
         todo = self.env.ref("mail.mail_activity_data_todo")

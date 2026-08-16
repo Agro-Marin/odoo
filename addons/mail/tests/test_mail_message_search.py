@@ -1,12 +1,3 @@
-"""Regression tests for the chunked, access-filtered ``mail.message._search``.
-
-The override filters candidate rows by custom access rules in Python, scanning
-them in growing SQL-limited chunks until the requested page is filled instead of
-materializing the whole thread. These tests pin that the paging stays equivalent
-to a full scan -- across chunk boundaries and past long runs of inaccessible
-rows -- and that a small page does not scan the whole thread.
-"""
-
 from unittest.mock import patch
 
 from odoo.tests.common import tagged
@@ -25,9 +16,6 @@ class TestMailMessageSearchChunking(MailCommon):
         cls.comment_subtype = cls.env.ref("mail.mt_comment").id
 
     def _make_messages(self, pattern):
-        """Create messages following ``pattern`` (list of bool). A True entry is
-        authored by the employee (always accessible to them); a False entry is an
-        admin ``user_notification`` the employee cannot reach by any rule."""
         vals = []
         for accessible in pattern:
             if accessible:
@@ -66,15 +54,12 @@ class TestMailMessageSearchChunking(MailCommon):
         )
         res = self._search_emp([("id", "in", msgs.ids)], order="id desc")
         self.assertEqual(res.ids, expected)
-        # limit=None (unbounded) goes through the single-pass branch
         res_none = self._search_emp(
             [("id", "in", msgs.ids)], order="id desc", limit=None
         )
         self.assertEqual(res_none.ids, expected)
 
     def test_pagination_past_long_inaccessible_run(self):
-        """Accessible rows sit at the low ids; in ``id desc`` the scan must cross
-        90 inaccessible rows (several growing chunks) before filling the page."""
         pattern = [True] * 10 + [False] * 90
         msgs = self._make_messages(pattern)
         accessible = sorted(
@@ -89,20 +74,15 @@ class TestMailMessageSearchChunking(MailCommon):
             self._search_emp(domain, offset=5, limit=5, order="id desc").ids,
             accessible[5:10],
         )
-        # page past the end
         self.assertEqual(
             self._search_emp(domain, offset=8, limit=5, order="id desc").ids,
             accessible[8:10],
         )
-        # limit beyond the accessible count
         self.assertEqual(
             self._search_emp(domain, limit=50, order="id desc").ids, accessible
         )
 
     def test_interleaved_accessibility_across_chunk_boundary(self):
-        """Every 3rd message accessible, over 100 rows — the accessible ones
-        straddle the 30/60/... chunk boundaries; each page must match a full
-        scan sliced identically."""
         pattern = [i % 3 == 0 for i in range(100)]
         msgs = self._make_messages(pattern)
         accessible = sorted(
@@ -110,7 +90,6 @@ class TestMailMessageSearchChunking(MailCommon):
         )
         domain = [("id", "in", msgs.ids)]
 
-        # walk the whole set page by page and rebuild it
         page = 7
         rebuilt = []
         for offset in range(0, len(accessible) + page, page):
@@ -119,9 +98,6 @@ class TestMailMessageSearchChunking(MailCommon):
         self.assertEqual(rebuilt, accessible)
 
     def test_small_page_scan_is_bounded_and_thread_size_independent(self):
-        """A small page from an all-accessible thread must issue exactly one
-        LIMIT-bounded candidate scan, regardless of thread size (the whole point
-        of the chunked rewrite)."""
         small = self._make_messages([True] * 40)
         big = self._make_messages([True] * 400)
 
@@ -152,9 +128,6 @@ class TestMailMessageSearchChunking(MailCommon):
         )
 
     def test_message_fetch_search_term_escapes_like_metachars(self):
-        """A literal %, _ or \\ in a search term must match literally, not as a
-        SQL LIKE wildcard. Regression: searching '50%' also matched '5000' and
-        '_' matched any single character."""
         Msg = self.env["mail.message"].sudo()
         common = {
             "author_id": self.emp_partner.id,
@@ -172,16 +145,12 @@ class TestMailMessageSearchChunking(MailCommon):
         self.assertIn(literal.id, ids)
         self.assertNotIn(other.id, ids, "a literal '%' must not act as a wildcard")
 
-        # the intentional space -> % loose matching must still work
         res2 = self.env["mail.message"]._message_fetch(
             domain=domain, search_term="discount today"
         )
         self.assertIn(literal.id, {m["id"] for m in res2["messages"]})
 
     def test_message_fetch_search_by_attachment_name(self):
-        """Searching a term must still match a message by its attachment name
-        when a thread is given -- the attachment search is scoped to the thread's
-        (reparented) attachments rather than the whole ir_attachment table."""
         record = self.env["res.partner"].create({"name": "SearchAttach"})
         with_att = record.message_post(
             body="please review",

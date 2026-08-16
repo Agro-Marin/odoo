@@ -13,7 +13,6 @@ class ActivityScheduleCase(MailCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # prepare activity types
         cls.activity_type_todo = cls.env.ref("mail.mail_activity_data_todo")
         cls.activity_type_todo.delay_count = 4
         cls.activity_type_todo.sequence = 1
@@ -24,13 +23,11 @@ class ActivityScheduleCase(MailCommon):
         cls.activity_type_call.summary = "TodoSumCallSummary"
 
     def reverse_record_set(self, records):
-        """Get an equivalent recordset but with elements in reversed order."""
         return self.env[records._name].browse(
             [record.id for record in reversed(records)]
         )
 
     def get_last_activities(self, on_record, limit=None):
-        """Get the last activities on the record in id asc order."""
         return self.reverse_record_set(
             self.env["mail.activity"].search(
                 [("res_model", "=", on_record._name), ("res_id", "=", on_record.id)],
@@ -81,17 +78,6 @@ class ActivityScheduleCase(MailCommon):
     def assertActivitiesFromPlan(
         self, plan, record, expected_deadlines, expected_responsible=None
     ):
-        """Check that the activities the plan created on the record match its
-        templates (number of activities and activities content).
-
-        :param <mail.activity.plan> plan: activity plan that has been applied on the record
-        :param recordset record: record on which the plan has been applied
-        :param list<date> expected_deadlines: expected deadlines of the record created activities
-        :param <res.users> expected_responsible: expected responsible for the created activities
-            if set, otherwise checked against the responsible set on the related templates.
-        """
-        # template values are copied as-is when creating activities from a plan,
-        # except deadline and responsible which come from the parameters
         expected_number_of_activity = len(plan.template_ids)
         activities = self._new_activities.filtered(
             lambda act: act.res_model == record._name and act.res_id == record.id
@@ -116,15 +102,6 @@ class ActivityScheduleCase(MailCommon):
     def assertMessagesFromPlan(
         self, plan, record, expected_deadlines, expected_responsible=None
     ):
-        """Check that the last posted message on the record announces the plan and
-        lists each template summary, responsible and deadline.
-
-        :param <mail.activity.plan> plan: activity plan that has been applied on the record
-        :param recordset record: record on which the plan has been applied
-        :param list<date> expected_deadlines: expected deadlines of the record created activities
-        :param <res.users> expected_responsible: expected responsible for the created activities
-            if set, otherwise checked against the responsible set on the related templates.
-        """
         message = record.message_ids[0]
         self.assertIn(f'The plan "{plan.name}" has been started', message.body)
 
@@ -147,9 +124,6 @@ class ActivityScheduleCase(MailCommon):
     def assertPlanExecution(
         self, plan, records, expected_deadlines, expected_responsible=None
     ):
-        """Check that the plan has created the right activities and send the
-        right message on the records (see assertActivitiesFromPlan and
-        assertMessagesFromPlan)."""
         for record in records:
             self.assertActivitiesFromPlan(
                 plan, record, expected_deadlines, expected_responsible
@@ -161,7 +135,6 @@ class ActivityScheduleCase(MailCommon):
     def _instantiate_activity_schedule_wizard(
         self, records, additional_context_value=None
     ):
-        """Get a new Form with context default values referring to the records."""
         ctx = (
             {
                 "active_id": records.ids[0],

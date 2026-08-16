@@ -14,7 +14,6 @@ class TestMailTemplate(MailCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Enable the dynamic rendering restriction
         cls.env["ir.config_parameter"].set_param(
             "mail.restrict.template.rendering", True
         )
@@ -78,7 +77,6 @@ class TestMailTemplate(MailCommon):
                 else:
                     value_field = "{{ object.unknown_field }}"
                     value_fun = "{{ object.is_portal_0() }}"
-                # cannot update with a wrong field
                 with self.assertRaises(ValidationError):
                     mail_template.write(
                         {
@@ -91,7 +89,6 @@ class TestMailTemplate(MailCommon):
                             fname: value_fun,
                         }
                     )
-                # Check templates having invalid object references can't be created
                 with self.assertRaises(ValidationError):
                     self.env["mail.template"].create(
                         {
@@ -101,7 +98,6 @@ class TestMailTemplate(MailCommon):
                         }
                     )
 
-        # new model would crash at rendering
         with self.assertRaises(ValidationError):
             mail_template.write(
                 {
@@ -113,9 +109,6 @@ class TestMailTemplate(MailCommon):
     @mute_logger("odoo.addons.mail.models.mail_template")
     @mute_logger("odoo.addons.mail.models.mail_render_mixin")
     def test_invalid_template_skipped_during_install(self):
-        """During install/upgrade (install_mode) the render check is skipped:
-        data-file templates go through _load_records_write and a render failure
-        against an arbitrary sample record must not abort the upgrade."""
         mail_template = self.env["mail.template"].create(
             {
                 "name": "Installed template",
@@ -123,12 +116,10 @@ class TestMailTemplate(MailCommon):
                 "subject": "ok",
             }
         )
-        # a dynamic field that cannot render against a real record
         mail_template.with_context(install_mode=True).write(
             {"subject": "{{ object.unknown_field }}"}
         )
         self.assertEqual(mail_template.subject, "{{ object.unknown_field }}")
-        # outside install_mode the same write is still rejected
         with self.assertRaises(ValidationError):
             mail_template.write({"subject": "{{ object.another_unknown }}"})
 
@@ -172,14 +163,11 @@ class TestMailTemplate(MailCommon):
 
     @users("admin")
     def test_mail_template_abstract_model(self):
-        """Check abstract models cannot be set on templates."""
         with self.assertRaises(ValidationError):
             self.env["mail.template"].create(
                 {
                     "name": "Test abstract template",
-                    "model_id": self.env["ir.model"]
-                    ._get("mail.thread")
-                    .id,  # abstract model
+                    "model_id": self.env["ir.model"]._get("mail.thread").id,
                 }
             )
         template = self.env["mail.template"].create(
@@ -207,7 +195,6 @@ class TestMailTemplate(MailCommon):
         model = self.env["ir.model"]._get_id("res.users")
         record = self.user_employee
 
-        # Group System can create / write mail template
         mail_template = (
             self.env["mail.template"]
             .with_user(self.user_admin)
@@ -223,7 +210,6 @@ class TestMailTemplate(MailCommon):
         mail_template.with_user(self.user_admin).name = "New name"
         self.assertEqual(mail_template.name, "New name")
 
-        # Standard employee can create and edit non-dynamic templates
         employee_template = (
             self.env["mail.template"]
             .with_user(self.user_employee)
@@ -245,19 +231,16 @@ class TestMailTemplate(MailCommon):
 
         employee_template.email_to = "bar@foo.com"
 
-        # Standard employee cannot create and edit templates with forbidden expression
         with self.assertRaises(AccessError):
             self.env["mail.template"].with_user(self.user_employee).create(
                 {"body_html": """<p t-out="'foo'"></p>""", "model_id": model}
             )
 
-        # If no model is specify, he can not write allowed expression
         with self.assertRaises(AccessError):
             self.env["mail.template"].with_user(self.user_employee).create(
                 {"body_html": """<p t-out="object.name"></p>"""}
             )
 
-        # Standard employee cannot edit templates from another user, non-dynamic and dynamic
         with self.assertRaises(AccessError):
             mail_template.with_user(self.user_employee).body_html = "<p>foo</p>"
         with self.assertRaises(AccessError):
@@ -265,16 +248,13 @@ class TestMailTemplate(MailCommon):
                 self.user_employee
             ).body_html = """<p t-out="'foo'"></p>"""
 
-        # Standard employee can edit his own templates if not dynamic
         employee_template.body_html = "<p>foo</p>"
 
-        # Standard employee cannot create and edit templates with dynamic inline fields
         with self.assertRaises(AccessError):
             self.env["mail.template"].with_user(self.user_employee).create(
                 {"email_to": "{{ object.partner_id.email }}", "model_id": model}
             )
 
-        # Standard employee cannot edit his own templates if dynamic
         with self.assertRaises(AccessError):
             employee_template.body_html = """<p t-out="'foo'"></p>"""
 
@@ -305,7 +285,6 @@ class TestMailTemplate(MailCommon):
             with self.assertRaises(AccessError):
                 employee_template.body_html = '<p t-esc="%s"></p>' % expression
 
-            # try to cheat with the context
             with self.assertRaises(AccessError):
                 employee_template.with_context(
                     raise_on_forbidden_code=False
@@ -315,7 +294,6 @@ class TestMailTemplate(MailCommon):
                     raise_on_forbidden_code=False
                 ).body_html = '<p t-esc="%s"></p>' % expression
 
-            # check that an admin can use the expression
             mail_template.with_user(self.user_admin).email_to = "{{ %s }}" % expression
             mail_template.with_user(self.user_admin).email_to = (
                 "{{ %s ||| Bob }}" % expression
@@ -327,7 +305,6 @@ class TestMailTemplate(MailCommon):
                 '<p t-esc="%s">Default</p>' % expression
             )
 
-        # hide qweb code in t-inner-content
         code = """<t t-inner-content="<p t-out='1+11'>Test</p>"></t>"""
         body = self.env["mail.render.mixin"]._render_template_qweb(
             code, "res.partner", record.ids
@@ -350,9 +327,7 @@ class TestMailTemplate(MailCommon):
             '<t t-set="namn" t-value="Hello {{world}} !"/>',
             '<t t-att-test="object.name"/>',
             '<p t-att-title="object.name"></p>',
-            # otherwise-allowed expression, made unsafe by another attribute
             '<p t-out="object.name" title="Test"></p>',
-            # otherwise-allowed expression, made unsafe by a child node
             '<p t-out="object.name"><img/></p>',
             '<p t-out="object.password"></p>',
         )
@@ -365,7 +340,6 @@ class TestMailTemplate(MailCommon):
                 )
             )
 
-        # allowed expressions
         allowed_qweb_expressions = (
             '<p t-out="object.name"></p>',
             '<p t-out="object.name"></p><img/>',
@@ -406,7 +380,6 @@ class TestMailTemplate(MailCommon):
                 self.assertFalse(qweb_render.called)
                 self.assertFalse(unsafe_eval.called)
 
-        # double check that we can detect the qweb rendering
         mail_template.body_html = '<t t-out="1+1"/>'
         with (
             patch(
@@ -428,17 +401,12 @@ class TestMailTemplate(MailCommon):
             employee_template._render_field("email_to", record.ids)
             self.assertFalse(unsafe_eval.called)
 
-        # double check that we can detect the eval call
         mail_template.email_to = "Test {{ 1+1 }}"
         with patch("odoo.tools.safe_eval.unsafe_eval", side_effect=eval) as unsafe_eval:  # noqa: S307
             mail_template._render_field("email_to", record.ids)
             self.assertTrue(unsafe_eval.called)
 
-        # malformed HTML (html_normalize escapes the smuggled t-out, so the regex
-        # rendering cannot execute it)
         templates = (
-            # here sanitizer adds an 'equals void' after object.name as properties
-            # should have values (lxml 6 places ="" differently than older versions)
             (
                 """<p ou="<p t-out="object.name">"</p>""",
                 '<p ou="&lt;p t-out=" object.name"="">"</p>',
@@ -448,11 +416,11 @@ class TestMailTemplate(MailCommon):
                 """<p title="'&lt;p t-out='object.name'/&gt;"></p>""",
             ),
         )
-        o_render = self.env["mail.render.mixin"]._render_template_qweb_regex
+        o_render = self.env["mail.render.mixin"]._render_template_qweb_static
         for template, excepted in templates:
             mail_template.body_html = template
             with patch(
-                "odoo.addons.mail.models.mail_render_mixin.MailRenderMixin._render_template_qweb_regex",
+                "odoo.addons.mail.models.mail_render_mixin.MailRenderMixin._render_template_qweb_static",
                 side_effect=o_render,
             ) as render:
                 rendered = mail_template._render_field("body_html", record.ids)[
@@ -464,22 +432,18 @@ class TestMailTemplate(MailCommon):
         record.name = "<b> test </b>"
         mail_template.body_html = '<t t-out="object.name"/>'
         with patch(
-            "odoo.addons.mail.models.mail_render_mixin.MailRenderMixin._render_template_qweb_regex",
+            "odoo.addons.mail.models.mail_render_mixin.MailRenderMixin._render_template_qweb_static",
             side_effect=o_render,
         ) as render:
             rendered = mail_template._render_field("body_html", record.ids)[record.id]
             self.assertEqual(rendered, "&lt;b&gt; test &lt;/b&gt;")
             self.assertTrue(render.called)
 
-        # Check that the environment is the evaluation context
         mail_template.with_user(self.user_admin).email_to = "{{ env.user.name }}"
         rendered = mail_template._render_field("email_to", record.ids)[record.id]
         self.assertIn(self.user_admin.name, rendered)
 
     def test_mail_template_acl_translation(self):
-        """Test that a user without the group_mail_template_editor cannot write
-        dynamic code in a template translation either."""
-
         self.env.ref("base.lang_fr").sudo().active = True
 
         employee_template = (
@@ -494,11 +458,8 @@ class TestMailTemplate(MailCommon):
             )
         )
 
-        ### check qweb dynamic
-        # write on translation for template without dynamic code is allowed
         employee_template.with_context(lang="fr_FR").body_html = "non-qweb"
 
-        # cannot write dynamic code on mail_template translation for employee without the group mail_template_editor.
         with self.assertRaises(AccessError):
             employee_template.with_context(lang="fr_FR").body_html = '<t t-esc="foo"/>'
 
@@ -506,15 +467,11 @@ class TestMailTemplate(MailCommon):
             lang="fr_FR"
         ).sudo().body_html = '<t t-esc="foo"/>'
 
-        # reset the body_html to static
         employee_template.body_html = False
         employee_template.body_html = "<p>foo</p>"
 
-        ### check qweb inline dynamic
-        # write on translation for template without dynamic code is allowed
         employee_template.with_context(lang="fr_FR").subject = "non-qweb"
 
-        # cannot write dynamic code on mail_template translation for employee without the group mail_template_editor.
         with self.assertRaises(AccessError):
             employee_template.with_context(lang="fr_FR").subject = "{{ object.city }}"
 
@@ -540,7 +497,6 @@ class TestMailTemplate(MailCommon):
             }
         )
         original_attachments = self.mail_template.attachment_ids
-        # users access template, can read attachments
         for test_user in (self.user_employee, self.user_employee_2):
             with self.subTest(user_name=test_user.name):
                 template = self.mail_template.with_user(test_user)
@@ -548,14 +504,12 @@ class TestMailTemplate(MailCommon):
                     set(template.attachment_ids.mapped("name")),
                     {"AttFileName_00.txt", "AttFileName_01.txt"},
                 )
-        # other template for multi copy support
         mail_template_2 = self.env["mail.template"].create(
             {
                 "name": "Test Template 2",
             }
         )
 
-        # employee make a private copy -> other template should still be readable
         new_template, new_template_2 = (
             (self.mail_template + mail_template_2).with_user(self.user_employee).copy()
         )
@@ -582,7 +536,6 @@ class TestMailTemplate(MailCommon):
             f"{mail_template_2.name} (copy)",
             "Default name should be the old one + copy",
         )
-        # linked to their respective template
         self.assertEqual(
             new_template.attachment_ids.mapped("res_id"), new_template.ids * 2
         )
@@ -596,7 +549,6 @@ class TestMailTemplate(MailCommon):
             {"AttFileName_00.txt", "AttFileName_01.txt"},
         )
 
-        # check default is correctly used instead of copy
         newer_template, newer_template_2 = (
             (self.mail_template + mail_template_2)
             .with_user(self.user_employee)
@@ -633,7 +585,6 @@ class TestMailTemplate(MailCommon):
         self.assertEqual(
             newer_template_2.name, "My Copy", "Copy should respect given default"
         )
-        # linked to their respective template
         self.assertEqual(
             newer_template.attachment_ids.mapped("res_id"), newer_template.ids * 2
         )
@@ -662,19 +613,18 @@ class TestMailTemplate(MailCommon):
         for partner_to, expected in [
             ("1", [1]),
             ("1,2,3", [1, 2, 3]),
-            ("1, 2,  3", [1, 2, 3]),  # remove spaces
-            ("[1, 2, 3]", [1, 2, 3]),  # %r of a list
-            ("(1, 2, 3)", [1, 2, 3]),  # %r of a tuple
-            ('1,[],2,"3"', [1, 2, 3]),  # type tolerant
-            ('(1, "wrong", 2, "partner_name", "3")', [1, 2, 3]),  # fault tolerant
-            ("res.partner(1, 2, 3)", [2]),  # invalid input but avoid crash
+            ("1, 2,  3", [1, 2, 3]),
+            ("[1, 2, 3]", [1, 2, 3]),
+            ("(1, 2, 3)", [1, 2, 3]),
+            ('1,[],2,"3"', [1, 2, 3]),
+            ('(1, "wrong", 2, "partner_name", "3")', [1, 2, 3]),
+            ("res.partner(1, 2, 3)", [2]),
         ]:
             with self.subTest(partner_to=partner_to):
                 parsed = self.mail_template._parse_partner_to(partner_to)
                 self.assertListEqual(parsed, expected)
 
     def test_server_archived_usage_protection(self):
-        """Test that a mail server used by a template cannot be archived."""
         IrMailServer = self.env["ir.mail_server"]
         server = IrMailServer.create(
             {
@@ -689,7 +639,7 @@ class TestMailTemplate(MailCommon):
             server.action_archive()
         self.assertTrue(server.active)
         self.mail_template.mail_server_id = IrMailServer
-        server.action_archive()  # No more usage -> can be archived
+        server.action_archive()
         self.assertFalse(server.active)
 
 
@@ -745,11 +695,9 @@ class TestMailTemplateReset(MailCommon):
             self.env.ref("mail.mail_template_test_attachment"),
         )
 
-        # subject is not there in the data file template, so it should be set to False
         self.assertFalse(mail_template.subject, "Subject should be set to False")
 
     def test_mail_template_reset_translation(self):
-        """Test if a translated value can be reset correctly when its translation exists/doesn't exist in the po file of the directory"""
         self._load("mail", "tests/test_mail_template.xml")
 
         self.env["res.lang"]._activate_lang("en_GB")
@@ -774,11 +722,7 @@ class TestMailTemplateReset(MailCommon):
         context = {"default_template_ids": mail_template.ids, "lang": "fr_FR"}
 
         def fake_load_file(translation_importer, filepath, lang, xmlids=None):
-            """a fake load file to mimic the use case when
-            translations for fr_FR exist in the fr.po of the directory and
-            no en.po in the directory
-            """
-            if lang == "fr_FR":  # fr_FR has translations
+            if lang == "fr_FR":
                 translation_importer.model_translations["mail.template"] = {
                     "body_html": {
                         "mail.mail_template_test": {"fr_FR": "<div>Hello Odoo FR</div>"}
@@ -822,19 +766,7 @@ class TestMailTemplateReset(MailCommon):
 
 @tagged("mail_template")
 class TestMailTemplateBodyEditorOptions(MailCommon):
-    """The ``body_html`` editor must not offer video embedding.
-
-    ``iframe`` does not survive a write to this field, so a video the editor
-    happily inserts is silently destroyed on save — and it takes its wrapper
-    with it, leaving invalid HTML (opw-4746178). The guard is the ``allowVideo``
-    option on the form view; it is asserted here rather than left to the view
-    alone because the option was once spelled ``allowCommandVideo``, a name the
-    ``html_mail`` widget does not read, which disabled the guard silently for
-    everyone while looking correct in the arch.
-    """
-
     def test_body_html_strips_iframes(self):
-        """Why video must stay off: the field itself destroys the markup."""
         template = self.env["mail.template"].create(
             {
                 "name": "Video template",
@@ -845,7 +777,6 @@ class TestMailTemplateBodyEditorOptions(MailCommon):
         self.assertNotIn("iframe", template.body_html)
 
     def test_form_view_disables_video(self):
-        """The option must carry a name ``html_mail`` actually reads."""
         arch = self.env.ref("mail.email_template_form").arch
         self.assertIn(
             "'allowVideo': false",
@@ -864,7 +795,6 @@ class TestMailTemplateBodyEditorOptions(MailCommon):
 @tagged("mail_template", "-at_install", "post_install")
 class TestMailTemplateUI(HttpCase):
     def test_mail_template_dynamic_placeholder_tour(self):
-        # keep debug for technical fields visibility
         self.start_tour(
             "/odoo?debug=1", "mail_template_dynamic_placeholder_tour", login="admin"
         )
@@ -878,8 +808,6 @@ class TestTemplateConfigRestrictEditor(MailCommon):
         self.assertTrue(self.user_employee.has_group("mail.group_mail_template_editor"))
         self.assertFalse(self.user_employee.has_group("base.group_system"))
 
-        # Check that the group is on the user via the settings configuration and not that
-        # the right has been added specifically to this person.
         self.assertIn(group, self.user_employee.all_group_ids)
         self.assertNotIn(group, self.user_employee.group_ids)
 
@@ -906,7 +834,6 @@ class TestSearchTemplateCategory(MailCommon):
 
         cls.existing = MailTemplate.search([])
 
-        # 2 Hidden templates
         cls.hidden_templates = MailTemplate.create(
             [
                 {"name": "Hidden Template 1", "active": False},
@@ -923,7 +850,6 @@ class TestSearchTemplateCategory(MailCommon):
             }
         )
 
-        # 5 Custom templates
         cls.custom_templates = MailTemplate.create(
             [
                 {"name": f"Custom Template {i + 1}", "description": f"Desc {i + 1}"}
@@ -934,7 +860,6 @@ class TestSearchTemplateCategory(MailCommon):
             {"name": "Custom Template empty", "description": ""}
         )
 
-        # 4 Base templates with XML ID
         cls.base_templates = MailTemplate.create(
             [
                 {"name": f"Base Template {i + 1}", "description": f"Desc Base {i + 1}"}
@@ -1036,7 +961,6 @@ class TestSearchTemplateCategory(MailCommon):
             len(not_in_templates), expected_templates, "Not in templates count mismatch"
         )
 
-        # Search with 'not in' operator on multiple categories
         not_in_domain = [
             ("template_category", "not in", ["hidden_template", "base_template"])
         ]

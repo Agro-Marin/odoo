@@ -19,27 +19,22 @@ class TestDiscussSubChannels(HttpCase):
         sub_channel.channel_pin(pinned=True)
         self_member = sub_channel.channel_member_ids.filtered(lambda m: m.is_self)
         self.assertTrue(self_member.is_pinned)
-        # Last interest of the member is older than 2 days, no activity on the
-        # channel: should be unpinned.
         two_days_later_dt = datetime.now() + timedelta(days=3)
         with freeze_time(two_days_later_dt) as frozen_time:
             self.env["discuss.channel.member"]._gc_unpin_outdated_sub_channels()
             self.assertFalse(self_member.is_pinned)
             unpin_dt = self_member.unpin_dt
-            # The member isn't unpinned again when GC re-runs.
             frozen_time.tick(delta=timedelta(days=1))
             self.env["discuss.channel.member"]._gc_unpin_outdated_sub_channels()
             self.assertEqual(self_member.unpin_dt, unpin_dt)
         sub_channel.channel_pin(pinned=True)
         with freeze_time(two_days_later_dt) as frozen_time:
-            # Last interest older than 2 days, activity on the channel: should be kept.
             message = sub_channel.with_user(bob).message_post(
                 body="Hey!", message_type="comment"
             )
             self_member._mark_as_read(message.id)
             self.env["discuss.channel.member"]._gc_unpin_outdated_sub_channels()
             self.assertTrue(self_member.is_pinned)
-            # Unread messages: should be kept regardless of last interest.
             message = sub_channel.with_user(bob).message_post(
                 body="Another message!", message_type="comment"
             )
@@ -49,7 +44,6 @@ class TestDiscussSubChannels(HttpCase):
             self_member._mark_as_read(message.id)
             self.env["discuss.channel.member"]._gc_unpin_outdated_sub_channels()
             self.assertFalse(self_member.is_pinned)
-        # Ensure regular channels are not impacted.
         channel = self.env["discuss.channel"].create({"name": "General"})
         channel.channel_pin(pinned=True)
         with freeze_time(two_days_later_dt):
@@ -62,17 +56,11 @@ class TestDiscussSubChannels(HttpCase):
         self.assertFalse(any(m.is_self for m in parent.channel_member_ids))
         parent._create_sub_channel()
         sub_channel = parent.sub_channel_ids[0]
-        # Member created for sub channel (_create_sub_channel): should also be
-        # created for the parent channel.
         self.assertTrue(any(m.is_self for m in parent.channel_member_ids))
         self.assertTrue(any(m.is_self for m in sub_channel.channel_member_ids))
-        # Member removed from parent channel: should also be removed from the sub
-        # channel.
         parent.action_unfollow()
         self.assertFalse(any(m.is_self for m in parent.channel_member_ids))
         self.assertFalse(any(m.is_self for m in sub_channel.channel_member_ids))
-        # Member created for sub channel (add_members): should also be created
-        # for parent.
         sub_channel._add_members(users=self.env.user)
         self.assertTrue(any(m.is_self for m in parent.channel_member_ids))
         self.assertTrue(any(m.is_self for m in sub_channel.channel_member_ids))

@@ -26,7 +26,6 @@ class TestFetchmail(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # mock connection
         cls.connection = MockedConnection()
 
         def _connect__(self, allow_archived=False):
@@ -51,11 +50,9 @@ class TestFetchmail(TransactionCase):
         )
         mail_server.search([("id", "!=", mail_server.id)]).action_archive()
 
-        # confirm the server
         mail_server.button_confirm_login()
         self.assertEqual(mail_server.state, "done")
 
-        # fetch mail
         partner = self.env["res.partner"].create({"name": "fetch test"})
 
         def message_process(obj, model, message, **kw):
@@ -90,7 +87,6 @@ class TestFetchmail(TransactionCase):
         mail_server.button_confirm_login()
         self.assertEqual(mail_server.state, "done")
 
-        # fetch mail
         connection_failed_exception = Exception("mocked connection that fails")
 
         def _connect__(obj, **kw):
@@ -116,8 +112,7 @@ class TestFetchmail(TransactionCase):
             self.assertTrue(server.error_date)
             self.assertIn("mocked connection", server.error_message)
 
-            # set the date in past for deactivation
-            server.error_date = server.error_date - timedelta(days=7, minutes=1)
+            server.error_date -= timedelta(days=7, minutes=1)
             exc = server._fetch_mail()
             self.assertIs(exc, connection_failed_exception)
             self.assertEqual(server.state, "draft")
@@ -127,8 +122,6 @@ class TestFetchmail(TransactionCase):
             )
 
     def test_fetchmail_rotation_order(self):
-        """The cron processes servers by priority asc then date asc, so the
-        servers rotate across runs."""
         Server = self.env["fetchmail.server"]
         Server.search([]).action_archive()
         Server.create(
@@ -150,6 +143,4 @@ class TestFetchmail(TransactionCase):
         ):
             Server.with_context(cron_id=cron.id, cron_end_time=0)._fetch_mails()
 
-        # _fetch_mails calls _fetch_mail once on the whole priority-ordered
-        # recordset: assert the rotation order it would process.
         self.assertEqual(captured, [["p1", "p2", "p3"]])

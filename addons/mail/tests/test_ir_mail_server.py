@@ -20,8 +20,6 @@ class TestIrMailServer(MailCommon):
         cls.default_from_address = f"{cls.default_from}@{cls.alias_domain}"
 
     def test_alter_smtp_to_list(self):
-        """Check smtp_to_list alteration. Reminder: Msg['To'] is the displayed
-        header, the SMTP To list is the actual envelope recipients."""
         IrMailServer = self.env["ir.mail_server"]
         mail_from = "specific_user@test.mycompany.com"
 
@@ -33,9 +31,6 @@ class TestIrMailServer(MailCommon):
                 ['"Customer" <customer@test.example.com>'],
                 [],
             ),
-            # 'send_validated_to' context key: restrict SMTP To actual recipients
-            # but do not rewrite the Msg['To'] header (main usage is to cleanup
-            # addresses found by extract_rfc2822_addresses anyway)
             (
                 IrMailServer.with_context(
                     send_validated_to=[
@@ -53,7 +48,6 @@ class TestIrMailServer(MailCommon):
                 ['"Customer" <customer@test.example.com>', "user2@test.mycompany.com"],
                 [],
             ),
-            # 'send_smtp_skip_to' context key: block list of SMTP recipients
             (
                 IrMailServer.with_context(
                     send_smtp_skip_to=[
@@ -86,8 +80,6 @@ class TestIrMailServer(MailCommon):
                 ],
                 {},
             ),
-            # 'X-Forge-To' header: force the Msg['To'] header (not SMTP recipients)
-            # used notably for mailing lists
             (
                 IrMailServer,
                 {
@@ -101,8 +93,6 @@ class TestIrMailServer(MailCommon):
                 ["mailing@some.domain"],
                 [],
             ),
-            # 'X-Msg-To-Add' header: add in Msg['To'] without impacting SMTP To, e.g.
-            # displaying more recipients than actually mailed
             (
                 IrMailServer,
                 {
@@ -150,7 +140,6 @@ class TestIrMailServer(MailCommon):
 
     @config.patch(email_from="settings@example.com")
     def test_default_email_from(self, *args):
-        """Check that default_from parameter of alias domain respected."""
         for (default_from, domain_name), expected_from in zip(
             [
                 ("icp", "test.mycompany.com"),
@@ -188,32 +177,21 @@ class TestIrMailServer(MailCommon):
         },
     )
     def test_mail_server_config_bin(self):
-        """Test the configuration provided in the odoo-bin arguments. This config
-        is used when no mail server exists. Test with and without giving a
-        pre-configured SMTP session, should not impact results.
-
-        Also check "mail.default.from_filter" parameter usage that should overwrite
-        odoo-bin argument "--from-filter".
-        """
         IrMailServer = self.env["ir.mail_server"]
 
-        # Remove all mail server so we will use the odoo-bin arguments
         IrMailServer.search([]).unlink()
         self.assertFalse(IrMailServer.search([]))
 
         for mail_from, (expected_smtp_from, expected_msg_from) in zip(
             [
-                # inside "from_filter" domain
                 "specific_user@test.mycompany.com",
                 '"Formatted Name" <specific_user@test.mycompany.com>',
                 '"Formatted Name" <specific_user@test.MYCOMPANY.com>',
                 '"Formatted Name" <SPECIFIC_USER@test.mycompany.com>',
-                # outside "from_filter" domain
                 "test@unknown_domain.com",
                 '"Formatted Name" <test@unknown_domain.com>',
             ],
             [
-                # inside "from_filter" domain: no rewriting
                 (self.default_bounce_address, "specific_user@test.mycompany.com"),
                 (
                     self.default_bounce_address,
@@ -227,9 +205,6 @@ class TestIrMailServer(MailCommon):
                     self.default_bounce_address,
                     '"Formatted Name" <SPECIFIC_USER@test.mycompany.com>',
                 ),
-                # outside "from_filter" domain: we will use notifications emails in the
-                # headers, and bounce address in the envelope because the "from_filter"
-                # allows to use the entire domain
                 (
                     self.default_bounce_address,
                     f'"test" <{self.default_from}@{self.alias_domain}>',
@@ -244,7 +219,7 @@ class TestIrMailServer(MailCommon):
             for provide_smtp in [
                 False,
                 True,
-            ]:  # providing smtp session should not impact test
+            ]:
                 with self.subTest(mail_from=mail_from, provide_smtp=provide_smtp):
                     with self.mock_smtplib_connection():
                         if provide_smtp:
@@ -263,12 +238,10 @@ class TestIrMailServer(MailCommon):
                         from_filter="dummy@example.com, test.mycompany.com, dummy2@example.com",
                     )
 
-        # for from_filter in ICP, overwrite the one from odoo-bin
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.default.from_filter", "icp.example.com"
         )
 
-        # Use an email in the domain of the config parameter "mail.default.from_filter"
         with self.mock_smtplib_connection():
             message = self._build_email(mail_from="specific_user@icp.example.com")
             IrMailServer.send_email(message)
@@ -281,8 +254,6 @@ class TestIrMailServer(MailCommon):
 
     @users("admin")
     def test_mail_server_get_test_email_from(self):
-        """Test the email used to test the mail server connection. Check
-        from_filter parsing / alias_domain.default_from support."""
         test_server = self.env["ir.mail_server"].create(
             {
                 "from_filter": "example_2.com, example_3.com",
@@ -297,9 +268,7 @@ class TestIrMailServer(MailCommon):
                 ("notifications", "dummy.com, full_email@example_2.com, dummy2.com"),
                 ("notifications", self.mail_alias_domain.name),
                 ("notifications", f"{self.mail_alias_domain.name}, example_2.com"),
-                # default relies on "odoo"
                 (False, self.mail_alias_domain.name),
-                # fallback on user email if no from_filter
                 ("notifications", " "),
                 ("notifications", ","),
                 ("notifications", False),
@@ -325,35 +294,21 @@ class TestIrMailServer(MailCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_mail_server_priorities(self):
-        """Test if we choose the right mail server to send an email. Priorities are
-        a forced mail server, then a "from_filter" matching the "From" header,
-        then one matching its domain, then the notifications mail server, then a
-        mail server without "from_filter" (which spoofs the "From" header)."""
-        # this mail server can now be used for a specific email address and 2 domain names
         self.mail_server_user.from_filter = (
             "domain1.com, specific_user@test.mycompany.com, domain2.com"
         )
 
         for email_from, (expected_mail_server, expected_email_from) in zip(
             [
-                # matches user-specific server
                 "specific_user@test.mycompany.com",
-                # matches user-specific server (with formatting') -> should extract
-                # email from full name, must keep the given email_from
                 '"Name name@strange.name" <specific_user@test.mycompany.com>',
-                # case check
                 "SPECIFIC_USER@test.mycompany.com",
                 "specific_user@test.MYCOMPANY.com",
-                # matches domain-based server: domain is case insensitive
                 "unknown_email@test.mycompany.com",
                 "unknown_email@TEST.MYCOMPANY.COM",
                 '"Unknown" <unknown_email@test.mycompany.com>',
-                # fallback on notification email
                 '"Test" <test@unknown_domain.com>',
-                # fallback when email_from is False, should default to notification email
                 False,
-                # mail_server_user multiple from_filter check: can be used for a
-                # specific email and 2 domain names -> check other domains in filter
                 '"Example" <test@domain2.com>',
                 '"Example" <test@domain1.com>',
             ],
@@ -379,7 +334,6 @@ class TestIrMailServer(MailCommon):
                     self.mail_server_notification,
                     f"{self.default_from}@test.mycompany.com",
                 ),
-                # mail_server_user multiple from_filter check
                 (self.mail_server_user, '"Example" <test@domain2.com>'),
                 (self.mail_server_user, '"Example" <test@domain1.com>'),
             ],
@@ -394,8 +348,6 @@ class TestIrMailServer(MailCommon):
 
     @mute_logger("odoo.models.unlink", "odoo.addons.base.models.ir_mail_server")
     def test_mail_server_send_email(self):
-        """Test main 'send_email' usage: check mail_server choice based on from
-        filters, encapsulation, spoofing."""
         IrMailServer = self.env["ir.mail_server"]
 
         for mail_from, (
@@ -410,27 +362,21 @@ class TestIrMailServer(MailCommon):
                 '"Name" <unknown_name@test.mycompany.com>',
             ],
             [
-                # A mail server is configured for the email
                 (
                     "specific_user@test.mycompany.com",
                     "specific_user@test.mycompany.com",
                     self.mail_server_user,
                 ),
-                # No mail server is configured for the email address, so it will use the
-                # notifications email instead and encapsulate the old email
                 (
                     f"{self.default_from}@{self.alias_domain}",
                     f'"Name" <{self.default_from}@{self.alias_domain}>',
                     self.mail_server_notification,
                 ),
-                # same situation, but the original email has no name part
                 (
                     f"{self.default_from}@{self.alias_domain}",
                     f'"test" <{self.default_from}@{self.alias_domain}>',
                     self.mail_server_notification,
                 ),
-                # A mail server is configured for the entire domain name, so we can use the bounce
-                # email address because the mail server supports it
                 (
                     self.default_bounce_address,
                     '"Name" <unknown_name@test.mycompany.com>',
@@ -439,7 +385,6 @@ class TestIrMailServer(MailCommon):
             ],
             strict=False,
         ):
-            # test with and without providing an SMTP session, which should not impact test
             for provide_smtp in [True, False]:
                 with self.subTest(mail_from=mail_from):
                     with self.mock_smtplib_connection():
@@ -458,9 +403,6 @@ class TestIrMailServer(MailCommon):
                         mail_server=expected_mail_server,
                     )
 
-        # remove the notification server: <notifications.test@test.mycompany.com>
-        # now falls back on the <test.mycompany.com> server, which supports the
-        # bounce address
         self.mail_server_notification.unlink()
         for provide_smtp in [False, True]:
             with self.mock_smtplib_connection():
@@ -485,8 +427,6 @@ class TestIrMailServer(MailCommon):
                 mail_server=self.mail_server_domain,
             )
 
-        # miss-configured database, no mail servers from filter
-        # match the user / notification email
         self.env["ir.mail_server"].search([]).from_filter = "random.domain"
         self.mail_alias_domain.default_from = "test"
         self.mail_alias_domain.name = "custom_domain.com"
@@ -525,7 +465,6 @@ class TestPersonalServer(MailCommon):
     def assert_mail_sent_then_scheduled(
         self, mails, to_process_count, sent_count, send_datetime
     ):
-        """Assert that ``sent_count`` mails were sent and the rest scheduled."""
         TEST_LIMIT = 5
         outgoing = mails.filtered(
             lambda m: (
@@ -562,11 +501,9 @@ class TestPersonalServer(MailCommon):
         },
     )
     def test_personal_mail_server(self):
-        """Test that the personal mail servers can not be used as fallback."""
         IrMailServer = self.env["ir.mail_server"]
         self.env["ir.mail_server"].search([]).from_filter = "random.domain"
 
-        # Sanity check, no owner so it can be used as fallback
         (self.env["ir.mail_server"].search([]) - self.mail_server_user).unlink()
         self.mail_server_user.write(
             {
@@ -587,9 +524,6 @@ class TestPersonalServer(MailCommon):
             from_filter="user@test.mycompany.com",
         )
 
-        # Check that even if there is no other mail server,
-        # we don't use the mail server having an owner as fallback
-        # (to avoid leaking outgoing emails)
         self.mail_server_user.write(
             {
                 "from_filter": "user@test.mycompany.com",
@@ -610,23 +544,14 @@ class TestPersonalServer(MailCommon):
         )
 
         with self.mock_smtplib_connection(), self.assertRaises(UserError):
-            # We can't even force it
             message = self._build_email(mail_from="test@test.mycompany.com")
             IrMailServer.send_email(message, mail_server_id=self.mail_server_user.id)
         self.assertFalse(self.emails)
 
     def test_personal_mail_server_copy(self):
-        """Duplicating a personal OMS clears the owner so the copy is reachable."""
         self.assertFalse(self.mail_server_1.copy().owner_user_id)
 
     def test_personal_mail_server_from_filter_is_matched_normalized(self):
-        """from_filter is a plain editable Char: a stored address that differs
-        only in case or surrounding space is the same mailbox.
-
-        Regression: the owner check compared a normalized smtp_from against the
-        RAW field, so an admin retyping "Owner@Example.com" locked that user out
-        of their own server with "cannot be forced as it belongs to a user".
-        """
         IrMailServer = self.env["ir.mail_server"]
         owner_email = self.user_1.email
         self.user_1.outgoing_mail_server_id = self.mail_server_1
@@ -638,7 +563,6 @@ class TestPersonalServer(MailCommon):
                 )
 
     def test_personal_mail_server_still_rejects_other_senders(self):
-        """Normalizing both sides must not loosen the check into a domain match."""
         IrMailServer = self.env["ir.mail_server"]
         self.user_1.outgoing_mail_server_id = self.mail_server_1
         domain = self.user_1.email.split("@")[1]
@@ -655,7 +579,6 @@ class TestPersonalServer(MailCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_personal_mail_server_limit(self):
-        # Test the limit per personal mail servers
         TEST_LIMIT = 5
         self.env["ir.config_parameter"].set_param(
             "mail.server.personal.limit.minutes", str(TEST_LIMIT)
@@ -733,11 +656,8 @@ class TestPersonalServer(MailCommon):
             self.connect_mocked.call_count, 3, "Called once for each mail server"
         )
 
-        # Check that the email not related to personal mail server are all sent
         self.assertEqual(set(mails_other.mapped("state")), {"sent"})
 
-        # User 1 continues sending emails
-        # Because emails are still in the queue, we delay all of them
         with self.mock_datetime_and_now("2025-01-01 20:04:23"):
             new_mails_user_1 = (
                 self.env["mail.mail"]
@@ -767,7 +687,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(mail_server_1.owner_limit_count, TEST_LIMIT)
         self.assertEqual(mail_server_1.owner_limit_time, DATE_SEND_2.replace(second=0))
 
-        # One minute later, we can send again
         DATE_SEND_3 = datetime(2025, 1, 1, 20, 6, 23)
         processed = (mails_user_1 | new_mails_user_1).filtered(
             lambda m: not m.scheduled_date or m.scheduled_date <= DATE_SEND_3
@@ -782,7 +701,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(mail_server_1.owner_limit_count, TEST_LIMIT)
         self.assertEqual(mail_server_1.owner_limit_time, DATE_SEND_3.replace(second=0))
 
-        # The CRON runs one minute later, we can send 5 more emails
         DATE_SEND_5 = datetime(2025, 1, 1, 20, 7, 23)
         with (
             self.mock_smtplib_connection(),
@@ -794,9 +712,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(mail_server_1.owner_limit_count, TEST_LIMIT)
         self.assertEqual(mail_server_1.owner_limit_time, DATE_SEND_5.replace(second=0))
 
-        # The CRON is late compared to the scheduled mails,
-        # it should re-schedule the mails, starting from the current time
-        # Should send in priority the old mails
         DATE_SEND_6 = datetime(2025, 1, 1, 20, 25, 23)
         with (
             self.mock_smtplib_connection(),
@@ -808,7 +723,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(mail_server_1.owner_limit_count, TEST_LIMIT)
         self.assertEqual(mail_server_1.owner_limit_time, DATE_SEND_6.replace(second=0))
 
-        # Finish sending the email
         for i in range(2):
             DATE_SEND_7 = datetime(2025, 1, 1, 20, 26 + i, 23)
             with (
@@ -827,8 +741,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(mail_server_1.owner_limit_count, 4)
         self.assertEqual(mail_server_1.owner_limit_time, DATE_SEND_8.replace(second=0))
 
-        # 4 mails already went out this minute, so of these 5 only 1 is sent and
-        # the remaining ones are scheduled
         new_mails_user_1 = (
             self.env["mail.mail"]
             .with_user(user_1)
@@ -858,7 +770,6 @@ class TestPersonalServer(MailCommon):
 
     @mute_logger("odoo.models.unlink")
     def test_personal_mail_server_limit_many_recipient(self):
-        # Test with many recipients (should split the mail)
         TEST_LIMIT = 5
         self.env["ir.config_parameter"].set_param(
             "mail.server.personal.limit.minutes", str(TEST_LIMIT)
@@ -901,10 +812,8 @@ class TestPersonalServer(MailCommon):
         )
         self.assertEqual(len(mails), 2)
 
-        # Only one mail preserved the email_to
         self.assertEqual(mails.mapped("email_to"), [email_to, False])
 
-        # Should preserve the header
         self.assertEqual(len(set(mails.mapped("headers"))), 1)
         self.assertEqual({"test": "test header"}, json.loads(mails[0].headers))
 
@@ -916,7 +825,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(outgoing.create_uid, self.user_employee)
         self.assertEqual(len(outgoing.recipient_ids), 16 - TEST_LIMIT)
 
-        # Re-send the same minute, nothing change
         with (
             self.mock_smtplib_connection(),
             self.mock_datetime_and_now("2025-01-01 20:31:33"),
@@ -931,7 +839,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(outgoing.create_uid, self.user_employee)
         self.assertEqual(len(outgoing.recipient_ids), 16 - TEST_LIMIT)
 
-        # Re-send one minute later
         with (
             self.mock_smtplib_connection(),
             self.mock_datetime_and_now("2025-01-01 20:32:27"),
@@ -949,8 +856,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(outgoing.create_uid, self.user_employee)
         self.assertEqual(len(outgoing.recipient_ids), 16 - 2 * TEST_LIMIT)
 
-        # The user re-send emails, while some emails are still in the queue
-        # We have now 2 mails with many recipients to process in the queue
         with self.mock_datetime_and_now("2025-01-01 20:32:29"):
             other_mail = (
                 self.env["mail.mail"]
@@ -992,9 +897,7 @@ class TestPersonalServer(MailCommon):
         self.assertFalse(outgoing_1.email_to)
         self.assertEqual(outgoing_1.state, "outgoing")
         self.assertEqual(outgoing_1.create_uid, self.user_employee)
-        self.assertEqual(
-            len(outgoing_1.recipient_ids), 16 - 3 * TEST_LIMIT
-        )  # 1 recipient left
+        self.assertEqual(len(outgoing_1.recipient_ids), 16 - 3 * TEST_LIMIT)
 
         outgoing_2 = mails[1]
         self.assertEqual(outgoing_2.email_to, "target@test.com")
@@ -1002,8 +905,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(outgoing_2.create_uid, self.user_employee)
         self.assertEqual(len(outgoing_2.recipient_ids), 7)
 
-        # The next CRON will send all remaining emails of the first mail (1), and 4 mails for the second one
-        # and schedule the 3 last (7 recipients - 4 sent)
         with (
             self.mock_smtplib_connection(),
             self.mock_datetime_and_now("2025-01-01 20:39:29"),
@@ -1031,7 +932,6 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(outgoing.create_uid, self.user_employee)
         self.assertEqual(len(outgoing.recipient_ids), 3)
 
-        # Send the last email
         with (
             self.mock_smtplib_connection(),
             self.mock_datetime_and_now("2025-01-01 20:42:29"),

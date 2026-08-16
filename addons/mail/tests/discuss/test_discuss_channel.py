@@ -53,7 +53,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         cls.partner_employee_nomail = cls.user_employee_nomail.partner_id
 
     def test_channel_member_cannot_be_public_user(self):
-        """Public users can only join channels as guest."""
         user_public = mail_new_test_user(
             self.env,
             login="user_public",
@@ -115,10 +114,6 @@ class TestChannelInternals(MailCommon, HttpCase):
                                         "date": "2020-03-22 10:42:06",
                                         "default_subject": "Group",
                                         "id": message.id,
-                                        # the envelope (from/to/cc) ships to
-                                        # internal targets or for authorless
-                                        # messages; this is neither, so
-                                        # email_from is absent too
                                         "message_link_preview_ids": [],
                                         "message_type": "notification",
                                         "model": "discuss.channel",
@@ -325,8 +320,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             )
         )
         post_time = fields.Datetime.now()
-        # Mocks the return value of field.Datetime.now(),
-        # so we can see if the `last_interest_dt` is updated correctly
         with patch.object(fields.Datetime, "now", lambda: post_time):
             chat.message_post(
                 body="Test", message_type="comment", subtype_xmlid="mail.mt_comment"
@@ -336,9 +329,7 @@ class TestChannelInternals(MailCommon, HttpCase):
     @users("employee")
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_channel_recipients_channel(self):
-        """Posting a message on a channel should not send emails"""
         channel = self.env["discuss.channel"].browse(self.test_channel.ids)
-        # sudo: discuss.channel.member - adding members in non-accessible channel in a test file
         channel.sudo()._add_members(
             users=self.user_employee | self.user_admin, partners=self.test_partner
         )
@@ -355,7 +346,6 @@ class TestChannelInternals(MailCommon, HttpCase):
     @users("employee")
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_channel_recipients_chat(self):
-        """Posting a message on a chat should not send emails"""
         chat = (
             self.env["discuss.channel"]
             .with_user(self.user_admin)
@@ -376,7 +366,6 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @mute_logger("odoo.addons.mail.models.mail_mail", "odoo.models.unlink")
     def test_channel_recipients_mention(self):
-        """Posting a message on a classic channel should support mentioning somebody"""
         with self.mock_mail_gateway():
             self.test_channel.message_post(
                 body="Test",
@@ -388,7 +377,6 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @mute_logger("odoo.models.unlink")
     def test_channel_special_mention(self):
-        """Posting a message on a channel should support special mention"""
         self.test_channel._add_members(
             users=self.user_employee | self.user_employee_nomail
         )
@@ -405,8 +393,6 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @mute_logger("odoo.models.unlink")
     def test_channel_user_synchronize(self):
-        """Archiving / deleting a user should automatically unsubscribe the related
-        partner from group restricted channels."""
         group_restricted_channel = self.env["discuss.channel"]._create_channel(
             name="Sic Mundus", group_id=self.env.ref("base.group_user").id
         )
@@ -418,8 +404,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             users=self.user_employee | self.user_employee_nomail
         )
 
-        # unsubscribe the archived user from the group restricted channel, but not
-        # from the unrestricted one
         self.user_employee.active = False
         self.assertEqual(
             group_restricted_channel.channel_partner_ids, self.partner_employee_nomail
@@ -429,8 +413,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             self.user_employee.partner_id | self.partner_employee_nomail,
         )
 
-        # unsubscribe the deleted user from the group restricted channel, but not
-        # from the unrestricted one
         self.user_employee_nomail.unlink()
         self.assertEqual(
             group_restricted_channel.channel_partner_ids, self.env["res.partner"]
@@ -442,8 +424,6 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @users("employee_nomail")
     def test_channel_info_get(self):
-        # `_get_or_create_chat` should return a new channel the first time a
-        # partner is given
         channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=self.test_partner.ids
         )
@@ -454,16 +434,12 @@ class TestChannelInternals(MailCommon, HttpCase):
             {self.partner_employee_nomail.id, self.test_partner.id},
         )
 
-        # `_get_or_create_chat` should return the existing channel every time the
-        # same partner is given
         same_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=self.test_partner.ids
         )
         same_channel_info = Store().add(same_channel).get_result()["discuss.channel"][0]
         self.assertEqual(same_channel_info["id"], initial_channel_info["id"])
 
-        # `_get_or_create_chat` should return the existing channel when the current
-        # partner is given together with the other partner
         together_pids = (self.partner_employee_nomail + self.test_partner).ids
         together_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=together_pids
@@ -473,9 +449,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         self.assertEqual(together_channel_info["id"], initial_channel_info["id"])
 
-        # `_get_or_create_chat` should return a new channel the first time just the
-        # current partner is given, even if a channel containing the current partner
-        # together with other partners already exists
         solo_pids = self.partner_employee_nomail.ids
         solo_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=solo_pids
@@ -488,8 +461,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             {self.partner_employee_nomail.id},
         )
 
-        # `_get_or_create_chat` should return the existing channel every time the
-        # current partner is given
         same_solo_pids = self.partner_employee_nomail.ids
         same_solo_channel = self.env["discuss.channel"]._get_or_create_chat(
             partners_to=same_solo_pids
@@ -499,11 +470,8 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         self.assertEqual(same_solo_channel_info["id"], solo_channel_info["id"])
 
-    # `_get_or_create_chat` pins the channel by default, hence last interest is updated
     @users("employee")
     def test_get_or_create_chat_should_update_last_interest_dt(self):
-        """Ensure last_interest_dt of the current user is updated when calling _get_or_create_chat.
-        The last_interest_dt of the channel is only updated when creating the chat initially."""
         with freeze_time("2025-06-18 10:40:22"):
             channel = self.env["discuss.channel"]._get_or_create_chat(
                 self.partner_admin.ids
@@ -527,8 +495,6 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @users("employee")
     def test_channel_info_mark_as_read(self):
-        """In case of concurrent mark_as_read RPC, ensure the oldest call has no
-        effect."""
         pids = (self.partner_employee | self.user_admin.partner_id).ids
         chat = (
             self.env["discuss.channel"]
@@ -575,7 +541,6 @@ class TestChannelInternals(MailCommon, HttpCase):
                 (self.partner_employee | self.user_admin.partner_id).ids
             )
         )
-        # avoid testing behavior when member has no seen_message_id
         read_message = self._add_messages(
             chat, "Read message", author=self.user_employee.partner_id
         )
@@ -662,7 +627,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         self.assertFalse(message_3.parent_id, "should not allow non-existing parent")
 
     def test_channel_message_post_with_voice_attachment(self):
-        """Test 'voice' info being supported to create voice metadata."""
         channel = self.env["discuss.channel"].create({"name": "channel_1"})
         channel.message_post(attachments=[("audio", b"OggS\x00\x02", {"voice": True})])
         self.assertTrue(
@@ -672,8 +636,6 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @mute_logger("odoo.models.unlink")
     def test_channel_unsubscribe_auto(self):
-        """Archiving / deleting a user should automatically unsubscribe the related
-        partner from group restricted channels only."""
         test_user = self.env["res.users"].create(
             {
                 "login": "adam",
@@ -719,8 +681,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             )
         )
 
-        # unsubscribe the archived user from the group restricted channel, but not
-        # from the unrestricted channel nor from the group
         self.user_employee.active = False
         (private_group | self.test_channel).invalidate_recordset(
             ["channel_partner_ids"]
@@ -735,8 +695,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             self.user_employee.partner_id | test_partner,
         )
 
-        # unsubscribe the deleted user from the group restricted channel, but not
-        # from the unrestricted channel nor from the group
         test_user.unlink()
         self.assertEqual(
             group_restricted_channel.channel_partner_ids, self.env["res.partner"]
@@ -753,7 +711,6 @@ class TestChannelInternals(MailCommon, HttpCase):
     @users("employee")
     @mute_logger("odoo.models.unlink")
     def test_channel_private_unfollow(self):
-        """Test that a partner can leave (unfollow) a channel/group/chat."""
         group_restricted_channel = self.env["discuss.channel"]._create_channel(
             name="Channel for Groups", group_id=self.env.ref("base.group_user").id
         )
@@ -776,19 +733,12 @@ class TestChannelInternals(MailCommon, HttpCase):
         chat_user_current.action_unfollow()
         self.assertEqual(len(group_restricted_channel.channel_member_ids), 0)
         self.assertEqual(len(public_channel.channel_member_ids), 0)
-        # sudo: discuss.channel - reading members of non-accessible channel for testing purposes
         self.assertEqual(len(private_group.sudo().channel_member_ids), 0)
-        # sudo: discuss.channel - reading members of non-accessible channel for testing purposes
         self.assertEqual(len(chat_user_current.sudo().channel_member_ids), 0)
 
     def test_group_unfollow_should_not_post_message_if_the_partner_has_been_removed(
         self,
     ):
-        """Leaving a group posts a 'left the channel' message under the leaver's
-        name when ``post_leave_message`` is set. It is only posted while the
-        partner is still a member, so calling ``_action_unfollow()`` again on an
-        already removed partner posts nothing.
-        """
         test_group = self.env["discuss.channel"].create(
             {
                 "name": "Private Channel",
@@ -797,7 +747,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         test_group._add_members(partners=self.test_partner)
 
-        # no message should be posted under test_partner's name
         messages_0 = self.env["mail.message"].search(
             [
                 ("model", "=", "discuss.channel"),
@@ -807,7 +756,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         self.assertFalse(messages_0)
 
-        # a message should be posted to notify others when a partner is about to leave
         test_group._action_unfollow(self.test_partner)
         messages_1 = self.env["mail.message"].search(
             [
@@ -818,7 +766,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         self.assertEqual(len(messages_1), 1)
 
-        # no more messages should be posted if the partner has been removed before.
         test_group._action_unfollow(self.test_partner)
         messages_2 = self.env["mail.message"].search(
             [
@@ -834,7 +781,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         channel = self.env["discuss.channel"].browse(self.test_channel.id)
         channel.with_user(self.test_user)._add_members(partners=self.test_partner)
 
-        # no message should be posted to notify others when a partner is joined and left
         channel._action_unfollow(self.test_partner)
         messages = self.env["mail.message"].search(
             [
@@ -854,8 +800,8 @@ class TestChannelInternals(MailCommon, HttpCase):
             partners_to=self.user_employee.partner_id.ids
         )
         private_group.uuid = "group-uuid"
-        bgcolor_channel = html_escape("hsl(316, 61%, 45%)")  # depends on uuid
-        bgcolor_group = html_escape("hsl(17, 60%, 45%)")  # depends on uuid
+        bgcolor_channel = html_escape("hsl(316, 61%, 45%)")
+        bgcolor_group = html_escape("hsl(17, 60%, 45%)")
         expceted_avatar_channel = (
             channel_avatar.replace('fill="#875a7b"', f'fill="{bgcolor_channel}"')
         ).encode()
@@ -892,7 +838,6 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     def test_channel_write_should_send_notification_if_image_128_changed(self):
         channel = self.env["discuss.channel"].create({"name": "", "uuid": "test-uuid"})
-        # do the operation once before the assert to grab the value to expect
         channel.image_128 = base64.b64encode(b"<svg/>")
         avatar_cache_key = channel.avatar_cache_key
         channel.image_128 = False
@@ -951,7 +896,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             | nothing_test_user
         )
 
-        # sending normal message
         with self.with_user("employee"):
             channel_msg = channel.message_post(
                 body="Test", message_type="comment", subtype_xmlid="mail.mt_comment"
@@ -994,7 +938,6 @@ class TestChannelInternals(MailCommon, HttpCase):
                 for partner_id in partner_ids
             ],
         ):
-            # sending mention message
             with self.with_user("employee"):
                 channel_msg = channel.message_post(
                     body="Test @mentions",
@@ -1028,7 +971,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             len(nothing_notif), 1, "nothing + mention message = no needaction"
         )
 
-        # mute the channel
         now = datetime.now()
         self.env["discuss.channel.member"].search(
             [
@@ -1048,7 +990,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             }
         )
 
-        # sending normal message
         with self.with_user("employee"):
             channel_msg = channel.message_post(
                 body="Test", message_type="comment", subtype_xmlid="mail.mt_comment"
@@ -1081,7 +1022,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             len(nothing_notif), 0, "mute + nothing + normal message = needaction"
         )
 
-        # sending mention message
         with self.with_user("employee"):
             channel_msg = channel.message_post(
                 body="Test @mentions",
@@ -1120,11 +1060,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
 
     def test_mail_message_starred_group(self):
-        """Test starred message computation for a group. A starred
-        message in a group should be considered only if:
-            - It's our message
-            - OR we have access to the channel
-        """
         self.authenticate(self.user_employee.login, self.user_employee.login)
         data = self.make_jsonrpc_request(
             "/mail/data", {"fetch_params": ["init_messaging"]}
@@ -1184,10 +1119,7 @@ class TestChannelInternals(MailCommon, HttpCase):
 
     @users("employee")
     def test_channel_command_help_in_channel(self):
-        """Ensures the command '/help' works in a channel"""
         channel = self.env["discuss.channel"].browse(self.test_channel.ids)
-        # sudo: renaming is just test setup here; the employee is not a member
-        # of this channel and reconfiguring it now requires membership.
         channel.sudo().name = "<strong>R&D</strong>"
         with self.assertBus(
             [(self.env.cr.dbname, "res.partner", self.env.user.partner_id.id)],
@@ -1211,7 +1143,6 @@ class TestChannelInternals(MailCommon, HttpCase):
             channel.execute_command_help()
 
     def test_channel_command_help_in_group(self):
-        """Ensures the command '/help' works in a group"""
         test_user = self.env["res.users"].create(
             {
                 "login": "mario",
@@ -1221,7 +1152,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         self.partner_employee_nomail.name = (
             f"<strong>{self.partner_employee_nomail.name}</strong>"
         )
-        # Guarantee that the channel member ids in the group are in order.
         test_group = self.env["discuss.channel"].create(
             {
                 "name": "Private Channel",
@@ -1307,32 +1237,19 @@ class TestChannelInternals(MailCommon, HttpCase):
         )
         channel = self.env["discuss.channel"].create({"name": "General"})
 
-        # Each test case represents a flow of member changes on a given channel.
-        # The format is: (channel, flow) where `flow` is a list of tuples
-        # (user, operation, expected_users).
-        #
-        # Those cases ensure that we only send `channel_name_member_ids` updates
-        # for channels listed in `_member_based_naming_channel_types`, and only
-        # when relevant members (those contributing to the computed name) are affected.
         cases = [
-            # Channel does not use member-based naming (not in `_member_based_naming_channel_types`).
             (
                 channel,
                 [(john, "add", False), (john, "remove", False)],
             ),
-            # Group uses member-based naming (in `_member_based_naming_channel_types`).
-            # Name is computed from the first 3 members. Updates are only sent when those change.
             (
                 group,
                 [
                     (john, "add", [self.env.user, john]),
                     (bob, "add", [self.env.user, john, bob]),
-                    # Alice is added: we already have 3 members to compute the name, no update.
                     (alice, "add", False),
                     (eve, "add", False),
-                    # Eve is removed: not taken into account for name computation, no update.
                     (eve, "remove", False),
-                    # John is removed: was used in naming, update.
                     (john, "remove", [self.env.user, bob, alice]),
                 ],
             ),

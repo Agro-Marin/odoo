@@ -9,7 +9,6 @@ from odoo.addons.mail.tests.common_controllers import (
 @tagged("-at_install", "post_install", "mail_controller")
 class TestDiscussThreadController(MailControllerThreadCommon):
     def test_internal_channel_message_post_access(self):
-        """Test access of message_post on internal channel."""
         channel = self.env["discuss.channel"].create({"name": "Internal Channel"})
 
         def test_access(user, allowed):
@@ -27,7 +26,6 @@ class TestDiscussThreadController(MailControllerThreadCommon):
         )
 
     def test_public_channel_message_post_access(self):
-        """Test access of message_post on public channel."""
         channel = self.env["discuss.channel"].create(
             {"name": "Public Channel", "group_public_id": None}
         )
@@ -47,8 +45,6 @@ class TestDiscussThreadController(MailControllerThreadCommon):
         )
 
     def test_public_channel_message_post_partner_ids(self):
-        """Test partner_ids of message_post on public channel.
-        Non-internal users cannot use mentions without mention_token."""
         channel = self.env["discuss.channel"].create(
             {"name": "Public Channel", "group_public_id": None}
         )
@@ -78,8 +74,6 @@ class TestDiscussThreadController(MailControllerThreadCommon):
         )
 
     def test_public_channel_message_post_partner_emails(self):
-        """Test partner_emails of message_post on public channel can only be
-        used by users of base.group_partner_manager."""
         channel = self.env["discuss.channel"].create(
             {"name": "Public Channel", "group_public_id": None}
         )
@@ -102,7 +96,6 @@ class TestDiscussThreadController(MailControllerThreadCommon):
                 test_emails(self.user_public, True, no_emails),
                 test_emails(self.guest, True, no_emails),
                 test_emails(self.user_portal, True, no_emails),
-                # restricted because not base.group_partner_manager: find existing only
                 test_emails(self.user_employee_nopartner, True, existing_emails),
                 test_emails(self.user_employee, True, partner_emails),
                 test_emails(self.user_admin, True, partner_emails),

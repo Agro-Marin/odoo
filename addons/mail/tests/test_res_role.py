@@ -7,7 +7,6 @@ from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 @tagged("-at_install", "post_install")
 class TestResRole(MailCommon, HttpCase):
     def test_post_mention_role(self):
-        """Test mention with role"""
         contact = self.env["res.partner"].create({"name": "A contact"})
         role_discuss = self.env["res.role"].create({"name": "rd-Discuss"})
         role_js = self.env["res.role"].create({"name": "rd-JS"})

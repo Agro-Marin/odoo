@@ -47,12 +47,6 @@ class MailTrackingDurationMixinCase(MailCommon):
     def _update_duration_tracking(
         self, record_to_tracking_dic, minutes, new_stage=False
     ):
-        """Update the mock duration_tracking field for multiple records by the given minutes.
-
-        :param record_to_tracking_dic: list of (record, tracking dict) tuples.
-        :param minutes: minutes to add to the duration tracking (converted to seconds).
-        :param new_stage: optional new stage to set for the records. Defaults to False.
-        """
         for record, tracking_dic in record_to_tracking_dic:
             tracking_dic[str(record[self.track_duration_field].id)] += minutes * 60
             if new_stage:
@@ -61,19 +55,11 @@ class MailTrackingDurationMixinCase(MailCommon):
                 self.flush_tracking()
 
     def assertTrackingDuration(self, records, record_to_tracking_dic):
-        """Assert that each record's duration_tracking equals its expected dictionary.
-
-        :param records: all the records that need to be asserted.
-        :param record_to_tracking_dic: list of (record, tracking dict) tuples.
-        """
         records._compute_duration_tracking()
         for record, tracking_dic in record_to_tracking_dic:
             self.assertDictEqual(dict(tracking_dic), record.duration_tracking)
 
     def _test_record_duration_tracking(self):
-        """Move a record's many2one field through several values, asserting the
-        duration spent in each value."""
-
         with patch.object(self.env.cr, "now", return_value=self.mock_start_time) as now:
             track_duration_tracking = defaultdict(lambda: 0)
             record = self.rec_1
@@ -131,9 +117,6 @@ class MailTrackingDurationMixinCase(MailCommon):
             self.assertTrackingDuration(record, [(record, track_duration_tracking)])
 
     def _test_record_duration_tracking_batch(self):
-        """Move the many2one field of a batch of records through several values,
-        asserting the duration spent in each value."""
-
         with patch.object(self.env.cr, "now", return_value=self.mock_start_time) as now:
             track_duration_tracking1 = defaultdict(lambda: 0)
             track_duration_tracking2 = defaultdict(lambda: 0)
@@ -198,8 +181,6 @@ class MailTrackingDurationMixinCase(MailCommon):
             self.assertTrackingDuration(batch, record_to_tracking_dic)
 
     def _test_queries_batch_duration_tracking(self):
-        """The MailTrackingDuration mixin is only supposed to add 2 queries."""
-
         batch = self.rec_1 | self.rec_2 | self.rec_3 | self.rec_4
         batch[self.track_duration_field] = self.stage_2.id
         self.flush_tracking()

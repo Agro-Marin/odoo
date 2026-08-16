@@ -6,7 +6,6 @@ from odoo.addons.mail.tests.common_controllers import MailControllerReactionComm
 @tagged("-at_install", "post_install", "mail_controller")
 class TestMessageReactionController(MailControllerReactionCommon):
     def test_message_reaction_public_channel(self):
-        """Test access of message reaction for a public channel."""
         channel = self.env["discuss.channel"].create(
             {"group_public_id": None, "name": "public channel"}
         )
@@ -23,7 +22,6 @@ class TestMessageReactionController(MailControllerReactionCommon):
         )
 
     def test_message_reaction_channel_as_member(self):
-        """Test access of message reaction for a channel as member."""
         channel = self.env["discuss.channel"]._create_group(
             partners_to=(self.user_portal + self.user_employee).partner_id.ids
         )
@@ -41,7 +39,6 @@ class TestMessageReactionController(MailControllerReactionCommon):
         )
 
     def test_message_reaction_channel_as_non_member(self):
-        """Test access of message reaction for a channel as non-member."""
         channel = self.env["discuss.channel"]._create_group(partners_to=[])
         message = channel.message_post(body="private message")
         self._execute_subtests(

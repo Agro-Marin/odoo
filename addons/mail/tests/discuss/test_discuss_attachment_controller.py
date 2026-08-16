@@ -7,7 +7,6 @@ from odoo.addons.mail.tests.common_controllers import MailControllerAttachmentCo
 @odoo.tests.tagged("-at_install", "post_install", "mail_controller")
 class TestDiscussAttachmentController(MailControllerAttachmentCommon):
     def test_attachment_allowed_upload_public_channel(self):
-        """Test access to upload an attachment on an allowed upload public channel"""
         channel = self.env["discuss.channel"].create(
             {"group_public_id": None, "name": "public channel"}
         )
@@ -25,8 +24,6 @@ class TestDiscussAttachmentController(MailControllerAttachmentCommon):
         )
 
     def test_attachment_delete_linked_to_public_channel(self):
-        """Test access to delete an attachment associated with a public channel
-        whether or not limited `ownership_token` is sent"""
         channel = self.env["discuss.channel"].create(
             {"group_public_id": None, "name": "public channel"}
         )
@@ -47,8 +44,6 @@ class TestDiscussAttachmentController(MailControllerAttachmentCommon):
         )
 
     def test_attachment_delete_linked_to_private_channel(self):
-        """Test access to delete an attachment associated with a private channel
-        whether or not limited `ownership_token` is sent"""
         channel = self.env["discuss.channel"].create(
             {"name": "Private Channel", "channel_type": "group"}
         )
@@ -66,7 +61,6 @@ class TestDiscussAttachmentController(MailControllerAttachmentCommon):
         )
 
     def test_first_page_access_of_mail_attachment_pdf(self):
-        """Test accessing the first page of a PDF that is encrypted(test_AES.pdf) or has invalid encoding(test_unicode.pdf)."""
         attachments = []
         for pdf in (
             "mail/tests/discuss/files/test_AES.pdf",
@@ -88,6 +82,4 @@ class TestDiscussAttachmentController(MailControllerAttachmentCommon):
             ownership_token = attachment._get_ownership_token()
             url = f"/mail/attachment/pdf_first_page/{attachment.id}?access_token={ownership_token}"
             response = self.url_open(url)
-            # Either outcome is acceptable: 200 when the page is extracted, 415
-            # when pypdf lacks a crypto backend or trips the invalid encoding.
             self.assertIn(response.status_code, [415, 200])

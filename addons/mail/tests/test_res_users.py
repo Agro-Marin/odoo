@@ -16,7 +16,6 @@ from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 class TestNotifySecurityUpdate(MailCommon):
     @users("employee")
     def test_security_update_email(self):
-        """User should be notified on old email address when the email changes"""
         with self.mock_mail_gateway():
             self.env.user.write({"email": "new@example.com"})
 
@@ -71,8 +70,6 @@ class TestUser(MailCommon):
             )
 
     def test_notification_type_convert_internal_inbox_to_portal(self):
-        """Tests an internal user using inbox notifications converted to portal
-        is automatically set to email notifications"""
         user = mail_new_test_user(
             self.env,
             login="user_test_constraint_3",
@@ -82,13 +79,11 @@ class TestUser(MailCommon):
             groups="base.group_user",
         )
 
-        # the internal user starts with the inbox notification type
         self.assertEqual(user.notification_type, "inbox")
         self.assertIn(
             self.env.ref("mail.group_mail_notification_type_inbox"), user.group_ids
         )
 
-        # Change the internal user to portal, and make sure it automatically converts from inbox to email notifications
         user.write(
             {
                 "group_ids": [
@@ -110,7 +105,6 @@ class TestUser(MailCommon):
             notification_type="inbox",
             groups="base.group_erp_manager",
         )
-        # Re-check that no error occurs when we have overlapping writes on admin user
         admin.write(
             {
                 "notification_type": "email",
@@ -130,22 +124,21 @@ class TestUser(MailCommon):
 
     @freeze_time("2025-06-18 08:45:12")
     def test_out_of_office(self):
-        """Test Out-of-Office computation, defined on user itself."""
         test_user = self.user_employee.with_user(self.user_employee)
         portal_user = self.portal_user
         now = datetime(2025, 6, 8, 8, 45, 12)
         for ooo_from, ooo_to, exp_ooo in [
             (False, False, False),
-            (now - timedelta(hours=1), False, True),  # only a from is ok
-            (False, now + timedelta(hours=1), False),  # invalid interval
+            (now - timedelta(hours=1), False, True),
+            (False, now + timedelta(hours=1), False),
             (now - timedelta(hours=1), now + timedelta(hours=1), True),
             (now, now, True),
-            (now - timedelta(hours=4), now - timedelta(hours=2), False),  # past
-            (now + timedelta(hours=2), now + timedelta(hours=4), False),  # future
-            (now + timedelta(hours=2), False, False),  # future, from only
+            (now - timedelta(hours=4), now - timedelta(hours=2), False),
+            (now + timedelta(hours=2), now + timedelta(hours=4), False),
+            (now + timedelta(hours=2), False, False),
         ]:
             with self.subTest(ooo_from=ooo_from, ooo_to=ooo_to):
-                with self.mock_datetime_and_now(now):  # also mock cr.now()
+                with self.mock_datetime_and_now(now):
                     test_user.write(
                         {
                             "out_of_office_from": ooo_from,
@@ -173,18 +166,13 @@ class TestUser(MailCommon):
             self.env["res.users"].web_create_users(src)
 
         exp_emails = ["poiluchette@test.example.com", "poilvache@test.example.com"]
-        # check reset password are effectively sent
         for user_email in exp_emails:
-            # do not use assertMailMailWEmails as mails are removed whatever we
-            # try to do, code is using a savepoint to avoid storing mail.mail
-            # in DB
             self.assertSentEmail(
                 self.env.company.partner_id.email_formatted,
                 [user_email],
                 email_from=self.env.company.partner_id.email_formatted,
             )
 
-        # order does not seem guaranteed
         self.assertEqual(len(capture.records), 2, "Should create one user / entry")
         self.assertEqual(
             sorted(capture.records.mapped("name")),
@@ -196,8 +184,6 @@ class TestUser(MailCommon):
 @tagged("-at_install", "post_install", "res_users")
 class TestUserTours(HttpCaseWithUserDemo):
     def test_user_modify_own_profile(self):
-        """A user should be able to modify their own profile, even without access
-        rights to write on the res.users model."""
         if "hr.employee" in self.env and not self.user_demo.employee_id:
             self.env["hr.employee"].create(
                 {
@@ -209,7 +195,6 @@ class TestUserTours(HttpCaseWithUserDemo):
         self.user_demo.tz = "Europe/Brussels"
         self.user_demo.notification_type = "email"
 
-        # avoid 'reload_context' action in the middle of the tour to ease steps and form save checks
         with patch.object(ResUsersPatchedInTest, "preference_save", lambda self: True):
             self.start_tour(
                 "/odoo",
@@ -249,7 +234,7 @@ class TestUserSettings(MailCommon):
 
     @users("employee")
     def test_find_or_create_for_user_should_create_record_if_not_existing(self):
-        self.user_employee.res_users_settings_ids.unlink()  # pre autocreate or a portal user switching to internal user
+        self.user_employee.res_users_settings_ids.unlink()
         settings = self.user_employee.res_users_settings_ids
         self.assertFalse(settings, "no records should exist")
 

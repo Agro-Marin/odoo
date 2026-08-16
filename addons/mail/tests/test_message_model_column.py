@@ -1,21 +1,3 @@
-"""``mail.message.model`` is free-form; the public chatter routes must survive it.
-
-The column is a plain ``Char`` with no foreign key and no constraint, so it can
-hold two values that no access path may dereference blindly:
-
-* the name of a model whose module has been uninstalled -- messages outlive
-  their model, so ``env[name]`` is a ``KeyError``;
-* the name of a live model that never inherited ``mail.thread`` -- every
-  ``mail.thread`` method the access path calls on it is an ``AttributeError``.
-
-Only the first was guarded. The second answered ``/mail/message/reaction`` and
-``/mail/message/update_content`` -- both ``auth="public"`` -- with
-``AttributeError: 'res.currency' object has no attribute
-'_get_allowed_access_params'``: an HTTP 500 carrying a model name to an
-unauthenticated caller. These tests pin both to the same answer a message with
-no usable thread deserves, which is 404.
-"""
-
 import json
 
 from odoo.tests import HttpCase, tagged
@@ -29,13 +11,6 @@ class TestMessageModelColumn(HttpCase):
         cls.currency = cls.env["res.currency"].search([], limit=1)
 
     def _message_pointing_at(self, model, res_id):
-        """A message whose ``model`` names ``model``, written past the ORM.
-
-        ``create`` resolves ``reply_to`` *through* the model, so a row naming a
-        model that is not in the registry cannot be built with the ORM at all --
-        which is exactly why the writer never produced this state and the reader
-        was never taught to expect it.
-        """
         message = self.env["mail.message"].create(
             {
                 "model": "res.partner",
@@ -54,7 +29,6 @@ class TestMessageModelColumn(HttpCase):
         return message
 
     def _anonymous_jsonrpc(self, route, params):
-        """Call ``route`` with no session at all, returning the parsed answer."""
         response = self.url_open(
             route,
             data=json.dumps({"jsonrpc": "2.0", "method": "call", "params": params}),
@@ -105,7 +79,6 @@ class TestMessageModelColumn(HttpCase):
                 self._assert_not_found(payload, "/mail/message/update_content", params)
 
     def test_predicate_and_fallback(self):
-        """The rule itself, so the routes above are not the only witness."""
         live = self._message_pointing_at("res.partner", self.env.user.partner_id.id)
         self.assertTrue(live._is_thread_model())
         self.assertEqual(live._get_thread_model()._name, "res.partner")
@@ -121,13 +94,4 @@ class TestMessageModelColumn(HttpCase):
                 self.assertFalse(message._is_thread_model())
                 fallback = message._get_thread_model()
                 self.assertEqual(fallback._name, "mail.thread")
-                # The fallback exists so mail.thread class methods stay
-                # callable: the defect pinned here was an ``AttributeError``
-                # raised on a model that never inherited the mixin, so what
-                # matters is that the call resolves and answers a set. Its
-                # *contents* are not mail's to assert -- ``mail.thread`` allows
-                # no access parameter of its own, and the modules that add one
-                # (``portal``: hash/pid/token) pin their own contribution in
-                # their own suites. Asserting truthiness here would only pass
-                # when such a module happens to be installed alongside mail.
                 self.assertIsInstance(fallback._get_allowed_access_params(), set)

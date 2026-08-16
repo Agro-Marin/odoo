@@ -1,4 +1,3 @@
-# from odoo import exceptions
 from odoo.tests import new_test_user, tagged, users
 
 from odoo.addons.mail.tests import common
@@ -37,9 +36,6 @@ class TestMailMessage(common.MailCommon):
             inexisting_message.browse().has_access("read"),
             "Should not crash (can read void)",
         )
-        # TODO: cache pollution, inexisting records are not correctly tracked
-        # with self.assertRaises(exceptions.AccessError):
-        #     inexisting_message.check_access_rule('read')
 
     def test_mail_message_read_access(self):
         self.env["res.company"].invalidate_model(["name"])

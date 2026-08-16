@@ -8,18 +8,8 @@ from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 
 @tagged("mail_thread")
 class TestMenuRootLookupByModel(MailCommon):
-    """Test the determination of the best menu root for a given model.
-
-    When sharing a record through a link, it doesn't contain the menu context
-    (menu root). To help the user, we try to restore a root menu related to
-    the record when redirecting to the record from the link. That's what is tested
-    here. For more details see IrUiMenu._get_best_backend_root_menu_id_for_model.
-    """
-
     @classmethod
     def setUpClass(cls):
-        """Setup data for the tests, especially a menu hierarchy holding several
-        res.partner and res.company actions."""
         super().setUpClass()
         Menu = cls.env["ir.ui.menu"]
         Action = cls.env["ir.actions.act_window"]
@@ -47,7 +37,6 @@ class TestMenuRootLookupByModel(MailCommon):
                 }
             )
 
-        # Remove all menus and setup test menu with known results
         Menu.search([]).unlink()
 
         menu_root_contact = new_menu("Contacts")
@@ -158,17 +147,13 @@ class TestMenuRootLookupByModel(MailCommon):
             self.patch_get_backend_root_menu_ids(self.env["res.company"], []),
             self.assertQueryCount(employee=2),
         ):
-            # Auto-detection: the menu root with a sub-menu having an action with a path is selected
             self.assertEqual(
                 Menu._get_best_backend_root_menu_id_for_model("res.company"),
                 self.menu_root_settings.id,
             )
-        # Second time cache is used, so we got 2 queries less
         for _idx, (return_values, expected_menu_root_id) in enumerate(
             (
-                # Auto-detection
                 ([], self.menu_root_contact.id),
-                # Menu root defined by the model (and inheritance of), take the first one i.e. the least specific
                 ([self.menu_root_sales.id], self.menu_root_sales.id),
                 (
                     [self.menu_root_sales.id, self.menu_root_contact.id],

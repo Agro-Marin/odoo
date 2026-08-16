@@ -72,24 +72,20 @@ class TestDiscussChannelMember(MailCommon):
         ).channel_member_ids.unlink()
 
     def test_group_01(self):
-        """Test access on group."""
         res = self.env["discuss.channel.member"].search(
             [("channel_id", "=", self.group.id)]
         )
         self.assertFalse(res)
 
-        # User 1 can join group with SUDO
         self.group.with_user(self.user_1).sudo()._add_members(users=self.user_1)
         res = self.env["discuss.channel.member"].search(
             [("channel_id", "=", self.group.id)]
         )
         self.assertEqual(res.partner_id, self.user_1.partner_id)
 
-        # User 2 can not join group
         with self.assertRaises(AccessError):
             self.group.with_user(self.user_2)._add_members(users=self.user_2)
 
-        # User 2 can not create a `discuss.channel.member` to join the group
         with self.assertRaises(AccessError):
             self.env["discuss.channel.member"].with_user(self.user_2).create(
                 {
@@ -98,7 +94,6 @@ class TestDiscussChannelMember(MailCommon):
                 }
             )
 
-        # User 2 can not write on `discuss.channel.member` to join the group
         channel_member = (
             self.env["discuss.channel.member"]
             .with_user(self.user_2)
@@ -109,12 +104,9 @@ class TestDiscussChannelMember(MailCommon):
         with self.assertRaises(AccessError):
             channel_member.write({"channel_id": self.group.id})
 
-        # Even with SUDO, channel_id of channel.member should not be changed.
         with self.assertRaises(AccessError):
             channel_member.sudo().channel_id = self.group.id
 
-        # User 2 can not write on the `partner_id` of `discuss.channel.member`
-        # of an other partner to join a group
         channel_member_1 = self.env["discuss.channel.member"].search(
             [
                 ("channel_id", "=", self.group.id),
@@ -125,21 +117,18 @@ class TestDiscussChannelMember(MailCommon):
             channel_member_1.with_user(self.user_2).partner_id = self.user_2.partner_id
         self.assertEqual(channel_member_1.partner_id, self.user_1.partner_id)
 
-        # Even with SUDO, partner_id of channel.member should not be changed.
         with self.assertRaises(AccessError):
             channel_member_1.with_user(
                 self.user_2
             ).sudo().partner_id = self.user_2.partner_id
 
     def test_group_members(self):
-        """Test invitation in group part 1 (invite using crud methods)."""
         self.group.with_user(self.user_1).sudo()._add_members(users=self.user_1)
         channel_members = self.env["discuss.channel.member"].search(
             [("channel_id", "=", self.group.id)]
         )
         self.assertEqual(len(channel_members), 1)
 
-        # User 2 is not in the group, they can not invite user_portal
         with self.assertRaises(AccessError):
             self.env["discuss.channel.member"].with_user(self.user_2).create(
                 {
@@ -148,7 +137,6 @@ class TestDiscussChannelMember(MailCommon):
                 }
             )
 
-        # User 1 is in the group, they can invite other users
         self.env["discuss.channel.member"].with_user(self.user_1).create(
             {
                 "partner_id": self.user_portal.partner_id.id,
@@ -163,8 +151,6 @@ class TestDiscussChannelMember(MailCommon):
             self.user_1.partner_id | self.user_portal.partner_id,
         )
 
-        # the invited member may rename their own row, but User 2 (not a member)
-        # can not write on the `discuss.channel.member` of another user
         channel_member_1 = self.env["discuss.channel.member"].search(
             [
                 ("channel_id", "=", self.group.id),
@@ -183,14 +169,12 @@ class TestDiscussChannelMember(MailCommon):
         self.assertNotEqual(channel_member_1.custom_channel_name, "Blabla")
 
     def test_group_invite(self):
-        """Test invitation in group part 2 (use `invite` action)."""
         self.group.with_user(self.user_1).sudo()._add_members(users=self.user_1)
         channel_members = self.env["discuss.channel.member"].search(
             [("channel_id", "=", self.group.id)]
         )
         self.assertEqual(channel_members.mapped("partner_id"), self.user_1.partner_id)
 
-        # User 2 is not in the group, they can not invite user_portal
         with self.assertRaises(AccessError):
             self.group.with_user(self.user_2)._add_members(users=self.user_portal)
         channel_members = self.env["discuss.channel.member"].search(
@@ -198,7 +182,6 @@ class TestDiscussChannelMember(MailCommon):
         )
         self.assertEqual(channel_members.mapped("partner_id"), self.user_1.partner_id)
 
-        # User 1 is in the group, they can invite user_portal
         self.group.with_user(self.user_1)._add_members(users=self.user_portal)
         channel_members = self.env["discuss.channel.member"].search(
             [("channel_id", "=", self.group.id)]
@@ -209,7 +192,6 @@ class TestDiscussChannelMember(MailCommon):
         )
 
     def test_group_leave(self):
-        """Test kick/leave channel."""
         self.group.with_user(self.user_1).sudo()._add_members(users=self.user_1)
         self.group.with_user(self.user_portal).sudo()._add_members(
             users=self.user_portal
@@ -219,16 +201,13 @@ class TestDiscussChannelMember(MailCommon):
         )
         self.assertEqual(len(channel_members), 2)
 
-        # User 2 is not in the group, they can not kick user 1
         with self.assertRaises(AccessError):
             channel_members.with_user(self.user_2).unlink()
 
-        # user_portal is in the group, but a member can not kick another member
         with self.assertRaises(AccessError):
             channel_members.with_user(self.user_portal).unlink()
 
     def test_group_subchannel_join(self):
-        """Test join subchannel."""
         self.group.add_members((self.user_1 | self.user_2).partner_id.ids)
         group_subchannel = self.group.with_user(self.user_1)._create_sub_channel()
         group_subchannel.with_user(self.user_2).add_members(self.user_2.partner_id.id)
@@ -238,13 +217,11 @@ class TestDiscussChannelMember(MailCommon):
         )
 
     def test_group_restricted_channel(self):
-        """Test basics on group channel."""
         channel_members = self.env["discuss.channel.member"].search(
             [("channel_id", "=", self.group_restricted_channel.id)]
         )
         self.assertFalse(channel_members)
 
-        # user 1 belongs to the channel's group_public_id, so they can join
         self.group_restricted_channel.with_user(self.user_1)._add_members(
             users=self.user_1
         )
@@ -253,7 +230,6 @@ class TestDiscussChannelMember(MailCommon):
         )
         self.assertEqual(channel_members.mapped("partner_id"), self.user_1.partner_id)
 
-        # user_portal is not in that group, they can not join by themselves
         with self.assertRaises(AccessError):
             self.group_restricted_channel.with_user(self.user_portal)._add_members(
                 users=self.user_portal
@@ -283,7 +259,6 @@ class TestDiscussChannelMember(MailCommon):
             self.user_1.partner_id | self.user_portal.partner_id,
         )
 
-        # user 2 belongs to that group and can likewise be invited by user 1
         self.group_restricted_channel.with_user(self.user_1)._add_members(
             users=self.user_2
         )
@@ -298,7 +273,6 @@ class TestDiscussChannelMember(MailCommon):
         )
 
     def test_public_channel(self):
-        """Test access on public channels"""
         channel_members = self.env["discuss.channel.member"].search(
             [("channel_id", "=", self.public_channel.id)]
         )
@@ -322,9 +296,7 @@ class TestDiscussChannelMember(MailCommon):
         self.public_channel.with_user(self.user_portal)._add_members(
             users=self.user_portal
         )
-        with self.assertRaises(
-            ValidationError
-        ):  # a public user can never be a member; visitors join as guests
+        with self.assertRaises(ValidationError):
             self.public_channel.with_user(self.user_public)._add_members(
                 users=self.user_public
             )
@@ -382,11 +354,6 @@ class TestDiscussChannelMember(MailCommon):
         )
 
     def test_write_skips_unread_recompute_for_unrelated_fields(self):
-        """A member write unrelated to the unread counter must not trigger its
-        (GROUP BY) recompute; writing new_message_separator still must."""
-        # write() snapshots each sync field before and after: the unread counter
-        # is an unstored aggregate whose only writable dependency here is
-        # new_message_separator, so a mute write must not re-aggregate it.
         channel = (
             self.env["discuss.channel"]
             .with_user(self.user_1)
@@ -452,10 +419,10 @@ class TestDiscussChannelMember(MailCommon):
         self.assertEqual(
             members.mapped("message_unread_counter"),
             [
-                0,  # channel 1 user 1: posted last message
-                0,  # channel 2 user 2: posted last message
-                2,  # channel 1 user 2: received 2 messages (from message post)
-                1,  # channel 2 user 1: received 1 message (from message post)
-                1,  # channel 2 user 3: received 1 message (from message post)
+                0,
+                0,
+                2,
+                1,
+                1,
             ],
         )

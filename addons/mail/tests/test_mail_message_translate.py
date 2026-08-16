@@ -36,7 +36,6 @@ def mock_response(fun):
     return wrapper
 
 
-# Google Cloud Translation Documentation: https://cloud.google.com/translate/docs/reference/api-overview?hl=en
 @tagged("post_install", "-at_install", "mail_message")
 class TestTranslationController(HttpCaseWithUserDemo):
     @classmethod
@@ -82,7 +81,6 @@ class TestTranslationController(HttpCaseWithUserDemo):
         result = self._mock_translation_request({"message_id": self.message.id})
         self.assertFalse(result.get("error"))
         self.assertEqual(self.env["mail.message.translation"].search_count([]), 1)
-        # The translation records should not be discarded if the body did not change.
         self.make_jsonrpc_request(
             "/mail/message/update_content",
             {
@@ -113,9 +111,7 @@ class TestTranslationController(HttpCaseWithUserDemo):
             self.assertFalse(result.get("error"))
             self.assertEqual(result["body"], SAMPLE[target_lang])
             self.assertEqual(result["lang_name"], SAMPLE["lang"][target_lang])
-        # There is one translation record per target language.
         self.assertEqual(self.env["mail.message.translation"].search_count([]), 2)
-        # No API request should be sent if a translation value or source already exists.
         self.assertEqual(self.request_count, 3)
 
     def test_invalid_api_key(self):

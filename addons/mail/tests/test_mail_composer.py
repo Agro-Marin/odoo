@@ -51,8 +51,6 @@ class TestMailComposer(MailCommon):
 
 @tagged("mail_composer")
 class TestMailComposerForm(TestMailComposer):
-    """Test mail composer form view usage."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -86,7 +84,6 @@ class TestMailComposerForm(TestMailComposer):
     @mute_logger("odoo.addons.mail.models.mail_mail")
     @users("employee")
     def test_composer_default_recipients(self):
-        """Test usage of a classic partner in composer, as default value"""
         partner_classic = self.partner_classic.with_env(self.env)
         test_record = self.test_record.with_env(self.env)
 
@@ -119,7 +116,6 @@ class TestMailComposerForm(TestMailComposer):
     @mute_logger("odoo.addons.mail.models.mail_mail")
     @users("employee")
     def test_composer_default_recipients_private(self):
-        """Test usage of a private partner in composer, as default value"""
         partner_private = self.partner_private.with_env(self.env)
         partner_classic = self.partner_classic.with_env(self.env)
         test_record = self.test_record.with_env(self.env)
@@ -157,8 +153,6 @@ class TestMailComposerForm(TestMailComposer):
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.addons.mail.models.mail_mail")
     @users("employee")
     def test_composer_default_recipients_private_norights(self):
-        """Test usage of a private partner in composer when not having the
-        rights to see them, as default value"""
         self.user_employee.write(
             {
                 "company_ids": [
@@ -188,9 +182,6 @@ class TestMailComposerForm(TestMailComposer):
     @mute_logger("odoo.addons.mail.models.mail_mail")
     @users("employee")
     def test_composer_template_change_recipients_update(self):
-        """Check recipients on template change: a template with specific recipients
-        overrides them, a default-recipients template keeps them, no template
-        clears them."""
         self.mail_template.write(
             {
                 "email_to": self.partner_private.email_formatted,
@@ -307,8 +298,6 @@ class TestMailComposerForm(TestMailComposer):
     @mute_logger("odoo.addons.mail.models.mail_mail")
     @users("employee")
     def test_composer_template_recipients_private(self):
-        """Test usage of a private partner in composer, coming from template
-        value"""
         email_to_new = "new.customer@test.example.com"
         self.mail_template.write(
             {
@@ -333,7 +322,6 @@ class TestMailComposerForm(TestMailComposer):
             )
         )
 
-        # transformation from email_to into partner_ids: find or create
         existing_partner = self.env["res.partner"].search(
             [("email_normalized", "=", self.partner_private_2.email_normalized)]
         )
@@ -366,7 +354,6 @@ class TestMailComposerForm(TestMailComposer):
 
         message = self.test_record.message_ids[0]
         self.assertIn("<h1>Hello sir!</h1>", message.body)
-        # self.assertEqual(message.partner_ids, partner_private + partner_classic + partner_private_2 + new_partner)
         self.assertEqual(
             message.partner_ids,
             partner_private + partner_classic + partner_private_2 + new_partner,
@@ -377,8 +364,6 @@ class TestMailComposerForm(TestMailComposer):
 
 @tagged("mail_composer")
 class TestMailComposerRendering(TestMailComposer):
-    """Test rendering and support of various html tweaks in composer"""
-
     @users("employee")
     def test_mail_mass_mode_template_with_mso(self):
         mail_compose_message = self.env["mail.compose.message"].create(
@@ -484,20 +469,11 @@ class TestMailComposerUI(MailCommon, HttpCase):
 
         signature_pattern = r'<span data-o-mail-quote="1">--\nErnest</span>'
 
-        # Message 1: full composer, signature left in the editor -> present in the
-        # body, and not added again by the server.
-
         self.assertEqual(len(re.findall(signature_pattern, message_1.body)), 1)
         self.assertFalse(message_1.email_add_signature)
 
-        # Message 2: full composer, signature manually deleted -> absent from the
-        # body, and not added by the server.
-
         self.assertEqual(len(re.findall(signature_pattern, message_2.body)), 0)
         self.assertFalse(message_2.email_add_signature)
-
-        # Message 3: no full composer -> signature absent from the body, added by
-        # the server when sending.
 
         self.assertEqual(len(re.findall(signature_pattern, message_3.body)), 0)
         self.assertTrue(message_3.email_add_signature)

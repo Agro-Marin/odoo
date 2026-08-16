@@ -14,7 +14,6 @@ class TestDiscussMentionSuggestions(HttpCase):
             name="Dev User",
             group_ids=[user_group.id, rd_group.id],
         )
-        # have a user that is not channel member and not in group -> should not be suggested as mention
         new_test_user(
             self.env, login="sales", name="Sales User", groups="base.group_user"
         )

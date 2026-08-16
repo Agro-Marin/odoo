@@ -126,7 +126,6 @@ class TestDiscussChannelInvite(HttpCase, MailCommon):
             .with_user(bob)
             ._create_group(partners_to=bob.partner_id.ids)
         )
-        # Guest email is filled at create
         self.url_open(
             f"{group_chat.invitation_url}?email_token={hash_sign(self.env, 'mail.invite_email', 'alfred@test.com')}"
         )
@@ -134,7 +133,6 @@ class TestDiscussChannelInvite(HttpCase, MailCommon):
             group_chat.channel_member_ids.guest_id.email, "alfred@test.com"
         )
         self.assertEqual(group_chat.channel_member_ids.guest_id.name, "alfred@test.com")
-        # Guest email is updated if empty when invited from email
         guest = self.env["mail.guest"].create({"name": "Alice"})
         self.assertFalse(guest.email)
         self.url_open(
@@ -145,7 +143,6 @@ class TestDiscussChannelInvite(HttpCase, MailCommon):
         )
         self.assertEqual(guest.email, "alice@test.com")
         self.assertEqual(guest.name, "Alice")
-        # Guest email is not overwritten if already filled
         guest = self.env["mail.guest"].create(
             {"name": "John", "email": "john@test.com"}
         )
@@ -196,13 +193,11 @@ class TestDiscussChannelInvite(HttpCase, MailCommon):
                 ["foo@bar"],
                 [False],
             ),
-            # Channel types that do not allow inviting by email, not selectable.
             *product(
                 [chat, private_channel],
                 ["bob@odoo.com", "alfred@odoo.com", "jane@odoo.com"],
                 [False],
             ),
-            # Channel types that allow inviting by email, valid email, selectable.
             *product(
                 [group_chat, public_channel],
                 ["bob@odoo.com", "alfred@odoo.com", "jane@odoo.com"],

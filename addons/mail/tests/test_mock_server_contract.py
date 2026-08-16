@@ -1,34 +1,3 @@
-"""Store serialization contract between Python controllers and the JS mock server.
-
-The hoot mock server (``static/tests/mock_server/``) hand-mirrors the Python
-controllers and the ``Store`` serialization protocol (``tools/discuss.py``), and
-nothing pins the two implementations together. This test is the Python half of
-the drift gate: a fixed scenario is seeded, the real routes are called over
-HTTP, and for every *gated* Store model in each response the exact set of field
-names (union over records, sorted) is compared against the committed expectation
-file ``static/tests/mock_server/contract/store_shapes.js``. The JS half
-(``static/tests/mock_server/contract.test.js``) replays the same scenario
-against the mock server and asserts the same sets from the same file.
-
-Values are deliberately not snapshotted (ids, datetimes and access tokens are
-unstable); only a few hand-picked stable values are asserted inline.
-
-The committed shapes describe a bare ``mail`` install (the mock server only
-mirrors mail). When modules outside mail's dependency closure are installed,
-downstream ``_to_store`` overrides legitimately *add* fields, so the test
-degrades to a containment check: removals and renames — the dangerous, silent
-kind of drift — still fail. On a bare-mail registry the match is exact.
-
-To regenerate the expectation file after an intentional protocol change, run
-against a database with only mail's dependency closure installed::
-
-    MAIL_STORE_CONTRACT_REGEN=1 odoo-bin ... \
-        --test-tags mail_store_contract --stop-after-init
-
-then re-run the tag without the variable (must pass) and run the hoot suite
-``@mail/mock_server/contract`` (must pass too before committing).
-"""
-
 import json
 import os
 import re
@@ -62,9 +31,6 @@ CONTRACT_HEADER = """\
  */
 export default """
 
-# Store models whose shape is pinned. Models outside this list (res.users,
-# res.groups, ...) differ legitimately between a real database and the mock
-# server fixtures and are ignored.
 GATED_MODELS = [
     "DataResponse",
     "MessageReactions",
@@ -80,13 +46,11 @@ GATED_MODELS = [
 
 
 def payload_shape(payload):
-    """Reduce a Store payload to ``{model: sorted union of field names}`` for
-    gated models only."""
     shape = {}
     for model_name, records in payload.items():
         if model_name not in GATED_MODELS:
             continue
-        if isinstance(records, dict):  # singleton (e.g. "Store")
+        if isinstance(records, dict):
             keys = set(records)
         else:
             keys = {key for record in records for key in record}
@@ -95,18 +59,11 @@ def payload_shape(payload):
 
 
 def contract_path():
-    """Absolute path of the contract file (which may not exist yet when
-    regenerating for the first time)."""
     root, _, relative = CONTRACT_FILE.partition("/static/")
     return Path(file_path(root + "/static")) / relative
 
 
 def read_contract():
-    """Load the committed expectations from the shared .js module.
-
-    The file is ``<header comment> export default <strict JSON>;`` so that the
-    hoot side can import it natively while python reads the JSON body.
-    """
     try:
         content = contract_path().read_text(encoding="utf-8")
     except OSError:
@@ -193,7 +150,6 @@ class TestMockServerContract(HttpCase):
                 },
             ]
         )
-        # chatter thread: a record with a follower and an attachment
         cls.record = cls.env["res.partner"].create({"name": "Contract Customer"})
         cls.record.message_subscribe(partner_ids=cls.user_bob.partner_id.ids)
         cls.env["ir.attachment"].create(
@@ -206,8 +162,6 @@ class TestMockServerContract(HttpCase):
         )
 
     def _run_scenarios(self):
-        """Call the real routes and return ``{scenario: shape}`` plus the raw
-        payloads (for the inline stable-value assertions)."""
         self.authenticate("contract_anna", "contract_anna")
         payloads = {
             "init_messaging": self.make_jsonrpc_request(
@@ -271,8 +225,6 @@ class TestMockServerContract(HttpCase):
     def test_store_shapes(self):
         shapes, payloads = self._run_scenarios()
 
-        # A few stable values (structure tests skip values on purpose; these
-        # pin the scenario itself so both sides seed the same thing).
         channels = payloads["channels_as_member"]["discuss.channel"]
         self.assertIn(
             ("Contract Channel", "channel"),
@@ -319,8 +271,6 @@ class TestMockServerContract(HttpCase):
                         shapes[scenario], expected_shape, drift_msg % scenario
                     )
                 else:
-                    # Modules outside mail may add fields/models; removals
-                    # and renames of the committed mail shape still fail.
                     for model_name, expected_fields in expected_shape.items():
                         actual = shapes[scenario].get(model_name)
                         self.assertIsNotNone(
@@ -333,12 +283,6 @@ class TestMockServerContract(HttpCase):
                             + drift_msg % scenario,
                         )
 
-    # Community modules that auto-install alongside mail but define no Store
-    # serialization override (no _to_store / _thread_to_store /
-    # _init_messaging / add_global_values). Their presence does not change the
-    # gated shapes. If one of them grows a Store override, remove it from this
-    # list (its addition then correctly demotes the run to containment mode)
-    # and mirror the change in the mock server.
     STORE_NEUTRAL_MODULES = frozenset(
         {
             "api_doc",
@@ -365,9 +309,6 @@ class TestMockServerContract(HttpCase):
     )
 
     def _is_bare_mail_registry(self):
-        """True when every installed module is either in mail's dependency
-        closure or a known Store-neutral auto-install, i.e. the running server
-        serializes exactly what the mock server mirrors."""
         modules = self.env["ir.module.module"].search([("state", "=", "installed")])
         by_name = {module.name: module for module in modules}
         closure, todo = set(), ["mail"]

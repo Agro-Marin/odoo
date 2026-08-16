@@ -14,9 +14,6 @@ from odoo.addons.mail.tools.discuss import Store
 @tagged("RTC", "post_install", "-at_install")
 class TestChannelRTC(MailCommon, HttpCase):
     def _backdate_sessions(self, sessions, days=2):
-        """Push ``write_date`` past the RTC garbage-collection threshold."""
-        # a regular write() would reset write_date to now, so update the column
-        # directly, then drop the stale cache
         sessions.flush_model()
         self.env.cr.execute(
             "UPDATE discuss_channel_rtc_session SET write_date = %s WHERE id = ANY(%s)",
@@ -28,8 +25,6 @@ class TestChannelRTC(MailCommon, HttpCase):
     @mute_logger("odoo.models.unlink")
     @freeze_time("2023-03-15 12:34:56")
     def test_01_join_call(self):
-        """Join call should remove existing sessions, create a new session and
-        return its data."""
         self.maxDiff = None
         channel = self.env["discuss.channel"]._create_channel(
             name="Test Channel", group_id=self.env.ref("base.group_user").id
@@ -42,19 +37,12 @@ class TestChannelRTC(MailCommon, HttpCase):
         channel_member._rtc_join_call()
         with self.assertBus(
             [
-                # delete of old sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # end of old sessions
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # update history with duration of previous session
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # insert new session
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # message unread counter (message post)
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # start call notification message post
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # new call history (not asserted below)
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -211,17 +199,11 @@ class TestChannelRTC(MailCommon, HttpCase):
 
         with self.assertBus(
             [
-                # update new session
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # update new message separator
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # message_post "started a live conference" (not asserted below)
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # update call history (not asserted below)
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # incoming invitation
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                # update list of invitations
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -338,19 +320,12 @@ class TestChannelRTC(MailCommon, HttpCase):
 
         with self.assertBus(
             [
-                # update new session
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # update new message separator
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # message_post "started a live conference" (not asserted below)
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # update call history (not asserted below)
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # incoming invitation
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                # incoming invitation
                 (self.cr.dbname, "mail.guest", test_guest.id),
-                # update list of invitations
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -528,11 +503,8 @@ class TestChannelRTC(MailCommon, HttpCase):
         )
         with self.assertBus(
             [
-                # update invitation
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                # update list of invitations
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # update sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -639,11 +611,8 @@ class TestChannelRTC(MailCommon, HttpCase):
         )
         with self.assertBus(
             [
-                # update invitation
                 (self.cr.dbname, "mail.guest", test_guest.id),
-                # update list of invitations
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # update sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -767,9 +736,7 @@ class TestChannelRTC(MailCommon, HttpCase):
         )
         with self.assertBus(
             [
-                # update invitation
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                # update list of invitations
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -834,9 +801,7 @@ class TestChannelRTC(MailCommon, HttpCase):
         )
         with self.assertBus(
             [
-                # update invitation
                 (self.cr.dbname, "mail.guest", test_guest.id),
-                # update list of invitations
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -924,17 +889,11 @@ class TestChannelRTC(MailCommon, HttpCase):
 
         with self.assertBus(
             [
-                # update invitation
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                # update invitation
                 (self.cr.dbname, "mail.guest", test_guest.id),
-                # update list of invitations
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # update sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # end session
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # update call history (not asserted below)
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -1090,27 +1049,16 @@ class TestChannelRTC(MailCommon, HttpCase):
         )
         found_bus_notifs = self.assertBusNotifications(
             [
-                # mail.record/insert - discuss.channel (channel_name_member_ids)
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # discuss.channel/joined
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                # mail.record/insert - discuss.channel.member (message_unread_counter, new_message_separator, …)
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # discuss.channel/new_message
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # discuss.channel/joined
                 (self.cr.dbname, "mail.guest", test_guest.id),
-                # mail.record/insert - discuss.channel.member (message_unread_counter, new_message_separator, …)
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # discuss.channel/new_message
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # mail.record/insert - discuss.channel (member_count), discuss.channel.member
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # mail.record/insert - discuss.channel.member (rtc_inviting_session_id)
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                # mail.record/insert - discuss.channel.member (rtc_inviting_session_id)
                 (self.cr.dbname, "mail.guest", test_guest.id),
-                # mail.record/insert - discuss.channel (invited_member_ids), discuss.channel.member
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             message_items=[
@@ -1290,11 +1238,8 @@ class TestChannelRTC(MailCommon, HttpCase):
         channel_member._rtc_join_call()
         with self.assertBus(
             [
-                # update list of sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # end session
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # update call history (not asserted below)
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -1326,9 +1271,7 @@ class TestChannelRTC(MailCommon, HttpCase):
     @users("employee")
     @mute_logger("odoo.models.unlink")
     def test_50_garbage_collect_should_remove_old_sessions_and_notify_data(self):
-        self.env["discuss.channel.rtc.session"].sudo().search(
-            []
-        ).unlink()  # clean up before test
+        self.env["discuss.channel.rtc.session"].sudo().search([]).unlink()
         channel = self.env["discuss.channel"]._create_group(
             partners_to=self.user_employee.partner_id.ids
         )
@@ -1341,11 +1284,8 @@ class TestChannelRTC(MailCommon, HttpCase):
         self._backdate_sessions(channel_member.rtc_session_ids)
         with self.assertBus(
             [
-                # update list of sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # session ended
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # update call history duration
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -1385,11 +1325,8 @@ class TestChannelRTC(MailCommon, HttpCase):
         channel_member._rtc_join_call()
         with self.assertBus(
             [
-                # update list of sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # session ended
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                # update call history duration
                 (self.cr.dbname, "discuss.channel", channel.id),
             ],
             [
@@ -1447,9 +1384,7 @@ class TestChannelRTC(MailCommon, HttpCase):
         unused_ids = [9998, 9999]
         with self.assertBus(
             [
-                # update list of sessions
                 (self.cr.dbname, "discuss.channel", channel.id),
-                # session ended
                 (self.cr.dbname, "mail.guest", test_guest.id),
             ],
             [
@@ -1498,12 +1433,6 @@ class TestChannelRTC(MailCommon, HttpCase):
 
     @mute_logger("odoo.models.unlink")
     def test_notify_peers_scoped_to_sender_channel(self):
-        """Peer notifications carry attacker-controlled target session ids, so
-        `_notify_peers` must only deliver to sessions of the sender's own channel
-        and never to sessions belonging to another channel.
-        """
-        # three distinct users: a call ends a partner's other sessions, so the
-        # sender and the two targets must be different personas.
         bob = new_test_user(
             self.env, "rtc_bob", groups="base.group_user", email="rtc_bob@test.com"
         )

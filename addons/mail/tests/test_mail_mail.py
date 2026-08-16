@@ -7,9 +7,6 @@ from odoo.tests import TransactionCase
 
 class MailCase(TransactionCase):
     def test_schedule_notification_parameters_roundtrip(self):
-        """Record-valued notify kwargs (e.g. force_email_company) must survive the
-        JSON round-trip through mail.message.schedule.
-        """
         Schedule = self.env["mail.message.schedule"]
         company = self.env.company
         kwargs = {
@@ -18,7 +15,6 @@ class MailCase(TransactionCase):
             "subtitles": ["hello"],
         }
         raw = Schedule._serialize_notification_parameters(kwargs)
-        # the company is stored as its id, keeping the payload JSON-serializable
         self.assertIn(f'"force_email_company": {company.id}', raw)
 
         partner = self.env["res.partner"].create({"name": "sched"})
@@ -31,29 +27,19 @@ class MailCase(TransactionCase):
             }
         )
         params = schedule._deserialize_notification_parameters()
-        # ... and rebuilt into the original recordset on replay
         self.assertEqual(params["force_email_company"], company)
         self.assertIs(params["force_send"], True)
         self.assertEqual(params["subtitles"], ["hello"])
 
     def test_scheduled_date_accepts_plain_date(self):
-        """A ``datetime.date`` (not a ``datetime``) passed as ``scheduled_date``
-        must be stored at midnight, without raising.
-        """
-        # create() path
         mail = self.env["mail.mail"].create(
             {"scheduled_date": datetime.date(2050, 1, 15)}
         )
         self.assertEqual(mail.scheduled_date, datetime.datetime(2050, 1, 15, 0, 0, 0))
-        # write() path
         mail.write({"scheduled_date": datetime.date(2050, 2, 20)})
         self.assertEqual(mail.scheduled_date, datetime.datetime(2050, 2, 20, 0, 0, 0))
 
     def test_mail_send_non_connected_smtp_session(self):
-        """Quitting an smtp session that is not connected must not raise
-        SMTPServerDisconnected, which would hide the real error raised earlier
-        (e.g. a google smtp server refusing an expired token).
-        """
         disconnected_smtpsession = mock.MagicMock()
         disconnected_smtpsession.quit.side_effect = smtplib.SMTPServerDisconnected
         mail = self.env["mail.mail"].create({})
@@ -69,5 +55,4 @@ class MailCase(TransactionCase):
         mock_logging_info.assert_any_call(
             "Ignoring SMTPServerDisconnected while trying to quit non open session"
         )
-        # if we get here SMTPServerDisconnected was not raised
         self.assertEqual(mail.state, "outgoing")

@@ -8,10 +8,10 @@ class TestWebsocketController(HttpCaseWithUserDemo):
     def test_im_status_offline_on_websocket_closed(self):
         self.authenticate("demo", "demo")
         self.env["mail.presence"]._update_presence(self.user_demo)
-        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+        self.env.cr.precommit.run()
         self.env["bus.bus"].search([]).unlink()
         self.make_jsonrpc_request("/websocket/on_closed", {})
-        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+        self.env.cr.precommit.run()
         message = self.make_jsonrpc_request(
             "/websocket/peek_notifications",
             {
@@ -28,9 +28,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
     def test_receive_missed_presences_on_peek_notifications(self):
         self.authenticate("demo", "demo")
         self.env["mail.presence"]._update_presence(self.user_demo)
-        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
-        # First request will get notifications and trigger the creation
-        # of the missed presences one.
+        self.env.cr.precommit.run()
         last_id = self.env["bus.bus"]._bus_last_id()
         self.make_jsonrpc_request(
             "/websocket/peek_notifications",
@@ -40,7 +38,7 @@ class TestWebsocketController(HttpCaseWithUserDemo):
                 "is_first_poll": True,
             },
         )
-        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+        self.env.cr.precommit.run()
         notification = self.make_jsonrpc_request(
             "/websocket/peek_notifications",
             {
@@ -69,8 +67,6 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         )
         guest = self.env["mail.guest"].create({"name": "Guest"})
         channel.add_members(guest_ids=guest.ids)
-        # pin a db-bound public session before adding the guest cookie so the
-        # request resolves against the db routing map (as _authenticate_pseudo_user)
         self.authenticate(None, None)
         self.opener.cookies[guest._cookie_name] = guest._format_auth_cookie()
         result = self.make_jsonrpc_request(

@@ -17,10 +17,6 @@ class TestLinkPreview(MailCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.maxDiff = None
-        # The SSRF egress guard (link_preview._url_is_safe) does real DNS
-        # resolution and rejects the dummy/localhost URLs used here, so disable it
-        # to keep exercising parsing / link extraction. Egress control itself is
-        # covered as a unit in test_mail_hardening_v3.
         _ssrf_patcher = patch.object(link_preview, "_url_is_safe", return_value=True)
         _ssrf_patcher.start()
         cls.addClassCleanup(_ssrf_patcher.stop)
@@ -43,7 +39,6 @@ class TestLinkPreview(MailCommon):
         response.status_code = 200
         response._content = content
         response.encoding = "utf-8"
-        # To handle chunks read on stream requests
         response.raw = io.BytesIO(response._content)
         response.headers["Content-Type"] = content_type
         return response
@@ -96,10 +91,6 @@ class TestLinkPreview(MailCommon):
         return self._patched_get_html("text/html", content)
 
     def _patch_utf8_without_charset_header(self, *args, **kwargs):
-        # UTF-8 page declaring its charset only via <meta charset>, with NO
-        # charset in the Content-Type header: requests then sets
-        # response.encoding to its text/* default (ISO-8859-1), which would
-        # decode the UTF-8 bytes as latin-1 (mojibake) if trusted blindly.
         content = (
             "<html><head><title>Réunion café à Montréal — décembre</title>"
             '<meta charset="utf-8">'
@@ -110,14 +101,11 @@ class TestLinkPreview(MailCommon):
         response.status_code = 200
         response._content = content
         response.raw = io.BytesIO(content)
-        response.headers["Content-Type"] = "text/html"  # no charset param
-        # mirror what requests derives from that header
+        response.headers["Content-Type"] = "text/html"
         response.encoding = get_encoding_from_headers(response.headers)
         return response
 
     def test_link_preview_utf8_without_charset_header(self):
-        """A UTF-8 page whose charset is only in <meta> (Content-Type header
-        has none) must not be decoded as latin-1."""
         self.assertEqual(
             self._patch_utf8_without_charset_header().encoding,
             "ISO-8859-1",
@@ -131,8 +119,6 @@ class TestLinkPreview(MailCommon):
         self.assertEqual(preview["og_title"], "Café ☕ déjà vu à Genève")
 
     def test_link_preview_redirect_budget(self):
-        """A redirect chain longer than MAX_REDIRECTS yields no preview instead
-        of being followed forever."""
         hops = []
 
         def _get(_self, url, **kwargs):
@@ -155,15 +141,13 @@ class TestLinkPreview(MailCommon):
         )
 
     def test_link_preview_relative_redirect(self):
-        """A relative Location is resolved against the current URL and the final
-        page is previewed."""
         final_url = "https://thisdomainedoentexist.nothing/final"
 
         def _get(_self, url, **kwargs):
             if url == self.source_url:
                 response = requests.Response()
                 response.status_code = 302
-                response.headers["location"] = "/final"  # relative
+                response.headers["location"] = "/final"
                 response.url = url
                 response.raw = io.BytesIO(b"")
                 return response
@@ -278,11 +262,6 @@ class TestLinkPreview(MailCommon):
                 self.env["mail.link.preview"]._create_from_message_and_notify(message)
 
     def test_link_preview_throttle_is_per_host(self):
-        """The per-domain throttle must count previews of the SAME host only.
-
-        A substring match on ``source_url`` lets an unrelated URL merely
-        containing the domain (query param, look-alike host) trip the throttle
-        for a host with no previews of its own."""
         LP = self.env["mail.link.preview"]
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.link_preview_throttle", 1
@@ -298,7 +277,6 @@ class TestLinkPreview(MailCommon):
             LP._is_domain_thottled("https://evil.com/target"),
             "an unrelated substring match must not throttle a host with 0 previews",
         )
-        # but two recent previews of the SAME host do exceed a throttle of 1
         LP.create(
             [
                 {"source_url": "https://real.com/a"},
@@ -320,7 +298,6 @@ class TestLinkPreview(MailCommon):
             link_preview.get_link_preview_from_url(url, session)
 
     def test_link_preview_ignore_internal_link(self):
-        """Test internal links are properly ignored from link preview."""
         with (
             patch.object(requests.Session, "get", self._patch_with_og_properties),
             patch.object(requests.Session, "head", self._patch_head_html),

@@ -58,9 +58,6 @@ class MessagePostSubTestData:
 
 
 class MailControllerCommon(HttpCase, MailCommon):
-    # '_get_with_access' delegates to '_get_thread_with_access', which relies on
-    # the classic portal kwargs passed on most routes (hash, token, pid)
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -78,7 +75,6 @@ class MailControllerCommon(HttpCase, MailCommon):
             name="Elodie EmployeeNoPartner",
             notification_type="inbox",
         )
-        # whatever default creation values, we need a "no partner manager" user
         cls.user_employee_nopartner.write(
             {"group_ids": [(3, cls.env.ref("base.group_partner_manager").id)]}
         )

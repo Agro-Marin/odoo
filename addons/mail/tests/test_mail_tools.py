@@ -26,9 +26,9 @@ class TestMailTools(MailCommon):
         self.assertEqual(test_partner.email, self._test_email)
 
         sources = [
-            self._test_email,  # test direct match
-            f'"Norbert Poiluchette" <{self._test_email}>',  # encapsulated
-            "fredoastaire@test.example.com",  # partial email -> should not match !
+            self._test_email,
+            f'"Norbert Poiluchette" <{self._test_email}>',
+            "fredoastaire@test.example.com",
         ]
         expected_partners = [
             test_partner,
@@ -40,20 +40,18 @@ class TestMailTools(MailCommon):
                 found = Partner._mail_find_partner_from_emails([source])
                 self.assertEqual(found, [expected_partner])
 
-        # test with wildcard "_"
         found = Partner._mail_find_partner_from_emails(
             ["alfred_astaire@test.example.com"]
         )
         self.assertEqual(found, [self.env["res.partner"]])
 
-        # test partners with encapsulated emails
         test_partner.sudo().write(
             {"email": f'"Alfred Mighty Power Astaire" <{self._test_email}>'}
         )
 
         sources = [
-            self._test_email,  # test direct match
-            f'"Norbert Poiluchette" <{self._test_email}>',  # encapsulated
+            self._test_email,
+            f'"Norbert Poiluchette" <{self._test_email}>',
         ]
         expected_partners = [
             test_partner,
@@ -64,15 +62,12 @@ class TestMailTools(MailCommon):
                 found = Partner._mail_find_partner_from_emails([source])
                 self.assertEqual(found, [expected_partner])
 
-        # test with wildcard "_"
         found = Partner._mail_find_partner_from_emails(
             ["alfred_astaire@test.example.com"]
         )
         self.assertEqual(found, [self.env["res.partner"]])
 
     def test_mail_find_partner_from_emails_alias_localpart(self):
-        """Test '_partner_find_from_emails_single' when dealing with aliases that
-        have alias_incoming_local enabled and emails include the local part."""
         self.env["mail.alias"].create(
             [
                 {
@@ -91,7 +86,6 @@ class TestMailTools(MailCommon):
             found, f"Found {found.email} / {found.name} instead of empty recordset"
         )
 
-        # limit incoming-compat aliases to a fixed set of domains
         self.env["ir.config_parameter"].set_param(
             "mail.catchall.domain.allowed", "tartopoils.com, brutijus.com"
         )
@@ -134,7 +128,6 @@ class TestMailTools(MailCommon):
         self.assertEqual(found.email_normalized, "test_no_localpart@gmail.com")
         self.assertEqual(found.name, "Customer")
 
-        # test if ICP still works when passing a list of emails
         test_list = [
             '"Customer" <test_localpart@gmail.com>',
             '"Customer" <test_localpart@tartopoils.com>',
@@ -158,10 +151,6 @@ class TestMailTools(MailCommon):
 
     @users("employee")
     def test_mail_find_partner_from_emails_followers(self):
-        """Test '_mail_find_partner_from_emails' when dealing with records on
-        which followers have to be found based on email. Check multi email
-        and encapsulated email support."""
-        # create partner just for the follow mechanism
         linked_record = (
             self.env["res.partner"].sudo().create({"name": "Record for followers"})
         )
@@ -178,7 +167,6 @@ class TestMailTools(MailCommon):
         linked_record.message_subscribe(partner_ids=follower_partner.ids)
         test_partner = self.test_partner.with_env(self.env)
 
-        # standard test, no multi-email, to assert base behavior
         cases = [(self._test_email, True), (self._test_email, False)]
         for source, follower_check in cases:
             expected_partner = follower_partner if follower_check else test_partner
@@ -188,21 +176,20 @@ class TestMailTools(MailCommon):
                 )[0]
                 self.assertEqual(partner, expected_partner)
 
-        # formatted email
         encapsulated_test_email = f'"Robert Astaire" <{self._test_email}>'
         (follower_partner + test_partner).sudo().write(
             {"email": encapsulated_test_email}
         )
         cases = [
-            (self._test_email, True),  # normalized
-            (self._test_email, False),  # normalized
-            (encapsulated_test_email, True),  # encapsulated, same
-            (encapsulated_test_email, False),  # encapsulated, same
-            (f'"AnotherName" <{self._test_email}', True),  # same normalized, other name
+            (self._test_email, True),
+            (self._test_email, False),
+            (encapsulated_test_email, True),
+            (encapsulated_test_email, False),
+            (f'"AnotherName" <{self._test_email}', True),
             (
                 f'"AnotherName" <{self._test_email}',
                 False,
-            ),  # same normalized, other name
+            ),
         ]
         for source, follower_check in cases:
             expected_partner = follower_partner if follower_check else test_partner
@@ -216,36 +203,35 @@ class TestMailTools(MailCommon):
                     "Mail: formatted email is recognized through usage of normalized email",
                 )
 
-        # multi-email
         _test_email_2 = '"Robert Astaire" <not.alfredoastaire@test.example.com>'
         (follower_partner + test_partner).sudo().write(
             {"email": f"{self._test_email}, {_test_email_2}"}
         )
         cases = [
-            (self._test_email, True, follower_partner),  # first email
-            (self._test_email, False, test_partner),  # first email
-            (_test_email_2, True, self.env["res.partner"]),  # second email
-            (_test_email_2, False, self.env["res.partner"]),  # second email
+            (self._test_email, True, follower_partner),
+            (self._test_email, False, test_partner),
+            (_test_email_2, True, self.env["res.partner"]),
+            (_test_email_2, False, self.env["res.partner"]),
             (
                 "not.alfredoastaire@test.example.com",
                 True,
                 self.env["res.partner"],
-            ),  # normalized second email in field
+            ),
             (
                 "not.alfredoastaire@test.example.com",
                 False,
                 self.env["res.partner"],
-            ),  # normalized second email in field
+            ),
             (
                 f"{self._test_email}, {_test_email_2}",
                 True,
                 follower_partner,
-            ),  # multi-email, both matching, depends on comparison
+            ),
             (
                 f"{self._test_email}, {_test_email_2}",
                 False,
                 test_partner,
-            ),  # multi-email, both matching, depends on comparison
+            ),
         ]
         for source, follower_check, expected_partner in cases:
             with self.subTest(source=source, follower_check=follower_check):
@@ -258,7 +244,6 @@ class TestMailTools(MailCommon):
                     "Mail (FIXME): partial recognition of multi email through email_normalize",
                 )
 
-        # test users with same email, priority given to current user
         self.user_employee.sudo().write(
             {
                 "email": '"Alfred Astaire" <%s>'
@@ -271,9 +256,6 @@ class TestMailTools(MailCommon):
         self.assertEqual(found, [self.env.user.partner_id])
 
     def test_mail_find_partner_from_emails_multicompany(self):
-        """Test _mail_find_partner_from_emails when dealing with records in
-        a multicompany environment, returning a partner record with matching
-        company_id."""
         Partner = self.env["res.partner"]
         self.test_partner.company_id = self.company_2
         self.test_partner.write({"name": "Original - Company2"})
@@ -322,7 +304,6 @@ class TestMailTools(MailCommon):
 @tagged("mail_tools", "mail_init")
 class TestMailUtils(MailCommon):
     def test_migrate_icp_to_domain(self):
-        """Test ICP to alias domain migration"""
         self.env["ir.config_parameter"].set_param(
             "mail.catchall.domain", "test.migration.com"
         )

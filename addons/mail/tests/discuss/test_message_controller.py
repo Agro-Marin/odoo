@@ -48,7 +48,6 @@ class TestMessageController(HttpCaseWithUserDemo):
     def test_channel_message_attachments(self):
         self.authenticate(None, None)
         self.opener.cookies[self.guest._cookie_name] = self.guest._format_auth_cookie()
-        # test message post: token error
         res1 = self.url_open(
             url="/mail/message/post",
             data=json.dumps(
@@ -72,7 +71,6 @@ class TestMessageController(HttpCaseWithUserDemo):
             res1.text,
             "guest should not be allowed to add attachment without token when posting message",
         )
-        # test message post: token ok
         res2 = self.url_open(
             url="/mail/message/post",
             data=json.dumps(
@@ -123,7 +121,6 @@ class TestMessageController(HttpCaseWithUserDemo):
             ],
             "guest should be allowed to add attachment with token when posting message",
         )
-        # test message update: token error
         res3 = self.url_open(
             url="/mail/message/update_content",
             data=json.dumps(
@@ -146,7 +143,6 @@ class TestMessageController(HttpCaseWithUserDemo):
             res3.text,
             "guest should not be allowed to add attachment without token when updating message",
         )
-        # test message update: token ok
         res4 = self.url_open(
             url="/mail/message/update_content",
             data=json.dumps(

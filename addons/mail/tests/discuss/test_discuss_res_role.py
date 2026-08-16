@@ -11,7 +11,6 @@ class TestDiscussResRole(TestResRole):
         role = self.env["res.role"].create({"name": "rd-Discuss"})
         for idx, test_case in enumerate(
             [
-                # channel_type, channel_grp, user_grp, is_member, mentionned
                 ("channel", None, "base.group_user", False, True),
                 ("channel", None, "base.group_user", True, True),
                 ("channel", "base.group_system", "base.group_user", False, False),
