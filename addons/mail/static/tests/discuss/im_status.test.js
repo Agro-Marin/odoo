@@ -126,8 +126,6 @@ test("interactions while online do not re-send update_presence", async () => {
     pyEnv["res.partner"].write(serverState.partnerId, { im_status: "online" });
     await start();
     await waitForSteps(["update_presence"]);
-    // The first send captured an inactivity period of exactly 0; that 0 must
-    // not read as "never sent", or every throttled interaction re-sends.
     await advanceTime(2000);
     localStorage.setItem("presence.lastPresence", Date.now());
     await advanceTime(2000);
@@ -140,8 +138,6 @@ test("presence is re-sent after the bus reconnects", async () => {
     mockService("bus_service", {
         send: (type, payload) => {
             if (type === "update_presence") {
-                // distinguish the reconnect re-send (still online, small
-                // inactivity) from the away timer's send (= AWAY_DELAY)
                 asyncStep(
                     payload.inactivity_period < AWAY_DELAY
                         ? "presence-online"
@@ -155,21 +151,15 @@ test("presence is re-sent after the bus reconnects", async () => {
     pyEnv["res.partner"].write(serverState.partnerId, { im_status: "online" });
     await start();
     await waitForSteps(["presence-online"]);
-    // the server forgot our presence on the drop: reconnection must re-send it
-    // or a present-but-idle user appears offline until their next interaction
     MockServer.env["bus.bus"]._simulateDisconnection(
         WEBSOCKET_CLOSE_CODES.ABNORMAL_CLOSURE,
     );
     await waitForSteps(["BUS:DISCONNECT"]);
-    // past INITIAL_RECONNECT_DELAY but nowhere near AWAY_DELAY, so only the
-    // reconnection can produce the re-send
     await advanceTime(5000);
     await waitForSteps(["presence-online"]);
 });
 
 test("new tab update presence when user comes back from away", async () => {
-    // The status service skips duplicate presence updates, but a new tab that
-    // never sent presence must still issue its first one.
     localStorage.setItem("presence.lastPresence", Date.now() - AWAY_DELAY);
     const pyEnv = await startServer();
     pyEnv["res.partner"].write([serverState.partnerId], { im_status: "offline" });
@@ -194,6 +184,6 @@ test("new tab update presence when user comes back from away", async () => {
     });
     tabEnv_2.services.bus_service.start();
     await expect.waitForSteps([]);
-    localStorage.setItem("presence.lastPresence", Date.now()); // Simulate user presence.
+    localStorage.setItem("presence.lastPresence", Date.now());
     await expect.waitForSteps(["update_presence", "update_presence"]);
 });

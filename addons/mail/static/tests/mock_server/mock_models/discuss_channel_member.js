@@ -204,9 +204,6 @@ export class DiscussChannelMember extends models.ServerModel {
                 "partner_id",
                 (m) => {
                     const ResPartner = this.env["res.partner"];
-                    // mirror server: partners reached through a channel member
-                    // also carry their mention token, unless an empty field
-                    // list was explicitly requested
                     let partnerFields = this._get_store_partner_fields(fields);
                     if (!partnerFields) {
                         partnerFields = ResPartner._to_store_defaults;
@@ -244,9 +241,6 @@ export class DiscussChannelMember extends models.ServerModel {
     }
 
     get _to_store_defaults() {
-        // last_interest_dt / new_message_separator are self-member data: sent
-        // only through the self member's extra fields in discuss_channel.js
-        // `_to_store`, not for arbitrary members
         return [
             mailDataHelpers.Store.one(
                 "channel_id",
@@ -386,7 +380,7 @@ export class DiscussChannelMember extends models.ServerModel {
         /** @type {import("mock_models").DiscussChannelMember} */
         const DiscussChannelMember = this.env["discuss.channel.member"];
 
-        const channelMememberId = ids[0]; // simulate ensure_one.
+        const channelMememberId = ids[0];
         DiscussChannelMember.write([channelMememberId], { custom_notifications });
 
         const [partner, guest] = this.env["res.partner"]._get_current_persona();

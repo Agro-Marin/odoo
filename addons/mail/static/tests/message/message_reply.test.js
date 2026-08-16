@@ -341,7 +341,6 @@ test("Click reply to note again preserves composer content", async () => {
     await contains(
         ".o-mail-Composer-html.odoo-editor-editable:text('@Batman Strong Text'):has(a.o_mail_redirect:text('@Batman')):has(strong:text('Strong Text'))",
     );
-    // check the exact textContent because :text() validates the rendered text, not the NBSP separator.
     expect(editor.editable.textContent).toBe("\uFEFF@Batman\uFEFF\u00A0Strong Text");
     await click("button.active:text('Log note')");
     await contains(".o-mail-Composer", { count: 0 });

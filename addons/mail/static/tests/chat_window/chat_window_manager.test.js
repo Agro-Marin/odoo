@@ -43,13 +43,12 @@ test("chat window does not fetch messages if hidden", async () => {
             model: "discuss.channel",
         },
     ]);
-    patchUiSize({ width: 900 }); // enough for 2 open chat windows max
+    patchUiSize({ width: 900 });
     onRpcBefore("/discuss/channel/messages", () => asyncStep("fetch_messages"));
     setupChatHub({ opened: [channelId3, channelId2, channeId1] });
     await start();
     await contains(".o-mail-ChatWindow", { count: 2 });
     await contains(".o-mail-ChatBubble", { count: 1 });
-    // FIXME: expected ordering: Banana, Apple, Orange
     await contains(".o-mail-Message-content", { text: "Banana" });
     await contains(".o-mail-Message-content", { text: "Apple" });
     await contains(".o-mail-Message-content", { count: 0, text: "Orange" });
@@ -83,13 +82,12 @@ test("click on hidden chat window should fetch its messages", async () => {
             model: "discuss.channel",
         },
     ]);
-    patchUiSize({ width: 900 }); // enough for 2 open chat windows max
+    patchUiSize({ width: 900 });
     onRpcBefore("/discuss/channel/messages", () => asyncStep("fetch_messages"));
     setupChatHub({ opened: [channelId3, channelId2, channeId1] });
     await start();
     await contains(".o-mail-ChatWindow", { count: 2 });
     await contains(".o-mail-ChatBubble", { count: 1 });
-    // FIXME: expected ordering: Banana, Apple, Orange
     await contains(".o-mail-Message-content", { text: "Banana" });
     await contains(".o-mail-Message-content", { text: "Apple" });
     await contains(".o-mail-Message-content", { count: 0, text: "Orange" });
@@ -104,7 +102,6 @@ test("click on hidden chat window should fetch its messages", async () => {
 test("downgrade 19.1 to 19.0 should ignore chat hub local storage data", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
-    // simulate data in local storage like 19.1
     browser.localStorage.setItem(
         CHAT_HUB_KEY,
         JSON.stringify({

@@ -4,7 +4,6 @@ import { advanceTime } from "@odoo/hoot-mock";
 
 describe.current.tags("desktop");
 
-/** Fake BroadcastChannel wire: every sync sees the other syncs' messages. */
 function makeWire() {
     const channels = [];
     return {
@@ -58,11 +57,8 @@ test("a host ignores CLOSE broadcast by one of its remote tabs", async () => {
     const remote = makeSync(wire);
     host.sync.updateRemoteTabs(1, 42, {});
     expect(remote.state.remoteSessionId).toBe(42);
-    // the remote broadcasts CLOSE with the host's session id (generic end-call
-    // path): the host owns the call and must survive
     remote.sync.endHost();
     expect(host.steps.hostClosed).toBe(0);
-    // a genuine CLOSE from the host still reaches the remotes
     host.sync.endHost();
     expect(remote.steps.hostClosed).toBe(1);
 });
@@ -76,11 +72,8 @@ test("PING only feeds the watchdog of remotes mirroring that host", async () => 
     const remote = makeSync(wire);
     hostA.sync.updateRemoteTabs(1, 42, {});
     expect(remote.state.remoteSessionId).toBe(42);
-    // created after the update: a tab mirroring nothing, only seeing pings
     const idle = makeSync(wire);
     hostA.sync.ping(42);
-    // hostA's pings stop: only its own remote may treat the host as gone, since
-    // another host or an idle tab arming the watchdog would clear() live state
     await advanceTime(PING_INTERVAL + 10_001);
     expect(remote.steps.hostClosed).toBe(1);
     expect(hostB.steps.hostClosed).toBe(0);

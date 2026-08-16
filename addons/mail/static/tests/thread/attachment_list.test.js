@@ -43,11 +43,11 @@ test("simplest layout", async () => {
     await contains(".o-mail-Message .o-mail-AttachmentList");
     expect(".o-mail-AttachmentContainer:first").toHaveAttribute("title", "test.txt");
     await contains(".o-mail-AttachmentCard-image");
-    expect(".o-mail-AttachmentCard-image:first").toHaveClass("o_image"); // required for mimetype.scss style
+    expect(".o-mail-AttachmentCard-image:first").toHaveClass("o_image");
     expect(".o-mail-AttachmentCard-image:first").toHaveAttribute(
         "data-mimetype",
         "text/plain",
-    ); // required for mimetype.scss style
+    );
     await contains(".o-mail-AttachmentButtons button", { count: 2 });
     await contains(".o-mail-Attachment-unlink");
     await contains(".o-mail-AttachmentButtons button[title='Download']");
@@ -143,7 +143,7 @@ test("clicking on the delete attachment button multiple times should do the rpc 
     await click(".modal-footer .btn-primary");
     await click(".modal-footer .btn-primary");
     await contains(".o-mail-Attachment-unlink", { count: 0 });
-    await waitForSteps(["attachment_unlink"]); // The unlink method must be called once
+    await waitForSteps(["attachment_unlink"]);
 });
 
 test("view attachment", async () => {
@@ -193,9 +193,6 @@ test("can view pdf url", async () => {
     await openDiscuss(channelId);
     await click(".o-mail-AttachmentContainer", { text: "url.pdf.example" });
     await contains(".o-FileViewer");
-    // production-faithful URL: the server always sends raw_access_token on
-    // attachments (ir_attachment._to_store_defaults, no predicate) and the
-    // client always appends it (file_model urlQueryParams); mock token = id
     await contains(
         `iframe.o-FileViewer-view[data-src="/web/static/lib/pdfjs/web/viewer.html?file=${encodeURIComponent(
             `${getOrigin()}/web/content/${attachmentId}?access_token=${attachmentId}&filename=url.pdf.example`,
@@ -230,8 +227,6 @@ test("close attachment viewer", async () => {
 });
 
 test("[technical] does not crash when the viewer is closed before image load", async () => {
-    // the viewer swaps its spinner for the image on the "load" event: that event
-    // must not crash when it lands after the viewer was closed
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({
         channel_type: "channel",
@@ -253,7 +248,6 @@ test("[technical] does not crash when the viewer is closed before image load", a
     await click(".o-mail-AttachmentImage");
     await contains(".o-FileViewer-viewImage");
     await click(".o-FileViewer div[aria-label='Close']");
-    // Simulate image becoming loaded.
     expect(() => {
         document
             .querySelector(".o-FileViewer-viewImage")
@@ -380,7 +374,6 @@ test("should not view attachment from click on non-viewable attachment in list c
         text: "test.odt",
     });
     await click(".o-mail-AttachmentContainer", { text: "test.odt" });
-    // weak test, no guarantee that we waited long enough for the potential file viewer to show
     await contains(".o-FileViewer", { count: 0 });
     await click(".o-mail-AttachmentContainer[title='test.png']");
     await contains(".o-FileViewer");
@@ -407,7 +400,6 @@ test("img file has proper src in discuss.channel", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    // access_token: see "can view pdf url" — real payloads always carry it
     await contains(
         `.o-mail-AttachmentContainer[title='test.png'] img[data-src*='${getOrigin()}/web/image/${attachmentId}?access_token=${attachmentId}&filename=test.png']`,
     );
@@ -437,7 +429,6 @@ test("download url of non-viewable binary file", async () => {
 
     patchWithCleanup(download, {
         _download: (options) => {
-            // access_token: see "can view pdf url" — real payloads always carry it
             expect(options.url).toBe(
                 `${getOrigin()}/web/content/${attachmentId}?access_token=${attachmentId}&filename=test.o&download=true`,
             );

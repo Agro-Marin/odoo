@@ -23,7 +23,7 @@ defineMailModels();
 describe.current.tags("desktop");
 
 beforeEach(() => {
-    ResPartner._views.form = /* xml */ `
+    ResPartner._views.form = `
         <form>
             <field name="name"/>
             <field name="email"/>
@@ -68,7 +68,6 @@ test("fieldmany2many tags email (edition)", async () => {
     );
     expect(tags[1].innerText).toBe("gold, Invoice");
     await contains(".o-mail-RecipientsInputTagsListPopover");
-    // set the email
     await insertText(
         ".o-mail-RecipientsInputTagsListPopover input",
         "coucou@petite.perruche",
@@ -85,7 +84,6 @@ test("fieldmany2many tags email (edition)", async () => {
         "title",
         "coucou@petite.perruche",
     );
-    // should have read Partner_2 2 times: when opening the dropdown and when saving the new email.
     await waitForSteps([`web_read [${partnerId_2}]`, `web_save [${partnerId_2}]`]);
 });
 
@@ -105,18 +103,14 @@ test("fieldmany2many tags email popup close without filling", async () => {
             </form>
         `,
     });
-    // add an other existing tag
     await clickFieldDropdown("partner_ids");
     await clickFieldDropdownItem("partner_ids", "Deficient Denise");
     await contains(".o-mail-RecipientsInputTagsListPopover");
-    // set the email
     await insertText(
         ".o-mail-RecipientsInputTagsListPopover input",
         "coucou@petite.perruche",
     );
-    // Close the modal dialog without saving (should remove partner from invalid records)
     await click(".o-mail-RecipientsInputTagsListPopover .btn-secondary");
-    // Selecting a partner with a valid email shouldn't open the modal dialog for the previous partner
     await contains(".o_field_widget[name='partner_ids'] .badge", { count: 0 });
     await clickFieldDropdown("partner_ids");
     await clickFieldDropdownItem("partner_ids", "Valid Valeria");

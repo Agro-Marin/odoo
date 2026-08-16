@@ -41,7 +41,7 @@ test("should show member list when clicking on member list button in thread view
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // open by default
+    await contains(".o-discuss-ChannelMemberList");
     await click("[title='Members']");
     await contains(".o-discuss-ChannelMemberList", { count: 0 });
     await click("[title='Members']");
@@ -99,7 +99,6 @@ test("chat with member should be opened after clicking on channel member", async
 });
 
 test("should show a button to load more members if they are not all loaded", async () => {
-    // Test assumes at most 100 members are loaded at once.
     const pyEnv = await startServer();
     const channel_member_ids = [];
     for (let i = 0; i < 101; i++) {
@@ -120,16 +119,11 @@ test("should show a button to load more members if they are not all loaded", asy
 });
 
 test("Load more button should load more members", async () => {
-    // Test assumes at most 100 members are loaded at once.
     const pyEnv = await startServer();
     const partnerIds = [];
     for (let i = 0; i < 101; i++) {
         partnerIds.push(pyEnv["res.partner"].create({ name: "name" + i }));
     }
-    // Membership is declared up front, self included. Writing the members after
-    // openDiscuss() instead raced the auto-join that adds the current user's own
-    // member: the list settled at 101 or 102 depending on which landed first,
-    // which is what made this test flaky (~50% locally).
     const channelId = createChannel(pyEnv, {
         name: "TestChannel",
         channel_type: "channel",
@@ -150,7 +144,7 @@ test("Channel member count update after user joined", async () => {
     pyEnv["res.partner"].create({ name: "Harry", user_ids: [userId] });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await contains(".o-discuss-ChannelMemberList h6", { text: "Offline - 1" });
     await click("[title='Invite People']");
     await click(".o-discuss-ChannelInvitation-selectable", { text: "Harry" });

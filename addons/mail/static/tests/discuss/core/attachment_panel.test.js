@@ -16,7 +16,7 @@ test("Empty attachment panel", async () => {
     const channelId = await pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Attachments']");
     await contains(".o-mail-ActionPanel", {
         text: "This channel doesn't have any attachments.",
@@ -42,7 +42,7 @@ test("Attachment panel sort by date", async () => {
     ]);
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Attachments']");
     await contains(".o-mail-AttachmentList", {
         text: "file2.pdf",

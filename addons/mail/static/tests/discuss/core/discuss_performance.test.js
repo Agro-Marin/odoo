@@ -21,7 +21,6 @@ describe.current.tags("desktop");
 defineMailModels();
 
 test("posting new message should only render relevant part", async () => {
-    // For example, it should not render old messages again
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "general" });
     const messageIds = [];
@@ -34,7 +33,7 @@ test("posting new message should only render relevant part", async () => {
             }),
         );
     }
-    messageIds.pop(); // remove last as it might need re-render (it was the newest message before)
+    messageIds.pop();
     let posting = false;
     prepareObserveRenders();
     patchWithCleanup(Message.prototype, {
@@ -59,20 +58,18 @@ test("posting new message should only render relevant part", async () => {
     await contains(".o-mail-Message", { count: 10 });
     await insertText(".o-mail-Composer-input", "Test");
     const result1 = stopObserve1();
-    // LessThan because renders could be batched
-    expect(result1.get(Message)).toBeLessThan(11); // 10: all messages initially
+    expect(result1.get(Message)).toBeLessThan(11);
     const stopObserve2 = observeRenders();
     posting = true;
     triggerHotkey("Enter");
     await contains(".o-mail-Message", { count: 11 });
     posting = false;
     const result2 = stopObserve2();
-    expect(result2.get(Composer)).toBeLessThan(3); // 2: temp disabling + clear content
-    expect(result2.get(Message)).toBeLessThan(4); // 3: new temp msg + new genuine msg + prev msg
+    expect(result2.get(Composer)).toBeLessThan(3);
+    expect(result2.get(Message)).toBeLessThan(4);
 });
 
 test("replying to message should only render relevant part", async () => {
-    // For example, it should not render all messages when selecting message to reply
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "general" });
     const messageIds = range(0, 10).map((i) =>
@@ -82,7 +79,7 @@ test("replying to message should only render relevant part", async () => {
             res_id: channelId,
         }),
     );
-    messageIds.pop(); // remove last as this is the one to be replied to
+    messageIds.pop();
     let replying = false;
     prepareObserveRenders();
     patchWithCleanup(Message.prototype, {

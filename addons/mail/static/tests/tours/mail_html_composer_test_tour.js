@@ -1,11 +1,6 @@
 import { contains } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 
-/**
- * Depends on data created by the python test in charge of launching it; not
- * intended to work when launched from the interface.
- * @see mail/tests/test_mail_composer.py
- */
 registry
     .category("web_tour.tours")
     .add("mail/static/tests/tours/mail_html_composer_test_tour.js", {
@@ -58,9 +53,6 @@ registry
                 trigger: ".o_mail_composer_message strong:contains(Hello)",
             },
             {
-                // Caret now, selection later, both via real DOM Ranges: synthetic
-                // mouse events don't move it, and doing both at once makes OWL
-                // re-insert the dialog overlay and blur it.
                 content: "Place the caret in the full composer",
                 trigger:
                     ".o_mail_composer_message .odoo-editor-editable strong:contains(Hello)",
@@ -73,7 +65,6 @@ registry
                     caret.collapse(true);
                     selection.removeAllRanges();
                     selection.addRange(caret);
-                    // `pointerup` is what makes the toolbar plugin re-evaluate.
                     this.anchor.closest(".odoo-editor-editable").dispatchEvent(
                         new MouseEvent("pointerup", {
                             bubbles: true,

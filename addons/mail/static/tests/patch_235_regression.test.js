@@ -17,18 +17,6 @@ import {
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 
-/**
- * Regression coverage for the "stuck failure-path flag" family: a flag or
- * promise set before an `await` and reset only on the success path, so one
- * transient failure wedges the feature until reload.
- */
-
-// Only the markingAsRead case is live; the rest are skeletons documenting the
-// scenario, mock and assertion for the fix they guard. Confirm a skeleton
-// passes locally before activating it.
-// Keep this file listed in mail/tests/test_js.py MISC_SUITES, or it runs under
-// no suite prefix at all (test_suite_filters_cover_every_test_file enforces it).
-
 describe.current.tags("desktop");
 defineMailModels();
 
@@ -55,24 +43,15 @@ const GIFS = [
     },
 ];
 
-// NOTE: activating this revealed it does not actually pass — the header's claim
-// that it was "written out in full and ready to activate" had never been
-// verified. Left as todo rather than shipping a red test; the scenario below
-// still documents the fix it is meant to guard.
 test.todo(
     "gif picker resets the pagination token when the search term changes (bd882ff4)",
     async () => {
-        // Fix: GifPicker.clear() now resets `this.next = ""`, and the request
-        // params are built inside the sequential callback. Before, after
-        // scrolling one query's results (which stored a pagination token) a new
-        // search reused the previous query's token -> wrong/empty page.
         const pyEnv = await startServer();
         const channelId = pyEnv["discuss.channel"].create({ name: "General" });
         onRpc("/discuss/gif/categories", () => ({ tags: [], locale: "en_US" }));
         onRpc("/discuss/gif/search", async (request) => {
             const { params } = await request.json();
             asyncStep(`search:${params.search_term}:${params.position ?? ""}`);
-            // only the first "cat" page (no position) hands out a token
             const next =
                 params.search_term === "cat" && !params.position ? "TOKEN_CAT" : "";
             return { results: GIFS, next };
@@ -82,14 +61,11 @@ test.todo(
         await click("button[title='Add GIFs']");
         await insertText("input[placeholder='Search for a GIF']", "cat");
         await waitForSteps(["search:cat:"]);
-        // load the next page -> should send position=TOKEN_CAT
         await scroll(".o-discuss-GifPicker-content", "bottom");
         await waitForSteps(["search:cat:TOKEN_CAT"]);
-        // switch search term: clear() must reset the token before the new query
         await insertText("input[placeholder='Search for a GIF']", "dog", {
             replace: true,
         });
-        // REGRESSION: the "dog" search must NOT carry cat's pagination token.
         await waitForSteps(["search:dog:"]);
         await contains(".o-discuss-Gif");
     },
@@ -98,18 +74,6 @@ test.todo(
 test.todo(
     "rtc: hasPendingRequest is released after a failed join (bd882ff4)",
     async () => {
-        // Fix: rtc_service join/leave reset `hasPendingRequest` in a finally block.
-        // Before, a rejected join RPC left it `true` forever, disabling every
-        // subsequent join/leave/reject action for the whole session.
-        //
-        // Scenario:
-        //  - startServer + a channel with call capability; mount discuss.
-        //  - onRpc("/mail/rtc/channel/join_call", () => throw makeServerError(...)).
-        //  - getService("discuss.rtc") (or the store) -> attempt joinCall(thread).
-        //  - assert rtc.state.hasPendingRequest === false after the rejection.
-        //  - assert a SECOND joinCall is not short-circuited (i.e. the RPC is
-        //    attempted again -> use asyncStep on the mocked route, waitForSteps
-        //    with two entries).
         throw new Error(
             "regression skeleton — implement per scenario above and run locally",
         );
@@ -119,14 +83,6 @@ test.todo(
 test.todo(
     "chat hub: initPromise settles even if the restore fetch fails (bd882ff4)",
     async () => {
-        // Fix: chat_hub_model.initPromise now resolves in a finally. Before, a
-        // single failed restore fetch at boot left it pending forever, deadlocking
-        // every chat-window open/close/fold that awaits it.
-        //
-        // Scenario:
-        //  - onRpc the chat-hub restore/state route to reject once.
-        //  - start(); open a chat window; assert the open resolves (window becomes
-        //    visible) rather than hanging — e.g. contains(".o-mail-ChatWindow").
         throw new Error(
             "regression skeleton — implement per scenario above and run locally",
         );
@@ -136,17 +92,6 @@ test.todo(
 test.todo(
     "voice recorder: a failed init resets isActionPending and stops the mic (bd882ff4)",
     async () => {
-        // Fix: the voice_recorder async init pipeline (lamejs bundle, worklet,
-        // encoder) is guarded; a failure notifies, runs cleanUp() and resets
-        // isActionPending/recording instead of leaving `recording` stuck with a
-        // live microphone. stopRecording() during init no longer throws through the
-        // undefined encoder.
-        //
-        // Scenario:
-        //  - mockGetMedia to grant a track; force the worklet/encoder load to reject
-        //    (patchWithCleanup on the loader) .
-        //  - click the record button; assert the recorder is NOT left "recording"
-        //    and the acquired track was stopped (spy on track.stop).
         throw new Error(
             "regression skeleton — implement per scenario above and run locally",
         );
@@ -154,13 +99,6 @@ test.todo(
 );
 
 test("discuss: markingAsRead stays set for the whole in-flight RPC (bd882ff4)", async () => {
-    // The reset was moved from .then to .finally, but onto the *outer*
-    // markReadSequential(...) promise while the flag is set inside the
-    // callback -- different chains. makeSequential resolves a superseded call
-    // immediately and starts the next callback synchronously after resolving
-    // the previous one, so the flag was cleared while a later RPC was still in
-    // flight. thread_read.markThreadAsReadIfAtBottom uses `!markingAsRead` as
-    // its only dedup guard, so that produced duplicate mark_as_read calls.
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     const bobPartnerId = pyEnv["res.partner"].create({ name: "Bob" });
@@ -185,7 +123,7 @@ test("discuss: markingAsRead stays set for the whole in-flight RPC (bd882ff4)", 
     const thread = store.Thread.insert({ model: "discuss.channel", id: channelId });
 
     while (gates.length) {
-        gates.pop().resolve(true); // drain what opening the channel triggered
+        gates.pop().resolve(true);
     }
     await tick();
     await tick();
@@ -195,9 +133,9 @@ test("discuss: markingAsRead stays set for the whole in-flight RPC (bd882ff4)", 
     expect(gates.length).toBe(1);
     expect(thread.markingAsRead).toBe(true);
 
-    thread.markAsRead(); // arrives while the first RPC is still in flight
+    thread.markAsRead();
     await tick();
-    gates[0].resolve(true); // release it; the queued callback starts its own RPC
+    gates[0].resolve(true);
     await tick();
     await tick();
 

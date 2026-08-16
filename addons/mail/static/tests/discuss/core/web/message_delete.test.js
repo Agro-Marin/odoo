@@ -41,8 +41,6 @@ test("no channel refetch on message deletion once channels are fetched", async (
     env.services.bus_service.forceUpdateChannels();
     await runAllTimers();
     await waitUntilSubscribe();
-    // liveness check on the counter itself: the explicit fetch above must
-    // have been counted, otherwise the final assertion would be vacuous
     expect(channelFetchCount).toBe(1);
     const fetchesBeforeDelete = channelFetchCount;
     const deleteHandled = new Promise((resolve) =>
@@ -57,11 +55,7 @@ test("no channel refetch on message deletion once channels are fetched", async (
     await deleteHandled;
     await runAllTimers();
     await animationFrame();
-    // the deletion itself is processed...
     expect(store["mail.message"].get(messageId)).toBe(undefined);
-    // ...but the cached channel data must NOT be refetched: the bus-fenced
-    // counter delta keeps the Thread records current, and a refetch here would
-    // reload every client's whole channel list on any deletion
     expect(channelFetchCount).toBe(fetchesBeforeDelete);
     expect(store.channels.status).toBe("fetched");
 });

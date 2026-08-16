@@ -6,10 +6,6 @@ import { getService, patchWithCleanup } from "@web/../tests/web_test_helpers";
 describe.current.tags("headless");
 defineMailModels();
 
-/**
- * Record every bus channel claim/release so a release can be matched against
- * the claim that is supposed to precede it.
- */
 function trackChannelClaims() {
     const added = [];
     const deleted = [];
@@ -27,19 +23,14 @@ function trackChannelClaims() {
 }
 
 test("a presence channel is never released unless it was claimed (res.partner)", async () => {
-    // `_triggerPresenceSubscription.onUpdate` may only record
-    // `previousPresencechannel` on the branch that actually subscribes: an
-    // unmatched release decrements another consumer's refcount.
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Ghost" });
     await start();
     const { added, deleted } = trackChannelClaims();
     const store = getService("mail.store");
-    // is_public partners are not monitored: inserting one must claim nothing.
     const partner = store["res.partner"].insert({ id: partnerId, is_public: true });
     await animationFrame();
     expect(deleted).toEqual([]);
-    // Flipping it to monitorable must not release the channel it never claimed.
     partner.is_public = false;
     await animationFrame();
     expect(deleted.filter((channel) => !added.includes(channel))).toEqual([]);
@@ -54,9 +45,6 @@ test("a presence channel is never released unless it was claimed (mail.guest)", 
     const guest = store["mail.guest"].insert({ id: guestId, name: "Visitor" });
     await animationFrame();
     expect(deleted).toEqual([]);
-    // The access token is part of the channel name, so receiving it moves the
-    // guest to a new presence channel: the old one may only be released if it
-    // was claimed in the first place.
     guest.im_status_access_token = "tok";
     await animationFrame();
     expect(deleted.filter((channel) => !added.includes(channel))).toEqual([]);

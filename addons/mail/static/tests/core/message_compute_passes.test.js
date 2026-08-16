@@ -2,17 +2,6 @@ import { defineMailModels, start, startServer } from "@mail/../tests/mail_test_h
 import { describe, expect, test } from "@odoo/hoot";
 import { getService, serverState } from "@web/../tests/web_test_helpers";
 
-/**
- * Computed fields are evaluated in declaration order, and the flush repeats
- * until it converges. A compute that reads another *computed* field declared
- * after it therefore runs twice per record: once against that field's default,
- * once after it settles. It is invisible and costs a full extra evaluation of
- * the dependent field on every record.
- *
- * `mail.message` is the model where that matters most — a thread load inserts
- * dozens at once — so this pins the ordering there: no compute may run more
- * than once while a message is being inserted.
- */
 describe.current.tags("desktop");
 defineMailModels();
 

@@ -10,9 +10,6 @@ registry
                 run: "click",
             },
             {
-                // The action's display name is pushed from a render effect on
-                // `thread.displayName`, so navigating away in the same frame
-                // makes the breadcrumb capture the previous thread ("Inbox").
                 content: "Wait for the starred mailbox to be displayed",
                 trigger: ".o-mail-DiscussContent-threadName[title='Starred messages']",
             },

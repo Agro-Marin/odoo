@@ -36,7 +36,7 @@ test("can highlight messages that are not yet loaded", async () => {
     await pyEnv["discuss.channel"].set_message_pin(channelId, middleMessageId, true);
     await start();
     await openDiscuss(channelId);
-    await tick(); // Wait for the scroll to first unread to complete.
+    await tick();
     await isInViewportOf(".o-mail-Message:contains(message 199)", ".o-mail-Thread");
     await click("a[data-oe-type='highlight']");
     await isInViewportOf(".o-mail-Message:contains(message 100)", ".o-mail-Thread");
@@ -61,14 +61,13 @@ test("can highlight message (slow ref registration)", async () => {
     let slowRegisterMessageDef;
     patchWithCleanup(Thread.prototype, {
         async registerMessageRef(...args) {
-            // Ensure scroll is made even when messages are mounted later.
             await slowRegisterMessageDef;
             return super.registerMessageRef(...args);
         },
     });
     await start();
     await openDiscuss(channelId);
-    await tick(); // Wait for the scroll to first unread to complete.
+    await tick();
     await isInViewportOf(".o-mail-Message:contains(message 199)", ".o-mail-Thread");
     slowRegisterMessageDef = new Deferred();
     await click("a[data-oe-type='highlight']");
@@ -102,7 +101,7 @@ test("highlight scrolls to beginning of long message", async () => {
     await advanceTime(1000);
     await isInViewportOf(".o-mail-Message:contains('long message')", ".o-mail-Thread");
     await isInViewportOf(
-        ".o-mail-Message:contains('long message') .o-mail-Message-avatar", // avatar is at beginning of message
+        ".o-mail-Message:contains('long message') .o-mail-Message-avatar",
         ".o-mail-Thread",
     );
 });

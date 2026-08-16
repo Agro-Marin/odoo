@@ -285,7 +285,7 @@ test("marked as read thread notifications are ordered by last message date", asy
 });
 
 test("thread notifications are re-ordered on receiving a new message", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     const bobUserId = pyEnv["res.users"].create({ name: "Bob" });
     const bobPartnerId = pyEnv["res.partner"].create({
@@ -340,7 +340,7 @@ test("thread notifications are re-ordered on receiving a new message", async () 
 });
 
 test("messaging menu counter should ignore unread messages in channels that are unpinned", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
     pyEnv["discuss.channel"].create({ name: "General" });
@@ -367,8 +367,8 @@ test("messaging menu counter should ignore unread messages in channels that are 
     await start();
     await contains(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
-    await click(".o_menu_systray i[aria-label='Messages']"); // fetch channels
-    await contains(".o-mail-NotificationItem", { text: "General" }); // ensure channels fetched
+    await click(".o_menu_systray i[aria-label='Messages']");
+    await contains(".o-mail-NotificationItem", { text: "General" });
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
 });
 

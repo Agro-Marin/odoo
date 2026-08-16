@@ -113,7 +113,6 @@ test("[text composer] command suggestion should only open if command is the firs
     await insertText(".o-mail-Composer-input", "bluhbluh ");
     await contains(".o-mail-Composer-input", { value: "bluhbluh " });
     await insertText(".o-mail-Composer-input", "/");
-    // weak test, no guarantee that we waited long enough for the potential list to open
     await contains(".o-mail-Composer-suggestionList .o-open", { count: 0 });
 });
 
@@ -138,12 +137,11 @@ test("command suggestion should only open if command is the first character", as
     await htmlInsertText(editor, "bluhbluh");
     await contains(".o-mail-Composer-html.odoo-editor-editable", { text: "bluhbluh" });
     await htmlInsertText(editor, "/");
-    // weak test, no guarantee that we waited long enough for the potential list to open
     await contains(".o-mail-Composer-suggestionList .o-open", { count: 0 });
 });
 
 test("Sort partner suggestions by recent chats", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     const [partner_1, partner_2, partner_3] = pyEnv["res.partner"].create([
         { name: "User 1" },
@@ -238,7 +236,6 @@ test("mention suggestion are shown after deleting a character", async () => {
     await contains(".o-mail-Composer-suggestion strong", { text: "John Doe" });
     await insertText(".o-mail-Composer-input", "a");
     await contains(".o-mail-Composer-suggestion strong", { count: 0, text: "John D" });
-    // Simulate pressing backspace
     const textarea = document.querySelector(".o-mail-Composer-input");
     textarea.value = textarea.value.slice(0, -1);
     await contains(".o-mail-Composer-suggestion strong", { text: "John Doe" });
@@ -261,7 +258,6 @@ test("[text composer] command suggestion are shown after deleting a character", 
     await contains(".o-mail-Composer-suggestion strong", { text: "help" });
     await insertText(".o-mail-Composer-input", "e");
     await contains(".o-mail-Composer-suggestion strong", { count: 0, text: "help" });
-    // Simulate pressing backspace
     const textarea = document.querySelector(".o-mail-Composer-input");
     textarea.value = textarea.value.slice(0, -1);
     await contains(".o-mail-Composer-suggestion strong", { text: "help" });

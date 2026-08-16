@@ -32,7 +32,6 @@ test("edit() re-throws a transient connection error instead of reporting 'alread
     const scheduledMessage = getService("mail.store")["mail.scheduled.message"].insert({
         id: 1,
     });
-    // simulate a network drop (not a server-side "already sent" business error)
     mockService("orm", {
         call() {
             return Promise.reject(new ConnectionLostError("offline"));
@@ -40,8 +39,6 @@ test("edit() re-throws a transient connection error instead of reporting 'alread
     });
     let threw = false;
     await scheduledMessage.edit().catch(() => (threw = true));
-    // a transient connection failure must surface, not be swallowed and
-    // mislabeled as "this message has already been sent"
     expect(threw).toBe(true);
 });
 
@@ -71,7 +68,7 @@ test("Scheduled messages basic layout", async () => {
         `.o-mail-Message-date[title='${deserializeDateTime(
             scheduled_date,
         ).toLocaleString(luxon.DateTime.DATETIME_SHORT)}']`,
-        { text: "in 3 hours" }, // 3 hours because luxon toRelative rounds down
+        { text: "in 3 hours" },
     );
     await contains(".o-mail-Message-body em", { text: "Subject: Greetings" });
     await contains(".o-mail-Message-body p", { text: "Hello There" });
@@ -486,7 +483,6 @@ test("widget mail_composer_attachment_selector: edit attachment of scheduled mes
     const fileInputs = queryAll(".o_field_mail_composer_attachment_selector input");
     const textFile = new File(["hello, world"], "text.txt", { type: "text/plain" });
 
-    // redefine 'files' so we can put mock data in through js
     fileInputs.forEach((input) =>
         Object.defineProperty(input, "files", {
             value: [textFile],

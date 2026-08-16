@@ -1,8 +1,3 @@
-/**
- * State enum mirroring `SFU_CLIENT_STATE` of
- * `@mail/../lib/odoo_sfu/odoo_sfu.js` (which is only available through the
- * lazy "mail.assets_odoo_sfu" bundle, hence duplicated here for tests).
- */
 export const MOCK_SFU_CLIENT_STATE = Object.freeze({
     DISCONNECTED: "disconnected",
     CONNECTING: "connecting",
@@ -12,29 +7,18 @@ export const MOCK_SFU_CLIENT_STATE = Object.freeze({
     CLOSED: "closed",
 });
 
-/**
- * Mirrors the event/state surface of the real SfuClient consumed by
- * `CallTransport` and `Network`: the `state` getter/setter dispatching
- * "stateChange", "update" CustomEvents ({ name, payload }), and the
- * connect/disconnect/broadcast/update/getStats methods. Every method call is
- * recorded in `calls` as `[methodName, ...args]` for assertions.
- */
 export class MockSfuClient extends EventTarget {
     /** @type {Error[]} */
     errors = [];
-    // read by `Network.getSfuConsumerStats` and `Rtc.buildSnapshot`
-    /** @type {Map<number, Object>} consumers by session id */
+    /** @type {Map<number, Object>} */
     _consumers = new Map();
-    /** @type {Array<Array>} recorded method calls */
+    /** @type {Array<Array>} */
     calls = [];
     _state = MOCK_SFU_CLIENT_STATE.DISCONNECTED;
 
     /**
      * @param {Object} [param0]
      * @param {(client: MockSfuClient) => Promise<void>} [param0.connectBehavior]
-     *  overrides what `connect()` does. The default mirrors the real client:
-     *  CONNECTING then AUTHENTICATED (resolving there — CONNECTED comes later,
-     *  from the server-driven transport init, via `simulateConnected()`).
      */
     constructor({ connectBehavior } = {}) {
         super();
@@ -90,17 +74,11 @@ export class MockSfuClient extends EventTarget {
         return {};
     }
 
-    /** Simulates the server completing the transport initialisation. */
     simulateConnected() {
         this.state = MOCK_SFU_CLIENT_STATE.CONNECTED;
     }
 
-    /**
-     * Simulates the server closing the connection (real client: `_close`,
-     * which dispatches "stateChange" with a `cause`).
-     *
-     * @param {string} [cause] e.g. "full"
-     */
+    /** @param {string} [cause] */
     simulateClose(cause) {
         this._state = MOCK_SFU_CLIENT_STATE.CLOSED;
         this.dispatchEvent(
@@ -111,9 +89,6 @@ export class MockSfuClient extends EventTarget {
     }
 
     /**
-     * Simulates a server-side update (track, broadcast, disconnect,
-     * info_change), like the real client's `_updateClient`.
-     *
      * @param {string} name
      * @param {any} payload
      */

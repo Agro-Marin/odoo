@@ -3,7 +3,6 @@ import { click, inputFiles } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 import { getOrigin } from "@web/core/utils/urls";
 
-// The tour is ran twice, ensure the correct message is always targetted.
 const messageSelector = ".o-mail-Message:has(.o-mail-Message-body:contains('cheese'))";
 const editedMessageSelector =
     ".o-mail-Message:has(.o-mail-Message-body:contains('vegetables'))";
@@ -19,9 +18,6 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                 if (!window.location.pathname.startsWith("/discuss/channel")) {
                     console.error("Channel secret token is still present in URL.");
                 }
-                // Reaching this step means the app booted: module-load failures
-                // now surface via the /web/observability/js_error beacon, which
-                // the browser test harness already fails on.
                 document.body.classList.add("o_discuss_channel_public_modules_loaded");
                 if (
                     !document.title.includes(
@@ -100,11 +96,10 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                                 if (attachment.raw_access_token) {
                                     resolve();
                                 } else {
-                                    // Keep observing until a value is received.
                                     void proxy.raw_access_token;
                                 }
                             });
-                            void proxy.raw_access_token; // start observing
+                            void proxy.raw_access_token;
                         });
                     }
                     await waitFor(
@@ -117,8 +112,6 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                 }
             },
         },
-        // The upload steps feed the hidden input directly, leaving the "More
-        // Actions" menu open; close it before clicking Send.
         { trigger: ".o-mail-Composer-input", run: "click" },
         { trigger: "body:not(:has(.o-discuss-dropdownMenu))" },
         { trigger: ".o-mail-Composer button[title='Send']:enabled", run: "click" },

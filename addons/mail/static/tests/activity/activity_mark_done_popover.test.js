@@ -84,7 +84,6 @@ test("activity mark done popover mark done without feedback", async () => {
         expect(args[0][0]).toBe(activityId);
         expect(kwargs.attachment_ids).toBeEmpty();
         expect(kwargs).not.toInclude("feedback");
-        // random value returned in order for the mock server to know that this route is implemented.
         return true;
     });
     await start();
@@ -110,11 +109,9 @@ test("activity mark done popover mark done with feedback", async () => {
         expect(args[0][0]).toBe(activityId);
         expect(kwargs.attachment_ids).toBeEmpty();
         expect(kwargs.feedback).toBe("This task is done");
-        // random value returned in order for the mock server to know that this route is implemented.
         return true;
     });
     onRpc("mail.activity", "unlink", () => {
-        // 'unlink' on non-existing record raises a server crash
         throw new Error(
             "'unlink' RPC on activity must not be called (already unlinked from mark as done)",
         );
@@ -152,7 +149,6 @@ test("activity mark done popover mark done and schedule next", async () => {
         },
     );
     onRpc("mail.activity", "unlink", () => {
-        // 'unlink' on non-existing record raises a server crash
         throw new Error(
             "'unlink' RPC on activity must not be called (already unlinked from mark as done)",
         );

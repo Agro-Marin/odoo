@@ -13,7 +13,7 @@ function getMeetingViewTourSteps({ inWelcomePage = false } = {}) {
         },
         { trigger: ".o-mail-Meeting .o-mail-ActionPanel:contains('Invite people')" },
         {
-            trigger: ".o-mail-Meeting [title='Invite People']", // close it
+            trigger: ".o-mail-Meeting [title='Invite People']",
             run: "click",
         },
         { trigger: ".o-mail-Meeting:not(:has(.o-mail-ActionPanel))" },
@@ -50,7 +50,6 @@ function getMeetingViewTourSteps({ inWelcomePage = false } = {}) {
                     new File(["hi there"], "file2.txt", { type: "text/plain" }),
                 ];
                 await dragenterFiles(".o-mail-Meeting .o-mail-ActionPanel", files);
-                // Discuss/chat-window dropzones must not be active in meeting view.
                 await waitFor(".o-Dropzone", { only: true });
             },
         },
@@ -75,14 +74,9 @@ registry
     .category("web_tour.tours")
     .add("discuss.meeting_view_tour", {
         steps: () => {
-            // Start muted and without camera: a tour cannot handle the browser
-            // permission popup.
             browser.localStorage.setItem("discuss_call_preview_join_mute", "true");
             browser.localStorage.setItem("discuss_call_preview_join_video", "false");
             const steps = getMeetingViewTourSteps();
-            // Post from the meeting view's own composer, focused only right after
-            // the readiness step (the invite panel replaces the side panel).
-            // Located by marker: the welcome-page variant unshifts a step.
             const meetingReadyIndex = steps.findIndex(
                 (step) => step.content === MEETING_READY_STEP,
             );

@@ -103,7 +103,6 @@ test('many2many_avatar_user widget edited by the smart action "Assign to..."', a
     await contains(":nth-child(2 of .o_tag) .o_tag_badge_text", { text: "Yoshi" });
     triggerHotkey("control+k");
     await contains(".o_command", { text: "Assign to ...ALT + I" });
-    // Assign Luigi
     triggerHotkey("alt+i");
     await contains(".o_command", { count: 4 });
     await contains(":nth-child(1 of .o_command)", { text: "Mitchell Admin" });
@@ -132,7 +131,6 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me" in f
     await contains(".o_command", { text: "Assign to meALT + SHIFT + I" });
     await triggerHotkey("alt+shift+i");
     await contains(".o_field_many2one_avatar_user input", { value: "Mitchell Admin" });
-    // Unassign me
     await triggerHotkey("control+k");
     await click(".o_command", { text: "Unassign from meALT + SHIFT + I" });
     await contains(".o_field_many2one_avatar_user input", { value: "" });
@@ -151,10 +149,8 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me"', as
     await contains(".o_field_many2one_avatar_user input", { value: "Mario" });
     triggerHotkey("control+k");
     await contains(".o_command", { text: "Assign to meALT + SHIFT + I" });
-    // Assign to me
     triggerHotkey("alt+shift+i");
     await contains(".o_field_many2one_avatar_user input", { value: "Mitchell Admin" });
-    // Unassign from me
     triggerHotkey("control+k");
     await click(".o_command", { text: "Unassign from meALT + SHIFT + I" });
     await contains(".o_field_many2one_avatar_user input", { value: "" });
@@ -184,15 +180,11 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me" in l
             text: "Mario",
         },
     );
-    // Select all
     await click(".o_list_table > thead .o_list_controller input");
     await triggerHotkey("control+k");
     await contains(".o_command", { text: "Assign to meALT + SHIFT + I" });
-    // Assign me
     await triggerHotkey("alt+shift+i");
-    // Multi-edit confirmation dialog
     await contains(".o_dialog");
-    // Cancel
     await click(".o_dialog .modal-footer button:nth-child(2)");
     await contains(
         ":nth-child(1 of .o_data_row) .o_field_many2one_avatar_user .o_many2one",
@@ -206,11 +198,8 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me" in l
             text: "Mario",
         },
     );
-    // Assign me
     await triggerHotkey("alt+shift+i");
-    // Multi-edit confirmation dialog
     await contains(".o_dialog");
-    // Confirm
     await click(".o_dialog .modal-footer button:nth-child(1)");
     await contains(".o_dialog", { count: 0 });
     await contains(
@@ -225,11 +214,8 @@ test('many2one_avatar_user widget edited by the smart action "Assign to me" in l
             text: "Mitchell Admin",
         },
     );
-    // Unassign me
     await triggerHotkey("alt+shift+u");
-    // Multi-edit confirmation dialog
     await contains(".o_dialog");
-    // Confirm
     await click(".o_dialog .modal-footer button:nth-child(1)");
     await contains(".o_field_many2one_avatar_user .o_form_uri", { count: 0 });
 });
@@ -252,7 +238,6 @@ test('many2many_avatar_user widget edited by the smart action "Assign to me"', a
     await contains(":nth-child(2 of .o_tag) .o_tag_badge_text", { text: "Yoshi" });
     triggerHotkey("control+k");
     await contains(".o_command", { text: "Assign to meALT + SHIFT + I" });
-    // Assign me
     triggerHotkey("alt+shift+i");
     await contains(".o_tag_badge_text", { count: 3 });
     await contains(":nth-child(1 of .o_tag) .o_tag_badge_text", { text: "Mario" });
@@ -260,7 +245,6 @@ test('many2many_avatar_user widget edited by the smart action "Assign to me"', a
     await contains(":nth-child(3 of .o_tag) .o_tag_badge_text", {
         text: "Mitchell Admin",
     });
-    // Unassign me
     triggerHotkey("control+k");
     await contains(".o_command", { text: "Unassign from meALT + SHIFT + I" });
     triggerHotkey("alt+shift+i");
@@ -303,8 +287,6 @@ test("avatar_user widget displays the appropriate user image in kanban view", as
             </kanban>
         `,
     });
-    // deliberately no second start(): a second WebClient re-renders the same
-    // kanban action (restored from the router) and races the avatar count
     await contains(
         `.o_m2o_avatar > img[data-src="/web/image/res.users/${userId}/avatar_128"]`,
     );
@@ -347,13 +329,11 @@ test("avatar card preview", async () => {
             </kanban>
         `,
     });
-    // Open card
     await click(".o_m2o_avatar > img");
     await contains(".o_avatar_card");
     await contains(".o_card_user_infos > span", { text: "Mario" });
     await contains(".o_card_user_infos > a", { text: "Mario@odoo.test" });
     await contains(".o_card_user_infos > a", { text: "+78786987" });
-    // Close card
     await click(".o_action_manager");
     await contains(".o_avatar_card", { count: 0 });
 });
@@ -396,13 +376,11 @@ test("avatar card preview (partner_id field)", async () => {
             </kanban>
         `,
     });
-    // Open card
     await click(".o_m2o_avatar > img");
     await contains(".o_avatar_card");
     await contains(".o_card_user_infos > span", { text: "Mario" });
     await contains(".o_card_user_infos > a", { text: "Mario@odoo.test" });
     await contains(".o_card_user_infos > a", { text: "+78786987" });
-    // Close card
     await click(".o_action_manager");
     await contains(".o_avatar_card", { count: 0 });
 });

@@ -28,18 +28,15 @@ test("navigate to sub channel", async () => {
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss(channelId);
-    // Should access sub-thread after its creation.
     await contains(".o-mail-DiscussContent-threadName", { value: "General" });
     await click("button[title='Threads']");
     await click("button[aria-label='Create Thread']");
     await contains(".o-mail-DiscussContent-threadName", { value: "New Thread" });
-    // Should access sub-thread when clicking on the menu.
     await click(".o-mail-DiscussSidebarChannel", { name: "General" });
     await contains(".o-mail-DiscussContent-threadName", { value: "General" });
     await click("button[title='Threads']");
     await click(".o-mail-SubChannelPreview", { text: "New Thread" });
     await contains(".o-mail-DiscussContent-threadName", { value: "New Thread" });
-    // Should access sub-thread when clicking on the notification.
     await click(".o-mail-DiscussSidebarChannel", { name: "General" });
     await contains(".o-mail-DiscussContent-threadName", { value: "New Thread" });
     await contains(".o-mail-NotificationMessage", {
@@ -54,7 +51,6 @@ test("can manually unpin a sub-thread", async () => {
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss(channelId);
-    // Open thread so this is pinned
     await contains(".o-mail-DiscussContent-threadName", { value: "General" });
     await click("button[title='Threads']");
     await click("button[aria-label='Create Thread']");
@@ -156,7 +152,7 @@ test("create sub thread from sub-thread list", async () => {
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click("button[title='Threads']");
     await contains(".o-mail-SubChannelList", {
         text: "This channel has no thread yet.",
@@ -223,7 +219,7 @@ test("sub thread is available for channel and group, not for chat", async () => 
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click("button[title='Threads']");
     await insertText(
         ".o-mail-ActionPanel input[placeholder='Search by name']",
@@ -399,10 +395,6 @@ test("can mention all group chat members inside its sub-thread", async () => {
     });
     const groupSubChannelId = pyEnv["discuss.channel"].create({
         name: "New Thread",
-        // sub-channels always share their parent's channel_type: the server
-        // enforces it (_constraint_parent_channel_id) and _create_sub_channel
-        // copies it, so a default "channel" type under a group parent cannot
-        // exist on a real server.
         channel_type: "group",
         parent_channel_id: groupChannelId,
         channel_member_ids: [Command.create({ partner_id: serverState.partnerId })],
@@ -430,7 +422,6 @@ test("sub-channel search paginates instead of refetching its first page", async 
     onRpc("/discuss/channel/sub_channel/fetch", async (request) => {
         const { params } = await request.json();
         befores.push(params.before ?? null);
-        // page 1 is full (so pagination must continue), page 2 is short
         const page =
             befores.length === 1 ? subIds.slice(0, LIMIT) : subIds.slice(LIMIT);
         return {
@@ -457,11 +448,9 @@ test("sub-channel search paginates instead of refetching its first page", async 
         message: "the search cursor must advance, not refetch page 1",
     });
 
-    // a different query restarts from the top
     await parent.loadMoreSubChannels({ searchTerm: "other" });
     expect(befores[2]).toBe(null, { message: "a new search term resets the cursor" });
 
-    // and searching must never terminate the unfiltered list's pagination
     expect(parent.loadSubChannelsDone).toBe(false);
     expect(parent.lastSubChannelLoaded).toBe(null);
 });

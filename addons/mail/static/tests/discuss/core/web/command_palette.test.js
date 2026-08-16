@@ -33,7 +33,7 @@ test("can open channel from @channel_name in command palette", async () => {
         channel_member_ids: [
             Command.create({
                 partner_id: serverState.partnerId,
-                last_interest_dt: "2021-01-02 10:00:00", // same last interest to sort by id
+                last_interest_dt: "2021-01-02 10:00:00",
             }),
         ],
     });
@@ -42,7 +42,7 @@ test("can open channel from @channel_name in command palette", async () => {
         channel_member_ids: [
             Command.create({
                 partner_id: serverState.partnerId,
-                last_interest_dt: "2021-01-02 10:00:00", // same last interest to sort by id
+                last_interest_dt: "2021-01-02 10:00:00",
             }),
         ],
     });
@@ -53,7 +53,7 @@ test("can open channel from @channel_name in command palette", async () => {
     await contains(".o_command:eq(0):has(.fa-hashtag)", { text: "project" });
     await contains(".o_command:eq(1):has(.fa-hashtag)", { text: "general" });
     await contains(".o_command:has(.oi-user)", { text: "OdooBot" });
-    await contains(".o_command:has(.oi-user)", { text: "Mitchell Admin" }); // self-conversation
+    await contains(".o_command:has(.oi-user)", { text: "Mitchell Admin" });
     await contains(".o_command", { text: "Create Channel" });
     await contains(".o_command", { text: "Create Chat" });
     await click(".o_command.focused:has(.fa-hashtag)", { text: "project" });
@@ -94,7 +94,6 @@ test("Conversation mentions in the command palette with @", async () => {
             ],
         ],
     });
-    // can also make self conversation
     await contains(".o_command_palette .o_command_category", {
         contains: [[".o_command_name", { text: "Mitchell Admin" }]],
     });
@@ -130,7 +129,7 @@ test("only partners with dedicated users will be displayed in command palette", 
     await contains(".o_command_name", { count: 5 });
     await contains(".o_command_name", { text: "Demo" });
     await contains(".o_command_name", { text: "OdooBot" });
-    await contains(".o_command_name", { text: "Mitchell Admin" }); // self-conversation
+    await contains(".o_command_name", { text: "Mitchell Admin" });
     await contains(".o_command_name", { text: "Create Channel" });
     await contains(".o_command_name", { text: "Create Chat" });
     await contains(".o_command_name", { text: "Portal", count: 0 });

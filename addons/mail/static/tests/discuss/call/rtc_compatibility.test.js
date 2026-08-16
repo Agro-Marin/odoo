@@ -16,8 +16,6 @@ defineMailModels();
 
 beforeEach(() => mockGetMedia());
 
-// The compatibility check used to be a module-level snapshot of the bare
-// `window` globals, so this branch could not be reached from a test at all.
 test("joining a call on a browser without webRTC warns instead of joining", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });

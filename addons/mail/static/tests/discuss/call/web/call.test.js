@@ -82,12 +82,10 @@ test("show Push-to-Talk button on mobile", async () => {
     await openDiscuss(channelId);
     await click(".o-mail-ChatWindow-moreActions", { text: "General" });
     await click(".o-dropdown-item:text('Start Call')");
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Call Settings" });
     await click("button", { text: "Push to Talk" });
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Call Settings" });
@@ -121,7 +119,6 @@ test("Can push-to-talk", async () => {
     await keyDown("f");
     await advanceTime(PTT_RELEASE_DURATION);
     await contains(".o-discuss-CallParticipantCard .o-isTalking");
-    // switching tab while PTT key still pressed then released on other tab should eventually release PTT
     browser.dispatchEvent(new Event("blur"));
     await advanceTime(PTT_RELEASE_DURATION + 1000);
     await contains(".o-discuss-CallParticipantCard:not(:has(.o-isTalking))");

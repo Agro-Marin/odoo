@@ -31,8 +31,8 @@ test("Messages are received cross-tab", async () => {
     const env2 = await start({ asTab: true });
     await openDiscuss(channelId, { target: env1 });
     await openDiscuss(channelId, { target: env2 });
-    await contains(`${env1.selector} .o-mail-Thread:contains('Welcome to #General!')`); // wait for loaded and focus in input
-    await contains(`${env2.selector} .o-mail-Thread:contains('Welcome to #General!')`); // wait for loaded and focus in input
+    await contains(`${env1.selector} .o-mail-Thread:contains('Welcome to #General!')`);
+    await contains(`${env2.selector} .o-mail-Thread:contains('Welcome to #General!')`);
     await insertText(`${env1.selector} .o-mail-Composer-input`, "Hello World!");
     await press("Enter");
     await contains(`${env1.selector} .o-mail-Message-content`, {
@@ -100,8 +100,6 @@ test.skip("Channel subscription is renewed when channel is added from invite", a
         { name: "R&D" },
         { name: "Sales", channel_member_ids: [] },
     ]);
-    // Patch the date to consider those channels as already known by the server
-    // when the client starts.
     const later = now.plus({ seconds: 10 });
     mockDate(
         `${later.year}-${later.month}-${later.day} ${later.hour}:${later.minute}:${later.second}`,
@@ -118,7 +116,7 @@ test.skip("Channel subscription is renewed when channel is added from invite", a
         partner_ids: [serverState.partnerId],
     });
     await contains(".o-mail-DiscussSidebarChannel", { count: 2 });
-    await waitForSteps(["update-channels"]); // FIXME: sometimes 1 or 2 update-channels
+    await waitForSteps(["update-channels"]);
 });
 
 test("Adding attachments", async () => {
@@ -186,8 +184,6 @@ test("Remove attachment from message", async () => {
 });
 
 test("Message (hard) delete notification", async () => {
-    // Note: This isn't a notification from when user click on "Delete message" action:
-    // this happens when mail_message server record is effectively deleted (unlink)
     const pyEnv = await startServer();
     pyEnv["res.users"].write(serverState.userId, { notification_type: "inbox" });
     const messageId = pyEnv["mail.message"].create({

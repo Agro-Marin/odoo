@@ -125,7 +125,7 @@ test("Closing a category sends the updated user setting to the server.", async (
     });
     await start();
     await openDiscuss();
-    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi"); // wait fully loaded
+    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi");
     await click(
         ":nth-child(1 of .o-mail-DiscussSidebarCategory) .o-mail-DiscussSidebarCategory-icon",
     );
@@ -155,8 +155,6 @@ test("Opening a category sends the updated user setting to the server.", async (
 });
 
 test("receiving a category broadcast does NOT re-issue the settings RPC", async () => {
-    // running the full `open` setter on the broadcast fires one identical
-    // set_res_users_settings per listening tab; drive the receiver path itself
     let settingsRpcCount = 0;
     onRpc("res.users.settings", "set_res_users_settings", () => {
         settingsRpcCount++;
@@ -169,13 +167,12 @@ test("receiving a category broadcast does NOT re-issue the settings RPC", async 
     const category = store.DiscussAppCategory.get("channels");
     const wasOpen = category.open;
     const before = settingsRpcCount;
-    // simulate the message another tab's toggle broadcasts
     service.sidebarCategoriesBroadcast.dispatchEvent(
         new MessageEvent("message", { data: { id: "channels", open: !wasOpen } }),
     );
     await animationFrame();
-    expect(category.open).toBe(!wasOpen); // local mirror updated
-    expect(settingsRpcCount).toBe(before); // but no server write
+    expect(category.open).toBe(!wasOpen);
+    expect(settingsRpcCount).toBe(before);
 });
 
 test("channel - command: should have view command when category is unfolded", async () => {
@@ -231,7 +228,7 @@ test("channel - states: open manually by clicking the title", async () => {
     });
     await start();
     await openDiscuss();
-    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi"); // wait fully loaded
+    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi");
     await contains(".o-mail-DiscussSidebarCategory-channel", { text: "Channels" });
     await contains(".o-mail-DiscussSidebarChannel", { count: 0, text: "general" });
     await click(".o-mail-DiscussSidebarCategory-channel .btn", { text: "Channels" });
@@ -370,8 +367,6 @@ test("sidebar: unpin chat from bus", async () => {
     await click(".o-mail-DiscussSidebarChannel", { text: "Demo" });
     await contains(".o-mail-Composer-input[placeholder='Message Demo…']");
     await contains(".o-mail-DiscussContent-threadName", { value: "Demo" });
-    // Simulate receiving a unpin chat notification
-    // (e.g. from user interaction from another device or browser tab)
     pyEnv["discuss.channel"].channel_pin([channelId], false);
     await contains(".o-mail-DiscussSidebarChannel", { count: 0, text: "Demo" });
     await contains(".o-mail-DiscussContent-threadName", { count: 0, value: "Demo" });
@@ -827,7 +822,7 @@ test("channel - states: close should update the value on the server", async () =
     await openDiscuss();
     await contains(
         ".o-mail-DiscussSidebarCategory:contains('Channels') .oi.oi-chevron-down",
-    ); // wait fully loaded
+    );
     await click(".o-mail-DiscussSidebarCategory .btn", { text: "Channels" });
     await waitForSteps(["set_res_users_settings - false"]);
 });
@@ -852,7 +847,7 @@ test("channel - states: open should update the value on the server", async () =>
         },
     });
     await openDiscuss();
-    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi"); // wait fully loaded
+    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi");
     await click(".o-mail-DiscussSidebarCategory .btn", { text: "Channels" });
     await waitForSteps(["set_res_users_settings - true"]);
 });
@@ -897,7 +892,6 @@ test("channel - states: open from the bus", async () => {
     listenStoreFetch("init_messaging");
     await start();
     await waitStoreFetch("init_messaging");
-    // send after init_messaging because bus subscription is done after init_messaging
     await openDiscuss();
     await contains(".o-mail-DiscussSidebarCategory-channel .oi-chevron-right");
     const [partner] = pyEnv["res.partner"].read(serverState.partnerId);
@@ -1051,7 +1045,6 @@ test("chat - states: open from the bus", async () => {
     listenStoreFetch("init_messaging");
     await start();
     await waitStoreFetch("init_messaging");
-    // send after init_messaging because bus subscription is done after init_messaging
     await openDiscuss();
     await contains(".o-mail-DiscussSidebarCategory-chat .oi-chevron-right");
     await contains(".o-mail-DiscussSidebar button", {
@@ -1151,7 +1144,6 @@ test("chat should be sorted by last activity time", async () => {
         { before: [".o-mail-DiscussSidebarChannel", { text: "Demo" }] },
     );
     await click(".o-mail-DiscussSidebarChannel", { text: "Demo" });
-    // post a new message on the last channel
     await insertText(".o-mail-Composer-input[placeholder='Message Demo…']", "Blabla");
     await press("Enter");
     await contains(".o-mail-Message", { text: "Blabla" });
@@ -1207,7 +1199,6 @@ test("Do no channel_info after unpin", async () => {
     listenStoreFetch("discuss.channel");
     setupChatHub({ opened: [channelId] });
     await start();
-    // ensure onRpc is at least set up properly (because then it is asserted negatively)
     await waitStoreFetch("discuss.channel");
     await openDiscuss(channelId);
     await click("[title='Chat Actions']");
@@ -1220,7 +1211,6 @@ test("Do no channel_info after unpin", async () => {
             message_type: "comment",
         },
     });
-    // weak test, no guarantee that we waited long enough for the potential rpc to be done
     await animationFrame();
     await waitStoreFetch();
 });
@@ -1293,7 +1283,6 @@ test("Update channel data via bus notification", async () => {
 });
 
 test("sidebar: show loading on initial opening", async () => {
-    // This could load a lot of data (all pinned conversations)
     const def = new Deferred();
     listenStoreFetch("channels_as_member", {
         async onRpc() {
@@ -1482,7 +1471,7 @@ test("Sidebar channels show correct notification counter based on settings", asy
     await contains(".o-mail-DiscussSidebarChannel:contains(Regular) .badge", {
         text: "1",
     });
-    rpc("/discuss/settings/custom_notifications", { custom_notifications: false }); // default: @mention only
+    rpc("/discuss/settings/custom_notifications", { custom_notifications: false });
     await contains(".o-mail-DiscussSidebarChannel:contains(Mentions) .badge", {
         text: "1",
     });

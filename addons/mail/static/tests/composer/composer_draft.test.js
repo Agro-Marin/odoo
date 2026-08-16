@@ -7,7 +7,6 @@ import { expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 
-/** Minimal stand-in for a Composer record, as consumed by the draft module. */
 function makeComposer() {
     return {
         localId: "Composer,(Thread,res.partner AND 1) OR (undefined)",
@@ -27,7 +26,6 @@ test("draft save/restore round-trip keeps content and metadata", () => {
         emailAddSignature: false,
         replyToMessageId: 7,
     });
-    // the stored key is `fromFullComposer`, not the record's `restoredFrom…`
     expect(JSON.parse(browser.localStorage.getItem(composer.localId))).toEqual({
         emailAddSignature: false,
         replyToMessageId: 7,
@@ -53,7 +51,6 @@ test("draft saved from the full composer restores as recoverable", () => {
     const restored = makeComposer();
     restoreComposerDraft(restored);
     expect(restored.restoredFromFullComposer).toBe(true);
-    // channels have no full-composer recovery
     const channelComposer = makeComposer();
     channelComposer.thread = { model: "discuss.channel", isChannelKind: true };
     restoreComposerDraft(channelComposer);

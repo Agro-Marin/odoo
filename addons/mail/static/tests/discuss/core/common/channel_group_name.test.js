@@ -55,7 +55,6 @@ test("Group name is based on channel members when name is not set", async () => 
     });
     await contains(".o-mail-DiscussContent-threadName[title='Custom name']");
     await press("Enter");
-    // Ensure that after setting the name, members are not taken into account for the group name.
     await click("button[title='Invite People']");
     await click(".o-discuss-ChannelInvitation-selectable", { text: "Sam" });
     await click("button", { text: "Invite to Group Chat" });

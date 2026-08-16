@@ -27,8 +27,8 @@ export class MailActivity extends models.ServerModel {
         default: () => serverState.userId,
     });
     chaining_type = fields.Generic({ default: "suggest" });
-    activity_category = fields.Generic({ related: false }); // removes related from server to ease creating activities
-    res_model = fields.Char({ string: "Related Document Model", related: false }); // removes related from server to ease creating activities
+    activity_category = fields.Generic({ related: false });
+    res_model = fields.Char({ string: "Related Document Model", related: false });
 
     /** @param {number[]} ids */
     action_feedback(ids) {
@@ -72,7 +72,6 @@ export class MailActivity extends models.ServerModel {
                 activity.id,
                 ["activity_type_id", "summary"].filter((f) => fields.includes(f)),
             );
-            // simulate computes
             const activityType = data.activity_type_id
                 ? MailActivityType.find((r) => r.id === data.activity_type_id[0])
                 : false;
@@ -160,7 +159,6 @@ export class MailActivity extends models.ServerModel {
             ["res_model", "=", res_model],
             ["res_model", "=", false],
         ]);
-        // Remove domain term used to filter record having "done" activities (not understood by the _filter mock)
         domain = Domain.removeDomainLeaves(new Domain(domain ?? []).toList(), [
             "activity_ids.active",
         ]).toList();
@@ -275,7 +273,9 @@ export class MailActivity extends models.ServerModel {
                     ? this._compute_state_from_date(dateDeadline)
                     : "done",
                 user_assigned_ids: userAssignedIds,
-                summaries: ongoing.map((a) => (a.summary ? a.summary : "")),
+                summaries: ongoing
+                    .concat(completed)
+                    .map((a) => (a.summary ? a.summary : "")),
                 ...attachmentsInfo,
             };
         }
@@ -286,6 +286,7 @@ export class MailActivity extends models.ServerModel {
         const completedResIds = sortBy(
             Object.keys(resIdToDateDone).filter((resId) => !(resId in resIdToDeadline)),
             (item) => resIdToDateDone[item],
+            "desc",
         );
         return {
             activity_types: activityTypes.map((type) => {
@@ -312,7 +313,7 @@ export class MailActivity extends models.ServerModel {
     }
 
     /**
-     * @param {DateTime} date_deadline to convert into state
+     * @param {DateTime} date_deadline
      * @returns {"today" | "planned" | "overdue"}
      */
     _compute_state_from_date(date_deadline) {
@@ -323,5 +324,28 @@ export class MailActivity extends models.ServerModel {
             return "planned";
         }
         return "overdue";
+    }
+}
+
+/**
+ * @this {import("@web/../tests/web_test_helpers").ServerModel}
+ */
+export function computeActivityNext() {
+    /** @type {import("mock_models").MailActivity} */
+    const MailActivity = this.env["mail.activity"];
+    /** @type {import("mock_models").MailActivityType} */
+    const MailActivityType = this.env["mail.activity.type"];
+    for (const record of this) {
+        const [nextId] = MailActivity.search(
+            [["id", "in", record.activity_ids || []]],
+            makeKwArgs({ limit: 1 }),
+        );
+        const [next] = nextId ? MailActivity.browse(nextId) : [];
+        const [type] = next?.activity_type_id
+            ? MailActivityType.browse(next.activity_type_id)
+            : [];
+        record.activity_summary = next?.summary || false;
+        record.activity_type_id = type?.id || false;
+        record.activity_type_icon = type?.icon || false;
     }
 }

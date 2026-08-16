@@ -58,7 +58,6 @@ test("extra_body_attachment_ids excludes attachments inlined in the body", async
         model: "res.partner",
         res_id: serverState.partnerId,
     });
-    // 750 is rendered inline in the body, so only 751 is an "extra" attachment.
     expect(message.extra_body_attachment_ids.length).toBe(1);
     expect(message.extra_body_attachment_ids[0].id).toBe(751);
 });

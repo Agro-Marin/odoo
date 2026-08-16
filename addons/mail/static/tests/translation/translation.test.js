@@ -37,7 +37,6 @@ test("Toggle display of original/translated version of chatter message", async (
     await openFormView("res.partner", partnerId);
     await contains("[title='Translate']");
     await contains("[title='Revert']", { count: 0 });
-    // the click toggles both the button appearance and the displayed content
     await click("[title='Translate']");
     await contains(".o-mail-Message-body", {
         text: "To bad weather, good face.(Translated from: Spanish)",
@@ -47,7 +46,6 @@ test("Toggle display of original/translated version of chatter message", async (
     await click("[title='Revert']");
     await contains(".o-mail-Message", { text: "Al mal tiempo, buena cara." });
     await click("[title='Translate']");
-    // The translation button should not trigger more than one external request for a single message.
     await waitForSteps(["Request"]);
 });
 

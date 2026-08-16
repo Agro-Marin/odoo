@@ -2,22 +2,9 @@ import { defineMailModels, start, startServer } from "@mail/../tests/mail_test_h
 import { describe, expect, test } from "@odoo/hoot";
 import { getService } from "@web/../tests/web_test_helpers";
 
-/**
- * `MessagingMenu.threads` used to derive itself by scanning `Thread.records`, which
- * made it an observer of the record keys plus `displayToSelf` and
- * `needactionMessages` on *every* thread in the store. Loading threads then
- * cost O(n) per thread: measured at ~1.3ms per recompute with 200 threads
- * loaded, so ~13ms to insert ten more.
- *
- * Eligibility is now maintained per thread
- * (@see Thread.menuAsThreadCandidate), so a thread that cannot appear in
- * the menu does not disturb it at all. These tests pin the scaling property,
- * not the timing — a rescan would fail them on any machine.
- */
 describe.current.tags("desktop");
 defineMailModels();
 
-/** Count `MessagingMenu.threads` recomputes while `fn` runs. */
 async function countRecomputes(store, fn) {
     const Model = store.Thread._rawStore.Models.MessagingMenu;
     const compute = Model._.fieldsCompute.get("threads");

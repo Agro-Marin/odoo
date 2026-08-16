@@ -114,8 +114,6 @@ test("can post a message on a record thread", async () => {
 });
 
 test("composer stays usable after a failed message post (not bricked)", async () => {
-    // `processMessage` disables the composer around the post RPC, which
-    // rethrows on a record thread: the re-enable must happen in a finally.
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
     onRpc("/mail/message/post", () => {
@@ -127,14 +125,8 @@ test("composer stays usable after a failed message post (not bricked)", async ()
     await insertText(".o-mail-Composer-input", "hey");
     expect.errors(1);
     await click(".o-mail-Composer button[aria-label='Send']:enabled");
-    // the failed post must re-enable the composer and keep the draft
     await contains(".o-mail-Composer button[aria-label='Send']:enabled");
     await contains(".o-mail-Composer-input", { value: "hey" });
-    // `waitForErrors`, not `animationFrame()` + `verifyErrors`: the rejection
-    // travels a promise chain (rpc -> doMessagePost -> mutex -> post ->
-    // processMessage) whose depth in ticks is not something a test can pin
-    // down. A single frame happened to be enough most of the time, so the
-    // assertion flapped whenever anything shifted the surrounding timing.
     await expect.waitForErrors([/post boom/]);
 });
 
@@ -280,8 +272,6 @@ test("chatter: drop attachment should refresh thread data with hasParentReloadOn
     });
     await contains("button[aria-label='Attach files']:enabled");
     await dragenterFiles(".o-mail-Chatter", [textPdf]);
-    // `dragenterFiles` does not await the render it triggers: wait for the
-    // dropzone rather than racing it (@see "chatter: drop attachments" above)
     await contains(".o-Dropzone");
     await dropFiles(".o-Dropzone", [textPdf]);
     await contains(".o-mail-Attachment iframe", { count: 1 });
@@ -444,7 +434,6 @@ test('do not post message with "Enter" keyboard shortcut', async () => {
     await contains(".o-mail-Message", { count: 0 });
     await insertText(".o-mail-Composer-input", "Test");
     triggerHotkey("Enter");
-    // weak test, no guarantee that we waited long enough for the potential message to be posted
     await contains(".o-mail-Message", { count: 0 });
 });
 
@@ -473,8 +462,6 @@ test("scroll position is kept when navigating from one record to another", async
     const pyEnv = await startServer();
     const partnerId_1 = pyEnv["res.partner"].create({ name: "Harry Potter" });
     const partnerId_2 = pyEnv["res.partner"].create({ name: "Ron Weasley" });
-    // Fill both channels with random messages in order for the scrollbar to
-    // appear.
     pyEnv["mail.message"].create(
         Array(50)
             .fill(0)
@@ -487,7 +474,7 @@ test("scroll position is kept when navigating from one record to another", async
     await start();
     await openFormView("res.partner", partnerId_1);
     await contains(".o-mail-Message", { count: 20 });
-    const clientHeight1 = queryFirst(".o-mail-Chatter:first").clientHeight; // client height might change (cause: breadcrumb)
+    const clientHeight1 = queryFirst(".o-mail-Chatter:first").clientHeight;
     const scrollValue1 = queryFirst(".o-mail-Chatter:first").scrollHeight / 2;
     await contains(".o-mail-Chatter", { scroll: 0 });
     await scroll(".o-mail-Chatter", scrollValue1);
@@ -722,7 +709,6 @@ test("Mentions in composer should still work when using pager", async () => {
     await click("button", { text: "Log note" });
     await click(".o_pager_next");
     await insertText(".o-mail-Composer-input", "@");
-    // the default partners (Mitchell Admin, Hermit, Public user), minus OdooBot
     await contains(".o-mail-Composer-suggestion", { count: 3 });
 });
 
@@ -802,8 +788,6 @@ test("Update primary email in recipient without saving", async () => {
 });
 
 test("form view mounts WebChatter; base Chatter statics stay portal-clean", async () => {
-    // per-bundle selection is not exercisable (the harness loads the whole
-    // backend bundle): assert instead that the web layer leaves Chatter clean
     expect(Object.getPrototypeOf(WebChatter)).toBe(Chatter);
     expect(Chatter.props.includes("record?")).toBe(false);
     expect("Activity" in Chatter.components).toBe(false);
@@ -811,8 +795,6 @@ test("form view mounts WebChatter; base Chatter statics stay portal-clean", asyn
     expect(WebChatter.props.includes("record?")).toBe(true);
     expect("Activity" in WebChatter.components).toBe(true);
     expect(WebChatter.defaultProps.isInFormSheetBg).toBe(true);
-    // the form view must instantiate WebChatter; assert on classes, not counts:
-    // FormRenderer.hasFile() writes reactive state and can cancel a render pass
     const setupClasses = new Set();
     patchWithCleanup(Chatter.prototype, {
         setup() {
@@ -844,15 +826,10 @@ test("failed implicit save from a chatter action keeps the user's dirty edits", 
             </form>`,
     });
     await waitForSteps(["web_read"]);
-    // make the record dirty AND invalid: required field emptied
     await insertText(".o_field_widget[name='name'] input", "", { replace: true });
-    // any follower change implicitly saves then reloads the parent view;
-    // here the save fails client-side validation
     await click("[title='Show Followers']");
     await click(".o-dropdown-item", { text: "Follow" });
     await contains(".o_notification", { text: "Missing required fields" });
-    // the record must NOT be reloaded (web_read would clear the pending
-    // changes): the user's edits survive the failed save
     await waitForSteps([]);
     await contains(".o_field_widget[name='name'] input", { value: "" });
 });
@@ -873,13 +850,9 @@ test("files dropped on an unsaved record are attached to the saved record", asyn
     const files = [new File(["hello"], "text.txt", { type: "text/plain" })];
     await dragenterFiles(".o-mail-Chatter", files);
     await contains(".o-Dropzone");
-    // the drop saves the record, then the upload must target the saved
-    // thread — not the transient (id-less) one, where it would be lost
     await dropFiles(".o-Dropzone", files);
     await contains(".o-mail-AttachmentContainer:not(.o-isUploading)");
     await contains(".o-mail-AttachmentContainer", { text: "text.txt" });
-    // the attachment must be linked to the saved record server-side (an
-    // upload against the transient thread would send thread_id=false)
     const [attachment] = pyEnv["ir.attachment"].search_read([
         ["name", "=", "text.txt"],
     ]);
@@ -899,12 +872,9 @@ test("composer does not pop up from an earlier failed save", async () => {
                 <chatter/>
             </form>`,
     });
-    // "Send message" on an unsaved record implicitly saves first; the save
-    // fails client-side validation (required field empty)
     await click("button", { text: "Send message" });
     await contains(".o_notification", { text: "Missing required fields" });
     await contains(".o-mail-Composer", { count: 0 });
-    // fixing the record and saving manually must not pop the stale composer
     await insertText(".o_field_widget[name='name'] input", "John Doe");
     await click(".o_form_button_save");
     await contains("button[aria-label='Attach files']:enabled");
@@ -914,11 +884,8 @@ test("composer does not pop up from an earlier failed save", async () => {
 test("leaving a record does not re-fetch the record being left", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "John" });
-    /** @type {number[]} thread_id of each mail.thread store fetch, in order */
+    /** @type {number[]} */
     const fetchedThreadIds = [];
-    // Counted straight off the route rather than through `listenStoreFetch`,
-    // whose async steps every caller must then consume: here the fetches are
-    // the assertion, not a synchronisation point.
     onRpcBefore((route, args) => {
         if (!STORE_FETCH_ROUTES.includes(route)) {
             return;
@@ -935,27 +902,16 @@ test("leaving a record does not re-fetch the record being left", async () => {
     await advanceTime(1000);
     expect(fetchedThreadIds).toEqual([partnerId]);
 
-    // Switching to the creation form must not fetch anything: the new record
-    // has no id, and the outgoing one is no longer displayed. The chatter's
-    // "data may be stale after a save" flag used to be raised for every root
-    // load, so a render still holding the OUTGOING record consumed it and
-    // re-fetched that record's activities, attachments, followers and
-    // scheduled messages onto a thread the user had just left.
     await click(".o_control_panel_main_buttons .o_form_button_create");
     await advanceTime(1000);
     expect(fetchedThreadIds).toEqual([partnerId]);
 });
 
 test("saving a record still refreshes its chatter data", async () => {
-    // Guards the fix above from being too broad: the stale-data flag has a real
-    // job, and a same-record save is it.
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "John" });
     /** @type {number[]} */
     const fetchedThreadIds = [];
-    // Counted straight off the route rather than through `listenStoreFetch`,
-    // whose async steps every caller must then consume: here the fetches are
-    // the assertion, not a synchronisation point.
     onRpcBefore((route, args) => {
         if (!STORE_FETCH_ROUTES.includes(route)) {
             return;

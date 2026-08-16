@@ -26,8 +26,6 @@ const TEST_WIDTH = 800;
 const TEST_HEIGHT = 600;
 
 let editable;
-// Remove the marker set on generated elements for the benefit of re-runs of
-// `toInline` on its own output: it is not part of the tested behaviors.
 function removeGeneratedMarkers(element) {
     element.querySelectorAll("[data-o-mail-generated]").forEach((node) => {
         node.removeAttribute("data-o-mail-generated");
@@ -36,8 +34,6 @@ function removeGeneratedMarkers(element) {
 function testConvertGrid({ before, after, title, stepFunction }) {
     editable.innerHTML = before;
     (stepFunction || bootstrapToTable)(editable);
-    // Remove class that is added by `bootstrapToTable` for use in
-    // further methods of `toInline`, and removed at the end of it.
     editable.querySelectorAll(".o_converted_col").forEach((node) => {
         node.classList.remove("o_converted_col");
         if (!node.classList.length) {
@@ -49,7 +45,6 @@ function testConvertGrid({ before, after, title, stepFunction }) {
 }
 
 describe("Convert Bootstrap grids to tables", () => {
-    // Test bootstrapToTable, cardToTable and listGroupToTable
     beforeEach(() => {
         editable = document.createElement("div");
         editable.style.setProperty("width", TEST_WIDTH + "px");
@@ -58,28 +53,24 @@ describe("Convert Bootstrap grids to tables", () => {
     });
 
     test("convert a single-row regular grid", async () => {
-        // 1x1
         testConvertGrid({
             before: getRegularGridHtml(1, 1),
             after: getRegularTableHtml(1, 1, 12, 100, TEST_WIDTH),
             title: "should have converted a 1x1 grid to an equivalent table",
         });
 
-        // 1x2
         testConvertGrid({
             before: getRegularGridHtml(1, 2),
             after: getRegularTableHtml(1, 2, 6, 50, TEST_WIDTH),
             title: "should have converted a 1x2 grid to an equivalent table",
         });
 
-        // 1x3
         testConvertGrid({
             before: getRegularGridHtml(1, 3),
             after: getRegularTableHtml(1, 3, 4, 33.33, TEST_WIDTH),
             title: "should have converted a 1x3 grid to an equivalent table",
         });
 
-        // 1x12
         testConvertGrid({
             before: getRegularGridHtml(1, 12),
             after: getRegularTableHtml(1, 12, 1, 8.33, TEST_WIDTH),
@@ -88,7 +79,6 @@ describe("Convert Bootstrap grids to tables", () => {
     });
 
     test("convert a single-row regular overflowing grid", async () => {
-        // 1x13
         testConvertGrid({
             before: getRegularGridHtml(1, 13),
             after:
@@ -100,7 +90,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 1x13 grid to an equivalent table (overflowing)",
         });
 
-        // 1x14
         testConvertGrid({
             before: getRegularGridHtml(1, 14),
             after:
@@ -113,7 +102,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 1x14 grid to an equivalent table (overflowing)",
         });
 
-        // 1x25
         testConvertGrid({
             before: getRegularGridHtml(1, 25),
             after:
@@ -129,7 +117,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 1x25 grid to an equivalent table (overflowing)",
         });
 
-        // 1x26
         testConvertGrid({
             before: getRegularGridHtml(1, 26),
             after:
@@ -148,28 +135,24 @@ describe("Convert Bootstrap grids to tables", () => {
     });
 
     test("convert a multi-row regular grid", async () => {
-        // 2x1
         testConvertGrid({
             before: getRegularGridHtml(2, 1),
             after: getRegularTableHtml(2, 1, 12, 100, TEST_WIDTH),
             title: "should have converted a 2x1 grid to an equivalent table",
         });
 
-        // 2x[1,2]
         testConvertGrid({
             before: getRegularGridHtml(2, [1, 2]),
             after: getRegularTableHtml(2, [1, 2], [12, 6], [100, 50], TEST_WIDTH),
             title: "should have converted a 2x[1,2] grid to an equivalent table",
         });
 
-        // 3x3
         testConvertGrid({
             before: getRegularGridHtml(3, 3),
             after: getRegularTableHtml(3, 3, 4, 33.33, TEST_WIDTH),
             title: "should have converted a 3x3 grid to an equivalent table",
         });
 
-        // 3x[3,2,1]
         testConvertGrid({
             before: getRegularGridHtml(3, [3, 2, 1]),
             after: getRegularTableHtml(
@@ -184,20 +167,18 @@ describe("Convert Bootstrap grids to tables", () => {
     });
 
     test("convert a multi-row regular overflowing grid", async () => {
-        // 2x[13,1]
         testConvertGrid({
             before: getRegularGridHtml(2, [13, 1]),
             after:
                 getRegularTableHtml(1, 12, 1, 8.33, TEST_WIDTH).slice(0, -8) +
                 `<tr>` +
                 getTdHtml(1, "(0, 12)", TEST_WIDTH) +
-                getTdHtml(11, "", TEST_WIDTH) + // 13 overflowed the row by 1 -> fill up
+                getTdHtml(11, "", TEST_WIDTH) +
                 `</tr>` +
-                `<tr>${getTdHtml(12, "(1, 0)", TEST_WIDTH)}</tr></table>`, // 1 col with no size == col-12
+                `<tr>${getTdHtml(12, "(1, 0)", TEST_WIDTH)}</tr></table>`,
             title: "should have converted a 2x[13,1] grid to an equivalent table (overflowing)",
         });
 
-        // 2x[1,13]
         testConvertGrid({
             before: getRegularGridHtml(2, [1, 13]),
             after:
@@ -207,12 +188,11 @@ describe("Convert Bootstrap grids to tables", () => {
                 ) +
                 `<tr>` +
                 getTdHtml(1, "(1, 12)", TEST_WIDTH) +
-                getTdHtml(11, "", TEST_WIDTH) + // 13 overflowed the row by 1 -> fill up
+                getTdHtml(11, "", TEST_WIDTH) +
                 `</tr></table>`,
             title: "should have converted a 2x[1,13] grid to an equivalent table (overflowing)",
         });
 
-        // 3x[1,13,6]
         testConvertGrid({
             before: getRegularGridHtml(3, [1, 13, 6]),
             after:
@@ -222,7 +202,7 @@ describe("Convert Bootstrap grids to tables", () => {
                 ) +
                 `<tr>` +
                 getTdHtml(1, "(1, 12)", TEST_WIDTH) +
-                getTdHtml(11, "", TEST_WIDTH) + // 13 overflowed the row by 1 -> fill up
+                getTdHtml(11, "", TEST_WIDTH) +
                 `</tr>` +
                 getRegularTableHtml(1, 6, 2, 16.67, TEST_WIDTH)
                     .replace(/\(0,/g, `(2,`)
@@ -230,7 +210,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 3x[1,13,6] grid to an equivalent table (overflowing)",
         });
 
-        // 3x[1,6,13]
         testConvertGrid({
             before: getRegularGridHtml(3, [1, 6, 13]),
             after:
@@ -243,14 +222,13 @@ describe("Convert Bootstrap grids to tables", () => {
                 ).slice(0, -8) +
                 `<tr>` +
                 getTdHtml(1, "(2, 12)", TEST_WIDTH) +
-                getTdHtml(11, "", TEST_WIDTH) + // 13 overflowed the row by 1 -> fill up
+                getTdHtml(11, "", TEST_WIDTH) +
                 `</tr></table>`,
             title: "should have converted a 3x[1,6,13] grid to an equivalent table (overflowing)",
         });
     });
 
     test("convert a single-row irregular grid", async () => {
-        // 1x2
         testConvertGrid({
             before: getGridHtml([[8, 4]]),
             after: getTableHtml(
@@ -265,7 +243,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 1x2 irregular grid to an equivalent table",
         });
 
-        // 1x3
         testConvertGrid({
             before: getGridHtml([[2, 3, 7]]),
             after: getTableHtml(
@@ -283,7 +260,6 @@ describe("Convert Bootstrap grids to tables", () => {
     });
 
     test("convert a single-row irregular overflowing grid", async () => {
-        // 1x2
         testConvertGrid({
             before: getGridHtml([[8, 5]]),
             after: getTableHtml(
@@ -302,7 +278,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 1x2 irregular overflowing grid to an equivalent table",
         });
 
-        // 1x3
         testConvertGrid({
             before: getGridHtml([[7, 6, 9]]),
             after: getTableHtml(
@@ -327,7 +302,6 @@ describe("Convert Bootstrap grids to tables", () => {
     });
 
     test("convert a multi-row irregular grid", async () => {
-        // 2x2
         testConvertGrid({
             before: getGridHtml([
                 [1, 11],
@@ -349,7 +323,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 2x2 irregular grid to an equivalent table",
         });
 
-        // 2x[2,3]
         testConvertGrid({
             before: getGridHtml([
                 [3, 9],
@@ -374,7 +347,6 @@ describe("Convert Bootstrap grids to tables", () => {
     });
 
     test("convert a multi-row irregular overflowing grid", async () => {
-        // 2x2 (both rows overflow)
         testConvertGrid({
             before: getGridHtml([
                 [6, 8],
@@ -404,7 +376,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 2x[1,13] irregular grid to an equivalent table (both rows overflowing)",
         });
 
-        // 2x[2,3] (first row overflows)
         testConvertGrid({
             before: getGridHtml([
                 [5, 8],
@@ -431,7 +402,6 @@ describe("Convert Bootstrap grids to tables", () => {
             title: "should have converted a 2x[2,3] irregular grid to an equivalent table (first row overflowing)",
         });
 
-        // 2x[3,2] (second row overflows)
         testConvertGrid({
             before: getGridHtml([
                 [4, 2, 6],
@@ -604,7 +574,6 @@ describe("Normalize styles", () => {
     beforeEach(() => {
         editable = document.createElement("div");
     });
-    // Test normalizeColors, normalizeRem and formatTables
     test("convert rgb color to hexadecimal", async () => {
         editable.innerHTML = `
         <div style="color: rgb(0, 0, 0);">
@@ -698,37 +667,36 @@ describe("Normalize styles", () => {
             `<table class="o_mail_snippet_general" style="">` +
             `<tbody>` +
             `<tr>` +
-            `<td style="padding-top: 11px; padding-right: 2px; padding-left: 40px;">(0, 0, 0)</td>` + // TL
-            `<td style="padding: 13px 4px 5px 6px;">(0, 1, 0)</td>` + // T
-            `<td style="padding: 17px 7px 7px;">(0, 2, 0)</td>` + // T
-            `<td style="padding: 18px 9px 8px;">(0, 3, 0)</td>` + // T
-            `<td style="padding-right: 29.1px; padding-top: 10px;">(0, 4, 0)</td>` + // TR
+            `<td style="padding-top: 11px; padding-right: 2px; padding-left: 40px;">(0, 0, 0)</td>` +
+            `<td style="padding: 13px 4px 5px 6px;">(0, 1, 0)</td>` +
+            `<td style="padding: 17px 7px 7px;">(0, 2, 0)</td>` +
+            `<td style="padding: 18px 9px 8px;">(0, 3, 0)</td>` +
+            `<td style="padding-right: 29.1px; padding-top: 10px;">(0, 4, 0)</td>` +
             `</tr>` +
             `<tr>` +
-            `<td style="padding-right: 20px; padding-left: 40px;">` + // LR
+            `<td style="padding-right: 20px; padding-left: 40px;">` +
             `<table style="">` +
             `<tbody>` +
             `<tr>` +
-            `<td style="padding: 51px 2px 73px 84px;">(0, 0, 1)</td>` + // TBL
-            `<td style="padding: 55px 5px 75px;">(0, 1, 1)</td>` + // TB
-            `<td style="padding: 56px 7px 76px;">(0, 2, 1)</td>` + // TB
-            `<td style="padding-top: 58px; padding-right: 69px; padding-bottom: 70px;">(0, 3, 1)</td>` + // TBR
+            `<td style="padding: 51px 2px 73px 84px;">(0, 0, 1)</td>` +
+            `<td style="padding: 55px 5px 75px;">(0, 1, 1)</td>` +
+            `<td style="padding: 56px 7px 76px;">(0, 2, 1)</td>` +
+            `<td style="padding-top: 58px; padding-right: 69px; padding-bottom: 70px;">(0, 3, 1)</td>` +
             `</tr>` +
             `</tbody>` +
             `</table>` +
             `</td>` +
             `</tr>` +
             `<tr>` +
-            `<td style="padding-left: 49.1px; padding-bottom: 30px;">(1, 0, 0)</td>` + // BL
-            `<td style="padding: 9px 8px 37px 6px;">(1, 1, 0)</td>` + // B
-            `<td style="padding: 5px 5px 35px;">(1, 2, 0)</td>` + // B
-            `<td style="padding: 4px 3px 34px;">(1, 3, 0)</td>` + // B
-            `<td style="padding-bottom: 32px; padding-right: 21px;">(1, 4, 0)</td>` + // BR
+            `<td style="padding-left: 49.1px; padding-bottom: 30px;">(1, 0, 0)</td>` +
+            `<td style="padding: 9px 8px 37px 6px;">(1, 1, 0)</td>` +
+            `<td style="padding: 5px 5px 35px;">(1, 2, 0)</td>` +
+            `<td style="padding: 4px 3px 34px;">(1, 3, 0)</td>` +
+            `<td style="padding-bottom: 32px; padding-right: 21px;">(1, 4, 0)</td>` +
             `</tr>` +
             `</tbody>` +
             `</table>`;
 
-        // table.o_mail_snippet_general
         editable.innerHTML = testTable;
         formatTables(editable);
         expect(editable).toHaveInnerHTML(expectedTable, {
@@ -739,7 +707,6 @@ describe("Normalize styles", () => {
 
     test("add a tbody to any table that doesn't have one", async () => {
         editable.innerHTML = `<table><tr><td>I don't have a body :'(</td></tr></table>`;
-        // unwrap tr (remove the <tbody> the parser inserted)
         const tr = editable.querySelector("tr");
         const body = tr.parentElement;
         body.parentElement.appendChild(tr);
@@ -808,7 +775,6 @@ describe("Normalize styles", () => {
     });
 });
 describe("Convert snippets and mailing bodies to tables", () => {
-    // Test addTables
     beforeEach(() => {
         editable = document.createElement("div");
     });
@@ -864,7 +830,7 @@ describe("Convert snippets and mailing bodies to tables", () => {
             getRegularTableHtml(1, 1, 12, 100)
                 .split("style=")
                 .join('class="o_layout" style=')
-                .replace(" font-size: unset; line-height: inherit;", "") // o_layout keeps those default values
+                .replace(" font-size: unset; line-height: inherit;", "")
                 .replace(
                     /<td[^>]*>\(0, 0\)/,
                     "<td>" +
@@ -889,7 +855,7 @@ describe("Convert snippets and mailing bodies to tables", () => {
             getRegularTableHtml(1, 1, 12, 100)
                 .split("style=")
                 .join('class="o_layout" style=')
-                .replace(" font-size: unset; line-height: inherit;", "") // o_layout keeps those default values
+                .replace(" font-size: unset; line-height: inherit;", "")
                 .replace(
                     /<td[^>]*>\(0, 0\)/,
                     "<td><table><tbody><tr><td>Mailing</td></tr></tbody></table>",
@@ -902,8 +868,6 @@ describe("Convert snippets and mailing bodies to tables", () => {
     });
 });
 describe("Convert classes to inline styles", () => {
-    // Test classToStyle
-
     let styleEl, styleSheet;
 
     beforeEach(() => {
@@ -921,7 +885,7 @@ describe("Convert classes to inline styles", () => {
         enableTransitions();
         editable.innerHTML = `
             <div class="container"><div class="row"><div class="col">Hello</div></div></div>`;
-        getFixture().append(editable); // editable needs to be in the DOM to compute its dynamic styles.
+        getFixture().append(editable);
 
         const borderColor = `rgb(255, 0, 0)`;
         styleSheet.insertRule(
@@ -932,12 +896,6 @@ describe("Convert classes to inline styles", () => {
         );
 
         classToStyle(editable, getCSSRules(editable.ownerDocument));
-        // Some positional properties (eg., padding-right, margin-left) are not
-        // concatenated (eg., as padding, margin) because they were defined with
-        // variables (var) or calculated (calc).
-        // Computed border/border-radius values are not force applied on every
-        // node: only grouped styles that a matched rule defines through
-        // var()/calc() are completed with computed values.
         const containerStyle = `margin: 0px auto; box-sizing: border-box; max-width: 1320px; padding-left: 16px; padding-right: 16px; width: 100%; border-color: ${borderColor};`;
         const rowStyle = `box-sizing: border-box; margin-left: -16px; margin-right: -16px; margin-top: 0px; border-color: ${borderColor};`;
         const colStyle = `box-sizing: border-box; margin-top: 0px; padding-left: 16px; padding-right: 16px; max-width: 100%; width: 100%; border-color: ${borderColor};`;
@@ -971,7 +929,6 @@ describe("Convert classes to inline styles", () => {
     });
 
     test("simplify border/margin/padding styles", async () => {
-        // border-radius
         styleSheet.insertRule(
             `
             .test-border-radius {
@@ -986,8 +943,6 @@ describe("Convert classes to inline styles", () => {
         editable.innerHTML = `<div class="test-border-radius"></div>`;
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
-            // top-left top-right bottom-right bottom-left: each distinct
-            // corner must be preserved, not collapsed to a single value.
             `<div class="test-border-radius" style="border-radius:40% 10% 20% 30%;box-sizing:border-box;"></div>`,
             {
                 message:
@@ -995,8 +950,6 @@ describe("Convert classes to inline styles", () => {
             },
         );
         styleSheet.deleteRule(0);
-
-        // convert all positional styles to a style in the form `property: a b c d`
 
         styleSheet.insertRule(
             `
@@ -1060,8 +1013,6 @@ describe("Convert classes to inline styles", () => {
             },
         );
         styleSheet.deleteRule(0);
-
-        // convert all positional styles to a style in the form `property: a`
 
         styleSheet.insertRule(
             `
@@ -1129,8 +1080,6 @@ describe("Convert classes to inline styles", () => {
         );
         styleSheet.deleteRule(0);
 
-        // do not convert positional styles that include an "inherit" value
-
         styleSheet.insertRule(
             `
             .test-border-inherit {
@@ -1197,10 +1146,6 @@ describe("Convert classes to inline styles", () => {
         );
         styleSheet.deleteRule(0);
 
-        // do not convert positional styles that include an "initial" value
-
-        // note: `border: initial` is automatically removed (tested in "remove
-        // unsupported styles")
         styleSheet.insertRule(
             `
             .test-margin-initial {
@@ -1244,12 +1189,9 @@ describe("Convert classes to inline styles", () => {
             },
         );
         styleSheet.deleteRule(0);
-
-        // @todo to adapt when hoot has a better way to remove it
     });
 
     test("remove unsupported styles", async () => {
-        // text-decoration-[prop]
         styleSheet.insertRule(
             `
             .test-decoration {
@@ -1272,7 +1214,6 @@ describe("Convert classes to inline styles", () => {
         );
         styleSheet.deleteRule(0);
 
-        // border[\w-]*: initial
         styleSheet.insertRule(
             `
             .test-border-initial {
@@ -1292,7 +1233,6 @@ describe("Convert classes to inline styles", () => {
         );
         styleSheet.deleteRule(0);
 
-        // display: block
         styleSheet.insertRule(
             `
             .test-block {
@@ -1309,7 +1249,6 @@ describe("Convert classes to inline styles", () => {
         );
         styleSheet.deleteRule(0);
 
-        // !important
         styleSheet.insertRule(
             `
             .test-unimportant-color {
@@ -1344,7 +1283,6 @@ describe("Convert classes to inline styles", () => {
         styleSheet.deleteRule(0);
         styleSheet.deleteRule(0);
 
-        // animation
         styleSheet.insertRule(
             `
             .test-animation {
@@ -1381,7 +1319,6 @@ describe("Convert classes to inline styles", () => {
         );
         styleSheet.deleteRule(0);
 
-        // flex
         styleSheet.insertRule(
             `
             .test-flex {
@@ -1418,8 +1355,6 @@ describe("Convert classes to inline styles", () => {
             { message: "should have removed all specific flex styles" },
         );
         styleSheet.deleteRule(0);
-
-        // @todo to adapt when hoot has a better way to remove it
     });
 
     test("give .o_layout the styles of the body", async () => {
@@ -1520,8 +1455,6 @@ describe("Convert classes to inline styles", () => {
             `<div class="test-color" style="box-sizing:border-box;color:black;"></div>`,
             { message: "should have prioritized the important style" },
         );
-
-        // @todo to adapt when hoot has a better way to remove it
     });
 
     test("do not force computed grouped styles without dynamic values", async () => {
@@ -1535,7 +1468,7 @@ describe("Convert classes to inline styles", () => {
             0,
         );
         editable.innerHTML = `<div class="test-no-bloat">Hello</div>`;
-        getFixture().append(editable); // Attached: computed styles are resolvable.
+        getFixture().append(editable);
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         expect(editable).toHaveInnerHTML(
             `<div class="test-no-bloat" style="box-sizing:border-box;color:blue;">Hello</div>`,
@@ -1561,7 +1494,7 @@ describe("Convert classes to inline styles", () => {
             0,
         );
         editable.innerHTML = `<div class="test-var-border">Hello</div>`;
-        getFixture().append(editable); // Attached: computed styles are resolvable.
+        getFixture().append(editable);
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         const node = editable.firstElementChild;
         expect(node.style.borderTopWidth).toBe("3px", {
@@ -1592,7 +1525,6 @@ describe("Convert classes to inline styles", () => {
     });
 
     test("compute selector specificity per the CSS specification", async () => {
-        // One id beats any number of classes.
         styleSheet.insertRule(`#test-spec-id { color: red; }`, 0);
         styleSheet.insertRule(
             `.tsc1.tsc2.tsc3.tsc4.tsc5.tsc6.tsc7.tsc8.tsc9.tsc10 { color: blue; }`,
@@ -1607,7 +1539,6 @@ describe("Convert classes to inline styles", () => {
         styleSheet.deleteRule(0);
         styleSheet.deleteRule(0);
 
-        // Pseudo-classes count at the class level, not the type level.
         styleSheet.insertRule(`div:first-child { color: green; }`, 0);
         styleSheet.insertRule(`.test-spec-pseudo { color: blue; }`, 1);
         editable.innerHTML = `<div class="test-spec-pseudo"></div>`;
@@ -1622,8 +1553,6 @@ describe("Convert classes to inline styles", () => {
         styleSheet.deleteRule(0);
         styleSheet.deleteRule(0);
 
-        // :not() itself counts for nothing; only its argument counts. Both
-        // selectors are (0, 1, 1): the later one must win.
         styleSheet.insertRule(`div:not(.absent) { color: purple; }`, 0);
         styleSheet.insertRule(`div.test-spec-not { color: orange; }`, 1);
         editable.innerHTML = `<div class="test-spec-not"></div>`;
@@ -1671,17 +1600,12 @@ describe("Convert classes to inline styles", () => {
         const selectors = new Set(
             getCSSRules(editable.ownerDocument).map((rule) => rule.selector),
         );
-        // Unbounded desktop min-width rules apply to emails.
         expect(selectors.has(".test-media-desktop")).toBe(true);
-        // Bounded (tablet-only) ranges and mobile-only rules do not.
         expect(selectors.has(".test-media-tablet")).toBe(false);
         expect(selectors.has(".test-media-mobile")).toBe(false);
-        // Unconditional screen rules apply, print rules do not.
         expect(selectors.has(".test-media-screen")).toBe(true);
         expect(selectors.has(".test-media-print")).toBe(false);
-        // Nested rules are resolved against their parent selectors.
         expect(selectors.has(".test-nested-parent .test-nested-child")).toBe(true);
-        // Interaction-state pseudo-classes cannot apply in an email.
         expect([...selectors].some((sel) => sel.includes(":visited"))).toBe(false);
         expect([...selectors].some((sel) => sel.includes(":checked"))).toBe(false);
         expect([...selectors].some((sel) => sel.includes(":disabled"))).toBe(false);
@@ -1734,9 +1658,6 @@ describe("Convert classes to inline styles", () => {
     });
 
     test("preserve asymmetric border-radius corners when inlining (regression: bug E)", async () => {
-        // Distinct per-corner radii, reached via calc() so the dynamic-substyle
-        // path materialises the four computed corner longhands (a plain
-        // shorthand would be merged by the CSSOM before classToStyle sees it).
         editable.innerHTML = `<div class="bubble">x</div>`;
         getFixture().append(editable);
         styleSheet.insertRule(
@@ -1745,8 +1666,6 @@ describe("Convert classes to inline styles", () => {
         );
         classToStyle(editable, getCSSRules(editable.ownerDocument));
         const div = editable.querySelector("div");
-        // The shorthand collapse must keep every corner rather than copy one of
-        // them (bottom-left) onto all four and square off the asymmetry.
         expect(div.style.borderTopLeftRadius).toBe("4px", {
             message: "top-left radius must survive inlining",
         });
@@ -1763,9 +1682,6 @@ describe("Convert classes to inline styles", () => {
     });
 
     test("flex alignment survives inlining so formatTables can map it (regression: bug G)", async () => {
-        // align-items on a flex row must translate to vertical-align on the row.
-        // The flex-strip in classToStyle must not swallow the flex-* keyword
-        // before formatTables gets to read it.
         editable.innerHTML = `<table><tbody><tr style="align-items: flex-start;"><td>x</td></tr></tbody></table>`;
         getFixture().append(editable);
         classToStyle(editable, getCSSRules(editable.ownerDocument));
@@ -1889,9 +1805,28 @@ describe("Convert to inline (full pipeline)", () => {
         await toInline(editable, cssRules);
         const inlinedOnce = editable.innerHTML;
         await toInline(editable, cssRules);
-        // Compare raw innerHTML: mso conditional comments matter here.
         expect(editable.innerHTML).toBe(inlinedOnce, {
             message: "a second run on the converted output should change nothing",
         });
+    });
+
+    test("every .mso-hide element is hidden from Outlook, not just the first", async () => {
+        editable = document.createElement("div");
+        editable.style.setProperty("width", TEST_WIDTH + "px");
+        getFixture().append(editable);
+        editable.innerHTML =
+            '<div class="o_layout">' +
+            '<p class="mso-hide">first</p>' +
+            '<p class="mso-hide">second</p>' +
+            '<p class="mso-hide">third</p>' +
+            "</div>";
+        await toInline(editable, getCSSRules(document));
+        const hidden = [...editable.querySelectorAll(".mso-hide")];
+        expect(hidden.length).toBe(3);
+        for (const [index, node] of hidden.entries()) {
+            expect(node.getAttribute("style") || "").toInclude("mso-hide", {
+                message: `.mso-hide element ${index} should carry the declaration`,
+            });
+        }
     });
 });

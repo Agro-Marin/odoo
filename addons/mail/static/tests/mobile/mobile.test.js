@@ -40,11 +40,10 @@ test("auto-select 'Inbox' when discuss had channel as active thread", async () =
     await contains(".o-mail-MessagingMenu-tab.active", { text: "Channels" });
     await click("button", { text: "Inbox" });
     await contains(".o-mail-MessagingMenu-tab.active", { text: "Inbox" });
-    await contains(".btn-secondary.active", { text: "Inbox" }); // in header
+    await contains(".btn-secondary.active", { text: "Inbox" });
 });
 
 test("show loading on initial opening", async () => {
-    // This could load a lot of data (all pinned conversations)
     const def = new Deferred();
     listenStoreFetch("channels_as_member", {
         async onRpc() {
@@ -74,7 +73,6 @@ test("can leave channel in mobile", async () => {
     patchUiSize({ size: SIZES.SM });
     await start();
     await openDiscuss(channelId);
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains(".o-mail-ChatWindow-moreActions", { text: "General" });
     await click(".o-mail-ChatWindow-moreActions", { text: "General" });
     await contains(".o-dropdown-item", { text: "Leave Channel" });

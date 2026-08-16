@@ -73,11 +73,8 @@ export class MailThread extends models.ServerModel {
         if (after) {
             domain.push(["id", ">", after]);
         }
-        if (filter_recipients) {
-            // not implemented for simplicity
-        }
-        const followers = MailFollowers._filter(domain).sort(
-            (f1, f2) => (f1.id < f2.id ? -1 : 1), // sorted from lowest ID to highest ID (i.e. from oldest to youngest)
+        const followers = MailFollowers._filter(domain).sort((f1, f2) =>
+            f1.id < f2.id ? -1 : 1,
         );
         followers.length = Math.min(followers.length, limit);
         store.add(
@@ -114,7 +111,7 @@ export class MailThread extends models.ServerModel {
         /** @type {import("mock_models").MailMessageSubtype} */
         const MailMessageSubtype = this.env["mail.message.subtype"];
 
-        const id = ids[0]; // ensure_one
+        const id = ids[0];
         if (kwargs.context?.mail_post_autofollow && kwargs.partner_ids?.length) {
             MailThread.message_subscribe.call(this, ids, kwargs.partner_ids, []);
         }
@@ -248,11 +245,7 @@ export class MailThread extends models.ServerModel {
         MailFollowers.unlink(followers);
     }
 
-    /**
-     * Note that this method is overridden by snailmail module but not simulated here.
-     *
-     * @param {string} notification_type
-     */
+    /** @param {string} notification_type */
     notify_cancel_by_type(notification_type) {
         const kwargs = getKwArgs(arguments, "notification_type");
         notification_type = kwargs.notification_type;
@@ -372,8 +365,6 @@ export class MailThread extends models.ServerModel {
         const ResPartner = this.env["res.partner"];
 
         if (!author_id) {
-            // For simplicity partner is not guessed from email_from here, but
-            // that would be the first step on the server.
             const [author] = ResPartner.browse(this.env.user.partner_id);
             author_id = author.id;
             email_from = `${author.display_name} <${author.email}>`;
@@ -446,8 +437,6 @@ export class MailThread extends models.ServerModel {
     }
 
     /**
-     * Simplified version that sends notification to author and channel.
-     *
      * @param {number[]} ids
      * @param {number} message_id
      * @param {number} [temporary_id]
@@ -483,8 +472,6 @@ export class MailThread extends models.ServerModel {
                             MailMessage.browse(message_id),
                         ).get_result(),
                         id: channel.id,
-                        // explicitly identify the posted message, as the
-                        // server does in `_notify_thread()`
                         message_id: message.id,
                         temporary_id,
                     },
@@ -649,8 +636,6 @@ export class MailThread extends models.ServerModel {
         /** @type {import("mock_models").MailScheduledMessage} */
         const MailScheduledMessage = this.env["mail.scheduled.message"];
 
-        // mirror python's `is_request = request_list is not None`: access flags
-        // are only sent when the thread is explicitly requested (contract.test.js)
         const is_request =
             kwargs.request_list !== undefined && kwargs.request_list !== null;
         if (!fields) {
@@ -661,7 +646,7 @@ export class MailThread extends models.ServerModel {
         const res = {};
         if (is_request) {
             res.hasReadAccess = true;
-            res.hasWriteAccess = thread.hasWriteAccess ?? true; // mimic user with write access by default
+            res.hasWriteAccess = thread.hasWriteAccess ?? true;
             res["canPostOnReadonly"] = this._mail_post_access === "read";
         }
         const model = this.env[this._name];
@@ -680,7 +665,6 @@ export class MailThread extends models.ServerModel {
             );
             res["areAttachmentsLoaded"] = true;
             res["isLoadingAttachments"] = false;
-            // Specific implementation of mail.thread.main.attachment
             if (this.env[this._name]._fields.message_main_attachment_id) {
                 res["message_main_attachment_id"] = mailDataHelpers.Store.one(
                     IrAttachment.browse(thread.message_main_attachment_id),
@@ -722,7 +706,6 @@ export class MailThread extends models.ServerModel {
                 ["res_id", "=", thread.id],
                 ["res_model", "=", this._name],
                 ["partner_id", "!=", this.env.user.partner_id],
-                // subtype and partner active checks not done here for simplicity
             ]);
             MailThread._message_followers_to_store.call(
                 this,

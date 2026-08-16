@@ -25,7 +25,6 @@ export const DISCUSS_ACTION_ID = 104;
  * @template [T={}]
  * @typedef {import("@web/../tests/web_test_helpers").RouteCallback<T>} RouteCallback
  */
-
 const { DateTime } = luxon;
 
 /** @param {import("mock_models").MailGuest} guest */
@@ -43,8 +42,6 @@ export const authenticateGuest = (guest) => {
 };
 
 /**
- * Executes the given callback as the given guest, then restores the previous user.
- *
  * @param {number} guestId
  * @param {() => any} fn
  */
@@ -77,24 +74,11 @@ export const parseRequestParams = async (request) => {
 
 const onRpcBeforeGlobal = { cb: (route, args) => {} };
 const onRpcAfterGlobal = { cb: (route, args) => {} };
-// using a registry category to not expose for manual import
-// We should use `onRpcBefore`/`onRpcAfter` with 1st parameter being (route, args) callback function
 registry.category("mail.on_rpc_before_global").add(true, onRpcBeforeGlobal);
 registry.category("mail.on_rpc_after_global").add(true, onRpcAfterGlobal);
 
-/**
- * All `[route, handler]` pairs collected by `registerRoute`. The ESM loader
- * imports every test file inside its own synthetic suite (see
- * `start.hoot.js/_importInFileSuite`), so module-level `onRpc` registrations
- * bind only to the file that first evaluated this module.
- */
 const registeredRoutes = [];
 
-/**
- * (Re-)register every collected mock route for the current suite. Must be
- * called at the top level of each test file's module — `defineMailModels()`
- * does it — so the `onRpc` registrations bind to that file's suite.
- */
 export function registerMailMockRoutes() {
     for (const [route, handler] of registeredRoutes) {
         onRpc(route, handler);
@@ -196,7 +180,6 @@ async function load_attachments(request) {
             res_model === "discuss.channel" &&
             (!older_attachment_id || id < older_attachment_id),
     )
-        // newest first, like the real controller's `order="id DESC"`
         .sort((a1, a2) => a2.id - a1.id)
         .slice(0, limit)
         .map(({ id }) => id);
@@ -223,7 +206,7 @@ async function channel_call_join(request) {
         DiscussChannel._find_or_create_member_for_self(channel_id);
     const sessionId = DiscussChannelRtcSession.create({
         channel_member_id: memberOfCurrentUser.id,
-        channel_id, // on the server, this is a related field from channel_member_id and not explicitly set
+        channel_id,
         guest_id: memberOfCurrentUser.guest_id,
         partner_id: memberOfCurrentUser.partner_id,
     });
@@ -343,8 +326,6 @@ async function discuss_channel_messages(request) {
     const res = MailMessage._message_fetch([], channel, makeKwArgs(fetch_params));
     const { messages } = res;
     delete res.messages;
-    // like the controller: `if not request.env.user._is_public()`, i.e.
-    // unconditional on `around`
     if (!this.env["res.users"]._is_public(this.env.uid)) {
         MailMessage.set_message_done(messages.map((message) => message.id));
     }
@@ -417,7 +398,6 @@ async function discuss_channel_sub_channel_fetch(request) {
     );
     const store = new mailDataHelpers.Store(DiscussChannel.browse(subChannels));
     const lastMessageIds = [];
-    // an empty channel has no last message
     for (const channel of DiscussChannel.browse(subChannels)) {
         if (channel.message_ids.length) {
             lastMessageIds.push(Math.max(...channel.message_ids));
@@ -541,7 +521,7 @@ async function discuss_channel_mark_as_read(request) {
         partner ? ["partner_id", "=", partner.id] : ["guest_id", "=", guest.id],
     ]);
     if (!memberId) {
-        return; // ignore if the member left in the meantime
+        return;
     }
     return DiscussChannelMember._mark_as_read([memberId], last_message_id);
 }
@@ -613,8 +593,6 @@ async function discuss_inbox_messages(request) {
     const res = MailMessage._message_fetch(domain, makeKwArgs(fetch_params));
     const { messages } = res;
     delete res.messages;
-    // like the controller: attach the thread's needaction counter plus the bus
-    // id it was read at, as extra_fields on the message's thread
     const busLastId = this.env["bus.bus"].lastBusNotificationId;
     return {
         ...res,
@@ -665,18 +643,32 @@ async function mail_link_preview(request) {
         const isGifPreview =
             link.href.startsWith("https://tenor.com") ||
             link.href.startsWith("https://media.tenor.com");
-        const linkPreviewId = MailLinkPreview.create({
-            og_description: isGifPreview ? "Click to view the GIF" : "test description",
-            og_image: isGifPreview ? link.href : undefined,
-            og_mimetype: isGifPreview ? "image/gif" : undefined,
-            og_title: isGifPreview ? "Gif title" : "Article title",
-            og_type: isGifPreview ? "video.other" : "article",
-            source_url: isGifPreview ? link.href : "https://make-link-preview.com",
-        });
-        MailMessageLinkPreview.create({
-            message_id: message.id,
-            link_preview_id: linkPreviewId,
-        });
+        const sourceUrl = isGifPreview ? link.href : "https://make-link-preview.com";
+        const [existingLinkPreviewId] = MailLinkPreview.search([
+            ["source_url", "=", sourceUrl],
+        ]);
+        const linkPreviewId =
+            existingLinkPreviewId ??
+            MailLinkPreview.create({
+                og_description: isGifPreview
+                    ? "Click to view the GIF"
+                    : "test description",
+                og_image: isGifPreview ? link.href : undefined,
+                og_mimetype: isGifPreview ? "image/gif" : undefined,
+                og_title: isGifPreview ? "Gif title" : "Article title",
+                og_type: isGifPreview ? "video.other" : "article",
+                source_url: sourceUrl,
+            });
+        const alreadyOnMessage = MailMessageLinkPreview.search([
+            ["message_id", "=", message.id],
+            ["link_preview_id", "=", linkPreviewId],
+        ]);
+        if (alreadyOnMessage.length === 0) {
+            MailMessageLinkPreview.create({
+                message_id: message.id,
+                link_preview_id: linkPreviewId,
+            });
+        }
         BusBus._sendone(
             MailMessage._bus_notification_target(message_id),
             "mail.record/insert",
@@ -911,7 +903,6 @@ async function mail_thread_partner_from_email(request) {
     const ResPartner = this.env["res.partner"];
 
     const { thread_model, thread_id, emails } = await parseRequestParams(request);
-    // browsed for parity with the controller, but the py logic is not simulated
     this.env[thread_model].browse(thread_id);
     const partners = emails.map(
         (email) => ResPartner.search([["email", "=", email]])[0],
@@ -958,7 +949,7 @@ async function read_subscription_data(request) {
                 makeKwArgs({ fields: ["subtype_ids"] }),
             )
             .get_result(),
-        subtype_ids: subtypes, // Not sorted for simplicity.
+        subtype_ids: subtypes,
     };
 }
 
@@ -1026,14 +1017,6 @@ async function mail_thread_messages(request) {
             makeKwArgs({ for_current_user: true }),
         ).get_result(),
         messages: messages.map((message) => message.id),
-    };
-}
-
-registerRoute("/mail/thread/recipients/fields", mail_thread_recipients_fields);
-async function mail_thread_recipients_fields(request) {
-    return {
-        partner_fields: [],
-        primary_email_field: [],
     };
 }
 
@@ -1204,9 +1187,6 @@ function _process_request_for_all(store, name, params, context = {}) {
             ["model", "!=", false],
             ["message_type", "!=", "user_notification"],
         ]).filter((message) => {
-            // simulates the mail.message domain
-            // ['notification_ids.notification_status', 'in', ['bounce', 'exception']],
-            // which `_filter` cannot express: it does not follow relations.
             const notifications = MailNotification._filter([
                 ["mail_message_id", "=", message.id],
                 ["notification_status", "in", ["bounce", "exception"]],
@@ -1249,7 +1229,6 @@ function _process_request_for_all(store, name, params, context = {}) {
         store.add(DiscussChannel.browse(channels));
         for (const channelId of params.filter((id) => !channels.includes(id))) {
             const channel = DiscussChannel.browse();
-            // limitation of mock server: cannot browse non-existing record
             channel.push({ id: channelId });
             store.add(channel, makeKwArgs({ delete: true }));
         }
@@ -1418,8 +1397,6 @@ export class StoreRelation extends StoreAttr {
                 value: this.value,
                 predicate: this.predicate,
                 as_thread: this.as_thread,
-                // must be carried over: without it every named Store.one/many
-                // relation fully serializes its target (contract.test.js)
                 only_id: this.only_id,
             }),
         );
@@ -1727,7 +1704,6 @@ class Store {
             throw new Error(`expected string for model name: ${model_name}: ${values}`);
         }
         const ids = ids_by_model[model_name] || ["id"];
-        // handle singleton model: update single record in place
         if (!ids.length) {
             if (typeof values !== "object") {
                 throw new Error(`expected dict for singleton ${model_name}: ${values}`);
@@ -1741,7 +1717,6 @@ class Store {
             this._add_values(values, model_name);
             return this;
         }
-        // handle model with ids: add or update existing records based on ids
         if (!Array.isArray(values)) {
             if (!values) {
                 return this;
@@ -1818,7 +1793,6 @@ class Store {
         for (const [model_name, records] of this.data) {
             const ids = ids_by_model[model_name] || ["id"];
             if (!ids.length) {
-                // singleton
                 res[model_name] = { ...records };
             } else {
                 res[model_name] = [...records.values()].map((record) => ({

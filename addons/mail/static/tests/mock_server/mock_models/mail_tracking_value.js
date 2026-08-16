@@ -3,10 +3,7 @@ import { capitalize } from "@web/core/utils/format/strings";
 import { patch } from "@web/core/utils/patch";
 
 patch(models.ServerModel.prototype, {
-    /**
-     * @override
-     * @type {typeof models.Model["prototype"]["write"]}
-     */
+    /** @type {typeof models.Model["prototype"]["write"]} */
     write() {
         /** @type {import("mock_models").MailThread} */
         const MailThread = this.env["mail.thread"];
@@ -20,9 +17,7 @@ patch(models.ServerModel.prototype, {
         return result;
     },
 });
-/**
- * @typedef {import("@web/../tests/web_test_helpers").ModelRecord} ModelRecord
- */
+/** @typedef {import("@web/../tests/web_test_helpers").ModelRecord} ModelRecord */
 
 export class MailTrackingValue extends models.ServerModel {
     _name = "mail.tracking.value";
@@ -81,7 +76,6 @@ export class MailTrackingValue extends models.ServerModel {
                 values["old_value_float"] = initial_value;
                 values["new_value_float"] = new_value;
                 let currencyField = col_info.currency_field;
-                // see get_currency_field in python fields
                 if (!currencyField && "currency_id" in record._fields) {
                     currencyField = "currency_id";
                 }

@@ -112,13 +112,10 @@ test("seen by everyone ignores the self member's own seen marker", async () => {
         { author_id: serverState.partnerId, body: "<p>First</p>" },
         { author_id: serverState.partnerId, body: "<p>Second</p>" },
     ]);
-    // the other member has seen everything...
     writeMember(pyEnv, channelId, partnerId, {
         fetched_message_id: messageId_2,
         seen_message_id: messageId_2,
     });
-    // ...while the self member's own marker lags (e.g. a stale snapshot from
-    // another device): it must not drag "seen by everyone" backwards
     writeMember(pyEnv, channelId, serverState.partnerId, {
         fetched_message_id: messageId_1,
         seen_message_id: messageId_1,
@@ -196,7 +193,6 @@ test("'channel_fetch' notification received is correctly handled", async () => {
     await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 0 });
 
     const channel = pyEnv["discuss.channel"].search_read([["id", "=", channelId]])[0];
-    // Simulate received channel fetched notification
     pyEnv["bus.bus"]._sendone(channel, "discuss.channel.member/fetched", {
         id: getMemberId(pyEnv, channelId, partnerId),
         channel_id: channelId,
@@ -221,7 +217,6 @@ test("mark channel as seen from the bus", async () => {
     await contains(".o-mail-Message");
     await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 0 });
     const channel = pyEnv["discuss.channel"].search_read([["id", "=", channelId]])[0];
-    // Simulate received channel seen notification
     const DiscussChannelMember = pyEnv["discuss.channel.member"];
     pyEnv["bus.bus"]._sendone(
         channel,
@@ -255,7 +250,6 @@ test("should display message indicator when message is fetched/seen", async () =
     await contains(".o-mail-Message");
     await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 0 });
     const channel = pyEnv["discuss.channel"].search_read([["id", "=", channelId]])[0];
-    // Simulate received channel fetched notification
     pyEnv["bus.bus"]._sendone(channel, "discuss.channel.member/fetched", {
         id: getMemberId(pyEnv, channelId, partnerId),
         channel_id: channelId,
@@ -263,7 +257,6 @@ test("should display message indicator when message is fetched/seen", async () =
         partner_id: partnerId,
     });
     await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 1 });
-    // Simulate received channel seen notification
     const DiscussChannelMember = pyEnv["discuss.channel.member"];
     pyEnv["bus.bus"]._sendone(
         channel,
@@ -373,7 +366,6 @@ test("all seen indicator in chat displayed only once (chat created by correspond
 });
 
 test("no seen indicator in 'channel' channels (with is_typing)", async () => {
-    // is_typing info contains fetched / seen message so this could mistakenly show seen indicators
     const pyEnv = await startServer();
     const demoId = pyEnv["res.partner"].create({ name: "Demo User" });
     const demoUserId = pyEnv["res.users"].create({ partner_id: demoId });
@@ -404,11 +396,10 @@ test("no seen indicator in 'channel' channels (with is_typing)", async () => {
     await start();
     await openDiscuss(channelId);
     await contains(".o-mail-Message", { text: "channel-msg" });
-    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 0 }); // none in channel
+    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 0 });
     await click(".o-mail-DiscussSidebar-item", { text: "Demo User" });
     await contains(".o-mail-Message", { text: "chat-msg" });
-    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 1 }); // received in chat
-    // simulate channel read by Demo User in both threads
+    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 1 });
     await withUser(demoUserId, () =>
         rpc("/discuss/channel/mark_as_read", {
             channel_id: channelId,
@@ -421,7 +412,6 @@ test("no seen indicator in 'channel' channels (with is_typing)", async () => {
             last_message_id: chatMsgId,
         }),
     );
-    // simulate typing by Demo User in both threads
     await withUser(demoUserId, () =>
         rpc("/discuss/channel/notify_typing", {
             channel_id: channelId,
@@ -434,10 +424,10 @@ test("no seen indicator in 'channel' channels (with is_typing)", async () => {
             is_typing: true,
         }),
     );
-    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 2 }); // seen in chat
+    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 2 });
     await click(".o-mail-DiscussSidebar-item", { text: "test-channel" });
     await contains(".o-mail-Message", { text: "channel-msg" });
-    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 0 }); // none in channel
+    await contains(".o-mail-MessageSeenIndicator .fa-check", { count: 0 });
 });
 
 test("Show everyone seen title on message seen indicator", async () => {
@@ -470,7 +460,6 @@ test("Show everyone seen title on message seen indicator", async () => {
 });
 
 test("Title show some member seen info (partial seen), click show dialog with full info", async () => {
-    // last member flagged as not seen so that it doesn't show "Seen by everyone" but list names instead
     const pyEnv = await startServer();
     const partners = [];
     for (let i = 0; i < 12; i++) {
@@ -506,7 +495,7 @@ test("Title show some member seen info (partial seen), click show dialog with fu
     await click(".o-mail-MessageSeenIndicator");
     await contains("li", { count: 11 });
     for (let i = 0; i < 11; i++) {
-        await contains("li", { text: `User ${i}` }); // Not checking datetime because HOOT mocking of tz do not work
+        await contains("li", { text: `User ${i}` });
     }
 });
 

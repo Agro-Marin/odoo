@@ -21,13 +21,10 @@ describe.current.tags("desktop");
 
 test("show warning when bus connection encounters issues", async () => {
     await makeMockServer();
-    // Avoid excessively long exponential backoff.
     patchWithCleanup(getWebSocketWorker(), {
         INITIAL_RECONNECT_DELAY: 50,
         RECONNECT_JITTER: 50,
     });
-    // The bus service listens to online/offline events. Prevent them to make the
-    // test deterministic.
     for (const event of ["online", "offline"]) {
         browser.addEventListener(
             event,

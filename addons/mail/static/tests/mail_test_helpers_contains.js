@@ -61,7 +61,6 @@ const mapKeyboardEvent = (args) => ({
  */
 const getEventConstructor = (eventType) => {
     switch (eventType) {
-        // Mouse events
         case "auxclick":
         case "click":
         case "contextmenu":
@@ -77,7 +76,6 @@ const getEventConstructor = (eventType) => {
         case "mouseleave": {
             return [MouseEvent, mapNonBubblingPointerEvent];
         }
-        // Pointer events
         case "pointerdown":
         case "pointerup":
         case "pointermove":
@@ -89,7 +87,6 @@ const getEventConstructor = (eventType) => {
         case "pointerleave": {
             return [PointerEvent, mapNonBubblingPointerEvent];
         }
-        // Focus events
         case "focusin": {
             return [FocusEvent, mapBubblingEvent];
         }
@@ -97,19 +94,16 @@ const getEventConstructor = (eventType) => {
         case "blur": {
             return [FocusEvent, mapNonBubblingEvent];
         }
-        // Clipboard events
         case "cut":
         case "copy":
         case "paste": {
             return [ClipboardEvent, mapBubblingEvent];
         }
-        // Keyboard events
         case "keydown":
         case "keypress":
         case "keyup": {
             return [KeyboardEvent, mapKeyboardEvent];
         }
-        // Drag events
         case "drag":
         case "dragend":
         case "dragenter":
@@ -119,20 +113,16 @@ const getEventConstructor = (eventType) => {
         case "drop": {
             return [DragEvent, mapBubblingEvent];
         }
-        // Input events
         case "input": {
             return [InputEvent, mapBubblingEvent];
         }
-        // Composition events
         case "compositionstart":
         case "compositionend": {
             return [CompositionEvent, mapBubblingEvent];
         }
-        // UI events
         case "scroll": {
             return [UIEvent, mapNonBubblingEvent];
         }
-        // Touch events
         case "touchstart":
         case "touchend":
         case "touchmove": {
@@ -141,7 +131,6 @@ const getEventConstructor = (eventType) => {
         case "touchcancel": {
             return [TouchEvent, mapNonCancelableTouchEvent];
         }
-        // Default: base Event constructor
         default: {
             return [Event, mapBubblingEvent];
         }
@@ -304,16 +293,12 @@ export async function editInput(el, selector, value) {
     await _triggerEvents(input, null, ["input", "change"], eventOpts);
 
     if (input.type === "file") {
-        // Need to wait for the file to be loaded by the input
         await tick();
         await tick();
     }
 }
 
 /**
- * Create a fake object 'dataTransfer', linked to some files,
- * which is passed to drag and drop events.
- *
  * @param {Object[]} files
  * @returns {Object}
  */
@@ -329,11 +314,8 @@ function createFakeDataTransfer(files) {
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then clicks on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  * @param {boolean} [options.shiftKey]
  */
 export async function click(selector, options = {}) {
@@ -343,119 +325,90 @@ export async function click(selector, options = {}) {
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then dragenters `files` on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function dragenterFiles(selector, files, options) {
     await contains(selector, { dragenterFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then dragovers `files` on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function dragoverFiles(selector, files, options) {
     await contains(selector, { dragoverFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then drops `files` on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function dropFiles(selector, files, options) {
     await contains(selector, { dropFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then inputs `files` on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function inputFiles(selector, files, options) {
     await contains(selector, { inputFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then pastes `files` on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function pasteFiles(selector, files, options) {
     await contains(selector, { pasteFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then focuses on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function focus(selector, options) {
     await contains(selector, { setFocus: true, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then inserts the given `content`.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {string} content
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  * @param {boolean} [options.replace=false]
  */
 export async function insertText(selector, content, options = {}) {
     const { replace = false } = options;
     delete options.replace;
     await contains(selector, { ...options, insertText: { content, replace } });
-    await animationFrame(); // wait for t-model synced with new value
+    await animationFrame();
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then sets its `scrollTop` to the given value.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {number|"bottom"} scrollTop
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function scroll(selector, scrollTop, options) {
     await contains(selector, { setScroll: scrollTop, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then triggers `event` on it.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {(import("@web/../tests/helpers/utils").EventType|[import("@web/../tests/helpers/utils").EventType, EventInit])[]} events
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function triggerEvents(selector, events, options) {
     await contains(selector, { triggerEvents: events, ...options });
 }
 
 /**
- * Triggers an hotkey properly disregarding the operating system.
- *
  * @param {string} hotkey
  * @param {boolean} addOverlayModParts
  * @param {KeyboardEventInit} eventAttrs
@@ -505,46 +458,30 @@ function log(ok, message) {
 let hasUsedContainsPositively = false;
 afterEach(() => (hasUsedContainsPositively = false), { global: true });
 /**
- * @typedef {[string, ContainsOptions]} ContainsTuple tuple representing params of the contains
- *  function, where the first element is the selector, and the second element is the options param.
+ * @typedef {[string, ContainsOptions]} ContainsTuple
  * @typedef {Object} ContainsOptions
- * @property {ContainsTuple} [after] if provided, the found element(s) must be after the element
- *  matched by this param.
- * @property {ContainsTuple} [before] if provided, the found element(s) must be before the element
- *  matched by this param.
- * @property {Object} [click] if provided, clicks on the first found element
- * @property {ContainsTuple|ContainsTuple[]} [contains] if provided, the found element(s) must
- *  contain the provided sub-elements.
- * @property {number} [count=1] numbers of elements to be found to declare the contains check
- *  as successful. Elements are counted after applying all other filters.
- * @property {Object[]} [dragenterFiles] if provided, dragenters the given files on the found element
- * @property {Object[]} [dragoverFiles] if provided, dragovers the given files on the found element
- * @property {Object[]} [dropFiles] if provided, drops the given files on the found element
- * @property {Object[]} [inputFiles] if provided, inputs the given files on the found element
- * @property {{content:string, replace:boolean}} [insertText] if provided, adds to (or replace) the
- *  value of the first found element by the given content.
- * @property {ContainsTuple} [parent] if provided, the found element(s) must have as
- *  parent the node matching the parent parameter.
- * @property {Object[]} [pasteFiles] if provided, pastes the given files on the found element
- * @property {number|"bottom"} [scroll] if provided, the scrollTop of the found element(s)
- *  must match.
- *  Note: when using one of the scrollTop options, it is advised to ensure the height is not going
- *  to change soon, by checking with a preceding contains that all the expected elements are in DOM.
- * @property {boolean} [setFocus] if provided, focuses the first found element.
- * @property {boolean} [shadowRoot] if provided, targets the shadowRoot of the found elements.
- * @property {number|"bottom"} [setScroll] if provided, sets the scrollTop on the first found
- *  element.
+ * @property {ContainsTuple} [after]
+ * @property {ContainsTuple} [before]
+ * @property {Object} [click]
+ * @property {ContainsTuple|ContainsTuple[]} [contains]
+ * @property {number} [count=1]
+ * @property {Object[]} [dragenterFiles]
+ * @property {Object[]} [dragoverFiles]
+ * @property {Object[]} [dropFiles]
+ * @property {Object[]} [inputFiles]
+ * @property {{content:string, replace:boolean}} [insertText]
+ * @property {ContainsTuple} [parent]
+ * @property {Object[]} [pasteFiles]
+ * @property {number|"bottom"} [scroll]
+ * @property {boolean} [setFocus]
+ * @property {boolean} [shadowRoot]
+ * @property {number|"bottom"} [setScroll]
  * @property {HTMLElement|OdooEnv} [target=getFixture()]
- * @property {(EventType|[EventType, EventInit])[]} [triggerEvents] if provided, triggers the given
- *  events on the found element
- * @property {string} [text] if provided, the textContent of the found element(s) or one of their
- *  descendants must match. Use `textContent` option for a match on the found element(s) only.
- * @property {string} [textContent] if provided, the textContent of the found element(s) must match.
- *  Prefer `text` option for a match on the found element(s) or any of their descendants, usually
- *  allowing for a simpler and less specific selector.
- * @property {string} [value] if provided, the input value of the found element(s) must match.
- *  Note: value changes are not observed directly, another mutation must happen to catch them.
- * @property {boolean} [visible] if provided, the found element(s) must be (in)visible
+ * @property {(EventType|[EventType, EventInit])[]} [triggerEvents]
+ * @property {string} [text]
+ * @property {string} [textContent]
+ * @property {string} [value]
+ * @property {boolean} [visible]
  */
 class Contains {
     timeoutCount = 0;
@@ -558,7 +495,6 @@ class Contains {
         this.options.count ??= 1;
         let targetParam;
         if (this.options.target?.testEnv) {
-            // when OdooEnv, special key `target`. See @start
             targetParam = this.options.target?.target;
         }
         if (!targetParam) {
@@ -628,15 +564,7 @@ class Contains {
         }, this.tickTimeoutDelay);
     }
 
-    /**
-     * Starts this contains check, either immediately resolving if there is a
-     * match, or registering appropriate listeners and waiting until there is a
-     * match or a timeout (resolving or rejecting respectively).
-     *
-     * Success or failure messages will be logged with HOOT as well.
-     *
-     * @returns {Promise}
-     */
+    /** @returns {Promise} */
     run() {
         this.done = false;
         this.def = new Deferred();
@@ -655,7 +583,7 @@ class Contains {
                 try {
                     this.runOnce("after mutations");
                 } catch (e) {
-                    this.def.reject(e); // prevents infinite loop in case of programming error
+                    this.def.reject(e);
                 }
             });
             this.observer.observe(document.body, {
@@ -676,11 +604,6 @@ class Contains {
     }
 
     /**
-     * Runs this contains check once, immediately returning the result (or
-     * undefined), and possibly resolving or rejecting the main promise
-     * (and printing HOOT log) depending on options.
-     * If undefined is returned it means the check was not successful.
-     *
      * @param {string} whenMessage
      * @param {Object} [options={}]
      * @param {boolean} [options.crashOnFail=false]
@@ -690,7 +613,6 @@ class Contains {
     runOnce(whenMessage, { crashOnFail = false, executeOnSuccess = true } = {}) {
         const res = this.select();
         if ((res?.length ?? 0) === this.options.count || crashOnFail) {
-            // clean before doing anything else to avoid infinite loop due to side effects
             this.observer?.disconnect();
             clearTimeout(this.timer);
             for (const el of this.scrollListeners ?? []) {
@@ -738,12 +660,7 @@ class Contains {
         }
     }
 
-    /**
-     * Executes the action(s) given to this constructor on the found element,
-     * prints the success messages, and resolves the main deferred.
-     *
-     * @param {HTMLElement} el
-     */
+    /** @param {HTMLElement} el */
     executeAction(el) {
         let message = this.successMessage;
         if (this.options.click) {
@@ -780,15 +697,11 @@ class Contains {
         }
         if (this.options.inputFiles) {
             message = `${message} and inputted ${this.options.inputFiles.length} file(s)`;
-            // could not use _createFakeDataTransfer as el.files assignation will only
-            // work with a real FileList object.
             const dataTransfer = new window.DataTransfer();
             for (const file of this.options.inputFiles) {
                 dataTransfer.items.add(file);
             }
             el.files = dataTransfer.files;
-            // Chrome before 73 already fires "change" on a programmatic files
-            // assignation: dispatching manually there would add the files twice
             const versionRaw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
             const chromeVersion = versionRaw ? parseInt(versionRaw[2], 10) : false;
             if (!chromeVersion || chromeVersion >= 73) {
@@ -851,12 +764,7 @@ class Contains {
         this.def?.resolve();
     }
 
-    /**
-     * Returns the found element(s) according to this constructor setup.
-     * If undefined is returned it means the parent cannot be found
-     *
-     * @returns {HTMLElement[]|undefined}
-     */
+    /** @returns {HTMLElement[]|undefined} */
     select() {
         const target = this.selectParent();
         if (!target) {
@@ -970,13 +878,7 @@ class Contains {
         return res;
     }
 
-    /**
-     * Returns the found element that should act as the target (parent) for the
-     * main selector.
-     * If undefined is returned it means the parent cannot be found.
-     *
-     * @returns {HTMLElement|undefined}
-     */
+    /** @returns {HTMLElement|undefined} */
     selectParent() {
         if (this.options.parent) {
             this.parentContains = new Contains(this.options.parent[0], {
@@ -992,9 +894,6 @@ class Contains {
 }
 
 /**
- * Waits until `count` elements matching the given `selector` are present in
- * `options.target`.
- *
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {ContainsOptions} [options]
  * @returns {Promise}

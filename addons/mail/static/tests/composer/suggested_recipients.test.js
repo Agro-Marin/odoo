@@ -133,7 +133,6 @@ test("Check that a partner is created for new followers when sending a message",
     });
     pyEnv["mail.followers"].create({
         partner_id: partnerId_2,
-        email: "peter@johnson.be",
         is_active: true,
         res_id: fakeId,
         res_model: "res.fake",
@@ -145,7 +144,6 @@ test("Check that a partner is created for new followers when sending a message",
     await click("button", { text: "Send message" });
     await contains(".o-mail-RecipientsInput .o_tag_badge_text:contains(John Jane)");
     await contains(".o-mail-RecipientsInput .o_tag_badge_text:contains(john@test.be)");
-    // Ensure that partner `john@test.be` is created while sending the message (not before)
     const partners = pyEnv["res.partner"].search_read([["email", "=", "john@test.be"]]);
     expect(partners).toHaveLength(0);
     await insertText(".o-mail-Composer-input", "Dummy Message");
@@ -162,7 +160,6 @@ test("suggest recipient on 'Send message' composer", async () => {
     const fakeId = pyEnv["res.fake"].create({ email_cc: "john@test.be" });
     pyEnv["mail.followers"].create({
         partner_id: partnerId,
-        email: "peter@johnson.be",
         is_active: true,
         res_id: fakeId,
         res_model: "res.fake",
@@ -173,7 +170,6 @@ test("suggest recipient on 'Send message' composer", async () => {
     await contains(".o-mail-Followers-counter", { text: "1" });
     await click("button", { text: "Send message" });
     await contains(".o-mail-RecipientsInput .o_tag_badge_text:contains(john@test.be)");
-    // Ensure that partner `john@test.be` is created before sending the message
     expect(
         pyEnv["res.partner"].search_read([["email", "=", "john@test.be"]]),
     ).toHaveLength(0);
@@ -210,7 +206,6 @@ test("suggested recipients without name should show display_name instead", async
     const pyEnv = await startServer();
     const [partner1, partner2] = pyEnv["res.partner"].create([
         { name: "Test Partner" },
-        // Partner without name
         { type: "invoice" },
     ]);
 

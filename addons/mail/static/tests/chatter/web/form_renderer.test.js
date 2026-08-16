@@ -17,8 +17,6 @@ describe.current.tags("desktop");
 defineMailModels();
 
 test.skip("Form view not scrolled when switching record", async () => {
-    // FIXME: test passed in test environment but in practice scroll are reset to 0
-    // HOOT matches behaviour in prod and shows tests not passing as expected
     const pyEnv = await startServer();
     const [partnerId_1, partnerId_2] = pyEnv["res.partner"].create([
         {
@@ -92,11 +90,8 @@ test("Attachments that have been unlinked from server should be visually unlinke
         resIds: [partnerId_1, partnerId_2],
     });
     await contains("button[aria-label='Attach files']", { text: "2" });
-    // The attachment links are updated on (re)load,
-    // so using pager is a way to reload the record "Partner1".
     await click(".o_pager_next");
     await contains("button[aria-label='Attach files']:not(:has(sup))");
-    // Simulate unlinking attachment 1 from Partner 1.
     pyEnv["ir.attachment"].write([attachmentId_1], { res_id: 0 });
     await click(".o_pager_previous");
     await contains("button[aria-label='Attach files']", { text: "1" });
@@ -107,7 +102,6 @@ test("ellipsis button is not duplicated when switching from read to edit mode", 
     const partnerId = pyEnv["res.partner"].create({});
     pyEnv["mail.message"].create({
         author_id: partnerId,
-        // "data-o-mail-quote" added by server is intended to be compacted in ellipsis block
         body: `
             <div>
                 Dear Joel Willis,<br>
@@ -138,13 +132,10 @@ test("ellipsis button is not duplicated when switching from read to edit mode", 
 });
 
 test("[TECHNICAL] unfolded ellipsis button should not fold on message click besides that button", async () => {
-    // a message click re-renders: re-inserting the ellipsis buttons there would
-    // re-fold them, e.g. when the click comes from selecting text to copy
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ display_name: "Someone" });
     pyEnv["mail.message"].create({
         author_id: partnerId,
-        // "data-o-mail-quote" added by server is intended to be compacted in ellipsis block
         body: `
             <div>
                 Dear Joel Willis,<br>
@@ -181,7 +172,6 @@ test("ellipsis button on message of type notification", async () => {
     const partnerId = pyEnv["res.partner"].create({});
     pyEnv["mail.message"].create({
         author_id: partnerId,
-        // "data-o-mail-quote" enables ellipsis block
         body: `
             <div>
                 Dear Joel Willis,<br>
@@ -217,7 +207,6 @@ test("read more/less should appear only once for the signature", async () => {
     mockService("action", {
         doAction(action, { onClose }) {
             if (action.name === "Compose Email") {
-                // Simulate message post of full composer
                 pyEnv["mail.message"].create({
                     body: action.context.default_body.toString(),
                     model: action.context.default_model,
@@ -229,7 +218,6 @@ test("read more/less should appear only once for the signature", async () => {
         },
     });
 
-    // the html editor can produce this kind of quote-marked signature
     pyEnv["res.users"].write(serverState.userId, {
         signature: `
             <div>

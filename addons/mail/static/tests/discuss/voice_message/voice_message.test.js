@@ -64,29 +64,24 @@ test("make voice message in chat", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await loadLamejs(); // simulated AudioProcess.process() requires lamejs fully loaded
+    await loadLamejs();
     await click(".o-mail-Composer button[title='More Actions']");
     await contains(".dropdown-item:contains('Voice Message')");
     mockDate("2023-07-31 13:00:00");
     await click(".dropdown-item:contains('Voice Message')");
     await contains(".o-mail-VoiceRecorder", { text: "00 : 00" });
-    // Simulate 10 sec elapsed. mockDate does not freeze time, so the counter
-    // sees a few extra ms; aim 500ms past 10s so the floored difference cannot
-    // round to 9s or 11s.
     mockDate("2023-07-31 13:00:10.500");
-    // simulate some microphone data
     resources.audioProcessor.process([[new Float32Array(128)]]);
     await contains(".o-mail-VoiceRecorder", { text: "00 : 10" });
     await click(".o-mail-Composer button[title='Stop Recording']");
     await contains(".o-mail-VoicePlayer");
-    // wait for audio stream decode + drawing of waves
     await voicePlayerDrawing;
     await contains(".o-mail-VoicePlayer button[title='Play']");
-    await contains(".o-mail-VoicePlayer canvas", { count: 2 }); // 1 for global waveforms, 1 for played waveforms
-    await contains(".o-mail-VoicePlayer", { text: "00 : 03" }); // duration of call-invitation_.mp3
+    await contains(".o-mail-VoicePlayer canvas", { count: 2 });
+    await contains(".o-mail-VoicePlayer", { text: "00 : 03" });
     await click(".o-mail-Composer button[title='More Actions']");
-    await contains(".dropdown-item:contains('Attach Files')"); // check menu loaded
-    await contains(".dropdown-item:contains('Voice Message')", { count: 0 }); // only 1 voice message at a time
+    await contains(".dropdown-item:contains('Attach Files')");
+    await contains(".dropdown-item:contains('Voice Message')", { count: 0 });
 });
 
 test("deleting a non-playing voice message keeps cross-player exclusivity", async () => {
@@ -94,19 +89,14 @@ test("deleting a non-playing voice message keeps cross-player exclusivity", asyn
     await start();
     const store = getService("mail.store");
     const voiceService = getService("discuss.voice_message");
-    // two voice attachments (voice_ids present => `voice` getter true)
     const metaA = store["discuss.voice.metadata"].insert({ id: 1 });
     const metaB = store["discuss.voice.metadata"].insert({ id: 2 });
     const attachmentA = store["ir.attachment"].insert({ id: 10, voice_ids: [metaA] });
     const attachmentB = store["ir.attachment"].insert({ id: 11, voice_ids: [metaB] });
-    // A is the active player
     voiceService.activePlayer = { props: { attachment: attachmentA } };
-    // deleting B (a different voice message) must NOT clear the active player,
-    // otherwise the next play would not pause A -> simultaneous playback
     attachmentB.delete();
     expect(voiceService.activePlayer).not.toBe(null);
     expect(voiceService.activePlayer.props.attachment.eq(attachmentA)).toBe(true);
-    // deleting the active attachment does clear it
     attachmentA.delete();
     expect(voiceService.activePlayer).toBe(null);
 });

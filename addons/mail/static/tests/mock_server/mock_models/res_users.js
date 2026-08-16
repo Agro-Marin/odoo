@@ -21,7 +21,6 @@ export class ResUsers extends webModels.ResUsers {
     });
     role_ids = fields.Many2many({ relation: "res.role", string: "Roles" });
 
-    /** Simulates `_init_store_data` on `res.users`. */
     _init_store_data(store) {
         /** @type {import("mock_models").DiscussChannel} */
         const DiscussChannel = this.env["discuss.channel"];
@@ -104,7 +103,7 @@ export class ResUsers extends webModels.ResUsers {
             const modelName = activity["res_model"];
             if (!userActivitiesByModelName[modelName]) {
                 userActivitiesByModelName[modelName] = {
-                    id: modelName, // for simplicity
+                    id: modelName,
                     model: modelName,
                     name: modelName,
                     overdue_count: 0,
@@ -190,7 +189,7 @@ export class ResUsers extends webModels.ResUsers {
             const modelName = activity["res_model"];
             if (!userActivitiesByModelName[modelName]) {
                 userActivitiesByModelName[modelName] = {
-                    id: modelName, // for simplicity
+                    id: modelName,
                     model: modelName,
                     name: modelName,
                     domain:

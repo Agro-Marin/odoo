@@ -36,9 +36,7 @@ export class MailFollowers extends models.ServerModel {
     get _to_store_defaults() {
         return [
             "display_name",
-            "email",
             "is_active",
-            "name",
             mailDataHelpers.Store.one("partner_id"),
             mailDataHelpers.Store.attr("thread", (follower) =>
                 mailDataHelpers.Store.one(

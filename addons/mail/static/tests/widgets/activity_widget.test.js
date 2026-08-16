@@ -226,7 +226,6 @@ test("list activity widget: batch selection from list", async (assert) => {
     expect(Boolean(marioRow)).toBe(true);
     expect(Boolean(matildeRow)).toBe(true);
     expect(Boolean(alexanderRow)).toBe(true);
-    // Clicking on the clock of a partner without selection, open the wizard for that record only
     await click(".o-mail-ActivityButton", { target: matildeRow });
     await click(".o-mail-ActivityListPopover button");
     await wizardOpened;
@@ -237,7 +236,6 @@ test("list activity widget: batch selection from list", async (assert) => {
         active_model: "res.partner",
     });
     await waitForSteps(["do_action_activity"]);
-    // We select 2 among the 3 partners created above and click on the clock of one of them
     await click(".o_list_record_selector .o-checkbox", { target: matildeRow });
     await click(".o_list_record_selector .o-checkbox", { target: marioRow });
     await contains(".o_selection_box", { text: "2 selected" });
@@ -255,7 +253,6 @@ test("list activity widget: batch selection from list", async (assert) => {
         active_id: matildeId,
         active_model: "res.partner",
     });
-    // But when clicking on the clock of one of the non-selected row, it applies to only that row
     wizardOpened = new Deferred();
     await click(".o-mail-ActivityButton", { target: alexanderRow });
     await contains(".o-mail-ActivityListPopover button", {
@@ -271,7 +268,6 @@ test("list activity widget: batch selection from list", async (assert) => {
         active_id: alexanderId,
         active_model: "res.partner",
     });
-    // We now check that when clicking on the clock of the other selected row, it applies to both row
     wizardOpened = new Deferred();
     await click(".o-mail-ActivityButton", { target: marioRow });
     await contains(".o-mail-ActivityListPopover", {
@@ -303,7 +299,7 @@ test("list activity exception widget with activity", async () => {
     const [activityId_1, activityId_2] = pyEnv["mail.activity"].create([
         {
             display_name: "An activity",
-            date_deadline: serializeDate(luxon.DateTime.now()), // now
+            date_deadline: serializeDate(luxon.DateTime.now()),
             can_write: true,
             state: "today",
             user_id: serverState.userId,
@@ -312,7 +308,7 @@ test("list activity exception widget with activity", async () => {
         },
         {
             display_name: "An exception activity",
-            date_deadline: serializeDate(luxon.DateTime.now()), // now
+            date_deadline: serializeDate(luxon.DateTime.now()),
             can_write: true,
             state: "today",
             user_id: serverState.userId,

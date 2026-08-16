@@ -1,4 +1,5 @@
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
+import { computeActivityNext } from "@mail/../tests/mock_server/mock_models/mail_activity";
 import {
     fields,
     getKwArgs,
@@ -8,18 +9,21 @@ import {
 } from "@web/../tests/web_test_helpers";
 
 /** @typedef {import("@web/../tests/web_test_helpers").ModelRecord} ModelRecord */
-
 export class ResPartner extends webModels.ResPartner {
     _inherit = ["mail.thread"];
 
     description = fields.Char({ string: "Description" });
     hasWriteAccess = fields.Boolean({ default: true });
-    // Note: no message_main_attachment_id here — the real res.partner does not
-    // inherit mail.thread.main.attachment (see the Store contract test).
     is_in_call = fields.Boolean({ compute: "_compute_is_in_call" });
+    activity_summary = fields.Char({ compute: "_compute_activity_next" });
+    activity_type_icon = fields.Char({ compute: "_compute_activity_next" });
+    activity_type_id = fields.Many2one({
+        relation: "mail.activity.type",
+        compute: "_compute_activity_next",
+    });
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <sheet>
                     <field name="name"/>
@@ -27,6 +31,10 @@ export class ResPartner extends webModels.ResPartner {
                 <chatter/>
             </form>`,
     };
+
+    _compute_activity_next() {
+        computeActivityNext.call(this);
+    }
 
     _compute_is_in_call() {
         for (const partner of this) {
@@ -52,9 +60,6 @@ export class ResPartner extends webModels.ResPartner {
 
         search = search.toLowerCase();
         /**
-         * Filter partners like python's `get_mention_suggestions`, truncated to
-         * `limit`.
-         *
          * @param {ModelRecord[]} partners
          * @param {string} search
          * @param {number} limit
@@ -62,11 +67,9 @@ export class ResPartner extends webModels.ResPartner {
         const mentionSuggestionsFilter = (partners, search, limit) => {
             const matchingPartnerIds = partners
                 .filter((partner) => {
-                    // no search term is considered as return all
                     if (!search) {
                         return true;
                     }
-                    // otherwise name or email must match search term
                     if (partner.name && partner.name.toLowerCase().includes(search)) {
                         return true;
                     }
@@ -90,7 +93,6 @@ export class ResPartner extends webModels.ResPartner {
         );
 
         let extraMatchingPartnerIds = [];
-        // if not enough results add extra suggestions based on partners
         const remainingLimit = limit - mainMatchingPartnerIds.length;
         if (mainMatchingPartnerIds.length < limit) {
             const partners = this._filter([["id", "not in", mainMatchingPartnerIds]]);
@@ -135,7 +137,6 @@ export class ResPartner extends webModels.ResPartner {
         const channel = this.env["discuss.channel"].browse(channel_id)[0];
         const searchLower = search.toLowerCase();
 
-        // mirror python: `(channel.parent_channel_id or channel).group_public_id`
         const [parent_channel] = this.env["discuss.channel"].browse(
             channel.parent_channel_id,
         );
@@ -205,7 +206,6 @@ export class ResPartner extends webModels.ResPartner {
         return "offline";
     }
 
-    /* override */
     _compute_display_name() {
         super._compute_display_name();
         for (const record of this) {
@@ -220,19 +220,11 @@ export class ResPartner extends webModels.ResPartner {
     }
 
     /**
-     * Mirror of python `res.partner._search_mention_suggestions`: a tiered
-     * priority search over partners, each tier filling up to `limit`. Python
-     * evaluates real domains (`user_ids.active`, `partner_share`, ...) that the
-     * generic mock domain matcher cannot, so the tiers use explicit predicates.
-     * `extraTier` is python's raw `extra_domain` tier, which the server does not
-     * restrict by the base domain.
-     *
-     * @param {Array} domain base partner domain (name/email search)
+     * @param {Array} domain
      * @param {number} limit
-     * @param {number} [channel_id] restrict to members of the channel and its
-     *  parent, like `get_mention_suggestions_from_channel`
+     * @param {number} [channel_id]
      * @param {{ allowedGroupId?: number | false }} [extraTier]
-     * @returns {number[]} partner ids
+     * @returns {number[]}
      */
     _search_mention_suggestions(domain, limit, channel_id, extraTier) {
         const DiscussChannelMember = this.env["discuss.channel.member"];
@@ -307,7 +299,7 @@ export class ResPartner extends webModels.ResPartner {
         /** @type {import("mock_models").ResUsers} */
         const ResUsers = this.env["res.users"];
 
-        this._compute_main_user_id(); // compute not automatically triggering when necessary
+        this._compute_main_user_id();
         store._add_record_fields(
             this,
             fields.filter(
@@ -355,7 +347,7 @@ export class ResPartner extends webModels.ResPartner {
                             (Number.isInteger(users?.[0])
                                 ? users?.[0]
                                 : users?.[0]?.id),
-                    }); // mock server simplification
+                    });
                 }
                 if (partner.main_user_id && fields.includes("notification_type")) {
                     store._add_record_fields(
@@ -388,7 +380,6 @@ export class ResPartner extends webModels.ResPartner {
         ];
     }
 
-    /** Mirrors res.partner._get_store_mention_fields (mock token = partner id). */
     _get_store_mention_fields() {
         return [mailDataHelpers.Store.attr("mention_token", (p) => p.id)];
     }
@@ -432,7 +423,7 @@ export class ResPartner extends webModels.ResPartner {
         /** @type {import("mock_models").ResUsers} */
         const ResUsers = this.env["res.users"];
 
-        search_term = search_term.toLowerCase(); // simulates ILIKE
+        search_term = search_term.toLowerCase();
         let memberPartnerIds;
         if (channel_id) {
             memberPartnerIds = new Set(
@@ -441,23 +432,18 @@ export class ResPartner extends webModels.ResPartner {
                 ),
             );
         }
-        // simulates domain with relational parts (not supported by mock server)
         const matchingPartnersIds = ResUsers._filter([])
             .filter((user) => {
                 const [partner] = this.browse(user.partner_id);
-                // user must have a partner
                 if (!partner) {
                     return false;
                 }
-                // not current partner
                 if (!channel_id && partner.id === this.env.user.partner_id) {
                     return false;
                 }
-                // user should not already be a member of the channel
                 if (channel_id && memberPartnerIds.has(partner.id)) {
                     return false;
                 }
-                // no name is considered as return all
                 if (!search_term) {
                     return true;
                 }

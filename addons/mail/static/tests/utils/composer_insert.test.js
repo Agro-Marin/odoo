@@ -38,6 +38,5 @@ test("HTML mode: inserts through the editor and records one history step", () =>
     expect(inserted).toEqual(["😊"]);
     expect(steps).toBe(1);
     expect(composer.composerText).toBe("untouched");
-    // the plain-text path (and its cursor move) must not run in HTML mode
     expect.verifySteps([]);
 });

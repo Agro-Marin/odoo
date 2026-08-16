@@ -1,11 +1,6 @@
 import { contains, dragenterFiles, dropFiles, inputFiles } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 
-/**
- * Depends on data created by the python test in charge of launching it; not
- * intended to work when launched from the interface.
- * @see mail/tests/test_mail_composer.py
- */
 registry
     .category("web_tour.tours")
     .add("mail/static/tests/tours/mail_composer_test_tour.js", {
@@ -99,8 +94,6 @@ registry
                             `Full composer should contain mention link from small composer ("@Not A Demo User") in body input)`,
                         );
                     }
-                    // On first open the signature is appended to the editor so the
-                    // user can edit it; the server must then not re-add it.
                     if ((bodyContent.match(/--\nErnest/g) || []).length !== 1) {
                         console.error(
                             "Full composer should contain the user's signature once.",
@@ -137,8 +130,6 @@ registry
                     '.o_field_html[name="body"] .o_channel_redirect:contains(general)',
             },
             {
-                // `useCustomDropzone` only shows a dropzone inside the UI active
-                // element, which is the mention popover while it is open.
                 content: "Wait for the mention popover to close",
                 trigger: "body:not(:has(.o-mail-MentionPlugin-overlay))",
             },
@@ -217,7 +208,6 @@ registry
                 trigger:
                     '.o-mail-Message .o-mail-AttachmentContainer:contains("file2.txt")',
             },
-            // Test the full composer input text is kept on closing
             {
                 content: "Click on Send Message",
                 trigger: "button:contains(Send message)",
@@ -235,7 +225,6 @@ registry
                     const bodyContent = document.querySelector(
                         '.o_field_html[name="body"]',
                     ).textContent;
-                    // New message: the signature has not been added yet.
                     if ((bodyContent.match(/--\nErnest/g) || []).length !== 1) {
                         console.log(
                             "Full composer should contain the user's signature once.",
@@ -285,8 +274,6 @@ registry
                     const bodyContent = document.querySelector(
                         '.o_field_html[name="body"]',
                     ).textContent;
-                    // Re-opening must not re-add the signature, and the earlier
-                    // `editor keep the content` replaced the whole body.
                     if ((bodyContent.match(/--\nErnest/g) || []).length !== 0) {
                         console.error(
                             "The composer should not contain the user's signature.",
@@ -319,8 +306,6 @@ registry
                 content: "Check message is shown",
                 trigger: '.o-mail-Message-body:contains("keep the content")',
             },
-            // Test that the server automatically adds the user's signature to the
-            // email when the user didn't open the full composer.
             {
                 content: "Click on Send Message",
                 trigger: "button:contains(Send message)",

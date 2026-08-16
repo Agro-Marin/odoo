@@ -54,8 +54,6 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             content: "Wait for the drop down to disappear",
             trigger: 'div[name="model_id"] .o-autocomplete:not(:has(.ui-autocomplete))',
             run: async () => {
-                // The autocomplete validation can be very slow; ensure the model
-                // value is registered before opening the DPH.
                 await delay(200);
             },
         },
@@ -100,8 +98,6 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             trigger: 'div[name="subject"] input[type="text"]',
             run() {
                 const subjectValue = this.anchor.value;
-                // ` ||| ` (spaced) is what `useDynamicPlaceholder` inserts and what
-                // `mail.render.mixin._build_expression` writes server-side.
                 const correctValue =
                     "yes_model_id {{object.company_name ||| defValue}}";
                 if (subjectValue !== correctValue) {

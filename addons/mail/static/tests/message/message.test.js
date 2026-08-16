@@ -265,7 +265,6 @@ test("Editing message keeps the mentioned channels", async () => {
     await contains(".o-mail-Message-content", { text: "other bye (edited)" });
     await click(".o_channel_redirect", { text: "other" });
     await contains(".o-mail-DiscussContent-threadName", { value: "other" });
-    // Test editing via arrow up shortcut
     await click(".o-mail-DiscussSidebarChannel", { text: "general" });
     await contains(".o-mail-Message");
     await press("ArrowUp");
@@ -335,15 +334,15 @@ test("Reply to inbox message with full composer shows a notification", async () 
     await click(".o-dropdown-item:contains('Reply')");
     await click(".o-mail-Composer button[title='More Actions']");
     await click(".dropdown-item:contains('Open Full Composer')");
-    await click(".modal button:contains('Discard')"); // test no notification from discard (see waitForSteps)
+    await click(".modal button:contains('Discard')");
     await click(".o-mail-Message [title='Expand']");
     await click(".o-dropdown-item:contains('Reply')");
     await click(".o-mail-Composer button[title='More Actions']");
     await click(".dropdown-item:contains('Open Full Composer')");
-    await contains(".o_notification", { count: 0 }); // none from 'Discard'
+    await contains(".o_notification", { count: 0 });
     await click(".modal button:contains('Send')");
-    await contains(`.o_notification:has(:text('Message posted on "Mitchell Admin"'))`); // one from 'Send'
-    await expect.waitForSteps(["notification"]); // only notif from 'Send', not 'Discard'
+    await contains(`.o_notification:has(:text('Message posted on "Mitchell Admin"'))`);
+    await expect.waitForSteps(["notification"]);
 });
 
 test("Can edit message comment in chatter", async () => {
@@ -369,14 +368,13 @@ test("Can edit message comment in chatter", async () => {
     await webContains(".o-mail-Message .o-mail-Composer-input").edit("edited again");
     await webContains(".o-mail-Message .o-mail-Composer-input").press("Enter");
     await animationFrame();
-    await contains(".o-mail-Message .o-mail-Composer-input"); // still editing message
-    await contains(".o-mail-Message .o-mail-Composer-input:value('edited again')"); // FIXME: even though value has trailing '\n', HOOT selector doesn't see it on the node
+    await contains(".o-mail-Message .o-mail-Composer-input");
+    await contains(".o-mail-Message .o-mail-Composer-input:value('edited again')");
     await webContains(".o-mail-Message .o-mail-Composer-input").press([
         "Control",
         "Enter",
     ]);
     await contains(".o-mail-Message-content", { text: "edited again (edited)" });
-    // save without change should keep (edited)
     await click(".o-mail-Message [title='Edit']");
     await contains(".o-mail-Message .o-mail-Composer.o-focused");
     await contains(".o-mail-Message .o-mail-Composer-input:value('edited again')");
@@ -1098,14 +1096,12 @@ test("should not be able to reply to temporary/transient messages", async () => 
     const channelId = pyEnv["discuss.channel"].create({ name: "general" });
     await start();
     await openDiscuss(channelId);
-    // these user interactions is to forge a transient message response from channel command "/who"
     await insertText(".o-mail-Composer-input", "/who");
     await click(".o-mail-Composer button[title='Send']:enabled");
     await contains(".o-mail-Message [title='Reply']", { count: 0 });
 });
 
 test.skip("squashed transient message should not have date in the sidebar", async () => {
-    // FIXME: mock timezone not working
     mockDate("2024-03-26 10:00:00", 0);
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "Channel 1" });
@@ -1125,7 +1121,7 @@ test.skip("squashed transient message should not have date in the sidebar", asyn
     await openDiscuss(channelId);
     await click(".o-mail-Message.o-squashed");
     await contains(".o-mail-Message.o-squashed .o-mail-Message-sidebar", {
-        text: "11:00", // FIXME: should be 10:00
+        text: "11:00",
     });
     await insertText(".o-mail-Composer-input", "/who");
     await click(".o-mail-Composer button[title='Send']:enabled");
@@ -1137,7 +1133,7 @@ test.skip("squashed transient message should not have date in the sidebar", asyn
     await contains(
         ":nth-child(2 of .o-mail-Message.o-squashed) .o-mail-Message-sidebar",
         {
-            text: "11:00", // FIXME: should be 10:00
+            text: "11:00",
             count: 0,
         },
     );
@@ -1435,14 +1431,14 @@ test('Quick edit (edit from Composer with ArrowUp) ignores empty ("deleted") mes
     });
     pyEnv["mail.message"].create({
         author_id: serverState.partnerId,
-        body: "", // empty body
+        body: "",
         model: "discuss.channel",
         res_id: channelId,
         message_type: "comment",
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-mail-Message", { count: 2 }); // shows "This message has been removed" too
+    await contains(".o-mail-Message", { count: 2 });
     triggerHotkey("ArrowUp");
     await contains(".o-mail-Message.o-editing");
     await contains(".o-mail-Message .o-mail-Composer-input", { value: "not empty" });
@@ -1501,7 +1497,6 @@ test("Clear message body should not open message delete dialog if it has attachm
     });
     triggerHotkey("Enter");
     await contains(".o-mail-Message-textContent", { text: "" });
-    // weak test, no guarantee that we waited long enough for the potential dialog to show
     await contains(".modal-body p", {
         text: "Are you sure you want to bid farewell to this message forever?",
         count: 0,
@@ -1853,7 +1848,6 @@ test("Partner's avatar card should be opened after clicking on their mention", a
     await click(".o-mail-Composer-send:enabled");
     await click(".o_mail_redirect");
     await contains(".o_avatar_card:contains('Test Partner')");
-    // Ensure clicking the button closes the popover
     await click(".o_avatar_card_buttons button:text('View Profile')");
     await contains(".o_last_breadcrumb_item:text('Test Partner')");
     await contains(".o_avatar_card", { count: 0 });
@@ -2041,7 +2035,6 @@ test("Can reply to chatter messages from history", async () => {
 });
 
 test("Can't reply to user notifications", async () => {
-    // User notifications are specific to a user
     const pyEnv = await startServer();
     const messageId = pyEnv["mail.message"].create({
         body: "Dear Mitchell Admin, you have received a new rank",
@@ -2353,12 +2346,11 @@ test("deleted message should not have translate feature", async () => {
     await contains(".o-mail-Message [title='Add a Reaction']");
     await contains(".o-mail-Message [title='Add Star']");
     await contains(".o-mail-Message [title*='Translate']", { count: 0 });
-    await animationFrame(); // in case some extra rendering for expand
+    await animationFrame();
     if (queryFirst(".o-mail-Message [title='Expand']")) {
-        // Translate could hide itself in 'Expand' menu
         await click(".o-mail-Message [title='Expand']");
         await contains(".dropdown-menu");
-        await animationFrame(); // in case some rendering
+        await animationFrame();
         await contains(".dropdown-item:contains('Translate')", { count: 0 });
     }
 });

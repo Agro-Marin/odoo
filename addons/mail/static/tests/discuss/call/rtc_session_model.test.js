@@ -12,7 +12,6 @@ test("getWhenReady resolves with the session once it is inserted", async () => {
     let resolved;
     RtcSession.getWhenReady(101).then((session) => (resolved = session));
     await tick();
-    // the session does not exist yet: the caller keeps waiting
     expect(resolved).toBe(undefined);
     RtcSession.insert({ id: 101 });
     await tick();
@@ -33,24 +32,18 @@ test("getWhenReady's 120s fallback timer is cleared when the session arrives, so
     await start();
     const RtcSession = getService("mail.store")["discuss.channel.rtc.session"];
 
-    // First await: create the deferred (and its 120s fallback timer), then the
-    // session arrives and resolves it. The fallback timer must be cleared here.
     let firstResolved = false;
     RtcSession.getWhenReady(303).then(() => (firstResolved = true));
     const firstSession = RtcSession.insert({ id: 303 });
     await tick();
     expect(firstResolved).toBe(true);
 
-    // The session goes away; some time later the same id is awaited again,
-    // creating a *fresh* deferred (and a fresh timer due at t+180s).
     firstSession.delete();
     await tick();
     await advanceTime(60_000);
     let secondResult;
     RtcSession.getWhenReady(303).then((session) => (secondResult = session));
 
-    // Advance to when the FIRST await's fallback timer was due: uncleared, it
-    // would drop the fresh deferred from `awaitedRecords` and hang the caller.
     await advanceTime(60_000);
     RtcSession.insert({ id: 303 });
     await tick();

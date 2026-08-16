@@ -19,8 +19,6 @@ test("pinned messages with equal pinned_at are ordered by id", async () => {
     const store = getService("mail.store");
     const thread = store.Thread.insert({ id: 1, model: "discuss.channel" });
     const pinnedAt = "2024-01-01 10:00:00";
-    // inserted out of id order with the SAME pinned_at, so the id tiebreaker
-    // must kick in; comparing luxon DateTimes with `===` never reaches it
     store["mail.message"].insert([
         { id: 2, thread: { id: 1, model: "discuss.channel" }, pinned_at: pinnedAt },
         { id: 1, thread: { id: 1, model: "discuss.channel" }, pinned_at: pinnedAt },
@@ -49,7 +47,7 @@ test("Pin message", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Pinned Messages']");
     await contains(".o-discuss-PinnedMessagesPanel p", {
         text: "This channel doesn't have any pinned messages.",
@@ -73,7 +71,7 @@ test("Unpin message", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Pinned Messages']");
     await contains(".o-discuss-PinnedMessagesPanel .o-mail-Message");
     await click(".o-mail-Message [title='Expand']");
@@ -120,7 +118,7 @@ test("Jump to message", async () => {
     }
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Pinned Messages']");
     await click(".o-discuss-PinnedMessagesPanel a[role='button']", { text: "Jump" });
     await contains(".o-mail-Thread .o-mail-Message-body", {

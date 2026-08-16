@@ -96,7 +96,7 @@ test("Search in chatter should be hightligted", async () => {
 });
 
 test("Scrolling bottom in non-aside chatter should load more searched message", async () => {
-    patchUiSize({ size: SIZES.LG }); // non-aside
+    patchUiSize({ size: SIZES.LG });
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
     for (let i = 0; i < 60; i++) {

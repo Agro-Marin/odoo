@@ -8,10 +8,6 @@ import { browser } from "@web/core/browser/browser";
 describe.current.tags("desktop");
 defineMailModels();
 
-/**
- * Headless LocalMediaController harness: plain shared state, a fake local
- * session and recording hooks.
- */
 function makeController() {
     const state = {
         channel: { id: 1 },
@@ -31,7 +27,7 @@ function makeController() {
         audioConstraints: true,
         cameraConstraints: true,
         useBlur: false,
-        use_push_to_talk: true, // keeps linkVoiceActivation away from monitorAudio
+        use_push_to_talk: true,
         voiceActivationThreshold: 0.05,
         cameraFacingMode: undefined,
         setUseBlur: () => {},
@@ -74,14 +70,11 @@ test("resetMicAudioTrack acquires the mic and applies the session mute state", a
     await controller.resetMicAudioTrack({ force: true });
     expect(state.micAudioTrack).not.toBe(undefined);
     expect(state.micAudioTrack.kind).toBe("audio");
-    // single audio source: no mixing, the mic track is uploaded directly
     expect(state.audioTrack).toBe(state.micAudioTrack);
     expect(controller.audioContext).toBe(undefined);
-    // preemptive mute while acquiring, then unmute on success
     expect(steps.setMute).toEqual([true, false]);
     expect(steps.uploads.at(-1)).toEqual(["audio", state.micAudioTrack]);
-    // mute/deaf/talk state application on the track
-    expect(state.micAudioTrack.enabled).toBe(false); // not talking yet
+    expect(state.micAudioTrack.enabled).toBe(false);
     session.isTalking = true;
     controller.applyMicState();
     expect(state.micAudioTrack.enabled).toBe(true);
@@ -94,17 +87,13 @@ test("device switch while muted restores the mute state (unmute: false)", async 
     mockGetMedia();
     const { controller, state, session, steps } = makeController();
     await controller.resetMicAudioTrack({ force: true });
-    // the user mutes, then switches microphone in the call settings
     session.isMute = true;
     session.is_muted = true;
     steps.setMute.length = 0;
     await controller.resetMicAudioTrack({ force: true, unmute: false });
     expect(state.micAudioTrack).not.toBe(undefined);
-    // preemptive mute while acquiring, then the previous state is restored:
-    // switching input device while muted must not silently open the mic
     expect(steps.setMute).toEqual([true, true]);
     expect(session.is_muted).toBe(true);
-    // an explicit unmute-driven reset still unmutes
     steps.setMute.length = 0;
     await controller.resetMicAudioTrack({ force: true });
     expect(steps.setMute).toEqual([true, false]);
@@ -121,13 +110,10 @@ test("mic + screen audio are mixed, and the mix is torn down with the screen aud
     });
     state.screenAudioTrack = screenStream.getAudioTracks()[0];
     await controller.updateAudioTrack();
-    // both sources: a mixed destination track is produced
     expect(controller.audioContext).not.toBe(undefined);
     const mixedTrack = state.audioTrack;
     expect(mixedTrack).not.toBe(micTrack);
     expect(mixedTrack).not.toBe(state.screenAudioTrack);
-    // screen audio goes away: the mix AudioContext is torn down and the
-    // now-unused mixed track is stopped
     state.screenAudioTrack.stop();
     state.screenAudioTrack = undefined;
     await controller.updateAudioTrack();
@@ -142,14 +128,11 @@ test("mic track 'ended' resets the track and mutes the session", async () => {
     await controller.resetMicAudioTrack({ force: true });
     const micTrack = state.micAudioTrack;
     steps.setMute.length = 0;
-    // e.g. the user retracts the microphone permission
     micTrack.dispatchEvent(new Event("ended"));
     await advanceTime(10);
     expect(state.micAudioTrack).toBe(undefined);
     expect(state.audioTrack).toBe(undefined);
-    // muted by the inner reset, then explicitly by the ended handler
     expect(steps.setMute).toEqual([true, true]);
-    // the senders were resynchronized without a track
     expect(steps.uploads.at(-1)).toEqual(["audio", undefined]);
 });
 
@@ -163,7 +146,6 @@ test("getUserMedia failure warns and still resynchronizes the senders", async ()
     await controller.resetMicAudioTrack({ force: true });
     expect(state.micAudioTrack).toBe(undefined);
     expect(steps.unavailable).toEqual([{ microphone: true }]);
-    // the outgoing audio is still rebuilt (an ended track must not linger)
     expect(steps.uploads.at(-1)).toEqual(["audio", undefined]);
 });
 
@@ -179,11 +161,9 @@ test("setVideo owns the camera and screen track lifecycle", async () => {
     expect(state.screenTrack.kind).toBe("video");
     expect(state.sendScreen).toBe(true);
     expect(steps.sounds).toEqual(["screen-sharing"]);
-    // the "ended" listener funnels into the coordinator's toggleVideo
     state.cameraTrack.dispatchEvent(new Event("ended"));
     await advanceTime(10);
     expect(steps.toggles).toEqual([["camera", { force: false }]]);
-    // deactivation stops the tracks and closes the source streams
     await controller.setVideo(state.cameraTrack, "camera", {
         activateVideo: false,
     });

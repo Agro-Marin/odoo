@@ -316,9 +316,9 @@ test("can use notification item swipe actions", async () => {
     await contains(
         ".o-mail-NotificationItem .o-mail-NotificationItem-badge:contains(1)",
     );
-    await swipeRight(".o_actionswiper"); // marks as read
+    await swipeRight(".o_actionswiper");
     await contains(".o-mail-NotificationItem-badge", { count: 0 });
-    await swipeLeft(".o_actionswiper"); // unpins
+    await swipeLeft(".o_actionswiper");
     await contains(".o-mail-NotificationItem", { count: 0 });
 });
 
@@ -347,7 +347,7 @@ test("counter does not double count channel needaction messages", async () => {
         res_partner_id: serverState.partnerId,
     });
     await start();
-    await click(".o_menu_systray i[aria-label='Messages']"); // fetch channels
-    await contains(".o-mail-NotificationItem", { text: "General" }); // ensure channels fetched
+    await click(".o_menu_systray i[aria-label='Messages']");
+    await contains(".o-mail-NotificationItem", { text: "General" });
     await contains(".o-mail-MessagingMenu-counter:text('1')");
 });

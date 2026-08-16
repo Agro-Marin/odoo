@@ -40,8 +40,6 @@ async function mockPeerToPeerCallEnvironment({ channelId, remoteSessionId }) {
             params: { peer_notifications },
         } = await req.json();
         for (const [sender, , message] of peer_notifications) {
-            // simplification valid for 2 users only; beyond that the target
-            // must be read from the notification
             if (sender === rtc.selfSession.id) {
                 await remoteUserP2P.handleNotification(sender, message);
             } else {

@@ -36,7 +36,6 @@ import {
     startServer,
 } from "../mail_test_helpers.js";
 
-// Need this hack to use the arch in mountView(...)
 mailModels.MailComposeMessage._views = {};
 
 defineMailModels([]);
@@ -73,8 +72,8 @@ test("media dialog: upload", async function () {
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
         const createVals = args[1];
-        expect(createVals.attachment_ids[0][0]).toBe(4); // link command
-        expect(createVals.attachment_ids[0][1]).toBe(newAttachmentId); // on attachment id "5"
+        expect(createVals.attachment_ids[0][0]).toBe(4);
+        expect(createVals.attachment_ids[0][1]).toBe(newAttachmentId);
     });
     onRpc("/html_editor/attachment/add_data", () => {
         const attachment = {
@@ -128,7 +127,6 @@ test("media dialog: upload", async function () {
             .split("")
             .map((char) => char.charCodeAt(0)),
     );
-    // redefine 'files' so we can put mock data in through js
     fileInputs.forEach((input) =>
         Object.defineProperty(input, "files", {
             value: [new File(fileBytes, "test.jpg", { type: "image/jpeg" })],

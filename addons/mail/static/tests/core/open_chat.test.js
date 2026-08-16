@@ -25,7 +25,6 @@ test("openChat: display notification for wrong user", async () => {
     const pyEnv = await startServer();
     pyEnv["res.users"].create({});
     await start();
-    // userId not in the server data
     await getService("mail.store").openChat({ userId: 4242 });
     await contains(".o_notification:has(.o_notification_bar.bg-warning)", {
         text: "You can only chat with existing users.",

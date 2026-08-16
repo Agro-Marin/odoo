@@ -14,10 +14,10 @@ export class IrAttachment extends webModels.IrAttachment {
 
         const [attachment] = this.browse(ids);
         if (!attachment.res_model) {
-            return true; // dummy value for mock server
+            return true;
         }
         if (!this.env[attachment.res_model]._fields.message_main_attachment_id) {
-            return true; // dummy value for mock server
+            return true;
         }
         const [record] = this.env[attachment.res_model].search_read([
             ["id", "=", attachment.res_id],
@@ -27,7 +27,7 @@ export class IrAttachment extends webModels.IrAttachment {
                 message_main_attachment_id: attachment.id,
             });
         }
-        return true; // dummy value for mock server
+        return true;
     }
 
     /**
@@ -39,8 +39,6 @@ export class IrAttachment extends webModels.IrAttachment {
         fields = kwargs.fields;
 
         for (const attachment of this) {
-            // _add_record_fields, not _read_format: the latter drops the
-            // Store.attr entries of the field list (access tokens, thumbnails)
             store._add_record_fields(
                 this.browse(attachment.id),
                 fields.filter((field) => field !== "thread"),
@@ -70,7 +68,6 @@ export class IrAttachment extends webModels.IrAttachment {
             "checksum",
             "create_date",
             "file_size",
-            // mock server simplification: no thumbnails, id-based access tokens
             mailDataHelpers.Store.attr("has_thumbnail", (a) =>
                 Boolean(a.has_thumbnail),
             ),

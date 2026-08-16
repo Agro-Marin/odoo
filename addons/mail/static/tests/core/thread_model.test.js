@@ -26,8 +26,6 @@ test("fetchNewMessages keeps thread messages in ascending id order", async () =>
     await start();
     const store = getService("mail.store");
     const thread = store.Thread.insert({ id: partnerId, model: "res.partner" });
-    // a message already known before the initial fetch (e.g. received from a
-    // bus notification): it may be newer than some fetched messages
     const knownMessage = store["mail.message"].insert({
         id: messageIds[1],
         thread: { id: partnerId, model: "res.partner" },
@@ -92,10 +90,6 @@ test("thread needaction counter decrements when needaction message is deleted", 
     expect(thread.message_needaction_counter).toBe(0);
 });
 
-/**
- * Insert a thread with one needaction message and matching counters, for the
- * markAllMessagesAsRead optimistic-update tests.
- */
 async function setupNeedactionThread(pyEnv) {
     pyEnv["res.users"].write(serverState.userId, { notification_type: "inbox" });
     const partnerId = pyEnv["res.partner"].create({ name: "John" });
@@ -146,8 +140,6 @@ test("failed markAllMessagesAsRead rolls back the optimistic counter updates", a
     });
     const { message, store, thread } = await setupNeedactionThread(pyEnv);
     await thread.markAllMessagesAsRead();
-    // no correcting bus notification arrives on failure: the optimistic
-    // update must be rolled back locally.
     expect(message.needaction).toBe(true);
     expect(store.inbox.counter).toBe(1);
     expect(thread.message_needaction_counter).toBe(1);
@@ -160,9 +152,6 @@ test("markAllMessagesAsRead rollback is skipped when a newer absolute snapshot l
     });
     const { store, thread } = await setupNeedactionThread(pyEnv);
     const promise = thread.markAllMessagesAsRead();
-    // while the RPC is pending, absolute counter snapshots land from the bus
-    // (newer bus id): the failure rollback must not overwrite them with the
-    // stale pre-update values.
     applyCounterAbsolute(store.inbox, "counter", 5, 99);
     applyCounterAbsolute(thread, "message_needaction_counter", 0, 99);
     await promise;
@@ -199,7 +188,6 @@ test("plain document threads answer the channel-behavior hooks with neutral defa
     expect(thread.openChannel()).toBe(false);
     expect(thread.fullNameWithParent).toBe(thread.displayName);
     expect(thread._getActualModelName()).toBe("mail.thread");
-    // no rename endpoint for document threads: the request is ignored
     await thread.rename("new name");
     expect(thread.displayName).toBe(thread.display_name);
 });
@@ -234,7 +222,6 @@ test("a deleted message is not resurrected by a stale fetch response", async () 
     const thread = store.Thread.insert({ id: partnerId, model: "res.partner" });
     await thread.fetchNewMessages();
     expect(thread.messages).toHaveLength(1);
-    // the deletion arrives via the bus...
     const [partner] = pyEnv["res.partner"].read(serverState.partnerId);
     pyEnv["bus.bus"]._sendone(partner, "mail.message/delete", {
         message_ids: [messageId],
@@ -243,8 +230,6 @@ test("a deleted message is not resurrected by a stale fetch response", async () 
     await runAllTimers();
     expect(store["mail.message"].get(messageId)).toBe(undefined);
     expect(thread.messages).toHaveLength(0);
-    // ...then a stale fetch response (computed before the deletion, processed
-    // after) lands: it must not resurrect the message in store nor in thread
     store.insert({
         "mail.message": [
             {
@@ -260,10 +245,6 @@ test("a deleted message is not resurrected by a stale fetch response", async () 
 });
 
 test("a channel's invitation link is built from the mockable origin", async () => {
-    // Regression guard for the `browser` seam, not for the URL shape: built
-    // from the bare `window.location`, this link ignored the configured origin
-    // and no test could reach the code at all (@see rtc_service's
-    // `isClientRtcCompatible`, same reasoning).
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();

@@ -5,9 +5,6 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
 import { effect } from "@web/core/utils/reactive";
 
-// Resolved from the loader inside the tour step: a static import would be
-// eagerly resolved on every page loading web.assets_tests — killing all tours
-// where the discuss bundle is absent — and would bind a second, unshared instance.
 const getSubChannelList = () =>
     odoo.loader.modules.get("@mail/discuss/core/public_web/sub_channel_list")
         .SubChannelList;
@@ -43,7 +40,6 @@ registry.category("web_tour.tours").add("test_discuss_sub_channel_search", {
         {
             trigger: ".o-mail-SubChannelList",
             async run() {
-                // 30 newest sub channels are loaded initially.
                 for (let i = 99; i > 69; i--) {
                     await contains(".o-mail-SubChannelPreview", {
                         text: `Sub Channel ${i}`,
@@ -77,15 +73,12 @@ registry.category("web_tour.tours").add("test_discuss_sub_channel_search", {
             trigger: ".o-mail-SubChannelPreview:contains(Sub Channel 99)",
             async run() {
                 await contains(".o-mail-SubChannelPreview", { count: 31 });
-                // Already fetched sub channels are shown in addition to the one
-                // that was fetched during the search.
                 for (let i = 99; i > 69; i--) {
                     await contains(".o-mail-SubChannelPreview", {
                         text: `Sub Channel ${i}`,
                     });
                 }
                 await contains(".o-mail-SubChannelPreview", { text: `Sub Channel 10` });
-                // Ensure lazy loading is still working after a search.
                 await waitForLoadMoreToDisappearDef;
                 waitForLoadMoreToDisappearDef = new Deferred();
                 await scroll(
@@ -149,9 +142,6 @@ registry.category("web_tour.tours").add("create_thread_for_attachment_without_bo
             run: "click",
         },
         {
-            // The dropzone is registered per Composer instance on the shared
-            // Discuss content root: dropping earlier uploads the file onto the
-            // outgoing channel's composer.
             content: "Wait for the general channel to be displayed",
             trigger: ".o-mail-DiscussContent-threadName[title='general']",
         },

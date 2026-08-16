@@ -9,7 +9,6 @@ import { describe, expect, test } from "@odoo/hoot";
 describe.current.tags("headless");
 
 test("arrayBufferToBase64Url produces unpadded base64url", () => {
-    // bytes 0xFB 0xFF 0xBF -> standard base64 "+/+/", base64url "-_-_", no "="
     const buffer = new Uint8Array([0xfb, 0xff, 0xbf]).buffer;
     const encoded = arrayBufferToBase64Url(buffer);
     expect(encoded).toBe("-_-_");
@@ -33,7 +32,6 @@ test("planPushNotification: CALL shows the notification", () => {
     });
     expect(plan.type).toBe("show");
     expect(plan.title).toBe("Incoming call");
-    // non-Android keeps the ACCEPT action
     expect(plan.options.actions).toHaveLength(1);
 });
 
@@ -50,14 +48,10 @@ test("planPushNotification: CALL on Android drops the ACCEPT action (no mutation
     expect(plan.options.actions.map((a) => a.action)).toEqual([
         PUSH_NOTIFICATION_ACTION.DECLINE,
     ]);
-    // the original payload must not be mutated
     expect(notification.options.actions).toHaveLength(2);
 });
 
 test("planPushNotification: tag-less CANCEL is ignored, tagged CANCEL cancels", () => {
-    // NB: a real CANCEL push carries an empty title (see discuss_channel.py) -
-    // classification must not depend on a title being present, otherwise the
-    // ringing call notification is never dismissed.
     expect(
         planPushNotification({ title: "", options: { data: { type: "CANCEL" } } }).type,
     ).toBe("ignore");

@@ -155,7 +155,6 @@ test("respond to notification prompt (granted)", async () => {
 
 test("no suggestion to enable chat push notifications in mobile app", async () => {
     patchBrowserNotification("default");
-    // simulate Android Odoo App
     mockUserAgent(
         "Chrome/0.0.0 Android (OdooMobile; Linux; Android 13; Odoo TestSuite)",
     );
@@ -173,7 +172,6 @@ test("rendering with PWA installation request", async () => {
         getItem(key) {
             if (key === "pwaService.installationState") {
                 asyncStep("getItem " + key);
-                // in this test, installation has not yet proceeded
                 return null;
             }
             return super.getItem(key);
@@ -187,8 +185,6 @@ test("rendering with PWA installation request", async () => {
             asyncStep("show prompt");
         },
     });
-    // Fire what a PWA-capable browser would (never triggered in a test): the pwa
-    // service reads the state at start and re-reads it here, hence 2 getItems.
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
     await waitForSteps([
         "getItem pwaService.installationState",
@@ -219,7 +215,6 @@ test("installation of the PWA request can be dismissed", async () => {
         getItem(key) {
             if (key === "pwaService.installationState") {
                 asyncStep("getItem " + key);
-                // in this test, installation has not yet proceeded
                 return null;
             }
             return super.getItem(key);
@@ -237,8 +232,6 @@ test("installation of the PWA request can be dismissed", async () => {
             asyncStep("show prompt should not be triggered");
         },
     });
-    // Fire what a PWA-capable browser would (never triggered in a test): the pwa
-    // service reads the state at start and re-reads it here, hence 2 getItems.
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
     await waitForSteps([
         "getItem pwaService.installationState",
@@ -262,15 +255,12 @@ test("rendering with PWA installation request (dismissed)", async () => {
         getItem(key) {
             if (key === "pwaService.installationState") {
                 asyncStep("getItem " + key);
-                // in this test, installation has been previously dismissed by the user
                 return `{"/odoo":"dismissed"}`;
             }
             return super.getItem(key);
         },
     });
     await start();
-    // Fire what a PWA-capable browser would (never triggered in a test): the pwa
-    // service reads the state at start and re-reads it here, hence 2 getItems.
     browser.dispatchEvent(new CustomEvent("beforeinstallprompt"));
     await waitForSteps([
         "getItem pwaService.installationState",
@@ -290,15 +280,12 @@ test("rendering with PWA installation request (already running as PWA)", async (
         getItem(key) {
             if (key === "pwaService.installationState") {
                 asyncStep("getItem " + key);
-                // no stored state, so the service would be allowed to prompt
                 return null;
             }
             return super.getItem(key);
         },
     });
     await start();
-    // The 'beforeinstallprompt' event is not triggered here, since the
-    // browser wouldn't trigger it when the app is already launched
     await waitForSteps(["getItem pwaService.installationState"]);
     await contains(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
@@ -741,8 +728,6 @@ test("channel preview: basic rendering", async () => {
 });
 
 test("chat preview should not display correspondent name in body", async () => {
-    // DM chat with demo, the conversation is named "Demo" and body is simply message content
-    // not prefix like "Demo:"
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({
         name: "Demo",
@@ -772,7 +757,7 @@ test("chat preview should not display correspondent name in body", async () => {
     await contains(".o-mail-NotificationItem img");
     await contains(".o-mail-NotificationItem-name", { text: "Demo" });
     await contains(".o-mail-NotificationItem-text", { text: "test" });
-    expect(".o-mail-NotificationItem-text:only").toHaveText("test"); // exactly
+    expect(".o-mail-NotificationItem-text:only").toHaveText("test");
 });
 
 test("filtered previews", async () => {
@@ -783,12 +768,12 @@ test("filtered previews", async () => {
     ]);
     pyEnv["mail.message"].create([
         {
-            model: "discuss.channel", // to link message to channel
-            res_id: channelId_1, // id of related channel
+            model: "discuss.channel",
+            res_id: channelId_1,
         },
         {
-            model: "discuss.channel", // to link message to channel
-            res_id: channelId_2, // id of related channel
+            model: "discuss.channel",
+            res_id: channelId_2,
         },
     ]);
     await start();
@@ -1001,11 +986,6 @@ test("Attachment-only message preview shows file type icon", async () => {
             ],
             author_id: partners[i],
             body: "",
-            // Distinct decreasing dates, so the menu orders by recency
-            // (Channel1 newest -> first). With equal or absent dates the
-            // recency comparator returns no verdict and the sort falls back to
-            // a localId tiebreak, which does not give the :eq(0..4) positions
-            // asserted below.
             date: `2024-01-0${5 - i} 12:00:00`,
             model: "discuss.channel",
             res_id: channelIds[i],
@@ -1138,9 +1118,6 @@ test("single preview for channel if it has unread and needaction messages", asyn
 });
 
 test("chat should show unread counter on receiving new messages", async () => {
-    // unread and needaction are conceptually the same in chat
-    // however message_needaction_counter is not updated
-    // so special care for chat to simulate needaction with unread
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Partner1" });
     const userId = pyEnv["res.users"].create({ partner_id: partnerId });
@@ -1158,7 +1135,6 @@ test("chat should show unread counter on receiving new messages", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem", { text: "Partner1" });
     await contains(".o-mail-NotificationItem .badge", { count: 0, text: "1" });
-    // simulate receiving a new message
     await withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: {
@@ -1193,7 +1169,6 @@ test("preview for channel shows deleted message preview when this is most recent
     await click(".o-mail-NotificationItem");
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem-text", { text: "Partner1: message-2" });
-    // Simulate deletion of message-2
     rpc("/mail/message/update_content", {
         message_id: messageId_2,
         update_data: {
@@ -1247,7 +1222,6 @@ test("messaging menu should show new needaction messages from chatter", async ()
         count: 0,
         text: "Frodo Baggins: @Mitchel Admin",
     });
-    // simulate receiving a new needaction message
     const messageId = pyEnv["mail.message"].create({
         author_id: partnerId,
         body: "@Mitchel Admin",
@@ -1364,7 +1338,7 @@ test("Can quick search when more than 20 items", async () => {
     await contains(".o-mail-MessagingMenu div.text-muted", {
         text: "No thread found.",
     });
-    expect(".o-mail-MessagingMenu-list").toHaveText("No thread found."); // list should contain only this text
+    expect(".o-mail-MessagingMenu-list").toHaveText("No thread found.");
 });
 
 test("keyboard navigation", async () => {
@@ -1376,7 +1350,7 @@ test("keyboard navigation", async () => {
     ]);
     await start();
     await click(".o_menu_systray .dropdown-toggle:has(i[aria-label='Messages'])");
-    await contains(".o-mail-NotificationItem", { count: 3 }); // Expected order: Channel-2, Channel-1, Mitchell Admin
+    await contains(".o-mail-NotificationItem", { count: 3 });
     triggerHotkey("ArrowDown");
     await contains(".o-mail-NotificationItem:eq(0).o-active", { name: "Channel-2" });
     triggerHotkey("ArrowDown");
@@ -1399,7 +1373,6 @@ test("keyboard navigation with quick search", async () => {
         { name: "Channel-2" },
     ]);
     for (let id = 1; id <= 20; id++) {
-        // need at least 20 channels for enabling quick search
         pyEnv["discuss.channel"].create({ name: `other-${id}` });
     }
     await start();
@@ -1457,7 +1430,6 @@ test("failure is removed from messaging menu when message is deleted", async () 
 test("ensure messaging menu shows standalone inbox messages", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Partner1" });
-    // no record set
     const messageId = pyEnv["mail.message"].create({
         author_id: partnerId,
         body: "Message with needaction",

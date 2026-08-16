@@ -7,12 +7,6 @@ import { rpc } from "@web/core/network";
 describe.current.tags("desktop");
 defineMailModels();
 
-/**
- * The JS mock server mirrors the Python Store field gating: email_from only for
- * an internal target (or an authorless message), notification_ids only for an
- * internal target. Pins the guest-facing side, which the contract gate cannot
- * cover since it runs as the internal admin.
- */
 async function seed() {
     const pyEnv = await startServer();
     const bobPartnerId = pyEnv["res.partner"].create({ name: "Bob" });
@@ -69,8 +63,6 @@ test("guest does not receive email_from or notification_ids", async () => {
         }),
     );
     const message = data["mail.message"].find((m) => m.id === messageId);
-    // internal-only fields must be withheld from a guest, matching the
-    // Python controller (mail_message.py _to_store predicates)
     expect("email_from" in message).toBe(false);
     expect("notification_ids" in message).toBe(false);
 });

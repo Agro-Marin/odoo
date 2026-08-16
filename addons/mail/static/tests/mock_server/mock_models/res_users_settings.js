@@ -1,7 +1,6 @@
 import { fields, getKwArgs, webModels } from "@web/../tests/web_test_helpers";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
-
 /**
  * @template T
  * @typedef {import("@web/../tests/web_test_helpers").KwArgs<T>} KwArgs
@@ -30,7 +29,7 @@ export class ResUsersSettings extends webModels.ResUsersSettings {
         /** @type {import("mock_models").ResUsersSettingsVolumes} */
         const ResUsersSettingsVolumes = this.env["res.users.settings.volumes"];
 
-        const id = ids[0]; // ensure_one
+        const id = ids[0];
         let [volumeSettings] = ResUsersSettingsVolumes.search_read([
             ["user_setting_id", "=", id],
             partner_id ? ["partner_id", "=", partner_id] : ["guest_id", "=", guest_id],

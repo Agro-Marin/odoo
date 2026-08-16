@@ -110,7 +110,7 @@ test("Composer GIF button should open the GIF picker (discuss app)", async () =>
     await openDiscuss(channelId);
     await click("button[title='Add GIFs']");
     await contains(".o-discuss-GifPicker");
-    await click(".o-mail-DiscussContent-header"); // ensure the picker reopens correctly
+    await click(".o-mail-DiscussContent-header");
     await contains(".o-discuss-GifPicker", { count: 0 });
     await click("button[title='Add GIFs']");
     await contains(".o-discuss-GifPicker");
@@ -145,7 +145,7 @@ test("Not loading of GIF categories when feature is not available", async () => 
     await click("button[title='Add GIFs']");
     await contains(".o-discuss-GifPicker");
     await animationFrame();
-    expect.verifySteps([]); // no "/discuss/gif/categories"
+    expect.verifySteps([]);
     await click("button[title='Add GIFs']");
     await contains(".o-discuss-GifPicker", { count: 0 });
     store.hasGifPickerFeature = true;
@@ -294,7 +294,6 @@ test("Scrolling at the bottom should trigger the search to load more gif, even a
     await start();
     await openDiscuss(channelId);
     await click("button[title='Add GIFs']");
-    // gif picker quires extra delay before click (to give time to load initial state)
     await contains(".o-discuss-GifPicker");
     await click(".o-discuss-GifPicker div[aria-label='list-item']", {
         text: "Favorites",
@@ -332,7 +331,6 @@ test("Show help when no favorite GIF", async () => {
     await start();
     await openDiscuss(channelId);
     await click("button[title='Add GIFs']");
-    // gif picker quires extra delay before click (to give time to load initial state)
     await contains(".o-discuss-GifPicker");
     await click(".o-discuss-GifPicker div[aria-label='list-item']", {
         text: "Favorites",

@@ -90,7 +90,7 @@ test("click on partner follower details", async () => {
     await contains(".o-mail-Follower-details");
     await click(".o-mail-Follower-details:first");
     await openFormDef;
-    await waitForSteps(["do_action"]); // redirect to partner profile
+    await waitForSteps(["do_action"]);
 });
 
 test("click on edit follower", async () => {

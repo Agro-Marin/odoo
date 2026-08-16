@@ -75,13 +75,11 @@ test("reply: discard on pressing escape", async () => {
     await click("[title='Expand']");
     await click(".o-dropdown-item:contains('Reply')");
     await contains(".o-mail-Composer");
-    // Escape on emoji picker does not stop replying
     await click(".o-mail-Composer button[title='Add Emojis']");
     await contains(".o-EmojiPicker");
     triggerHotkey("Escape");
     await contains(".o-EmojiPicker", { count: 0 });
     await contains(".o-mail-Composer");
-    // Escape on suggestion prompt does not stop replying
     await insertText(".o-mail-Composer-input", "@");
     await contains(".o-mail-Composer-suggestionList .o-open");
     triggerHotkey("Escape");
@@ -198,7 +196,6 @@ test("show subject of message in Inbox", async () => {
     await contains(".o-mail-Message", {
         text: "Subject: Salutations, voyageurnot empty",
     });
-    // Empty body: display subject only
     await contains(".o-mail-Message:has(:text('Subject: Hello, wanderer'))");
 });
 
@@ -490,8 +487,6 @@ test("inbox: mark as read should not display jump to present", async () => {
     );
     await start();
     await openDiscuss("mail.box_inbox");
-    // scroll up so that there's the "Jump to Present".
-    // So that assertion of negative matches the positive assertion
     await contains(".o-mail-Message", { count: 30 });
     await scroll(".o-mail-Thread", 0);
     await contains("[title='Jump to Present']");
@@ -522,9 +517,6 @@ test("click on (non-channel/non-partner) origin thread link should redirect to f
             if (action?.res_model !== "res.fake") {
                 return super.doAction(...arguments);
             }
-            // Callback of doing an action (action manager).
-            // Expected to be called on click on origin thread link,
-            // which redirects to form view of record related to origin thread
             asyncStep("do-action");
             expect(action.type).toBe("ir.actions.act_window");
             expect(action.views).toEqual([[false, "form"]]);
@@ -689,7 +681,6 @@ test("emptying inbox doesn't display rainbow man in another thread", async () =>
         needaction_inbox_counter: 0,
     });
     await contains("button", { text: "Inbox", contains: [".badge", { count: 0 }] });
-    // weak test, no guarantee that we waited long enough for the potential rainbow man to show
     await contains(".o_reward_rainbow", { count: 0 });
 });
 

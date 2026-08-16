@@ -162,7 +162,6 @@ test("do not auto-scroll to attachment box when initially open", async () => {
             </form>`,
     });
     await contains(".o-mail-Message");
-    // weak test, no guarantee that we waited long enough for the potential scroll to happen
     await contains(".o_content", { scroll: 0 });
 });
 
@@ -178,7 +177,7 @@ test("attachment box should order attachments from newest to oldest", async () =
     await start();
     await openFormView("res.partner", partnerId);
     await contains(".o-mail-Chatter [aria-label='Attach files']", { text: "3" });
-    await click(".o-mail-Chatter [aria-label='Attach files']"); // open attachment box
+    await click(".o-mail-Chatter [aria-label='Attach files']");
     await contains(":nth-child(1 of .o-mail-AttachmentContainer)", { text: "C.txt" });
     await contains(":nth-child(2 of .o-mail-AttachmentContainer)", { text: "B.txt" });
     await contains(":nth-child(3 of .o-mail-AttachmentContainer)", { text: "A.txt" });
@@ -227,7 +226,6 @@ test("attachment should be uploaded on the correct record when using the pager n
             </form>`,
         resIds: [partnerId_1, partnerId_2],
     });
-    // First upload
     let uploadDeferred = new Deferred();
     onRpc("/mail/attachment/upload", () => uploadDeferred);
     await click(".o-mail-Chatter-attachFiles");
@@ -239,7 +237,6 @@ test("attachment should be uploaded on the correct record when using the pager n
     await pagerPrevious();
     await click("button[aria-label='Attach files']", { text: "1" });
     await contains(".o-mail-AttachmentCard", { text: "A.jpeg" });
-    // Second upload
     uploadDeferred = new Deferred();
     await click("button[aria-label='Attach files']");
     await click("button", { text: "Attach files" });

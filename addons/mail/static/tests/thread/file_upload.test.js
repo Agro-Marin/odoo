@@ -27,11 +27,9 @@ test("no conflicts between file uploads", async () => {
         res_id: channelId,
     });
     await start();
-    // Uploading file in the first thread: res.partner chatter.
     await openFormView("res.partner", partnerId);
     await click("button", { text: "Send message" });
     await inputFiles(".o-mail-Chatter .o-mail-Composer input[type=file]", [text]);
-    // Uploading file in the second thread: discuss.channel in chatWindow.
     await click("i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
     await inputFiles(".o-mail-ChatWindow .o-mail-Composer input[type=file]", [text2]);
@@ -49,7 +47,7 @@ test("Attachment shows spinner during upload", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "channel_1" });
     const text2 = new File(["hello, world"], "text2.txt", { type: "text/plain" });
-    onRpc("/mail/attachment/upload", () => new Deferred()); // never fulfill the attachment upload promise.
+    onRpc("/mail/attachment/upload", () => new Deferred());
     await start();
     await openDiscuss(channelId);
     await inputFiles(".o-mail-Composer input[type=file]", [text2]);

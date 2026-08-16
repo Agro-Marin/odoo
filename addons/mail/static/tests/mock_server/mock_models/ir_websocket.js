@@ -3,10 +3,7 @@ import { makeKwArgs } from "@web/../tests/web_test_helpers";
 import { isIterable } from "@web/core/utils/collections/arrays";
 
 export class IrWebSocket extends busModels.IrWebSocket {
-    /**
-     * @override
-     * @type {typeof busModels.IrWebSocket["prototype"]["_build_bus_channel_list"]}
-     */
+    /** @type {typeof busModels.IrWebSocket["prototype"]["_build_bus_channel_list"]} */
     _build_bus_channel_list(channels) {
         /** @type {import("mock_models").DiscussChannel} */
         const DiscussChannel = this.env["discuss.channel"];

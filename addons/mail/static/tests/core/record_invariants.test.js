@@ -41,12 +41,10 @@ test("insert() must not mutate a caller-supplied relation-data payload", async (
     const payload = { name: "m1" };
     const keysBefore = Object.keys(payload).join(",");
     const t1 = store.Thread.insert({ name: "T1", members: [payload] });
-    expect(Object.keys(payload).join(",")).toBe(keysBefore); // no `thread` key leaked in
-    // the relation still wired up correctly despite the clone:
+    expect(Object.keys(payload).join(",")).toBe(keysBefore);
     expect(t1.members).toHaveLength(1);
     expect(t1.members[0].name).toBe("m1");
     expect(t1.members[0].thread.eq(t1)).toBe(true);
-    // reusing the same payload for a different parent must not carry stale state:
     const t2 = store.Thread.insert({ name: "T2", members: [payload] });
     expect(t2.members[0].thread.eq(t2)).toBe(true);
 });

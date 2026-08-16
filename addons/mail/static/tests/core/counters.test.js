@@ -40,11 +40,9 @@ test("applyCounterDelta clamps at the floor and returns the applied delta", () =
 
 test("applyCounterDelta with a bus id is fenced and never advances the bus id", () => {
     const target = makeTarget(3, 10);
-    // event already accounted for by the last absolute snapshot
     expect(applyCounterDelta(target, "counter", 1, { busId: 10 })).toBe(0);
     expect(applyCounterDelta(target, "counter", 1, { busId: 9 })).toBe(0);
     expect(target.counter).toBe(3);
-    // newer event applies, but a delta is not a snapshot: bus id untouched
     expect(applyCounterDelta(target, "counter", 1, { busId: 11 })).toBe(1);
     expect(target.counter).toBe(4);
     expect(target.counter_bus_id).toBe(10);
@@ -60,7 +58,7 @@ test("snapshotCounter restores value and delta while the bus id is unchanged", (
     snapshot.restoreDelta(2);
     expect(target.counter).toBe(2);
     snapshot.restoreDelta(-4);
-    expect(target.counter).toBe(0); // clamped at the default floor
+    expect(target.counter).toBe(0);
 });
 
 test("snapshotCounter skips restores after a newer absolute snapshot landed", () => {

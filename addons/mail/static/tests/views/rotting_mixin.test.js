@@ -18,9 +18,6 @@ class Stage extends models.Model {
     _name = "stage";
     name = fields.Char();
 }
-// Subclass — mutating the shared ResPartner._fields at module level would
-// leak stage_id (and its "stage" relation) into every other suite's mock
-// registry under the ESM loader.
 class RottingResPartner extends ResPartner {
     stage_id = fields.Many2one({ relation: "stage" });
     is_rotting = fields.Boolean({ string: "Rotting" });
@@ -47,7 +44,6 @@ const KANBAN_ARCH = `
         </templates>
     </kanban>`;
 
-/** Two stages; "New" holds 2 rotting records out of 3, "Won" holds none. */
 async function seedRottingRecords() {
     const pyEnv = await startServer();
     const [stageNewId, stageWonId] = pyEnv["stage"].create([
@@ -120,9 +116,6 @@ test("rotting_kanban highlights rotting cards", async () => {
     await contains(".o_kanban_record:contains('Banana'):not(.oe_kanban_card_rotting)");
 });
 
-// Grouping goes through the action context: `buildViewInfo` overwrites the
-// `groupBy` prop with `action.context.group_by`. The domain keeps the preseeded
-// stage-less base partners from forming an extra "None" column at :eq(0).
 const GROUPED_BY_STAGE = {
     context: { group_by: ["stage_id"] },
     domain: [["stage_id", "!=", false]],
@@ -133,7 +126,6 @@ test("grouped rotting_kanban shows a rotting counter pill only on columns with r
     await openKanbanView("res.partner", { arch: KANBAN_ARCH, ...GROUPED_BY_STAGE });
     await contains(".o_kanban_group", { count: 2 });
     await contains(".o_kanban_header .o_mail_resource_rotting_bg", { count: 1 });
-    // "New" column: 2 of its 3 records are rotting; pill titled after the field
     await contains(
         ".o_kanban_group:eq(0) .o_kanban_header .o_mail_resource_rotting_bg[title='Rotting']",
         {
@@ -208,7 +200,6 @@ test("form 'rotting_statusbar_duration' swaps the stage duration for a rot badge
             text: "5d",
         },
     );
-    // the regular time-in-stage counter is hidden on the rotting selected stage
     await contains(".o_statusbar_status span[title='7 days']", { count: 0 });
 });
 

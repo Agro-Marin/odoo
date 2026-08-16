@@ -128,7 +128,6 @@ test("keep new message separator until user goes back to the thread", async () =
         { author_id: partnerId, body: "Message body 1", message_type: "comment" },
         { author_id: partnerId, body: "Message body 2", message_type: "comment" },
     ]);
-    // simulate that there is at least one read message in the channel
     writeSelfMember(pyEnv, channelId, { new_message_separator: messageIds[0] + 1 });
     await start();
     await openDiscuss(channelId);
@@ -137,7 +136,7 @@ test("keep new message separator until user goes back to the thread", async () =
         text: "Message body 2",
     });
     await contains(".o-mail-Thread-newMessage:contains('New')");
-    await hootClick(document.body); // Force "focusin" back on the textarea
+    await hootClick(document.body);
     await hootClick(".o-mail-Composer-input");
     await waitNotifications([
         "mail.record/insert",
@@ -162,13 +161,11 @@ test("show new message separator on receiving new message when out of odoo focus
         name: "General",
     });
     const [messageId] = createChannelMessages(pyEnv, channelId, ["not empty"]);
-    // simulate that there is at least one read message in the channel
     writeSelfMember(pyEnv, channelId, { new_message_separator: messageId + 1 });
     await start();
     await openDiscuss(channelId);
     await contains(".o-mail-Thread");
     await contains(".o-mail-Thread-newMessage:contains('New')", { count: 0 });
-    // simulate receiving a message
     await withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: {
@@ -213,7 +210,6 @@ test("keep new message separator when switching between chat window and discuss 
     await click(".o-mail-Message [title='Expand']");
     await click(".o-dropdown-item:contains('Mark as Unread')");
     await contains(".o-mail-Thread-newMessage");
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Open in Discuss" });
@@ -225,7 +221,7 @@ test("keep new message separator when switching between chat window and discuss 
 });
 
 test("show new message separator when message is received in chat window", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     const { channelId, userId } = createChatWith(pyEnv, {
         name: "Demo",
@@ -239,7 +235,6 @@ test("show new message separator when message is received in chat window", async
     writeSelfMember(pyEnv, channelId, { new_message_separator: messageId + 1 });
     setupChatHub({ opened: [channelId] });
     await start();
-    // simulate receiving a message
     withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: { body: "hu", message_type: "comment" },
@@ -260,7 +255,6 @@ test("show new message separator when message is received while chat window is c
         user: { name: "Foreigner user" },
     });
     const [messageId] = createChannelMessages(pyEnv, channelId, ["not empty"]);
-    // simulate that there is at least one read message in the channel
     writeSelfMember(pyEnv, channelId, { new_message_separator: messageId + 1 });
     setupChatHub({ opened: [channelId] });
     listenStoreFetch("init_messaging");
@@ -268,8 +262,6 @@ test("show new message separator when message is received while chat window is c
     await waitStoreFetch("init_messaging");
     await click(".o-mail-ChatWindow-header [title*='Close Chat Window']");
     await contains(".o-mail-ChatWindow", { count: 0 });
-    // send after init_messaging because bus subscription is done after init_messaging
-    // simulate receiving a message
     await withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: { body: "hu", message_type: "comment" },
@@ -298,7 +290,6 @@ test("only show new message separator in its thread", async () => {
             needaction: true,
         },
     ]);
-    // simulate that there is at least one read message in the channel
     writeSelfMember(pyEnv, channelId, { new_message_separator: messageIds[0] + 1 });
     await start();
     await openDiscuss(channelId);

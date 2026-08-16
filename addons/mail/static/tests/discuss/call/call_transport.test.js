@@ -18,10 +18,6 @@ const SERVER_INFO = {
     channelUUID: "channel-uuid",
 };
 
-/**
- * Minimal PeerToPeer stand-in: `Network` only needs the EventTarget API plus
- * the upload/download/info/peer methods; every call is recorded.
- */
 class MockP2p extends EventTarget {
     calls = [];
     connect(...args) {
@@ -50,10 +46,6 @@ class MockP2p extends EventTarget {
     }
 }
 
-/**
- * Headless CallTransport harness: plain shared state, recording hooks, a mock
- * p2p service and an injectable SfuClient factory.
- */
 function makeTransport({ loadSfuClient, peerSessionIds = [] } = {}) {
     const p2p = new MockP2p();
     const state = {
@@ -106,22 +98,18 @@ test("SFU connect reaches CONNECTED and clears the watchdog", async () => {
     expect(transport.network.sfu).toBe(sfu);
     expect(sfu.calls.filter(([name]) => name === "connect")).toHaveLength(1);
     expect(sfu.calls[0][1]).toBe(SERVER_INFO.url);
-    // AUTHENTICATED clears the p2p peers as late as possible and broadcasts
-    // the new sequence
     expect(steps.connectionStates).toInclude(MOCK_SFU_CLIENT_STATE.AUTHENTICATED);
     expect(p2p.calls.map(([name]) => name)).toInclude("removeALlPeers");
     expect(sfu.calls.some(([name]) => name === "broadcast")).toBe(true);
     const uploadsBeforeConnected = steps.updateUpload;
     sfu.simulateConnected();
     expect(steps.connectionStates.at(-1)).toBe(MOCK_SFU_CLIENT_STATE.CONNECTED);
-    // CONNECTED refreshes the session info and fans the tracks out
     expect(
         sfu.calls.some(
             ([name, , options]) => name === "updateInfo" && options?.needRefresh,
         ),
     ).toBe(true);
     expect(steps.updateUpload).toBe(uploadsBeforeConnected + 1);
-    // the 10s watchdog was cleared by CONNECTED: no late downgrade
     await advanceTime(15000);
     expect(state.connectionType).toBe(CONNECTION_TYPES.SERVER);
     expect(state.fallbackMode).toBe(false);
@@ -142,7 +130,6 @@ test("SFU load failure falls back to p2p and still calls the peers", async () =>
     expect(steps.notifications).toHaveLength(1);
     const addPeerCalls = p2p.calls.filter(([name]) => name === "addPeer");
     expect(addPeerCalls.map(([, id]) => id)).toEqual([2, 3]);
-    // both offers of the batch share the same sequence number
     expect(addPeerCalls[0][2].sequence).toBe(addPeerCalls[1][2].sequence);
 });
 
@@ -164,8 +151,6 @@ test("SFU connect rejection downgrades to p2p exactly once", async () => {
     expect(transport.sfuClient).toBe(undefined);
     expect(transport.network.sfu).toBe(undefined);
     expect(sfu.calls.map(([name]) => name)).toInclude("disconnect");
-    // single funnel: a second downgrade (e.g. the watchdog firing for the
-    // same failure) is a no-op
     const uploads = steps.updateUpload;
     await transport.downgrade();
     expect(steps.updateUpload).toBe(uploads);
@@ -174,15 +159,15 @@ test("SFU connect rejection downgrades to p2p exactly once", async () => {
 
 test("SFU connection timeout downgrades to p2p", async () => {
     const sfu = new MockSfuClient({
-        connectBehavior: () => new Promise(() => {}), // hangs forever
+        connectBehavior: () => new Promise(() => {}),
     });
     const { transport, state, steps } = makeTransport({
         loadSfuClient: sfuFactory(sfu),
     });
     transport.serverInfo = SERVER_INFO;
     transport.initConnection({ sessionId: 1, channelId: 5 });
-    await Promise.resolve(); // let initConnection reach the sfu connect await
-    await advanceTime(1); // flush the (already resolved) factory microtasks
+    await Promise.resolve();
+    await advanceTime(1);
     expect(state.connectionType).toBe(CONNECTION_TYPES.SERVER);
     await advanceTime(10000);
     expect(steps.logs).toInclude("sfu connection timeout");
@@ -202,13 +187,11 @@ test("hot-swap during an established call aborts the stale connection epoch", as
     });
     transport.serverInfo = SERVER_INFO;
     const firstRun = transport.initConnection({ sessionId: 1, channelId: 5 });
-    // hot-swap arrives while the first SFU client is still loading
     transport.serverInfo = { ...SERVER_INFO, channelUUID: "other-uuid" };
     const secondRun = transport.initConnection({ sessionId: 1, channelId: 5 });
     secondLoad.resolve({ sfuClient: sfuB, SFU_CLIENT_STATE: MOCK_SFU_CLIENT_STATE });
     await secondRun;
     expect(transport.sfuClient).toBe(sfuB);
-    // the stale run must dispose its client instead of clobbering the new one
     firstLoad.resolve({ sfuClient: sfuA, SFU_CLIENT_STATE: MOCK_SFU_CLIENT_STATE });
     await firstRun;
     expect(transport.sfuClient).toBe(sfuB);
@@ -227,10 +210,8 @@ test("SFU closed by the server: 'full' leaves the call, otherwise downgrade", as
     sfu.simulateConnected();
     sfu.simulateClose("full");
     expect(steps.leaveCall).toBe(1);
-    // `_t` returns a lazy-translated string: compare the rendered text
     expect(String(steps.notifications.at(-1))).toBe("Channel full");
 
-    // non-"full" close on a fresh transport: local downgrade to p2p
     const sfu2 = new MockSfuClient();
     const harness2 = makeTransport({ loadSfuClient: sfuFactory(sfu2) });
     harness2.transport.serverInfo = SERVER_INFO;
@@ -248,14 +229,11 @@ test("p2p events during the SFU bundle load are not dropped", async () => {
     const { transport, p2p, steps } = makeTransport({ loadSfuClient: () => load });
     transport.serverInfo = SERVER_INFO;
     const run = transport.initConnection({ sessionId: 1, channelId: 5 });
-    await Promise.resolve(); // initConnection is awaiting the SFU bundle
-    // a peer handshaking while the bundle loads must reach the transport
-    // listeners: nothing ever replays those events
+    await Promise.resolve();
     p2p.dispatchEvent(new CustomEvent("update", { detail: { name: "track" } }));
     expect(steps.networkUpdates).toEqual([{ name: "track" }]);
     load.resolve({ sfuClient: sfu, SFU_CLIENT_STATE: MOCK_SFU_CLIENT_STATE });
     await run;
-    // once loaded, the SFU client is fed the same listeners
     sfu.dispatchEvent(new CustomEvent("update", { detail: { name: "broadcast" } }));
     expect(steps.networkUpdates).toEqual([{ name: "track" }, { name: "broadcast" }]);
 });

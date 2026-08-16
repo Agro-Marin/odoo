@@ -1,9 +1,6 @@
 import { click, contains } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 
-/**
- * Verify that a user can modify their own profile information.
- */
 registry
     .category("web_tour.tours")
     .add("mail/static/tests/tours/user_modify_own_profile_tour.js", {

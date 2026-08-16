@@ -2,10 +2,7 @@ import { getKwArgs, models } from "@web/../tests/web_test_helpers";
 import { patch } from "@web/core/utils/patch";
 
 patch(models.ServerModel.prototype, {
-    /**
-     * @override
-     * @type {typeof models.ServerModel["prototype"]["get_views"]}
-     */
+    /** @type {typeof models.ServerModel["prototype"]["get_views"]} */
     get_views() {
         const result = super.get_views(...arguments);
         for (const modelName of Object.keys(result.models)) {

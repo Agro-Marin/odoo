@@ -116,7 +116,7 @@ test("[text composer] can @user in restricted (group_public_id) channels", async
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click("button[title='Invite People']");
     await contains(".o-discuss-ChannelInvitation-invitationBox", {
         text: 'Access restricted to group "Custom Channel Group"',
@@ -148,7 +148,7 @@ test("can @user in restricted (group_public_id) channels", async () => {
     const composerService = getService("mail.composer");
     composerService.setHtmlComposer();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click("button[title='Invite People']");
     await contains(".o-discuss-ChannelInvitation-invitationBox", {
         text: 'Access restricted to group "Custom Channel Group"',
@@ -264,7 +264,7 @@ test("[text composer] Do not fetch if search more specific and fetch had no resu
     await openFormView("res.partner", serverState.partnerId);
     await click("button", { text: "Send message" });
     await insertText(".o-mail-Composer-input", "@");
-    await contains(".o-mail-Composer-suggestion", { count: 3 }); // Mitchell Admin, Hermit, Public user
+    await contains(".o-mail-Composer-suggestion", { count: 3 });
     await contains(".o-mail-Composer-suggestion", { text: "Mitchell Admin" });
     await expect.waitForSteps(["get_mention_suggestions"]);
     await insertText(".o-mail-Composer-input", "x");
@@ -292,7 +292,7 @@ test("Do not fetch if search more specific and fetch had no result", async () =>
     };
     await focus(".o-mail-Composer-html.odoo-editor-editable");
     await htmlInsertText(editor, "@");
-    await contains(".o-mail-Composer-suggestion", { count: 3 }); // Mitchell Admin, Hermit, Public user
+    await contains(".o-mail-Composer-suggestion", { count: 3 });
     await contains(".o-mail-Composer-suggestion", { text: "Mitchell Admin" });
     await expect.waitForSteps(["get_mention_suggestions"]);
     await htmlInsertText(editor, "x");
@@ -1459,7 +1459,6 @@ test("keyboard selection in suggestion list survives an unrelated re-render", as
         ],
     });
     const fetchDeferred = new Deferred();
-    // channel threads fetch mentions through the channel-specific method
     onRpc("res.partner", "get_mention_suggestions_from_channel", async () => {
         await fetchDeferred;
         asyncStep("get_mention_suggestions returned");
@@ -1467,21 +1466,15 @@ test("keyboard selection in suggestion list survives an unrelated re-render", as
     await start();
     await openDiscuss(channelId);
     await insertText(".o-mail-Composer-input", "@TestPartner");
-    // suggestions are shown from already-known members while the fetch is
-    // still pending
     await contains(".o-mail-Composer-suggestion", { count: 2 });
     await contains(".o-mail-NavigableList-active", { text: "TestPartner" });
     await press("ArrowDown");
     await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
-    // fetch completion re-renders the composer with the same option set: it
-    // must neither reset the keyboard selection nor reopen a dismissed list
     fetchDeferred.resolve();
     await expect.waitForSteps(["get_mention_suggestions returned"]);
     await animationFrame();
     await contains(".o-mail-Composer-suggestion", { count: 2 });
     await contains(".o-mail-NavigableList-active", { text: "TestPartner2" });
-    // an unrelated re-render (message from another user) must not reset the
-    // selection either
     await withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: { body: "hello", message_type: "comment" },

@@ -27,8 +27,6 @@ test("following internal link from chatter does not open chat window", async () 
     await contains(".o_last_breadcrumb_item", { text: "Jeanne" });
     await click("a", { text: "Admin" });
     await contains(".o_last_breadcrumb_item", { text: "Mitchell Admin" });
-    // Assert 0 chat windows not sufficient because not enough time for potential chat window opening.
-    // Let's open another chat window to give some time and assert only manually open chat window opens.
     await contains(".o-mail-ChatWindow", { count: 0 });
     await click(".o_menu_systray i[aria-label='Messages']");
     await click("button", { text: "New Message" });
@@ -85,7 +83,7 @@ test("same-thread message link does not open the thread again but highlights the
     await openFormView("res.partner", aliceId);
     await click("a.o_message_redirect:contains(Alice)");
     await contains(".o-mail-Message.o-highlighted:contains(Hello)");
-    await animationFrame(); // give enough time for the potential breadcrumb item to render
+    await animationFrame();
     await contains(".breadcrumb-item", { count: 0 });
     await click("a.o_message_redirect:contains(Lena)");
     await contains(".o-mail-Message.o-highlighted:contains(Hey)");

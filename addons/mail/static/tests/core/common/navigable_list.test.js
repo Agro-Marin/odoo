@@ -23,10 +23,8 @@ test("escape dismisses a closeOnSelect=false navigable list", async () => {
         },
     });
     await contains(".o-mail-NavigableList-item", { count: 2 });
-    // selecting an option keeps the list open (closeOnSelect: false)
     await click(".o-mail-NavigableList-item:eq(0)");
     await contains(".o-mail-NavigableList-item", { count: 2 });
-    // explicit dismiss must close it nonetheless
     await press("Escape");
     await contains(".o-mail-NavigableList-item", { count: 0 });
 });

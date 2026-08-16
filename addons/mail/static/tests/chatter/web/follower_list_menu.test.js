@@ -51,7 +51,6 @@ test('click on "add followers" button', async () => {
     ]);
     pyEnv["mail.followers"].create({
         partner_id: partnerId_2,
-        email: "bla@bla.bla",
         is_active: true,
         res_id: partnerId_1,
         res_model: "res.partner",
@@ -68,9 +67,7 @@ test('click on "add followers" button', async () => {
             expect(action.type).toBe("ir.actions.act_window");
             pyEnv["mail.followers"].create({
                 partner_id: partnerId_3,
-                email: "bla@bla.bla",
                 is_active: true,
-                name: "Wololo",
                 res_id: partnerId_1,
                 res_model: "res.partner",
             });
@@ -101,9 +98,7 @@ test("click on remove follower", async () => {
     ]);
     pyEnv["mail.followers"].create({
         partner_id: partnerId_2,
-        email: "bla@bla.bla",
         is_active: true,
-        name: "Wololo",
         res_id: partnerId_1,
         res_model: "res.partner",
     });
@@ -140,7 +135,7 @@ test("Load 100 followers at once", async () => {
     await contains(".o-mail-Followers-dropdown", { text: "Load more" });
     await scroll(".o-mail-Followers-dropdown", "bottom");
     await contains(".o-mail-Follower", { count: 200 });
-    await tick(); // give enough time for the useVisible hook to register load more as hidden
+    await tick();
     await scroll(".o-mail-Followers-dropdown", "bottom");
     await contains(".o-mail-Follower", { count: 209 });
     await contains(".o-mail-Followers-dropdown span", { count: 0, text: "Load more" });

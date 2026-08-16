@@ -5,8 +5,6 @@ import { describe, expect, test } from "@odoo/hoot";
 describe("Implicit plugin dependencies", () => {
     test("position as an implicit dependency", async () => {
         for (const P of [MentionPlugin]) {
-            // the plugin hooks the "beforeinput_handlers" resource, so
-            // InputPlugin must stay in its declared dependencies
             expect(P.dependencies).toInclude(InputPlugin.id);
         }
     });

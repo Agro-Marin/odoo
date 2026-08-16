@@ -1,21 +1,5 @@
 /* eslint-disable -- generated file; the body must stay strict JSON (see below)
  * and prettier's trailing commas would break the python json.loads parse. */
-/* Store serialization contract — DO NOT EDIT BY HAND.
- *
- * Field-name sets per (scenario, Store model), shared by:
- * - python: mail/tests/test_mock_server_contract.py (real controllers)
- * - js: mail/static/tests/mock_server/contract.test.js (hoot mock server)
- *
- * Regenerate (after an intentional Store protocol change) with:
- *   MAIL_STORE_CONTRACT_REGEN=1 odoo-bin -d <bare mail db> \
- *       --test-tags mail_store_contract --stop-after-init
- * (the db must have only mail's dependency closure installed), then re-run
- * both the python tag and the hoot suite `@mail/mock_server/contract`
- * before committing.
- *
- * The body between the braces must remain strict JSON (the python test
- * parses it with json.loads); only this comment may precede it.
- */
 export default {
     "gated_models": [
         "DataResponse",
@@ -252,10 +236,8 @@ export default {
             ],
             "mail.followers": [
                 "display_name",
-                "email",
                 "id",
                 "is_active",
-                "name",
                 "partner_id",
                 "thread"
             ],

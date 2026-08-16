@@ -24,16 +24,12 @@ defineMailModels();
 preloadBundle("web.assets_emoji");
 
 test("emoji picker correctly handles translations with special characters", async () => {
-    // patchTranslations (not defineParams) applies synchronously: the warm
-    // IndexedDB cache can land server terms after the emoji data was parsed
     patchTranslations({
         web: {
             "Japanese “here” button": `Bouton "ici" japonais`,
             "heavy dollar sign": `Symbole du dollar\nlourd`,
         },
     });
-    // emoji terms are translated once per browser session, so drop that cache —
-    // through the picker's own module instance, the only one it resolves to
     const pickerModule =
         odoo.loader.modules.get("@web/components/emoji_picker/emoji_picker") ??
         (await import("@web/components/emoji_picker/emoji_picker"));
@@ -70,7 +66,7 @@ test("search emoji from keywords should be case insensitive", async () => {
     await openDiscuss(channelId);
     await click("button[title='Add Emojis']");
     await insertText(".o-EmojiPicker-search input", "ok");
-    await contains(".o-Emoji", { text: "🆗" }); // all search terms are uppercase OK
+    await contains(".o-Emoji", { text: "🆗" });
 });
 
 test("search emoji from keywords with special regex character", async () => {
@@ -91,12 +87,6 @@ test("updating search emoji should scroll top", async () => {
     await click("button[title='Add Emojis']");
     await contains(".o-EmojiPicker-content", { scroll: 0 });
     await scroll(".o-EmojiPicker-content", 150);
-    // Reached structurally, not by placeholder: `EmojiPicker.placeholder` is
-    // `hoveredEmoji?.shortcodes.join(" ") ?? _t("Search emoji")`, so the moment
-    // the pointer rests on an emoji -- which scrolling the grid does -- the
-    // input stops answering to `input[placeholder='Search emoji']`. The tests
-    // that search straight after opening the picker never hovered one and so
-    // never noticed; these two did.
     await insertText(".o-EmojiPicker-search input", "m");
     await contains(".o-EmojiPicker-content", { scroll: 0 });
 });
@@ -116,10 +106,9 @@ test("Basic keyboard navigation", async () => {
     const channelId = pyEnv["discuss.channel"].create({ name: "" });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-mail-Composer-input:focus"); // as to ensure no race condition with auto-focus of emoji picker
+    await contains(".o-mail-Composer-input:focus");
     await click("button[title='Add Emojis']");
     await contains(".o-Emoji[data-index='0'].o-active");
-    // detect amount of emojis per row for navigation
     const emojis = Array.from(
         getFixture().querySelectorAll(
             ".o-EmojiPicker-category[data-category='1'] ~ .o-Emoji",
@@ -176,7 +165,7 @@ test("search emojis prioritize frequently used emojis", async () => {
     await click("button[title='Add Emojis']");
     await contains(".o-EmojiPicker-navbar [title='Frequently used']");
     await insertText(".o-EmojiPicker-search input", "lie");
-    await contains(".o-EmojiPicker-sectionIcon", { count: 0 }); // await search performed
+    await contains(".o-EmojiPicker-sectionIcon", { count: 0 });
     await contains(".o-EmojiPicker-content .o-Emoji:eq(0)", { text: "🤥" });
 });
 
@@ -191,7 +180,7 @@ test("search matches only frequently used emojis", async () => {
     await click("button[title='Add Emojis']");
     await contains(".o-EmojiPicker-navbar [title='Frequently used']");
     await insertText(".o-EmojiPicker-search input", "brocoli");
-    await contains(".o-EmojiPicker-sectionIcon", { count: 0 }); // await search performed
+    await contains(".o-EmojiPicker-sectionIcon", { count: 0 });
     await contains(".o-EmojiPicker-content .o-Emoji:eq(0)", { text: "🥦" });
     await contains(".o-EmojiPicker-content .o-Emoji", { count: 1 });
     await contains(".o-EmojiPicker-content", {
@@ -266,9 +255,6 @@ test("shortcodes shown in emoji title in message", async () => {
 });
 
 test("Emoji picker shows failure to load emojis", async () => {
-    // Simulate failure to load emojis. ES module namespaces are not
-    // patchable, so make the bundle loader itself fail: loadEmoji() then
-    // resolves with no emoji at all.
     patchWithCleanup(emojiLoader, {
         loadEmoji() {
             throw new Error("simulated emoji bundle loading failure");

@@ -59,8 +59,6 @@ test("Basic jump to present when scrolling to outdated messages", async () => {
 });
 
 test("thread scrolling recovers when a smooth scroll never emits scrollend", async () => {
-    // scroll applications and loadOlder/loadNewer await
-    // `smoothScrollingDeferred`: a missing "scrollend" must not wedge it.
     let threadComponent;
     patchWithCleanup(Thread.prototype, {
         setup() {
@@ -72,7 +70,6 @@ test("thread scrolling recovers when a smooth scroll never emits scrollend", asy
     patchWithCleanup(Element.prototype, {
         scrollTo(options) {
             if (swallowSmoothScroll && options?.behavior === "smooth") {
-                // simulate a smooth scroll whose "scrollend" never comes
                 swallowSmoothScroll = false;
                 return;
             }
@@ -93,21 +90,14 @@ test("thread scrolling recovers when a smooth scroll never emits scrollend", asy
     await openDiscuss(channelId);
     await contains(".o-mail-Message", { count: 20 });
     const el = document.querySelector(".o-mail-Thread");
-    // a smooth scroll towards the opposite end, swallowed: no movement will
-    // happen and "scrollend" will never fire
     swallowSmoothScroll = true;
     const farTarget =
         el.scrollTop > (el.scrollHeight - el.clientHeight) / 2 ? 0 : 9999999;
     threadComponent.setScroll(farTarget, { smooth: true });
     expect(threadComponent.isSmoothScrolling).toBe(true);
-    // the safety timeout must release the pending smooth scroll state even
-    // though no "scrollend" ever fired
     await advanceTime(3000);
     expect(threadComponent.isSmoothScrolling).toBe(false);
     expect(threadComponent.smoothScrollingDeferred).toBe(undefined);
-    // a smooth scroll to the current position needs no movement: it must
-    // resolve immediately instead of pending on a "scrollend" that will
-    // never come
     threadComponent.setScroll(el.scrollTop, { smooth: true });
     expect(threadComponent.isSmoothScrolling).toBe(false);
     expect(threadComponent.smoothScrollingDeferred).toBe(undefined);
@@ -183,8 +173,6 @@ test("Jump to old reply should prompt jump to present", async () => {
             body: "<p>Non Empty Body</p>".repeat(100),
             message_type: "comment",
             model: "discuss.channel",
-            // parent the first loop message on the oldest one so that "load
-            // around" inserts the oldest through the parent field, with markup
             parent_id: i === 0 ? oldestMessageId : undefined,
             res_id: channelId,
         });
@@ -215,7 +203,6 @@ test("Jump to old reply should prompt jump to present", async () => {
 });
 
 test("Jump to old reply should prompt jump to present (RPC small delay)", async () => {
-    // same test as before but with a small RPC delay
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     const oldestMessageId = pyEnv["mail.message"].create({
@@ -228,8 +215,6 @@ test("Jump to old reply should prompt jump to present (RPC small delay)", async 
             body: "<p>Non Empty Body</p>".repeat(100),
             message_type: "comment",
             model: "discuss.channel",
-            // parent the first loop message on the oldest one so that "load
-            // around" inserts the oldest through the parent field, with markup
             parent_id: i === 0 ? oldestMessageId : undefined,
             res_id: channelId,
         });
@@ -247,7 +232,7 @@ test("Jump to old reply should prompt jump to present (RPC small delay)", async 
     pyEnv["discuss.channel.member"].write([selfMember.id], {
         new_message_separator: newestMessageId + 1,
     });
-    onRpcBefore("/discuss/channel/messages", tick); // small delay
+    onRpcBefore("/discuss/channel/messages", tick);
     await start();
     await openDiscuss(channelId);
     await contains(".o-mail-Message", { count: 30 });
@@ -270,8 +255,6 @@ test("Post message when seeing old message should jump to present", async () => 
             body: "<p>Non Empty Body</p>".repeat(100),
             message_type: "comment",
             model: "discuss.channel",
-            // parent the first loop message on the oldest one so that "load
-            // around" inserts the oldest through the parent field, with markup
             parent_id: i === 0 ? oldestMessageId : undefined,
             res_id: channelId,
         });
@@ -293,12 +276,11 @@ test("Post message when seeing old message should jump to present", async () => 
     await contains(".o-mail-Thread", { scroll: "bottom" });
     await contains(".o-mail-Message-content", {
         text: "Newly posted",
-        after: [".o-mail-Message-content", { text: "Most Recent!" }], // should load around present
+        after: [".o-mail-Message-content", { text: "Most Recent!" }],
     });
 });
 
 test("when triggering jump to present, keeps showing old messages until recent ones are loaded", async () => {
-    // make scroll behavior instantaneous.
     patchWithCleanup(Element.prototype, {
         scrollIntoView() {
             return super.scrollIntoView(true);

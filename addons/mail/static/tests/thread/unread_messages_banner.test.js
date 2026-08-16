@@ -112,14 +112,9 @@ test("remove banner when scrolling to bottom", async () => {
     await contains(".o-mail-Composer.o-focused");
     await focus(".o-mail-Thread");
     await contains(".o-mail-Thread-banner", { text: "50 new messages" });
-    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
-    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
-    // so `tick()` returned before the scroll had happened
     await animationFrame();
     await scroll(".o-mail-Thread", "bottom");
     await contains(".o-mail-Message", { count: 50 });
-    // Banner is still present as there are more messages to load so we did not
-    // reach the actual bottom.
     await contains(".o-mail-Thread-banner", { text: "50 new messages" });
     await scroll(".o-mail-Thread", "bottom");
     await contains(".o-mail-Thread-banner", { text: "50 new messages", count: 0 });

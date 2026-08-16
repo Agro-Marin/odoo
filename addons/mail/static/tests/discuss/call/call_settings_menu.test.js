@@ -43,7 +43,6 @@ test("Renders the call settings", async () => {
     const env = await start();
     const rtc = env.services["discuss.rtc"];
     await openDiscuss(channelId);
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Call Settings" });
@@ -70,7 +69,6 @@ test("activate push to talk", async () => {
     patchUiSize({ size: SIZES.SM });
     await start();
     await openDiscuss(channelId);
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Call Settings" });
@@ -86,7 +84,6 @@ test("activate blur", async () => {
     patchUiSize({ size: SIZES.SM });
     await start();
     await openDiscuss(channelId);
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Call Settings" });
@@ -113,8 +110,6 @@ test("local storage for call settings", async () => {
     patchUiSize({ size: SIZES.SM });
     await start();
     await openDiscuss(channelId);
-    // testing load from local storage
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Call Settings" });
@@ -123,12 +118,11 @@ test("local storage for call settings", async () => {
     await contains("label[title='Background blur intensity']", { text: "15%" });
     await contains("label[title='Edge blur intensity']", { text: "25%" });
 
-    // testing save to local storage
     await click("input[title='Show video participants only']");
     await waitForSteps(["mail_user_setting_show_only_video: false"]);
     await click("input[title='Blur video background']");
     expect(localStorage.getItem("mail_user_setting_use_blur")).toBe(null);
     await editInput(document.body, ".o-Discuss-CallSettings-thresholdInput", 0.3);
-    await advanceTime(2000); // threshold setting debounce timer
+    await advanceTime(2000);
     await waitForSteps(["mail_user_setting_voice_threshold: 0.3"]);
 });

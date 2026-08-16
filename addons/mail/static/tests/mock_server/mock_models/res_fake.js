@@ -6,7 +6,7 @@ export class ResFake extends models.Model {
     _primary_email = "email_cc";
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <sheet>
                     <field name="name"/>

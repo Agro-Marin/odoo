@@ -26,14 +26,11 @@ registry.category("web_tour.tours").add("mail_activity_date_format", {
             trigger: ".o-mail-Activity-info i",
             run: "click",
         },
-        // The launching test freezes 2024-01-01 09:00 and sets the lang's
-        // date_format "%d/%b/%y" / time_format "%I:%M:%S %p".
         {
             trigger:
                 ".o-mail-Activity-details tr:contains('Created') td:contains('01/Jan/24 09:00:00 AM')",
         },
         {
-            // Default due date is 5 days after creation date.
             trigger:
                 ".o-mail-Activity-details tr:contains('Due on') td:contains('06/Jan/24')",
         },

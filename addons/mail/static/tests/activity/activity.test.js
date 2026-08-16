@@ -188,7 +188,6 @@ test("activity info layout when planned before yesterday", async () => {
 });
 
 test.skip("activity info layout change at midnight", async () => {
-    // skip: does not work consistently both locally and on runbot at the same time (tz issue?)
     mockDate("2023-12-07 23:59:59", 0);
     const tomorrow = today().plus({ days: 1 });
     const pyEnv = await startServer();
@@ -339,7 +338,6 @@ test("activity with mail template: send mail", async () => {
         expect(args[0]).toHaveLength(1);
         expect(args[0][0]).toBe(partnerId);
         expect(args[1]).toBe(mailTemplateId);
-        // random value returned in order for the mock server to know that this route is implemented.
         return true;
     });
     await start();
@@ -708,9 +706,8 @@ test("activity updates are shared between tabs", async () => {
         },
     ]);
     await start();
-    await expect.waitForSteps(["INIT", "/mail/data"]); // INIT from rtc service
+    await expect.waitForSteps(["INIT", "/mail/data"]);
     await openFormView("res.partner", serverState.partnerId);
-    // Ensure state updates are corectly sent.
     await expect.waitForSteps([
         "/mail/data",
         "INSERT - Send an email to Marc",
@@ -723,7 +720,6 @@ test("activity updates are shared between tabs", async () => {
         replace: true,
     });
     await click("button:text(Save)");
-    // Every insert triggers a broadcast, what matter is that the last value is correctly sent.
     await expect.waitForSteps([
         "/mail/data",
         "INSERT - Send an email to Marc",
@@ -740,7 +736,6 @@ test("activity updates are shared between tabs", async () => {
     ]);
     await contains(".o-mail-Activity", { count: 1 });
     await contains(".o-mail-Activity-info:has(:text(“Say hello to Bob”))");
-    // Ensure state update are properly received.
     stepBroadcasts = false;
     const newActivityId = pyEnv["mail.activity"].create({
         res_id: serverState.partnerId,
@@ -773,8 +768,5 @@ test("activity updates are shared between tabs", async () => {
             payload: { id: serverState.partnerId, model: "res.partner" },
         },
     });
-    // messages AND activities: an activity marked done in another tab must
-    // not stay rendered with live buttons here (the /mail/data fetch is the
-    // activities request of fetchThreadData)
     await expect.waitForSteps(["/mail/thread/messages", "/mail/data"]);
 });

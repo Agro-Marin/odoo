@@ -10,13 +10,6 @@ defineMailModels();
 const SELF_SESSION_ID = 1;
 const REMOTE_SESSION_ID = 2;
 
-/**
- * A call where the local user AND a remote participant are both screen
- * sharing, with the LOCAL upload paused — what dismissing the infinite
- * mirroring warning leaves behind. `Thread.visibleCards` really does emit a
- * `type: "screen"` card per sharing session, so both cards below are the ones
- * the Call view would mount.
- */
 async function setupPausedScreenShare() {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
@@ -33,7 +26,6 @@ async function setupPausedScreenShare() {
             },
             is_screen_sharing_on: true,
         });
-        // a real MediaStream: the card mounts a <video> and assigns srcObject
         session.videoStreams.set("screen", new MediaStream());
         return session;
     };
@@ -42,8 +34,6 @@ async function setupPausedScreenShare() {
     thread.rtc_session_ids = [selfSession, remoteSession];
     const rtc = getService("discuss.rtc");
     rtc.localSession = selfSession;
-    // `is_screen_sharing_on` stays true while paused: it is derived from the
-    // track existing, not from `enabled`.
     rtc.state.screenTrack = { enabled: false, stop: () => {} };
     return { thread };
 }
@@ -66,10 +56,6 @@ test("the paused-stream overlay is shown on the self screen-share card", async (
 });
 
 test("the paused-stream overlay is NOT shown on another participant's screen-share card", async () => {
-    // The local track being paused says nothing about a remote's stream. The
-    // template condition only tested `rtc.state.screenTrack.enabled`, a LOCAL
-    // field, so every remote screen tile was replaced by a "Stream paused /
-    // Resume stream" button that resumed the LOCAL upload when clicked.
     const { thread } = await setupPausedScreenShare();
     await mountScreenCardFor(thread, REMOTE_SESSION_ID);
     expect("button:contains('Stream paused')").toHaveCount(0);

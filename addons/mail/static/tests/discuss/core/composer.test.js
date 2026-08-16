@@ -44,7 +44,7 @@ test('do not send typing notification on typing "/" command', async () => {
     await openDiscuss(channelId);
     await insertText(".o-mail-Composer-input", "/");
     await contains(".o-mail-Composer button[title='Send']:enabled");
-    await waitForSteps([]); // No rpc done
+    await waitForSteps([]);
     testEnded = true;
 });
 
@@ -63,7 +63,7 @@ test('do not send typing notification on typing after selecting suggestion from 
     await click(":nth-child(1 of .o-mail-Composer-suggestion)");
     await contains(".o-mail-Composer-suggestion strong", { count: 0 });
     await insertText(".o-mail-Composer-input", " is user?");
-    await waitForSteps([]); // No rpc done"
+    await waitForSteps([]);
     testEnded = true;
 });
 
@@ -152,7 +152,6 @@ test("html composer: trim boundary empty formatting on send", async () => {
     triggerHotkey("shift+Enter");
     await click(".o-mail-Composer button[title='Send']:enabled");
     await expect.waitForSteps(["/mail/message/post"]);
-    // the leading empty div and the trailing <br> are trimmed before posting
     expect(body).toBe("<div>Hello World</div>");
     await contains(".o-mail-Message[data-persistent]:contains(Hello)");
 });

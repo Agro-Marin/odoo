@@ -48,7 +48,6 @@ export class DiscussChannel extends models.ServerModel {
     _compute_channel_name_member_ids() {
         for (const channel of this) {
             const members = channel.channel_member_ids ?? [];
-            // numeric comparator: mirrors the server's `ORDER BY id`
             members.sort((a, b) => a - b);
             channel.channel_name_member_ids = members.slice(0, 3);
         }
@@ -102,7 +101,6 @@ export class DiscussChannel extends models.ServerModel {
             ]),
         });
         BusBus._sendone(channel, "mail.record/insert", store.get_result());
-        // limitation of mock server, partner already unsubscribed from channel
         BusBus._sendone(partner, "mail.record/insert", store.get_result());
     }
 
@@ -128,7 +126,7 @@ export class DiscussChannel extends models.ServerModel {
         const partners = ResPartner.browse(partner_ids);
         for (const partner of partners) {
             if (partner.id === this.env.user.partner_id) {
-                continue; // adding 'yourself' to the conversation is handled below
+                continue;
             }
             const body = `<div class="o_mail_notification">invited ${partner.name} to the channel</div>`;
             const message_type = "notification";
@@ -161,7 +159,6 @@ export class DiscussChannel extends models.ServerModel {
             (partner) => partner.id === this.env.user.partner_id,
         );
         if (selfPartner) {
-            // needs to be done after adding 'self' as a member
             const body = `<div class="o_mail_notification">${selfPartner.name} joined the channel</div>`;
             const message_type = "notification";
             const subtype_xmlid = "mail.mt_comment";
@@ -278,8 +275,6 @@ export class DiscussChannel extends models.ServerModel {
         const DiscussChannelMember = this.env["discuss.channel.member"];
 
         const [channel] = this.browse(ids);
-        // mirror server predicates: some basic fields are only sent for
-        // channel/group types (see discuss_channel.py _to_store_defaults).
         const isChannelOrGroup = ["channel", "group"].includes(channel.channel_type);
         let fieldNames = this._channel_basic_info_fields();
         if (!isChannelOrGroup) {
@@ -295,7 +290,6 @@ export class DiscussChannel extends models.ServerModel {
         Object.assign(data, {
             is_editable: (() => {
                 if (channel.channel_type === "channel") {
-                    // Match the ACL rules
                     return (
                         !channel.group_public_id ||
                         this.env.user.group_ids.includes(channel.group_public_id)
@@ -430,7 +424,7 @@ export class DiscussChannel extends models.ServerModel {
             const MailMessage = this.env["mail.message"];
             /** @type {import("mock_models").MailNotification} */
             const MailNotification = this.env["mail.notification"];
-            /** @type {import("mock_models").ResGroups}*/
+            /** @type {import("mock_models").ResGroups} */
             const ResGroups = this.env["res.groups"];
 
             for (const channel of this) {
@@ -632,7 +626,7 @@ export class DiscussChannel extends models.ServerModel {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 
-        const channelId = ids[0]; // simulate ensure_one.
+        const channelId = ids[0];
         const [memberIdOfCurrentUser] = DiscussChannelMember.search([
             ["partner_id", "=", this.env.user.partner_id],
             ["channel_id", "=", channelId],
@@ -753,7 +747,7 @@ export class DiscussChannel extends models.ServerModel {
 
         const id = ids[0];
         const [channel] = this.search_read([["id", "=", id]]);
-        const notifBody = /* html */ `
+        const notifBody = `
             <span class="o_mail_notification">You are in ${
                 channel.channel_type === "channel"
                     ? "channel"
@@ -866,9 +860,6 @@ export class DiscussChannel extends models.ServerModel {
         limit = kwargs.limit || 8;
 
         /**
-         * Filter channels like python's `get_mention_suggestions`, truncated to
-         * `limit`.
-         *
          * @param {this[]} channels
          * @param {string} search
          * @param {number} limit
@@ -876,11 +867,9 @@ export class DiscussChannel extends models.ServerModel {
          */
         const mentionSuggestionsFilter = (channels, search, limit) => {
             const matchingChannels = channels.filter((channel) => {
-                // no search term is considered as return all
                 if (!search) {
                     return true;
                 }
-                // otherwise name or email must match search term
                 if (channel.name && channel.name.includes(search)) {
                     return true;
                 }
@@ -955,7 +944,6 @@ export class DiscussChannel extends models.ServerModel {
         }
         delete kwargs.special_mentions;
         const messageIds = MailThread.message_post.call(this, [id], kwargs);
-        // simulate compute of message_unread_counter
         const memberOfCurrentUser = this._find_or_create_member_for_self(channel.id);
         const otherMembers = DiscussChannelMember._filter([
             ["channel_id", "=", channel.id],
@@ -1104,8 +1092,6 @@ export class DiscussChannel extends models.ServerModel {
             if (!user) {
                 continue;
             }
-            // Note: `_to_store` on the server is supposed to be called with
-            // the proper user context but this is not done here for simplicity.
             const [relatedPartner] = ResPartner.search_read([["id", "=", partner_id]]);
             for (const channelId of ids) {
                 notifications.push([

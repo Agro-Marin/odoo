@@ -36,6 +36,7 @@ import {
     asyncStep,
     Command,
     mockService,
+    mockServiceWorkerContainer,
     onRpc,
     patchWithCleanup,
     serverState,
@@ -63,7 +64,7 @@ test("basic rendering", async () => {
     await contains(".o-discuss-CallActionList");
     await contains(".o-discuss-CallMenu-buttonContent");
     await contains(".o-discuss-CallActionList button", { count: 7 });
-    await contains("button[aria-label='Unmute'], button[aria-label='Mute']"); // FIXME depends on current browser permission
+    await contains("button[aria-label='Unmute'], button[aria-label='Mute']");
     await contains("button[aria-label='Voice Settings']");
     await contains(".o-discuss-CallActionList button[aria-label='Turn camera on']");
     await contains("button[aria-label='Video Settings']");
@@ -159,7 +160,6 @@ test("should disconnect when closing page while in call", async () => {
 
     await click("[title='Start Call']");
     await contains(".o-discuss-Call");
-    // simulate page close
     await manuallyDispatchProgrammaticEvent(window, "pagehide");
     await waitForSteps([`sendBeacon_leave_call:${channelId}`]);
 });
@@ -188,7 +188,6 @@ test("should display invitations", async () => {
     await start();
     await waitStoreFetch("init_messaging");
     const [partner] = pyEnv["res.partner"].read(serverState.partnerId);
-    // send after init_messaging because bus subscription is done after init_messaging
     pyEnv["bus.bus"]._sendone(
         partner,
         "mail.record/insert",
@@ -208,7 +207,6 @@ test("should display invitations", async () => {
     await contains(".o-discuss-CallInvitation");
     await contains(".o-discuss-CallInvitation button[title='Join Call']");
     await waitForSteps(["play - call-invitation"]);
-    // Simulate stop receiving call invitation
 
     pyEnv["bus.bus"]._sendone(
         partner,
@@ -230,7 +228,7 @@ test("can share screen", async () => {
     await click("[title='More']");
     await click("[title='Share Screen']");
     await contains("video");
-    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
+    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]);
     await click("[title='More']");
     await click("[title='Stop Sharing Screen']");
     await contains("video", { count: 0 });
@@ -252,7 +250,6 @@ test("switch front/back camera in mobile", async () => {
     mockGetMedia();
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
-    // Switch camera action is only available for mobiles
     mockUserAgent("android");
     expect(isMobileOS()).toBe(true);
     await start();
@@ -275,7 +272,6 @@ test("Camera video stream stays in focus when on/off", async () => {
     await click("[title='Stop camera']");
     await click("[title='Turn camera on']");
     await contains("video[type='camera']:not(.o-inset)");
-    // test screen sharing then camera on to check camera aside
     await click("[title='Stop camera']");
     await click("[title='Share Screen']");
     await click("[title='Turn camera on']");
@@ -381,7 +377,6 @@ test("'New Meeting' in mobile", async () => {
     await click("button:not([disabled])", { text: "Invite to Group Chat" });
     await contains(".o-discuss-Call");
     await click("[title='Exit Fullscreen']");
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Members" });
@@ -403,7 +398,6 @@ test("Dropzones below fullscreen meeting view are disabled", async () => {
             }
             const originalWrite = doc.write;
             doc.write = (content) => {
-                // This avoids duplicating the test script in the popoutWindow
                 const sanitizedContent = content.replace(
                     /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
                     "",
@@ -455,17 +449,16 @@ test("Dropzones below fullscreen meeting view are disabled", async () => {
     await contains(".o-mail-Meeting.o-fullscreen .o-mail-ActionPanel .o-mail-Thread");
     const textFile_1 = new File(["hello, world"], "text-1.txt", { type: "text/plain" });
     await dragenterFiles(".o-mail-Meeting.o-fullscreen .o-mail-Thread", [textFile_1]);
-    await contains(".o-Dropzone"); // only dropzone in meeting view
+    await contains(".o-Dropzone");
     await dropFiles(".o-Dropzone", [textFile_1]);
     await contains(".o-mail-Meeting .o-mail-AttachmentContainer:not(.o-isUploading)");
-    // check picture-in-picture still enables dropzone
     await click("button[title='Picture in Picture']");
     await contains(".o-mail-Meeting:not(.o-fullscreen)", {
         target: popoutIframe.contentDocument,
     });
     const textFile_2 = new File(["hello, world"], "text-2.txt", { type: "text/plain" });
     await dragenterFiles(".o-mail-Discuss .o-mail-Thread", [textFile_1]);
-    await contains(".o-Dropzone"); // only dropzone in discuss app
+    await contains(".o-Dropzone");
     await dropFiles(".o-Dropzone", [textFile_2]);
     await contains(".o-mail-Discuss .o-mail-AttachmentContainer:not(.o-isUploading)", {
         count: 2,
@@ -489,7 +482,7 @@ test("Systray icon shows latest action", async () => {
     await click("[title='More']");
     await click("[title='Share Screen']");
     await contains(".o-discuss-CallMenu-buttonContent .fa-desktop");
-    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
+    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]);
     await click("[title='More']");
     await click(".o-dropdown-item:contains('Raise Hand')");
     await contains(".o-discuss-CallMenu-buttonContent .fa-regular.fa-hand");
@@ -522,20 +515,15 @@ test("Systray icon keeps track of earlier actions", async () => {
     await contains(".o-discuss-CallMenu-buttonContent .fa-microphone");
     await click("[title='More']");
     await click("[title='Share Screen']");
-    // stack: ["share-screen"]
     await contains(".o-discuss-CallMenu-buttonContent .fa-desktop");
-    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
+    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]);
     await click("[title='Turn camera on']");
-    // stack: ["video", "share-screen"]
     await contains(".o-discuss-CallMenu-buttonContent .fa-video");
     await click("[title='Mute']");
-    // stack: ["mute", "video", "share-screen"]
     await contains(".o-discuss-CallMenu-buttonContent .fa-solid.fa-microphone-slash");
     await click("[title='Unmute']");
-    // stack: ["video", "share-screen"]
     await contains(".o-discuss-CallMenu-buttonContent .fa-video");
     await click("[title='Stop camera']");
-    // stack: ["share-screen"]
     await contains(".o-discuss-CallMenu-buttonContent .fa-desktop");
 });
 
@@ -642,11 +630,7 @@ test("expand call participants when joining a call", async () => {
 });
 
 test("start call when accepting from push notification", async () => {
-    const serviceWorker = Object.assign(new EventTarget(), {
-        register: () => Promise.resolve(),
-        ready: Promise.resolve(),
-    });
-    patchWithCleanup(window.navigator, { serviceWorker });
+    const serviceWorker = mockServiceWorkerContainer();
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
@@ -707,7 +691,7 @@ test("Use saved volume settings", async () => {
     await contains(".o-discuss-CallContextMenu");
     const rangeInput = queryFirst(".o-discuss-CallContextMenu input[type='range']");
     expect(rangeInput.value).toBe(expectedVolume.toString());
-    rangeInput.dispatchEvent(new Event("change")); // to trigger the volume change
+    rangeInput.dispatchEvent(new Event("change"));
     await click(".o-discuss-CallActionList button[aria-label='Disconnect']");
 });
 
@@ -719,10 +703,9 @@ test("show call participants after stopping screen share", async () => {
     await click("[title='Start Call']");
     await click("[title='Share Screen']");
     await contains("video");
-    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
+    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]);
     await click("[title='Stop Sharing Screen']");
     await contains("video", { count: 0 });
-    // when all participant cards are shown they are minimized
     await contains(
         ".o-discuss-Call-mainCards .o-discuss-CallParticipantCard .o-minimized",
     );
@@ -738,7 +721,6 @@ test("show call participants after stopping camera share", async () => {
     await contains("video");
     await click("[title='Stop camera']");
     await contains("video", { count: 0 });
-    // when all participant cards are shown they are minimized
     await contains(
         ".o-discuss-Call-mainCards .o-discuss-CallParticipantCard .o-minimized",
     );
@@ -847,7 +829,7 @@ test("shows warning on infinite mirror effect (screen-sharing then fullscreen)",
     await click("[title='More']");
     await click("[title='Share Screen']");
     await contains("video");
-    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
+    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]);
     await click("button[title='Fullscreen']");
     await contains(".o-discuss-CallInfiniteMirroringWarning");
     await contains(
@@ -1062,7 +1044,7 @@ test("Leaving a call should close all the streams", async () => {
     expect(streams[0].getTracks()[0].readyState).toBe("live");
     expect(streams[1].getTracks()[0].readyState).toBe("live");
     expect(streams[2].getTracks()[0].readyState).toBe("live");
-    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
+    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]);
     await click(".o-discuss-CallActionList button[aria-label='Disconnect']");
     await contains(".o-discuss-Call", { count: 0 });
     expect(streams[0].getTracks()[0].readyState).toBe("ended");
@@ -1097,7 +1079,7 @@ test("all streams are properly closed when requesting new ones and tuning the fe
     await contains(".o-mail-DiscussSidebarCallParticipants-status:contains('LIVE')");
     const screenStream = streams.at(-1);
     expect(screenStream.getTracks()[0].readyState).toBe("live");
-    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
+    await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]);
     await click("[title='Stop Sharing Screen']");
     expect(screenStream.getTracks()[0].readyState).toBe("ended");
 });
@@ -1257,7 +1239,7 @@ test("auto-focus participant video in one-to-one call in chat window", async () 
     await contains(".o-mail-Meeting");
     await mockedRemote.updateUpload("camera", createVideoStream().getVideoTracks()[0]);
     await contains(".o-discuss-CallParticipantCard[title='Batman'] video");
-    await contains(".o-discuss-CallParticipantCard", { count: 2 }); // card does not get focused in meeting view
+    await contains(".o-discuss-CallParticipantCard", { count: 2 });
 });
 
 test("show pulse effect on fullscreen mode only when another participant's camera is on", async () => {

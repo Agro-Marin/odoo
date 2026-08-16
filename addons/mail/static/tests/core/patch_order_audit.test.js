@@ -3,20 +3,6 @@ import { describe, expect, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 
-/**
- * Bundle glob order is an undeclared dependency system: when two modules patch
- * the same method of the same target, which `super` runs first is decided by
- * asset-bundle file order and nothing asserts it. Every live double-patched
- * `(target, method)` pair must therefore be consciously allowlisted here.
- */
-
-// On failure: `getDoublePatchedPairs()` in the console lists the colliding
-// pairs and `patchInfo(target).extensions` names their patchers; make the patch
-// `super`-transparent or explicitly ordered, then allowlist the pair. Labels
-// come from `patchTargetLabel()`, so same-named classes share one
-// ("Thread.prototype" covers both the model and the component). Entries whose
-// second patcher is in a bundle not loaded here are harmless: the assertion is
-// a subset check.
 const KNOWN_DOUBLE_PATCHES = new Set([
     "Activity.prototype :: markAsDone",
     "Activity.prototype :: setup",
@@ -44,12 +30,8 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "DiscussClientAction.prototype :: setup",
     "DiscussSidebarCategory.prototype :: actions",
     "DiscussSidebarChannel.prototype :: attClassContainer",
-    // sms + snailmail each extend mail's Failure model, type-guarded on
-    // notification type with a super fallback -> order-independent.
     "Failure.prototype :: body",
     "Failure.prototype :: iconSrc",
-    // web FormController.setup extended by the chatter (mail) + another module;
-    // super-calling setup patch, order-independent.
     "FormController.prototype :: setup",
     "MailGuest.prototype :: setup",
     "Message.prototype :: canForward",
@@ -68,14 +50,10 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "MessagingMenu.prototype :: getFailureNotificationName",
     "MessagingMenu.prototype :: openFailureView",
     "MessagingMenu.prototype :: setup",
-    // bus test mocks (mock_base_worker + mock_websocket) both extend start().
     "MockServer.prototype :: start",
-    // sms + snailmail each extend mail's Notification model, type-guarded on
-    // notification_type with a super fallback -> order-independent.
     "Notification.prototype :: failureMessage",
     "Notification.prototype :: icon",
     "OutOfFocusService.prototype :: onWindowFocus",
-    // html_editor + mail each extend PropertyValue.setup; super-calling.
     "PropertyValue.prototype :: setup",
     "ResPartner.prototype :: setup",
     "ResPartner.prototype :: voipName",
@@ -137,9 +115,6 @@ const KNOWN_DOUBLE_PATCHES = new Set([
 
 test("every live double-patch is consciously allowlisted", () => {
     const live = new Set(getDoublePatchedPairs());
-    // Exhaustive gate: audit EVERY live pair, not only those on a curated set
-    // of mail-surface targets — bundle order decides the `super` chain of a
-    // double-patched web service or field just the same.
     const unknown = [...live].filter((pair) => !KNOWN_DOUBLE_PATCHES.has(pair));
     expect(unknown).toEqual([], {
         message:
@@ -148,10 +123,6 @@ test("every live double-patch is consciously allowlisted", () => {
             " (patch_order_audit.test.js)",
     });
 
-    // Rot report: surface allowlist entries that are no longer double-patched so
-    // the list can be pruned. Deliberately a warning, not a failure: an entry is
-    // also dormant when its second patcher lives in a bundle this suite does not
-    // load (enterprise whatsapp/voip/knowledge), so the prune/keep call is human.
     const staleCandidates = [...KNOWN_DOUBLE_PATCHES].filter((pair) => !live.has(pair));
     if (staleCandidates.length) {
         console.warn(

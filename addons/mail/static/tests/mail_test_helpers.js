@@ -85,7 +85,7 @@ export const registryNamesToCloneWithCleanup = [];
 registryNamesToCloneWithCleanup.push("mock_server_callbacks", "discuss.model");
 
 mailGlobal.isInTest = true;
-useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked; // so that RPCs after tests do not throw error
+useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
 
 addBusMessageHandler("mail.record/insert", (_env, _id, payload) => {
     const recordsByModelName = Object.entries(payload);
@@ -97,8 +97,6 @@ addBusMessageHandler("mail.record/insert", (_env, _id, payload) => {
 });
 
 export function defineMailModels() {
-    // Bind the mail mock-server routes to the calling test file's suite (see
-    // registerMailMockRoutes).
     registerMailMockRoutes();
     defineParams({ suite: "mail" }, "replace");
     return defineModels(mailModels);
@@ -152,13 +150,8 @@ export const mailModels = {
 };
 
 /**
- * Register a callback to be executed before an RPC request is processed.
- *
  * @param {Function|string} route
- * - If a function is provided, it will be executed for every RPC call.
- * - If a string is provided, the callback will only be executed if the RPC
- *   route matches the provided string.
- * @param {Function} callback - The function to execute before the RPC call.
+ * @param {Function} callback
  */
 export function onRpcBefore(route, callback) {
     if (typeof route === "string") {
@@ -173,11 +166,8 @@ export function onRpcBefore(route, callback) {
 }
 
 /**
- * Register a callback to be executed just before end of an RPC request being processed.
- * Useful to do all server processing but delay the response received by web client.
- *
- * @param {string} route the route to put callback just before returning response.
- * @param {Function} callback - The function to execute just before the end of RPC call.
+ * @param {string} route
+ * @param {Function} callback
  */
 export function onRpcAfter(route, callback) {
     const handler = registry.category("mail.mock_rpc").get(route);
@@ -241,16 +231,6 @@ export async function openView({
     domain,
     ...params
 }) {
-    // `views[0][0]` carries two different things in mail's suites: a real view
-    // id (a number, or `false` for "the default one"), or a key into the `archs`
-    // registry such as "mail.compose.message,false,form". Only the first is a
-    // view id. Keeping them apart is what the two lines below do, and what the
-    // old `viewId: params?.arch || viewId` did not: that spelling -- a
-    // copy-paste of the `arch:` fallback above it, where falling back like that
-    // IS right -- handed `View` the arch *string* as its `viewId` on every
-    // inline-arch call, and the registry-key form did the same. Harmless while
-    // `View` accepted anything; once it declared `viewId: [Number, Boolean]`
-    // (2873e4befdf) it became "Invalid props for component 'View'".
     const [[viewRef, type]] = views;
     const viewId = typeof viewRef === "string" ? false : viewRef;
     const action = {
@@ -276,12 +256,8 @@ export async function openView({
 let tabs = [];
 after(() => (tabs = []));
 /**
- * Add an item to the "Switch Tab" dropdown. If it doesn't exist, create the
- * dropdown and add the item afterwards.
- *
- * @param {HTMLElement} rootTarget Where to mount the dropdown menu.
- * @param {HTMLElement} tabTarget Tab to switch to when clicking on the dropdown
- * item.
+ * @param {HTMLElement} rootTarget
+ * @param {HTMLElement} tabTarget
  */
 async function addSwitchTabDropdownItem(rootTarget, tabTarget) {
     tabs.push(tabTarget);
@@ -328,11 +304,7 @@ async function addSwitchTabDropdownItem(rootTarget, tabTarget) {
 let discussAsTabId = 0;
 
 /**
- * @param {{
- *  asTab?: boolean;
- *  authenticateAs?: any | { login: string; password: string; };
- *  env?: Partial<OdooEnv>;
- * }} [options]
+ * @param {{ asTab?: boolean; authenticateAs?: any | { login: string; password: string; }; env?: Partial<OdooEnv>; }} [options]
  */
 export async function start(options) {
     patchWithCleanup(Rtc.prototype, {
@@ -348,7 +320,6 @@ export async function start(options) {
     const pyEnv = MockServer.env;
     if (options?.authenticateAs !== undefined) {
         if (options.authenticateAs === false) {
-            // no authentication => new guest
             const guestId = pyEnv["mail.guest"].create({});
             authenticateGuest(pyEnv["mail.guest"].read(guestId)[0]);
         } else if (options.authenticateAs._name === "mail.guest") {
@@ -357,9 +328,7 @@ export async function start(options) {
             authenticate(options.authenticateAs.login, options.authenticateAs.password);
         }
     } else if ("res.users" in pyEnv) {
-        if (pyEnv.cookie.get("dgid")) {
-            // already authenticated as guest
-        } else {
+        if (!pyEnv.cookie.get("dgid")) {
             const adminUser = pyEnv["res.users"].search_read([
                 ["id", "=", serverState.userId],
             ])[0];
@@ -408,13 +377,8 @@ export async function startServer() {
 }
 
 /**
- * Return the width corresponding to the given size. If an upper and lower bound
- * are defined, returns the lower bound: this is an arbitrary choice that should
- * not impact anything. A test should pass the `width` parameter instead of `size`
- * if it needs a specific width to be set.
- *
  * @param {number} size
- * @returns {number} The width corresponding to the given size.
+ * @returns {number}
  */
 function getWidthFromSize(size) {
     const { minWidth, maxWidth } = MEDIAS_BREAKPOINTS[size];
@@ -422,10 +386,8 @@ function getWidthFromSize(size) {
 }
 
 /**
- * Return the size corresponding to the given width.
- *
  * @param {number} width
- * @returns {number} The size corresponding to the given width.
+ * @returns {number}
  */
 function getSizeFromWidth(width) {
     return MEDIAS_BREAKPOINTS.findIndex(({ minWidth, maxWidth }) => {
@@ -440,12 +402,7 @@ function getSizeFromWidth(width) {
 }
 
 /**
- * Adjust ui size either from given size (mapped to window breakpoints) or
- * width. This impacts uiService.{isSmall/size}, browser.innerWidth and
- * env.isSmall. When a size is given, the browser width is set according to the
- * breakpoints used by the webClient.
- *
- * @param {Object} params parameters to configure the ui size.
+ * @param {Object} params
  * @param {number|undefined} [params.size]
  * @param {number|undefined} [params.width]
  * @param {number|undefined} [params.height]
@@ -487,13 +444,8 @@ export function createVideoStream() {
     return stream;
 }
 
-/**
- * Mocks the browser's `navigator.mediaDevices.getUserMedia` and `navigator.mediaDevices.getDisplayMedia`
- * Also mocks the permissions API to return "granted" for camera and microphone permissions by default.
- */
 export function mockGetMedia() {
     const streams = [];
-    // Mock permissions API to return "granted" by default.
     patchWithCleanup(browser.navigator.permissions, {
         async query() {
             return {
@@ -526,25 +478,17 @@ export function mockGetMedia() {
 }
 
 /**
- * A MockRemote represents the network API of a remote user, for example calling remote.updateUpload() behaves as if that remote user
- * had called this function on their own rtc_service.network
- *
  * @typedef {Object} MockRemote
  * @property {number} sessionId
- * @property {function(string):Promise} updateConnectionState (emits "update" event)
- * @property {function(import("@mail/discuss/call/common/rtc_service").streamType,MediaStreamTrack):Promise} updateUpload (emits "update" event)
- * @property {function(import("@mail/discuss/call/common/rtc_session_model").SessionInfo):Promise} updateInfo (emits "update" event)
+ * @property {function(string):Promise} updateConnectionState
+ * @property {function(import("@mail/discuss/call/common/rtc_service").streamType,MediaStreamTrack):Promise} updateUpload
+ * @property {function(import("@mail/discuss/call/common/rtc_session_model").SessionInfo):Promise} updateInfo
  */
-
 /**
  * @typedef {Object} MockNetwork
  * @property { function(number): MockRemote } makeMockRemote
  */
-
 /**
- * Mocks {import("@mail/discuss/call/common/rtc_service").Network} and allows testing of features that rely on network behavior, such
- * as other participants changing the state of their microphone, sharing screen,...
- *
  * @param {Object} param0
  * @param {Partial<OdooEnv>} param0.env
  * @param {number} param0.channelId
@@ -562,7 +506,6 @@ export async function makeMockRtcNetwork({ env, channelId }) {
         addEventListener(name, f) {
             if (name === "update") {
                 rtcServiceIsListening.resolve();
-                // disabling the p2p network so that it does not try to send webRTC events like candidates and offers.
                 rtc.network.p2p.disconnect();
             }
             mockNetwork.addEventListener(name, f);
@@ -613,10 +556,6 @@ export async function makeMockRtcNetwork({ env, channelId }) {
 }
 
 /**
- * Patch both the `Notification` and the `Permissions` API which are codependent
- * based on the given value. Note that when `requestPermissionResult` is passed,
- * the `change` event of the `Permissions` API will also be triggered.
- *
  * @param {"default" | "denied" | "granted"} permission
  * @param {"default" | "denied" | "granted"} requestPermissionResult
  */
@@ -687,12 +626,6 @@ export function prepareRegistriesWithCleanup() {
 
 const observeRenderResults = new Map();
 let nextObserveRenderResults = 0;
-/**
- * Patch `Component.setup` with mount/patch/destroy hooks tracking the amount of
- * renders. This only prepares the patching: call @see observeRenders to start
- * counting, so that renders can be attributed to specific actions instead of
- * aggregating setup renders too.
- */
 export function prepareObserveRenders() {
     patchWithCleanup(Component.prototype, {
         setup(...args) {
@@ -708,7 +641,6 @@ export function prepareObserveRenders() {
             onPatched(cb);
             onWillDestroy(() => {
                 for (const result of observeRenderResults.values()) {
-                    // owl could invoke onrendered and cancel immediately to re-render, so should compensate
                     if (result.has(this.constructor) && status(this) === "cancelled") {
                         result.set(this.constructor, result.get(this.constructor) - 1);
                     }
@@ -720,14 +652,7 @@ export function prepareObserveRenders() {
     after(() => observeRenderResults.clear());
 }
 
-/**
- * This function tracks renders of components.
- * Should be prepared before mounting affected components with @see prepareObserveRenders
- * This function returns a function to stop observing, which itself returns
- * a Map of amount of renders per component. Key of map is Component constructor.
- *
- * @returns {() => Map<Component.constructor, number>}
- */
+/** @returns {() => Map<Component.constructor, number>} */
 export function observeRenders() {
     const id = nextObserveRenderResults++;
     observeRenderResults.set(id, new Map());
@@ -739,8 +664,6 @@ export function observeRenders() {
 }
 
 /**
- * Determine if the child element is in the view port of the parent.
- *
  * @param {string} childSelector
  * @param {string} parentSelector
  */
@@ -808,16 +731,10 @@ export function assertChatHub({ opened = [], folded = [] }) {
 export const STORE_FETCH_ROUTES = ["/mail/action", "/mail/data"];
 
 /**
- * Prepares listeners for the various ways a store fetch could be triggered. It is important to call
- * this method before the RPC are done (typically before the start() of the test) to not miss any of
- * them. Each intercepted fetch should have a corresponding waitStoreFetch in the test.
- *
- * @param {string|string[]} [nameOrNames=[]] name or names of the store fetch params to intercept
- * (such as init_messaging or channels_as_member). If empty all params are intercepted.
+ * @param {string|string[]} [nameOrNames=[]]
  * @param {Object} [options={}]
- * @param {function} [options.onRpc] entry point to override the onRpc of the intercepted calls.
- * @param {string[]} [options.logParams=[]] names of the store fetch params for which both the name
- *  and the specific params should be logged in asyncStep. By default only the name is logged.
+ * @param {function} [options.onRpc]
+ * @param {string[]} [options.logParams=[]]
  */
 export function listenStoreFetch(
     nameOrNames = [],
@@ -851,8 +768,6 @@ export function listenStoreFetch(
         }
         return res;
     }
-    // the fetch could go through either route depending on conditions, and most
-    // tests don't care which, so listen to all of STORE_FETCH_ROUTES
     onRpc("/mail/action", async (request) => {
         const { params } = await request.json();
         return registerSteps(request, params.fetch_params);
@@ -864,12 +779,6 @@ export function listenStoreFetch(
 }
 
 /**
- * Waits for the given name or names of store fetch parameters to have been fetched from the server,
- * in the given order. Expected names have to be registered with listenStoreFetch beforehand.
- * If other asyncStep are resolving in the same flow, they must be provided to stepsAfter (if they
- * are resolved after the fetch) or stepsBefore (if they are resolved before the fetch). The order
- * can be ignored with ignoreOrder option.
- *
  * @param {string|string[]} nameOrNames
  * @param {Object} [options={}]
  * @param {boolean} [options.ignoreOrder=false]
@@ -897,8 +806,6 @@ export async function waitStoreFetch(
         ],
         { ignoreOrder },
     );
-    // the asyncStep in onRpc resolves before the business code processes the RPC
-    // result: without this tick, subtle race conditions appear
     await microTick();
 }
 
@@ -915,7 +822,6 @@ export function userContext() {
  * @typedef VoiceMessagePatchResources
  * @property {AudioWorkletNode} audioProcessor
  */
-
 /** @returns {VoiceMessagePatchResources} */
 export function patchVoiceMessageAudio() {
     const res = { audioProcessor: undefined };
@@ -1031,11 +937,6 @@ export function mockPermissionsPrompt() {
 }
 
 /**
- * Assert IM status on chat bubble and chat window of given `conversationName`
- * with `count`. The conversation should be present as a bubble initially, and is
- * opened then folded again by this call. Shared by positive and negative
- * assertions so both use the same selectors and awaits.
- *
  * @param {string} conversationName
  * @param {number} count
  */

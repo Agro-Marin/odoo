@@ -10,7 +10,6 @@ import {
 import { Domain } from "@web/core/domain";
 
 /** @typedef {import("@web/core/domain").DomainListRepr} DomainListRepr */
-
 export class MailMessage extends models.ServerModel {
     _name = "mail.message";
 
@@ -34,9 +33,7 @@ export class MailMessage extends models.ServerModel {
         ];
         if (domain) {
             const messages = this._filter(domain);
-            const ids = messages.map((messages) => messages.id);
-            this.set_message_done(ids);
-            return ids;
+            return this.set_message_done(messages.map((message) => message.id));
         }
         const notifications = MailNotification._filter(notifDomain);
         MailNotification.write(
@@ -50,7 +47,6 @@ export class MailMessage extends models.ServerModel {
             }
         }
         const messages = this.browse(messageIds);
-        // simulate compute that should be done based on notifications
         for (const message of messages) {
             this.write([message.id], {
                 needaction: false,
@@ -139,8 +135,6 @@ export class MailMessage extends models.ServerModel {
                 );
             }
             const data = {
-                // ?? false: python always emits the key (False fallback);
-                // an undefined here would be dropped at serialization
                 default_subject:
                     (message.model &&
                         message.res_id &&
@@ -211,8 +205,6 @@ export class MailMessage extends models.ServerModel {
             "message_type",
             "model",
             "message_link_preview_ids",
-            // python appends notification_ids only for internal targets
-            // (mail_message.py _to_store_defaults)
             ...(this._store_target_is_internal() ? ["notification_ids"] : []),
             mailDataHelpers.Store.one("parent_id", makeKwArgs({ format_reply: false })),
             mailDataHelpers.Store.many("partner_ids", makeKwArgs({ fields: ["name"] })),
@@ -235,11 +227,6 @@ export class MailMessage extends models.ServerModel {
         ];
     }
 
-    /**
-     * Mirror of python's `target.is_internal(self.env)` for the default store
-     * target: an authenticated non-share user (guests authenticate through the
-     * public user).
-     */
     _store_target_is_internal() {
         const user = this.env.user;
         return Boolean(
@@ -262,8 +249,6 @@ export class MailMessage extends models.ServerModel {
                 author_guest_id: false,
             };
             if (isInternal || (!message.author_id && !message.author_guest_id)) {
-                // python: Store.Attr("email_from", predicate=envelope_visible),
-                // i.e. internal target or authorless message
                 data.email_from = message.email_from;
             }
             if (message.author_guest_id) {
@@ -283,13 +268,7 @@ export class MailMessage extends models.ServerModel {
         }
     }
 
-    /**
-     * Simulates `set_message_done` on `mail.message`: turn the given needaction
-     * messages to non-needaction (read from the Inbox mailbox) and notify it on
-     * the bus so the UI updates.
-     *
-     * @param {number[]} ids
-     */
+    /** @param {number[]} ids */
     set_message_done(ids) {
         /** @type {import("mock_models").BusBus} */
         const BusBus = this.env["bus.bus"];
@@ -299,7 +278,7 @@ export class MailMessage extends models.ServerModel {
         const ResPartner = this.env["res.partner"];
 
         if (!this.env.user) {
-            return;
+            return [];
         }
         const messages = this.browse(ids);
         const notifications = MailNotification._filter([
@@ -308,13 +287,12 @@ export class MailMessage extends models.ServerModel {
             ["mail_message_id", "in", messages.map((messages) => messages.id)],
         ]);
         if (notifications.length === 0) {
-            return;
+            return [];
         }
         MailNotification.write(
             notifications.map((notification) => notification.id),
             { is_read: true },
         );
-        // simulate compute that should be done based on notifications
         for (const message of messages) {
             this.write([message.id], {
                 needaction: false,
@@ -327,6 +305,7 @@ export class MailMessage extends models.ServerModel {
                 ),
             });
         }
+        return notifications.map((notification) => notification.mail_message_id);
     }
 
     unlink() {
@@ -493,11 +472,7 @@ export class MailMessage extends models.ServerModel {
             makeKwArgs({ mode: "ADD" }),
         );
         if (reactions.length === 0) {
-            reaction_group = [
-                // plain id, matching the real server payload
-                // (mail_message.py: {"message": self.id, "content": content})
-                ["DELETE", { message: id, content: content }],
-            ];
+            reaction_group = [["DELETE", { message: id, content: content }]];
         }
         store.add(this.browse(id), { reactions: reaction_group });
     }
@@ -560,7 +535,6 @@ export class MailMessage extends models.ServerModel {
         }
         if (search_term) {
             domain = new Domain(domain || []);
-            // like the Python server: every space becomes a wildcard
             search_term = search_term.replaceAll(" ", "%");
             const subtypeIds = MailMessageSubtype.search([
                 ["description", "ilike", search_term],
@@ -598,14 +572,16 @@ export class MailMessage extends models.ServerModel {
             res.count = this.search_count(domain);
         }
         if (around !== undefined) {
+            const afterLimit = Math.floor(limit / 2);
+            const beforeLimit = limit - afterLimit;
             const messagesBefore = this._filter(
                 domain.concat([["id", "<=", around]]),
             ).sort((m1, m2) => m2.id - m1.id);
-            messagesBefore.length = Math.min(messagesBefore.length, limit / 2);
+            messagesBefore.length = Math.min(messagesBefore.length, beforeLimit);
             const messagesAfter = this._filter(
                 domain.concat([["id", ">", around]]),
             ).sort((m1, m2) => m1.id - m2.id);
-            messagesAfter.length = Math.min(messagesAfter.length, limit / 2);
+            messagesAfter.length = Math.min(messagesAfter.length, afterLimit);
             const messages = messagesAfter
                 .concat(messagesBefore.reverse())
                 .sort((m1, m2) => m2.id - m1.id);
@@ -618,7 +594,6 @@ export class MailMessage extends models.ServerModel {
             domain.push(["id", ">", after]);
         }
         const messages = this._filter(domain).sort((m1, m2) => m2.id - m1.id);
-        // pick at most 'limit' messages
         messages.length = Math.min(messages.length, limit);
         res.messages = messages;
         return res;

@@ -39,7 +39,7 @@ test("should display the channel invitation form after clicking on the invite bu
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Invite People']");
     await contains(".o-discuss-ChannelInvitation");
 });
@@ -58,7 +58,6 @@ test("can invite users in channel from chat window", async () => {
     });
     setupChatHub({ opened: [channelId] });
     await start();
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Invite People" });
@@ -93,7 +92,7 @@ test("should be able to search for a new user to invite from an existing chat", 
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Invite People']");
     await insertText(".o-discuss-ChannelInvitation-search", "TestPartner2");
     await contains(".o-discuss-ChannelInvitation-selectable", { text: "TestPartner2" });
@@ -116,7 +115,7 @@ test("Invitation form should display channel group restriction", async () => {
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click(".o-mail-DiscussContent-header button[title='Invite People']");
     await contains(".o-discuss-ChannelInvitation div", {
         text: 'Access restricted to group "testGroup"',
@@ -213,7 +212,6 @@ test("invite user to self chat opens DM chat with user", async () => {
             channel_type: "group",
         },
         {
-            // group chat with guest as correspondent for coverage of no crash
             channel_member_ids: [
                 Command.create({ guest_id: guestId }),
                 Command.create({ partner_id: serverState.partnerId }),
@@ -230,7 +228,7 @@ test("invite user to self chat opens DM chat with user", async () => {
     ]);
     await start();
     await openDiscuss(selfChatId);
-    await contains(".o-mail-DiscussSidebarChannel", { text: "Mitchell Admin" }); // self-chat
+    await contains(".o-mail-DiscussSidebarChannel", { text: "Mitchell Admin" });
     await contains(".o-mail-DiscussSidebarChannel", {
         text: "TestPartner and Mitchell Admin",
     });

@@ -4,11 +4,6 @@ import { describe, expect, getFixture, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 
-/**
- * The composer's send button renders `fa-regular fa-paper-plane` since the Font
- * Awesome 7 upgrade, so styling keyed on the old `fa-paper-plane-o` name no
- * longer matches and the icon loses its nudge and scale.
- */
 function mountSendButton(extraButtonClass = "") {
     const fixture = getFixture();
     fixture.innerHTML = `<div class="o-mail-Composer-actions">

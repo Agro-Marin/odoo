@@ -56,7 +56,6 @@ test("store.insert deletes record after relation created it", async () => {
     const store = getService("mail.store");
     store.insert({
         "mail.message": [{ id: 1, _DELETE: true }],
-        // the key coverage is having the relation listed after the delete
         "mail.link.preview": [{ id: 1 }],
         "mail.message.link.preview": [{ id: 1, link_preview_id: 1, message_id: 1 }],
     });
@@ -80,8 +79,6 @@ test("malformed fetched data does not block later fetches", async () => {
                 param[1]?.thread_id === partnerId,
         );
         if (isMalformedTarget) {
-            // single-id data on a compound-id model ("mail.thread" resolves to
-            // Thread, whose id is AND(model, id)): Store.insert() throws on it
             return { "mail.thread": [1] };
         }
     });
@@ -98,13 +95,11 @@ test("malformed fetched data does not block later fetches", async () => {
     }
     expect(Boolean(error)).toBe(true);
     await waitForSteps(["console.error"]);
-    // the failed batch must not leak its data requests
     expect(
         Object.values(store.DataResponse.records).filter(
             (dataRequest) => dataRequest.id > lastDataRequestId,
         ),
     ).toHaveLength(0);
-    // and the fetch machinery must remain usable for later requests
     await store.fetchStoreData("mail.thread", {
         thread_model: "res.partner",
         thread_id: serverState.partnerId,
@@ -144,8 +139,6 @@ test("posting on one thread does not block posting on other threads", async () =
         id: channelId2,
     });
     const post1 = thread1.post("blocked post");
-    // with a single global mutex this await would never resolve as long as the
-    // first post is pending
     const message2 = await thread2.post("fast post");
     expect(String(message2.body)).toInclude("fast post");
     expect(thread1.messages.some((message) => message.isPending)).toBe(true);
@@ -169,7 +162,7 @@ test("store.insert different PY model having same JS model", async () => {
     };
 
     store.insert(data);
-    expect(store.Thread.records).toHaveLength(6); // 3 mailboxes + 3 channels
+    expect(store.Thread.records).toHaveLength(6);
     expect(Boolean(store.Thread.get({ id: 1, model: "discuss.channel" }))).toBe(true);
     expect(Boolean(store.Thread.get({ id: 2, model: "discuss.channel" }))).toBe(true);
     expect(Boolean(store.Thread.get({ id: 3, model: "discuss.channel" }))).toBe(true);

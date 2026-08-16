@@ -35,7 +35,7 @@ test("Should open the search panel when search button is clicked", async () => {
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click("[title='Search Messages']");
     await contains(".o-mail-SearchMessagesPanel");
     await contains(".o-mail-ActionPanel-header .o_searchview");
@@ -220,7 +220,7 @@ test("Should close the search panel when search button is clicked again", async 
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click("[title='Search Messages']");
     await click("[title='Close Search']");
     await contains(".o-mail-SearchMessagesPanel");
@@ -247,7 +247,6 @@ test("Search a message in 60 messages should return 30 message first", async () 
     await insertText(".o_searchview_input", "message");
     triggerHotkey("Enter");
     await contains(".o-mail-SearchMessagesPanel .o-mail-Message", { count: 30 });
-    // give enough time to useVisible to potentially load more (unexpected) messages
     await tick();
     await contains(".o-mail-SearchMessagesPanel .o-mail-Message", { count: 30 });
 });
@@ -275,7 +274,6 @@ test("Scrolling to the bottom should load more searched message", async () => {
     await contains(".o-mail-SearchMessagesPanel .o-mail-Message", { count: 30 });
     await scroll(".o-mail-SearchMessagesPanel .o-mail-ActionPanel", "bottom");
     await contains(".o-mail-SearchMessagesPanel .o-mail-Message", { count: 60 });
-    // give enough time to useVisible to potentially load more (unexpected) messages
     await tick();
     await contains(".o-mail-SearchMessagesPanel .o-mail-Message", { count: 60 });
 });
@@ -302,7 +300,7 @@ test("Editing the searched term should not edit the current searched term", asyn
     });
     await start();
     await openDiscuss(channelId);
-    await contains(".o-discuss-ChannelMemberList"); // wait for auto-open of this panel
+    await contains(".o-discuss-ChannelMemberList");
     await click("[title='Search Messages']");
     await insertText(".o_searchview_input", "message");
     triggerHotkey("Enter");

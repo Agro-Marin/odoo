@@ -6,11 +6,6 @@ import { rpc } from "@web/core/network";
 describe.current.tags("desktop");
 defineMailModels();
 
-/**
- * The mock's /discuss/channel/messages must mirror the controller: mark
- * needaction messages done for a non-public user *unconditionally*, `around`
- * fetches included.
- */
 async function seedNeedaction() {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({

@@ -1,17 +1,3 @@
-/**
- * JS half of the Store serialization drift gate.
- *
- * The python half (mail/tests/test_mock_server_contract.py) seeds the same
- * scenario, calls the REAL controllers and asserts the same committed
- * field-name sets from the same file (contract/store_shapes.js). If either
- * implementation drifts — a server-side Store change the mock does not mirror,
- * or a mock change the server does not have — one of the two suites fails and
- * the diff names the scenario, model and fields.
- *
- * Only field-name sets are pinned (values are unstable: ids, datetimes,
- * access tokens); a few stable values are asserted inline to pin the scenario
- * itself. See the python module docstring for the regeneration workflow.
- */
 import { defineMailModels, start, startServer } from "@mail/../tests/mail_test_helpers";
 import storeContract from "@mail/../tests/mock_server/contract/store_shapes";
 import { describe, expect, test } from "@odoo/hoot";
@@ -23,7 +9,6 @@ defineMailModels();
 
 const { gated_models: GATED_MODELS, scenarios: EXPECTED } = storeContract;
 
-/** Reduce a Store payload to { model: sorted union of field names } for gated models. */
 function payloadShape(payload) {
     const shape = {};
     for (const [modelName, records] of Object.entries(payload)) {
@@ -41,11 +26,6 @@ function payloadShape(payload) {
     return shape;
 }
 
-/**
- * Assert one scenario's payload against the committed shapes, model by model
- * (small, complete diffs naming the drifted model instead of one giant
- * object diff).
- */
 function expectShape(payload, expectedShape) {
     const shape = payloadShape(payload);
     const models = [
@@ -56,9 +36,6 @@ function expectShape(payload, expectedShape) {
         const expected = expectedShape[model] ?? [];
         const missing = expected.filter((field) => !actual.includes(field));
         const extra = actual.filter((field) => !expected.includes(field));
-        // flattened to one short string per model so a failure prints the
-        // exact drift on a single Expected/Received line pair — readable in
-        // any log excerpt, unlike a multi-page array diff
         expect(
             `${model} missing=[${missing.join(",")}] extra=[${extra.join(",")}]`,
         ).toBe(`${model} missing=[] extra=[]`, {
@@ -67,11 +44,6 @@ function expectShape(payload, expectedShape) {
     }
 }
 
-/**
- * Seed the exact scenario of the python test: a second user, a channel with
- * both members, a plain message, a message with an attachment, a reply, some
- * reactions, and a chatter record with a follower and an attachment.
- */
 async function seedContractScenario() {
     const pyEnv = await startServer();
     const bobPartnerId = pyEnv["res.partner"].create({ name: "Bob Contract" });
@@ -128,7 +100,6 @@ async function seedContractScenario() {
         { content: "👍", message_id: messageId, partner_id: bobPartnerId },
         { content: "😂", message_id: messageId, partner_id: bobPartnerId },
     ]);
-    // chatter thread: a record with a follower and an attachment
     const recordId = pyEnv["res.partner"].create({ name: "Contract Customer" });
     pyEnv["mail.followers"].create({
         display_name: "Bob Contract",
@@ -167,7 +138,6 @@ test("mock /mail/data init_messaging matches the committed store contract", asyn
 test("mock /mail/data channels_as_member matches the committed store contract", async () => {
     await seedContractScenario();
     const payload = await rpc("/mail/data", { fetch_params: ["channels_as_member"] });
-    // stable values pinning the scenario itself
     const channel = payload["discuss.channel"].find(
         (c) => c.name === "Contract Channel",
     );

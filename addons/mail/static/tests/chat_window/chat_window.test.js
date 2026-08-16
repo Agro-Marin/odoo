@@ -23,17 +23,15 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
-import { EventBus } from "@odoo/owl";
 import {
     Command,
     contains as webContains,
     getService,
-    patchWithCleanup,
+    mockServiceWorkerContainer,
     preloadBundle,
     serverState,
     withUser,
 } from "@web/../tests/web_test_helpers";
-import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network";
 
 describe.current.tags("desktop");
@@ -55,7 +53,6 @@ test("Mobile: chat window shouldn't open automatically after receiving a new mes
     await start();
     await contains(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
-    // simulate receiving a message
     withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: { body: "hu", message_type: "comment" },
@@ -116,7 +113,6 @@ test("chat window: basic rendering", async () => {
     await contains(".o-mail-ChatWindow .o-mail-Thread", {
         text: "Welcome to #General!",
     });
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await contains(".o-dropdown-item", { count: 11 });
@@ -134,7 +130,6 @@ test("chat window: basic rendering", async () => {
 });
 
 test.skip("Fold state of chat window is sync among browser tabs", async () => {
-    // TODO: fix crosstab
     const pyEnv = await startServer();
     pyEnv["discuss.channel"].create({ name: "General" });
     const env1 = await start({ asTab: true });
@@ -219,7 +214,7 @@ test("open chat on very narrow device should work", async () => {
     const store = getService("mail.store");
     expect(store.chatHub.WINDOW).toBeGreaterThan(200, {
         message: "Device is narrower than usual chat window width",
-    }); // scenario where this might fail
+    });
     await click("button i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-ChatWindow");
@@ -247,7 +242,7 @@ test("chat window: close on ESCAPE (multi)", async () => {
     patchUiSize({ width: 1920 });
     setupChatHub({ opened: channelIds.reverse() });
     await start();
-    await contains(".o-mail-ChatWindow", { count: 4 }); // expected order: 3, 2, 1, 0
+    await contains(".o-mail-ChatWindow", { count: 4 });
     await contains(".o-mail-ChatWindow:eq(0)", { text: "channel_3" });
     await contains(".o-mail-ChatWindow:eq(1)", { text: "channel_2" });
     await contains(".o-mail-ChatWindow:eq(2)", { text: "channel_1" });
@@ -311,7 +306,6 @@ test("Close active thread action in chatwindow on ESCAPE", async () => {
     setupChatHub({ opened: [channelId] });
     await start();
     await contains(".o-mail-ChatWindow");
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains(".o-mail-ChatWindow-moreActions", { text: "General" });
     await click(".o-mail-ChatWindow-moreActions", { text: "General" });
     await click(".o-dropdown-item", { text: "Invite People" });
@@ -326,7 +320,6 @@ test("ESC cancels thread rename", async () => {
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     setupChatHub({ opened: [channelId] });
     await start();
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains(".o-mail-ChatWindow-moreActions", { text: "General" });
     await click(".o-mail-ChatWindow-moreActions", { text: "General" });
     await click(".o-dropdown-item", { text: "Rename Thread" });
@@ -456,7 +449,6 @@ test("chat window: TAB cycle with 3 open chat windows", async () => {
     ).toBeLessThan(1920, {
         message: "should have enough space to open 3 chat windows simultaneously",
     });
-    // FIXME: assumes ordering: MyProject, MyTeam, General
     await contains(".o-mail-ChatWindow .o-mail-Composer-input", { count: 3 });
     await focus(".o-mail-Composer-input", {
         parent: [".o-mail-ChatWindow", { text: "MyProject" }],
@@ -479,7 +471,7 @@ test("chat window: TAB cycle with 3 open chat windows", async () => {
 });
 
 test("chat window should open when receiving a new DM", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({
         im_status: "online",
@@ -519,7 +511,7 @@ test("chat window should open when receiving a new DM", async () => {
 });
 
 test("chat window should not open when receiving a new DM from odoobot", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     const userId = pyEnv["res.users"].create({ partner_id: serverState.odoobotId });
     const channelId = pyEnv["discuss.channel"].create({
@@ -656,9 +648,6 @@ test("chat window: scroll conservation on toggle discuss", async () => {
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 0 });
-    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
-    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
-    // so `tick()` returned before the scroll had happened
     await animationFrame();
     await scroll(".o-mail-ChatWindow .o-mail-Thread", 142);
     await openDiscuss();
@@ -683,9 +672,6 @@ test("chat window with a thread: keep scroll position in message list on folded"
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 0 });
-    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
-    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
-    // so `tick()` returned before the scroll had happened
     await animationFrame();
     await scroll(".o-mail-ChatWindow .o-mail-Thread", 142);
     await click(".o-mail-ChatWindow-header [title='Fold']");
@@ -711,9 +697,6 @@ test("chat window with a thread: keep scroll position in message list on toggle 
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 0 });
-    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
-    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
-    // so `tick()` returned before the scroll had happened
     await animationFrame();
     await scroll(".o-mail-ChatWindow .o-mail-Thread", 142);
     await click(".o-mail-ChatWindow-header [title='Fold']");
@@ -731,19 +714,17 @@ test("folded chat window should hide member-list and settings buttons", async ()
     await start();
     await click("button i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await contains(".o-dropdown-item", { text: "Members" });
     await contains(".o-dropdown-item", { text: "Call Settings" });
-    await click(".o-mail-ChatWindow-header"); // click away to close the more menu
+    await click(".o-mail-ChatWindow-header");
     await contains(".o-dropdown-item", { text: "Members", count: 0 });
     await click(".o-mail-ChatWindow-header [title='Fold']");
     await contains("[title='Open Actions Menu']", { count: 0 });
     await contains(".o-dropdown-item", { text: "Members", count: 0 });
     await contains(".o-dropdown-item", { text: "Call Settings", count: 0 });
     await click(".o-mail-ChatBubble");
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await contains(".o-dropdown-item", { text: "Members" });
@@ -781,7 +762,6 @@ test("chat window of channels should not have 'Open in Discuss' (mobile)", async
     patchUiSize({ size: SIZES.SM });
     await start();
     await openDiscuss(channelId);
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await contains(".o-dropdown-item", { text: "Open in Discuss", count: 0 });
@@ -792,7 +772,6 @@ test("Open chat window of new inviter", async () => {
     await start();
     const partnerId = pyEnv["res.partner"].create({ name: "Newbie" });
     pyEnv["res.users"].create({ partner_id: partnerId });
-    // simulate receiving notification of new connection of inviting user
     const [partner] = pyEnv["res.partner"].read(serverState.partnerId);
     pyEnv["bus.bus"]._sendone(partner, "res.users/connection", {
         username: "Newbie",
@@ -865,7 +844,6 @@ test("mark as read when opening chat window", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await click(".o-mail-NotificationItem", { text: "bob" });
     await contains(".o-mail-ChatWindow .o-mail-ChatWindow-header", { text: "bob" });
-    // composer is focused by default, we remove that focus
     await contains(".o-mail-Composer-input:focus");
     document.querySelector(".o-mail-Composer-input").blur();
     await contains(".o-mail-Composer-input:not(:focus");
@@ -896,14 +874,12 @@ test("Notification settings rendering in chatwindow", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await click(".o-mail-NotificationItem", { text: "general" });
     await contains(".o-mail-ChatWindow", { count: 1 });
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");
     await click("[title='Open Actions Menu']");
     await click(".o-dropdown-item", { text: "Notification Settings" });
     await contains("button", { text: "All Messages" });
-    await contains("button", { text: "Mentions Only", count: 2 }); // the extra is in the Use Default as subtitle
+    await contains("button", { text: "Mentions Only", count: 2 });
     await contains("button", { text: "Nothing" });
-    // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("button", { text: "Mute Conversation" });
     await click("button", { text: "Mute Conversation" });
     await contains("button", { text: "For 15 minutes" });
@@ -915,12 +891,7 @@ test("Notification settings rendering in chatwindow", async () => {
 });
 
 test("open channel in chat window from push notification", async () => {
-    patchWithCleanup(window.navigator, {
-        serviceWorker: Object.assign(new EventBus(), {
-            register: () => Promise.resolve(),
-            ready: Promise.resolve(),
-        }),
-    });
+    const serviceWorker = mockServiceWorkerContainer();
     const pyEnv = await startServer();
     const [channelId, salesId] = pyEnv["discuss.channel"].create([
         { name: "General" },
@@ -930,7 +901,7 @@ test("open channel in chat window from push notification", async () => {
     await start();
     await contains(".o-mail-ChatWindow", { text: "Sales" });
     await contains(".o-mail-ChatWindow", { text: "General", count: 0 });
-    browser.navigator.serviceWorker.dispatchEvent(
+    serviceWorker.dispatchEvent(
         new MessageEvent("message", {
             data: { action: "OPEN_CHANNEL", data: { id: channelId } },
         }),
@@ -1019,9 +990,6 @@ test("getting focus of chat window through tab key should jump to new message se
 
 test.tags("focus required");
 test("jump to new message separator works with non-consecutive message ids", async () => {
-    // Message ids form a global sequence: interleave messages of another
-    // channel so that no message of "important channel" has the id right
-    // before the separator.
     const pyEnv = await startServer();
     const channel_ids = pyEnv["discuss.channel"].create([
         {
@@ -1043,7 +1011,7 @@ test("jump to new message separator works with non-consecutive message ids", asy
             res_id: channel_ids[1],
         });
         if (i === 20) {
-            separatorMessageId = messageId; // first unread: message_20
+            separatorMessageId = messageId;
         }
     }
     const [selfMember] = pyEnv["discuss.channel.member"].search_read([
@@ -1066,7 +1034,6 @@ test("jump to new message separator works with non-consecutive message ids", asy
     await contains(".o-mail-ChatWindow:eq(1) .o-mail-Composer.o-focused");
     triggerHotkey("Tab");
     await contains(".o-mail-ChatWindow:eq(0) .o-mail-Composer.o-focused");
-    // jump target: last message before the separator (message_19)
     await isInViewportOf(
         ".o-mail-Message:contains(message_19)",
         ".o-mail-ChatWindow:eq(0) .o-mail-Thread",

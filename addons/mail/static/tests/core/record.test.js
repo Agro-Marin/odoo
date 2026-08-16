@@ -218,7 +218,6 @@ test("Assign & Delete on fields with inverses", async () => {
     const thread = store.Thread.insert("General");
     const [john, marc] = store.Member.insert(["John", "Marc"]);
     const [hello, world] = store.Message.insert(["hello", "world"]);
-    // Assign on fields should adapt inverses
     Object.assign(thread, {
         composer: {},
         members: [["ADD", john]],
@@ -231,22 +230,18 @@ test("Assign & Delete on fields with inverses", async () => {
     expectRecord(world).toBeIn(thread.messages);
     expectRecord(thread).toBeIn(hello.threads);
     expectRecord(thread).toBeIn(world.threads);
-    // add() should adapt inverses
     thread.members.add(marc);
     expectRecord(marc).toBeIn(thread.members);
     expectRecord(marc.thread).toEqual(thread);
-    // delete should adapt inverses
     thread.members.delete(john);
     expectRecord(john).not.toBeIn(thread.members);
     expect(Boolean(john.thread)).toBe(false);
-    // can delete with command
     thread.messages = [["DELETE", world]];
     expectRecord(world).not.toBeIn(thread.messages);
     expectRecord(thread).not.toBeIn(world.threads);
     expect(thread.messages).toHaveLength(1);
     expectRecord(hello).toBeIn(thread.messages);
     expectRecord(thread).toBeIn(hello.threads);
-    // Deletion removes all relations
     const composer = thread.composer;
     thread.delete();
     expect(Boolean(thread.composer)).toBe(false);
@@ -361,14 +356,11 @@ test("Computed fields are always eager: compute on insert and on dependency chan
         name;
     }).register(localRegistry);
     const store = await start();
-    // compute runs on insert, before any read of the field
     const thread = store.Thread.insert("General");
     expect.verifySteps(["COMPUTE"]);
-    // reading does not schedule anything: the value is already there
     expect(thread.type).toBe("empty chat");
     expect(thread.type).toBe("empty chat");
     expect.verifySteps([]);
-    // dependency change recomputes even though nothing observes the field
     thread.members.add("John");
     expect.verifySteps(["COMPUTE"]);
     expect(toRaw(thread)._raw.type).toBe("self-chat");
@@ -381,8 +373,6 @@ test("Computed fields are always eager: compute on insert and on dependency chan
 });
 
 test("insert on html field", async () => {
-    // id is a separate field: body mutations below would otherwise rewrite
-    // the record's identity, which id-field immutability forbids
     (class Message extends Record {
         static id = "id";
         id;
@@ -517,7 +507,6 @@ test("record list sort should be manually observable", async () => {
         { id: 2, body: "b", thread },
     ]);
     function sortMessages() {
-        // minimal access through observed variables to reduce unexpected observing
         observedMessages.sort((m1, m2) => (m1.body < m2.body ? -1 : 1));
         expect.step(`sortMessages`);
     }
@@ -603,7 +592,6 @@ test("compute relation field stays up to date without being read", async () => {
         { id: 1, thread },
         { id: 2, thread },
     ]);
-    // eager semantics: the computed relation is materialized before any read
     expect(toRaw(thread)._raw.messages2.data).toEqual(["Message,1", "Message,2"]);
     store.Message.insert([{ id: 3, thread }]);
     expect(toRaw(thread)._raw.messages2.data).toEqual([
@@ -634,18 +622,14 @@ test("compute runs on dependency change whether or not the field is observed", a
     }).register(localRegistry);
     const store = await start();
     const channel = store.Channel.insert(1);
-    // computed on insert
     expect.verifySteps(["computing"]);
-    // unobserved: every dependency change still recomputes
     channel.count = 2;
     expect.verifySteps(["computing"]);
     channel.count = 5;
     expect.verifySteps(["computing"]);
     expect(toRaw(channel)._raw.multiplicity).toBe("many");
-    // reading does not trigger extra computes
     expect(channel.multiplicity).toBe("many");
     expect.verifySteps([]);
-    // observed: scheduling is identical, observers just get notified on change
     let observe = true;
     function render() {
         if (observe) {
@@ -680,12 +664,10 @@ test("sorted field re-sorts on dependency change even when unobserved", async ()
     thread.messages.push({ id: 1, sequence: 1 }, { id: 2, sequence: 2 });
     expect(`${thread.messages.map((m) => m.id)}`).toBe("1,2");
     const message = thread.messages[0];
-    // unobserved: the raw list is re-sorted as soon as the dependency changes
     message.sequence = 3;
     expect(toRaw(thread)._raw.messages.data).toEqual(["Message,2", "Message,1"]);
     message.sequence = 1;
     expect(toRaw(thread)._raw.messages.data).toEqual(["Message,1", "Message,2"]);
-    // observation does not change scheduling; observers are notified on re-sort
     function render() {
         expect.step(`render ${reactiveThread.messages.map((m) => m.id)}`);
     }
@@ -710,12 +692,10 @@ test("sort works on fields.Attr()", async () => {
     thread.messages.push({ id: 1, sequence: 1 }, { id: 2, sequence: 2 });
     expect(`${thread.messages.map((m) => m.id)}`).toBe("1,2");
     const message = thread.messages[0];
-    // re-sorts eagerly on dependency change, no observer or read needed
     message.sequence = 3;
     expect(`${toRaw(thread)._raw.messages.map((msg) => toRaw(msg).id)}`).toBe("2,1");
     message.sequence = 1;
     expect(`${toRaw(thread)._raw.messages.map((msg) => toRaw(msg).id)}`).toBe("1,2");
-    // observers are notified of re-sorts
     function render() {
         expect.step(`render ${reactiveChannel.messages.map((m) => m.id)}`);
     }
@@ -753,9 +733,9 @@ test("store updates can be observed", async () => {
     onUpdate();
     expect.verifySteps(["abc:undefined"]);
     store.abc = 1;
-    expect.verifySteps(["abc:1"]); // observable from makeStore"
+    expect.verifySteps(["abc:1"]);
     rawStore.store.abc = 2;
-    expect.verifySteps(["abc:2"]); // observable from record.store
+    expect.verifySteps(["abc:2"]);
     rawStore.Model.store.abc = 3;
     expect.verifySteps(["abc:3"]);
 });
@@ -824,9 +804,9 @@ test("record list assign should update inverse fields", async () => {
     const store = await start();
     const general = store.Thread.insert("General");
     const jane = store.Member.insert("Jane");
-    general.members = jane; // direct assignation of value goes through assign()
+    general.members = jane;
     expectRecord(jane.thread).toEqual(general);
-    general.members = []; // writing empty array specifically goes through assign()
+    general.members = [];
     expect(Boolean(jane.thread)).toBe(false);
     jane.thread = general;
     expectRecord(jane).toBeIn(general.members);
@@ -874,8 +854,6 @@ test("datetime type record", async () => {
 });
 
 test("attr that are default [] should be isolated per record", async () => {
-    // If the default value is stored and reused for all records,
-    // this could lead to mistakenly sharing the default value among records
     (class Person extends Record {
         static id = "id";
         id;
@@ -925,7 +903,6 @@ test("record.toData() is JSON stringified and can be reinserted as record", asyn
     expect(p.signature).toBeInstanceOf(Markup);
     expect(toRaw(store.Person.records[p.localId])).toBe(toRaw(p));
     expect(serializeDateTime(p.due_datetime)).toBe("2024-08-28 10:19:44");
-    // export data, delete, then insert back
     const data = JSON.parse(JSON.stringify(p.toData()));
     p.delete();
     store.Message.get("1").delete();
@@ -934,7 +911,6 @@ test("record.toData() is JSON stringified and can be reinserted as record", asyn
     expect(toRaw(store.Person.records[p.localId])).toBe(undefined);
     store.insert(data);
     const p2 = store.Person.get(1);
-    // Same assertions as before
     expect(p2.names).toEqual(["John", "Marc"]);
     expect(p2.messages.map((msg) => msg.body)).toEqual(["1", "2"]);
     expect(p2.team.name).toBe("Discuss");
@@ -1068,7 +1044,6 @@ test("record.toData() field filter respects field-name boundaries", async () => 
         static id = "id";
         id;
         team = fields.One("Team");
-        // sibling relation whose name has "team" as a plain string prefix
         team_lead = fields.One("Person");
     }).register(localRegistry);
     (class Team extends Record {
@@ -1083,9 +1058,6 @@ test("record.toData() field filter respects field-name boundaries", async () => 
         team_lead: { id: 2 },
     });
     const p = store.Person.get(1);
-    // Only "team_lead" is requested: the sibling "team" relation must NOT be
-    // expanded merely because "team_lead".startsWith("team") — that would leak
-    // the Team record into the payload.
     const data = p.toData(["team_lead"]);
     expect(data.Team).toBe(undefined, {
         message: "sibling relation `team` must not be expanded for `team_lead`",
@@ -1096,7 +1068,6 @@ test("record.toData() field filter respects field-name boundaries", async () => 
 });
 
 test("Methods are bound to records", async () => {
-    // Allows to simply `t-on-click="record.method"`
     (class Persona extends Record {
         static id = "name";
         name;
@@ -1112,7 +1083,6 @@ test("Methods are bound to records", async () => {
 });
 
 test("Record lists methods are bound to the record list", async () => {
-    // Allows to simply `onSelected="recordList.add"`
     (class Message extends Record {
         static id = "content";
         content;
@@ -1242,12 +1212,6 @@ test("Can assign new record on Many field with One inverse", async () => {
 });
 
 test("Deleted records are not returned by 'Model.records' nor 'Model.get()'", async () => {
-    /**
-     * Deletion is 2-step: "soft" flags the record while keeping the object in
-     * the store (so onDelete() hooks still get the reference), "hard" removes
-     * it structurally. `Model.records` and `Model.get()` are for business code
-     * and must never hand out a soft-deleted record.
-     */
     function assertExists(store) {
         const msg = store.Message.get("msg-1");
         if (msg) {
@@ -1310,8 +1274,6 @@ test("Deleted records are not returned by 'Model.records' nor 'Model.get()'", as
 });
 
 test("Delete record with side-effect compute to insert it should have resulting record with only insert data (old data is removed)'", async () => {
-    // The onDelete() hook re-inserts the state while the old one is only
-    // soft-deleted: the re-inserted record must carry the insert data alone.
     (class DiscussApp extends Record {
         static id;
         state = fields.One("DiscussAppState", {
@@ -1354,7 +1316,7 @@ test("side-effect of double deletion of record should work as expected with no c
         });
         parent = fields.One("Channel", {
             onDelete() {
-                this.delete(); // important: triggers double-deletion when deleting sub-thread.
+                this.delete();
             },
         });
         threads = fields.Many("Channel", { inverse: "parent" });
@@ -1381,8 +1343,6 @@ test("side-effect of double deletion of record should work as expected with no c
     suggestions.members.push({ partner: mitchell });
     const reactiveGeneral = reactive(general, render);
     function render() {
-        // Important: observe computed field `correspondent` so deletion side-effects
-        // run while an observer is subscribed to the computed relation
         void reactiveGeneral?.threads.forEach((t) => t.correspondent?.partner.name);
     }
     render();
@@ -1464,11 +1424,8 @@ test("error in nested update propagates and store still works afterwards", async
             expect.step("unreachable");
         }),
     ).toThrow("boom");
-    // the nested error interrupted the caller instead of being swallowed
     expect.verifySteps([]);
-    // work batched before the error was still flushed
     expect(store.Message.get(1).exists()).toBe(true);
-    // the store is fully functional afterwards (UPDATE back to 0)
     const message = store.Message.insert(2);
     Record.onChange(message, "body", () => expect.step("BODY_CHANGED"));
     message.body = "test";
@@ -1488,22 +1445,15 @@ test("nullish values in relation writes are no-ops, not phantom records", async 
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
-    // add(undefined) used to materialize a "Message,undefined" phantom
     thread.messages.add(undefined);
     expect(thread.messages.length).toBe(0);
-    // nullish entries inside an assigned array are skipped
     thread.messages = [{ id: 1 }, null, { id: 2 }, false, undefined];
     expect(thread.messages.map((m) => m.id)).toEqual([1, 2]);
     expect(Object.keys(store.Message.records)).toHaveLength(2);
-    // deleting plain data of a record that was never loaded must not create
-    // it (a detached ghost registered forever) just to not-remove it
     thread.messages.delete({ id: 42 });
     expect(store.Message.get(42)).toBe(undefined);
-    // index assignment of nullish is refused loudly instead of creating a
-    // phantom (use delete()/splice() to remove)
     expect(() => (thread.messages[0] = undefined)).toThrow("use delete()");
     expect(thread.messages.map((m) => m.id)).toEqual([1, 2]);
-    // push/unshift of a nullish entry are no-ops (consistent with add)
     thread.messages.push(null);
     thread.messages.unshift(undefined);
     expect(thread.messages.map((m) => m.id)).toEqual([1, 2]);
@@ -1526,8 +1476,6 @@ test("assigning duplicate entries keeps a single occurrence", async () => {
     thread.messages = [{ id: 1 }, { id: 1 }];
     expect(thread.messages.length).toBe(1);
     const message = store.Message.get(1);
-    // duplicate localIds in data desynced both sides: a delete removed one
-    // occurrence from the owner but fully unlinked the inverse
     thread.messages.delete(message);
     expect(thread.messages.length).toBe(0);
     expectRecord(message).not.toBeIn(thread.messages);
@@ -1552,9 +1500,6 @@ test("deleting a non-member does not fire onDelete hooks", async () => {
     const store = await start();
     const thread = store.Thread.insert("General");
     const message = store.Message.insert(1);
-    // unconditional deletes of non-members are common (e.g. chat window
-    // fold bookkeeping): they must not fire hooks like (r) => r.delete()
-    // with a record that was never in the relation
     thread.messages.delete(message);
     expect.verifySteps([]);
     thread.messages.add(message);
@@ -1576,7 +1521,6 @@ test("single-argument splice removes to the end like Array#splice", async () => 
     const store = await start();
     const thread = store.Thread.insert("General");
     thread.messages = [{ id: 1 }, { id: 2 }, { id: 3 }];
-    // the undefined deleteCount silently removed NOTHING before
     thread.messages.splice(1);
     expect(thread.messages.map((m) => m.id)).toEqual([1]);
 });
@@ -1593,13 +1537,9 @@ test("errors from direct-assignment hooks are reported immediately", async () =>
     Record.onChange(message, "body", () => {
         throw new Error("boom");
     });
-    // hooks fired by a direct assignment run after the assignment's own
-    // flush: the error used to be PARKED and thrown by the next unrelated
-    // update cycle at an innocent caller
     expect(() => {
         message.body = "x";
     }).toThrow("boom");
-    // the next cycle is not poisoned by a stale parked error
     store.MAKE_UPDATE(() => {});
     expect(store.Message.get(1).exists()).toBe(true);
 });
@@ -1639,20 +1579,15 @@ test("throwing compute preserves the previous value instead of clearing it", asy
     const thread = store.Thread.insert("General");
     expect(thread.title).toBe("title of General");
     expect(thread.members.length).toBe(1);
-    // the dependency change makes both computes throw: the error propagates...
     expect(() =>
         store.MAKE_UPDATE(() => {
             thread.explode = true;
         }),
     ).toThrow("compute boom");
-    // ...but the previously computed values are preserved: writing the
-    // undefined computedValue would wipe the attr and clear() the relation,
-    // cascading the compute error into record deletions via onDelete
     expect(thread.title).toBe("title of General");
     expect(thread.members.length).toBe(1);
     expect(store.Member.get("alice").exists()).toBe(true);
     expect.verifySteps([]);
-    // the store recovers once the compute stops throwing
     store.MAKE_UPDATE(() => {
         thread.explode = false;
     });
@@ -1682,21 +1617,17 @@ test("record list index assignment", async () => {
     const file2 = store.File.insert("file2.txt");
     thread.files.push(file1);
     expect.verifySteps(["onAdd(file1.txt)"]);
-    // self-assignment is a no-op: no hooks, inverse untouched
     thread.files[0] = file1;
     expect.verifySteps([]);
     expectRecord(file1.thread).toEqual(thread);
     expectRecord(file1).toBeIn(thread.files);
-    // assigning at index === length appends
     thread.files[thread.files.length] = file2;
     expect.verifySteps(["onAdd(file2.txt)"]);
     expect(thread.files.length).toBe(2);
     expectRecord(file2.thread).toEqual(thread);
-    // assigning past the end is refused with a clear error
     expect(() => (thread.files[10] = file1)).toThrow("out of range");
     expect(thread.files.length).toBe(2);
     expect.verifySteps([]);
-    // replacement still works and updates inverses (flush order: FA → FD)
     thread.files[0] = { name: "file3.txt" };
     expect.verifySteps(["onAdd(file3.txt)", "onDelete(file1.txt)"]);
     expect(file1.thread).toBe(undefined);
@@ -1720,7 +1651,6 @@ test("id fields are immutable once the record is inserted", async () => {
     const store = await start();
     store.warnErrors = false;
     const message = store.Message.insert({ id: 1, body: "a" });
-    // re-inserting with the same id is fine
     store.Message.insert({ id: 1, body: "b" });
     expect(message.body).toBe("b");
     expect(() => (message.id = 5)).toThrow("id fields are immutable");
@@ -1728,9 +1658,8 @@ test("id fields are immutable once the record is inserted", async () => {
     expect(() => message.update({ id: 5 })).toThrow("id fields are immutable");
     expect(message.id).toBe(1);
     expectRecord(store.Message.get(1)).toEqual(message);
-    // relational id fields are protected too
     const chatWindow = store.ChatWindow.insert({ thread: "General" });
-    store.ChatWindow.insert({ thread: "General" }); // same id: fine
+    store.ChatWindow.insert({ thread: "General" });
     expect(() => (chatWindow.thread = "Sales")).toThrow("id fields are immutable");
     expectRecord(chatWindow.thread).toEqual(store.Thread.get("General"));
 });
@@ -1810,18 +1739,12 @@ test("clear() empties the list, updates inverses and fires onDelete hooks", asyn
     expect(Boolean(john.thread)).toBe(false);
     expect(Boolean(marc.thread)).toBe(false);
     expectRecord(jane).not.toBeIn(thread.members);
-    // removal order matches historical pop-based behavior (last first)
     expect.verifySteps(["onDelete(Marc)", "onDelete(John)", "onDelete(Jane)"]);
-    // clearing an empty list is a no-op
     thread.members.clear();
     expect.verifySteps([]);
 });
 
 test("record.delete() while used in a computed+sorted field should properly delete this record from relation", async () => {
-    // Computes and sorts are always eager: the list is recomputed/re-sorted at
-    // the end of the update cycle that changed a dependency, never "on read".
-    // Deleting a record must both drop it from the relation and retrigger the
-    // compute (which reads Model.records), leaving a consistent sorted list.
     (class Message extends Record {
         static id = "id";
         id;
@@ -1833,7 +1756,6 @@ test("record.delete() while used in a computed+sorted field should properly dele
         name;
         description;
         messages = fields.Many("Message", {
-            // intentional combine of `compute` and `sort` on the same field
             compute() {
                 return Object.values(this.store.Message.records).filter(
                     (msg) => msg.thread_name === this.name,
@@ -1848,7 +1770,6 @@ test("record.delete() while used in a computed+sorted field should properly dele
         { id: 1, sequence: 10, thread_name: "General" },
         { id: 2, sequence: 20, thread_name: "General" },
     ]);
-    // no read needed: computed and sorted eagerly
     expect(toRaw(thread)._raw.messages.data).toEqual(["Message,1", "Message,2"]);
     store.insert({
         Thread: { name: "General", description: "This is the general channel" },
@@ -1860,7 +1781,6 @@ test("record.delete() while used in a computed+sorted field should properly dele
         "Message,3",
     ]);
     store.Message.get(3).sequence = 5;
-    // re-sorted at end of update cycle, without any read
     expect(toRaw(thread)._raw.messages.data).toEqual([
         "Message,3",
         "Message,1",
@@ -1884,7 +1804,6 @@ test("RecordUses reference-counts membership and empties on removal", async () =
     const thread = store.Thread.insert("General");
     const message = store.Message.insert(1);
     const uses = toRaw(message)._raw._.uses;
-    // one membership => one use entry with count 1
     thread.messages.add(message);
     expect(uses.data.get(toRaw(thread)._raw).get("messages")).toBe(1);
     (class Thread2 extends Record {
@@ -1892,10 +1811,8 @@ test("RecordUses reference-counts membership and empties on removal", async () =
         name;
         pinned = fields.Many("Message");
     }).register(localRegistry);
-    thread.messages.add(message); // already a member: no double count
+    thread.messages.add(message);
     expect(uses.data.get(toRaw(thread)._raw).get("messages")).toBe(1);
-    // removing the membership drops the field entry, and with no fields left
-    // the owner entry is removed entirely
     thread.messages.delete(message);
     expect(uses.data.has(toRaw(thread)._raw)).toBe(false);
 });
@@ -1910,8 +1827,6 @@ test("OR-id records are distinct per which part is provided", async () => {
         id;
     }).register(localRegistry);
     (class Composer extends Record {
-        // OR is positional concatenation, not "match either": a composer
-        // keyed by {thread} and one keyed by {message} are different records
         static id = OR("thread", "message");
         thread = fields.One("Thread");
         message = fields.One("Message");
@@ -1922,9 +1837,7 @@ test("OR-id records are distinct per which part is provided", async () => {
     const threadComposer = store.Composer.insert({ thread });
     const messageComposer = store.Composer.insert({ message });
     expect(threadComposer.eq(messageComposer)).toBe(false);
-    // get() by the same part finds the same record
     expect(store.Composer.get({ thread }).eq(threadComposer)).toBe(true);
     expect(store.Composer.get({ message }).eq(messageComposer)).toBe(true);
-    // a composer inserted under {thread} is not found by {message}
     expect(store.Composer.get({ message: store.Message.insert(2) })).toBe(undefined);
 });

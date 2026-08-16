@@ -50,8 +50,6 @@ test("add() returns reactive proxies, never raw records", async () => {
     const added = john.tasks.add(t1);
     expect(toRaw(added)).not.toBe(added);
     expect(added.eq(t1)).toBe(true);
-    // the One field is backed by a single-entry record list, whose add() must
-    // follow the same contract (reading `john.mainTask` unwraps it to [0])
     const mainTaskList = toRaw(john)._raw.mainTask._proxy;
     const addedOne = mainTaskList.add(t1);
     expect(toRaw(addedOne)).not.toBe(addedOne);
@@ -65,9 +63,7 @@ test("add() reports one record per argument, including already-present ones", as
     const t1 = store.Task.insert("t1");
     const t2 = store.Task.insert("t2");
     john.tasks.add(t1);
-    // single argument, already a member: the record, not an empty array
     expect(john.tasks.add(t1)?.eq(t1)).toBe(true);
-    // mixed known/new: one entry per argument, in argument order
     const res = john.tasks.add(t1, t2);
     expect(res.length).toBe(2);
     expect(res[0].eq(t1)).toBe(true);
@@ -97,13 +93,10 @@ test("shrinking a record list through length detaches the removed records", asyn
     expect(john.tasks.length).toBe(1);
     expect(john.tasks.data.length).toBe(1);
     expect(t1.contact.eq(john)).toBe(true);
-    // inverse maintained: the dropped record is no longer linked back
     expect(t2.contact).toBe(undefined);
 });
 
 test("a record handed out raw would silently lose reactivity", async () => {
-    // Why add() must return `_proxy`: reads through `_raw` do not subscribe, so
-    // a caller handed a raw record would never see its fields change.
     defineContactTask();
     const store = await start();
     const t1 = store.Task.insert("t1");
@@ -119,13 +112,11 @@ test("a record handed out raw would silently lose reactivity", async () => {
 });
 
 test("growing `data` past the real membership exposes phantom members", async () => {
-    // Why the length setter throws: the pre-fix write padded `data` with holes,
-    // which surface through the public read API as undefined "records".
     defineContactTask();
     const store = await start();
     const john = store.Contact.insert("John");
     john.tasks.add(store.Task.insert("t1"));
-    toRaw(john)._raw.tasks._proxy.data.length = 3; // what `length = 3` used to do
+    toRaw(john)._raw.tasks._proxy.data.length = 3;
     expect(john.tasks.at(1)).toBe(undefined);
     expect([...john.tasks]).toHaveLength(3);
     expect([...john.tasks].filter(Boolean)).toHaveLength(1);
@@ -156,8 +147,6 @@ test("splice() with a negative start removes and tears down the same record", as
     john.tasks.add(t1, t2, t3);
     expect(john.tasks.map((t) => t.name)).toEqual(["t1", "t2", "t3"]);
     john.tasks.splice(-1, 1);
-    // `splice(-1, 1)` removed the last entry from `data` while the teardown
-    // slice (`slice(-1, 0)`) was empty, so the record kept its inverse.
     expect(john.tasks.map((t) => t.name)).toEqual(["t1", "t2"]);
     expect(t3.contact).toBe(undefined);
     expect(t1.contact.name).toBe("John");
@@ -169,12 +158,12 @@ test("splice() clamps start and deleteCount like Array.prototype.splice", async 
     const john = store.Contact.insert("John");
     const [t1, t2, t3] = ["t1", "t2", "t3"].map((name) => store.Task.insert(name));
     john.tasks.add(t1, t2, t3);
-    john.tasks.splice(-100, 1); // start clamps to 0
+    john.tasks.splice(-100, 1);
     expect(john.tasks.map((t) => t.name)).toEqual(["t2", "t3"]);
     expect(t1.contact).toBe(undefined);
-    john.tasks.splice(1, 100); // deleteCount clamps to the remaining length
+    john.tasks.splice(1, 100);
     expect(john.tasks.map((t) => t.name)).toEqual(["t2"]);
     expect(t3.contact).toBe(undefined);
-    john.tasks.splice(5, 1); // start beyond the end removes nothing
+    john.tasks.splice(5, 1);
     expect(john.tasks.map((t) => t.name)).toEqual(["t2"]);
 });
