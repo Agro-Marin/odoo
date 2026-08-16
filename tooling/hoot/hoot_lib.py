@@ -1,19 +1,3 @@
-"""Shared helpers for the warm-server HOOT runner.
-
-This module is imported by the ``hoot`` and ``hoot-affected`` CLI scripts. It
-must be run with the workspace venv interpreter (the CLI shebang trampolines
-re-exec with it automatically; override with ``$ODOO_VENV_PYTHON``) because it
-imports the Odoo
-framework to reuse ``odoo.tests.common.ChromeBrowser`` (the exact CDP driver the
-real ``odoo-bin`` test loop uses) instead of reinventing a Chrome DevTools
-client.
-
-Nothing here edits Odoo core; ``ChromeBrowser`` is imported and driven as-is
-through a tiny shim object that provides the three attributes it reads off a
-test case (``_logger``, ``browser_size``, ``touch_enabled``) plus a
-``fetch_proxy`` for external requests.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -35,9 +19,6 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
-# This module's own directory. Named once: a `_SCRIPT_DIR` here and an
-# identical `SCRIPT_DIR` sixty lines down were both in use, so a reader had to
-# check whether the two were meant to mean different things.
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 sys.path.insert(0, str(SCRIPT_DIR.parent))
@@ -50,22 +31,12 @@ ODOO_BIN = ODOO_ROOT / "odoo-bin"
 
 
 def _find_conf() -> Path | None:
-    """The odoo config for this workspace, or ``None`` if there is not one.
 
-    Returns rather than raises: this is module-level, and a config is needed
-    only to install a database or boot a server. Raising here made ``import
-    hoot_lib`` itself impossible in a repo-alone checkout — which is how CI
-    checks this repo out, and therefore why the hoot suite could not run there
-    at all. Suite resolution, specifier mapping and id hashing need no config.
-    """
     override = os.environ.get("ODOO_CONF")
     if override:
         return Path(override)
     if WORKSPACE is None:
         return None
-    # Two layouts: confs used to live in <ws>/config/, and now sit directly at
-    # <ws>/ beside the venv. Prefer the one named after the active venv, which
-    # is how a workspace pairs an interpreter with its addons_path/data_dir.
     venv_name = VENV_PY.parent.parent.name
     search_dirs = [WORKSPACE / "config", WORKSPACE]
     for directory in search_dirs:
@@ -83,7 +54,6 @@ CONF = _find_conf()
 
 
 def require_conf() -> Path:
-    """The odoo config, failing loudly at the point one is actually needed."""
     if CONF is None:
         where = (
             f"under {WORKSPACE} or {WORKSPACE / 'config'}"
@@ -117,10 +87,6 @@ RE_ASSET_URL = re.compile(r"/web/assets/[\w./-]+")
 
 _log = logging.getLogger("hoot")
 
-#: ANSI colours for the CLI front-ends. Defined once here rather than twice in
-#: `hoot` and `hoot-shard`, which carried identical copies of both the tuple
-#: and the `_color` helper — and `hoot-shard` parses `hoot`'s coloured output,
-#: so the two agreeing is a contract, not a coincidence.
 C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
     "\033[32m",
     "\033[31m",
@@ -131,30 +97,12 @@ C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
 
 
 def color(txt: str, code: str) -> str:
-    """Wrap ``txt`` in ``code``, but only when stdout is a terminal.
 
-    `hoot-shard` runs `hoot` through `subprocess.run(capture_output=True)`, so
-    the child's stdout is a pipe and the escape codes are correctly absent from
-    the text its summary regexes then read.
-    """
     return f"{code}{txt}{C_RST}" if sys.stdout.isatty() else txt
 
 
 def generate_hash(test_string: str) -> str:
-    """Return the 8-hex-char HOOT id for a suite/test path.
 
-    Must agree with ``hoot_utils.js::generateHash`` — the browser recomputes
-    the id and keeps only the jobs that match, so a disagreement is not a
-    wrong answer but an empty selection, reported as "matched no tests:
-    failing closed".
-
-    Iterates UTF-16 CODE UNITS, not code points, because ``charCodeAt`` does.
-    ``ord()`` returns one value above 0xFFFF where JS returns a surrogate
-    pair, so every astral character diverged — and two suites really carry
-    one: ``@web/services/hotkey_service/hotkeys evil 👹`` and
-    ``@web/services/commands/command_service/commands evilness 👹`` were
-    unselectable by id, from here and from ``--test-tags`` alike.
-    """
     hash_val = 0
     units = test_string.encode("utf-16-le")
     for i in range(0, len(units), 2):
@@ -180,14 +128,7 @@ _DB_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
 def check_db_name(db: str) -> str:
-    """Validate a database name before it reaches SQL or ``--db-filter``.
 
-    ``--db`` is a user-supplied string that is spliced into a ``DROP DATABASE``
-    and into a ``--db-filter=^{db}$`` regex. Every name this tool generates is
-    ``hoot_<addons>``, so the safe set is exactly that shape; anything else is
-    a typo or a quoting accident and should fail before it reaches psql rather
-    than produce a confusing SQL error (or worse).
-    """
     if not _DB_NAME_RE.match(db):
         raise SystemExit(
             f"hoot: refusing database name {db!r} — expected only letters, "
@@ -236,7 +177,6 @@ LOG_RETENTION = 20
 
 
 def _live_log_paths() -> set[Path]:
-    """Log files a still-running warm server is writing to."""
     live: set[Path] = set()
     for state in read_all_states():
         log, pid = state.get("log"), state.get("pid")
@@ -246,21 +186,7 @@ def _live_log_paths() -> set[Path]:
 
 
 def _prune_logs(keep: int = LOG_RETENTION) -> None:
-    """Drop all but the ``keep`` most recent run logs, never a live server's.
 
-    Nothing ever removed them: the directory stood at 41 MB across 53 files,
-    one pair per database ever used, and ``--clean`` drops the database while
-    leaving its logs behind. The ``.port_*.lock`` files are deliberately
-    untouched: they are flocked by running processes, not logs.
-
-    mtime order alone is not enough to protect a live server. Its log is only
-    among the newest while it is being *written*; an idle warm server — the
-    normal state between runs — has an old mtime, so twenty newer logs (a
-    ``hoot-shard -j 8`` run writes sixteen) were enough to unlink it while the
-    server held the fd. The space was not reclaimed until the server died and
-    ``--status`` pointed at a path that no longer existed. Live logs are
-    therefore excluded outright rather than assumed recent.
-    """
     with contextlib.suppress(OSError):
         live = {p.resolve() for p in _live_log_paths()}
         logs = [
@@ -276,8 +202,6 @@ def _prune_logs(keep: int = LOG_RETENTION) -> None:
 
 
 def _reserve_port(port: int) -> bool:
-    """Claim ``port`` for this process, cross-process. False if someone else
-    is already booting on it."""
     if port in _PORT_LOCKS:
         return True
     LOG_DIR.mkdir(exist_ok=True)
@@ -298,11 +222,6 @@ def _release_port(port: int) -> None:
 
 
 def _http_alive(port: int) -> bool:
-    # A missing `requests` is a broken environment, not a server that is not
-    # up yet: swallowing it here made every readiness poll return False, so a
-    # perfectly healthy server was declared dead after the full 120s boot wait
-    # with "Server did not become ready" — a diagnosis pointing at the server
-    # instead of at the interpreter.
     import requests
 
     try:
@@ -315,7 +234,6 @@ def _http_alive(port: int) -> bool:
 
 
 def addons_for_suites(suites: list[str]) -> set[str]:
-    """Return the addon names referenced by ``@addon/...`` suite/test paths."""
     addons: set[str] = set()
     for suite in suites:
         m = re.match(r"^@([A-Za-z0-9_]+)(?:/|$)", suite.strip())
@@ -325,34 +243,17 @@ def addons_for_suites(suites: list[str]) -> set[str]:
 
 
 def modules_for_suites(suites: list[str]) -> tuple[str, ...]:
-    """Modules the warm DB must have installed to run ``suites``."""
     return tuple(sorted(set(ALWAYS_MODULES) | addons_for_suites(suites)))
 
 
 def module_scope_param(suites: list[str]) -> str:
-    """Return the ``&module_scope=`` param for a run, or ``""``.
 
-    Mirrors ``web/tests/test_js.py::_get_module_scope_param`` so this runner
-    loads the same bundle the ``web_js`` gate does. Without it the unit-test
-    page executes the ``src`` of every installed addon, whose ``patch()`` calls
-    are global and unconditional: a test asserting the RPCs of its own addon
-    then sees a step from an addon outside its closure and fails here while
-    passing under ``odoo-bin``.
-
-    Suites spanning several addons have no single closure, so they stay
-    unscoped rather than dropping one side's ``src``.
-    """
     addons = addons_for_suites(suites)
     return f"&module_scope={addons.pop()}" if len(addons) == 1 else ""
 
 
 def db_for_modules(modules: tuple[str, ...]) -> str:
-    """Deterministic warm-DB name for a module set.
 
-    ``{web}`` keeps the historical ``hoot_web``; anything more becomes
-    ``hoot_<extra>_<extra>...`` so each combination gets its own disposable
-    DB (concurrent warm servers never fight over one database).
-    """
     extras = [m for m in modules if m not in ALWAYS_MODULES]
     return DEFAULT_DB if not extras else "hoot_" + "_".join(sorted(extras))
 
@@ -384,15 +285,7 @@ def read_all_states() -> list[dict]:
 
 
 def write_state(state: dict) -> None:
-    """Write one server's state file atomically.
 
-    ``write_text`` truncates before writing, so a concurrent reader sees an
-    empty file for most of the call. ``read_all_states`` answers a torn read by
-    skipping that entry, which silently drops a live server from ``--status``
-    and from ``stop_server`` — under ``hoot-shard -j N`` several servers write
-    while others read. A rename within the same directory is atomic, so a
-    reader sees either the old file or the new one.
-    """
     path = state_file(state["db"])
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(state, indent=2))
@@ -464,9 +357,6 @@ def _odoo_install(db: str, modules: tuple[str, ...], log_path: Path) -> None:
 def ensure_db(
     db: str, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> None:
-    """Create ``db`` with ``modules`` installed; top up a DB that exists but
-    is missing some of them (that path requires the DB's warm server, if any,
-    to be stopped first — ``ensure_server`` handles that ordering)."""
     LOG_DIR.mkdir(exist_ok=True)
     _prune_logs()
     log_path = LOG_DIR / f"init_{db}.log"
@@ -489,7 +379,6 @@ def ensure_db(
 def boot_server(
     db: str, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> dict:
-    """Boot ONE persistent threaded dev server on a free port of PORT_RANGE."""
     ensure_db(db, modules, verbose=verbose)
     errors = []
     for port in PORT_RANGE:
@@ -559,13 +448,7 @@ def _boot_server_on(db: str, port: int) -> dict:
 
 
 def _boot_flags_stale(state: dict) -> bool:
-    """True when the live server was booted with different ``--dev`` flags.
 
-    A server started before ``--dev=assets`` existed still runs ``--dev=xml``,
-    whose asset caches are disabled — it would keep paying the 4.5x render cost
-    forever. Recycling it once makes the speedup land without anyone having to
-    know to restart their warm server.
-    """
     try:
         cmdline = Path(f"/proc/{state['pid']}/cmdline").read_bytes()
     except OSError:
@@ -576,8 +459,6 @@ def _boot_flags_stale(state: dict) -> bool:
 def ensure_server(
     db: str | None, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> tuple[dict, bool]:
-    """Return (state, booted). Reuse this DB's warm server if it is alive
-    and already has every required module installed."""
     db = db or db_for_modules(modules)
     state = read_state(db)
     if server_is_warm(state) and state["db"] == db:
@@ -614,7 +495,6 @@ def _terminate_pid(pid: int) -> None:
 
 
 def stop_server(db: str | None = None, clean: bool = False) -> str:
-    """Stop one DB's warm server (or every recorded one when db is None)."""
     states = [s for s in read_all_states() if db is None or s.get("db") == db]
     if not states:
         return "No warm server recorded."
@@ -644,25 +524,6 @@ class _ConsoleCapture(logging.Handler):
 
 
 class _ShimCase:
-    """Minimal stand-in for the ``test_case`` ChromeBrowser expects.
-
-    ChromeBrowser only reads ``_logger``, ``browser_size``, ``touch_enabled``
-    off its test case, and calls ``fetch_proxy(url)`` for requests that leave
-    the local host. Requests to ``http://127.0.0.1[:port]`` are continued
-    verbatim by ChromeBrowser itself, so they hit the real warm server.
-
-    ``fetch_proxy``/``make_fetch_proxy_response`` are *grafted from HttpCase*
-    rather than reimplemented. A local blanket-404 version silently diverged
-    from the canonical one, which answers ``https://fonts.googleapis.com/css``
-    with an empty 200 stylesheet: a bundle whose CSS starts with Google-Fonts
-    ``@import`` rules (``website.website_builder_assets`` has six) then had
-    those imports 404, Chrome propagated the failure to the owner ``<link>``,
-    and every ``loadBundle()`` of it rejected -- which failed the whole
-    ``@website/builder`` tree here while it passed under ``odoo-bin``. Both
-    methods only touch their arguments and the module logger, so binding them
-    is safe and keeps the runner faithful to the real loop by construction.
-    """
-
     def __init__(
         self, logger: logging.Logger, browser_size: str, touch_enabled: bool
     ) -> None:
@@ -684,7 +545,6 @@ class _ShimCase:
 
 
 def _bootstrap_odoo() -> None:
-    """Prepare the in-process Odoo import so ChromeBrowser is usable."""
     if str(ODOO_ROOT) not in sys.path:
         sys.path.insert(0, str(ODOO_ROOT))
     import odoo.logutils  # noqa: F401  (registers Logger.runbot)
@@ -696,7 +556,6 @@ def _bootstrap_odoo() -> None:
 
 
 def _authenticate(port: int, db: str) -> str:
-    """Log in as admin/admin over HTTP and return the session_id cookie."""
     import requests
 
     resp = requests.post(
@@ -715,22 +574,7 @@ def _authenticate(port: int, db: str) -> str:
 
 
 def warm_bundles(port: int, db: str, scope_params: Iterable[str]) -> float:
-    """Build the unit-test bundles before any suite is timed. Returns seconds.
 
-    ``_http_alive`` only proves the port answers: the bundles are compiled on
-    their first request, so on a freshly booted server that build lands *inside*
-    the first suite's page load. With ``hoot-shard -j 4`` four of them land at
-    once and the timing-sensitive tests in those first suites fail — a cold
-    ``-j 4`` desktop run reported 24 failures whose every member was in the
-    first suite of its shard (datetime_field, list_view selection, load_state,
-    domain_selector), and the same servers, warm, ran the same plan at 0 failed
-    / 14352 passed. Re-running is not the fix: the runner has to finish the
-    build it triggers before it starts measuring.
-
-    One page per ``&module_scope=`` the run will use, because each scope is a
-    bundle of its own (``ir.asset._get_active_addons_list`` narrows to that
-    addon's closure) and pays its own build.
-    """
     import requests
 
     start = time.time()
@@ -777,7 +621,6 @@ def run_suites(
     extra: str = "",
     verbose: bool = False,
 ) -> RunResult:
-    """Drive Chrome against the warm server's ``/web/tests`` and report."""
     _bootstrap_odoo()
     from odoo.tools import config
 
@@ -836,21 +679,8 @@ def run_suites(
 
 
 def summarise(lines: list[str], result: RunResult) -> RunResult:
-    """Fold HOOT's console output into ``result``. Pure, and separately tested.
 
-    This decides what a run MEANS — the counts a caller prints and the
-    ``incomplete`` flag the CLI turns into an exit code — from another
-    program's log lines. It sat inline in ``run_suites``, which needs a booted
-    server and a Chrome, so the one part of the runner that can silently report
-    a green wrong number was the one part no test could reach.
-    """
     summary_seen = False
-    # DISTINCT test names, not the number of "passed" lines. HOOT re-emits a
-    # suite's tests when a coarse id selects overlapping suites, so the raw line
-    # count is not a test count: on a truncated ``@web/core`` run it grew from
-    # 30838 to 58569 purely by raising the wall-clock timeout, while the suite
-    # only declares ~2400 tests. That number is what a caller reads as "N tests
-    # passed", so it has to mean that.
     passed_names: set[str] = set()
     passed_lines = 0
     for line in lines:
@@ -878,13 +708,7 @@ def summarise(lines: list[str], result: RunResult) -> RunResult:
 
 
 def _addons_roots() -> list[Path]:
-    """Every addons directory on the config's ``addons_path``.
 
-    Scanning only ``addons/odoo/addons`` made ``affected_suites`` return an
-    empty list — read as "nothing to run" — for a changed ``src`` file in any
-    of the sibling-checkout modules that ship HOOT tests, because
-    none of their test files were in the import graph.
-    """
     roots: list[Path] = []
     if CONF is not None:
         with contextlib.suppress(OSError):
@@ -905,11 +729,7 @@ from js_layer_check import collect_imports  # noqa: E402
 
 
 def _addon_of(path: Path) -> str | None:
-    """Return the addon name for a file under ``.../<addon>/static/...``.
 
-    Keyed off the ``static`` segment (the addon is the directory right before
-    it) so nested ``addons/odoo/addons/web`` paths resolve correctly.
-    """
     parts = path.parts
     if "static" in parts:
         i = parts.index("static")
@@ -919,11 +739,7 @@ def _addon_of(path: Path) -> str | None:
 
 
 def file_to_specifier(path: Path) -> str | None:
-    """Map a src/tests JS file to its ESM import specifier.
 
-    ``.../web/static/src/core/domain.js`` -> ``@web/core/domain``
-    ``.../web/static/tests/core/domain.test.js`` -> ``@web/../tests/core/domain``
-    """
     addon = _addon_of(path)
     if not addon:
         return None
@@ -940,26 +756,14 @@ def file_to_specifier(path: Path) -> str | None:
 
 
 def specifier_to_suite(spec: str) -> str | None:
-    """Map a test-file specifier to the HOOT suite name it registers.
 
-    Mirrors ``start.hoot.js`` ``_suiteNameFromSpecifier``:
-    ``@web/../tests/core/domain.test`` -> ``@web/core/domain``.
-    """
     m = re.match(r"^(@[^/]+)/\.\./tests/(.*?)(?:\.test)?$", spec)
     return f"{m[1]}/{m[2]}" if m else None
 
 
 @cache
 def iter_addon_dirs() -> tuple[Path, ...]:
-    """Every addon directory across the whole addons path.
 
-    Cached for the process lifetime, and a tuple so a caller cannot mutate the
-    shared result. The addons path holds ~1550 directories across four
-    checkouts, and `hoot-shard`'s planner walks them once per `suite_test_files`
-    / `child_suites` call: 68 identical walks costing 0.27 s of a 0.37 s plan.
-    A brand-new addon appearing mid-process would be missed, which is fine —
-    installing one already requires a server restart.
-    """
     dirs: list[Path] = []
     for root in ADDONS_ROOTS:
         with contextlib.suppress(OSError):
@@ -985,15 +789,7 @@ def _iter_src_files() -> list[Path]:
 
 
 def ci_runner_suites(addon: str | None = None) -> set[str]:
-    """Suite prefixes the CI runners pass to ``_run_hoot``.
 
-    Read from the runners rather than restated, because a hand-kept copy
-    drifts: ``hoot-shard``'s list carried a "KEEP IN SYNC" comment and had
-    still lost ``@html_editor`` (4766 tests, 494 s — a third of the desktop
-    suite) and ``@web/libs``, so its "full web" run silently covered 66% of
-    the tests. Module-level tuple/list constants are resolved first so a
-    ``*SUITES`` splat inside the call expands.
-    """
     prefixes: set[str] = set()
     for addon_dir in iter_addon_dirs():
         if addon and addon_dir.name != addon:
@@ -1007,16 +803,7 @@ def ci_runner_suites(addon: str | None = None) -> set[str]:
 
 
 def mobile_suites(prefixes: list[str]) -> list[str]:
-    """The file suites under ``prefixes`` that own a mobile test.
 
-    Delegates to ``MobileWebSuite``'s own ``_mobile_suites_under`` so the two
-    cannot drift. The mobile preset excludes only ``desktop``-tagged tests, so
-    without this narrowing a whole-suite mobile run re-runs the desktop pass at
-    375x667 — 9467 tests against the 2225 CI runs — and every suite that owns no
-    mobile test resolves to an empty ``&id=`` filter, which ``hoot`` reports as
-    ``matched no tests: failing closed``. That is how a green mobile run
-    presented itself as three FAILed shards carrying zero failed tests.
-    """
     _bootstrap_odoo()
     import odoo.modules.module
 
@@ -1058,7 +845,6 @@ def _run_hoot_args(tree: ast.Module) -> set[str]:
 
 
 def suite_test_files(suite: str) -> list[Path]:
-    """The ``*.test.js`` files a ``&id=`` filter for ``suite`` can select."""
     addon, _, rel = suite.lstrip("@").partition("/")
     for addon_dir in iter_addon_dirs():
         if addon_dir.name != addon:
@@ -1076,12 +862,7 @@ def suite_test_files(suite: str) -> list[Path]:
 
 
 def child_suites(suite: str) -> list[str]:
-    """Split ``suite`` into the child suites one level down, or ``[]``.
 
-    A whole-addon id like ``@html_editor`` is one serial page load however
-    long it runs, so a shard runner cannot balance around it without
-    descending into the directory that backs it.
-    """
     addon, _, rel = suite.lstrip("@").partition("/")
     for addon_dir in iter_addon_dirs():
         if addon_dir.name != addon:
@@ -1101,35 +882,7 @@ def child_suites(suite: str) -> list[str]:
 
 
 def _imports_of(path: Path, probe: re.Pattern[str] | None = None) -> set[str]:
-    """The ``@addon/...`` specifiers ``path`` imports at runtime.
 
-    Delegates to the layering gate's collector, which is checked against a real
-    JS parser over every module in this repo. The local regex it replaces had
-    an optional ``(?:.+?\\s+from\\s+)?`` group under ``re.DOTALL``, so at a
-    side-effect import (``import "@web/views/view_utils";``) the ``.+?``
-    expanded across newlines to the next ``from`` and captured THAT specifier
-    instead, swallowing both statements in one match. Ten such imports existed;
-    each one is a suite ``--affected`` would fail to select while reporting
-    that it had selected the affected suites.
-
-    ``probe`` is an optional alternation of the specifiers the caller is
-    looking for. A specifier ``collect_imports`` returns is always a literal
-    substring of the source — the collector reads string literals verbatim and
-    only ever blanks comments and regexes around them — so a file the probe
-    does not match cannot contain a wanted import, and parsing it is wasted
-    work. Skipping those is what turns ``--affected`` from a 10-minute scan of
-    every addon into a 17-second one.
-
-    Relative specifiers are resolved against ``path``'s own specifier rather
-    than dropped. 602 of ``addons/web``'s 3,422 import edges (17.6%, across 226
-    of its 763 files) are written ``./sibling.js``, concentrated in exactly the
-    subsystems that get edited — ``model/relational_model`` 89, ``views`` 66,
-    ``core/py_js`` 42, ``webclient/actions`` 35. Dropping them broke the "one
-    hop through src" strategy silently: a change to
-    ``core/py_js/py_builtin.js`` selected **1** suite, because the only test
-    reaching it through an ``@``-spelled edge was ``py_type_name``, while the
-    other nine that cover it hop through ``py.js`` -> ``./py_builtin.js``.
-    """
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -1144,33 +897,20 @@ def _imports_of(path: Path, probe: re.Pattern[str] | None = None) -> set[str]:
             specs.add(spec)
         elif spec.startswith(".") and base:
             resolved = posixpath.normpath(f"{base}/{spec}")
-            # Enough `../` segments consume the `@addon` head — `@web/core` plus
-            # `../../lib/x.js` normalises to `lib/x.js` — and a specifier that
-            # is no longer `@`-rooted matches nothing, which is the same silent
-            # under-selection this resolution exists to remove. Drop it instead.
             if resolved.startswith("@"):
                 specs.add(re.sub(r"\.js$", "", resolved))
     return specs
 
 
 def _specifier_probe(specs: set[str]) -> re.Pattern[str] | None:
-    """A literal-alternation matcher for ``specs``, or ``None`` when empty.
 
-    Each specifier contributes its full text *and* its last segment: a file
-    reaching ``@web/core/py_js/py_builtin`` as ``"./py_builtin.js"`` does not
-    contain the full specifier anywhere, so a full-text-only probe would skip
-    it before ``_imports_of`` ever resolved the relative form.
-    """
     if not specs:
         return None
-    # A new set, not `|=`: the caller's set is reused for the membership test
-    # that follows, and widening that would admit unrelated specifiers.
     wanted = specs | {spec.rsplit("/", 1)[-1] for spec in specs}
     return re.compile("|".join(re.escape(spec) for spec in sorted(wanted)))
 
 
 def _git_toplevels() -> list[Path]:
-    """The distinct git repositories backing the addons path."""
     tops: list[Path] = []
     for root in ADDONS_ROOTS:
         out = subprocess.run(
@@ -1186,27 +926,7 @@ def _git_toplevels() -> list[Path]:
 
 
 def changed_web_js(paths: list[str] | None = None) -> list[Path]:
-    """Changed JS files under an addon ``static/`` tree.
 
-    With no explicit paths this is every repository on the addons path, not just
-    ``addons/odoo`` — each ``addons/*`` directory is its own checkout, so a
-    one-repo diff silently ignored changes in the other three.
-
-    TWO commands, not one. ``git diff HEAD`` reports tracked modifications only,
-    so a **brand-new** ``*.test.js`` was invisible: measured, a freshly created
-    test file gave ``changed_web_js() -> 0 files``, and ``--affected`` then
-    reported it had selected the affected suites while selecting none of them.
-    Adding a test file is the single most common reason to reach for
-    ``--affected``, and the file is untracked for exactly as long as it takes to
-    run the tests you just wrote. ``git ls-files --others --exclude-standard``
-    is the other half; ``--exclude-standard`` keeps ``.gitignore``d build output
-    out.
-
-    Both are ``-z``: git QUOTES any path outside plain ASCII by default
-    (``core.quotePath``), so an edited ``src/café.js`` came back as
-    ``"addons/web/static/src/caf\303\251.js"`` — a name matching nothing on
-    disk, silently dropped, with the same false "selected" report.
-    """
     if paths:
         return [Path(p).resolve() for p in paths]
     changed: list[Path] = []
@@ -1226,9 +946,6 @@ def changed_web_js(paths: list[str] | None = None) -> list[Path]:
                 if not (name.endswith(".js") and "/static/" in name):
                     continue
                 resolved = (top / name).resolve()
-                # A path can be reported by both commands across nested
-                # checkouts; the import scan is per-file, so duplicates only
-                # cost time.
                 if resolved not in seen:
                     seen.add(resolved)
                     changed.append(resolved)
@@ -1236,19 +953,7 @@ def changed_web_js(paths: list[str] | None = None) -> list[Path]:
 
 
 def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[str]:
-    """Return the minimal set of suite paths to run.
 
-    Strategy (conservative import-scan, direct + one hop through src):
-      * a changed *.test.js file -> its own suite;
-      * anything else, including a tour or a helper under static/tests/ -> every
-        test file importing it directly, plus test files importing a src file
-        that imports it (one hop).
-
-    The scan spans every addon on the addons path, so a core file legitimately
-    reaches ~100 suites across a dozen addons. ``downstream=False`` keeps only
-    the suites owned by the addons you actually edited — the ones a warm DB can
-    install without pulling half the ERP — and leaves the rest to CI.
-    """
     changed_specs: set[str] = set()
     suites: set[str] = set()
     changed_addons: set[str] = set()
@@ -1257,14 +962,6 @@ def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[st
         if spec is None:
             continue
         changed_addons.add(spec.lstrip("@").partition("/")[0])
-        # Only a `*.test.js` registers a suite. `static/tests/` also holds the
-        # tour scripts, which a manifest bundles into `web.assets_tests` for
-        # odoo-bin to drive, and shared helpers -- neither is in
-        # `web.assets_unit_tests`, so neither is a suite HOOT can select.
-        # Treating them as one produced an id the loader never registers, and
-        # the runner then refused the whole run rather than the one bad id.
-        # Routing them through `changed_specs` instead is also what finds the
-        # suites a changed helper actually affects.
         if path.name.endswith(".test.js"):
             suite = specifier_to_suite(spec)
             if suite:

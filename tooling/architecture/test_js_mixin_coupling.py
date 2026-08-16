@@ -1,19 +1,10 @@
-"""Tests for the JS mixin-coupling gate.
-
-Two kinds, following ``test_js_private_access.py``. The behavioural tests build
-synthetic mixin trees, so the suite does not change meaning as the real
-composition is untangled. The tests that read the real tree assert only what a
-measurement gate can silently lose: that it found its inputs, and that the
-metrics it separates stay separated.
-"""
-
 import json
 import pathlib
 import subprocess
 import sys
 
 import doc_measured
-import js_mixin_coupling as jmc  # sys.path set by conftest.py
+import js_mixin_coupling as jmc
 import pytest
 
 NODE_AVAILABLE = (
@@ -24,7 +15,6 @@ needs_node = pytest.mark.skipif(not NODE_AVAILABLE, reason="node is not on PATH"
 
 
 def _analyse(tmp_path, files):
-    """Run the real analyzer over a synthetic tree, returning {name: Unit}."""
     paths = []
     for name, source in files.items():
         path = tmp_path / name
@@ -54,9 +44,6 @@ export const AMixin = (Base) =>
 """
 
 
-# --- analyzer -------------------------------------------------------------
-
-
 @needs_node
 def test_defines_and_uses_are_collected_from_a_mixin_factory(tmp_path):
     got = _analyse(tmp_path, {"a.js": MIXIN})["a.js"]
@@ -76,8 +63,6 @@ def test_this_inside_a_nested_arrow_still_belongs_to_the_method(tmp_path):
 
 @needs_node
 def test_this_inside_a_nested_function_is_a_different_object(tmp_path):
-    # The reason this is parsed and not regexed. A brace-counting collector
-    # cannot tell these two `this` apart, and would invent an edge to `inner`.
     src = """
     export const M = (Base) => class extends Base {
         go() { (function () { return this.inner; })(); }
@@ -119,9 +104,6 @@ def test_getters_and_fields_count_as_definitions(tmp_path):
     assert _analyse(tmp_path, {"a.js": src})["a.js"]["defines"] == ["field", "prop"]
 
 
-# --- graph ----------------------------------------------------------------
-
-
 def _units(spec):
     return {
         name: jmc.Unit(module=name, defines=set(d), uses=set(u))
@@ -156,8 +138,6 @@ def test_a_chain_is_acyclic():
 
 
 def test_a_self_loop_is_not_a_cycle_of_two():
-    # A single node is its own SCC; `cyclic_edges` must not count an edge as
-    # cyclic just because both ends map to the same component of size 1.
     units = _units({"a.js": (["x"], ["x"])})
     edges = jmc.build_edges(units)
     components = jmc.strongly_connected(sorted(units), edges)
@@ -183,14 +163,8 @@ def test_public_names_are_not_shared_privates():
     assert jmc.shared_privates(units) == {}
 
 
-# --- the real tree --------------------------------------------------------
-
-
 @needs_node
 def test_real_composition_is_scanned():
-    # The empty-tree refusal every gate here ships: a gate that measured nothing
-    # must not report a pass. COMPOSITIONS is enumerated, so the way this breaks
-    # is a rename, and `analyse` exits rather than returning {}.
     assert jmc.modules(), "COMPOSITIONS is empty"
     state = jmc.measure()
     assert len(state["nodes"]) == len(jmc.modules())
@@ -240,13 +214,8 @@ def test_check_fails_when_the_graph_grows(monkeypatch):
 
 @needs_node
 def test_check_fails_on_an_unlocked_improvement(monkeypatch):
-    # Exact mode: getting better without lowering BASELINE fails too, so the
-    # improvement is locked in rather than available to be re-spent.
     monkeypatch.setitem(jmc.BASELINE, "foreign", jmc.BASELINE["foreign"] + 10)
     assert jmc.main(["--check"]) == 1
-
-
-# --- object-literal mixins ------------------------------------------------
 
 
 OBJECT_MIXIN = """
@@ -264,8 +233,6 @@ export const fooMixin = {
 
 @needs_node
 def test_an_object_literal_mixin_is_measured(tmp_path):
-    """THE regression: these reported empty, so enumerating the composition
-    they belong to would have pinned a vacuous zero."""
     out = _analyse(tmp_path, {"m.js": OBJECT_MIXIN})["m.js"]
     assert out["classes"] == ["fooMixin"]
     assert set(out["defines"]) == {"isNumeric", "rowCount", "ignored"}
@@ -274,15 +241,12 @@ def test_an_object_literal_mixin_is_measured(tmp_path):
 
 @needs_node
 def test_an_arrow_property_this_is_not_the_prototype(tmp_path):
-    """An arrow's `this` is the module scope, not the object it is merged onto,
-    so its reads say nothing about the composition."""
     out = _analyse(tmp_path, {"m.js": OBJECT_MIXIN})["m.js"]
     assert "notMine" not in out["uses"]
 
 
 @needs_node
 def test_a_non_mixin_object_literal_is_not_a_unit(tmp_path):
-    """Matched by the `Mixin` suffix; every object literal is not a mixin."""
     source = "export const options = { a() { return this.b; } };\n"
     out = _analyse(tmp_path, {"m.js": source})["m.js"]
     assert out["classes"] == [] and out["defines"] == [] and out["uses"] == []
@@ -290,19 +254,13 @@ def test_a_non_mixin_object_literal_is_not_a_unit(tmp_path):
 
 @needs_node
 def test_the_three_list_renderer_mixins_are_all_seen(tmp_path):
-    """Not synthetic: the live modules the composition entry names."""
     units = jmc.analyse(jmc.modules())
     for module in jmc.COMPOSITIONS["views/list/list_renderer.js"]:
         assert units[module].defines, f"{module} contributed no defines"
         assert units[module].uses, f"{module} contributed no uses"
 
 
-# --- per-composition scoping ----------------------------------------------
-
-
 def test_two_compositions_sharing_a_member_name_get_no_edge():
-    """`fields`, `props` and `state` are defined in both live compositions; a
-    flat pass over every pair invents an edge out of the shared name alone."""
     units = _units(
         {
             "one/base.js": (["fields"], []),
@@ -328,7 +286,6 @@ def test_a_private_shared_only_by_name_across_compositions_is_not_shared():
         }
     )
     compositions = {"one/base.js": ["one/mix.js"], "two/base.js": ["two/mix.js"]}
-    # One user per composition, so neither reaches the >=2 threshold.
     assert jmc.shared_privates(units, compositions) == {}
 
 

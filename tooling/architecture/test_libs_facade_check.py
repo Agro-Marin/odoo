@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for ``libs_facade_check.py``.
 
-The cases below pin the ways this gate could lie:
-
-* **Confusing a symbol with a module** — the reason it is not a ``layer_check``
-  contract. ``from odoo.libs.numbers import float_round`` must pass and
-  ``from odoo.libs.numbers.float_utils import float_round`` must fail, even
-  though both render as the dotted path ``odoo.libs.numbers.<something>``. The
-  discriminator is on disk, and ``TestSymbolVersusModule`` is its regression test.
-* **Areas read from disk** — ``areas()`` is derived from the tree, so a new
-  ``libs/<area>/`` needs no edit here and a *deleted* one cannot linger as a
-  permanently-satisfied allowance.
-* **Missing the ``import x.y.z`` form** — only ``from`` imports were common in
-  the migration, so the plain form is the one most likely to rot untested.
-* **Stale pins** — a ``KNOWN_VIOLATIONS`` entry whose file or module no longer
-  matches silently widens tolerance.
-
-Run directly (``python tooling/architecture/test_libs_facade_check.py``) or
-under pytest.
-"""
 
 from __future__ import annotations
 
@@ -37,7 +18,6 @@ def _modules(src: str) -> list[str]:
 
 
 def _check_source(src: str, name: str = "_probe.py"):
-    """Run the checker over one in-memory addon file."""
     tmp = lfc.ADDON_TREES[0] / name
     tmp.write_text(src, encoding="utf-8")
     try:
@@ -47,8 +27,6 @@ def _check_source(src: str, name: str = "_probe.py"):
 
 
 class TestSymbolVersusModule(unittest.TestCase):
-    """The distinction that makes this a separate tool."""
-
     def test_area_import_of_a_symbol_passes(self):
         report = _check_source("from odoo.libs.numbers import float_round\n")
         self.assertEqual(report.new, [])
@@ -64,8 +42,6 @@ class TestSymbolVersusModule(unittest.TestCase):
         self.assertFalse(report.ok)
 
     def test_the_two_are_indistinguishable_by_name_alone(self):
-        # Both are 'odoo.libs.numbers.<name>'. Only the filesystem separates them,
-        # which is exactly why Contract.allow prefix-matching cannot express this.
         self.assertTrue(lfc.module_exists("odoo.libs.numbers.float_utils"))
         self.assertFalse(lfc.module_exists("odoo.libs.numbers.float_round"))
 
@@ -88,7 +64,6 @@ class TestImportForms(unittest.TestCase):
         self.assertEqual(_check_source("import odoo.libs.numbers\n").new, [])
 
     def test_relative_imports_are_ignored(self):
-        # A relative import inside an addon is never odoo.libs.
         self.assertEqual(_modules("from . import models\nfrom ..x import y\n"), [])
 
     def test_non_libs_imports_are_ignored(self):
@@ -147,7 +122,6 @@ class TestRealTree(unittest.TestCase):
         )
 
     def test_it_actually_scanned_something(self):
-        """A path typo would make an empty scan look like a pass."""
         report = lfc.check()
         self.assertGreater(report.scanned, 1000, "addon trees not found")
 
@@ -157,27 +131,14 @@ class TestRealTree(unittest.TestCase):
                 self.assertTrue(tree.is_dir())
 
     def test_scanned_trees_exist(self):
-        """A renamed package would silently shrink the scope to a passing scan."""
         for tree in lfc.SCANNED_TREES:
             with self.subTest(tree=str(tree)):
                 self.assertTrue(tree.is_dir(), f"{tree} is in SCANNED_TREES but absent")
 
     def test_every_core_package_is_scanned(self):
-        """A NEW core package must be added to the scope, not silently skipped.
 
-        This gate was widened twice, each time because a tree nobody had scanned
-        turned out to hold real violations (``odoo/tools`` held 19; ``orm``,
-        ``http``, ``modules`` and ``service`` held 9 between them, in ORM hot
-        paths). Both rounds were found by measuring, not by the gate — it
-        reported green throughout, because a tree outside the scope cannot fail.
-
-        So the scope itself is now the thing under test: every package under
-        ``odoo/`` is either scanned or explicitly excused here.
-        """
         excused = {
-            # An area importing its own leaf modules is how a package is built.
             "libs",
-            # Scanned via ``REPO_ROOT / "odoo" / "addons"`` already.
             "addons",
         }
         core_root = lfc.REPO_ROOT / "odoo"

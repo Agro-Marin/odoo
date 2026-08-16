@@ -300,7 +300,6 @@ addons/web/static/tests/core/router.test.js
 addons/web/static/tests/core/services_audit_regressions.test.js
 addons/web/static/tests/core/services_hardening.test.js
 addons/web/static/tests/core/template.test.js
-addons/web/static/tests/core/template_inheritance.test.js
 addons/web/static/tests/core/translation.test.js
 addons/web/static/tests/core/tree/condition_tree.test.js
 addons/web/static/tests/core/tree/expression_from_tree.test.js
@@ -332,7 +331,6 @@ addons/web/static/tests/fields/basic/char/char_field.test.js
 addons/web/static/tests/fields/basic/monetary/monetary_field.test.js
 addons/web/static/tests/fields/basic/numeric_fields.test.js
 addons/web/static/tests/fields/display/gauge/gauge_field.test.js
-addons/web/static/tests/fields/display/statusbar/statusbar_field.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
 addons/web/static/tests/fields/input_field_hook.test.js
 addons/web/static/tests/fields/media/binary/binary_field.test.js
@@ -528,7 +526,6 @@ addons/web/static/tests/webclient/actions/server_executor.test.js
 addons/web/static/tests/webclient/actions/target.test.js
 addons/web/static/tests/webclient/actions/url_action.test.js
 addons/web/static/tests/webclient/actions/window_action.test.js
-addons/web/static/tests/webclient/barcode/barcode_scanner.test.js
 addons/web/static/tests/webclient/clickbot.test.js
 addons/web/static/tests/webclient/debug/debug_manager.test.js
 addons/web/static/tests/webclient/install_scoped_app/install_scoped_app.test.js

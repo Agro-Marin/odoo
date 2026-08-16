@@ -1,28 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for ``env_surface_check.py``.
 
-A gate that cannot fail is decoration. The cases below pin the ways this one
-could lie:
-
-* **Silence on a real reach** — the whole point is that ``env.<private>`` from a
-  lower layer must trip it. If the collector's ``<x>.env`` heuristic missed
-  ``self.env`` or bare ``env``, the checker would report a permanent green.
-* **Silence on a renamed member** — the reason the gate exists. Four call sites
-  read the cache memo through ``env.__dict__["_field_cache_memo"]``; renaming
-  ``Environment._field_cache_memo`` breaks them *silently*, because the
-  ``except KeyError`` fallback swallows it and the fast path just stops firing.
-  ``TestCatchesRename`` is the regression test for the hole nothing else covers.
-* **Double-counting ``__dict__``** — the subscript form must be recorded once,
-  as the member it names, not twice (once as ``__dict__``, once opaque).
-* **A stale pin** — a ``KNOWN_VIOLATIONS`` entry whose file or attribute no
-  longer exists would silently widen the tolerated set.
-* **Miscounting ``Environment``'s members** — ``env.get`` comes from ``Mapping``,
-  not from the class body. Resolving members without the base would flag every
-  ``env.get`` as nonexistent.
-
-Run directly (``python tooling/architecture/test_env_surface_check.py``) or
-under pytest.
-"""
 
 from __future__ import annotations
 
@@ -37,7 +14,6 @@ import env_surface_check as esc
 
 
 def _check_source(src: str, layer: str = "Layer 1", name: str = "probe.py"):
-    """Run the checker over in-memory source, bypassing the filesystem walk."""
     tmp = Path(esc.REPO_ROOT) / "odoo" / "orm" / "fields" / f"_{name}"
     tmp.write_text(src, encoding="utf-8")
     try:
@@ -74,8 +50,6 @@ class TestCollectorFindsReaches(unittest.TestCase):
 
 
 class TestCatchesRename(unittest.TestCase):
-    """The hole this gate exists to close."""
-
     def test_dict_key_is_resolved_to_the_member_it_names(self):
         report = _check_source(
             'def f(env):\n    return env.__dict__["_field_cache_memo"]\n'
@@ -86,8 +60,6 @@ class TestCatchesRename(unittest.TestCase):
         self.assertTrue(any(r.via_dict for r in report.reaches))
 
     def test_nonexistent_member_via_dict_key_is_flagged(self):
-        # Simulates renaming Environment._field_cache_memo without updating the
-        # four string-key call sites. Nothing else in the repo catches this.
         report = _check_source(
             'def f(env):\n    return env.__dict__["_renamed_away"]\n'
         )
@@ -102,8 +74,6 @@ class TestCatchesRename(unittest.TestCase):
 
 class TestEnvironmentMembers(unittest.TestCase):
     def test_inherited_mapping_methods_are_resolved(self):
-        # env.get is used by Layers 1 and 2 and is defined by Mapping, not by
-        # Environment. Omitting the base would false-positive on every use.
         self.assertIn("get", esc.environment_members())
 
     def test_class_body_members_are_resolved(self):
@@ -113,7 +83,6 @@ class TestEnvironmentMembers(unittest.TestCase):
                 self.assertIn(name, members)
 
     def test_agrees_with_the_runtime_class(self):
-        """Cross-check the AST parse against the real imported Environment."""
         if str(esc.REPO_ROOT) not in sys.path:
             sys.path.insert(0, str(esc.REPO_ROOT))
         try:
@@ -132,7 +101,6 @@ class TestEnvironmentMembers(unittest.TestCase):
 
 class TestPinsAreLive(unittest.TestCase):
     def test_every_known_violation_still_exists(self):
-        """A pin for a file or attribute that is gone silently widens tolerance."""
         report = esc.check()
         pinned = {(k.path, k.attr) for k in esc.KNOWN_VIOLATIONS}
         seen = {(r.path, r.attr) for r in report.known}
@@ -169,7 +137,6 @@ class TestRealTree(unittest.TestCase):
         )
 
     def test_components_reaches_env_for_nothing(self):
-        """The runtime half of the orm-components-are-pure-python claim."""
         report = esc.check()
         self.assertEqual(
             [r for r in report.reaches if r.layer == "components"],
@@ -185,13 +152,7 @@ class TestRealTree(unittest.TestCase):
                 )
 
     def test_the_widened_scope_is_actually_scanned(self):
-        """The eight modules that used to be in no scope at all.
 
-        ``registration.py`` and ``helpers.py`` are the ones that matter:
-        ``layer_check`` pins them below the runtime, and ``helpers.py`` is
-        imported by 11 Layer-2 mixins, so anything it reaches is reachable from
-        Layer 2 without Layer 2 reaching it.
-        """
         scanned = {
             p.relative_to(esc.CORE).as_posix() for p, _ in esc.iter_scope_files()
         }
@@ -207,15 +168,7 @@ class TestRealTree(unittest.TestCase):
                 self.assertIn(rel, scanned)
 
     def test_environment_declares_all_its_members_in_the_class_body(self):
-        """``environment_members`` reads the class body only.
 
-        Its sibling ``pool_surface_check.registry_members`` additionally walks
-        ``self.<name> = ...`` inside methods, because ``Registry`` creates
-        several members imperatively. ``Environment`` does not today, which is
-        why the simpler reader is correct — but if that changes, the symptom is
-        a storm of false "member does not exist" failures pointing at the ORM
-        rather than at this function. Fail here instead, with the reason.
-        """
         tree = ast.parse(esc.ENVIRONMENT_PY.read_text(encoding="utf-8"))
         declared, imperative = set(), set()
         for node in ast.walk(tree):

@@ -1,20 +1,24 @@
-# Self-locating sh/python trampoline, shared by the tooling/hoot/* runners.
+
+# Sourced by the sh/python polyglots in tooling/ (hoot/hoot, hoot/hoot-shard,
+# hoot/hoot-affected, bench/render_bench, bench/discuss_bench). Each opens with
 #
-# Sourced from inside the `''':' ... '''` polyglot preamble of an
-# extension-less CLI script: it locates the checkout, picks the workspace venv
-# interpreter, and re-execs the CALLING script with it, so no venv path is ever
-# hardcoded. The checkout root is found by walking up for `odoo-bin` rather
-# than counting directories, so moving a script cannot silently point it at the
-# wrong tree. Override the interpreter with $ODOO_VENV_PYTHON when the
-# workspace holds several venvs.
+#     #!/bin/sh
+#     ''':'
+#     … these lines …
+#     '''
 #
-# This lived as 24 lines copy-pasted into three files. Two of the three were
-# byte-identical and the third differed only in a comment — which is the state
-# right before they drift, and the bootstrap is the worst place to discover a
-# copy went stale. `$0` and `"$@"` survive a POSIX `.` unchanged, so the
-# calling script is still the one re-exec'd.
+# which sh reads as '' + ':' — the no-op `:` builtin, so the shell falls through
+# to the code below and re-execs the file under the venv interpreter — while
+# python reads the same span as a triple-quoted string and skips it.
 #
-# NB: no `set --` in here — it would clobber "$@" (the real CLI arguments).
+# Those two delimiters are why every caller wraps them in `# fmt: off` /
+# `# fmt: on`. `ruff format` normalises quotes to double and would rewrite ''' to
+# """: identical Python, but sh reads """ as '' followed by an unterminated ",
+# swallowing the trampoline into a string and killing the runner with
+# `Syntax error: word unexpected`. `ruff check` cannot catch it — the Python half
+# stays valid — and .pre-commit-config.yaml runs ruff-format on staged files, so
+# without the guard a one-line edit to any of these files breaks it on commit.
+# Do not remove the fmt pragmas, and do not "fix" the quotes.
 
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$here"
@@ -23,10 +27,6 @@ if [ ! -f "$root/odoo-bin" ]; then
     echo "$(basename "$0"): no odoo-bin above $here; cannot locate the checkout" >&2
     exit 1
 fi
-# Two workspace layouts: the checkout used to sit at <ws>/addons/odoo with the
-# venvs under <ws>/venv/, and now sits at <ws>/odoo with them directly under
-# <ws>/. Derive <ws> from the checkout's own position rather than a fixed depth,
-# and search both venv locations, so neither layout needs $ODOO_VENV_PYTHON.
 if [ "$(basename "$(dirname "$root")")" = "addons" ]; then
     ws="$(cd "$root/../.." && pwd)"
 else

@@ -1,35 +1,4 @@
 #!/bin/bash
-# Reshape an upstream pdf.js prebuilt release into the layout vendored here.
-# Take the LEGACY archive -- "pdfjs-<v>-legacy-dist.zip" from the GitHub
-# releases page, NOT the plain "-dist.zip": the modern build calls
-# Map.prototype.getOrInsertComputed with no feature detection and never defines
-# it, and that method only reached Baseline in February 2026 (Firefox 144,
-# Safari 26.2, Chrome 145), so PDF preview breaks on anything older -- t24581
-# was reported from Chrome 141. Only the legacy build carries the core-js
-# polyfill, and it carries it in both build/pdf.js and build/pdf.worker.js -- a
-# hand-written prototype patch could not, since it would never reach the worker.
-# addons/web/tests/test_pdfjs_dist.py gates the flavour. The npm package ships
-# no full viewer, which is why a release zip is the source at all.
-#
-# Run this on the fresh release, then re-apply the fork's divergences, each of
-# which is marked `AgroMarin:` in the file it lives in (see
-# addons/web/static/lib/README.md).
-#
-#   ./mechanise_pdfjs.sh <unzipped-release-dir>
-#
-#  - ESM files carry .js, not .mjs, and every intra-tree reference follows --
-#    except webpack's build-provenance comments (";// ./node_modules/..."),
-#    which name the SOURCE module rather than a shipped file. Rewriting those
-#    misreports where the code came from, and the old patch file spent 4 of its
-#    12 hunks undoing exactly that.
-#  - Source maps are not shipped, so their references are stripped rather than
-#    rewritten: a rewritten-but-absent .map 404s in devtools.
-#  - The scripting sandbox (pdf.sandbox.*) and its QuickJS engine
-#    (web/wasm/quickjs-eval.*, ~475 kB) are dropped: this fork sets
-#    enableScripting=false, so nothing loads them.
-#  - The sample PDF and the standard-font pack are not shipped either.
-#  - web/wasm/{openjpeg,jbig2,qcms}* ARE kept: since v6 those codecs live
-#    outside the worker bundle and pdf.js fetches them at runtime.
 set -e
 d="$1"
 [ -d "$d" ] || { echo "usage: $0 <unzipped-release-dir>" >&2; exit 2; }

@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Install this clone's git hooks. Run once per clone, from anywhere:
-#
-#     tooling/install-hooks.sh
-#
-# `.pre-commit-config.yaml` DECLARES hooks; it installs nothing. Each clone
-# must run `pre-commit install` for each hook stage, or the declarations are
-# dead text — a 2026-08 audit found exactly that: the pre-push
-# cross_repo_coherence gate was declared, and no clone in the workspace had
-# any hook installed (`.git/hooks` held only samples). This script is the one
-# command that makes the declarations real, so the gap cannot reopen quietly.
-#
-# The pre-push stage matters most here: it runs
-# tooling/architecture/cross_repo_coherence.py --check, which stops a push
-# that removes a JS module a sibling checkout still imports (the t23778
-# incident). CI cannot replace it — the sibling repos' architecture workflows
-# re-check the boundary post-hoc, but only this hook stops the push itself.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

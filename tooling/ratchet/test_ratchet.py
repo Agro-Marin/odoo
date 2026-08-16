@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib-only tests for the drift-zero ratchet. Run: python -m pytest, or
 
-    python tooling/ratchet/test_ratchet.py
-
-No Odoo, no database, no third-party deps — mirrors the self-test guarantee that
-``tooling/architecture/test_layer_check.py`` gives the layering checker.
-"""
 
 from __future__ import annotations
 
@@ -22,8 +16,6 @@ from ratchet import EXIT_DRIFT, EXIT_OK, EXIT_USAGE, Baseline, evaluate
 
 
 class EvaluatePureTests(unittest.TestCase):
-    """The comparison logic — the load-bearing part — as a pure function."""
-
     BASE = Baseline(count=100, note="x")
 
     def test_unchanged_passes(self):
@@ -40,8 +32,6 @@ class EvaluatePureTests(unittest.TestCase):
             self.assertEqual(v.drift, 1)
 
     def test_decrease_fails_in_exact_mode(self):
-        # The compounding rule: an improvement you don't commit is a failure,
-        # so the lower floor gets locked in.
         v = evaluate("g", 90, self.BASE, "exact")
         self.assertFalse(v.ok)
         self.assertEqual(v.status, "improved")
@@ -115,19 +105,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK)
         self.assertIn("created", out)
 
-        # Same count → passes.
         code, _, _ = self._run(["mypy", "--count", "1969"])
         self.assertEqual(code, EXIT_OK)
 
-        # One more error → blocks the merge.
         code, _, _ = self._run(["mypy", "--count", "1970"])
         self.assertEqual(code, EXIT_DRIFT)
 
-        # Improvement without committing the baseline → also blocks (exact mode).
         code, _, _ = self._run(["mypy", "--count", "1900"])
         self.assertEqual(code, EXIT_DRIFT)
 
-        # ...until you lock it in; then the floor is 1900 and 1969 regresses.
         self._run(["mypy", "--count", "1900", "--update"])
         code, _, _ = self._run(["mypy", "--count", "1969"])
         self.assertEqual(code, EXIT_DRIFT)
@@ -158,8 +144,6 @@ class CliTests(unittest.TestCase):
         self.assertIn("b", out)
 
     def test_list_reports_a_malformed_baseline_instead_of_crashing(self):
-        # --list is what a maintainer runs to find out what is wrong; an
-        # uncaught JSONDecodeError there hid the one file that needed fixing.
         self._run(["good", "--count", "1", "--update"])
         (ratchet.BASELINES_DIR / "broken.json").write_text("{not json")
         (ratchet.BASELINES_DIR / "nocount.json").write_text('{"note": "oops"}')
@@ -170,14 +154,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("nocount", err)
 
     def test_the_count_path_reports_a_malformed_baseline_too(self):
-        """The gating path must survive what ``--list`` already survives.
 
-        ``--list`` caught ``OSError, ValueError, KeyError, TypeError``; the
-        ``--count`` path — the one every CI job runs — caught a strictly
-        narrower set, so a floor of ``{"count": null}`` gave a maintainer a
-        clean report under ``--list`` and a raw ``TypeError`` traceback under
-        the command that decides whether the build passes.
-        """
         for name, body in (
             ("nulls", '{"count": null}'),
             ("dicts", '{"count": {}}'),

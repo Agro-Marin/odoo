@@ -1,17 +1,7 @@
-"""Tests for the deployment-context layering checker.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_js_deployment_layers.py
-"""
-
 from pathlib import Path
 
-import js_deployment_layers as jdl  # sys.path set by conftest.py
+import js_deployment_layers as jdl
 import pytest
-
-# --- the bundle table is the contract; assert its shape, not just its keys ---
 
 
 def test_every_layer_ships_somewhere():
@@ -21,9 +11,6 @@ def test_every_layer_ships_somewhere():
 
 
 def test_common_is_the_only_layer_shipping_everywhere():
-    """`common` is the bottom of the graph precisely because it ships in every
-    context; if another layer gained that property the cardinal rule would no
-    longer single `common` out."""
     everywhere = {
         layer
         for layer, b in jdl.LAYER_BUNDLES.items()
@@ -33,8 +20,6 @@ def test_common_is_the_only_layer_shipping_everywhere():
 
 
 def test_web_and_public_are_disjoint():
-    """The pair that makes a linear rank wrong. If these ever overlap, the
-    subset rule silently starts permitting `web -> public`."""
     assert not (jdl.LAYER_BUNDLES["web"] & jdl.LAYER_BUNDLES["public"])
 
 
@@ -42,9 +27,6 @@ def test_public_web_and_web_portal_overlap_only_in_the_backend():
     assert jdl.LAYER_BUNDLES["public_web"] & jdl.LAYER_BUNDLES["web_portal"] == {
         jdl.BACKEND
     }
-
-
-# --- layer_of: a segment, not a prefix or a substring ---
 
 
 def test_layer_of_finds_a_segment_anywhere_in_the_path():
@@ -60,11 +42,7 @@ def test_layer_of_ignores_names_that_merely_contain_a_layer():
 
 
 def test_layer_of_does_not_match_a_bare_filename():
-    """`web.js` is a file, not a layer directory."""
     assert jdl.layer_of("utils/web.js") is None
-
-
-# --- specifier resolution ---
 
 
 @pytest.mark.parametrize(
@@ -73,11 +51,9 @@ def test_layer_of_does_not_match_a_bare_filename():
         ("@mail/core/web/x", "im_livechat", "core/common/y.js", "mail/core/web/x"),
         ("./z", "mail", "core/common/y.js", "mail/core/common/z"),
         ("../web/z", "mail", "core/common/y.js", "mail/core/web/z"),
-        # not first-party addon source
         ("@odoo/owl", "mail", "core/common/y.js", None),
         ("@web/../lib/x", "mail", "core/common/y.js", None),
         ("luxon", "mail", "core/common/y.js", None),
-        # climbs out of static/src
         ("../../../x", "mail", "core/y.js", None),
     ],
 )
@@ -85,11 +61,7 @@ def test_resolve(spec, addon, rel, expected):
     assert jdl.resolve(spec, addon, rel) == expected
 
 
-# --- the rule itself, exercised through check() on a synthetic tree ---
-
-
 def _tree(tmp_path: Path, files: dict[str, str]):
-    """Build `<tmp>/addons/<addon>/static/src/<rel>` and return check()'s input."""
     out = []
     for key, source in files.items():
         addon, _, rel = key.partition(":")
@@ -101,9 +73,6 @@ def _tree(tmp_path: Path, files: dict[str, str]):
     return out
 
 
-# All 25 ordered pairs over the five layers, classified by hand from
-# ASSET_LAYERS.md rather than by calling the rule under test — a table derived
-# from the implementation would agree with it by construction and prove nothing.
 FORBIDDEN = [
     ("common", "public_web"),
     ("common", "web_portal"),
@@ -167,15 +136,12 @@ def test_allowed_edges_are_silent(tmp_path, src_layer, target_layer):
 
 
 def test_the_two_lists_together_cover_every_ordered_pair():
-    """A rule tested only on the pairs someone thought of is a rule with holes.
-    Every (source, target) over the five layers must be classified."""
     layers = sorted(jdl.LAYER_BUNDLES)
     every = {(a, b) for a in layers for b in layers}
     assert set(FORBIDDEN) | set(ALLOWED) == every
 
 
 def test_cross_addon_edges_are_governed(tmp_path):
-    """The satellites import into mail; a gate watching one addon would miss it."""
     files = _tree(
         tmp_path,
         {
@@ -190,7 +156,6 @@ def test_cross_addon_edges_are_governed(tmp_path):
 
 
 def test_relative_imports_are_governed(tmp_path):
-    """`../web/x` is the same edge as `@mail/core/web/x` and must not slip past."""
     files = _tree(
         tmp_path,
         {
@@ -204,8 +169,6 @@ def test_relative_imports_are_governed(tmp_path):
 
 
 def test_type_only_imports_create_no_edge(tmp_path):
-    """JSDoc `@import` names a module without depending on it; the typecheck
-    locks own that, not this gate."""
     files = _tree(
         tmp_path,
         {
@@ -222,17 +185,11 @@ def test_type_only_imports_create_no_edge(tmp_path):
 
 
 def test_unlayered_directories_are_not_governed():
-    """`model/`, `utils/` (at its root) and `views/fields/` carry no layer
-    segment. The manifest gives them their own explicit glob lines, so this gate
-    has nothing to say about them and must not invent a layer for them --
-    `iter_source_files` drops them before `check` ever sees them."""
     for rel in ("model/record.js", "webclient/webclient.js", "views/fields/x.js"):
         assert jdl.layer_of(rel) is None, rel
 
 
 def test_known_violations_is_empty():
-    """The tree was clean when this gate landed. An entry here is real debt and
-    should arrive with a reason, not as a way to make the gate quiet."""
     assert jdl.KNOWN_VIOLATIONS == ()
     for k in jdl.KNOWN_VIOLATIONS:  # pragma: no cover - guards a future entry
         assert k.reason.strip()

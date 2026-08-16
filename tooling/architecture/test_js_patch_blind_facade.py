@@ -1,14 +1,3 @@
-"""Tests for the patch-blind facade gate.
-
-Stdlib + pytest only, matching the rest of this directory. Every case builds a
-synthetic ``static/src`` so the assertions do not move when the real tree does.
-
-The load-bearing test is ``test_detects_the_real_bug_shape``: it reproduces
-``command_service.js`` as it stood before 2026-08-03, which is the shape that
-let Ctrl+K bypass ``enterprise/knowledge``'s portal palette block. A gate that
-only proves it stays green on a fixed tree proves nothing.
-"""
-
 import json
 from pathlib import Path
 
@@ -19,8 +8,6 @@ pytestmark = pytest.mark.skipif(
     not ACORN.is_file(), reason="acorn not installed (run `npm ci`)"
 )
 
-# The pre-fix shape: the hotkey registration captures the closure identifier,
-# while the same name is published on the returned facade.
 BUGGY = """
 import { registry } from "@web/core/registry";
 export const commandService = {
@@ -34,8 +21,6 @@ export const commandService = {
 registry.category("services").add("command", commandService);
 """
 
-# The fix: the facade is named, and internal callers go through it, so the
-# lookup happens at call time and a patch is visible to everyone.
 FIXED = """
 import { registry } from "@web/core/registry";
 export const commandService = {
@@ -61,12 +46,10 @@ def _tree(tmp_path: Path, **files: str) -> Path:
 
 
 def test_detects_the_real_bug_shape(tmp_path):
-    """The exact shape that shipped the Ctrl+K bypass must be caught."""
     src = _tree(tmp_path, **{"command_service.js": BUGGY})
     found = measure(src=src)
     methods = {v.method for v in found}
     assert methods == {"openMainPalette", "openPalette"}
-    # and it must point at the offending lines, not just name the file
     assert all(v.lines for v in found)
 
 
@@ -76,7 +59,6 @@ def test_passes_the_fixed_shape(tmp_path):
 
 
 def test_refuses_an_empty_tree(tmp_path):
-    """A gate that analyses nothing must fail, not report zero violations."""
     src = tmp_path / "static" / "src"
     src.mkdir(parents=True)
     with pytest.raises(RuntimeError, match="no service definitions"):
@@ -95,7 +77,6 @@ def test_refuses_an_absent_tree(tmp_path):
 
 
 def test_ignores_calls_to_unpublished_helpers(tmp_path):
-    """Calling a private helper is normal and must not be reported."""
     body = """
     import { registry } from "@web/core/registry";
     export const svc = {
@@ -112,7 +93,6 @@ def test_ignores_calls_to_unpublished_helpers(tmp_path):
 
 
 def test_detects_facade_bound_to_a_const(tmp_path):
-    """The facade may be returned via an identifier; still analysed."""
     body = """
     import { registry } from "@web/core/registry";
     export const svc = {
@@ -130,7 +110,6 @@ def test_detects_facade_bound_to_a_const(tmp_path):
 
 
 def test_method_shorthand_on_the_facade_is_covered(tmp_path):
-    """A shorthand method is published under its own name."""
     body = """
     import { registry } from "@web/core/registry";
     export const svc = {
@@ -158,11 +137,10 @@ def test_parse_error_is_raised_not_swallowed(tmp_path):
 
 
 def test_check_flag_exits_nonzero_on_drift(tmp_path, monkeypatch, capsys):
-    """`--check` is the only part CI reads; report mode must stay exit 0."""
     src = _tree(tmp_path, **{"command_service.js": BUGGY})
     monkeypatch.setattr("js_patch_blind_facade.WEB_SRC", src)
     assert main(["--check"]) == 1
-    assert main([]) == 0  # report mode does not gate
+    assert main([]) == 0
     out = capsys.readouterr().out
     assert "openMainPalette" in out
 

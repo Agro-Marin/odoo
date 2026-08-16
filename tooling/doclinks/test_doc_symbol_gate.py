@@ -1,21 +1,9 @@
-"""Tests for the documented-symbol gate.
-
-Two failure modes are worth more than the rest. A gate anchored on the wrong
-root, or with patterns that match nothing, scans zero claims and exits 0 while
-the tree rots — the same silent pass ``test_doc_link_gate.py`` was written
-against. And an allowlist entry that stops being true turns into a permanent
-excuse. Both are pinned below.
-"""
-
 from pathlib import Path
 
 import doc_symbol_gate as gate
 import pytest
 from _repo_root import find_odoo_root
 
-#: The document as it stood before the ``derived`` entries were corrected. Kept
-#: inline rather than read from git so the test does not depend on history
-#: staying reachable.
 PRE_FIX_EXCERPT = """
 | Concept | OWL-native spelling |
 |---------|---------------------|
@@ -53,7 +41,6 @@ class TestRootResolution:
 
 class TestScanCoverage:
     def test_globs_match_a_nonzero_number_of_documents(self):
-        """An empty match set is the silent-no-op signature."""
         assert gate._glob_files(), (
             "doc_symbol_gate matched zero documents — it would report success "
             "regardless of how many documented symbols are missing"
@@ -111,7 +98,6 @@ class TestExportExtraction:
 
 class TestDetection:
     def test_the_pre_fix_document_is_caught(self, tmp_path, monkeypatch):
-        """THE regression: this is the defect the gate exists for."""
         doc = gate.REPO_ROOT / "addons" / "web" / "machine_doc_v1" / "_probe_pre_fix.md"
         doc.write_text(PRE_FIX_EXCERPT)
         try:
@@ -135,7 +121,6 @@ class TestDetection:
 
 class TestDeliberateAbsences:
     def test_every_allowlisted_symbol_is_genuinely_still_absent(self):
-        """An excuse that stopped being true is a permanent hole."""
         for (document, symbol), reason in gate.DELIBERATE_ABSENCES.items():
             assert reason.strip(), f"{document}:{symbol} has no rationale"
             path = gate.REPO_ROOT / document
@@ -146,7 +131,6 @@ class TestDeliberateAbsences:
             )
 
     def test_an_allowlisted_document_is_not_blanket_excused(self):
-        """The key is (document, symbol), so a second bad symbol still fails."""
         document = "addons/web/machine_doc_v1/STATE_MANAGEMENT.md"
         assert (document, "Reactive") in gate.DELIBERATE_ABSENCES
         doc = gate.REPO_ROOT / "addons" / "web" / "machine_doc_v1" / "_probe_blanket.md"
@@ -158,5 +142,4 @@ class TestDeliberateAbsences:
             violations = gate.scan([doc])
         finally:
             doc.unlink()
-        # A different document, so even `Reactive` is not excused here.
         assert {v.symbol for v in violations} == {"Reactive", "notAThing"}

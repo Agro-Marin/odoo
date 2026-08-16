@@ -1,5 +1,3 @@
-"""The Python function-length budget, and the metric choice behind it."""
-
 import textwrap
 import unittest
 from pathlib import Path
@@ -23,7 +21,6 @@ class TestMeasure(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
 
     def _fn(self, lines: int) -> str:
-        # `def` + (lines - 1) body lines == `lines` spanned lines.
         return "def f():\n" + "".join(f"    x = {i}\n" for i in range(lines - 1))
 
     def test_a_function_at_the_budget_is_not_reported(self):
@@ -38,7 +35,6 @@ class TestMeasure(unittest.TestCase):
         self.assertEqual(found[0].what, "f")
 
     def test_the_decorator_does_not_count_toward_the_length(self):
-        """`node.lineno` is the `def`: a function is not long for being decorated."""
         body = "@deco\n@deco\n@deco\n" + self._fn(pfl.MAX_LINES)
         path = _write(self.tmp, "a.py", body)
         self.assertEqual(pfl.measure([path]), [])
@@ -77,14 +73,6 @@ class TestMeasure(unittest.TestCase):
 
 
 class TestExcessIsTheRatchetedMetric(unittest.TestCase):
-    """Why this gate diverges from ``js_function_length``.
-
-    A count-of-offenders ratchet punishes splitting one huge function into
-    several merely-long ones, which is the fix the budget exists to encourage.
-    Splitting ``_build_cli`` moved the real repo's count 121 -> 127 while excess
-    moved 5457 -> 4867. These pin the property that made us choose excess.
-    """
-
     def test_excess_is_the_sum_of_lines_above_budget(self):
         found = [
             pfl.LongFunction("a.py", 1, pfl.MAX_LINES + 10, "a"),
@@ -116,14 +104,11 @@ class TestExcessIsTheRatchetedMetric(unittest.TestCase):
 
 
 class TestAddonScope(unittest.TestCase):
-    """`--addon` selects the tree, the same way `js_function_length.py` does."""
-
     def test_the_default_addon_is_the_core_package(self):
         self.assertEqual(pfl.addon_src(), pfl.SCOPE)
         self.assertEqual(pfl.addon_src(pfl.DEFAULT_ADDON), pfl.SCOPE)
 
     def test_the_default_reads_the_module_level_scope(self):
-        """So the suite's monkeypatching of `SCOPE` still bites."""
         sentinel = Path("/nowhere/at/all")
         with mock.patch.object(pfl, "SCOPE", sentinel):
             self.assertEqual(pfl.addon_src(), sentinel)
@@ -143,11 +128,76 @@ class TestAddonScope(unittest.TestCase):
         )
 
     def test_an_addon_scan_is_not_the_core_scan(self):
-        """A flag that silently measured core would read as a passing floor."""
         self.assertNotEqual(
             pfl.iter_source_files(pfl.addon_src("stock")),
             pfl.iter_source_files(),
         )
+
+
+class TestAllAddonsScope(unittest.TestCase):
+    def test_the_reserved_name_is_the_tree_not_a_module_inside_it(self):
+        src = pfl.addon_src(pfl.ALL_ADDONS)
+        self.assertEqual(src, pfl.ROOT / "addons")
+        self.assertNotEqual(
+            src,
+            pfl.ROOT / "addons" / pfl.ALL_ADDONS,
+            "the reserved name fell through to the per-module branch",
+        )
+
+    def test_the_tree_scope_is_neither_the_core_scope_nor_one_module(self):
+        src = pfl.addon_src(pfl.ALL_ADDONS)
+        self.assertNotEqual(src, pfl.SCOPE)
+        self.assertNotEqual(src, pfl.addon_src("stock"))
+
+    def test_no_module_escapes_the_tree_scan(self):
+        tree = set(pfl.iter_source_files(pfl.addon_src(pfl.ALL_ADDONS)))
+        self.assertTrue(tree, "the gate scanned nothing under addons/")
+        for module in ("stock", "account", "api_transport"):
+            files = set(pfl.iter_source_files(pfl.addon_src(module)))
+            self.assertTrue(files, f"the gate scanned nothing under addons/{module}")
+            self.assertLessEqual(
+                files, tree, f"addons/{module} is outside the tree scan"
+            )
+
+    def test_the_tree_scan_skips_tests_like_every_other_scope(self):
+        files = pfl.iter_source_files(pfl.addon_src(pfl.ALL_ADDONS))
+        self.assertFalse(
+            [f for f in files if "tests" in f.parts or f.name.startswith("test_")]
+        )
+
+    def test_the_tree_scan_is_wider_than_its_largest_module(self):
+        tree = pfl.iter_source_files(pfl.addon_src(pfl.ALL_ADDONS))
+        self.assertGreater(
+            len(tree), len(pfl.iter_source_files(pfl.addon_src("account")))
+        )
+
+
+class TestTheRatchetHintIsCopyPastable(unittest.TestCase):
+    def _hint(self, argv: list[str]) -> str:
+        import contextlib
+        import io
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            pfl.main(argv)
+        return buf.getvalue()
+
+    def test_the_tree_scope_hints_the_one_sided_mode(self):
+        out = self._hint(["--top", "0", "--addon", pfl.ALL_ADDONS])
+        self.assertIn("ratchet.py pyfunclen_addons --mode no-increase --count", out)
+        self.assertIn("(> 80 lines, addons/)", out)
+
+    def test_the_core_scope_hints_no_mode_and_stays_exact(self):
+        out = self._hint(["--top", "0"])
+        self.assertIn("ratchet.py pyfunclen --count", out)
+        self.assertNotIn("--mode", out)
+        self.assertIn("(> 80 lines, odoo/)", out)
+
+    def test_a_single_module_hints_its_own_exact_floor(self):
+        out = self._hint(["--top", "0", "--addon", "stock"])
+        self.assertIn("ratchet.py pyfunclen_stock --count", out)
+        self.assertNotIn("--mode", out)
+        self.assertIn("(> 80 lines, addons/stock/)", out)
 
 
 class TestRealTree(unittest.TestCase):
@@ -160,12 +210,10 @@ class TestRealTree(unittest.TestCase):
         )
 
     def test_the_gate_refuses_an_empty_tree(self):
-        """Measuring nothing must report nothing, not silently pass on garbage."""
         self.assertEqual(pfl.measure([]), [])
         self.assertEqual(pfl.excess_lines([]), 0)
 
     def test_config_build_cli_is_no_longer_the_outlier(self):
-        """Pins the specific defect that motivated the gate."""
         found = pfl.measure()
         by_name = {f.what: f.lines for f in found}
         self.assertNotIn(

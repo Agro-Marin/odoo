@@ -273,6 +273,7 @@
             "@website_links/*": ["addons/website_links/static/src/*"],
             "@website_livechat/*": ["addons/website_livechat/static/src/*"],
             "@website_mass_mailing/*": ["addons/website_mass_mailing/static/src/*"],
+            "@website_payment/*": ["addons/website_payment/static/src/*"],
             "@website_sale/*": ["addons/website_sale/static/src/*"],
             "@website_sale_comparison/*": ["addons/website_sale_comparison/static/src/*"],
             "@website_sale_renting/*": ["../enterprise/website_sale_renting/static/src/*"],

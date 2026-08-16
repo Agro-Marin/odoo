@@ -1,10 +1,3 @@
-"""Tests for the ``env.config`` declared-shape gate.
-
-Three of these exist because the first draft of the gate got them wrong, and
-each wrong answer was the *confident* kind — a clean-looking run reporting keys
-that do not exist, or a blind spot reported as a hazard.
-"""
-
 from pathlib import Path
 
 import js_env_config_surface as gate
@@ -36,7 +29,6 @@ class TestDeclaredSurface:
         assert not (owned & foreign)
 
     def test_a_missing_array_is_an_error_not_an_empty_set(self, monkeypatch, tmp_path):
-        """An empty surface would declare every key undeclared, or none."""
         stub = tmp_path / "view_config.js"
         stub.write_text("export const SOMETHING_ELSE = [];\n")
         monkeypatch.setattr(gate, "CONTRACT", stub)
@@ -50,7 +42,6 @@ class TestKeyExtraction:
         assert keys == {"viewId"} and ok
 
     def test_an_optional_chained_read_is_found(self):
-        """`env.config?.actionName` is the only site reaching that key."""
         keys, _ = gate.keys_in("env.config?.actionName")
         assert keys == {"actionName"}
 
@@ -59,11 +50,7 @@ class TestKeyExtraction:
         assert keys == {"viewType", "actionId"}
 
     def test_a_destructure_of_a_nested_value_is_not_a_config_destructure(self):
-        """THE regression: the unanchored pattern invented two snake_case keys.
 
-        `{ parent_res_model, parent_action_id } = env.config.embeddedActions[0]`
-        destructures an embedded action, not the bag.
-        """
         keys, _ = gate.keys_in(
             "const { parent_res_model, parent_action_id } = env.config.embeddedActions[0];"
         )
@@ -75,8 +62,6 @@ class TestKeyExtraction:
         assert ok and {"viewType"} <= keys
 
     def test_an_honest_alias_is_not_reported_as_rebound(self):
-        """THE regression: `\\s*=\\s*` matches zero-width, so a negative lookahead
-        after it lands on whitespace and reports every alias as rebound."""
         _, ok = gate.keys_in("const config = this.env.config;\nconfig.viewId;")
         assert ok, "the tree's two honest alias sites were both flagged by this bug"
 
@@ -92,7 +77,6 @@ class TestKeyExtraction:
 
 class TestScope:
     def test_the_contract_file_is_not_its_own_consumer(self):
-        """Its prose names `env.config.onNodeClicked` while explaining who sets it."""
         assert gate.CONTRACT not in set(gate._js_files(gate.ROOT))
 
     def test_tests_are_not_production_reach(self):
@@ -130,7 +114,6 @@ class TestLiveTree:
         assert len(gate.read_pinned()) > 15
 
     def test_the_foreign_keys_are_still_foreign(self):
-        """If web starts setting one, it should be promoted, not left here."""
         _, foreign = gate.declared_surface()
         provenance, _ = gate.measure()
         for key in foreign:

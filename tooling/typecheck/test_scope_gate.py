@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib-only tests for the default-deny type-check gate. Run: python -m pytest, or
 
-    python tooling/typecheck/test_scope_gate.py
-
-No Odoo, no database, no node, no third-party deps — mirrors the self-test
-guarantee ``tooling/ratchet/test_ratchet.py`` gives the ratchet, so CI can
-verify the gate before trusting its verdict.
-"""
 
 from __future__ import annotations
 
@@ -39,9 +32,6 @@ def err(path: str, code: str = "TS2532", line: int = 1) -> str:
 
 
 class ModuleOfTests(unittest.TestCase):
-    """Path -> module mapping. Patched to a two-module scope so the mapping is
-    tested independently of which modules SCOPED_MODULES happens to gate."""
-
     def setUp(self):
         patcher = mock.patch.object(scope_gate, "SCOPED_MODULES", ("web", "mail"))
         patcher.start()
@@ -53,11 +43,9 @@ class ModuleOfTests(unittest.TestCase):
         self.assertEqual(module_of(f"{MAIL_SRC}core/common/thread.js"), "mail")
 
     def test_ungated_module_is_out_of_scope(self):
-        # A module nobody locked yet is the count ratchet's business, not ours.
         self.assertIsNone(module_of("addons/stock/static/src/widget.js"))
 
     def test_non_scope_subdirs_rejected(self):
-        # static/lib is vendored third-party code plus the hoot harness.
         self.assertIsNone(module_of("addons/web/static/lib/hoot/hoot.js"))
         self.assertIsNone(module_of("addons/web/static/fonts/x.js"))
 
@@ -66,8 +54,6 @@ class ModuleOfTests(unittest.TestCase):
         self.assertIsNone(module_of("odoo/addons/base/static/src/x.js"))
 
     def test_declaration_files_rejected(self):
-        # skipLibCheck means .d.ts never produces errors; locking them would
-        # inflate the coverage number with files nothing checks.
         self.assertIsNone(module_of(f"{WEB_SRC}@types/registry.d.ts"))
         self.assertEqual(module_of(f"{WEB_SRC}@types/models/_runtime.ts"), "web")
 
@@ -98,10 +84,6 @@ class ModuleOfTests(unittest.TestCase):
 
 
 class CommittedScopeTests(unittest.TestCase):
-    """The scope as actually committed — guards against an accidental widening
-    that would lock thousands of unaudited files, and against an empty tuple
-    that would silently gate nothing at all."""
-
     def test_web_is_gated(self):
         self.assertIn("web", scope_gate.SCOPED_MODULES)
 
@@ -109,8 +91,6 @@ class CommittedScopeTests(unittest.TestCase):
         self.assertTrue(scope_gate.SCOPED_MODULES)
 
     def test_every_gated_module_has_both_lists(self):
-        # A gated module with no list makes the gate exit 2, not pass, but that
-        # is a CI failure discovered late; catch it here instead.
         for gate in ("strict", "noimplicitany"):
             for module in scope_gate.SCOPED_MODULES:
                 path = scope_gate.exceptions_path(gate, module)
@@ -147,8 +127,6 @@ class ParseLogTests(unittest.TestCase):
         self.assertEqual(list(parse_log(log)), [f"{WEB_SRC}a.js"])
 
     def test_path_inside_a_message_is_not_attributed(self):
-        # The regression this anchoring prevents: an unanchored search sees the
-        # quoted path and blames a file that is actually clean.
         log = (
             f"{WEB_SRC}a.js(1,1): error TS2307: Cannot find module "
             f"'{WEB_SRC}core/registry.js' or its declarations."
@@ -164,8 +142,6 @@ class ParseLogTests(unittest.TestCase):
 
 
 class EvaluateModuleTests(unittest.TestCase):
-    """The verdict logic as a pure function, with the filesystem stubbed."""
-
     def setUp(self):
         self.tmp = TemporaryDirectory()
         self.root = Path(self.tmp.name)
@@ -204,7 +180,6 @@ class EvaluateModuleTests(unittest.TestCase):
         self.assertEqual((v.locked, v.excepted), (0, 1))
 
     def test_new_file_is_gated_without_being_listed(self):
-        # The core win over an allowlist: a file nobody mentioned is enforced.
         self.touch(f"{WEB_SRC}brand_new.js")
         self.touch(f"{WEB_SRC}old.js")
         tally = parse_log(
@@ -221,8 +196,6 @@ class EvaluateModuleTests(unittest.TestCase):
         self.assertEqual(v.regressed, [f"{WEB_SRC}brand_new.js"])
 
     def test_renamed_exception_is_stale_not_resolved(self):
-        # ui/block/ui_service.js -> ui/ui_service.js lost its lock this way and
-        # no gate noticed. A moved file must read as a lost lock.
         v = evaluate_module(
             "web", parse_log(err(f"{WEB_SRC}b.js")), [f"{WEB_SRC}gone.js"], [], "exact"
         )
@@ -231,8 +204,6 @@ class EvaluateModuleTests(unittest.TestCase):
         self.assertEqual(v.resolved, [])
 
     def test_foreign_module_entry_is_out_of_scope(self):
-        # A mail path filed in web's list enforces nothing: mail reads its own
-        # list, so without this check the lock is absent from both.
         self.touch(f"{MAIL_SRC}x.js")
         v = evaluate_module(
             "web", parse_log(err(f"{WEB_SRC}a.js")), [f"{MAIL_SRC}x.js"], [], "exact"
@@ -274,7 +245,6 @@ class EvaluateModuleTests(unittest.TestCase):
             self.assertFalse(v.ok, mode)
 
     def test_another_modules_error_is_ignored(self):
-        # web's verdict must not be polluted by mail's errors, and vice versa.
         self.touch(f"{WEB_SRC}a.js")
         tally = parse_log(err(f"{MAIL_SRC}x.js"))
         self.assertTrue(
@@ -303,8 +273,6 @@ class EvaluateModuleTests(unittest.TestCase):
 
 
 class ProgramMembershipTests(unittest.TestCase):
-    """A file tsc never compiled must not be counted, or credited, as clean."""
-
     def setUp(self):
         self.tmp = TemporaryDirectory()
         self.root = Path(self.tmp.name)
@@ -319,8 +287,6 @@ class ProgramMembershipTests(unittest.TestCase):
         path.write_text("", encoding="utf-8")
 
     def test_uncompiled_file_is_unchecked_not_locked(self):
-        # The exclude: ["**/l10n*"] regression in miniature: no errors, no
-        # exception entry, and yet nothing ever looked at the file.
         files = [f"{WEB_SRC}a.js", f"{WEB_TESTS}core/l10n/dates.test.js"]
         v = evaluate_module("web", {}, [], files, "exact", program={files[0]})
         self.assertFalse(v.ok)
@@ -328,12 +294,6 @@ class ProgramMembershipTests(unittest.TestCase):
         self.assertEqual(v.locked, 1)
 
     def test_dotfiles_are_out_of_scope_entirely(self):
-        # tsconfig's include: ["**/*.js"] does not match a dot-prefixed path, so
-        # a dotfile is never in the program tsc builds. Counting it as in-scope
-        # therefore reports it UNCHECKED forever — and since `.gitignore` line 1
-        # is `.*`, CI (a fresh checkout) never sees the file at all. The gate
-        # failed only in working trees carrying an editor dropping, which is the
-        # one place a lock must not be noisier than the thing it protects.
         self.touch(f"{WEB_SRC}real.js")
         self.touch(f"{WEB_SRC}.__e.js")
         self.touch(f"{WEB_SRC}model/.__e.js")
@@ -341,9 +301,6 @@ class ProgramMembershipTests(unittest.TestCase):
         self.assertEqual(scope_gate.module_files("web"), [f"{WEB_SRC}real.js"])
 
     def test_dotfile_exclusion_does_not_reach_normal_paths(self):
-        # The rule is per-segment and anchored at the start of a segment: a dot
-        # inside a name (`file.test.js`, `a.b.js`) must stay in scope, or the
-        # fix would silently unlock most of the tests tree.
         self.touch(f"{WEB_TESTS}core/domain.test.js")
         self.touch(f"{WEB_SRC}a.b.js")
         self.assertEqual(
@@ -352,11 +309,6 @@ class ProgramMembershipTests(unittest.TestCase):
         )
 
     def test_a_path_with_a_space_stays_in_the_program(self):
-        # `--listFiles` lines were rejected outright if they contained a space,
-        # as a way of telling a path from prose. A real file named with a space
-        # then vanished from the program, was reported UNCHECKED, and failed
-        # the gate with a message blaming the tsconfig's include/exclude —
-        # a true failure with an untrue cause. Existence settles it.
         self.touch(f"{WEB_SRC}with space.js")
         self.touch(f"{WEB_SRC}plain.js")
         log = f"{self.root}/{WEB_SRC}plain.js\n{self.root}/{WEB_SRC}with space.js\n"
@@ -367,15 +319,10 @@ class ProgramMembershipTests(unittest.TestCase):
         self.assertEqual(v.locked, 2)
 
     def test_prose_that_merely_ends_in_a_suffix_is_still_rejected(self):
-        # The other half: a sentence ending in `.ts` must not become a program
-        # entry just because the space rule loosened.
         log = "error: could not read tsconfig.json\nSome prose about a file.ts\n"
         self.assertEqual(scope_gate.parse_program_files(log), set())
 
     def test_buckets_partition_the_scope(self):
-        # locked + excepted + unchecked must equal the file count: an excepted
-        # file that is also uncompiled belongs to one bucket, not two, or the
-        # coverage denominator inflates.
         self.touch(f"{WEB_SRC}dirty.js")
         files = [f"{WEB_SRC}dirty.js", f"{WEB_SRC}skipped.js", f"{WEB_SRC}ok.js"]
         v = evaluate_module(
@@ -404,9 +351,6 @@ class ProgramMembershipTests(unittest.TestCase):
         self.assertEqual(v.locked, 0)
 
     def test_uncompiled_exception_is_not_reported_resolved(self):
-        # Silence from a file nothing compiled must not retire its lock: in
-        # exact mode "resolved" tells you to delete the entry, which would drop
-        # a lock the gate never verified.
         self.touch(f"{WEB_SRC}dropped.js")
         v = evaluate_module(
             "web",
@@ -455,11 +399,7 @@ class CliTests(unittest.TestCase):
         self.touched.append(rel)
 
     def write_log(self, text: str, *, omit_from_program: tuple[str, ...] = ()) -> str:
-        """A log in the shape the gate requires: diagnostics + --listFiles.
 
-        Every touched file is listed as compiled unless named in
-        ``omit_from_program``, which is how an ``unchecked`` file is simulated.
-        """
         listed = [r for r in self.touched if r not in omit_from_program]
         program = "\n".join((self.root / r).as_posix() for r in listed)
         path = self.root / "tsc.log"
@@ -473,7 +413,6 @@ class CliTests(unittest.TestCase):
         return code, out.getvalue(), errbuf.getvalue()
 
     def test_update_then_gate_is_green(self):
-        # The property that lets the inversion land without any cleanup.
         self.touch(f"{WEB_SRC}dirty.js")
         self.touch(f"{WEB_SRC}clean.js")
         self.touch(f"{MAIL_SRC}dirty.js")
@@ -488,12 +427,10 @@ class CliTests(unittest.TestCase):
 
         code, out, _ = self._run(["g", "--log", log])
         self.assertEqual(code, EXIT_OK, out)
-        # web: dirty + clean, mail: dirty -> 1 locked of 3, 2 excepted.
         self.assertIn("1 of 3 in-scope files", out)
         self.assertIn("2 excepted", out)
 
     def test_every_module_gets_a_list_even_when_clean(self):
-        # A missing file must mean "never generated", not "module is clean".
         self.touch(f"{WEB_SRC}dirty.js")
         log = self.write_log(err(f"{WEB_SRC}dirty.js"))
         self._run(["g", "--log", log, "--update"])
@@ -531,7 +468,6 @@ class CliTests(unittest.TestCase):
         worse = self.write_log(
             "\n".join([err(f"{WEB_SRC}a.js"), err(f"{MAIL_SRC}x.js")])
         )
-        # mail regressed, but gating only web must still pass.
         code, _, _ = self._run(["g", "--log", worse, "--module", "web"])
         self.assertEqual(code, EXIT_OK)
         code, _, _ = self._run(["g", "--log", worse, "--module", "mail"])
@@ -545,8 +481,6 @@ class CliTests(unittest.TestCase):
         self.assertIn("not a gated module", errtext)
 
     def test_log_without_program_list_refuses(self):
-        # A broken tsc step must not green-light every locked file. The file list
-        # is the proof the compile happened, so its absence is fatal.
         path = self.root / "bare.log"
         path.write_text(err(f"{WEB_SRC}a.js"), encoding="utf-8")
         code, _, errtext = self._run(["g", "--log", str(path)])
@@ -554,8 +488,6 @@ class CliTests(unittest.TestCase):
         self.assertIn("no program file list", errtext)
 
     def test_clean_program_passes(self):
-        # With --listFiles proving the compile ran, zero diagnostics is a real
-        # clean result and must pass rather than be refused as suspicious.
         self.touch(f"{WEB_SRC}clean.js")
         log = self.write_log("")
         self._run(["g", "--log", log, "--update"])
@@ -564,8 +496,6 @@ class CliTests(unittest.TestCase):
         self.assertIn("1 of 1 in-scope files", out)
 
     def test_scoped_file_absent_from_the_program_is_unchecked(self):
-        # tsc's `exclude` silently removed files from the program; counting them
-        # as locked at zero inflates coverage with files nothing compiles.
         self.touch(f"{WEB_SRC}compiled.js")
         self.touch(f"{WEB_SRC}excluded.js")
         log = self.write_log("", omit_from_program=(f"{WEB_SRC}excluded.js",))
@@ -620,14 +550,10 @@ class CliTests(unittest.TestCase):
         self.assertLess(out.index(f"{WEB_SRC}easy.js"), out.index(f"{WEB_SRC}hard.js"))
 
     def test_report_lists_regressed_files_before_exceptions(self):
-        # --report exists to answer "what do I fix next". Ranking only the
-        # EXCEPTION list omitted every blocking file by construction — a
-        # regression is, by definition, not excepted — so on the real tree it
-        # showed 448 excepted files and none of the 14 failing the gate.
         self.touch(f"{WEB_SRC}excepted.js")
         self.touch(f"{WEB_SRC}regressed.js")
         base = self.write_log(err(f"{WEB_SRC}excepted.js", "TS2532"))
-        self._run(["g", "--log", base, "--update"])  # excepted.js only
+        self._run(["g", "--log", base, "--update"])
 
         both = self.write_log(
             "\n".join(
@@ -639,7 +565,6 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, EXIT_OK)
         self.assertIn("REGRESSED", out)
         self.assertIn(f"{WEB_SRC}regressed.js", out)
-        # Blocking work is listed ahead of the merely-excepted work.
         self.assertLess(
             out.index(f"{WEB_SRC}regressed.js"), out.index(f"{WEB_SRC}excepted.js")
         )
@@ -654,9 +579,6 @@ class CliTests(unittest.TestCase):
         self.assertIn(f"{WEB_SRC}excepted.js", out)
 
     def test_candidates_ranks_ungated_modules_only(self):
-        """`--candidates` answers "what would gating X cost", so a module
-        already gated is not a candidate — its number is the gate's own output,
-        not an estimate."""
         for i in range(25):
             self.touch(f"addons/sale/static/src/f{i}.js")
         for i in range(25):
@@ -667,12 +589,10 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(code, EXIT_OK, out)
         self.assertIn("sale", out)
-        # `web` is in SCOPED_MODULES for these tests and must not be offered.
         self.assertNotIn("\nweb ", out)
-        self.assertIn("96%", out)  # 24 of 25 would lock
+        self.assertIn("96%", out)
 
     def test_candidates_ignores_modules_below_the_size_floor(self):
-        """A one-file module locking 100% is arithmetic, not a candidate."""
         self.touch("addons/tiny/static/src/only.js")
         for i in range(25):
             self.touch("addons/sale/static/src/f%d.js" % i)
@@ -685,8 +605,6 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("tiny", out)
 
     def test_candidates_refuses_a_log_with_no_program_list(self):
-        """Same refusal as the gate: a log with no --listFiles cannot
-        distinguish a clean program from one that never compiled."""
         self.touch("addons/sale/static/src/a.js")
         path = self.root / "bare.log"
         path.write_text("", encoding="utf-8")

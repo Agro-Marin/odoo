@@ -1,54 +1,3 @@
-"""Find computed fields whose ``@api.depends`` misses what the compute reads.
-
-A compute that reads a field it does not declare is correct on its first read and
-stale for the rest of the transaction. For a web request that is exactly the
-window in which ``web_save`` reads the record back and returns it to the client,
-so the symptom is "the value I just saved came back wrong" rather than anything
-that looks like a cache bug.
-
-Run it against a live registry -- field names, comodels, ``_inherits`` and the
-whole MRO are then real rather than guessed::
-
-    echo 'import sys; sys.path.insert(0, "tooling")
-    import depends_audit; depends_audit.main(env)' \\
-        | odoo-bin shell -d <db> --no-http
-
-Set ``DEPENDS_TARGET`` to restrict the scan by path (default: every addon)::
-
-    DEPENDS_TARGET=/addons/mail/ odoo-bin shell -d <db> --no-http < script.py
-
-Only fields of *installed* modules are visible, so install what you want covered.
-
-Findings are split by how far the miss goes, because the two need different
-judgement:
-
-* **Tier A** -- no declared dependency shares the read's first segment, so
-  nothing watches it at all. This is where real defects live.
-* **Tier B** -- the root is declared but the leaf is not (declares
-  ``template_id``, reads ``template_id.subject``). Mostly the deliberate "seed an
-  editable field from a template" pattern; declaring the leaf there would clobber
-  user edits, which is *why* it is minimal. Read before touching.
-
-Three false-positive classes are discounted automatically; without them the
-output is unusable (a mail run went 106 raw hits -> 44 -> 9):
-
-1. **Wrong root.** A read off a comprehension variable
-   (``for t in plan.template_ids: t.responsible_type``) belongs to
-   ``template_ids.responsible_type``, not to a bare field of ``self``. Every
-   binding therefore carries the dotted prefix that reached it.
-2. **Transitive triggers.** Declaring a computed field also buys that field's own
-   dependencies, and reading a derived field is safe when everything it is
-   derived from is declared. Both directions are followed, across models, so a
-   related field on another model resolves too.
-3. **Reading its own target.** A compute reading the field it computes is the
-   "keep the current value if it is still valid" idiom, not a dependency.
-
-What it cannot see: a compute whose reads happen inside a helper method is only
-followed one call deep, and a field written by an ``inverse`` or an
-``@api.onchange`` may be maintained deliberately without any ``depends`` --
-several core computes say so in a comment. Treat every hit as a question.
-"""
-
 import ast
 import inspect
 import os
@@ -58,7 +7,6 @@ from collections import defaultdict
 TARGET = os.environ.get("DEPENDS_TARGET", "/addons/")
 SKIP_PATHS = ("/test_", "/addons/test", "_test/")
 
-# calls returning a recordset of the same model, so the chain (and prefix) survives
 PASSTHROUGH = frozenset(
     {
         "sudo",
@@ -75,7 +23,6 @@ PASSTHROUGH = frozenset(
         "_origin",
     }
 )
-# attributes that are never a dependency source
 IGNORED_ATTRS = frozenset(
     {
         "id",
@@ -106,8 +53,6 @@ def _join(prefix, part):
 
 
 class _Reads(ast.NodeVisitor):
-    """Collect the dotted field paths, relative to ``self``, that a compute reads."""
-
     def __init__(self, env, model, self_name, depth=0, inlined=None):
         self.env = env
         self.model = model
@@ -117,7 +62,6 @@ class _Reads(ast.NodeVisitor):
         self.paths = set()
         self.stores = set()
 
-    # -- bindings -----------------------------------------------------------
     def _bind(self, target, value_node):
         ref = self._ref_of(value_node)
         if ref is not None and isinstance(target, ast.Name):
@@ -148,9 +92,7 @@ class _Reads(ast.NodeVisitor):
         self._bind_comprehension(node)
         self.generic_visit(node)
 
-    # -- resolution ---------------------------------------------------------
     def _ref_of(self, node):
-        """The ``(model, prefix)`` that ``node`` evaluates to, or None."""
         if isinstance(node, ast.Name):
             return self.bindings.get(node.id)
         if isinstance(node, ast.Subscript):
@@ -179,7 +121,6 @@ class _Reads(ast.NodeVisitor):
         return None
 
     def _walk(self, ref, parts):
-        """Follow ``parts`` from ``(model, prefix)``, recording each field read."""
         model, prefix = ref
         for part in parts:
             if part in IGNORED_ATTRS or _field_of(model, part) is None:
@@ -192,7 +133,6 @@ class _Reads(ast.NodeVisitor):
         return (model, prefix)
 
     def _inline_helper(self, func_node):
-        """Fold in the reads of a helper method called on a resolved record."""
         ref = self._ref_of(func_node.value)
         if ref is None:
             return
@@ -231,17 +171,15 @@ class _Reads(ast.NodeVisitor):
 
     def visit_Attribute(self, node):
         if id(node) not in self.stores:
-            self._ref_of(node)  # recording happens in _walk
+            self._ref_of(node)
         self.generic_visit(node)
 
 
 def _covered(read, declared):
-    """A *longer* declaration covers a shorter read: "a.b" also triggers on "a"."""
     return any(read == dep or dep.startswith(read + ".") for dep in declared)
 
 
 def _read_is_safe(env, model, read, effective, seen=None):
-    """True when nothing that could change ``read`` escapes ``effective``."""
     if _covered(read, effective):
         return True
     parts = read.split(".")
@@ -254,7 +192,7 @@ def _read_is_safe(env, model, read, effective, seen=None):
     if field is None or not (field.compute or field.related):
         return False
     if field.store and not field.readonly:
-        return False  # a direct write to it fires no trigger here
+        return False
     seen = seen if seen is not None else set()
     prefix = ".".join(parts[:-1])
     key = (owner._name, parts[-1], prefix)
@@ -268,7 +206,6 @@ def _read_is_safe(env, model, read, effective, seen=None):
 
 
 def _expand(env, model, declared):
-    """Close ``declared`` over computed fields it names."""
     out, queue = set(declared), list(declared)
     while queue:
         dep = queue.pop()
@@ -285,7 +222,6 @@ def _expand(env, model, declared):
 
 
 def audit(env):
-    """Return one finding per (compute, field) whose reads are not all declared."""
     findings = []
     seen = set()
     for model_name in sorted(env.registry):
@@ -319,8 +255,6 @@ def audit(env):
             reads = _Reads(env, model, self_name)
             reads.visit(func)
 
-            # NB: registry.field_depends is a Collector; .get() does not behave
-            # like dict.get and returns None for present keys. Index it.
             declared = set(env.registry.field_depends[field] or ())
             effective = _expand(env, model, declared)
             targets = {
@@ -358,7 +292,6 @@ def audit(env):
 
 
 def main(env):
-    """Print the findings, Tier A first."""
     grouped = defaultdict(list)
     for finding in audit(env):
         grouped[(finding["file"], finding["compute"], finding["line"])].append(finding)

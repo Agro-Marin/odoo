@@ -1,24 +1,10 @@
-"""Tests for the cross-module private-access budget.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_js_private_access.py
-
-Every behavioural test builds a synthetic ``static/src`` tree, so the suite does
-not change meaning as the real debt is paid down. The tests that read the real
-tree assert only what a measurement gate can silently lose: that it found its
-inputs, and that the two halves it separates stay separated.
-"""
-
 import pathlib
 
 import doc_measured
-import js_private_access as jpa  # sys.path set by conftest.py
+import js_private_access as jpa
 
 
 def _tree(root, files):
-    """``files`` maps a path under ``src/`` to its source text."""
     src = root / "src"
     for rel, body in files.items():
         path = src / rel
@@ -31,9 +17,6 @@ def _tree(root, files):
 def _members(root, files):
     found, _, _ = jpa.measure(_tree(root, files))
     return {(a.module, a.base, a.member, a.write) for a in found}
-
-
-# --- what is and is not an access ---
 
 
 def test_own_private_is_not_an_access(tmp_path):
@@ -86,8 +69,6 @@ def test_cross_module_write_is_counted_as_a_write(tmp_path):
 
 
 def test_comparison_is_a_read_not_a_write(tmp_path):
-    # `===` after the member must not read as assignment; that would inflate the
-    # half of the budget meant to be small enough to clear.
     found = _members(
         tmp_path,
         {
@@ -125,9 +106,6 @@ def test_accesses_inside_comments_and_strings_do_not_count(tmp_path):
 
 
 def test_a_props_bag_key_is_not_a_class_member(tmp_path):
-    # `props._x` is a contract between a component and its instantiator. Name
-    # matching blamed `controller_component.js`'s `props._context` on
-    # `SearchModel._context`, which declares the same name and nothing else.
     assert not _members(
         tmp_path,
         {
@@ -137,12 +115,7 @@ def test_a_props_bag_key_is_not_a_class_member(tmp_path):
     )
 
 
-# --- attribution ---
-
-
 def test_a_member_declared_in_several_modules_still_counts_for_an_outsider(tmp_path):
-    # `_load` is declared in five DataPoint subclasses. Which one a call reaches
-    # has no single answer; that the caller is none of them always does.
     found, _, _ = jpa.measure(
         _tree(
             tmp_path,
@@ -177,9 +150,6 @@ def test_undeclared_members_are_reported_apart_and_not_counted(tmp_path):
     assert undeclared == {"_stamped": 1}
 
 
-# --- the companion metric that makes gaming visible ---
-
-
 def test_promoting_a_private_moves_the_count_into_public_members(tmp_path):
     private = {
         "model/relational_model/owner.js": "class A {\n    _x() {}\n}\n",
@@ -198,9 +168,6 @@ def test_promoting_a_private_moves_the_count_into_public_members(tmp_path):
         "renaming must show up in the companion count, or the budget can be "
         "gamed with nothing to see in review"
     )
-
-
-# --- the second verdict: cross-layer access is drift-zero ---
 
 
 def _access(module, owners, member="_x"):
@@ -222,9 +189,6 @@ def test_reaching_into_your_own_layer_is_not():
 
 
 def test_one_owner_in_the_accessors_layer_is_enough():
-    # The heaviest names are ambiguous, and `list._cache` resolves to both
-    # `orm_service` and `static_list`. Blaming that on core/ would invent a
-    # layering violation out of a name collision.
     assert not jpa.is_cross_layer(
         _access(
             "model/relational_model/static_list_sort.js",
@@ -263,23 +227,16 @@ def test_check_passes_when_only_friend_coupling_remains(monkeypatch):
     )
 
 
-# --- the gate must actually reach the real tree ---
-
-
 def test_real_web_tree_is_scanned():
     found, _undeclared, public = jpa.measure()
     assert len(jpa.iter_source_files()) > 500, "expected the real web src to be found"
     assert found, "expected the pinned debt to still be measurable"
     assert public > 0
-    # Writes are the half meant to be cleared first, so they must stay a small,
-    # separately visible fraction rather than being folded into the total.
     writes = [a for a in found if a.write]
     assert 0 < len(writes) < len(found) / 4
 
 
 def test_the_debt_is_concentrated_where_the_docstring_says_it_is():
-    # If this ever fails, the budget grew somewhere new and the docstring's
-    # account of what it measures is stale.
     found, _, _ = jpa.measure()
     clustered = sum(
         1
@@ -287,13 +244,6 @@ def test_the_debt_is_concentrated_where_the_docstring_says_it_is():
         if a.module.startswith(("model/relational_model/", "webclient/actions/"))
     )
     assert clustered > 0.85 * len(found)
-
-
-# --- declared contracts ---
-#
-# A module may publish the members other modules are meant to reach, in a
-# sibling `<x>_contract.js`. Those accesses are no longer debt, and counting
-# them with the rest means the budget cannot show the debt falling.
 
 
 def _contract_tree(root, files):
@@ -312,8 +262,6 @@ def test_a_sibling_contract_declares_its_owners_members(tmp_path):
 
 
 def test_a_contract_with_no_owner_beside_it_is_ignored(tmp_path):
-    # The name is a convention, not a declaration: without `<x>.js` there is
-    # nothing for the members to be the interface OF.
     assert not _contract_tree(
         tmp_path,
         {"m/ghost_contract.js": 'export const GHOST_SURFACE = ["_op"];\n'},
@@ -321,13 +269,7 @@ def test_a_contract_with_no_owner_beside_it_is_ignored(tmp_path):
 
 
 def test_only_SURFACE_arrays_are_the_contract(tmp_path):
-    """The trap this classification exists to avoid.
 
-    `static_list_contract.js` exports the interface AND, deliberately apart, the
-    working memory that helpers still reach for. Treating every array in the
-    file as declared would count that residue as honoured — marking the debt
-    paid by writing it down.
-    """
     contracts = _contract_tree(
         tmp_path,
         {
@@ -361,13 +303,6 @@ def test_an_access_to_a_declared_member_is_not_undeclared(tmp_path):
     assert undeclared == {"_guts"}, "working memory must still count as debt"
 
 
-# --- module-internal collaborators ---
-#
-# A class split for size keeps a boundary its files do not describe. Access from
-# inside that boundary is not cross-module coupling, and counting it as such
-# drowns the accesses that are.
-
-
 def test_a_declared_collaborator_is_module_internal(tmp_path):
     src = _tree(
         tmp_path,
@@ -391,9 +326,6 @@ def test_a_declared_collaborator_is_module_internal(tmp_path):
 
 
 def test_collaborators_and_the_contract_are_read_separately(tmp_path):
-    """`INTERNAL_COLLABORATORS` holds module paths, `*_SURFACE` holds member
-    names. Reading either list into the other would make every collaborator
-    path look like a declared member, and silently."""
     files = {
         "m/thing.js": "class Thing {\n    _op() {}\n}\n",
         "m/thing_contract.js": (
@@ -419,18 +351,7 @@ def test_a_contract_without_collaborators_declares_none(tmp_path):
 
 
 def test_module_docstring_measured_block_is_fresh():
-    """The docstring's cited figures must match what the gate measures now.
 
-    This test exists because they did not. The module opened by asserting 293
-    accesses in 33 files against a tree measuring 251 in 29, and three further
-    numbers in the same docstring were stale with it — including "it is 18
-    sites, not 293" for a write count that had reached 2. A reader checking the
-    gate's rationale got four wrong facts from the most authoritative-looking
-    place in the file, which is worse than the gate having no rationale at all.
-
-    Runs in CI via `pytest tooling/architecture/`, the same lane as every other
-    gate self-test here.
-    """
     found, undeclared, public = jpa.measure()
     metrics = jpa.doc_metrics(
         found,

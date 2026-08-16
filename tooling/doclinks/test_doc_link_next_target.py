@@ -1,18 +1,7 @@
-"""Tests for the doc-link cleanup ranker.
-
-241 lines with no tests. It is not a gate — it steers attention — but the two
-ways it can be wrong both cost someone an afternoon: ranking work that is
-already done, and hiding work that is not. Both were real. It used to rank the
-COMMITTED baseline, which on one measurement had drifted both ways (72 of 478
-entries already fixed, 81 live violations absent from it), so it sent you at
-finished work and concealed the rest. It now scans live by default, and
-``--from-baseline`` is the opt-in.
-"""
-
 import json
 import sys
 
-import doc_link_next_target as ranker  # sys.path set by conftest.py
+import doc_link_next_target as ranker
 import pytest
 
 
@@ -24,11 +13,11 @@ class TestEaseHeuristic:
     @pytest.mark.parametrize(
         ("source", "target", "expected"),
         [
-            ("addons/web/machine_doc_v1/A.md", "B.md", 1.0),  # same directory
-            ("addons/web/machine_doc_v1/A.md", "doc/B.md", 0.7),  # in-repo move
-            ("a/b/C.md", "config/x.md", 0.3),  # lives in another repo
-            ("a/b/C.md", "/home/someone/x.md", 0.3),  # absolute, machine-local
-            ("a/b/C.md", "x/thoughts/y.md", 0.2),  # probably never written
+            ("addons/web/machine_doc_v1/A.md", "B.md", 1.0),
+            ("addons/web/machine_doc_v1/A.md", "doc/B.md", 0.7),
+            ("a/b/C.md", "config/x.md", 0.3),
+            ("a/b/C.md", "/home/someone/x.md", 0.3),
+            ("a/b/C.md", "x/thoughts/y.md", 0.2),
         ],
     )
     def test_scores(self, source, target, expected):
@@ -54,12 +43,10 @@ class TestScoring:
         assert next(s for s in scores if s.source_file == "a.md").total_refs == 2
 
     def test_score_is_count_times_average_ease(self):
-        # Deliberately mixed eases, so a scorer that returned the raw count
-        # would still pass a same-ease case and hide the weighting entirely.
         score = ranker.score_files(
             _baseline(
-                ("a/b.md", "c.md"),  # same directory -> 1.0
-                ("a/b.md", "config/d.md"),  # another repo -> 0.3
+                ("a/b.md", "c.md"),
+                ("a/b.md", "config/d.md"),
             )
         )[0]
         assert score.total_refs == 2
@@ -82,7 +69,6 @@ class TestScoring:
         assert scores["easy.md"] > scores["hard.md"]
 
     def test_many_easy_refs_outrank_few_hard_ones(self):
-        # The whole point of the ranking: fix a cluster, not a puzzle.
         scores = ranker.score_files(
             _baseline(
                 *[("easy.md", f"sib{i}.md") for i in range(5)],
@@ -108,7 +94,7 @@ class TestAuthoritativeScope:
         "source",
         [
             "addons/web/machine_doc_v1/A.md",
-            "addons/mail/machine_doc_v1/A.md",  # NOT just web's
+            "addons/mail/machine_doc_v1/A.md",
             "odoo/addons/base/machine_doc_v1/A.md",
             ".github/workflows/x.yml",
             "CLAUDE.md",
@@ -128,7 +114,6 @@ class TestAuthoritativeScope:
 
 class TestLiveByDefault:
     def test_live_scan_shares_the_gate_s_shape(self):
-        # Same keys the baseline uses, so score_files takes either source.
         live = ranker._live_violations()
         assert set(live) == {"violations"}
         for entry in live["violations"]:
@@ -144,7 +129,6 @@ class TestLiveByDefault:
         assert live == {(v.source_file, v.raw_path) for v in gate.scan()}
 
     def _sources(self, tmp_path, monkeypatch):
-        """A live scan and a committed baseline that name different files."""
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
             json.dumps(_baseline(("STALE_BASELINE.md", "gone.md"))), encoding="utf-8"
@@ -155,9 +139,6 @@ class TestLiveByDefault:
         return baseline
 
     def test_default_run_ranks_the_live_tree(self, tmp_path, monkeypatch, capsys):
-        # THE regression this tool was rewritten for: ranking the committed
-        # baseline answers "what was broken when someone last ran
-        # --update-baseline", which is not the question anyone is asking.
         baseline = self._sources(tmp_path, monkeypatch)
         monkeypatch.setattr(sys, "argv", ["p", "--baseline", str(baseline)])
         assert ranker._main() == 0
@@ -186,8 +167,6 @@ class TestLiveByDefault:
         assert ranker._main() == 2
 
     def test_empty_result_is_reported_as_clean_not_as_a_missing_baseline(self, capsys):
-        # The default source is the live tree, so "nothing to rank" is the good
-        # outcome and must not read as a suspected empty baseline.
         ranker._print_table([], 10)
         assert "every .md reference in scope resolves" in capsys.readouterr().out
 

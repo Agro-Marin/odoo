@@ -1,94 +1,5 @@
 #!/usr/bin/env python3
-"""libs_facade_check.py — the ``odoo.libs`` façade boundary for addon code.
 
-``facade-boundary`` (in ``layer_check.py``) stops addons importing
-``odoo.orm.*``, so the ORM can be reorganised behind ``odoo.api`` /
-``odoo.fields`` / ``odoo.models``. The identical argument applies to the
-dependency-free utility layer, and nothing enforced it — so addon code had bound
-itself to **124 leaf-module paths** inside ``odoo/libs/``, which silently made
-that package's *file layout* public API. Renaming ``libs/web/urls.py`` broke 51
-call sites; ``libs/numbers/float_utils.py``, 24.
-
-THE RULE
---------
-
-The public boundary of ``odoo/libs/`` is the **area** — ``odoo.libs`` itself and
-its direct children (``odoo.libs.numbers``, ``odoo.libs.web``,
-``odoo.libs.intervals``, …). Addon code imports an area; it does not reach past
-one into the module that happens to implement it today::
-
-    from odoo.libs.numbers import float_round  # OK — the area
-    from odoo.libs.numbers.float_utils import float_round  # violation — a leaf
-    from odoo.libs.intervals import Intervals  # OK — the area *is* a module
-
-A top-level module such as ``odoo/libs/intervals.py`` is itself an area: there
-is no package to hide behind, so the leaf is the boundary.
-
-WHY THIS IS NOT A ``layer_check`` CONTRACT
-------------------------------------------
-
-It cannot be expressed in that model, and the reason is worth recording.
-``_ImportCollector`` emits a synthetic ``<base>.<name>`` target for every
-``from <base> import <name>``, so ``from odoo.libs.numbers import float_round``
-yields ``odoo.libs.numbers.float_round``. By *name* that is indistinguishable
-from ``odoo.libs.numbers.float_utils`` — one is a symbol, the other a module —
-and ``Contract.allow`` is prefix-matched, so allowing the area would allow every
-leaf under it. The discriminator is on disk: **does a module of that path
-exist?** This checker asks the filesystem, which is why it is its own tool.
-
-WHAT IT SCANS
--------------
-
-Both addon trees inside this checkout, matching ``facade-boundary``'s scope
-(``odoo/addons/`` and the repo-root ``addons/``), **plus every core package**:
-``tools``, ``orm``, ``http``, ``modules``, ``service``, ``db``, ``cli``,
-``tests``, ``_monkeypatches`` and ``upgrade_code``. ``odoo/libs`` itself is
-excluded by design — an area importing its own leaves is how a package is
-built. The authoritative list is ``SCANNED_TREES`` below, whose comment records
-what each round of widening found; keep this paragraph in step with it.
-
-``odoo/tools`` was outside the scope until it was measured: it is the single
-heaviest consumer of ``odoo.libs`` in the repo, and it held 19 leaf imports —
-four of them binding *private* names — while the gate reported the rule clean
-everywhere else. A boundary enforced everywhere except where it is most often
-crossed is not a boundary. Fixing those 19 also exposed two real gaps in the
-areas themselves (``odoo.libs.email`` did not export ``getaddresses``;
-``odoo.libs.text`` did not export ``reshape`` or its six public HTML regexes),
-which is the other thing this gate is for: an area that a consumer must reach
-past is an area missing an export.
-
-Sibling checkouts (enterprise, agromarin) are separate repositories and out of
-scope: ``SCANNED_TREES`` is rooted at this repo and there is no option to
-retarget it.
-
-**They are not covered by anything else, either.** This paragraph used to say
-they carried the rule via ``cross_repo_coherence.py``; that file contains no
-such check, and neither sibling's ``architecture.yml`` invokes this one. The
-claim was measured and found false in 2026-08, when `enterprise` was carrying
-**75 leaf imports** — 50 of ``odoo.libs.web.urls`` alone — every one of which
-this gate would have rejected in-repo. They were repointed at their areas, but
-nothing stops the next one: a boundary that holds only where someone remembered
-to look is not a boundary, and this is the tree where nobody was looking.
-
-Closing it needs a way to scan a tree outside this repo (the siblings' own
-workflows already check this repo out beside them, so the plumbing exists).
-Until that lands, treat sibling coverage as **absent**, not delegated.
-
-Test files are scanned like any other: a test that binds a leaf path pins the
-layout just as firmly as production code does. Current exceptions are pinned in
-``KNOWN_VIOLATIONS`` below.
-
-USAGE
------
-
-  python tooling/architecture/libs_facade_check.py            # report
-  python tooling/architecture/libs_facade_check.py --check    # CI: exit 1
-  python tooling/architecture/libs_facade_check.py --json
-
-exit 0 — no new violations
-exit 1 — a new leaf-module import from addon code
-exit 2 — usage error
-"""
 
 from __future__ import annotations
 
@@ -103,39 +14,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+ADR = "0004"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="libs_facade_check")
 LIBS = REPO_ROOT / "odoo" / "libs"
 
-#: Trees whose imports of ``odoo.libs`` must name an *area*, never a leaf.
-#:
-#: The two addon trees are the same scope as ``facade-boundary``.  ``odoo/tools``
-#: is here because it is the single heaviest consumer of ``odoo.libs`` in the
-#: repo, and the rationale this gate was built on -- renaming
-#: ``libs/web/urls.py`` broke 51 call sites -- applies to it verbatim.  Leaving
-#: it out meant the gate enforced the rule everywhere except where it was most
-#: often broken, including four imports of *private* names that no area exports.
-#:
-#: ``odoo/orm``, ``odoo/http``, ``odoo/modules`` and ``odoo/service`` were added
-#: next: the gate reported green while nine leaf imports sat unpinned in ORM hot
-#: paths (``fields/temporal.py``, ``runtime/environment.py``, …), exactly the
-#: hazard it exists to catch.  All nine were reachable through their area and
-#: were rewritten to name it; one under-export (``datetime.country_timezones``)
-#: was added to the area; the sole genuine leaf import is the vendored
-#: ``_vendor.useragents``, pinned in ``KNOWN_VIOLATIONS`` like its siblings.
-#:
-#: ``db``, ``cli``, ``tests``, ``_monkeypatches`` and ``upgrade_code`` complete
-#: the core.  Measured at **0 leaf imports** when they were added, so unlike the
-#: two rounds above this closes no existing hole -- it stops the next one.  The
-#: gate's own argument applies: a boundary that holds only where someone
-#: remembered to look is not a boundary, and every previous extension was
-#: prompted by discovering violations in a tree nobody had scanned.
-#:
-#: ``odoo/libs`` itself is deliberately absent: an area importing its own leaf
-#: modules is how a package is built, not a violation.  The six top-level
-#: modules (``logutils.py``, ``exceptions.py``, ``release.py``, ``init.py``,
-#: ``__main__.py``, ``_testing_bootstrap.py``) are also unscanned -- entries
-#: here are directories, walked with ``rglob`` -- and were measured clean at the
-#: same time.
 SCANNED_TREES: tuple[Path, ...] = (
     REPO_ROOT / "odoo" / "addons",
     REPO_ROOT / "addons",
@@ -149,24 +32,18 @@ SCANNED_TREES: tuple[Path, ...] = (
     REPO_ROOT / "odoo" / "tests",
     REPO_ROOT / "odoo" / "_monkeypatches",
     REPO_ROOT / "odoo" / "upgrade_code",
-    # The public re-export shims. One line in any of them is enough to make a
-    # libs leaf path part of the framework's public API -- the widest possible
-    # blast radius for the exact failure this gate exists to prevent.
     REPO_ROOT / "odoo" / "api",
     REPO_ROOT / "odoo" / "fields",
     REPO_ROOT / "odoo" / "models",
 )
 
-#: Backwards-compatible alias: the addon-only subset this gate started with.
 ADDON_TREES: tuple[Path, ...] = SCANNED_TREES[:2]
 
 
 @dataclass(frozen=True)
 class Known:
-    """A tolerated leaf import, pinned so it stays visible and cannot spread."""
-
-    path: str  # repo-relative source file
-    module: str  # the odoo.libs leaf module it imports
+    path: str
+    module: str
     reason: str
 
 
@@ -256,12 +133,7 @@ class Report:
 
 @lru_cache(maxsize=1)
 def areas() -> frozenset[str]:
-    """The public areas of ``odoo.libs``: the package and its direct children.
 
-    Read from disk rather than hard-coded, so adding ``libs/<new_area>/`` does
-    not require editing this gate — and so a *removed* area cannot linger here
-    as a permanently-satisfied allowance.
-    """
     found = {"odoo.libs"}
     for child in LIBS.iterdir():
         if child.name.startswith("__") or child.name == "tests":
@@ -275,22 +147,16 @@ def areas() -> frozenset[str]:
 
 @cache
 def module_exists(dotted: str) -> bool:
-    """Is ``dotted`` a real module/package under ``odoo/libs/``?"""
     rel = dotted.removeprefix("odoo.libs.").split(".")
     base = LIBS.joinpath(*rel)
     return (base / "__init__.py").is_file() or base.with_suffix(".py").is_file()
 
 
 def imported_modules(tree: ast.AST) -> list[tuple[str, int]]:
-    """Every ``odoo.libs*`` **module** an AST imports, with its line number.
 
-    For ``from X import a, b`` the module is ``X``; the names are symbols and are
-    not paths. ``import X.Y`` imports the module ``X.Y`` directly.
-    """
     out: list[tuple[str, int]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            # level > 0 is a relative import inside an addon; never odoo.libs
             if not node.level and node.module and node.module.startswith("odoo.libs"):
                 out.append((node.module, node.lineno))
         elif isinstance(node, ast.Import):
@@ -327,9 +193,6 @@ def check(files: list[Path] | None = None) -> Report:
         for module, lineno in imported_modules(tree):
             if module in allowed:
                 continue
-            # Deeper than an area. If no module of that path exists it is not a
-            # module import at all (a stale reference); report it either way,
-            # since importing it would fail.
             rel = path.relative_to(REPO_ROOT).as_posix()
             area = ".".join(module.split(".")[:3])
             v = Violation(rel, module, lineno, area)

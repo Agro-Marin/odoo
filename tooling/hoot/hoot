@@ -1,4 +1,6 @@
 #!/bin/sh
+# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
+# fmt: off
 ''':'
 # Self-locating sh/python trampoline: re-exec this file with the workspace venv
 # interpreter. The logic is shared — see tooling/_trampoline.sh.
@@ -6,12 +8,8 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+# fmt: on
 
-# The shell preamble above is the module's FIRST string literal, so Python binds
-# it as ``__doc__`` and the real documentation below becomes an inert expression
-# statement. ``hoot`` passes ``description=__doc__`` to argparse, so ``hoot
-# --help`` printed the trampoline's shell source instead of its own usage guide.
-# Rebinding it here is the one-line fix that keeps the polyglot intact.
 __doc__ = """Fast warm-server HOOT test runner for the Odoo 19 web module.
 
 Replaces the ~8-11 min ``odoo-bin --test-tags /web:WebSuite.test_X`` loop:
@@ -38,8 +36,6 @@ test), e.g.  hoot '@web/core/domain/Basic Properties/empty'.
 """
 
 
-# CLI tool: print() is the user-facing output channel (T201 is already
-# ignored for tooling/** in ruff.toml, so no per-file directive is needed).
 import argparse
 import contextlib
 import logging
@@ -50,17 +46,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hoot_lib as H
 
-# Colours and the isatty-aware wrapper live in hoot_lib: `hoot-shard` parses
-# `hoot`'s output, so the two agreeing on them is a contract.
 C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (H.C_GREEN, H.C_RED, H.C_YEL, H.C_DIM, H.C_RST)
 _color = H.color
 
-# Viewport size + touch per HOOT preset — mirrors the definePreset(...) calls in
-# addons/web/static/tests/_framework/start.hoot.js. HOOT reads the *real* window
-# innerWidth/innerHeight, and responsive components (BottomSheet, pager, datetime
-# popover, small-screen dropdowns) branch on it — so Chrome must actually be sized
-# to the preset, not just told which preset to run. Applied unless the user
-# overrides --browser-size / --touch explicitly.
 PRESET_ENV = {
     "desktop": {"size": "1366x768", "touch": False, "tag": ""},
     "mobile": {"size": "375x667", "touch": True, "tag": "-headless"},
@@ -86,12 +74,9 @@ def _setup_logging(verbose: bool) -> None:
         else "%(asctime)s %(name)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
-    # ChromeBrowser console noise is muted in run_suites (propagate=False)
-    # unless -v is passed; nothing to do here.
 
 
 def _repeated_note(result) -> str:
-    """Explain a run that kept re-executing tests instead of terminating."""
     return (
         f"  note: {result.repeated} test re-executions observed — this selection "
         f"makes HOOT run overlapping suites repeatedly, so the run never reaches "
@@ -109,8 +94,6 @@ def _report(result: H.RunResult) -> None:
         )
         return
     if result.incomplete and not result.failed:
-        # Every executed test passed but HOOT's summary never arrived (usually a
-        # browser-teardown timeout). Not a test failure — flag it, don't fail.
         print(
             _color(
                 f"WARN  {header}  "
@@ -125,9 +108,6 @@ def _report(result: H.RunResult) -> None:
             print(_color(f"  note: {result.error}", C_DIM))
         return
     if result.incomplete:
-        # Truncated AND failing: the counts below are a prefix of the suite, so
-        # the failure list is "what we got to", never "all there is". Say so —
-        # reporting this as a plain FAIL hid the unrun remainder.
         print(
             _color(
                 f"FAIL  {header}  "
@@ -186,15 +166,7 @@ def _resolve_suites(args) -> list[str]:
 
 
 def _run_isolated(suites: list[str], state: dict, args) -> H.RunResult:
-    """Run each suite in its own page load, then merge the results.
 
-    Suites sharing one page do NOT give the same answer as CI, which drives one
-    ``_run_hoot`` per method: batching ``@web/views/fields`` with eight other
-    suites failed 7 daterange/datetime/statusbar tests, deterministically, on
-    both presets, and the same suites passed alone (1343 tests) exactly as CI
-    runs them. Isolation costs one Chrome launch per suite and buys results
-    that mean what CI means.
-    """
     merged = H.RunResult(ok=True, suites=list(suites))
     for suite in suites:
         result = _run_once([suite], state, args)
@@ -235,11 +207,7 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
 
 
 def _watch(suites: list[str], state: dict, args) -> int:
-    """Poll the run's addons' static/src + tests mtimes; re-run on change.
 
-    Scoped to the addons the run touches: the addons path now carries ~1500
-    addons, and rglob-ing all of them each second is slower than the tests.
-    """
     watched_addons = H.addons_for_suites(suites) | {"web"}
     watch_roots = []
     for addon in H.iter_addon_dirs():
@@ -273,9 +241,6 @@ def _watch(suites: list[str], state: dict, args) -> int:
             print(_color(f"\nChanged: {len(changed)} file(s) -> re-running", C_DIM))
             run_suites = suites
             if args.affected:
-                # Same selection the non-watch path makes: dropping
-                # --downstream here silently narrowed re-runs to the edited
-                # addon while the first run had been wider.
                 run_suites = (
                     H.affected_suites(changed, downstream=args.downstream) or suites
                 )
@@ -380,7 +345,6 @@ def main() -> int:
         action="store_true",
         help="Verbose (server + browser INFO logs).",
     )
-    # Lifecycle-only actions.
     ap.add_argument(
         "--status", action="store_true", help="Print warm-server status and exit."
     )
@@ -421,10 +385,6 @@ def main() -> int:
             )
         return 0
     if args.stop or args.clean:
-        # Default to a single DB. This workspace runs several Claude Code
-        # sessions against the same checkout, and a bare --stop used to kill
-        # every recorded warm server, including whichever one another session
-        # was mid-run against.
         db = args.db
         if db is None and not args.all:
             db = H.db_for_modules(H.modules_for_suites(list(args.suites)))
@@ -470,12 +430,7 @@ def main() -> int:
     result = (_run_isolated if isolated else _run_once)(suites, state, args)
     _report(result)
     if result.failed:
-        # Real failures are a failure whether or not the run was truncated.
-        # Previously ``incomplete`` short-circuited to 0, so a truncated run
-        # that HAD collected failures could still exit successfully.
         return 1
-    # `incomplete` with no failures = every executed test passed but the summary
-    # was truncated (teardown timeout); not a failure, so don't exit non-zero.
     return 0 if (result.ok or result.incomplete) else 1
 
 

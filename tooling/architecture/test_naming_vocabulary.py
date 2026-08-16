@@ -1,17 +1,3 @@
-"""Tests for the §2.4 method-naming vocabulary gate.
-
-Stdlib + pytest only, like every other gate test here — no Odoo import, no
-database. Run with::
-
-    pytest tooling/architecture/test_naming_vocabulary.py
-
-The cases that matter are the *negative* ones. A verb gate is only useful if it
-stays quiet on the code it must not touch, and the first run of this gate proved
-that is the hard part: it flagged ``_drop_table`` (SQL DDL), ``_insert_cache``
-(SQL DML), ``push_protection`` (a stack) and ``discard_field`` (``set.discard``)
-before ``RESERVED`` and the model-class scope existed.
-"""
-
 import ast
 import textwrap
 from pathlib import Path
@@ -35,9 +21,6 @@ def _cls(src: str) -> ast.ClassDef:
     )
 
 
-# --- classify --------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("name", "canonical"),
     [
@@ -58,7 +41,6 @@ def test_abolished_verbs_are_flagged(name, canonical):
 
 @pytest.mark.parametrize("verb", sorted(RESERVED))
 def test_reserved_verbs_are_never_flagged(verb):
-    """`_drop_table` is DDL, not a sloppy `_remove_`. See RESERVED."""
     assert classify(f"_{verb}_table") is None
     assert verb not in ABOLISHED
 
@@ -66,7 +48,7 @@ def test_reserved_verbs_are_never_flagged(verb):
 @pytest.mark.parametrize(
     "name",
     [
-        "_prepare_invoice_vals",  # already canonical
+        "_prepare_invoice_vals",
         "_get_lines",
         "_check_date",
         "_compute_amount",
@@ -74,7 +56,7 @@ def test_reserved_verbs_are_never_flagged(verb):
         "create",
         "write",
         "__init__",
-        "_validate",  # bare verb, no stem — an ORM hook, not ours to rename
+        "_validate",
     ],
 )
 def test_compliant_and_framework_names_are_quiet(name):
@@ -82,14 +64,10 @@ def test_compliant_and_framework_names_are_quiet(name):
 
 
 def test_payload_verbs_only_fire_on_payload_shaped_names():
-    """§2.4's Payload row decides `_build_invoice_vals`; it does not reach `_build_url`."""
     assert classify("_build_invoice_vals") == ("build", "_prepare_")
     assert classify("_make_line_values") == ("make", "_prepare_")
     assert classify("_build_url") is None
     assert classify("_compose_email") is None
-
-
-# --- model-class scope -----------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -114,15 +92,10 @@ def test_model_classes_are_in_scope(src):
     ],
 )
 def test_framework_classes_are_out_of_scope(src):
-    """odoo/db, odoo/http and the ORM internals speak SQL and set/stack verbs."""
     assert not is_model_class(_cls(src))
 
 
-# --- measure ---------------------------------------------------------------
-
-
 def test_measure_refuses_an_empty_tree(tmp_path):
-    """A count of 0 from an empty scan is indistinguishable from a clean tree."""
     (tmp_path / "styles.scss").write_text("body { color: red; }\n")
     with pytest.raises(RuntimeError, match="refusing to report a count"):
         measure([tmp_path])
@@ -169,7 +142,6 @@ def test_violation_renders_the_replacement():
 
 
 def test_the_real_tree_still_measures():
-    """Guards against a scope change that silently empties the scan."""
     found = measure()
     assert found, "the odoo checkout should still have abolished-verb definitions"
     assert all(Path(v.path).suffix == ".py" for v in found)

@@ -103,20 +103,11 @@ from _orm_layer_scope import SCOPE
 from _orm_layer_scope import iter_scope_files as _iter_scope_files
 from _repo_root import find_odoo_root
 
+ADR = "0029"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="pool_surface_check")
 CORE = REPO_ROOT / "odoo"
 
-#: ``Registry`` and the five mixins it is composed from. All six contribute
-#: members, and ``Registry`` inherits ``Mapping`` (``pool.get``, ``pool.keys``…).
-#:
-#: This list is **coupled to the composition** and must grow with it. When
-#: ``_RegistryModelsMixin`` and ``_RegistryInitPhaseMixin`` were extracted to
-#: break the cycle recorded in :data:`mixin_coupling_check.REGISTRY_BASELINE`,
-#: omitting them here made Rule 2 ("every referenced member must exist") report
-#: six live Layer-1 call sites -- ``pool.post_init``, ``pool.add_relation_reflection``
-#: -- as members no ``Registry`` has. The members had not moved off the class;
-#: only this list had gone stale. A gate that reads a hand-written file list is
-#: exactly as current as that list.
 REGISTRY_SOURCES: tuple[Path, ...] = (
     CORE / "orm" / "runtime" / "registry.py",
     CORE / "orm" / "runtime" / "_registry_fields.py",
@@ -127,16 +118,6 @@ REGISTRY_SOURCES: tuple[Path, ...] = (
     CORE / "orm" / "runtime" / "_registry_stubs.py",
 )
 
-#: The classes inside :data:`REGISTRY_SOURCES` that actually compose a
-#: ``Registry`` instance. Naming them is load-bearing, not tidiness: those files
-#: also define ``DummyRLock``, ``_RegistryCaches``, ``_RegistryStubs`` and
-#: ``_UnaccentTables``, and harvesting every ``ClassDef`` in them admitted eight
-#: names -- ``acquire``, ``release``, ``__enter__``, ``__exit__``, ``by_db``,
-#: ``clear_all``, ``clear_group``, ``lrus`` -- that no ``Registry`` has. Rule 2
-#: ("every referenced member must exist") then accepted ``pool.acquire``
-#: silently; a probe injecting it alongside a nonsense name saw only the
-#: nonsense one reported. ``env_surface_check`` never had this hole because it
-#: matches ``node.name == "Environment"``.
 REGISTRY_CLASSES: frozenset[str] = frozenset(
     {
         "Registry",
@@ -148,8 +129,6 @@ REGISTRY_CLASSES: frozenset[str] = frozenset(
     }
 )
 
-#: Re-exported for callers and for the self-test; the scope itself is shared
-#: with ``env_surface_check`` via ``_orm_layer_scope`` so the two cannot drift.
 __all__ = ["SCOPE", "check", "iter_scope_files", "registry_members"]
 
 
@@ -161,13 +140,6 @@ class Known:
 
 
 KNOWN_VIOLATIONS: tuple[Known, ...] = (
-    # The three below were invisible until `orm/registration.py` entered the
-    # scope (see _orm_layer_scope). They are the exact hazard this gate was
-    # built for: `layer_check`'s
-    # `orm-helpers-and-registration-stay-below-runtime` contract reports
-    # registration.py clean at zero -- correctly, it imports `odoo.orm.runtime`
-    # nowhere -- while the module reads three private Registry attributes
-    # through `model_cls.pool` on every model setup.
     Known(
         "odoo/orm/registration.py",
         "_init_modules",
@@ -221,9 +193,6 @@ class Reach:
 
     @property
     def is_private(self) -> bool:
-        # Dunders are protocol, not internals: ``pool[...]`` is recorded as
-        # ``__getitem__`` and is the Mapping interface Registry publicly
-        # implements, not a reach past its boundary.
         return self.attr.startswith("_") and not self.attr.startswith("__")
 
 
@@ -242,14 +211,6 @@ class Report:
 
 
 class _PoolReachCollector(ast.NodeVisitor):
-    """Collect ``<x>.pool.<attr>`` and ``<x>.pool[...]`` reads.
-
-    Heuristic on the receiver name, exactly as ``_EnvReachCollector`` is: within
-    ``odoo/orm/**`` an attribute named ``pool`` is the Registry. (The connection
-    pool in ``odoo/db/pool.py`` is never reached this way from the ORM — the
-    scope below cannot see ``odoo/db`` at all.)
-    """
-
     def __init__(self) -> None:
         self.hits: list[tuple[str, int, bool]] = []
 
@@ -260,9 +221,6 @@ class _PoolReachCollector(ast.NodeVisitor):
         )
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
-        # ``model.pool["res.partner"]`` — Registry.__getitem__, a model-class
-        # lookup. Recorded separately: it is a *use* of the registry mapping
-        # rather than a reach into its internals.
         if self._is_pool(node.value):
             self.hits.append(("__getitem__", node.lineno, True))
         self.generic_visit(node)
@@ -274,15 +232,7 @@ class _PoolReachCollector(ast.NodeVisitor):
 
 
 def registry_members(sources: tuple[Path, ...] | None = None) -> set[str]:
-    """Every attribute reachable on a ``Registry`` instance.
 
-    Class-body names across ``Registry`` and its mixins (annotations,
-    assignments, methods, properties) **plus ``self.<name> = ...`` assignments
-    inside their methods** — unlike ``Environment``, ``Registry`` creates several
-    members imperatively (``_init_phase``, ``_ordinary_tables``,
-    ``many2many_relations``), and omitting those would report false "does not
-    exist" failures. ``Mapping`` is included because ``Registry`` subclasses it.
-    """
     members: set[str] = set(dir(Mapping))
     for path in sources if sources is not None else REGISTRY_SOURCES:
         if not path.is_file():
@@ -292,8 +242,6 @@ def registry_members(sources: tuple[Path, ...] | None = None) -> set[str]:
             if not isinstance(node, ast.ClassDef):
                 continue
             if node.name not in REGISTRY_CLASSES:
-                # A neighbouring helper class in the same file is not part of
-                # the Registry surface -- see REGISTRY_CLASSES.
                 continue
             for stmt in node.body:
                 if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -306,7 +254,6 @@ def registry_members(sources: tuple[Path, ...] | None = None) -> set[str]:
                     for tgt in stmt.targets:
                         if isinstance(tgt, ast.Name):
                             members.add(tgt.id)
-            # imperatively created members: ``self.<name> = ...`` / ``self.<name>: T = ...``
             for sub in ast.walk(node):
                 targets: list[ast.expr] = []
                 if isinstance(sub, ast.Assign):

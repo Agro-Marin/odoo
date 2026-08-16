@@ -86,19 +86,10 @@ from env_model_surface_check import (
     iter_scope_files,
 )
 
+ADR = "0029"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="model_member_surface_check")
 
-#: ``Environment`` accessors that return a **recordset**, so a member read off
-#: one is a member of that model.
-#:
-#: A strict subset of ``env_model_surface_check.ENV_MODEL_ACCESSORS``, and the
-#: difference is load-bearing: that map answers "does this reach a model?", for
-#: which ``env.lang`` counts -- it consults ``res.lang``. This one answers "is
-#: the next attribute a member of that model?", for which it does not:
-#: ``env.lang`` and ``env._lang`` return ``str | None``, so ``env._lang
-#: .startswith("_")`` would otherwise be recorded as ``res.lang.startswith``.
-#: Derived by subtraction rather than retyped, so a new accessor there is a
-#: decision here rather than an omission.
 _VALUE_ACCESSORS = frozenset({"lang", "_lang"})
 RECORDSET_ACCESSORS: dict[str, str] = {
     name: model
@@ -106,15 +97,8 @@ RECORDSET_ACCESSORS: dict[str, str] = {
     if name not in _VALUE_ACCESSORS
 }
 
-#: Where ``BaseModel``'s own members are declared. Everything the composition
-#: defines is framework-owned and carries no addon contract, so it is subtracted
-#: from the surface below -- see :func:`base_model_members`.
 _BASE_MODEL_TREE = "odoo/orm/models"
 
-#: ``BaseModel`` members that no ``def`` in that tree declares: the instance
-#: slots, and the class attributes the metaclass and registry assembly install.
-#: Without these, ``env["res.users"]._fields`` and ``env["base"].env`` read as
-#: addon contract when they are the recordset protocol itself.
 _BASE_MODEL_EXTRA_MEMBERS = frozenset(
     {
         "env",
@@ -154,18 +138,8 @@ _BASE_MODEL_EXTRA_MEMBERS = frozenset(
     }
 )
 
-#: ``model name -> (module path relative to the repo root, Protocol class)``.
-#:
-#: Thirteen entries: ``ir.http``, declared beside the code that calls it, and
-#: the twelve models the core reaches for two or more members, declared together
-#: in ``odoo/orm/_protocols.py``. The nine remaining models are reached for one
-#: member each and are pinned by the surface ratchet alone.
 PROTOCOLS: dict[str, tuple[str, str]] = {
     "ir.http": ("odoo/http/_protocols.py", "HttpExtension"),
-    # The twelve models the core reaches for two or more members. Declared in
-    # `odoo/orm/_protocols.py` and checked against the live registry by
-    # `addons/base/tests/test_framework_contracts.py`; this map is what makes
-    # the OTHER direction fail -- a core call to a member the contract omits.
     "ir.attachment": ("odoo/orm/_protocols.py", "IrAttachmentProtocol"),
     "ir.default": ("odoo/orm/_protocols.py", "IrDefaultProtocol"),
     "ir.model": ("odoo/orm/_protocols.py", "IrModelProtocol"),
@@ -180,12 +154,6 @@ PROTOCOLS: dict[str, tuple[str, str]] = {
     "res.users": ("odoo/orm/_protocols.py", "ResUsersProtocol"),
 }
 
-#: The acknowledged ``model -> members`` surface, ratcheted exact.
-#:
-#: Regenerate with ``--print-baseline`` after an intentional change, and say in
-#: the commit message which member moved and why -- the same standard the ratchet
-#: baselines keep. A new entry here is a new promise the framework makes about a
-#: model it does not own.
 KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
     "decimal.precision": frozenset({"precision_get"}),
     "ir.attachment": frozenset({"_content_checksum", "_filestore", "_unsized"}),
@@ -266,20 +234,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
 
 
 def base_model_members() -> frozenset[str]:
-    """Every member ``BaseModel`` itself provides.
 
-    Read from ``orm/models/`` rather than imported, so this gate stays
-    stdlib-only like its neighbours -- and measured rather than listed, so a
-    method moving between mixins changes nothing here.
-
-    This subtraction is what makes the gate mean something. ``browse``,
-    ``search``, ``sudo``, ``create``, ``with_context``, ``invalidate_model`` are
-    all ``BaseModel``: calling them on ``env["res.users"]`` asks ``base`` for
-    nothing it did not inherit from the framework. Counting them put 46 pairs in
-    the surface that no addon implements, and buried the ones that are the real
-    contract -- ``res.users._check_uid_passwd``, ``ir.model.data._load_xmlid``,
-    ``ir.attachment._filestore`` -- among them.
-    """
     root = REPO_ROOT / _BASE_MODEL_TREE
     if not root.is_dir():
         raise SystemExit(
@@ -314,11 +269,9 @@ def base_model_members() -> frozenset[str]:
 
 @dataclass(frozen=True)
 class MemberReach:
-    """One ``env[model].member`` access site."""
-
     model: str
     member: str
-    path: str  # repo-relative
+    path: str
     lineno: int
 
 
@@ -326,11 +279,8 @@ class MemberReach:
 class Report:
     reaches: list[MemberReach] = field(default_factory=list)
     files_scanned: int = 0
-    #: ``(model, member)`` pairs reached now but absent from the baseline.
     added: set[tuple[str, str]] = field(default_factory=set)
-    #: pairs in the baseline no longer reached (a decoupling to commit).
     removed: set[tuple[str, str]] = field(default_factory=set)
-    #: reached members a declared Protocol does not carry.
     undeclared: set[tuple[str, str]] = field(default_factory=set)
 
     @property
@@ -350,44 +300,6 @@ class Report:
 
 
 class _MemberCollector(ast.NodeVisitor):
-    """Collect ``(model, member)`` pairs, by the syntaxes the framework uses.
-
-    Four channels, all of them an attribute access whose *value* resolves to a
-    recordset of a known model:
-
-    * ``env["res.users"].browse`` / ``self.env["res.users"].browse`` --
-      the subscript spelling, and ``registry[...]``/``pool[...]`` with it, since
-      ``Registry.__getitem__`` hands back the model class;
-    * ``env.user.browse`` -- through the ``Environment`` accessors that resolve
-      to a model without naming it (:data:`ENV_MODEL_ACCESSORS`), the same
-      channel ``env_model_surface_check`` had to learn to see;
-    * ``env["res.users"].sudo().browse`` -- one call deep, because ``sudo()`` /
-      ``with_user()`` / ``with_context()`` return the same model and appear
-      between the lookup and the member at a third of the sites;
-    * ``Access = env["ir.model.access"]`` ... ``Access.check(...)`` -- a
-      **single-assignment module-level binding**, resolved by
-      :meth:`_single_assignment_bindings`.
-
-    That fourth channel was added after the first version of this gate was
-    audited against its own blind spot: 15 sites in the core bind an
-    ``env[...]`` lookup to a local, and one model -- ``ir.model.access``, which
-    ``env_model_surface_check`` does list -- was reached **only** that way, so it
-    was absent from this gate's surface entirely while looking like a model the
-    framework calls nothing on.
-
-    Single-assignment is the soundness condition and it is deliberate: a name
-    bound once in a module cannot be something else at the use site, so no
-    dataflow analysis is needed. A name assigned twice is skipped rather than
-    guessed at.
-
-    Still NOT followed: a binding reassigned in the module, a binding through a
-    function parameter, and a model name that arrives as a variable rather than
-    a literal. The baseline is therefore a lower bound on the member surface,
-    stated here so nobody reads it as a closed set.
-    """
-
-    #: Recordset-returning methods that preserve the model, so the member after
-    #: them is still a member of that model.
     _TRANSPARENT = frozenset(
         {
             "sudo",
@@ -405,18 +317,11 @@ class _MemberCollector(ast.NodeVisitor):
         self._bindings: dict[str, str] = {}
 
     def bind(self, tree: ast.Module) -> None:
-        """Resolve the module's single-assignment recordset locals before visiting."""
         self._bindings = self._single_assignment_bindings(tree)
 
     @classmethod
     def _single_assignment_bindings(cls, tree: ast.Module) -> dict[str, str]:
-        """``{local name: model}`` for names bound **exactly once** in the module.
 
-        Assigned twice anywhere -- including in another function, including from
-        something that is not a model lookup -- and the name is dropped rather
-        than guessed at. That is what makes this sound without dataflow: a name
-        with one binding site cannot be anything else where it is used.
-        """
         assigned: dict[str, list[str | None]] = {}
         for node in ast.walk(tree):
             targets: list[ast.expr] = []
@@ -439,7 +344,6 @@ class _MemberCollector(ast.NodeVisitor):
 
     @staticmethod
     def _model_of(node: ast.expr) -> str | None:
-        """The model ``node`` evaluates to, or ``None``."""
         if isinstance(node, ast.Subscript) and _is_model_container(node.value):
             key = node.slice
             if (
@@ -457,7 +361,6 @@ class _MemberCollector(ast.NodeVisitor):
         model = self._model_of(node)
         if model is not None:
             return model
-        # env["x"].sudo().member -- step over one model-preserving call.
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -478,11 +381,7 @@ class _MemberCollector(ast.NodeVisitor):
 
 
 def declared_members(module_rel: str, class_name: str) -> frozenset[str]:
-    """The member names a Protocol class declares, read from its source.
 
-    Parsed rather than imported: this gate is stdlib-only and must run without
-    the framework (and without a database), exactly like its neighbours.
-    """
     path = REPO_ROOT / module_rel
     if not path.is_file():
         raise SystemExit(
@@ -595,15 +494,7 @@ def _render(report: Report) -> str:
 
 
 def doc_metrics(report: Report) -> dict[str, int]:
-    """The figures this module's docstring quotes, derived from one live run.
 
-    Deliberately NOT ``files_scanned``. It was in this block for one run, and
-    every session that added a source file to a scanned package -- for any
-    reason, touching no model -- made the block stale and this gate's own test
-    fail in their working tree. A MEASURED figure has to be about the thing
-    measured; the size of the scan is not, and churns on work that cannot
-    change the answer.
-    """
     surface = report.surface
     return {
         "pairs": sum(len(members) for members in surface.values()),
@@ -635,10 +526,6 @@ def main(argv: list[str] | None = None) -> int:
 
     report = check()
 
-    # A gate that finds no inputs must refuse, not report success: an emptied or
-    # mis-globbed tree yields zero reaches, which is indistinguishable from a
-    # framework that reaches no addon model at all -- and the second has never
-    # been true. Pinned by test_every_gate_refuses_an_empty_tree.
     if not report.reaches:
         print(
             "model_member_surface_check: no model-member reaches found at all. "

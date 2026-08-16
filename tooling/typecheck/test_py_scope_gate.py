@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for py_scope_gate.py. Stdlib unittest; no Odoo import, no database.
 
-Run: ``python tooling/typecheck/test_py_scope_gate.py``
-
-Two things are tested, and the second is the point. That the gate reports the
-committed state consistently is table stakes; that it **fails on the drift the
-count ratchet cannot see** is the reason the file exists, so that scenario is
-pinned by name rather than left to a coverage number.
-"""
 
 from __future__ import annotations
 
@@ -29,7 +21,6 @@ def log(*lines: str) -> str:
 
 
 def parsing(path: str, module: str = "odoo.orm.x") -> str:
-    """As mypy --verbose emits it: absolute, under the repo, module in parens."""
     return f"LOG:  Parsing {(gate.ROOT / path).as_posix()} ({module})"
 
 
@@ -57,14 +48,12 @@ class ParseLog(unittest.TestCase):
         self.assertIn(f"{ORM}/fields/textual.py", errors)
 
     def test_a_path_quoted_inside_a_message_is_not_an_error_site(self) -> None:
-        """Anchoring matters: an unanchored search misattributes the error."""
         errors, _ = gate.parse_log(
             log(f'{ORM}/db.py:3:1: error: Cannot find "{ORM}/other.py"  [misc]')
         )
         self.assertEqual(list(errors), [f"{ORM}/db.py"])
 
     def test_a_followed_import_outside_the_repo_is_not_scoped(self) -> None:
-        """follow_imports=silent parses site-packages; none of it is ours to gate."""
         _, checked = gate.parse_log(
             log("LOG:  Parsing /usr/lib/python3.14/json/decoder.py (json.decoder)")
         )
@@ -77,7 +66,6 @@ class ParseLog(unittest.TestCase):
         self.assertEqual((errors, checked), ({}, set()))
 
     def test_a_log_without_verbose_is_a_usage_error_not_a_failure(self) -> None:
-        """Every file would read as `unchecked` — failing for the wrong reason."""
         with tempfile.NamedTemporaryFile(
             "w", suffix=".log", delete=False, encoding="utf8"
         ) as handle:
@@ -86,8 +74,6 @@ class ParseLog(unittest.TestCase):
 
 
 class Verdicts(unittest.TestCase):
-    """Every verdict, on a synthetic tree so this checkout's debt cannot leak in."""
-
     def evaluate(self, **kwargs):
         base = {
             "package": "orm",
@@ -125,12 +111,10 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(verdict.over_budget, [(f"{ORM}/a.py", 4, 3)])
 
     def test_cleared_when_an_excepted_file_becomes_clean(self) -> None:
-        """Shrink-only: a fixed file must leave the list, or it rots into an allowlist."""
         verdict = self.evaluate(exempt=[f"{ORM}/a.py"], budgets={f"{ORM}/a.py": 3})
         self.assertEqual(verdict.cleared, [f"{ORM}/a.py"])
 
     def test_stale_when_an_excepted_path_leaves_disk(self) -> None:
-        """The rename hole — the failure mode that emptied ui_service.js's lock."""
         verdict = self.evaluate(exempt=[f"{ORM}/renamed.py"])
         self.assertEqual(verdict.stale, [f"{ORM}/renamed.py"])
 
@@ -149,17 +133,10 @@ class Verdicts(unittest.TestCase):
 
 
 class TheDriftTheRatchetCannotSee(unittest.TestCase):
-    """The scenario this gate exists for, pinned as a test.
-
-    One error moves off a file that is already excepted and onto one that is
-    clean and locked. The project-wide total does not move, so
-    ``tooling/ratchet`` reports no drift; the lock is nonetheless gone.
-    """
-
     def test_a_count_neutral_swap_is_green_by_count_and_red_by_lock(self) -> None:
         before = {f"{ORM}/debt.py": {"[misc]": 2}}
         after = {f"{ORM}/debt.py": {"[misc]": 1}, f"{ORM}/clean.py": {"[misc]": 1}}
-        self.assertEqual(  # what the ratchet measures, and it has not moved
+        self.assertEqual(
             sum(sum(c.values()) for c in before.values()),
             sum(sum(c.values()) for c in after.values()),
         )
@@ -177,9 +154,6 @@ class TheDriftTheRatchetCannotSee(unittest.TestCase):
 
 
 class Markdown(unittest.TestCase):
-    """The step summary is code here rather than a heredoc in the workflow, so it
-    is testable — and this is what makes that claim true."""
-
     def render(self, **kwargs) -> str:
         import io
 
@@ -189,7 +163,6 @@ class Markdown(unittest.TestCase):
         return buffer.getvalue()
 
     def test_green_run_emits_no_empty_bold(self) -> None:
-        """`**{0 or ''}**` renders as a literal `****`, not as an empty cell."""
         self.assertNotIn("****", self.render())
 
     def test_every_row_is_a_well_formed_table_row(self) -> None:
@@ -203,8 +176,6 @@ class Markdown(unittest.TestCase):
 
 
 class CommittedState(unittest.TestCase):
-    """Invariants of the checked-in lists — these catch a hand-edit."""
-
     def test_every_package_has_both_files(self) -> None:
         for package in gate.SCOPED_PACKAGES:
             self.assertTrue(gate.exceptions_path(package).is_file(), package)
@@ -231,7 +202,6 @@ class CommittedState(unittest.TestCase):
             self.assertEqual(data["total"], sum(data["budgets"].values()), package)
 
     def test_the_lists_are_not_empty_in_every_package(self) -> None:
-        """A gate whose state is all-empty would pass over anything."""
         self.assertTrue(any(gate.read_exceptions(p) for p in gate.SCOPED_PACKAGES))
 
     def test_scoped_packages_all_exist(self) -> None:

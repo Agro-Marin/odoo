@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for ``env_model_surface_check.py``.
 
-A gate that cannot fail is decoration. These cases pin the ways this one could
-lie:
-
-* **Blindness to a real access** — ``self.env["x.y"]`` and bare ``env["x.y"]``
-  must both be seen; a heuristic that only matched one would report a permanent
-  green over half the surface.
-* **Missing new coupling** — a model referenced from core but absent from the
-  acknowledged set must fail ``--check``; that is the whole purpose.
-* **Missing a decoupling** — a model in the baseline that nothing references
-  anymore must also fail, so a genuine cleanup is committed rather than left
-  reintroducible (the exact-ratchet discipline).
-* **Over-matching** — a non-model string subscript (``config["x"]``, a plain
-  dict, a dotted-but-not-model token) must not be counted.
-* **Live-tree agreement** — the committed ``KNOWN_MODEL_SURFACE`` must match the
-  real tree, or the gate ships already-red / already-lying.
-
-Run directly or under pytest.
-"""
 
 from __future__ import annotations
 
@@ -52,10 +33,10 @@ class TestCollector(unittest.TestCase):
 
     def test_ignores_non_model_subscripts(self):
         hits = _collect(
-            'x = config["db_name"]\n'  # not an env access
-            "y = self.env[model_var]\n"  # dynamic key, not a literal
-            'z = env["nodot"]\n'  # not model-shaped
-            'w = data["a.b.c"]\n'  # not env
+            'x = config["db_name"]\n'
+            "y = self.env[model_var]\n"
+            'z = env["nodot"]\n'
+            'w = data["a.b.c"]\n'
         )
         self.assertEqual(hits, [])
 
@@ -68,7 +49,6 @@ class TestCollector(unittest.TestCase):
 
 class TestDriftDetection(unittest.TestCase):
     def _report_over(self, models):
-        """A report whose reaches are exactly ``models`` (one site each)."""
         report = emsc.Report(
             reaches=[emsc.Reach(m, "probe.py", i) for i, m in enumerate(models)]
         )
@@ -82,7 +62,7 @@ class TestDriftDetection(unittest.TestCase):
         self.assertFalse(report.ok)
 
     def test_removed_model_is_flagged(self):
-        subset = sorted(emsc.KNOWN_MODEL_SURFACE)[:-1]  # drop one
+        subset = sorted(emsc.KNOWN_MODEL_SURFACE)[:-1]
         report = self._report_over(subset)
         self.assertEqual(len(report.removed), 1)
         self.assertFalse(report.ok)
@@ -95,17 +75,6 @@ class TestDriftDetection(unittest.TestCase):
 
 
 class TestForbiddenReachers(unittest.TestCase):
-    """The *who*, which the flat model set cannot express.
-
-    ``KNOWN_MODEL_SURFACE`` answers "which models does the framework reach". It
-    is one set for the whole scope, so it cannot answer "may *this* package
-    reach them" -- and a package reaching an already-known model adds nothing,
-    so the gate stays green. Demonstrated on the live tree: appending
-    ``env["ir.model"]`` to ``odoo/orm/components/model_graph.py`` (contractually
-    pure Python) passed this gate, ``layer_check``, ``env_surface_check`` and
-    ``pool_surface_check`` simultaneously.
-    """
-
     def _report_from(self, path: str, model: str = "ir.model"):
         report = emsc.Report(reaches=[emsc.Reach(model, path, 1)])
         report.added = report.models - emsc.KNOWN_MODEL_SURFACE
@@ -131,12 +100,10 @@ class TestForbiddenReachers(unittest.TestCase):
         self.assertTrue(report.ok)
 
     def test_a_prefix_is_not_matched_by_a_sibling_with_the_same_start(self):
-        """``odoo/db`` must not also silence ``odoo/dbx``."""
         report = self._report_from("odoo/dbx/thing.py")
         self.assertFalse(report.forbidden)
 
     def test_every_pinned_subtree_exists_and_is_currently_clean(self):
-        """A pin on a path that does not exist protects nothing."""
         live = emsc.check()
         reached_paths = {r.path for r in live.reaches}
         for subtree in emsc.SUBTREES_WITH_NO_MODEL_REACH:
@@ -170,19 +137,7 @@ class TestLiveTree(unittest.TestCase):
         self.assertEqual(emsc.main(["--check"]), 0)
 
     def test_every_core_package_is_scoped_or_exempt(self):
-        """A new core package must join the scan or be excused with a reason.
 
-        This gate's whole claim is that it *inventories* the framework's
-        string-keyed model dependency. A package outside ``SCOPE_PACKAGES``
-        cannot contribute to that inventory and cannot fail the ratchet, so an
-        unlisted package silently shrinks the claim while the gate still reports
-        the surface "matches the acknowledged set".
-
-        Mirrors ``layer_check``'s ``test_core_source_covers_every_core_package``
-        and ``libs_facade_check``'s ``test_every_core_package_is_scanned``: in
-        each case the coverage is a hand-maintained list, and the list is the
-        part that rots.
-        """
         packages = {
             p.name
             for p in emsc.CORE.iterdir()
@@ -197,7 +152,6 @@ class TestLiveTree(unittest.TestCase):
         )
 
     def test_scoped_and_exempt_packages_all_exist(self):
-        """The opposite drift: a renamed package silently shrinking the scan."""
         for name in (*emsc.SCOPE_PACKAGES, *emsc.SCOPE_EXEMPT_PACKAGES):
             with self.subTest(package=name):
                 self.assertTrue(
@@ -210,14 +164,6 @@ class TestLiveTree(unittest.TestCase):
 
 
 class TestTheAccessorChannel(unittest.TestCase):
-    """``env.<accessor>`` reaches a model without naming it.
-
-    The subscript collector cannot see those, so a model reached only through an
-    ``Environment`` cached property was invisible to this gate — and the count
-    was reducible by *adding* an accessor, which is the wrong direction for a
-    metric meant to bound coupling.
-    """
-
     def test_an_accessor_reach_is_collected(self):
         hits = _collect("x = self.env.user.name")
         self.assertEqual([m for m, _ in hits], ["res.users"])
@@ -226,20 +172,12 @@ class TestTheAccessorChannel(unittest.TestCase):
         self.assertEqual([m for m, _ in _collect("y = env.company")], ["res.company"])
 
     def test_the_same_attribute_on_a_non_env_object_is_ignored(self):
-        """``record.user`` / ``config.lang`` must not be counted."""
         for src in ("a = record.user", "b = config.lang", "c = self.company"):
             with self.subTest(src=src):
                 self.assertEqual(_collect(src), [])
 
     def test_the_accessor_map_covers_environment(self):
-        """Every model ``environment.py`` looks up must be declared, one way or other.
 
-        Keeps the map honest: a new cached property wrapping ``self["some.model"]``
-        re-opens the hole unless it is declared — either in
-        ``ENV_MODEL_ACCESSORS`` (the member hands callers that model) or in
-        ``ENV_INTERNAL_MODEL_LOOKUPS`` (it consults the model and returns
-        something else, as ``env.ref`` does).
-        """
         source = (emsc.CORE / "orm" / "runtime" / "environment.py").read_text(
             encoding="utf-8"
         )
@@ -268,7 +206,6 @@ class TestTheAccessorChannel(unittest.TestCase):
         )
 
     def test_the_two_declarations_do_not_overlap(self):
-        """A model is either exposed or merely consulted, not both."""
         overlap = (
             set(emsc.ENV_MODEL_ACCESSORS.values()) & emsc.ENV_INTERNAL_MODEL_LOOKUPS
         )

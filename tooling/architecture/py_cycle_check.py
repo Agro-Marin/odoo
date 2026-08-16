@@ -1,71 +1,5 @@
 #!/usr/bin/env python3
-"""Drift-zero import-cycle gate for the Python framework core.
 
-``js_cycle_check.py`` exists because ``js_layer_check.py`` locks import
-*direction* and cannot see import *cycles* — every edge of a cycle can sit inside
-one layer and break no contract. The Python side had exactly the same hole and no
-gate: ``layer_check.py`` enforces nine boundary contracts and would report a
-tangle of mutually-importing modules as perfectly clean, provided none of the
-edges crosses a declared boundary. This closes that asymmetry.
-
-Python is more forgiving than ESM here, which is precisely what makes the debt
-easy to accumulate: a partially-initialised module is a live object, so
-``import a`` from inside ``a``'s own import usually *works* — until someone
-imports the package by a different entry point, or moves a statement above the
-one that happened to break the knot, and it becomes an ``ImportError`` or an
-``AttributeError`` on a half-built module. The failure lands far from the change
-that caused it.
-
-WHAT COUNTS AS AN EDGE
-----------------------
-
-Only imports that execute **at module level**, which is the only kind that can
-deadlock an import:
-
-* ``if TYPE_CHECKING:`` blocks are skipped — they never execute (the same rule
-  ``layer_check`` applies).
-* **Function-local imports are skipped**, and this is the point rather than a
-  simplification: a deferred import inside a function is the standard, deliberate
-  way to break a cycle in Python. Counting it would flag every seam that already
-  fixes the problem, and would report the framework as tangled precisely where it
-  has been untangled.
-
-Imported *symbols* are not resolved to modules: ``from a.b import C`` is an edge
-to ``a.b``, and if ``a.b.C`` also happens to be a module it is not double
-counted. The graph is over real files under ``odoo/``, so a name that resolves to
-no module contributes nothing.
-
-WHAT IS ENFORCED
-----------------
-
-**No cycles**, with today's pinned in ``KNOWN_CYCLES`` as visible debt — the same
-contract and the same escape hatch as ``js_cycle_check``. All four are the
-benign package↔submodule shape (``from . import x`` in an ``__init__`` that the
-submodule imports back), which Python tolerates. They are pinned rather than
-allow-listed by pattern so that a *fifth* one has to be argued for.
-
-Worth recording what the measurement found: **the ORM has none.** 156 files
-across four layers, the most intricate subsystem in the tree, zero cycles. The
-four that exist are in ``service``, ``modules``, ``cli`` and ``tests``.
-
-The ``tests`` one is a lesson about scope rather than about cycles. It went
-unseen not because the graph tolerated it but because the graph never contained
-it: ``odoo/tests/`` is the shipped test *framework*, and a "drop any path with a
-``tests`` component" filter removed all 17 of its modules. The gate then
-reported on 323 modules and called them the core. It is 338. See
-``_CORE_TEST_FRAMEWORK_PACKAGE``.
-
-USAGE
------
-
-  python tooling/architecture/py_cycle_check.py            # report
-  python tooling/architecture/py_cycle_check.py --check    # CI: exit 1 on a new cycle
-  python tooling/architecture/py_cycle_check.py --json
-
-exit 0 — no new cycles
-exit 1 — a new cycle, or a pinned one that no longer exists
-exit 2 — usage error
-"""
 
 from __future__ import annotations
 
@@ -79,20 +13,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+ADR = "0034"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_cycle_check")
 CORE = REPO_ROOT / "odoo"
 
-#: Subpackages of ``odoo/`` left out of the graph.
-#: ``addons`` is the framework's consumer, not the framework, and is governed by
-#: ``facade-boundary``; ``upgrade_code`` is a pile of dated, standalone rewrite
-#: scripts that import each other by design.
 EXCLUDED_SUBPACKAGES = frozenset({"addons", "upgrade_code"})
 
 
 @dataclass(frozen=True)
 class Known:
-    """A tolerated cycle, pinned so it stays visible and cannot multiply."""
-
     members: tuple[str, ...]
     reason: str
 
@@ -163,15 +93,12 @@ def _is_type_checking(test: ast.expr) -> bool:
 
 
 class _ModuleLevelImports(ast.NodeVisitor):
-    """Module-level, runtime imports only."""
-
     def __init__(self, module: str, is_init: bool) -> None:
         self.module, self.is_init = module, is_init
         self.found: list[tuple[str, int]] = []
         self._depth = 0
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        # A deferred import is the sanctioned way to break a cycle; not an edge.
         self._depth += 1
         self.generic_visit(node)
         self._depth -= 1
@@ -221,24 +148,11 @@ def module_name_for(path: Path) -> str:
     return ".".join(parts)
 
 
-#: ``odoo/tests/`` is NOT tests. It is the shipped test *framework* --
-#: ``TransactionCase``, ``HttpCase``, ``ChromeBrowser``, the loader and the tag
-#: selector -- imported by every addon suite in the workspace. The
-#: directory-name rule below swallowed all 17 of its modules, so the graph this
-#: gate reported on was 323 modules when it should have been 338.
-#:
-#: ``layer_check`` had the identical bug and documents the fix at
-#: ``_CORE_TEST_FRAMEWORK_PACKAGE``; this is that rule, applied to the cycle
-#: graph. The consequence here was concrete: with the framework restored, the
-#: graph gains a real strongly-connected component
-#: (``odoo.tests`` <-> ``common`` <-> ``http``) which no gate had ever seen.
 _CORE_TEST_FRAMEWORK_PACKAGE = ("tests",)
 
 
 def _is_test_file(rel: tuple[str, ...], name: str) -> bool:
-    """Whether a path relative to ``odoo/`` is a test rather than framework code."""
     if rel[: len(_CORE_TEST_FRAMEWORK_PACKAGE)] == _CORE_TEST_FRAMEWORK_PACKAGE:
-        # Inside the test framework, only its own tests are test files.
         return name.startswith("test_") or name == "conftest.py"
     return "tests" in rel or name.startswith("test_") or name == "conftest.py"
 
@@ -247,8 +161,6 @@ def iter_source_files() -> list[Path]:
     out = []
     for path in sorted(CORE.rglob("*.py")):
         rel = path.relative_to(CORE).parts
-        # Top-level only: ``EXCLUDED_SUBPACKAGES`` names subpackages OF
-        # ``odoo/``, and a set intersection matched the name at any depth.
         if rel[0] in EXCLUDED_SUBPACKAGES or "__pycache__" in rel:
             continue
         if _is_test_file(rel, path.name):
@@ -272,7 +184,6 @@ def build_graph(files: list[Path] | None = None):
         collector = _ModuleLevelImports(name, path.name == "__init__.py")
         collector.visit(tree)
         for target, lineno in collector.found:
-            # longest real-module prefix; a symbol resolves to its module
             candidate = target
             while candidate and candidate not in modules:
                 if "." not in candidate:
@@ -287,7 +198,6 @@ def build_graph(files: list[Path] | None = None):
 
 
 def strongly_connected(nodes, edges) -> list[list[str]]:
-    """Tarjan, iterative (the graph is small but recursion depth is not a risk worth taking)."""
     index: dict[str, int] = {}
     low: dict[str, int] = {}
     on_stack: dict[str, bool] = {}
@@ -345,14 +255,6 @@ def check(files: list[Path] | None = None) -> Report:
     seen = set()
     for component in strongly_connected(set(modules), edges):
         if len(component) < 2:
-            # `build_graph` drops any edge whose resolved target is the
-            # importing module, so the gate's own graph never carries a
-            # self-edge — and that filter is not optional: for a package
-            # `__init__.py`, `from . import x` resolves the base to the package
-            # itself, so keeping self-edges would report a self-loop on every
-            # package in the tree. The test below therefore only fires for a
-            # caller that builds its own graph, which is how `strongly_connected`
-            # is exercised directly.
             only = component[0]
             if only not in edges.get(only, ()):
                 continue

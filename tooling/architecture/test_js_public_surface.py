@@ -1,24 +1,4 @@
-"""Tests for the JS public-surface ratchet.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_js_public_surface.py
-
-The measurement tests build synthetic consumer trees, so they keep their
-meaning as the real surface shrinks. The two that read the real tree assert
-what a measurement gate silently loses: that it found its inputs, and that the
-pin it is judging against is the tree's own.
-
-The environment-honesty tests simulate both deployments the gate must serve:
-the full workspace (every consumer checkout present) and a repo-alone CI
-checkout (siblings absent), by handing ``drift`` the scopes each environment
-actually has. The audit that motivated provenance verified the failure exactly
-this way: with a membership-only pin, 27+ sibling-only specifiers made the
-repo-alone check unpassable by construction.
-"""
-
-import js_public_surface as jps  # sys.path set by conftest.py
+import js_public_surface as jps
 import pytest
 
 
@@ -27,9 +7,6 @@ def _consumer(root, name, body):
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(body)
     return root
-
-
-# --- what counts as surface ---
 
 
 def test_an_import_from_outside_web_is_surface(tmp_path):
@@ -55,8 +32,6 @@ def test_a_specifier_named_twice_in_one_file_counts_once(tmp_path):
 
 
 def test_the_test_helper_escape_hatch_is_not_surface(tmp_path):
-    # `@web/../tests/...` is how other addons reach web's test helpers. It is
-    # documented, and counting it would put the whole test tree on the list.
     _consumer(
         tmp_path,
         "mail/static/tests/a.js",
@@ -66,8 +41,6 @@ def test_the_test_helper_escape_hatch_is_not_surface(tmp_path):
 
 
 def test_type_only_references_are_not_surface(tmp_path):
-    # A JSDoc @import names a module without depending on it. Moving the file
-    # breaks the *type*, which the typecheck locks own; it is not exposure.
     _consumer(
         tmp_path,
         "mail/static/src/a.js",
@@ -82,9 +55,6 @@ def test_vendored_and_node_modules_are_skipped(tmp_path):
     assert jps.measure((tmp_path,)) == {}
 
 
-# --- provenance: which consumer checkout imports what ---
-
-
 def test_provenance_records_the_importing_scope_by_name(tmp_path):
     ent = tmp_path / "enterprise"
     _consumer(ent, "sale/static/src/a.js", 'import "@web/core/registry";\n')
@@ -94,7 +64,6 @@ def test_provenance_records_the_importing_scope_by_name(tmp_path):
 
 
 def test_a_bare_path_scope_takes_its_directory_name(tmp_path):
-    # Synthetic trees hand in plain paths; the directory name is the scope.
     root = tmp_path / "agromarin"
     _consumer(root, "geo/static/src/a.js", 'import "@web/core/registry";\n')
     assert jps.provenance(jps.measure_detailed((root,))) == {
@@ -121,13 +90,7 @@ def test_an_absent_scope_contributes_nothing_and_is_not_invented(tmp_path):
     assert detailed == {"@web/core/registry": {"odoo": (1, 0)}}
 
 
-# --- the contract, per scope ---
-
-
 def test_growth_and_shrink_fail_per_scope():
-    # Both directions matter and they fail for different reasons: growth is new
-    # exposure, and a pinned specifier no longer imported is surface that was
-    # given up and must be recorded, or it can be re-spent for free.
     measured = {"@web/a": frozenset({"odoo"}), "@web/b": frozenset({"odoo"})}
     pinned = {"@web/b": frozenset({"odoo"}), "@web/c": frozenset({"odoo"})}
     new, gone = jps.drift(measured, pinned, ["odoo"])
@@ -136,10 +99,6 @@ def test_growth_and_shrink_fail_per_scope():
 
 
 def test_a_scope_not_present_is_not_judged():
-    # THE environment-honesty property, simulated the way repo-alone CI runs:
-    # `@web/b` is pinned for enterprise only, and enterprise is not checked
-    # out. With a membership-only pin this fired "gone" and the repo-alone
-    # check could not pass at all; with provenance it is simply out of scope.
     measured = {"@web/a": frozenset({"odoo"})}
     pinned = {"@web/a": frozenset({"odoo"}), "@web/b": frozenset({"enterprise"})}
     new, gone = jps.drift(measured, pinned, ["odoo"])
@@ -147,8 +106,6 @@ def test_a_scope_not_present_is_not_judged():
 
 
 def test_the_full_workspace_judges_every_scope():
-    # The same pin, with enterprise present: now the enterprise-scoped entry
-    # IS judged, and its disappearance is a shrink to record.
     measured = {"@web/a": frozenset({"odoo"})}
     pinned = {"@web/a": frozenset({"odoo"}), "@web/b": frozenset({"enterprise"})}
     new, gone = jps.drift(measured, pinned, ["odoo", "enterprise"])
@@ -157,9 +114,6 @@ def test_the_full_workspace_judges_every_scope():
 
 
 def test_an_import_from_a_new_scope_is_growth_there():
-    # Already public to enterprise does not mean public to agromarin: each
-    # scope ratchets on its own, or sibling repos could widen their reach into
-    # web internals invisibly behind another repo's existing pin.
     measured = {"@web/a": frozenset({"enterprise", "agromarin"})}
     pinned = {"@web/a": frozenset({"enterprise"})}
     new, gone = jps.drift(measured, pinned, ["enterprise", "agromarin"])
@@ -168,16 +122,11 @@ def test_an_import_from_a_new_scope_is_growth_there():
 
 
 def test_a_legacy_tagless_pin_applies_to_every_scope():
-    # The pre-provenance format pinned bare membership measured over the full
-    # workspace; reading it any narrower would silently drop pins on upgrade.
     measured = {"@web/a": frozenset({"odoo"})}
     pinned = {"@web/a": frozenset()}
     new, gone = jps.drift(measured, pinned, ["odoo", "enterprise"])
     assert new == {}
     assert gone == {"enterprise": ["@web/a"]}
-
-
-# --- the pin file ---
 
 
 def test_comments_and_blanks_are_not_pins(tmp_path, monkeypatch):
@@ -199,11 +148,6 @@ def test_a_tagless_line_loads_as_pinned_everywhere(tmp_path, monkeypatch):
 def test_update_writes_the_measured_surface_sorted_with_provenance(
     tmp_path, monkeypatch
 ):
-    # Membership plus measured provenance, nothing more: nothing this tool can
-    # measure decides a tier, so it records none. A fan-in threshold used to
-    # invent per-specifier tiers here and was retracted: two importers is
-    # equally what a niche-but-public component looks like, so the count
-    # cannot decide.
     pin = tmp_path / "pin.txt"
     monkeypatch.setattr(jps, "PINNED", pin)
     jps.write_pinned(
@@ -221,15 +165,10 @@ def test_update_writes_the_measured_surface_sorted_with_provenance(
         for line in pin.read_text().splitlines()
         if line and not line.startswith("#")
     ]
-    # Specifiers sorted; scopes in canonical CONSUMER_ROOTS order, so a
-    # regenerated pin diffs cleanly.
     assert body == ["@web/a  agromarin", "@web/b  odoo enterprise"]
 
 
 def test_update_refuses_a_partial_checkout(tmp_path, monkeypatch):
-    # An update from a checkout missing a sibling could only erase the absent
-    # scopes' provenance — the record of what those consumers are owed — so it
-    # must refuse rather than write a narrower truth.
     present = tmp_path / "odoo"
     _consumer(present, "mail/static/src/a.js", 'import "@web/core/registry";\n')
     monkeypatch.setattr(
@@ -240,9 +179,6 @@ def test_update_refuses_a_partial_checkout(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         jps.main(["--update"])
     assert exc.value.code == 2
-
-
-# --- the gate must actually reach the real tree ---
 
 
 def test_real_surface_is_measured_and_matches_its_pin():
@@ -262,9 +198,6 @@ def test_real_surface_is_measured_and_matches_its_pin():
 
 
 def test_the_surface_is_mostly_deep_which_is_why_this_exists():
-    # The pin is not the interesting number; the depth is. A surface that is
-    # mostly layer-edge imports would need no boundary drawn. This one reaches
-    # into module internals, which is what makes every internal move expensive.
     measured = jps.measure()
     deep = sum(1 for s in measured if s.count("/") >= 3)
     assert deep > len(measured) // 2, (
@@ -273,13 +206,7 @@ def test_the_surface_is_mostly_deep_which_is_why_this_exists():
     )
 
 
-# --- production vs test consumers ---
-
-
 def test_a_test_only_consumer_is_counted_apart_but_still_pinned(tmp_path):
-    # Still surface: moving the file breaks that suite. Counted apart because
-    # "only a test reaches this" is not an API decision the way a production
-    # importer is.
     _consumer(tmp_path, "mail/static/tests/a.js", 'import "@web/webclient/clickbot";\n')
     assert jps.measure_by_scope((tmp_path,)) == {"@web/webclient/clickbot": (0, 1)}
     assert jps.measure((tmp_path,)) == {"@web/webclient/clickbot": 1}
@@ -292,17 +219,11 @@ def test_production_and_test_importers_of_one_specifier_are_split(tmp_path):
 
 
 def test_the_real_surface_is_overwhelmingly_production():
-    # If this inverted, the list would be describing what tests poke at rather
-    # than what web owes other modules, and the boundary work would follow the
-    # wrong signal.
     by_scope = jps.measure_by_scope()
     test_only = [s for s, (prod, test) in by_scope.items() if prod == 0 and test]
     assert len(test_only) < len(by_scope) // 10, (
         f"{len(test_only)} of {len(by_scope)} specifiers are reached only by tests"
     )
-
-
-# --- a specifier that resolves to nothing is not surface ---
 
 
 def _web(root, *paths):
@@ -319,31 +240,22 @@ def test_a_specifier_backed_by_a_file_resolves(tmp_path, monkeypatch):
 
 
 def test_a_specifier_backed_by_a_face_resolves(tmp_path, monkeypatch):
-    # A module publishes its face as index.js; entering at the face is the
-    # thing the shape gate wants, so it must not read as dangling here.
     monkeypatch.setattr(jps, "WEB", _web(tmp_path, "components/barcode/index.js"))
     assert jps.unresolved(["@web/components/barcode"]) == []
 
 
 def test_a_specifier_backed_by_nothing_is_unresolved(tmp_path, monkeypatch):
-    # The defect this catches: `web` dissolved services/, a consumer followed
-    # the move to the dissolved name, and --update recorded the dead import as
-    # surface web owed it.
     monkeypatch.setattr(jps, "WEB", _web(tmp_path, "core/user.js"))
     assert jps.unresolved(["@web/services/user"]) == ["@web/services/user"]
 
 
 def test_a_directory_without_a_face_does_not_resolve(tmp_path, monkeypatch):
-    # A bare directory is not importable — accepting one would let a specifier
-    # pointing at a folder full of internals pass as a published module.
     root = _web(tmp_path, "core/utils/dnd.js")
     monkeypatch.setattr(jps, "WEB", root)
     assert jps.unresolved(["@web/core/utils"]) == ["@web/core/utils"]
 
 
 def test_every_known_unresolved_entry_really_dangles():
-    # The tolerated set is shrink-only, so it has to stay true: an entry that
-    # someone fixed must fail here rather than sit on the list forever.
     assert jps.unresolved(jps.KNOWN_UNRESOLVED) == sorted(jps.KNOWN_UNRESOLVED), (
         "an entry in KNOWN_UNRESOLVED now resolves — shrink the set"
     )
@@ -356,13 +268,7 @@ def test_the_real_surface_carries_no_unaccounted_dangling_specifier():
     )
 
 
-# --- the second governed addon ---
-
-
 def test_mail_is_governed_and_its_pin_matches_the_measured_surface():
-    """`mail` is the second addon under this ratchet. Same contract, same
-    machinery, its own pin file — so a regression in the parameterisation shows
-    up here rather than as a silently unenforced second gate."""
     assert "mail" in jps.GOVERNED_ADDONS
     detailed = jps.measure_detailed(jps.CONSUMER_ROOTS, "mail")
     assert len(detailed) > 50, "expected the real consumer tree to be found"
@@ -382,26 +288,13 @@ def test_mail_is_governed_and_its_pin_matches_the_measured_surface():
 
 
 def test_the_two_addons_do_not_share_a_pin_file():
-    """A parameterisation bug that collapsed both onto one path would make the
-    second addon overwrite the first's pin on `--update`, which is how the real
-    `public_surface_web.txt` was briefly destroyed while this was being written."""
     assert jps.pin_path("web") != jps.pin_path("mail")
     assert jps.pin_path("web").name == "public_surface_web.txt"
     assert jps.pin_path("mail").name == "public_surface_mail.txt"
 
 
 def test_mails_shallow_surface_is_exactly_the_unlayered_directory():
-    """93 specifiers, 90 of them three or more segments deep. The three that are
-    not are all `@mail/model/*` -- the one top-level directory left without a
-    deployment-layer suffix, and the one that still needs its own manifest glob.
 
-    This list was five entries until `js/` was folded into the layer scheme, and
-    the two that went were `@mail/js/*`. That is the claim sharpened rather than
-    weakened: mail's only shallow, layer-edge API is precisely the part of the
-    tree that sits outside the layering. `model/` is deliberate -- it is
-    genuinely cross-layer, shipping in both the backend and public bundles -- so
-    this list is expected to stay at three.
-    """
     measured = jps.measure(jps.CONSUMER_ROOTS, "mail")
     shallow = sorted(s for s in measured if s.count("/") < 3)
     assert shallow == [
@@ -412,14 +305,7 @@ def test_mails_shallow_surface_is_exactly_the_unlayered_directory():
 
 
 def test_mails_deep_and_production_specifiers_are_different_sets():
-    """A specifier can be deep and test-only, or shallow and production; the two
-    partitions of the 93 are independent and neither implies the other.
 
-    They were both 88 when this pin was taken, which read as one fact and was
-    two. Folding `js/` moved two entries deeper without changing how they are
-    reached, and the numbers separated (90 deep, 88 production) -- which is the
-    clearest possible demonstration that they were never the same measurement.
-    """
     detailed = jps.measure_detailed(jps.CONSUMER_ROOTS, "mail")
     deep = {s for s in detailed if s.count("/") >= 3}
     production = {
@@ -430,9 +316,6 @@ def test_mails_deep_and_production_specifiers_are_different_sets():
 
 
 def test_an_addons_own_imports_are_not_its_surface():
-    """`_is_addon_internal` is what keeps the list tracking exposure rather than
-    tree size. Getting this wrong inflated the first hand-measurement of mail's
-    surface from 88 to 215."""
     assert jps._is_addon_internal(
         jps.ROOT / "addons" / "mail" / "static" / "src" / "x.js", "mail"
     )

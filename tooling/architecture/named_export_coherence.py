@@ -1,37 +1,3 @@
-"""Named-export coherence gate: every ``import { x }`` must find an ``x``.
-
-Companion to :mod:`cross_repo_coherence`, which catches whole-module removals
-and states its own gap outright: *"a removed named export inside a file that
-still exists is not detected"*. This gate closes it.
-
-Under native ESM that gap is not a soft failure. A named import the target
-module does not export is a **link-time SyntaxError**: the browser refuses the
-whole module graph, so the entire asset bundle dies for every database that
-installs the importing module. No JS test can catch it either, because no test
-file gets to run -- the suite simply reports fewer tests than it should, which
-reads as green. Both ``static/src`` and ``static/tests`` are scanned for exactly
-this reason: the same broken import in a test file kills the test bundle with
-the identical silent symptom.
-
-Motivating incident (2026-07-28): ``@web/views/view_compiler`` renamed
-``compileViewTemplates``/``useViewCompiler`` while ``web_gantt`` and
-``hr_payroll`` still imported the old name. Both files existed, so
-``cross_repo_coherence`` saw nothing; every ``@web`` suite failed to boot with
-``does not provide an export named``.
-
-Usage::
-
-    python tooling/architecture/named_export_coherence.py           # report
-    python tooling/architecture/named_export_coherence.py --check   # exit 1
-    python tooling/architecture/named_export_coherence.py --json
-    python tooling/architecture/named_export_coherence.py --list-roots
-
-Scope note: it verifies what it can READ. A specifier pointing outside the
-checked-out repos, or a re-export chain it cannot fully resolve, yields no
-verdict rather than a guess -- a false positive in a blocking gate is worse
-than a miss, because it teaches people to ignore the gate.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -47,52 +13,32 @@ from js_imports import strip_comments
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-# Located by marker, not by counting parents — see _repo_root.
+ADR = "0031"
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="named_export_coherence")
 
-#: ``import { a, b as c } from "@web/x/y";`` -- brace body plus specifier.
-#: The optional leading group covers ``import Default, { a } from "..."``: the
-#: default binding sits between ``import`` and the brace, and without it the
-#: whole statement went unchecked. Zero such imports exist in-tree today, which
-#: is precisely why it would have gone unnoticed the day one appeared.
 NAMED_IMPORT_RE = re.compile(
     r"""import\s*(?:[A-Za-z_$][\w$]*\s*,\s*)?\{([^}]*)\}\s*from\s*["']([^"']+)["']"""
 )
-#: ``export { a, b as c } from "..."`` / ``export { a, b };``
 NAMED_EXPORT_RE = re.compile(r"""export\s*\{([^}]*)\}""")
-#: ``export function f`` / ``export class C`` / ``export const x`` (may be
-#: indented). ``function\s*\*?`` so the generator star binds either way --
-#: ``export function* g`` and ``export function *g`` are the same declaration,
-#: and treating the second as no export at all would report every importer of
-#: ``g`` as broken.
 DECL_EXPORT_RE = re.compile(
     r"""^[ \t]*export\s+(?:async\s+)?"""
-    # `function* g` and `function *g` are one declaration written two ways; the
-    # star may take the whitespace from either side, so both spellings need
-    # their own alternative rather than an optional `\*?` that then still
-    # demands a space.
     r"""(?:function\s*\*\s*|function\s+|class\s+|const\s+|let\s+|var\s+)"""
     r"""([A-Za-z_$][\w$]*)""",
     re.MULTILINE,
 )
-#: ``export const { Modal, Tooltip } = Bootstrap;`` / ``export const [a, b] = ...``
 DESTRUCTURED_EXPORT_RE = re.compile(
     r"""^[ \t]*export\s+(?:const|let|var)\s*([{\[][\s\S]*?[}\]])\s*=""", re.MULTILINE
 )
 STAR_REEXPORT_RE = re.compile(r"""export\s*\*\s*from\s*["']([^"']+)["']""")
-#: ``@web/core/x`` -> addon ``web``, subpath ``core/x``.
 MODULE_SPEC_RE = re.compile(r"^@([a-z0-9_]+)/(.+)$")
-#: One binding inside a destructuring pattern: ``a``, ``a: b``, ``a = d``.
 BINDING_RE = re.compile(r"""([A-Za-z_$][\w$]*)\s*(?::\s*([A-Za-z_$][\w$]*))?""")
 
-#: Scopes that are not addons (``@odoo/owl``, ``@odoo/hoot``...).
 NON_ADDON_SCOPES = {"odoo", "web_tour_tests"}
 
 
 @dataclass(frozen=True)
 class Unsatisfied:
-    """One named import with no matching export in the resolved module."""
-
     consumer: str
     specifier: str
     name: str
@@ -106,13 +52,7 @@ class Unsatisfied:
 
 
 def destructured_names(pattern: str) -> set[str]:
-    """Binding names introduced by a destructuring export pattern.
 
-    ``@web/libs/bootstrap`` publishes all twelve Bootstrap components with one
-    ``export const { Modal, Tooltip, ... } = Bootstrap;``. Understanding only
-    ``export const <identifier>`` reports every importer of them as broken --
-    20 false positives that would bury the real findings.
-    """
     names: set[str] = set()
     depth = 0
     current: list[str] = []
@@ -133,13 +73,11 @@ def destructured_names(pattern: str) -> set[str]:
         if not part:
             continue
         if match := BINDING_RE.match(part):
-            # ``a: b`` binds ``b``; a bare ``a`` binds ``a``.
             names.add(match.group(2) or match.group(1))
     return names
 
 
 def imported_names(brace_body: str) -> list[str]:
-    """The ORIGINAL (exported) names an import brace body requests."""
     names = []
     for part in brace_body.split(","):
         part = part.strip()
@@ -148,27 +86,15 @@ def imported_names(brace_body: str) -> list[str]:
     return [n for n in names if n and n != "default"]
 
 
-#: An exported binding is a JS identifier. Verified against a real parser over
-#: every module in this repo: all 5942 named exports are plain identifiers.
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_$][\w$]*$")
 
 
 def exported_names(brace_body: str) -> set[str]:
-    """The names an ``export { ... }`` clause publishes.
 
-    Non-identifiers are dropped. ``NAMED_EXPORT_RE`` matches text, so it also
-    fires inside a template literal that BUILDS an export statement --
-    ``core/module_bridge.js:34`` does exactly that with
-    ``lines.push(`export { ${aliases.join(", ")} };`)`` -- and the gate then
-    believed the module published ``")`` and ``${aliases.join("``. Those are
-    unimportable, so nothing broke; a template producing real identifiers would
-    instead have made the gate miss a genuinely broken import.
-    """
     names = set()
     for part in brace_body.split(","):
         part = part.strip()
         if part:
-            # ``export { a as b }`` publishes ``b``.
             name = part.split(" as ")[-1].strip()
             if IDENTIFIER_RE.match(name):
                 names.add(name)
@@ -176,8 +102,6 @@ def exported_names(brace_body: str) -> set[str]:
 
 
 class Resolver:
-    """Maps module specifiers onto files across the checked-out repos."""
-
     def __init__(self, addons_roots: list[Path]) -> None:
         self.addon_dirs: dict[str, Path] = {}
         for root in addons_roots:
@@ -190,13 +114,7 @@ class Resolver:
         self._cache: dict[Path, tuple[set[str], bool]] = {}
 
     def resolve(self, spec: str, importer: Path | None = None) -> Path | None:
-        """Resolve ``spec`` to a file, or ``None`` when it is out of scope.
 
-        Relative specifiers resolve against ``importer``'s directory. Skipping
-        them blinds the gate to whole modules: mail's public surface is a
-        barrel of ``export * from "./record.js"``, so no ``@mail/...`` importer
-        was verifiable until these resolved.
-        """
         if spec.startswith("."):
             if importer is None:
                 return None
@@ -220,13 +138,7 @@ class Resolver:
     def exports_of(
         self, path: Path, stack: frozenset[Path] = frozenset()
     ) -> tuple[set[str], bool]:
-        """``(names, complete)`` for ``path``, following ``export * from``.
 
-        ``complete`` is False when a re-export target could not be read, so
-        callers withhold judgement instead of reporting a false positive. A
-        result computed inside an import CYCLE is never cached -- it is only
-        valid for the branch that produced it.
-        """
         if path in self._cache:
             return self._cache[path]
         if path in stack:
@@ -259,11 +171,6 @@ class Resolver:
         return result
 
 
-# Both trees are scanned: a bad named import in a *test* file is the same
-# link-time SyntaxError as in src, and its symptom is exactly the "reports fewer
-# tests, reads as green" failure this gate's docstring describes. Test-only
-# specifiers (@odoo/hoot, `@web/../tests/...`) resolve to None and are skipped,
-# so scanning tests adds no false positives.
 SCAN_GLOBS = ("static/src/**/*.js", "static/tests/**/*.js")
 
 
@@ -273,7 +180,6 @@ def _scan_files(root: Path):
 
 
 def find_unsatisfied(roots: list[Path], addons_roots: list[Path]) -> list[Unsatisfied]:
-    """Every named import in ``roots`` with no matching export."""
     resolver = Resolver(addons_roots)
     found: list[Unsatisfied] = []
     for root in roots:
@@ -300,13 +206,7 @@ def find_unsatisfied(roots: list[Path], addons_roots: list[Path]) -> list[Unsati
 
 
 def discover_addons_roots() -> list[Path]:
-    """Every addons root reachable from this repo plus its sibling checkouts.
 
-    Anchored on this file rather than on a hardcoded workspace layout: the same
-    repo is ``addons/odoo`` for a developer and ``addons/core`` in CI, and a
-    gate that cannot find its own inputs must say so rather than scan nothing
-    and report success.
-    """
     roots = [ROOT / "addons", ROOT / "odoo" / "addons"]
     roots.extend(repo for repo in default_consumer_repos() if repo.is_dir())
     seen: set[Path] = set()
@@ -336,11 +236,6 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             f"no addons root found around {ROOT} (siblings {SIBLING_REPOS_ROOT})"
         )
-    # Explicit scan roots also become the resolution universe unless told
-    # otherwise: resolving an explicitly-scoped scan against the whole
-    # workspace silently answered from a DIFFERENT copy of the module than the
-    # one under test, so the gate verified something the caller never asked
-    # about and reported it clean.
     addons_roots = args.addons_root or scan_roots
     if args.list_roots:
         for root in scan_roots:
@@ -348,10 +243,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     scanned = sum(1 for root in scan_roots for _ in _scan_files(root))
-    # Roots that exist but hold no JS scan clean, which is indistinguishable
-    # from clean. `cross_repo_coherence` shipped that fault three times over
-    # (1cd6f1667ba) — including one where two of its three consumer paths had
-    # never existed and it reported all three healthy.
     if not scanned:
         parser.error(
             f"no JS sources under {len(scan_roots)} scanned root(s) — "

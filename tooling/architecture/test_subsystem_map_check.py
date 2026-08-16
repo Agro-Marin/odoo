@@ -1,23 +1,3 @@
-"""Self-test for ``subsystem_map_check.py``.
-
-The checker's whole value is that it fails when the map drifts.  A checker that
-parses the map *loosely* fails that job in the quietest possible way: it reports
-clean over text it never understood.  These tests are therefore weighted towards
-the ways this particular parser could lie —
-
-* reading a wrapped prose **description** as a list of modules (the first
-  version did exactly this: ``service/``'s three continuation lines became
-  thirteen non-existent modules of ``odoo/``),
-* splitting a parenthetical gloss on a comma *inside* it,
-* silently finding no map at all and reporting success,
-* checking only one kind of child, so a missing subpackage hides behind a
-  complete module list.
-
-Every synthetic case builds a real temporary tree, so the assertions are about
-the gate end-to-end rather than about the parser agreeing with itself.  The last
-class runs it against the live repository.
-"""
-
 from __future__ import annotations
 
 import textwrap
@@ -29,7 +9,6 @@ import subsystem_map_check as smc
 
 
 def write_map(root: Path, body: str) -> Path:
-    """Write an ARCHITECTURE.md whose subsystem map is *body*."""
     md = root / "ARCHITECTURE.md"
     md.write_text(
         "# Title\n\nprose\n\n## Subsystem map\n\n```\n"
@@ -41,7 +20,6 @@ def write_map(root: Path, body: str) -> Path:
 
 
 def make_tree(root: Path, spec: dict[str, list[str]]) -> Path:
-    """Build a package tree: ``{"pkg": ["mod.py", "sub/"]}`` under ``core/``."""
     core = root / "core"
     core.mkdir(exist_ok=True)
     (core / "__init__.py").touch()
@@ -60,20 +38,13 @@ def make_tree(root: Path, spec: dict[str, list[str]]) -> Path:
 
 
 class ParseNamesTest(unittest.TestCase):
-    """The name-list / description boundary — the parser's only hard decision."""
-
     def test_a_bare_list_is_all_names(self):
         names, complete = smc.parse_names("pool, cursor, ddl")
         self.assertEqual([n for n, _ in names], ["pool", "cursor", "ddl"])
         self.assertTrue(complete)
 
     def test_a_description_stops_the_list_after_its_subject(self):
-        """``service/  Process lifecycle + servers: server, _base_server``.
 
-        The subject (``service/``) is a name; everything after it is prose. The
-        regression this pins is real: reading on produced ``odoo/server.py``,
-        ``odoo/_base_server.py``, ``odoo/_threaded.py`` … none of which exist.
-        """
         names, complete = smc.parse_names(
             "service/        Process lifecycle + servers: server, _base_server,"
         )
@@ -81,8 +52,6 @@ class ParseNamesTest(unittest.TestCase):
         self.assertFalse(complete)
 
     def test_one_space_between_name_and_prose_still_stops(self):
-        """``_monkeypatches/ Explicit, import-hook-driven …`` — a column-width
-        rule would read ``Explicit`` as part of the name."""
         names, complete = smc.parse_names(
             "_monkeypatches/ Explicit, import-hook-driven third-party patches"
         )
@@ -112,8 +81,6 @@ class ParseNamesTest(unittest.TestCase):
         self.assertEqual([n for n, _ in names], ["metrics", "stats"])
 
     def test_a_name_at_the_prose_boundary_is_still_taken(self):
-        """``api/ · fields/ · models/   Thin public re-export shims`` — all
-        three are names; only the trailing text is prose."""
         names, complete = smc.parse_names(
             "api/ · fields/ · models/   Thin public re-export shims over orm/"
         )
@@ -127,17 +94,6 @@ class ParseNamesTest(unittest.TestCase):
 
 
 class DatedModuleStemTest(unittest.TestCase):
-    """The name charset must accept whatever ``_actual_children`` reports.
-
-    That function returns ``p.stem`` for every ``*.py`` — any filename, not just
-    an importable identifier. ``[A-Za-z_][A-Za-z0-9_]*`` could not match a dated
-    rewrite script (``18.1-00-sql-constraint.py``: leading digit, dots,
-    hyphens), and ``package_index_check._ROW_RE`` had to be widened for exactly
-    this. The failure would be silent-then-loud: the parser reads none of
-    ``upgrade_code/``'s nine scripts, and rule 2 reports all nine as
-    undocumented against a map that lists every one.
-    """
-
     STEMS = (
         "18.1-00-sql-constraint",
         "17.5-01-tree-to-list",
@@ -155,7 +111,6 @@ class DatedModuleStemTest(unittest.TestCase):
         self.assertTrue(complete)
 
     def test_the_charset_agrees_with_what_the_tree_reports(self):
-        """Every real ``upgrade_code`` stem must be expressible in the map."""
         modules, _packages = smc._actual_children("upgrade_code", smc.CORE_ROOT)
         self.assertTrue(modules, "upgrade_code has no modules — probe is vacuous")
         for stem in sorted(modules):
@@ -163,8 +118,6 @@ class DatedModuleStemTest(unittest.TestCase):
                 self.assertEqual(smc.parse_names(stem), ([(stem, False)], True))
 
     def test_widening_did_not_break_the_prose_boundary(self):
-        # The first attempt anchored the name to a delimiter, which dropped the
-        # leading token of every package line.
         self.assertEqual(
             smc.parse_names("service/  Process lifecycle + servers: server"),
             ([("service", True)], False),
@@ -177,8 +130,6 @@ class DatedModuleStemTest(unittest.TestCase):
 
 
 class ExtractMapBlockTest(unittest.TestCase):
-    """A map that cannot be found must be an error, never a clean report."""
-
     def test_missing_heading_raises(self):
         with self.assertRaisesRegex(ValueError, "no '## Subsystem map'"):
             smc.extract_map_block("# Title\n\nno map here\n")
@@ -196,13 +147,10 @@ class ExtractMapBlockTest(unittest.TestCase):
             "## Subsystem map\n\n```\nodoo/\n├── orm/\n```\n"
         )
         self.assertEqual(block, ["odoo/", "├── orm/"])
-        # "```" is line 3, so the first block line is line 4.
         self.assertEqual(first, 4)
 
 
 class FictionalPathTest(unittest.TestCase):
-    """Rule 1 — every path named by the map must exist."""
-
     def test_a_grouping_drawn_as_a_directory_is_reported(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -255,8 +203,6 @@ class FictionalPathTest(unittest.TestCase):
 
 
 class EnumerationCompletenessTest(unittest.TestCase):
-    """Rule 2 — an enumeration that starts must finish, per kind."""
-
     def test_a_missing_module_from_an_enumerated_package_fails(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -273,7 +219,6 @@ class EnumerationCompletenessTest(unittest.TestCase):
             self.assertIn(("db", "ddl.py"), report.undocumented)
 
     def test_a_missing_subpackage_is_not_hidden_by_a_complete_module_list(self):
-        """The per-kind split: modules complete, subpackages not."""
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             core = make_tree(root, {"tools": ["misc.py", "assets/", "pdf/"]})
@@ -290,7 +235,6 @@ class EnumerationCompletenessTest(unittest.TestCase):
             self.assertIn(("tools", "pdf/"), report.undocumented)
 
     def test_listing_only_subpackages_does_not_demand_the_modules(self):
-        """``tools/`` names ``assets/`` but not its 35 modules — by design."""
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             core = make_tree(root, {"tools": ["misc.py", "sql.py", "assets/"]})
@@ -307,7 +251,6 @@ class EnumerationCompletenessTest(unittest.TestCase):
             self.assertTrue(report.ok)
 
     def test_a_package_the_map_only_summarises_is_not_enumerated(self):
-        """``libs/`` is one line and 138 files; that must stay legal."""
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             core = make_tree(root, {"libs": ["a.py", "b.py", "sub/"]})
@@ -339,8 +282,6 @@ class EnumerationCompletenessTest(unittest.TestCase):
 
 
 class ContinuationLineTest(unittest.TestCase):
-    """Wrapped lines: names continue, descriptions do not."""
-
     def test_a_wrapped_name_list_continues(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -358,12 +299,7 @@ class ContinuationLineTest(unittest.TestCase):
             self.assertTrue(report.ok, (report.fictional, report.undocumented))
 
     def test_a_wrapped_description_contributes_no_names(self):
-        """The bug this gate shipped with, pinned.
 
-        ``service/``'s description wraps over three lines naming a dozen
-        modules. They are prose. Reading them as names invented a dozen
-        top-level modules of ``odoo/`` that do not exist.
-        """
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             core = make_tree(root, {"service": ["server.py"]})
@@ -382,26 +318,19 @@ class ContinuationLineTest(unittest.TestCase):
 
 
 class LiveRepositoryTest(unittest.TestCase):
-    """The gate against the real map — and proof it would notice a change."""
-
     def test_the_committed_map_is_clean(self):
         report = smc.check()
         self.assertEqual(report.fictional, [], "fictional paths in ARCHITECTURE.md")
         self.assertEqual(report.undocumented, [], "undocumented items")
 
     def test_the_map_enumerates_the_packages_we_expect(self):
-        """Guards the parse itself: if the parser silently stopped
-        understanding the map, ``enumerated`` would quietly shrink and every
-        completeness check would pass vacuously."""
         report = smc.check()
         self.assertLessEqual(
             {"orm", "db", "http", "tools"}, set(report.enumerated) | {""}
         )
-        # db/ is flat: all 18 modules must be named.
         self.assertGreaterEqual(len(report.enumerated.get("db", ())), 18)
 
     def test_removing_a_module_from_the_map_is_detected(self):
-        """Mutation: drop one real module name and the gate must fail."""
         text = smc.ARCHITECTURE_MD.read_text(encoding="utf-8")
         self.assertIn("schema_cache", text)
         mutated = text.replace("savepoint, schema_cache,", "savepoint,", 1)
@@ -413,7 +342,6 @@ class LiveRepositoryTest(unittest.TestCase):
             self.assertIn(("db", "schema_cache.py"), report.undocumented)
 
     def test_a_grouping_written_without_brackets_is_detected(self):
-        """Mutation: revert the notation fix and the fiction reappears."""
         text = smc.ARCHITECTURE_MD.read_text(encoding="utf-8")
         mutated = text.replace("[connectivity]", "connectivity  ", 1)
         self.assertNotEqual(mutated, text)

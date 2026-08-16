@@ -1,72 +1,3 @@
-"""Self-bridge gate: no source module may resolve itself through the loader.
-
-A *bridge* is the shim the ESM pipeline generates so a native module can reach
-a value the loader holds (``odoo/tools/assets/esm_graph.py::_bridge_module_source``,
-whose shape ``@web/core/module_bridge`` documents)::
-
-    const _m = odoo.loader.modules.get("@web/some/module");
-    const _d = _m?.default ?? _m;
-    export default _d;
-    const _e0 = _m?.thing;
-    export { _e0 as thing };
-
-Bridges are built at bundle time and served from ``/web/assets/esm/bridges/``.
-They are never checked in. When one is written over the source file it was
-generated *from*, the specifier it reads is the module's own: the file resolves
-itself, ``_m`` is the module still being defined, and **every export it names
-comes out ``undefined``**. Consumers import successfully and call nothing.
-
-This happened on 2026-08-03. Four files under ``addons/web/static/src`` were
-overwritten with their own generated bridge — three dropdown behaviours and
-``web_vitals_service`` — during work on the bundling code that emits them. The
-web client stopped rendering its navbar, and 320 Hoot tests failed across
-``@web/fields`` and ``@web/ui``.
-
-**Nothing in this directory could see it**, and the reasons are structural
-rather than accidental — every gate here ran green on that tree, along with all
-299 tests in this directory:
-
-* ``named_export_coherence`` asks whether an imported *name* is exported. A
-  bridge re-exports every name it replaced, so the answer stayed yes. Names
-  survive; only the values behind them are gone.
-* ``js_public_surface`` compares the exported surface against
-  ``public_surface_web.txt`` and reported it unchanged, for the same reason.
-* ``js_layer_check``, ``js_cycle_check`` and ``js_layer_cohesion`` reason about
-  the import graph. A bridge imports nothing, so it has no edges to fault — it
-  is *maximally* clean by every graph measure.
-* ``js_import_resolution`` checks that specifiers name real files. A bridge
-  contains no specifiers, so there was nothing to check.
-
-Every one of those is right about its own contract. The property none of them
-holds is that a module still *evaluates to* something.
-
-Contract, over ``static/src`` of every addon:
-
-    No file reads ``odoo.loader.modules.get()`` on its own module specifier.
-
-Limits, stated so a green result is not read as more than it is:
-
-* Only self-reference is faulted. Reading the loader for *another* module is a
-  legitimate dynamic lookup — ``html_editor``'s ``html_upgrade_manager.js``
-  does it — and a bridge to another module, while still not something to check
-  in, cannot be told apart from that by shape alone.
-* Only literal arguments are seen. ``get(module)`` where ``module`` is a
-  variable is out of scope, and is what the legitimate call sites use.
-* It proves a module is not circular through the loader, not that its exports
-  are non-``undefined`` at runtime. Nothing static can prove that.
-
-The tree measured zero when this was written, so the gate is absolute: there is
-no known-violations list, because a pin here would be a resting place for
-exactly the bug it exists to catch. Its non-vacuity is carried by
-``test_js_self_bridge.py``, which runs it against synthetic trees.
-
-Usage::
-
-    python tooling/architecture/js_self_bridge.py            # report
-    python tooling/architecture/js_self_bridge.py --check    # exit 1 on any
-    python tooling/architecture/js_self_bridge.py --json
-"""
-
 import argparse
 import json
 import re
@@ -77,16 +8,14 @@ from pathlib import Path
 from js_import_resolution import EXCLUDED_PARTS, addon_static_dirs
 from js_layer_check import ROOT
 
-# `odoo.loader.modules.get("<literal>")`, tolerating the whitespace a formatter
-# may introduce around the member accesses. A non-literal argument is
-# deliberately not matched — see *Limits* in the module docstring.
+ADR = "0026"
+
 BRIDGE_CALL = re.compile(
     r"""odoo\s*\.\s*loader\s*\.\s*modules\s*\.\s*get\s*\(\s*(['"])(?P<spec>[^'"]+)\1"""
 )
 
 
 def _rel(path: Path, root: Path) -> str:
-    """Path relative to ``root`` when it is inside it, absolute otherwise."""
     return (
         path.relative_to(root).as_posix()
         if path.is_relative_to(root)
@@ -109,11 +38,7 @@ class SelfBridge:
 
 
 def own_specifiers(path: Path, addon: str, static: Path) -> set[str]:
-    """Every specifier that names ``path`` itself.
 
-    Normally one. A file at ``a/index.js`` gets two, because the loader's
-    lookup accepts both ``@addon/a/index`` and ``@addon/a`` for it.
-    """
     stem = path.relative_to(static / "src").as_posix().removesuffix(".js")
     specs = {f"@{addon}/{stem}"}
     if stem.endswith("/index"):
@@ -124,13 +49,7 @@ def own_specifiers(path: Path, addon: str, static: Path) -> set[str]:
 def find_self_bridges(
     statics: dict[str, Path] | None = None, root: Path = ROOT
 ) -> tuple[list[SelfBridge], int, int]:
-    """``(findings, files_scanned, loader_reads_seen)``.
 
-    ``statics`` is a parameter rather than a call to ``addon_static_dirs()`` so
-    the whole pipeline is exercisable against a synthetic tree. A gate whose
-    only evidence is "it returns clean on the real tree" cannot distinguish
-    working from scanning nothing.
-    """
     statics = addon_static_dirs() if statics is None else statics
     findings: list[SelfBridge] = []
     scanned = 0
@@ -148,7 +67,7 @@ def find_self_bridges(
                 print(f"warning: could not read {path}: {exc}", file=sys.stderr)
                 continue
             scanned += 1
-            if "loader" not in text:  # cheap reject; the regex is the authority
+            if "loader" not in text:
                 continue
             mine = own_specifiers(path, addon, static)
             for match in BRIDGE_CALL.finditer(text):
@@ -174,8 +93,6 @@ def main(argv: list[str] | None = None) -> int:
     findings, n_files, n_reads = find_self_bridges()
 
     if not n_files:
-        # A gate that cannot find its inputs must say so rather than scan
-        # nothing and report success.
         print(
             "error: no addon static/src trees found under the checkout", file=sys.stderr
         )

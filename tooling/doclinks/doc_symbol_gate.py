@@ -84,7 +84,6 @@ from _repo_root import find_odoo_root
 
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="doc_symbol_gate")
 
-#: Documents whose symbol claims are authoritative for agents and reviewers.
 DEFAULT_SCAN_GLOBS = (
     "addons/*/machine_doc_v*/**/*.md",
     "addons/*/CLAUDE.md",
@@ -94,9 +93,6 @@ DEFAULT_SCAN_GLOBS = (
 
 DEFAULT_EXCLUDES = ("node_modules", "static/lib")
 
-#: ``(document, symbol)`` pairs that name an absent export **on purpose**, to
-#: warn that it is absent. Each needs the reason, because the shape is otherwise
-#: indistinguishable from the bug this gate exists to catch.
 DELIBERATE_ABSENCES = {
     ("addons/web/machine_doc_v1/STATE_MANAGEMENT.md", "Reactive"): (
         "Names the alias that does NOT exist, to stop people writing "
@@ -107,15 +103,11 @@ DELIBERATE_ABSENCES = {
 
 _SPEC = r"@[a-z_0-9]+/[A-Za-z0-9_./-]+"
 
-#: Each pattern yields ``(symbols, specifier)``; ``symbols`` may be a comma list.
 CLAIM_PATTERNS = (
-    # `name(args)` (from `@web/module`)
     re.compile(
         r"`([A-Za-z_$][\w$]*)\([^`]*\)`[^|\n]{0,40}?\(?from\s+`?(" + _SPEC + r")`?"
     ),
-    # import { A, B } from "@web/module"   (inline or fenced)
     re.compile(r"import\s*\{([^}]+)\}\s*from\s*[\"'](" + _SPEC + r")[\"']"),
-    # └─ name(…) from @web/module          (ASCII decision trees)
     re.compile(
         r"^\s*[│|├└─\s]*([A-Za-z_$][\w$]*)\(\)?[^\n]{0,30}?\s+from\s+(" + _SPEC + r")",
         re.MULTILINE,
@@ -158,12 +150,11 @@ def _glob_files(globs=DEFAULT_SCAN_GLOBS, excludes=DEFAULT_EXCLUDES) -> list[Pat
 
 
 def resolve_specifier(specifier: str) -> Path | None:
-    """Resolve ``@addon/path`` through the addon layout. None when not on disk."""
     match = re.match(r"@([a-z_0-9]+)/(.*)", specifier)
     if not match:
         return None
     addon, rest = match.groups()
-    if addon == "odoo":  # @odoo/owl, @odoo/hoot — vendored, not addon layout
+    if addon == "odoo":
         return None
     base = REPO_ROOT / "addons" / addon / "static" / "src" / rest
     for candidate in (base, Path(f"{base}.js"), base / "index.js"):
@@ -173,7 +164,6 @@ def resolve_specifier(specifier: str) -> Path | None:
 
 
 def exported_names(path: Path) -> set[str] | None:
-    """Exports of a module, or None when the set is not decidable here."""
     source = path.read_text(encoding="utf8", errors="ignore")
     if _EXPORT_STAR.search(source):
         return None

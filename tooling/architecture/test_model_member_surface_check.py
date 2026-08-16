@@ -1,23 +1,3 @@
-"""Self-test for model_member_surface_check.py.
-
-Stdlib + pytest only, like the gate it covers: no Odoo import, no database.
-
-Three things are worth pinning, and they are the three ways this gate could
-report success while measuring nothing:
-
-* the **collector** reads each of the syntaxes the framework spells a model
-  reach in, and rejects the two near-misses that produced false pairs on the
-  first run (``env._lang.startswith``, ``env["base"].env``);
-* the **BaseModel subtraction** is derived from the tree rather than listed, so
-  a method moving between mixins must not turn into addon contract;
-* the **Protocol rule** fires on a member the declared Protocol omits — the
-  live defect this gate was written to find.
-
-Run with::
-
-    pytest tooling/architecture/test_model_member_surface_check.py
-"""
-
 import ast
 import sys
 import textwrap
@@ -30,7 +10,6 @@ import model_member_surface_check as gate
 
 
 def _pairs(source: str) -> set[tuple[str, str]]:
-    """The ``(model, member)`` pairs the collector finds in *source*."""
     collector = gate._MemberCollector(gate.base_model_members())
     tree = ast.parse(textwrap.dedent(source))
     collector.bind(tree)
@@ -56,34 +35,21 @@ class TestCollector(unittest.TestCase):
         )
 
     def test_recordset_accessor_on_environment(self):
-        """``env.user`` resolves to ``res.users`` without naming it."""
         self.assertEqual(_pairs("env.user._is_public()"), {("res.users", "_is_public")})
 
     def test_one_transparent_call_is_stepped_over(self):
-        """``sudo()`` and friends return the same model, so the member is its."""
         self.assertEqual(
             _pairs('env["ir.default"].sudo()._get_model_defaults(m)'),
             {("ir.default", "_get_model_defaults")},
         )
 
     def test_value_accessors_are_not_recordsets(self):
-        """``env._lang`` is a ``str``.
 
-        The reason :data:`gate.RECORDSET_ACCESSORS` is a strict subset of
-        ``env_model_surface_check.ENV_MODEL_ACCESSORS`` rather than the same
-        map: ``orm/fields/textual.py`` writes ``env._lang.startswith("_")``,
-        which the wider map records as ``res.lang.startswith``.
-        """
         self.assertEqual(_pairs('env._lang.startswith("_")'), set())
         self.assertEqual(_pairs("env.lang.upper()"), set())
 
     def test_basemodel_members_are_not_addon_contract(self):
-        """``browse``/``search``/``sudo``/``env`` are the recordset protocol.
 
-        Calling them on an addon-owned model asks ``base`` for nothing it did
-        not inherit. ``env["base"].env.tz`` in ``tools/date_utils.py`` is the
-        case that made the ``env`` entry load-bearing.
-        """
         self.assertEqual(
             _pairs("""
                 env["res.users"].browse(uid)
@@ -102,14 +68,7 @@ class TestCollector(unittest.TestCase):
         )
 
     def test_a_single_assignment_local_is_followed(self):
-        """``Access = env["ir.model.access"]`` ... ``Access.check(...)``.
 
-        The channel the first version of this gate was blind to.
-        ``ir.model.access`` is reached *only* this way, in
-        ``orm/models/mixins/access.py``, so without it the model was absent from
-        the surface entirely while sitting in ``env_model_surface_check``'s
-        model set — a discrepancy with no explanation.
-        """
         self.assertEqual(
             _pairs("""
                 Access = env["ir.model.access"]
@@ -120,11 +79,7 @@ class TestCollector(unittest.TestCase):
         )
 
     def test_a_twice_assigned_local_is_not_followed(self):
-        """Soundness condition: one binding site, or the name is dropped.
 
-        Two assignments mean the name could be either thing at the use site,
-        and this gate does no dataflow. It must under-report rather than guess.
-        """
         self.assertEqual(
             _pairs("""
                 Thing = env["ir.model.access"]
@@ -145,8 +100,6 @@ class TestCollector(unittest.TestCase):
 class TestBaseModelMembers(unittest.TestCase):
     def test_it_is_measured_from_the_tree(self):
         members = gate.base_model_members()
-        # A spread across the composition: if the scan silently found one file
-        # or none, at least one of these is missing.
         for name in ("browse", "search", "sudo", "create", "write", "unlink"):
             self.assertIn(name, members, f"{name} is a BaseModel member")
         self.assertGreater(

@@ -1,40 +1,3 @@
-"""Gate the framework's *string-keyed* dependency on addon-owned models.
-
-``core-does-not-depend-on-addons`` (``layer_check.py``) reasons about **import**
-edges, so it is blind to the framework's largest real coupling to its own
-consumer: core packages reach ~30 models that live in ``addons/base`` through
-``env["res.users"]`` / ``self.env["ir.attachment"]`` string subscripts, which
-compile to no import at all. The import gate reports two tolerated edges while
-this whole surface passes unmeasured — the same class of blind spot
-``mixin_coupling_check`` and ``env_surface_check`` were built to close for the
-call graph and the ``env`` seam.
-
-This checker inventories every model reach in the framework packages -- through
-``env[...]``, the ``env`` accessors, ``registry[...]``/``pool[...]``,
-``.get("...")``, ``in registry`` and relational comodel arguments, the six
-syntaxes the framework actually uses (see ``_EnvModelCollector``) -- and
-ratchets the **set of distinct models**
-exact-mode, like the count ratchets: a *new* model dependency from core fails CI
-(surfacing coupling that would otherwise creep in silently), and a model that is
-no longer referenced also fails (so a genuine decoupling is committed, not
-quietly reintroducible). ``addons/`` and test files are out of scope — an addon
-depending on another model is ordinary; the framework doing so is the thing
-worth watching.
-
-It does not forbid the coupling — several of these models (``ir.model.data``,
-``res.lang``, ``ir.config_parameter``) are framework-essential despite living in
-an addon, which is itself the argument for eventually promoting their
-*interfaces* into core (Protocols in ``odoo/``, implementations in ``base``),
-exactly as the fork already did for ``MODULE_UNINSTALL_FLAG`` and the locale
-number helpers. The gate makes the surface visible and bounded meanwhile.
-
-Usage::
-
-  python tooling/architecture/env_model_surface_check.py            # report
-  python tooling/architecture/env_model_surface_check.py --check    # CI: exit 1 on drift
-  python tooling/architecture/env_model_surface_check.py --json     # machine-readable
-"""
-
 import argparse
 import ast
 import json
@@ -46,13 +9,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+ADR = "0029"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_model_surface_check")
 CORE = REPO_ROOT / "odoo"
 
-#: Framework packages scanned. Every package under ``odoo/`` is either here or
-#: in :data:`SCOPE_EXEMPT_PACKAGES` with a reason, asserted by
-#: ``test_every_core_package_is_scoped_or_exempt`` — the scope of a gate is a
-#: hand-maintained list, and an unlisted package cannot fail it.
 SCOPE_PACKAGES: tuple[str, ...] = (
     "orm",
     "http",
@@ -62,63 +23,22 @@ SCOPE_PACKAGES: tuple[str, ...] = (
     "cli",
     "tools",
     "libs",
-    # Added 2026-08 when the scope was first tested for completeness. The three
-    # public shims held 0 model literals, and ``_monkeypatches`` 0; they are in
-    # scope so that a *future* one is seen rather than silently unmeasured.
     "api",
     "fields",
     "models",
     "_monkeypatches",
-    # ``tests`` (the shipped test *framework*) holds 12 literals reaching 5
-    # models — res.users, ir.module.module, ir.attachment, ir.config_parameter,
-    # ir.ui.view — every one of them ALREADY in KNOWN_MODEL_SURFACE, so bringing
-    # it in scope changed the ratchet by nothing and only widened what is
-    # watched. Note this deliberately diverges from ``layer_check``'s
-    # ``CORE_PACKAGES_EXEMPT_FROM_ADDON_CONTRACT``, which excuses ``tests``:
-    # there the question is whether the framework may *import* an addon, and a
-    # test framework driving application code is the job. Here the question is
-    # what the framework's string-keyed model surface *is*, and
-    # ``module_operations.py`` driving ``ir.module.module`` is a real part of it.
     "tests",
 )
 
-#: Packages deliberately outside the scan, each with the reason it is out.
 SCOPE_EXEMPT_PACKAGES: frozenset[str] = frozenset(
     {
-        # An addon referencing another model is ordinary application coupling;
-        # the framework reaching into an addon-owned model is the surface this
-        # gate bounds. Scanning addons would measure the wrong thing entirely.
         "addons",
-        # Dated one-shot source-rewrite scripts run by ``odoo-bin
-        # upgrade_code``. They manipulate *source text* of other repos' addons,
-        # so any model name in them is data being rewritten, not a dependency
-        # this framework carries.
         "upgrade_code",
     }
 )
 
-#: A string literal is treated as a model name when it is dotted lowercase
-#: (``res.users``, ``ir.model.data``) or the special root model ``base``.
 _MODEL_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$|^base$")
 
-#: ``Environment`` members that resolve to an addon-owned model, and to which.
-#:
-#: Without these this gate counts *namings*, not *reaches*, and the two come
-#: apart. ``Environment`` wraps several model lookups in cached properties --
-#: ``env.user`` is ``self["res.users"]``, ``env.company`` is
-#: ``self["res.company"]``, and so on -- so every consumer of one reaches an
-#: addon-owned model while producing no subscript for the collector to see.
-#: Measured on 2026-08-08, that hid **35 core reaches** behind six names, and
-#: made the metric reducible without reducing anything: moving an
-#: ``env["res.users"]`` behind ``env.user`` lowered the count and left the
-#: coupling identical.
-#:
-#: The seven ``SUBTREES_WITH_NO_MODEL_REACH`` were all clean of this channel when
-#: it was closed, so this is a hole being shut before it is used rather than a
-#: violation being recorded. ``test_the_accessor_map_covers_environment`` keeps
-#: the map honest: every ``self["literal"]`` inside ``environment.py`` must be
-#: reachable from some entry here, so a new accessor cannot be added without
-#: extending this.
 ENV_MODEL_ACCESSORS: dict[str, str] = {
     "user": "res.users",
     "company": "res.company",
@@ -128,44 +48,8 @@ ENV_MODEL_ACCESSORS: dict[str, str] = {
     "_ir_defaults": "ir.default",
 }
 
-#: Models ``environment.py`` consults internally without handing one to a caller.
-#:
-#: The distinction that decides whether a member belongs here or in
-#: :data:`ENV_MODEL_ACCESSORS` is whether it *returns a recordset of that model*.
-#: ``env.user`` does, so its consumers reach ``res.users`` and are counted.
-#: ``env.ref("module.xmlid")`` does not: it asks ``ir.model.data`` to resolve the
-#: xmlid and then returns ``self[res_model].browse(res_id)`` -- a record of some
-#: *other* model, chosen at run time. Counting every ``env.ref`` call site as an
-#: ``ir.model.data`` reach would say the framework is coupled to that model in
-#: ~100 places when it is coupled in one, here.
 ENV_INTERNAL_MODEL_LOOKUPS: frozenset[str] = frozenset({"ir.model.data"})
 
-#: Subtrees that must reach **no** addon-owned model at all.
-#:
-#: ``KNOWN_MODEL_SURFACE`` below ratchets *which* models the framework reaches;
-#: it cannot express *who* reaches them, because it is one flat set for the whole
-#: scope. That gap is demonstrable, not theoretical: appending
-#: ``env["ir.model"].search([])`` to ``odoo/orm/components/model_graph.py`` -- a
-#: package whose whole contract is that it is pure Python -- passes this gate
-#: (``ir.model`` is already in the set, so nothing is *added*), and also passes
-#: ``layer_check`` (a subscript is not an import), ``env_surface_check`` and
-#: ``pool_surface_check``. All four green, on the one package that is supposed to
-#: be free of the ORM entirely.
-#:
-#: These seven are pinned at zero because each already claims the property for an
-#: independent reason, so a first reach is a contradiction rather than a cost:
-#:
-#:   orm/components   `orm-components-are-pure-python`; no odoo import at all
-#:   libs             the dependency-free layer (`libs-is-dependency-free`)
-#:   db               `db-is-orm-agnostic`; talks to the ORM only via injection
-#:   api/fields/models  thin re-export shims -- a facade that reaches a model is
-#:                      no longer a facade
-#:   _monkeypatches   third-party patching, applied before a registry exists
-#:
-#: Measured at zero when this landed. Deliberately *not* the full (package,
-#: model) cross-product: that would be ~54 pairs and would fire on every ordinary
-#: new reach inside a package that already reaches models, which is noise. The
-#: invariant worth gating is the categorical one -- these subtrees reach nothing.
 SUBTREES_WITH_NO_MODEL_REACH: tuple[str, ...] = (
     "odoo/orm/components",
     "odoo/libs",
@@ -176,18 +60,6 @@ SUBTREES_WITH_NO_MODEL_REACH: tuple[str, ...] = (
     "odoo/_monkeypatches",
 )
 
-#: The framework's *acknowledged* model dependency surface. Ratcheted exact:
-#: adding a model here without a reason, or leaving a stale one, both defeat the
-#: point. Regenerate with ``--print-baseline`` after an intentional change.
-#:
-#: ``ir.demo_failure`` and ``res.partner`` joined on 2026-08-09, when the
-#: collector learned the four channels below the original two. Neither is new
-#: coupling -- both predate the gate and were simply spelled in a syntax it did
-#: not read: ``env.get("ir.demo_failure")`` in ``modules/loading.py`` (recording
-#: a demo-data failure, optional by construction) and
-#: ``if "res.partner" in registry:`` in ``orm/model_test_env.py`` (injecting a
-#: fixture row when the model happens to be loaded). They are acknowledged here
-#: rather than removed because both are deliberate optional-model probes.
 KNOWN_MODEL_SURFACE: frozenset[str] = frozenset(
     {
         "base",
@@ -227,24 +99,16 @@ KNOWN_MODEL_SURFACE: frozenset[str] = frozenset(
 
 @dataclass(frozen=True)
 class Reach:
-    """One ``env[model]`` access site."""
-
     model: str
-    path: str  # repo-relative
+    path: str
     lineno: int
 
 
 @dataclass
 class Report:
     reaches: list[Reach] = field(default_factory=list)
-    #: models referenced now but absent from the baseline (new coupling)
     added: set[str] = field(default_factory=set)
-    #: models in the baseline no longer referenced (locked-in decoupling)
     removed: set[str] = field(default_factory=set)
-    #: reaches from a subtree that must reach nothing (see
-    #: :data:`SUBTREES_WITH_NO_MODEL_REACH`). Separate from ``added`` because the
-    #: model itself may be perfectly well known -- it is the *reacher* that is
-    #: the violation, which the flat model set cannot express.
     forbidden: list[Reach] = field(default_factory=list)
 
     @property
@@ -257,66 +121,28 @@ class Report:
 
 
 def _is_env_expression(node: ast.expr) -> bool:
-    """Whether ``node`` evaluates to an ``Environment`` -- ``env`` or ``x.env``."""
     return (isinstance(node, ast.Attribute) and node.attr == "env") or (
         isinstance(node, ast.Name) and node.id == "env"
     )
 
 
-#: Names that evaluate to a :class:`Registry`. ``Registry.__getitem__`` hands
-#: back the model *class* -- the same coupling as ``env[...]``, spelled one
-#: attribute over -- and ``pool`` is the ORM's own alias for it.
 _REGISTRY_NAMES = frozenset({"registry", "pool"})
 
 
 def _is_registry_expression(node: ast.expr) -> bool:
-    """Whether ``node`` evaluates to a ``Registry`` -- ``registry``/``pool``."""
     return (isinstance(node, ast.Attribute) and node.attr in _REGISTRY_NAMES) or (
         isinstance(node, ast.Name) and node.id in _REGISTRY_NAMES
     )
 
 
 def _is_model_container(node: ast.expr) -> bool:
-    """Whether ``node`` is something a model name can be looked up in."""
     return _is_env_expression(node) or _is_registry_expression(node)
 
 
-#: Relational field constructors whose FIRST positional argument is a comodel
-#: name. ``metaclass.py`` builds the ``create_uid``/``write_uid`` magic fields
-#: as ``Many2one("res.users", ...)``, which is a reach on an addon-owned model
-#: with no subscript anywhere.
 _COMODEL_CONSTRUCTORS = frozenset({"Many2one", "One2many", "Many2many"})
 
 
 class _EnvModelCollector(ast.NodeVisitor):
-    """Collect model reaches, by every syntax the framework uses to spell one.
-
-    Six channels. The first two were the original pair; the other four were
-    added 2026-08-09, after measuring that they carried **31% of all model
-    reaches in the core** while this gate reported on the rest. Two of the
-    models they reach (``ir.demo_failure``, ``res.partner``) were absent from
-    :data:`KNOWN_MODEL_SURFACE` -- a set whose entire purpose is to be closed.
-
-    * ``env["literal"]`` / ``<x>.env["literal"]`` -- naming a model outright;
-    * ``env.<accessor>`` for the members in :data:`ENV_MODEL_ACCESSORS` --
-      reaching one without naming it;
-    * ``registry["literal"]`` / ``pool["literal"]`` -- ``Registry.__getitem__``
-      returns the model *class*, the same coupling one attribute over;
-    * ``env.get("literal")`` / ``registry.get("literal")`` -- ``Mapping.get``,
-      not ``__getitem__``, so no ``Subscript`` node exists to see;
-    * ``"literal" in registry`` / ``in env`` -- a membership test still names
-      the model, and is how optional models are probed;
-    * ``Many2one("literal", ...)`` and the other relational constructors --
-      a comodel in argument position, which is how ``metaclass.py`` names
-      ``res.users`` for the ``create_uid``/``write_uid`` magic fields.
-
-    Still NOT covered, deliberately: a model name sitting in a plain data
-    structure or passed as a SQL parameter. Catching those needs the set of
-    declared model names as a corpus rather than a syntactic rule, since
-    ``_MODEL_RE`` alone matches any dotted lowercase string. Where they exist
-    they are being removed at the source instead.
-    """
-
     def __init__(self) -> None:
         self.hits: list[tuple[str, int]] = []
 

@@ -1,44 +1,5 @@
 #!/usr/bin/env python3
-"""Drift-zero ratchet for countable quality gates (mypy, lint, tsc, ...).
 
-This is the generalisation of ``tooling/architecture/layer_check.py``'s
-drift-zero idea to *any* gate that can be reduced to a single number: a count of
-type errors, lint findings, ``# type: ignore`` comments, free-threading
-warnings, and so on. The architecture checker proved the pattern works
-(``KNOWN_VIOLATIONS`` pinned, fails on any new crossing); this tool gives every
-other gate the same teeth without re-implementing the bookkeeping each time.
-
-Why this exists
----------------
-Several CI gates (``py_typecheck.yml``, ``lint.yml``, ``typecheck.yml``,
-``freethreading.yml``) historically computed a ``DRIFT = COUNT - BASELINE`` and
-then only ``echo``-ed it: ``continue-on-error: true`` plus no ``exit 1`` meant a
-PR could add 500 new errors and still merge green. A baseline that nothing
-enforces is a comment, not a gate. This tool turns the number into a contract.
-
-The ratchet only moves one way. An *increase* is a regression and fails. A
-*decrease* is an improvement — and in the default ``exact`` mode it also fails,
-with a message telling you to commit the lower baseline, so the win is locked in
-and can never silently slip back. That is what makes improvements compound: the
-floor rises every time, mechanically.
-
-Usage
------
-    # CI: compute the count however the gate naturally does, then compare.
-    ratchet.py mypy --count 1969               # exit 1 if != committed baseline
-    ratchet.py mypy --count 1969 --mode no-increase   # exit 1 only if > baseline
-
-    # Maintainer: set or lower a baseline (the only way the floor moves).
-    ratchet.py mypy --count 1900 --update      # writes baselines/mypy.json
-
-    ratchet.py mypy --count 1969 --json        # machine-readable verdict
-    ratchet.py --list                          # show all baselines
-
-Baselines live in ``tooling/ratchet/baselines/<gate>.json`` — one small file per
-gate so diffs are obvious and merge conflicts are trivial to resolve. Each PR
-that changes a count must move its baseline in the same commit, which makes the
-ratchet's state reviewable in the diff rather than hidden in CI logs.
-"""
 
 from __future__ import annotations
 
@@ -48,26 +9,16 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-# This file lives at ``<root>/tooling/ratchet/ratchet.py``.
 HERE = Path(__file__).resolve().parent
 BASELINES_DIR = HERE / "baselines"
 
-# Exit codes (stable, for CI to branch on).
 EXIT_OK = 0
-EXIT_DRIFT = 1  # the gate moved away from its baseline — block.
-EXIT_USAGE = 2  # misconfiguration (missing baseline, bad args) — fix the setup.
+EXIT_DRIFT = 1
+EXIT_USAGE = 2
 
 
 @dataclass(frozen=True)
 class Baseline:
-    """The committed floor for one gate.
-
-    :param count: the locked count. CI fails unless the live count matches (or,
-        in ``no-increase`` mode, does not exceed) this number.
-    :param note: free text — what the count measures and how it is produced, so
-        the baseline file is self-explanatory in review.
-    """
-
     count: int
     note: str = ""
 
@@ -82,7 +33,6 @@ class Baseline:
     def save(self, gate: str) -> Path:
         path = baseline_path(gate)
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Trailing newline + sorted keys: stable, diff-friendly, POSIX-clean.
         path.write_text(
             json.dumps(asdict(self), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
@@ -98,14 +48,12 @@ def baseline_path(gate: str) -> Path:
 
 @dataclass(frozen=True)
 class Verdict:
-    """The result of comparing a live count to a baseline."""
-
     gate: str
     count: int
     baseline: int
     mode: str
     ok: bool
-    status: str  # "unchanged" | "regressed" | "improved" | "set"
+    status: str
     message: str
 
     @property
@@ -114,7 +62,6 @@ class Verdict:
 
 
 def evaluate(gate: str, count: int, baseline: Baseline, mode: str) -> Verdict:
-    """Compare ``count`` against ``baseline`` under ``mode``. Pure function."""
     drift = count - baseline.count
     if drift > 0:
         return Verdict(
@@ -203,14 +150,6 @@ def run(argv: list[str] | None = None) -> int:
 
     try:
         existing = Baseline.load(args.gate)
-    # The same set ``_list_baselines`` catches, for the same reason it catches
-    # them: a malformed floor must be a usage error, not a traceback. This form
-    # was narrower — ``{"count": null}`` raises TypeError from ``int(None)`` and
-    # an unreadable file raises OSError, neither of them listed — so ``--list``
-    # reported the problem cleanly while the ``--count`` path a CI job actually
-    # runs died on it, which is the reverse of what the comment down there says
-    # it matched. (``json.JSONDecodeError`` subclasses ValueError; it is named
-    # for the reader.)
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
         print(f"error: bad baseline for {args.gate!r}: {exc}", file=sys.stderr)
         return EXIT_USAGE
@@ -247,9 +186,6 @@ def _list_baselines(*, as_json: bool) -> int:
     broken = []
     if BASELINES_DIR.exists():
         for path in sorted(BASELINES_DIR.glob("*.json")):
-            # A malformed floor used to traceback out of --list, which is the
-            # one command a maintainer reaches for to find out what is wrong.
-            # The --count paths already answer it with EXIT_USAGE; match them.
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 rows.append(

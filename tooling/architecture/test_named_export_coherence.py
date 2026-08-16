@@ -1,10 +1,3 @@
-"""Self-tests for the named-export coherence gate.
-
-Every case here is a bug the gate actually shipped with during development.
-They are kept because each one made the gate report a CLEAN result while
-verifying nothing -- the one failure mode a gate must never have.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -61,7 +54,6 @@ def test_accepts_a_present_named_export(addons: Path) -> None:
 
 
 def test_a_mime_type_string_does_not_open_a_phantom_comment(addons: Path) -> None:
-    """``"image/*"`` once ate 7671 characters, hiding the export below it."""
     make_module(
         addons,
         "web",
@@ -75,7 +67,6 @@ def test_a_mime_type_string_does_not_open_a_phantom_comment(addons: Path) -> Non
 
 
 def test_module_specifiers_survive_comment_stripping(addons: Path) -> None:
-    """Blanking string CONTENTS made every re-export point at ``""``."""
     make_module(addons, "mail", "model/record", "export class Record {}\n")
     make_module(addons, "mail", "model/export", 'export * from "./record.js";\n')
     make_module(
@@ -88,7 +79,6 @@ def test_module_specifiers_survive_comment_stripping(addons: Path) -> None:
 
 
 def test_destructured_export_is_recognised(addons: Path) -> None:
-    """``export const { Modal } = Bootstrap`` produced 20 false positives."""
     make_module(
         addons,
         "web",
@@ -106,7 +96,6 @@ def test_destructured_export_is_recognised(addons: Path) -> None:
 
 
 def test_indented_export_is_recognised(addons: Path) -> None:
-    """A leading space before ``export`` is legal and was being missed."""
     make_module(addons, "hr_gantt", "renderer", " export class Renderer {}\n")
     make_module(
         addons, "other", "x", 'import { Renderer } from "@hr_gantt/renderer";\n'
@@ -121,7 +110,6 @@ def test_commented_out_import_is_ignored(addons: Path) -> None:
 
 
 def test_renaming_import_checks_the_original_name(addons: Path) -> None:
-    """``import { selection_field as selectionField }`` requests the former."""
     make_module(
         addons, "web", "fields/selection", "export const selectionField = {};\n"
     )
@@ -142,7 +130,6 @@ def test_export_from_republishes_the_alias(addons: Path) -> None:
 
 
 def test_unresolvable_reexport_withholds_judgement(addons: Path) -> None:
-    """No verdict beats a false positive in a blocking gate."""
     make_module(addons, "web", "core/barrel", 'export * from "@nowhere/missing";\n')
     make_module(addons, "other", "x", 'import { anything } from "@web/core/barrel";\n')
     assert find_unsatisfied([addons], [addons]) == []
@@ -173,12 +160,6 @@ def test_helpers() -> None:
 
 
 def test_exported_names_ignores_a_template_built_export_statement() -> None:
-    # `core/module_bridge.js:34` does
-    #   lines.push(`export { ${aliases.join(", ")} };`)
-    # and NAMED_EXPORT_RE matches text, so the gate read `")` and
-    # `${aliases.join("` as published names. Harmless only because they are
-    # unimportable; a template emitting real identifiers would have made the
-    # gate believe an export exists and miss a genuinely broken import.
     assert exported_names(' ${aliases.join(", ")} ') == set()
     assert exported_names("a, b as c") == {"a", "c"}
 
@@ -188,7 +169,6 @@ def test_exported_names_keeps_dollar_and_underscore_identifiers() -> None:
 
 
 def test_discovery_finds_this_repo() -> None:
-    """A gate that scans nothing must not be able to report success."""
     roots = discover_addons_roots()
     assert roots, "no addons root discovered from the checked-out repo"
     assert any(r.name == "addons" for r in roots)
@@ -211,8 +191,6 @@ def test_resolver_prefers_a_file_over_a_directory(addons: Path) -> None:
 
 
 def test_the_gate_refuses_a_root_that_holds_no_sources(tmp_path):
-    # A root that EXISTS but is empty scans clean, which reads exactly like
-    # clean. See test_layer_check for the incident this generalises.
     import named_export_coherence as nec
     import pytest
 

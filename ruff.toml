@@ -79,11 +79,19 @@ output-prefer-rule-codes = true
 # because it walks for `*.py`. The gates in tooling/ police this repo, and
 # ruff.yml lints them "at zero"; a fifth of them being invisible to that step
 # is the same fail-open those gates exist to end.
+#
+# The two bench runners are the same fail-open, missed when the hoot three were
+# listed: identical `#!/bin/sh` polyglots, same invisibility, and they were
+# carrying 11 real findings that `ruff check tooling/` had never once reported.
+# The list is every extension-less python in the tree, not the ones that came to
+# mind — `grep -rl "^''':'" tooling` enumerates the polyglots.
 extend-include = [
     "odoo-bin",
     "tooling/hoot/hoot",
     "tooling/hoot/hoot-shard",
     "tooling/hoot/hoot-affected",
+    "tooling/bench/render_bench",
+    "tooling/bench/discuss_bench",
 ]
 
 exclude = [
@@ -105,7 +113,19 @@ explicit-preview-rules = true
 
 # External linter codes — suppresses RUF102 for their noqa comments.
 # RST: docutils RST checks.  E85xx: custom AST checkers in test_lint.
-external = ["RST", "E8501", "E8502", "E8503", "E8504", "E8505", "E8506", "E8507"]
+external = [
+    "RST",
+    "E8501",
+    "E8502",
+    "E8503",
+    "E8504",
+    "E8505",
+    "E8506",
+    "E8507",
+    "E8508",
+    "E8509",
+    "E8510",
+]
 
 # Legitimate scientific/typographic characters that RUF002/RUF003 would otherwise
 # flag as ambiguous: µ (micro, e.g. "µs"), − (minus), × (multiplication),
@@ -775,14 +795,18 @@ ignore = [
 
 # CLI/scripts — print() is legitimate user output in CLI commands
 "**/odoo-bin" = ["E402", "T201"]
-# The hoot runners are sh/python polyglots: the file opens with a `#!/bin/sh`
-# trampoline inside a string literal, so every import is legitimately "not at
-# top of file" (E402) and the shebang legitimately is not python (EXE003).
-# Both are properties of the trampoline, not defects — everything else about
-# these files is linted normally.
+# The hoot and bench runners are sh/python polyglots: the file opens with a
+# `#!/bin/sh` trampoline inside a string literal, so every import is legitimately
+# "not at top of file" (E402) and the shebang legitimately is not python
+# (EXE003). Both are properties of the trampoline, not defects — everything else
+# about these files is linted normally. The `# fmt: off` guarding that same
+# string literal is not decoration either: tooling/_trampoline.sh explains what
+# reformatting it breaks.
 "tooling/hoot/hoot" = ["E402", "EXE003"]
 "tooling/hoot/hoot-shard" = ["E402", "EXE003"]
 "tooling/hoot/hoot-affected" = ["E402", "EXE003"]
+"tooling/bench/render_bench" = ["E402", "EXE003"]
+"tooling/bench/discuss_bench" = ["E402", "EXE003"]
 "odoo/cli/**" = ["T201"]           # print() is legitimate user output in CLI commands
 # compare.py is a standalone `#!/usr/bin/env python3` report generator with its own
 # argparse main() — it happens to live inside an addon, but it is a CLI script like

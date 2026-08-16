@@ -1,11 +1,3 @@
-"""Tests for the ``archInfo`` gate.
-
-The analyzer tests carry most of the weight. Three regexes preceded espree here
-and each was wrong in the same direction — reporting keys as produced by nobody,
-which is this gate's own finding shape, so a wrong answer reads exactly like a
-real one.
-"""
-
 import json
 import shutil
 import subprocess
@@ -63,14 +55,10 @@ class TestDeclaredSurface:
 @needs_node
 class TestAnalyzer:
     def test_shorthand_properties_are_emitted(self, tmp_path):
-        """THE regression: form_arch_parser's whole return is shorthand, and a
-        `key:` regex reported it as emitting nothing at all."""
         out = _analyse(tmp_path, "const f = () => { return { fieldNodes, xmlDoc }; };")
         assert {"fieldNodes", "xmlDoc"} <= set(out["emits"])
 
     def test_a_literal_assigned_then_returned_is_emitted(self, tmp_path):
-        """THE other regression: pivot, graph and calendar build `const archInfo
-        = {...}` and return the variable; a `return {` regex saw none of it."""
         out = _analyse(
             tmp_path,
             "function p() { const archInfo = { rowGroupBys: [], widgets: {} };"
@@ -100,7 +88,6 @@ class TestAnalyzer:
         assert out["templateReads"] == ["fieldNodes"]
 
     def test_a_plain_string_without_comp_is_not_template_scope(self, tmp_path):
-        """Only a string that names `__comp__` is compiled template source."""
         out = _analyse(tmp_path, 'const msg = "archInfo.fieldNodes is missing";')
         assert out["templateReads"] == []
 
@@ -112,7 +99,6 @@ class TestAnalyzer:
 @needs_node
 class TestLiveTree:
     def test_the_compiler_still_emits_into_template_source(self):
-        """If this reaches zero the gate has stopped measuring anything."""
         state = gate.measure()
         assert {"fieldNodes", "widgetNodes"} <= set(state["template_reads"])
 
@@ -158,12 +144,7 @@ class TestCrossViewReads:
 
     @needs_node
     def test_an_exception_that_stopped_being_needed_is_visible(self):
-        """An exception is a decision; one that no longer applies is a hole.
 
-        Not a failure — a read can legitimately disappear between commits — but
-        the list must be derivable, so this asserts the entries still describe
-        reads that happen.
-        """
         state = gate.measure()
         for directory, keys in gate.CROSS_VIEW_READS.items():
             read = set(state["per_view"][directory]["read"])

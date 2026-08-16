@@ -1,29 +1,7 @@
-"""Tests for the JS layer-cohesion gate.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_js_layer_cohesion.py
-
-Every test builds a synthetic ``static/src`` tree rather than asserting against
-the real one, so the suite does not change meaning when the real debt is paid
-down. The tests that *do* read the real tree assert the two properties a
-measurement gate can silently lose: that it found its inputs at all, and that
-its threshold still separates a namespace from every real layer.
-
-The import parsing was checked against ``es-module-lexer`` over the real tree
-when this gate was written — it agreed on every file both can see, and found
-five more that a graph keyed on edges cannot represent at all (``core/utils/
-patch.js`` imports nothing; ``model/types.js`` carries only JSDoc ``@import``).
-That comparison needs node, so it is not automated here; the forms it verified
-are pinned as synthetic cases above instead.
-"""
-
-import js_layer_cohesion as jlc  # sys.path set by conftest.py
+import js_layer_cohesion as jlc
 
 
 def _tree(root, files):
-    """``files`` maps a path under ``src/`` to its source text."""
     static = root / "static"
     for rel, body in files.items():
         p = static / "src" / rel
@@ -34,15 +12,11 @@ def _tree(root, files):
 
 
 def _chain(layer, n, *, connected=True):
-    """``n`` files in ``layer``; each imports the previous one when connected."""
     out = {}
     for i in range(n):
         body = "" if i == 0 or not connected else f'import "./f{i - 1}.js";\n'
         out[f"{layer}/f{i}.js"] = body + "export const x = 1;\n"
     return out
-
-
-# --- the measurement itself ---
 
 
 def test_a_chain_has_no_isolated_files(tmp_path):
@@ -56,9 +30,6 @@ def test_files_that_import_nothing_are_all_isolated(tmp_path):
 
 
 def test_being_imported_counts_as_connected(tmp_path):
-    # Isolation is about having no relationship either way, so a file nothing
-    # imports but which is itself imported is NOT isolated. Counting only
-    # outgoing edges would call every leaf a namespace member.
     static = _tree(
         tmp_path,
         {
@@ -70,8 +41,6 @@ def test_being_imported_counts_as_connected(tmp_path):
 
 
 def test_cross_layer_imports_do_not_count_as_cohesion(tmp_path):
-    # The whole point: depending on the layers below you is what layers are
-    # for, and must not be mistaken for internal structure.
     static = _tree(
         tmp_path,
         {
@@ -94,9 +63,6 @@ def test_bare_specifiers_are_not_edges(tmp_path):
 
 
 def test_jsdoc_import_tags_are_not_edges(tmp_path):
-    # A types file referencing a sibling in `@import` has no runtime dependency
-    # on it; counting those would make a layer of pure type references look
-    # connected. This is why the checker strips comments first.
     static = _tree(
         tmp_path,
         {
@@ -121,9 +87,6 @@ def test_multiline_and_side_effect_and_reexport_forms_are_edges(tmp_path):
     assert jlc.layer_stats(static)["core"] == (4, 0)
 
 
-# --- the contract ---
-
-
 def test_a_layer_over_the_threshold_is_reported(tmp_path):
     static = _tree(tmp_path, _chain("bag", 10, connected=False))
     new, _ = jlc.find_drift(static, frozenset())
@@ -138,7 +101,6 @@ def test_a_cohesive_layer_is_not_reported(tmp_path):
 
 
 def test_a_layer_below_the_size_floor_is_not_judged(tmp_path):
-    # Two files that do not import each other is not evidence of anything.
     static = _tree(tmp_path, _chain("tiny", 3, connected=False))
     new, _ = jlc.find_drift(static, frozenset())
     assert new == []
@@ -151,8 +113,6 @@ def test_pinned_debt_that_still_exists_is_tolerated(tmp_path):
 
 
 def test_pinned_debt_that_was_paid_fails_as_stale(tmp_path):
-    # Shrink-only: paying a pin down must be a visible edit, so a clean-but-
-    # still-pinned entry fails exactly like new drift.
     static = _tree(tmp_path, _chain("bag", 10))
     new, stale = jlc.find_drift(static, frozenset({"bag"}))
     assert new == []
@@ -167,9 +127,6 @@ def test_exempt_layers_are_not_measured(tmp_path):
     assert "scss" not in jlc.layer_stats(static)
 
 
-# --- the gate must actually reach the real tree ---
-
-
 def test_an_absent_tree_refuses(tmp_path):
     import pytest
 
@@ -179,11 +136,6 @@ def test_an_absent_tree_refuses(tmp_path):
 
 
 def test_a_present_but_empty_tree_refuses(tmp_path):
-    # The distinction this gate got wrong. 61aa19e2712 probed every gate here
-    # with an ABSENT tree and cleared this one, because `src/`.is_dir() is False
-    # then. Present-and-empty is the case that actually happens — an exclude or
-    # glob change that empties the file list leaves the directory standing — and
-    # against that the old guard passed with "No new cohesion drift. ✓".
     import pytest
 
     (tmp_path / "src").mkdir(parents=True)
@@ -203,13 +155,8 @@ def test_a_tree_holding_only_non_js_refuses(tmp_path):
 
 
 def test_real_web_tree_is_scanned_and_carries_no_pinned_debt():
-    # Guards the failure mode every gate here exists for: scanning nothing and
-    # reporting success. The size assertion is what proves the real tree was
-    # reached rather than an empty one.
     stats = jlc.layer_stats(jlc.WEB_STATIC)
     assert stats["fields"][0] > 100, "expected the real fields/ layer to be found"
-    # `services/` was this gate's reason to exist and no longer exists. Keeping
-    # the pin set empty is what makes a NEW namespace visible as new.
     assert not jlc.KNOWN_LOW_COHESION
     assert "services" not in stats
     new, stale = jlc.find_drift(jlc.WEB_STATIC)
@@ -218,19 +165,6 @@ def test_real_web_tree_is_scanned_and_carries_no_pinned_debt():
 
 
 def test_threshold_still_separates_a_namespace_from_every_real_layer():
-    # This replaces a margin test that asserted 10 clear points below the
-    # threshold. That premise died with `services/`: the 17 registration-only
-    # modules it held are reached through useService() and import nothing, so
-    # they read as isolated wherever they sit. Dissolving the namespace spread
-    # them over their host layers and lifted several fractions a few points —
-    # `ui` 22% -> 26% — with nothing having got worse.
-    #
-    # So the metric detects CONCENTRATION of mechanism-grouped files, not their
-    # existence, and with no namespace left there is no upper anchor to derive a
-    # margin from. What remains checkable is the separation itself: every real
-    # layer under the threshold, and a directory that is nothing but
-    # registration-only files (100% isolated, as `services/` was at the end)
-    # over it.
     stats = jlc.layer_stats(jlc.WEB_STATIC)
     judged = {
         layer: iso / total
@@ -242,5 +176,4 @@ def test_threshold_still_separates_a_namespace_from_every_real_layer():
         f"{worst_layer} is at {judged[worst_layer]:.0%}, over the "
         f"{jlc.MAX_ISOLATED_FRACTION:.0%} threshold"
     )
-    # A pure namespace must still be caught, by a wide margin.
     assert jlc.MAX_ISOLATED_FRACTION < 1.0 - 0.25

@@ -1,16 +1,3 @@
-"""Tests for the pure half of the model-type generator.
-
-``generate_model_types.py`` is 440 lines and had no tests, while its sibling
-``generate_service_types.py`` had ten. Everything below runs without an Odoo
-registry: rendering a ``fields_get`` dict to TypeScript is a pure function of
-that dict, and it is the half that decides whether ``record.data.partner_id``
-resolves to ``Many2one<"res.partner">`` or silently to ``any``.
-
-The emitted ``.d.ts`` feeds ``tooling/typecheck/scope_gate.py``. A wrong type
-here does not fail loudly — it removes an error from a locked file, which under
-the gate's ``exact`` mode reads as an improvement to commit.
-"""
-
 from types import SimpleNamespace
 
 import generate_model_types as G
@@ -34,10 +21,6 @@ class TestNameMapping:
         assert G._file_name("sale.order.line") == "sale_order_line.d.ts"
 
     def test_two_models_can_collide_on_one_file_name(self):
-        # `.` -> `_` is not injective. `generate` detects this and raises
-        # rather than letting the second emission overwrite the first; this
-        # test pins the collision itself so the detector keeps having a reason
-        # to exist.
         assert G._file_name("res.partner.category") == G._file_name(
             "res.partner_category"
         )
@@ -62,8 +45,6 @@ class TestFieldTypes:
         assert G._render_field_type({"type": ttype}) == expected
 
     def test_unknown_type_degrades_to_unknown_not_any(self):
-        # `unknown` forces a narrowing at the use site; `any` would silently
-        # switch type checking off for every reader of the field.
         assert G._render_field_type({"type": "some_future_type"}) == "unknown"
 
     def test_many2one_carries_its_relation(self):
@@ -90,7 +71,6 @@ class TestFieldTypes:
         assert G._render_field_type({"type": "selection", "selection": []}) == "string"
 
     def test_a_huge_selection_falls_back_to_string(self):
-        # Past the cap the union is noise in every tooltip and error message.
         field = {
             "type": "selection",
             "selection": [(f"k{i}", f"L{i}") for i in range(G._SELECTION_KEY_CAP + 1)],
@@ -110,7 +90,6 @@ class TestOptionality:
         assert G._is_required({"type": "char", "required": True}) is True
 
     def test_required_with_a_default_is_optional(self):
-        # Auto-filled on create, so client code never observes it unset.
         assert (
             G._is_required({"type": "char", "required": True, "default": "x"}) is False
         )
@@ -149,8 +128,6 @@ class TestRendering:
         assert '"sale.order": SaleOrder;' in out
 
     def test_custom_x_fields_are_never_emitted(self):
-        # They are per-deployment; emitting them would couple the type repo to
-        # one database.
         assert "x_custom" not in self._render()
 
     def test_required_and_optional_markers(self):
@@ -164,8 +141,6 @@ class TestRendering:
         assert "--modules=sale" in out
 
     def test_rendering_is_deterministic(self):
-        # `--check` compares committed bytes against a fresh render, so any
-        # ordering instability would report permanent, unfixable drift.
         assert self._render() == self._render()
 
     def test_fields_are_emitted_in_sorted_order(self):
@@ -190,8 +165,6 @@ class _FakeModel:
 
 
 class _FakeEnv:
-    """Enough of an Environment to drive `generate()` without a database."""
-
     def __init__(self, models=("res.partner",), installed=("base",)):
         self.registry = list(models)
         self._installed = installed
@@ -211,14 +184,6 @@ class _FakeEnv:
 
 
 class TestCheckDetectsOrphans:
-    """A DELETED model leaves its .d.ts behind, and registry->disk cannot see it.
-
-    The orphan keeps declaring an `interface` and a `Models` entry for a model
-    the server no longer has, while `--check` reports "up to date". Every
-    sibling gate detects its own version of this — scope_gate's `stale`,
-    py_cycle_check's `stale_pins`, package_index_check's `phantom`.
-    """
-
     def _seeded(self, tmp_path):
         G.generate(_FakeEnv(), models=["res.partner"], output_dir=tmp_path, quiet=True)
         return tmp_path
@@ -247,8 +212,6 @@ class TestCheckDetectsOrphans:
         assert next(iter(stale)).startswith("(orphan)")
 
     def test_an_untargeted_module_directory_is_not_reported(self, tmp_path):
-        """With `--modules sale`, every other module's file is untouched, not
-        orphaned — otherwise a scoped run would condemn the whole tree."""
         out = self._seeded(tmp_path)
         (out / "other").mkdir()
         (out / "other" / "x.d.ts").write_text("// another module\n", encoding="utf-8")
@@ -269,8 +232,6 @@ class TestCheckDetectsOrphans:
 
 class TestModuleSelectionIsValidated:
     def test_an_uninstalled_module_raises_instead_of_emitting_nothing(self, tmp_path):
-        """`--modules sales` used to exit 0 having written nothing, which is
-        indistinguishable from a module that declares no models."""
         with pytest.raises(ValueError, match="not installed"):
             G.generate(_FakeEnv(), modules=["sales"], output_dir=tmp_path, quiet=True)
 

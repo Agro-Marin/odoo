@@ -68,7 +68,6 @@ odoo/orm/models/table_objects.py
 odoo/orm/models/transient.py
 odoo/orm/registration.py
 odoo/orm/runtime/_registry_fields.py
-odoo/orm/runtime/_registry_schema.py
 odoo/orm/runtime/backend.py
 odoo/orm/runtime/environment.py
 odoo/orm/runtime/recordset_cache.py

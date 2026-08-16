@@ -1,39 +1,3 @@
-"""Per-file error budgets for the files the typecheck locks except.
-
-``scope_gate.py`` answers one question per file: is it clean, or is it on the
-exception list? For an excepted file the answer stops there. It may hold 5
-errors or 500, and may go from 5 to 500 without any gate saying so — the lock
-reports it as excepted either way, and the project-wide ``tsc`` ratchet absorbs
-the difference as +N in a four-figure aggregate.
-
-Measured on the day this was written: **446 excepted files carrying 6,067
-errors** under ``strict``, and **577 carrying 11,383** under ``noimplicitany``.
-That is 17,450 errors across 1,023 entries that nothing bounds.
-
-Two defects had already landed through that gap:
-
-* ``useDebounced``'s ``@returns`` narrowed ``cancel``'s arity, so the one call
-  site that wanted the flush raised TS2554 while being runtime-correct.
-* Tightening ``popoverService.add`` left five test mocks returning
-  ``() => {}`` where the contract had become ``Promise<void>``.
-
-Every affected file was on both exception lists. Both were found by reading.
-
-This gate pins a **count** to each excepted entry. Membership still comes from
-``exceptions/<gate>/<module>.txt`` — that file stays the single source of truth
-for *which* files are excepted, and its format is untouched — while the budget
-file alongside records *how many* errors each is allowed. A file that gains one
-fails; a file that loses one also fails, until the lower number is committed,
-which is the same drift-zero contract every other gate here uses. An entry in
-one file and not the other fails too, so the two cannot silently diverge.
-
-Usage::
-
-    npx tsc -p tsconfig.strict.json --noEmit --listFiles > /tmp/strict.log 2>&1 || true
-    python tooling/typecheck/excepted_budget.py strict --log /tmp/strict.log
-    python tooling/typecheck/excepted_budget.py strict --log /tmp/strict.log --update
-"""
-
 import argparse
 import json
 import sys
@@ -78,7 +42,6 @@ def write_budget(gate: str, module: str, budgets: dict[str, int], note: str) -> 
 
 
 def measure(gate: str, module: str, log_text: str) -> dict[str, int]:
-    """Current error count for each file on the exception list."""
     tally = sg.parse_log(log_text)
     return {p: sum(tally.get(p, {}).values()) for p in sg.read_exceptions(gate, module)}
 
@@ -157,8 +120,6 @@ def main(argv: list[str] | None = None) -> int:
 
     current = measure(args.gate, args.module, log_text)
     if not current:
-        # An empty exception list is possible in principle; an empty *log* is
-        # the likely cause and would make every budget look satisfied.
         print(
             f"error: no excepted files found for {args.gate}/{args.module} — "
             "empty exception list, or a log that parsed to nothing",

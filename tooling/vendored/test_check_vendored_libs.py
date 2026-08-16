@@ -1,5 +1,3 @@
-"""Tests for the vendored-library gate's anchoring and manifest contract."""
-
 from pathlib import Path
 
 import check_vendored_libs as gate
@@ -15,7 +13,6 @@ class TestRootResolution:
         assert gate.LIB_DIR == gate.ODOO_ROOT / "addons/web/static/lib"
 
     def test_missing_marker_raises_instead_of_guessing(self):
-        # Shares tooling/_repo_root now rather than carrying its own copy.
         with pytest.raises(SystemExit) as excinfo:
             gate.find_odoo_root(Path("/nonexistent/deep/path"), tool="probe")
         assert "odoo-bin" in str(excinfo.value)
@@ -26,7 +23,6 @@ class TestManifest:
         assert gate.MANIFEST.is_file()
 
     def test_manifest_loads_and_is_nonempty(self):
-        """An empty manifest would make --drift pass by checking nothing."""
         assert gate._load_manifest()
 
     def test_every_pinned_library_names_a_version(self):
@@ -37,15 +33,6 @@ class TestManifest:
 
 
 class TestUnverifiedIsNotClean:
-    """ "Nobody looked" and "looked, and it was fine" are different answers.
-
-    ``--audit`` always separated them (an unreachable OSV prints "do not read
-    this run as a clean result"). ``--drift`` did not: a missing build toolchain
-    returned the success code, so a machine without esbuild reported "All pinned
-    versions match the vendored files" while the one entry that needs a build to
-    verify had not been looked at.
-    """
-
     def test_a_missing_rebuild_script_is_a_failure_not_an_unknown(self, tmp_path):
         verdict, detail = gate._check_rebuild("probe", tmp_path / "absent.sh")
         assert verdict == gate.FAIL
@@ -53,7 +40,7 @@ class TestUnverifiedIsNotClean:
 
     def test_an_unrunnable_rebuild_script_is_unverified_not_ok(self, tmp_path):
         script = tmp_path / "not_executable.sh"
-        script.write_text("#!/bin/sh\nexit 0\n")  # no +x -> OSError on exec
+        script.write_text("#!/bin/sh\nexit 0\n")
         verdict, _detail = gate._check_rebuild("probe", script)
         assert verdict == gate.UNVERIFIED
 
@@ -80,7 +67,6 @@ class TestUnverifiedIsNotClean:
         assert gate._check_rebuild("probe", script)[0] == gate.OK
 
     def test_libraries_with_no_probe_are_counted_as_unverified(self):
-        """They are not failures, but they are not evidence either."""
         libs = gate._load_manifest()
         _failures, unverified = gate.check_drift(libs)
         no_probe = {

@@ -54,44 +54,28 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-# Located by marker, not by counting parents — see _repo_root. The
-# ``parent.parent.parent`` this replaces was correct only while the file stayed
-# three levels down.
+ADR = "0030"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="subsystem_map_check")
 
-# The map moved out of the front door into the module view when the
-# architecture documentation was split into a front door plus views, and the
-# whole set was flattened into doc/architecture/ in 2026-08. The gate
-# follows the content: what it checks is the map, wherever the map lives.
 ARCHITECTURE_MD = REPO_ROOT / "doc" / "architecture" / "module.md"
 CORE_ROOT = REPO_ROOT / "odoo"
 
 MAP_HEADING = "## Subsystem map"
 
-#: Directory entries the map is never required to mention.
 EXEMPT_DIRS = frozenset({"__pycache__", "tests"})
 
-#: Module stems the map is never required to mention.
 EXEMPT_MODULES = frozenset({"__init__", "__main__"})
 
-#: Tree-drawing glyphs, stripped before parsing a line's content.
-_GLYPHS = "│├└─"  # │ ├ └ ─
+_GLYPHS = "│├└─"
 
-#: A bracketed logical-grouping label, e.g. ``[connectivity]``.
 _GROUP_RE = re.compile(r"^\[(?P<label>[^\]]+)\]\s*")
 
-#: One indent level in the map, in characters (``"│   "`` / ``"    "``).
 _INDENT = 4
 
 
 def _split_top_level(text: str) -> list[str]:
-    """Split ``text`` on ``,`` / ``·`` that are outside parentheses.
 
-    Names in the map may carry a parenthetical gloss that itself contains
-    commas — ``lag (replica apply-lag ceiling, db_replica_max_lag)`` is one
-    name, not two.  A depth-aware split is the difference between reading that
-    as ``lag`` and reading it as ``lag`` plus a bogus ``db_replica_max_lag)``.
-    """
     parts: list[str] = []
     depth = 0
     current: list[str] = []
@@ -109,34 +93,11 @@ def _split_top_level(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
-#: A bare package/module name, optionally with a trailing ``/``.
-#:
-#: The charset must agree with :func:`_actual_children`, which reports ``p.stem``
-#: for every ``*.py`` — any filename, not just an importable identifier. It used
-#: to be ``[A-Za-z_][A-Za-z0-9_]*``, which cannot match a dated rewrite script
-#: such as ``18.1-00-sql-constraint.py``: the stem starts with a digit and
-#: carries dots and hyphens. ``package_index_check._ROW_RE`` had exactly this
-#: bug and records why it matters — the failure is silent, not loud. Here it
-#: would land the moment the map enumerated ``upgrade_code/``'s contents: the
-#: parser would read none of the nine scripts, and rule 2 would report all nine
-#: as undocumented against a map that listed them all.
-#:
-#: A name must still START with a letter, digit or underscore, so a tree glyph
-#: or punctuation left by the stripper cannot be read as a name. Everything
-#: after the first token is still settled by :func:`_is_gloss`, not by the
-#: charset — constraining the match to end at a delimiter instead drops the
-#: leading token of every prose line (``service/  Process lifecycle …`` parsed
-#: to no names at all).
 _NAME_RE = re.compile(r"^(?P<name>[A-Za-z0-9_][A-Za-z0-9_.\-]*)(?P<slash>/?)\s*")
 
 
 def _is_gloss(remainder: str) -> bool:
-    """Whether what follows a name is only parenthetical gloss / layer label.
 
-    ``models/  (BaseModel + 21 mixins, metaclass)  (Layer 2)`` annotates a name;
-    ``service/  Process lifecycle + servers: server, _base_server`` starts a
-    prose description and everything after it is *not* a name list.
-    """
     rest = remainder.strip()
     while rest.startswith("("):
         depth = 0
@@ -154,23 +115,7 @@ def _is_gloss(remainder: str) -> bool:
 
 
 def parse_names(content: str) -> tuple[list[tuple[str, bool]], bool]:
-    """Parse a map line's name list.
 
-    Returns ``(names, complete)`` where each name is ``(name, is_dir)`` and
-    *complete* says whether the whole line was consumed as names.
-
-    A map line is either a **name list** (``pool, cursor, ddl``) or a **package
-    line** whose name is followed by a prose description (``service/  Process
-    lifecycle + servers: …``).  There is no reliable column separator — the map
-    is hand-aligned, and ``_monkeypatches/ Explicit, …`` leaves exactly one
-    space — so the parser reads tokens and stops at the first one that is not a
-    bare name.  The leading token is always taken (it is the thing the line is
-    about); everything after a prose token is description.
-
-    *complete* is what makes wrapped lines safe: a continuation line extends a
-    name list only when the previous line was **entirely** names.  Without it,
-    ``service/``'s wrapped description was read as a dozen modules of ``odoo/``.
-    """
     names: list[tuple[str, bool]] = []
     for part in _split_top_level(content):
         match = _NAME_RE.match(part)
@@ -182,10 +127,6 @@ def parse_names(content: str) -> tuple[list[tuple[str, bool]], bool]:
         if _is_gloss(remainder):
             names.append((name, is_dir))
             continue
-        # Prose follows, but this token is still a name -- it is the entry the
-        # description describes (``service/  Process lifecycle …``, and the
-        # third name of ``api/ · fields/ · models/   Thin public re-export
-        # shims``). Take it, then stop: everything after it is description.
         names.append((name, is_dir))
         return names, False
     return names, True
@@ -193,18 +134,14 @@ def parse_names(content: str) -> tuple[list[tuple[str, bool]], bool]:
 
 @dataclass
 class MapEntry:
-    """One name declared by the map, with where it sits and what kind it is."""
-
     name: str
     is_dir: bool
-    parent: str  # POSIX-ish package path relative to ``odoo/``, "" for top level
+    parent: str
     line: int
 
 
 @dataclass
 class Report:
-    """The gate's verdict."""
-
     entries: list[MapEntry] = field(default_factory=list)
     fictional: list[tuple[str, int]] = field(default_factory=list)
     undocumented: list[tuple[str, str]] = field(default_factory=list)
@@ -218,12 +155,7 @@ class Report:
 def extract_map_block(
     text: str, source: Path | str = ARCHITECTURE_MD
 ) -> tuple[list[str], int]:
-    """Return the fenced code block under :data:`MAP_HEADING`, and its 1-based offset.
 
-    :raises ValueError: if the heading or its fenced block is absent — a silent
-        "found nothing, reported clean" is the failure mode this whole checker
-        exists to prevent, so a map that cannot be located is an error.
-    """
     lines = text.splitlines()
     try:
         start = next(i for i, ln in enumerate(lines) if ln.strip() == MAP_HEADING)
@@ -244,19 +176,10 @@ def extract_map_block(
 
 
 def parse_map(block: list[str], first_line: int) -> list[MapEntry]:
-    """Parse the subsystem-map block into :class:`MapEntry` records.
 
-    Indentation gives the parent: a line indented one level deeper than the
-    package line above it describes that package's contents.  A line that is
-    only whitespace before its names (no ``├──``/``└──`` connector) continues
-    the previous entry's name list, which is how a long enumeration wraps
-    without the parser losing its tail.
-    """
     entries: list[MapEntry] = []
-    # ``depth -> package path``; depth 0 is the ``odoo/`` root line.
     stack: dict[int, str] = {0: ""}
     last_parent = ""
-    # Whether a continuation line may extend the previous line's name list.
     continues_names = False
 
     for offset, raw in enumerate(block):
@@ -278,13 +201,10 @@ def parse_map(block: list[str], first_line: int) -> list[MapEntry]:
         elif continues_names:
             parent = last_parent
         else:
-            # A wrapped description line: it names nothing.
             continue
 
         group = _GROUP_RE.match(content)
         if group:
-            # A logical grouping label: not a path.  Names after it belong to
-            # the enclosing package, exactly as if the label were absent.
             content = content[group.end() :]
 
         names, complete = parse_names(content)
@@ -302,7 +222,6 @@ def parse_map(block: list[str], first_line: int) -> list[MapEntry]:
 
 
 def _actual_children(package: str, core_root: Path) -> tuple[set[str], set[str]]:
-    """Return ``(module_stems, subpackage_names)`` actually present in *package*."""
     root = core_root / package if package else core_root
     if not root.is_dir():
         return set(), set()
@@ -320,19 +239,13 @@ def _actual_children(package: str, core_root: Path) -> tuple[set[str], set[str]]
 
 
 def check(md_path: Path | None = None, core_root: Path | None = None) -> Report:
-    """Run both rules over a tree and return the :class:`Report`.
 
-    Defaults to the live ``doc/architecture/module.md`` and ``odoo/``; the
-    parameters exist so the self-test can drive the whole gate over synthetic
-    trees.
-    """
     md_path = md_path or ARCHITECTURE_MD
     core_root = core_root or CORE_ROOT
     block, first_line = extract_map_block(md_path.read_text(encoding="utf-8"), md_path)
     entries = parse_map(block, first_line)
     report = Report(entries=entries)
 
-    # Rule 1 — no fictional paths.
     for entry in entries:
         rel = f"{entry.parent}/{entry.name}" if entry.parent else entry.name
         target = core_root / rel
@@ -345,7 +258,6 @@ def check(md_path: Path | None = None, core_root: Path | None = None) -> Report:
             label = f"odoo/{rel}{suffix}  ({kind} named by the map, not in the tree)"
             report.fictional.append((label, entry.line))
 
-    # Rule 2 — an enumeration that starts must finish, per kind.
     by_parent: dict[str, list[MapEntry]] = {}
     for entry in entries:
         by_parent.setdefault(entry.parent, []).append(entry)
@@ -367,7 +279,6 @@ def check(md_path: Path | None = None, core_root: Path | None = None) -> Report:
 
 
 def render(report: Report) -> str:
-    """Render the human-readable report."""
     out: list[str] = []
     out.append("Subsystem-map coherence check")
     out.append("=" * 64)

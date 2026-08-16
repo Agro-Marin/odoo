@@ -1,64 +1,5 @@
 #!/usr/bin/env python3
-"""Default-deny mypy gate, one lock per core package.
 
-The Python counterpart of ``scope_gate.py``, whose argument holds here word for
-word: an allowlist enumerates what is *enforced*, so a new or renamed file is
-unenforced by default and silently. The Python side never had an allowlist to
-invert — it has something weaker, a single count
-(``tooling/ratchet/baselines/mypy.json``, floor 1286). Measured on the run that
-produced that floor (mypy 2.3.0, the pin in ``requirements-dev.txt``):
-
-    checked 469 source files, 1286 errors in 189 files
-    -> 280 files (59%) are ALREADY clean, and none of them was locked
-
-Any of those 280 may regress by *N* errors and CI stays green so long as some
-unrelated file improves by *N*. Demonstrated, not assumed: moving one error off
-``odoo/modules/loading.py`` and onto ``odoo/orm/__init__.py`` — clean, and the
-package's own entry point — leaves the total at exactly 1286, and
-``tooling/ratchet`` reports ``No drift``. ``test_py_scope_gate.py`` pins that
-scenario, since it is the whole reason this file exists.
-
-That is the fungible-slack failure ``doc/architecture/gates.md`` already
-diagnosed for ``ruff_docstring``: "an exact-match ratchet over one integer
-cannot distinguish 'someone added a docstring' from 'someone introduced a real
-lint defect'". Splitting the floor fixed the diagnosis for ruff. Inverting the
-model is what fixes it here, and the JS side has the inversion already.
-
-**Two locks, because membership alone is not enough at 1286.** ``strict-web``
-carries the same pair for the same reason:
-
-  * ``exceptions/mypy/<pkg>.txt`` — the files not yet clean. Shrink-only.
-  * ``budgets/mypy-<pkg>.json``  — a per-file ceiling for each excepted file, so
-    an excepted file cannot get *worse* either. Without it the 189 files holding
-    all 1286 errors would be a fungible pool again, just a smaller one.
-
-Verdicts mirror the JS gate, and each is a failure:
-
-    regressed     in scope, erroring, not excepted
-    over-budget   excepted, but above its recorded ceiling
-    cleared       excepted and now clean — remove it from the list
-    stale         an excepted path no longer exists (the rename hole)
-    out-of-scope  an excepted path is outside the package whose list holds it
-    unchecked     in scope, but mypy never looked at it
-
-``--verbose`` is required on the mypy run for the same reason ``--listFiles``
-is on the tsc one: without the list of files actually checked, a file mypy
-skipped is indistinguishable from a file mypy found clean, and the gate would
-count it as locked while nothing enforces it.
-
-Use::
-
-    mypy --no-incremental --config-file mypy.ini \\
-        -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service \\
-        -p odoo.modules --verbose > /tmp/mypy.log 2>&1 || true
-    python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log            # report
-    python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log --check    # CI
-    python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log --update   # re-seed
-    python tooling/typecheck/py_scope_gate.py --log /tmp/mypy.log --report   # what next
-
-Self-test: ``python tooling/typecheck/test_py_scope_gate.py`` — stdlib
-``unittest``, no Odoo import, no database.
-"""
 
 from __future__ import annotations
 
@@ -78,60 +19,36 @@ ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_scope_gate")
 EXCEPTIONS_DIR = HERE / "exceptions" / "mypy"
 BUDGETS_DIR = HERE / "budgets"
 
-# The packages mypy.ini checks, mirroring the -p flags in
-# .github/workflows/py_typecheck.yml. Committed here rather than passed on the
-# command line so CI and a local run cannot silently disagree about what is
-# enforced — the same reason SCOPED_MODULES lives in scope_gate.py.
-#
-# Adding one is a two-step change: append it here, then regenerate its lists
-# with --update in the same commit. Coverage as seeded (2026-08-09):
-#
-#     package    files  locked        note
-#     libs         154  113 (73%)     lockable now; 41 exceptions
-#     db            40   29 (72%)     lockable now; 11 exceptions
-#     modules        9    5 (56%)
-#     orm          181   89 (49%)     765 of the 1286 errors
-#     http          39   18 (46%)
-#     service       25    5 (20%)     the debt; 95 errors over 20 files
 SCOPED_PACKAGES = ("orm", "db", "libs", "http", "service", "modules")
 
-# mypy reports paths repo-relative already, but a run given an absolute config
-# path emits absolute ones. Both are normalised before anything compares them.
 ERROR_LINE_RE = re.compile(
     r"^(?P<path>[^\s:][^:]*\.py):(?P<line>\d+):(?P<col>\d+): error: "
     r"(?P<msg>.*?)(?P<code>\[[a-z-]+\])?$"
 )
 
-# ``LOG:  Parsing /abs/path.py (odoo.orm.x)`` — the trailing module name is why
-# this is not anchored at end-of-line.
 PARSED_LINE_RE = re.compile(r"^LOG: +Parsing (?P<path>\S+\.py)")
 
-# Exit codes (stable, for CI to branch on) — same contract as scope_gate.py.
 EXIT_OK = 0
 EXIT_DRIFT = 1
 EXIT_USAGE = 2
 
-# Per-code cleanup ease in [0, 1], higher = more likely a local fix. Same scale
-# and direction as scope_gate.py's, so the two --report outputs read alike. Used
-# only to rank; it steers attention and never affects the verdict.
 CODE_EASE = {
-    "[var-annotated]": 1.0,  # needs an annotation, no logic to reason about
+    "[var-annotated]": 1.0,
     "[no-untyped-def]": 1.0,
     "[no-any-return]": 0.8,
     "[redundant-cast]": 0.9,
-    "[union-attr]": 0.6,  # usually one missing None guard
+    "[union-attr]": 0.6,
     "[index]": 0.5,
     "[assignment]": 0.5,
     "[arg-type]": 0.4,
     "[operator]": 0.3,
-    "[attr-defined]": 0.3,  # often a real modelling gap, not a local fix
+    "[attr-defined]": 0.3,
     "[misc]": 0.2,
 }
 DEFAULT_EASE = 0.5
 
 
 def normalise(path: str) -> str:
-    """Absolute or repo-relative path -> repo-relative POSIX form."""
     candidate = Path(path)
     if candidate.is_absolute():
         try:
@@ -142,7 +59,6 @@ def normalise(path: str) -> str:
 
 
 def package_of(path: str) -> str | None:
-    """The gated package a repo-relative path belongs to, or None if unscoped."""
     parts = normalise(path).split("/")
     if len(parts) >= 3 and parts[0] == "odoo" and parts[1] in SCOPED_PACKAGES:
         return parts[1]
@@ -154,11 +70,7 @@ def in_scope(path: str) -> bool:
 
 
 def parse_log(text: str) -> tuple[dict[str, dict[str, int]], set[str]]:
-    """``(errors_by_path_by_code, paths_mypy_actually_checked)``.
 
-    Both restricted to the gated packages: a followed import outside them is
-    reported by neither, which is what ``follow_imports = silent`` intends.
-    """
     errors: dict[str, dict[str, int]] = collections.defaultdict(collections.Counter)
     checked: set[str] = set()
     for line in text.splitlines():
@@ -178,7 +90,6 @@ def total(codes: dict[str, int]) -> int:
 
 
 def package_files(package: str) -> set[str]:
-    """Every ``.py`` under a gated package, repo-relative."""
     root = ROOT / "odoo" / package
     return {
         path.relative_to(ROOT).as_posix()
@@ -250,12 +161,7 @@ def evaluate_package(
     budgets: dict[str, int] | None = None,
     on_disk: set[str] | None = None,
 ) -> PackageVerdict:
-    """The verdict for one package.
 
-    Every input is a parameter rather than a read of the committed state so the
-    self-test can judge a synthetic tree without this checkout's debt leaking
-    into it — the reason ``js_layer_cohesion.find_drift`` takes ``known``.
-    """
     verdict = PackageVerdict(package)
     disk = package_files(package) if on_disk is None else on_disk
     listed = read_exceptions(package) if exempt is None else exempt
@@ -264,8 +170,6 @@ def evaluate_package(
 
     verdict.stale = sorted(e for e in exempted if e not in disk)
     verdict.out_of_scope = sorted(e for e in exempted if package_of(e) != package)
-    # A file mypy never checked is silent, and silence is not evidence of
-    # cleanliness — counting it as locked is exactly the hole this gate closes.
     verdict.unchecked = sorted(disk - checked - exempted)
 
     gated = disk & checked
@@ -285,7 +189,6 @@ def evaluate_package(
 
 
 def write_state(errors: dict[str, dict[str, int]], checked: set[str]) -> list[Path]:
-    """Regenerate every exception list and budget file. Returns what was written."""
     written = []
     EXCEPTIONS_DIR.mkdir(parents=True, exist_ok=True)
     BUDGETS_DIR.mkdir(parents=True, exist_ok=True)
@@ -328,7 +231,6 @@ def write_state(errors: dict[str, dict[str, int]], checked: set[str]) -> list[Pa
 
 
 def rank(errors: dict[str, dict[str, int]]) -> list[tuple[float, int, str]]:
-    """Excepted files by payoff — count x mean ease, best first."""
     rows = []
     for package in SCOPED_PACKAGES:
         for path in read_exceptions(package):
@@ -382,13 +284,7 @@ def report(verdicts: list[PackageVerdict], stream=sys.stdout) -> None:
 
 
 def markdown(verdicts: list[PackageVerdict], stream=sys.stdout) -> None:
-    """The GitHub step-summary table.
 
-    Emitted by the gate rather than by a heredoc in the workflow: a Python
-    block scalar nested inside a YAML one has to be indented to stay inside it,
-    and a single wrong column silently breaks the workflow file instead of the
-    step. Here it is also covered by the self-test.
-    """
     print("| Package | Locked | Excepted | Coverage | Failures |", file=stream)
     print("|---------|-------:|---------:|---------:|---------:|", file=stream)
     for verdict in verdicts:
@@ -401,8 +297,6 @@ def markdown(verdicts: list[PackageVerdict], stream=sys.stdout) -> None:
     excepted = sum(v.excepted for v in verdicts)
     failures = sum(v.failures for v in verdicts)
     gated = locked + excepted
-    # Built before interpolation: `**{failures or ''}**` renders as a literal
-    # `****` on a green run, which is broken markdown rather than an empty cell.
     failed_cell = f"**{failures}**" if failures else "—"
     print(
         f"| **total** | **{locked}** | **{excepted}** "
@@ -435,8 +329,6 @@ def main(argv: list[str] | None = None) -> int:
 
     errors, checked = parse_log(args.log.read_text(encoding="utf8", errors="replace"))
     if not checked:
-        # A log with no Parsing lines was produced without --verbose. Every file
-        # would read as `unchecked` and the run would fail for the wrong reason.
         print(
             "py_scope_gate: the log names no checked files — rerun mypy with "
             "--verbose (see this module's docstring)",

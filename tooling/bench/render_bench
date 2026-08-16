@@ -1,4 +1,6 @@
 #!/bin/sh
+# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
+# fmt: off
 ''':'
 # Self-locating sh/python trampoline: re-exec this file with the workspace venv
 # interpreter. The logic is shared — see tooling/_trampoline.sh.
@@ -6,10 +8,8 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+# fmt: on
 
-# The shell preamble above is the module's FIRST string literal, so Python binds
-# it as ``__doc__``; the real documentation below is an inert expression
-# statement, read by ``--help`` through ``DOC``.
 
 DOC = """Wall-clock benchmark for web-client rendering.
 
@@ -99,9 +99,6 @@ SETTLE_TAIL = """
   return performance.now() - t0;
 """
 
-# `res.currency` is the detour target: it is present in every database, its list
-# is small, and it is not the model under test -- so the round trip really does
-# tear the measured view down instead of letting the action manager restore it.
 COLD_JS = """
 async () => {
   const t0 = performance.now();
@@ -201,7 +198,9 @@ def main(argv=None):
         cdp = ctx.new_cdp_session(page) if args.attribute else None
 
         _login(page, args.base, args.login, args.password)
-        page.goto(f"{args.base}/odoo/action-{args.action}", wait_until="domcontentloaded")
+        page.goto(
+            f"{args.base}/odoo/action-{args.action}", wait_until="domcontentloaded"
+        )
         page.wait_for_selector(ROW_SELECTOR, timeout=60000)
         page.wait_for_timeout(2000)
 
@@ -246,8 +245,17 @@ def main(argv=None):
                 print(f"  {ms:>8.1f} ms {100 * ms / wall:>6.1f}%  {name:<30} {file}")
 
         if args.json:
-            print(json.dumps({"label": args.label, "warm_ms": warm_median,
-                              "cold_ms": cold_median, "rows": rows, "cols": cols}))
+            print(
+                json.dumps(
+                    {
+                        "label": args.label,
+                        "warm_ms": warm_median,
+                        "cold_ms": cold_median,
+                        "rows": rows,
+                        "cols": cols,
+                    }
+                )
+            )
         browser.close()
     return 0
 

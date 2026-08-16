@@ -1,34 +1,10 @@
-/**
- * Shape analysis for `web`'s service factories, for `js_service_shape.py`.
- *
- * Answers one question per service module: does `start()` hand back an
- * INSTANCE (something carrying a prototype, so `patch(TheClass.prototype, …)`
- * reaches one method) or an object LITERAL (so the only seam is replacing
- * `start()` whole)?
- *
- * Parsed with espree rather than matched with a regex, for the reason
- * `js_function_length`'s docstring already records for function extents: the
- * shapes here nest, and brace counting gets them wrong. espree is already in
- * `node_modules` because ESLint parses every one of these files with it.
- *
- * Emits one JSON object per line: {file, service, shape, indirect}.
- * `shape` is "instance" | "literal" | "unknown". "unknown" is reported and NOT
- * counted, matching how `js_private_access` treats members no module declares:
- * a case the analysis cannot decide is not evidence of a defect.
- */
 import { readFileSync } from "node:fs";
 import * as espree from "espree";
 
 const PARSE = { ecmaVersion: "latest", sourceType: "module", loc: true };
 
-/**
- * Calls that return their own argument's shape. `reactive` wraps an object in a
- * Proxy and `markRaw` returns it untouched; neither adds a prototype, so what
- * comes out is exactly as (un)patchable as what went in.
- */
 const TRANSPARENT_WRAPPERS = new Set(["reactive", "markRaw"]);
 
-/** Walk every node, calling `fn` on each. */
 function walk(node, fn) {
     if (!node || typeof node.type !== "string") {
         return;
@@ -47,7 +23,6 @@ function walk(node, fn) {
     }
 }
 
-/** Return statements belonging to `fn` itself, not to functions nested in it. */
 function ownReturns(fn) {
     const out = [];
     const isFn = (n) =>
@@ -59,7 +34,7 @@ function ownReturns(fn) {
             return;
         }
         if (node !== fn && isFn(node)) {
-            return; // a nested function's returns are its own
+            return;
         }
         if (node.type === "ReturnStatement" && depth > 0) {
             out.push(node.argument);
@@ -79,7 +54,6 @@ function ownReturns(fn) {
     return out;
 }
 
-/** Module-level `function name() {}` and `const name = () => {}`. */
 function moduleFunctions(ast) {
     const fns = new Map();
     for (const node of ast.body) {
@@ -105,10 +79,6 @@ function moduleFunctions(ast) {
     return fns;
 }
 
-/**
- * Classify what an expression evaluates to.
- * `depth` bounds indirection so a cycle cannot spin.
- */
 function classify(expr, scope, modFns, depth = 0) {
     if (!expr || depth > 2) {
         return "unknown";
@@ -123,11 +93,6 @@ function classify(expr, scope, modFns, depth = 0) {
             return bound ? classify(bound, scope, modFns, depth + 1) : "unknown";
         }
         case "CallExpression": {
-            // `reactive({...})` and `markRaw({...})` are shape-transparent: both
-            // hand back the same object (a Proxy over it, for `reactive`), which
-            // carries no prototype of its own. A service returning one is a
-            // LITERAL for this gate's purpose, and reporting it "unknown" hid
-            // three of them — `ui`, `pwa` and `web.frequent.emoji`.
             if (
                 expr.callee.type === "Identifier" &&
                 TRANSPARENT_WRAPPERS.has(expr.callee.name) &&
@@ -135,7 +100,6 @@ function classify(expr, scope, modFns, depth = 0) {
             ) {
                 return classify(expr.arguments[0], scope, modFns, depth + 1);
             }
-            // `return makeActionManager(env)` — follow one hop into a local factory.
             if (expr.callee.type === "Identifier" && modFns.has(expr.callee.name)) {
                 const fn = modFns.get(expr.callee.name);
                 const rets = ownReturns(fn).filter(Boolean);
@@ -156,7 +120,6 @@ function classify(expr, scope, modFns, depth = 0) {
     }
 }
 
-/** `const x = <expr>` bindings declared directly inside `fn`. */
 function localScope(fn) {
     const scope = new Map();
     walk(fn.body, (n) => {
@@ -174,14 +137,10 @@ for (const file of process.argv.slice(2)) {
     try {
         ast = espree.parse(readFileSync(file, "utf8"), PARSE);
     } catch {
-        continue; // a file ESLint would reject anyway; not this gate's report to make
+        continue;
     }
     const modFns = moduleFunctions(ast);
 
-    // `const services = registry.category("services")` — the bound form. Without
-    // this the scan misses every service registered through it, which is how
-    // `overlay`, `pwa` and `color_scheme` sat outside the budget unnoticed. Same
-    // defect `js_registry_layering` had for a category exported as a symbol.
     const servicesBindings = new Set();
     walk(ast, (n) => {
         if (
@@ -212,7 +171,6 @@ for (const file of process.argv.slice(2)) {
         );
     };
 
-    // Which identifiers are registered as services, and under what name.
     const registered = new Map();
     walk(ast, (n) => {
         if (
@@ -227,7 +185,6 @@ for (const file of process.argv.slice(2)) {
         continue;
     }
 
-    // Their object literals, and the `start` each declares.
     const objects = new Map();
     walk(ast, (n) => {
         if (
@@ -259,8 +216,6 @@ for (const file of process.argv.slice(2)) {
         if (kinds.size === 1) {
             shape = [...kinds][0];
         } else if (kinds.size > 1 && !kinds.has("unknown")) {
-            // A start() returning both shapes is a literal for our purposes: at
-            // least one path hands back something without a prototype.
             shape = kinds.has("literal") ? "literal" : "instance";
         }
         process.stdout.write(

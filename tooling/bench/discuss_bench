@@ -1,4 +1,6 @@
 #!/bin/sh
+# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
+# fmt: off
 ''':'
 # Self-locating sh/python trampoline: re-exec this file with the workspace venv
 # interpreter. The logic is shared — see tooling/_trampoline.sh.
@@ -6,16 +8,8 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+# fmt: on
 
-# The shell preamble above is the module's FIRST string literal, so Python binds
-# it as ``__doc__``; the real documentation below is an inert expression
-# statement, read by ``--help`` through ``DOC``.
-#
-# Do NOT run ``ruff format`` on this file. It rewrites the ``''':'`` hybrid into
-# ``""":'``, which Python still accepts and ``/bin/sh`` does not -- the script
-# then dies with "Syntax error: Bad function name" before reaching Python at all.
-# CI never touches it: ``ruff check tooling/`` reports "No Python files found"
-# for this directory because these scripts are deliberately extensionless.
 
 DOC = """Wall-clock benchmark for opening a Discuss channel.
 
@@ -103,8 +97,6 @@ import json
 import statistics as st
 import sys
 
-# Installed after boot, never before: the store service does not exist until the
-# client has started, and patching the prototype earlier would miss it entirely.
 HOOK_JS = """
 () => {
   const store = odoo.__WOWL_DEBUG__.root.env.services["mail.store"];
@@ -204,7 +196,6 @@ async (ids) => {
 
 
 def _summarise(name, runs):
-    """Median/IQR over a list of per-run dicts, plus the compute share."""
     totals = sorted(r["total"] for r in runs)
     computes = sorted(r["computeMs"] for r in runs)
     q1, q3 = totals[len(totals) // 4], totals[(3 * len(totals)) // 4]
@@ -322,8 +313,6 @@ def main(argv=None):
             for name, (ms, calls) in per_field.items():
                 print(f"    {ms:7.2f}  x{calls:<4d} {name}")
 
-        # Leave the page as we found it: the hook is a prototype patch and would
-        # otherwise outlive the run in a non-headless session.
         page.evaluate(
             "() => { const b = window.__discussBench; b.RI.compute = b.orig; }"
         )

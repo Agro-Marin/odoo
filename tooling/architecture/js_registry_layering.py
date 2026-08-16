@@ -1,75 +1,3 @@
-"""Layering gate for the ``web`` addon's REGISTRY-mediated dependencies.
-
-``js_layer_check.py`` resolves ``import`` specifiers, and it reports zero
-violations. That is true and it is only half the graph: a dependency taken
-through ``registry.category("services")`` is exactly as real, binds at runtime,
-and is invisible to every import-reading gate in this directory.
-
-The hole is not theoretical. ``core/utils/hooks.js`` imports nothing from
-``@web/ui`` — its only first-party import is ``core/browser/feature_detection``
-— so ``core-below-ui-components`` reports ``ok``. Yet ``useOwnedDialogs()``
-(line 272) calls ``useService("dialog")``, whose producer is
-``ui/dialog/dialog_service.js``. Written as an import that is a
-``core -> ui`` edge the gate rejects on sight; routed through the registry it
-passes. The contract is satisfied in letter and broken in fact.
-
-This gate closes that half, under two contracts.
-
-**A. services** — producers via ``registry.category("services").add("<name>")``,
-consumers via ``useService("<name>")``, ``env.services.<name>``,
-``services["<name>"]``. 32 pinned.
-
-**B. keyed-lookup** — any category, but only ``.get("<literal>")``, resolved to
-whichever module registered that key. 9 pinned entries covering 14 call sites
-(a module naming the same key twice is one dependency), all
-``fields``/``components`` naming a ``views/`` implementation.
-
-**Why enumeration is NOT a violation, and naming an item is.** A reader that
-*enumerates* a category depends on the contract, never on a producer:
-``ui/main_components_container.js`` binds ``main_components`` and renders
-whatever is registered, so ``webclient/loading_indicator`` registering into it
-creates no dependency from ``ui`` on ``webclient``. That is inversion of control
-working as intended, and it is the reason the registry exists. A reader doing
-``.get("select_create")`` is doing the opposite: it names one implementation and
-binds to it, which is a dependency on that module in everything but syntax.
-Measuring reader×producer pairs instead of keyed lookups reports 79 where the
-real figure is 14, and most of the 79 are the plugin pattern being punished for
-working.
-
-Both contracts apply **the same layer order** ``js_layer_check.py`` applies to
-imports, so the gates cannot disagree about what "upward" means:
-
-    core < ui < components < model < fields < search < views < webclient
-
-``boot/``, ``public/`` and ``libs/`` sit outside the stack and are ungoverned,
-matching ``js_layer_check``. ``test_js_registry_layering`` asserts this order
-against that module's ``CONTRACTS``, so reordering layers there without
-reordering them here fails rather than silently diverging.
-
-**What the 32 pinned entries say.** 26 of them are one service, ``action``,
-consumed from ``core`` upward. That is not 26 careless callers: ``doAction`` is
-genuinely cross-cutting, and a rule broken 26 times by unrelated, reasonable
-call sites is a misplaced contract rather than a crime wave. ``action``'s
-implementation belongs in ``webclient/`` — it owns the breadcrumb stack, the
-URL, the controller stack — but its consumer-facing *interface* does not. The
-remediation is the one this fork already applied to the data layer with
-``makeModelUIHooks``: publish the narrow surface low, leave the implementation
-where it is. Each entry retired is a line deleted here.
-
-Usage::
-
-    python tooling/architecture/js_registry_layering.py           # report
-    python tooling/architecture/js_registry_layering.py --check   # CI, exit 1 on new
-    python tooling/architecture/js_registry_layering.py --count   # inversion total
-    python tooling/architecture/js_registry_layering.py --json    # machine-readable
-
-Comments are stripped with the shared ``js_imports`` parser before matching, so
-a ``useService`` named in a JSDoc block or a commented-out line creates no edge.
-
-**A limit, stated rather than hidden.** Only literal service keys resolve; a
-service reached by a computed key is not seen. The pinned total is a floor.
-"""
-
 import argparse
 import json
 import re
@@ -79,12 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
-from js_imports import strip_comments  # sys.path set by conftest.py
+from js_imports import strip_comments
+
+ADR = "0019"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_registry_layering")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 
-# Must match js_layer_check.CONTRACTS; test_js_registry_layering enforces it.
 LAYER_ORDER: tuple[str, ...] = (
     "core",
     "ui",
@@ -106,32 +35,16 @@ CONSUMER_RES = (
     re.compile(r'\bservices\s*\[\s*"([^"]+)"\s*\]'),
 )
 
-# Contract B — any category, but only KEYED lookups. See the module docstring
-# for why enumeration is excluded and naming an item is not.
 CATEGORY_ADD_RE = re.compile(
     r'registry\s*\.\s*category\(\s*"([^"]+)"\s*\)\s*\.\s*add\(\s*"([^"]+)"'
 )
 CATEGORY_GET_RE = re.compile(
     r'registry\s*\.\s*category\(\s*"([^"]+)"\s*\)\s*\.\s*get\(\s*"([^"]+)"'
 )
-# `const views = registry.category("views")` … later `views.get("form")`. Eight
-# of the fourteen pinned keyed inversions are only reachable through this form.
 CATEGORY_BIND_RE = re.compile(
     r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
     r'registry\s*\.\s*category\(\s*"([^"]+)"\s*\)'
 )
-# The third form, and the one that hid an entire seam. `core/shared_components.js`
-# does `export const sharedComponents = registry.category("shared_components")`;
-# six `views/` modules import that symbol and call `.add("ViewButton", …)` on it,
-# and eight sites in `fields/` call `.get("ViewButton")`. Neither regex above sees
-# any of it: CATEGORY_ADD_RE wants the inline `registry.category("…").add(` form,
-# and CATEGORY_BIND_RE only resolves a binding inside the file that made it. So a
-# category exported as a symbol laundered every dependency taken through it past
-# this gate — in BOTH directions, registration and lookup.
-#
-# That matters beyond the count: it means "route it through `sharedComponents`"
-# would have read as a way to *fix* an inversion when it only hides one. The
-# entries this now reports are real, and are pinned as deliberate seams below.
 CATEGORY_EXPORT_BIND_RE = re.compile(
     r"export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*"
     r'registry\s*\.\s*category\(\s*"([^"]+)"\s*\)'
@@ -141,13 +54,6 @@ NAMED_IMPORT_RE = re.compile(r'import\s*\{([^}]*)\}\s*from\s*"([^"]+)"')
 
 @dataclass(frozen=True)
 class Known:
-    """A pinned inversion: ``module`` consumes ``service``, produced higher up.
-
-    Drift-zero — any inversion not listed here fails immediately. ``consumer``
-    and ``producer`` record the layers at pinning time so a *changed* inversion
-    (same pair, different layers, i.e. a file that moved) reads as new.
-    """
-
     module: str
     service: str
     consumer: str
@@ -156,9 +62,6 @@ class Known:
 
 @dataclass(frozen=True)
 class KnownKeyed:
-    """A pinned keyed-lookup inversion: ``module`` does ``.get("key")`` on
-    ``category``, whose registrar sits in a higher layer."""
-
     module: str
     category: str
     key: str
@@ -177,18 +80,8 @@ class Inversion:
     contract: str = "services"
 
 
-# 7 inversions. Was 32: the `action` service accounted for 26 of them until
-# `@web/core/action_port` collapsed those into the single deliberate seam below.
 KNOWN_INVERSIONS: tuple[Known, ...] = (
-    # The composition seam, and the point of the port: ONE named upward edge
-    # instead of 26 diffuse ones. `core/action_port.js` binds the `webclient/`
-    # implementation and republishes three methods at the bottom of the stack,
-    # so every former consumer now depends on a `core/` contract. Retiring this
-    # last entry means inverting the registration itself, which is a different
-    # and much larger change than the port was.
     Known("core/action_port.js", "action", "core", "webclient"),
-    # core -> ui. The four that `js_layer_check` cannot see at all: written as
-    # imports each fails `core-below-ui-components`, which today reports ok.
     Known("core/utils/hooks.js", "dialog", "core", "ui"),
     Known("core/utils/hooks.js", "ui", "core", "ui"),
     Known("core/utils/files.js", "notification", "core", "ui"),
@@ -197,10 +90,6 @@ KNOWN_INVERSIONS: tuple[Known, ...] = (
     Known("search/with_search/with_search.js", "view", "search", "views"),
 )
 
-# Contract B: 14 keyed lookups, measured 2026-08-03. Every one is a lower layer
-# naming a `views/` implementation — `fields/` needing to embed a sub-view or
-# open a form/select-create dialog. The same shape as `action` in contract A,
-# and retired by the same move: a port published at the consumer's layer.
 KNOWN_KEYED_INVERSIONS: tuple[KnownKeyed, ...] = (
     KnownKeyed(
         "fields/relational/x2many/x2many_field.js", "views", "kanban", "fields", "views"
@@ -218,29 +107,10 @@ KNOWN_KEYED_INVERSIONS: tuple[KnownKeyed, ...] = (
         "fields",
         "views",
     ),
-    # The record-dialog seam. Was 5 entries across 5 files in `components/` and
-    # `fields/`, each naming a `views/` dialog directly; `@web/core/record_dialog_port`
-    # collapsed those into the two deliberate edges below — one per dialog, in one
-    # reviewable file. Same move as `action_port`, and the one this module's
-    # docstring prescribes. Retiring these last two means inverting the
-    # registration itself, which is a different and much larger change.
     KnownKeyed(
         "core/record_dialog_port.js", "dialogs", "select_create", "core", "views"
     ),
     KnownKeyed("core/record_dialog_port.js", "dialogs", "form_view", "core", "views"),
-    # The `shared_components` seam, revealed 2026-08-04 by CATEGORY_EXPORT_BIND_RE.
-    # These 8 are NOT new debt and NOT a regression: they are edges this gate could
-    # not see until it learned to follow a category exported as a symbol. Pinning
-    # them records what was always true.
-    #
-    # `core/shared_components.js` calls itself a "late-binding seam between
-    # @web/views and @web/fields, which cannot import each other directly", and
-    # that is a fair description of the intent. It is worth being precise about
-    # what it buys: it removes the *import* edge, not the dependency. `x2many_dialog`
-    # naming `loadSubViews` is bound to `views/form/form_utils` in everything but
-    # syntax — which is exactly the rule this module states for `.get("select_create")`.
-    # Retiring them means giving `fields/` its own copy of these helpers or moving
-    # them below both layers; neither is a port, so neither belongs to P-1.
     KnownKeyed(
         "fields/relational/x2many/x2many_field.js",
         "shared_components",
@@ -301,7 +171,6 @@ KNOWN_KEYED_INVERSIONS: tuple[KnownKeyed, ...] = (
 
 
 def layer_of(rel: str) -> str | None:
-    """The governed layer a ``static/src``-relative path belongs to, or None."""
     top = rel.split("/", maxsplit=1)[0]
     return top if top in RANK else None
 
@@ -313,7 +182,6 @@ def iter_source_files() -> list[Path]:
 
 
 def resolve(files: list[Path]) -> tuple[dict[str, str], list[tuple[str, str, int]]]:
-    """Return ``(service -> producer path, [(consumer path, service, line)])``."""
     producers: dict[str, str] = {}
     consumers: list[tuple[str, str, int]] = []
     for path in files:
@@ -334,7 +202,6 @@ def resolve(files: list[Path]) -> tuple[dict[str, str], list[tuple[str, str, int
 
 
 def spec_to_rel(specifier: str) -> str | None:
-    """``@web/core/shared_components`` -> ``core/shared_components.js``."""
     if not specifier.startswith("@web/"):
         return None
     return specifier[len("@web/") :] + ".js"
@@ -343,11 +210,7 @@ def spec_to_rel(specifier: str) -> str | None:
 def imported_category_aliases(
     src: str, exported: dict[tuple[str, str], str]
 ) -> dict[str, str]:
-    """Local name -> category, for category bindings imported from another file.
 
-    ``exported`` maps ``(module rel path, exported name)`` to its category.
-    Handles ``import { sharedComponents as shared } from "@web/core/…"``.
-    """
     aliases: dict[str, str] = {}
     for m in NAMED_IMPORT_RE.finditer(src):
         source = spec_to_rel(m.group(2))
@@ -367,7 +230,6 @@ def imported_category_aliases(
 def resolve_keyed(
     files: list[Path],
 ) -> tuple[dict[tuple[str, str], str], list[tuple[str, str, str, int]]]:
-    """Return ``({(category, key): registrar}, [(module, category, key, line)])``."""
     registrars: dict[tuple[str, str], str] = {}
     lookups: list[tuple[str, str, str, int]] = []
     texts: list[tuple[str, str]] = []
@@ -384,9 +246,6 @@ def resolve_keyed(
         for m in CATEGORY_EXPORT_BIND_RE.finditer(src):
             exported[(rel, m.group(1))] = m.group(2)
 
-    # Registrations through an imported binding must all be resolved before any
-    # lookup is classified, or a `.get` would resolve against a half-built map
-    # and read as "nobody registered this key".
     for rel, src in texts:
         for local, category in imported_category_aliases(src, exported).items():
             for m in re.finditer(re.escape(local) + r'\s*\.\s*add\(\s*"([^"]+)"', src):
@@ -413,7 +272,6 @@ def resolve_keyed(
 
 
 def check(files: list[Path] | None = None) -> tuple[list[Inversion], list[Inversion]]:
-    """Return ``(new_inversions, known_inversions)`` across both contracts."""
     files = files if files is not None else iter_source_files()
     new: list[Inversion] = []
     known: list[Inversion] = []

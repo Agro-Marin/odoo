@@ -1,27 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for ``worker_thread_surface_check.py``.
 
-A gate that cannot fail is decoration. These pin the ways this one could lie:
-
-* **Blindness to a real access** — the inline attribute form
-  (``threading.current_thread().dbname``) and the reflective form
-  (``getattr(threading.current_thread(), "cursor_mode", None)``) must both be
-  seen, for every ``WorkerThread`` attribute.
-* **The documented boundary** — a *stored/aliased* thread reference
-  (``t = threading.current_thread(); t.dbname``) is deliberately NOT flagged;
-  a test locks that so the boundary is a decision, not an accident.
-* **Over-matching** — a standard ``Thread`` attribute (``.name``, ``.ident``)
-  and an attribute of the same name on some *other* object must not count.
-* **New coupling fails** — a raw access absent from the baseline must make
-  ``--check`` fail; that is the whole purpose.
-* **Missing a conversion fails** — a baseline entry nothing produces anymore
-  must also fail, so a conversion is committed (exact-ratchet discipline).
-* **Protocol-tracking** — the attribute set is the one the live Protocol
-  declares, and the committed ``KNOWN_RAW_SURFACE`` matches the real tree, so
-  the gate ships green rather than already-red or already-lying.
-
-Run directly or under pytest.
-"""
 
 from __future__ import annotations
 
@@ -48,7 +26,7 @@ class TestCollector(unittest.TestCase):
             for a, _ in _collect(
                 "threading.current_thread().dbname = db\n"
                 "x = threading.current_thread().cursor_mode\n"
-                "y = current_thread().uid\n"  # bare import form
+                "y = current_thread().uid\n"
             )
         }
         self.assertEqual(attrs, {"dbname", "cursor_mode", "uid"})
@@ -65,9 +43,6 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(attrs, {"dbname", "query_count"})
 
     def test_ignores_stored_or_aliased_thread_reference(self):
-        # The documented coverage boundary: a reference held for a specific
-        # thread's identity is a different concern from reading the current
-        # thread's bookkeeping inline, so it is intentionally not flagged.
         hits = _collect(
             "t = threading.current_thread()\n"
             "x = t.dbname\n"
@@ -86,7 +61,7 @@ class TestCollector(unittest.TestCase):
 
     def test_ignores_same_name_attr_on_other_objects(self):
         hits = _collect(
-            "a = self.dbname\n"  # not the current thread
+            "a = self.dbname\n"
             "b = record.env.cr.dbname\n"
             'c = getattr(some_obj, "dbname", None)\n'
         )
@@ -95,21 +70,6 @@ class TestCollector(unittest.TestCase):
 
 class TestProtocolTracking(unittest.TestCase):
     def test_attrs_come_from_the_live_protocol(self):
-        # The eleven bookkeeping fields the Protocol declares today.
-        #
-        # It was eight until `type`, `start_time` and `exec_context` were added.
-        # All three were already being written -- `type` and `start_time` by
-        # service/_threaded and service/wsgi, `exec_context` by tools/profiler --
-        # while the Protocol did not name them, so mypy reported each write as
-        # [attr-defined] and this gate did not watch them at all. Since the
-        # attribute set is read off the Protocol, declaring them widened the
-        # gate: it now also catches a raw inline read of any of the three, and
-        # the one that existed (tools/profiler.py's exec_context) was converted
-        # in the same change, which is why the raw surface is still empty.
-        #
-        # This assertion is deliberately a full set rather than a count: adding
-        # a field must be a decision that shows up in a diff, because it widens
-        # what the gate polices.
         self.assertEqual(
             wtsc.PROTOCOL_ATTRS,
             frozenset(
@@ -142,12 +102,10 @@ class TestRatchet(unittest.TestCase):
         self.assertTrue(any(attr == "dbname" for _path, attr in report.added))
 
     def test_missing_baseline_entry_fails_check(self):
-        # A baseline pair that the tree no longer produces must surface as
-        # `removed`, so a real conversion cannot be silently un-done.
         original = wtsc.KNOWN_RAW_SURFACE
         wtsc.KNOWN_RAW_SURFACE = frozenset({("odoo/gone.py", "dbname")})
         try:
-            report = wtsc.check([])  # no files -> no reaches
+            report = wtsc.check([])
             self.assertFalse(report.ok)
             self.assertIn(("odoo/gone.py", "dbname"), report.removed)
         finally:
@@ -164,8 +122,6 @@ class TestLiveTree(unittest.TestCase):
         )
 
     def test_core_has_no_inline_raw_accesses(self):
-        # The adoption claim: cursor_mode and every sibling attribute is reached
-        # through current_worker_thread(), not inline current_thread(), in core.
         report = wtsc.check()
         self.assertEqual([r.pair for r in report.reaches], [])
 

@@ -1,4 +1,6 @@
 #!/bin/sh
+# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
+# fmt: off
 ''':'
 # Self-locating sh/python trampoline: re-exec this file with the workspace venv
 # interpreter. The logic is shared — see tooling/_trampoline.sh.
@@ -6,12 +8,8 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+# fmt: on
 
-# The shell preamble above is the module's FIRST string literal, so Python binds
-# it as ``__doc__`` and the real documentation below becomes an inert expression
-# statement. ``hoot`` passes ``description=__doc__`` to argparse, so ``hoot
-# --help`` printed the trampoline's shell source instead of its own usage guide.
-# Rebinding it here is the one-line fix that keeps the polyglot intact.
 __doc__ = """Parallel shard wrapper around the warm-server ``hoot`` runner.
 
 HOOT runs a suite's tests *serially inside one browser page*, so a single
@@ -42,8 +40,6 @@ reused); shards 1..N-1 use ``hoot_web_s1`` .. ``hoot_web_s{N-1}`` (created +
 ``web``-installed once, in parallel, on first use).
 """
 
-# CLI tool: print() is the user-facing output channel (T201 is already
-# ignored for tooling/** in ruff.toml, so no per-file directive is needed).
 import argparse
 import contextlib
 import json
@@ -58,30 +54,20 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 HOOT = HERE / "hoot"
 
-sys.path.insert(0, str(HERE))  # hoot_lib lives beside this script
+sys.path.insert(0, str(HERE))
 import hoot_lib as H
 
 WEIGHTS_PATH = HERE / "data" / "hoot_shard_weights.json"
 
-# Colours and the isatty-aware wrapper live in hoot_lib: `hoot-shard` parses
-# `hoot`'s output, so the two agreeing on them is a contract.
 C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (H.C_GREEN, H.C_RED, H.C_YEL, H.C_DIM, H.C_RST)
 _color = H.color
 
 
 def default_web_suites() -> list[str]:
-    """Exactly what ``web/tests/test_js.py`` drives, read from the runner.
 
-    This used to be a hand-maintained copy carrying a "KEEP IN SYNC" comment,
-    and it had drifted: ``@html_editor`` (4766 tests, 494 s) and ``@web/libs``
-    were missing, so a run that presented itself as the full web suite covered
-    66% of its tests and 56% of its runtime. ``test_shard_runner_covers_ci``
-    now fails the build if the two ever diverge again.
-    """
     return sorted(H.ci_runner_suites("web"))
 
 
-# Seed runtimes (seconds), rough, for balancing only. Refined by --calibrate.
 SEED_WEIGHTS = {
     "@web/core": 45,
     "@web/components": 40,
@@ -121,18 +107,11 @@ SEED_WEIGHTS = {
     "@web/mock_server": 10,
     "@web/modules": 8,
 }
-DEFAULT_WEIGHT = 30  # unknown suite
+DEFAULT_WEIGHT = 30
 
 
 def load_weights() -> dict:
-    """The measured runtime table, seeded with SEED_WEIGHTS.
 
-    Read-only. It used to write SEED_WEIGHTS to the committed weights file when
-    that file was absent, which put a tracked-file mutation on the path of
-    every `--plan` and every run — a getter with a side effect that shows up in
-    `git status`. `--calibrate` is the one thing that writes here, and it says
-    so on the tin.
-    """
     weights = dict(SEED_WEIGHTS)
     if WEIGHTS_PATH.exists():
         with contextlib.suppress(ValueError, OSError):
@@ -141,14 +120,7 @@ def load_weights() -> dict:
 
 
 def refine(suites: list[str], n: int, weights: dict) -> list[str]:
-    """Split suites too heavy to balance into their child suites.
 
-    A whole-addon id is one serial page load however long it runs, so LPT can
-    only ever put ``@html_editor`` (494 s, against 620 s for all 36 other web
-    suites combined) alone on a shard and let the rest idle. Descending into
-    the directory behind it turns that into 65 schedulable units. A child with
-    no measured weight inherits its parent's, pro-rated by test-file count.
-    """
     target = max(sum(weight_of(s, weights) for s in suites) / max(n, 1), 1.0)
     out, todo = [], list(suites)
     while todo:
@@ -172,13 +144,7 @@ def refine(suites: list[str], n: int, weights: dict) -> list[str]:
 
 
 def weight_of(suite: str, weights: dict) -> float:
-    """Measured runtime, else an estimate from the suite's test-file count.
 
-    A flat constant for unknown suites is what hid ``@html_editor``: at
-    DEFAULT_WEIGHT it looked like a 30 s suite worth scheduling whole, while it
-    actually runs 494 s — so it was never refined and one shard carried it
-    alone. Test-file count is the cheapest proxy that scales.
-    """
     if suite in weights:
         return weights[suite]
     files = len(H.suite_test_files(suite))
@@ -198,14 +164,13 @@ def seconds_per_file(weights: dict) -> float:
 
 
 def partition(suites: list[str], n: int, weights: dict) -> list[list[str]]:
-    """LPT bin-packing: heaviest suite first, onto the lightest shard."""
     shards: list[list[str]] = [[] for _ in range(n)]
     loads = [0.0] * n
     for suite in sorted(suites, key=lambda s: weight_of(s, weights), reverse=True):
         i = loads.index(min(loads))
         shards[i].append(suite)
         loads[i] += weight_of(suite, weights)
-    return [s for s in shards if s]  # drop empties when n > len(suites)
+    return [s for s in shards if s]
 
 
 def db_for(index: int, prefix: str) -> str:
@@ -213,12 +178,9 @@ def db_for(index: int, prefix: str) -> str:
 
 
 def hoot_cmd(extra: list[str]) -> list[str]:
-    # Invoke ``hoot`` under this same (venv) interpreter so we do not depend on
-    # its executable bit / shebang; its python body runs directly.
     return [sys.executable, str(HOOT), *extra]
 
 
-# hoot's per-run summary lines (see hoot's _report()).
 RE_SUMMARY = re.compile(r"^(PASS|FAIL|WARN)\s+(.*?)\s+\((.+)\)\s*$")
 RE_FAILED = re.compile(r"(\d+)\s+failed")
 RE_PASSED = re.compile(r"(\d+)\s+passed")
@@ -252,15 +214,11 @@ class ShardResult:
                 )
             elif b := RE_BULLET.match(line):
                 self.failed_tests.append(b[1])
-        # A nonzero rc with no parsed summary => the shard's hoot run itself
-        # broke (boot failure, timeout). Surface it as a failure, not silence.
         if self.status == "?" and self.rc != 0:
             self.status = "FAIL"
             self.failed = max(self.failed, 1)
 
 
-#: Extra seconds a shard gets on top of its per-page budget: a cold shard DB
-#: pays a one-time `web` install plus a server boot before the first page load.
 SHARD_BOOT_GRACE_S = 600
 
 
@@ -271,15 +229,7 @@ def _as_text(chunk) -> str:
 
 
 def shard_deadline(suites: list[str], args) -> float:
-    """Wall-clock ceiling for one shard's ``hoot`` subprocess.
 
-    ``--timeout`` is per PAGE LOAD and is handed to ``hoot``; with ``--isolate``
-    a shard loads one page per suite, so its own ceiling is the sum plus a boot
-    allowance. Without any ceiling the subprocess could hang forever: ``hoot``'s
-    timeout only bounds the in-page wait, and a Chrome that never reaches the
-    ready signal (or a warm server that dies mid-run) leaves ``subprocess.run``
-    blocking with no output, taking the whole ThreadPoolExecutor with it.
-    """
     return len(suites) * args.timeout + SHARD_BOOT_GRACE_S
 
 
@@ -311,8 +261,6 @@ def run_shard(index: int, suites: list[str], args) -> ShardResult:
         res.raw = proc.stdout + proc.stderr
         res.rc = proc.returncode
     except subprocess.TimeoutExpired as exc:
-        # TimeoutExpired.stdout/.stderr are not reliably decoded even under
-        # text=True, so normalise before parsing.
         res.raw = _as_text(exc.stdout) + _as_text(exc.stderr)
         res.rc = 124
         res.raw += (
@@ -325,14 +273,7 @@ def run_shard(index: int, suites: list[str], args) -> ShardResult:
 
 
 def calibrate(suites: list[str], args) -> None:
-    """Time each suite solo (sequentially, one DB) and rewrite the weights file.
 
-    Runs on the *refined* list, so the child suites the plan actually schedules
-    get measured weights instead of a pro-rated guess from their parent's.
-    Sequential and uncontended on purpose: concurrent shards inflate timings and
-    fail timing-sensitive tests (5 of the 11 failures the batched runner used to
-    report never reproduced on an idle box).
-    """
     weights = load_weights()
     for suite in suites:
         r = run_shard(0, [suite], args)
@@ -345,14 +286,7 @@ def calibrate(suites: list[str], args) -> None:
 
 
 def stop_all(prefix: str) -> None:
-    """Stop every recorded shard server, not ``range(auto_shard_count)``.
 
-    The shard count is derived from the CPU count when ``-j`` is omitted, so a
-    bare ``--stop`` after ``hoot-shard -j 8`` used to walk shards 0..5 on a
-    22-core box and leave s6 and s7 running, still holding their ports. What
-    was started is recorded in the state files; read those instead of
-    recomputing a number that was never the one used.
-    """
     dbs = sorted(
         {
             db
@@ -416,24 +350,14 @@ def main() -> int:
     )
     args = p.parse_args()
 
-    # Before any suite discovery: stopping servers needs no shard plan, and
-    # building one costs an AST parse of every addon's test_js.py.
     if args.stop:
         stop_all(args.db_prefix)
         return 0
 
     suites = args.suites or default_web_suites()
     if args.preset == "mobile" and not args.suites:
-        # Explicit suites are someone asking for exactly what they typed, as in
-        # MobileWebSuite._run_hoot; a bare whole-suite run must mirror CI.
         suites = H.mobile_suites(suites)
     if not suites:
-        # `default_web_suites` reads the CI runner by parsing its AST, and that
-        # read is failure-suppressed — a moved or unparseable test_js.py yields
-        # an empty set rather than an error. Running nothing then presented
-        # itself as success: `--plan` printed "0 shards" and exited 0, and a
-        # real run died on `max_workers must be greater than 0`, a message
-        # about thread pools rather than about suites.
         print(
             _color(
                 "hoot-shard: no suites to run. With no arguments the plan comes "
@@ -445,8 +369,6 @@ def main() -> int:
         return 2
     weights = load_weights()
 
-    # Auto shard count: ~3 cores per shard (Chrome + threaded server), capped so
-    # we never make more shards than suites.
     cores = os.cpu_count() or 4
     auto = max(1, min(8, (cores - 2) // 3))
     n = args.shards or auto
@@ -509,7 +431,6 @@ def main() -> int:
         for name in r.failed_tests:
             print(_color(f"       - {name}", C_RED))
         if r.status not in ("PASS", "WARN") and not r.failed_tests and r.rc:
-            # broke without a parseable summary — show a hint from the tail
             tail = "\n".join(r.raw.strip().splitlines()[-4:])
             print(_color(f"       (rc={r.rc}) {tail}", C_YEL))
 

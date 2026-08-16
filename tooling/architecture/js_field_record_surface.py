@@ -81,6 +81,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import doc_measured
 from _repo_root import find_odoo_root
 
+ADR = "0022"
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_field_record_surface")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 CONTRACT = WEB_SRC / "fields" / "field_record_contract.js"
@@ -97,7 +99,6 @@ _ARRAY = r"export const {name} = \[(.*?)\];"
 
 
 def declared_surface() -> tuple[set[str], set[str]]:
-    """``(full, narrow)`` read from ``field_record_contract.js``."""
     source = CONTRACT.read_text(encoding="utf8")
 
     def names(const: str) -> set[str]:
@@ -114,7 +115,6 @@ def _named_roots(consumer_roots=CONSUMER_ROOTS) -> list[tuple[str, Path]]:
 
 
 def widget_files() -> list[Path]:
-    """Production JS declaring ``standardFieldProps``, across every checkout."""
     found: list[Path] = []
     for _scope, root in _named_roots():
         for path in root.rglob("*.js"):
@@ -145,30 +145,13 @@ def analyse(paths: list[Path]) -> list[dict]:
 
 
 def _classify(rows: list[dict], narrow: set[str]) -> dict:
-    """The metric set for one row population.
-
-    Split out of ``measure`` so the same analyser pass can be counted twice: once
-    over every checkout present, which is what a developer wants to read, and
-    once over this repository alone, which is the only scope CI can reproduce and
-    therefore the only one the MEASURED block may pin.
-    """
 
     def reaches_another_field(row):
-        # A field named by a literal (`data.company_id`) and a field named by an
-        # option (`data[props.colorField]`) are the same problem: a handle to the
-        # widget's OWN field cannot reach either. The second was counted as mere
-        # `dynamic` at first, which made monetary, gauge and stat_info look
-        # convertible when they never were.
         return row["siblings"] or row.get("propSiblings")
 
     needs_record = [
         row for row in rows if reaches_another_field(row) or "model" in row["members"]
     ]
-    # A `data[expr]` whose key is a local — `monetary`'s `currencyField`, resolved
-    # from an option or a field attribute at runtime — is not decidable here. Such
-    # a widget is not certified convertible and not proven to need the record
-    # either; saying so is more use than guessing, and the guess would be the
-    # optimistic one.
     undecidable = [
         row
         for row in rows
@@ -181,9 +164,6 @@ def _classify(rows: list[dict], narrow: set[str]) -> dict:
         and not row["dynamic"]
         and set(row["members"]) <= narrow
     ]
-    # A widget that reaches no record member at all has finished converting:
-    # `fieldHandle` covers everything it needs. This is the number that moves
-    # as the conversion proceeds; `narrow` only says how many COULD convert.
     detached = [row for row in rows if not row["members"]]
     return {
         "widgets": len(rows),
@@ -216,14 +196,6 @@ def measure() -> dict:
         members.update(row["members"])
 
     scanned = _classify(rows, narrow)
-    # What the docstring pins is measured over this repository alone. The scan
-    # itself stays cross-repo — an enterprise widget reaching an undeclared
-    # member is a real finding, and the split is only worth reading whole — but
-    # `_named_roots` drops absent checkouts silently, so a figure measured over
-    # "whatever was on disk" is one CI cannot reproduce. It was already failing
-    # there: 155 widgets pinned from a full workspace against the 111 a
-    # repo-alone checkout sees. Same trap `doc_measured`'s own docstring records,
-    # and the one `modules/migration.py` learned the hard way.
     repo = _classify([r for r in rows if _in_this_repo(r)], narrow)
     return {
         "rows": rows,

@@ -1,19 +1,3 @@
-"""Tests for the excepted-file budget gate.
-
-Stdlib ``unittest`` only — no pytest, no Odoo imports — matching
-``test_scope_gate.py`` and ``test_ratchet.py``, because ``typecheck.yml``
-self-tests the gates with a bare ``python <file>`` and installs no test runner.
-A pytest-style module run that way defines its functions and exits 0 having
-asserted nothing, which is the exact failure this directory's gates exist to
-prevent.
-
-    python tooling/typecheck/test_excepted_budget.py
-
-``evaluate()`` is pure, so the verdict logic is tested directly. The real tree
-is not asserted on: its budgets are committed data that moves with every
-paydown, and a test that pinned them would fail on every improvement.
-"""
-
 import json
 import sys
 import tempfile
@@ -31,29 +15,22 @@ class VerdictTest(unittest.TestCase):
         self.assertTrue(eb.evaluate({"a.js": 5, "b.js": 0}, {"a.js": 5, "b.js": 0}).ok)
 
     def test_one_more_error_fails(self):
-        # The whole point: an excepted file may not quietly get worse.
         v = eb.evaluate({"a.js": 6}, {"a.js": 5})
         self.assertFalse(v.ok)
         self.assertEqual(v.regressed, [("a.js", 5, 6)])
 
     def test_one_fewer_error_also_fails_until_locked_in(self):
-        # Drift-zero, as every other gate here: an improvement that is not
-        # committed can silently slip back.
         v = eb.evaluate({"a.js": 4}, {"a.js": 5})
         self.assertFalse(v.ok)
         self.assertEqual(v.improved, [("a.js", 5, 4)])
         self.assertEqual(v.regressed, [])
 
     def test_newly_excepted_file_without_a_budget_fails(self):
-        # Otherwise adding a file to the exception list grants it an unbounded
-        # allowance, which is the hole this gate closes.
         v = eb.evaluate({"a.js": 5, "new.js": 3}, {"a.js": 5})
         self.assertFalse(v.ok)
         self.assertEqual(v.unbudgeted, ["new.js"])
 
     def test_budget_for_a_file_no_longer_excepted_fails(self):
-        # Keeps the two files from diverging: membership is the exception
-        # list's to define, so a leftover budget means only one was edited.
         v = eb.evaluate({"a.js": 5}, {"a.js": 5, "gone.js": 2})
         self.assertFalse(v.ok)
         self.assertEqual(v.stale, ["gone.js"])
@@ -112,11 +89,7 @@ class BudgetFileTest(unittest.TestCase):
 
 
 class FailClosedTest(unittest.TestCase):
-    """ "Nothing to check" and "everything passes" must not share an exit code."""
-
     def test_empty_measurement_exits_2(self):
-        # An empty log parses to no errors, so every budget would look
-        # satisfied. Exit 2, distinct from both pass (0) and drift (1).
         with tempfile.TemporaryDirectory() as tmp:
             log = Path(tmp) / "empty.log"
             log.write_text("")

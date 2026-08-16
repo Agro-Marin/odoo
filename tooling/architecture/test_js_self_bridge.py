@@ -1,23 +1,6 @@
-"""Tests for the self-bridge gate.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_js_self_bridge.py
-
-The gate reports zero on the real tree, which is the state it exists to keep
-and also the state in which a broken gate is indistinguishable from a working
-one. So every assertion here runs it against a synthetic tree instead, and the
-central one replays the 2026-08-03 breach byte-for-byte.
-"""
-
-import js_self_bridge as jsb  # sys.path set by conftest.py
+import js_self_bridge as jsb
 import pytest
 
-# Byte-for-byte what `_bridge_module_source` emitted over
-# `web/static/src/components/dropdown/_behaviours/dropdown_nesting.js`, down to
-# the absent trailing newline. If the generator's shape changes, this test
-# should be updated from its output, not loosened.
 BREACH = (
     "const _m = odoo.loader.modules.get("
     '"@web/components/dropdown/_behaviours/dropdown_nesting");\n'
@@ -41,7 +24,6 @@ export function useDropdownNesting(state) {
 
 @pytest.fixture
 def tree(tmp_path):
-    """A one-addon checkout: ``write(rel, text)`` -> ``statics`` mapping."""
 
     def write(rel, text, addon="web"):
         path = tmp_path / addon / "static" / "src" / rel
@@ -56,9 +38,6 @@ def tree(tmp_path):
 
 def _find(tree, addon="web"):
     return jsb.find_self_bridges(tree.statics(addon), root=tree.root)
-
-
-# --- the breach it exists to catch ---
 
 
 def test_catches_the_generated_bridge_written_over_its_own_source(tree):
@@ -102,11 +81,7 @@ def test_a_healthy_module_is_not_faulted(tree):
     assert findings == []
 
 
-# --- the limits are limits on purpose, so they are pinned ---
-
-
 def test_reading_the_loader_for_another_module_is_allowed(tree):
-    """`html_editor`'s upgrade manager does this legitimately."""
     tree("a/consumer.js", 'const m = odoo.loader.modules.get("@web/a/other");\n')
     findings, _, reads = _find(tree)
     assert reads == 1
@@ -131,9 +106,6 @@ def test_a_bridge_in_another_addon_uses_that_addons_prefix(tree):
     assert findings[0].specifier == "@mail/views/x"
 
 
-# --- specifier derivation ---
-
-
 def test_index_js_answers_to_both_of_its_specifiers(tree):
     static = tree.statics()["web"]
     path = static / "src" / "a" / "index.js"
@@ -152,17 +124,12 @@ def test_a_sibling_that_shares_a_string_prefix_is_not_a_self_reference(tree):
     assert findings == []
 
 
-# --- the exit code CI reads ---
-
-
 def test_check_exits_one_only_when_something_was_found(tree, monkeypatch):
     monkeypatch.setattr(jsb, "addon_static_dirs", tree.statics)
     tree("a/b.js", HEALTHY)
     assert jsb.main(["--check"]) == 0
     tree("a/c.js", 'const _m = odoo.loader.modules.get("@web/a/c");\n')
     assert jsb.main(["--check"]) == 1
-    # Report mode prints the same findings and still exits 0, which is why the
-    # CI call site must pass --check.
     assert jsb.main([]) == 0
 
 

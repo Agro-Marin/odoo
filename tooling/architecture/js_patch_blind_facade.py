@@ -1,78 +1,3 @@
-"""Patch-blind facade gate: a service's own callers must go through its facade.
-
-Odoo services are overwhelmingly written as a closure that returns an object
-literal (~35 of 38 in ``addons/web/static/src``)::
-
-    start(env, { hotkey }) {
-        function openMainPalette(...) { ... }
-        hotkey.add("control+k", () => openMainPalette());   # <-- closure ref
-        return { openMainPalette, ... };                    # <-- facade
-    }
-
-Downstream addons extend such a service the only way a closure allows — by
-patching ``start`` and mutating the object it returned::
-
-    patch(commandService, {
-        start(...args) {
-            const svc = super.start(...args);
-            Object.assign(svc, { openMainPalette() {} });    # neutralize it
-            return svc;
-        },
-    });
-
-That works for anyone who calls ``env.services.command.openMainPalette()``. It
-does **not** work for the ``control+k`` registration above, which captured the
-*function object* during ``super.start()``, before the patch ran. The patch
-applies to some callers and silently skips others. No error is raised, and the
-patch looks like it worked.
-
-This is not hypothetical. ``enterprise/knowledge``'s portal webclient patches
-``commandService`` to neutralize the command palette for portal users, who "can
-not have access to some of its features (searching users, menus, ...)". The
-direct calls are blocked; **Ctrl+K still opens the palette**, because
-``command_service.js`` registered the hotkey against the closure identifier.
-Reproduced in a real browser against the real service on 2026-08-03.
-
-**Nothing else in this directory can see this**, and structurally so:
-
-* ``js_public_surface`` and ``named_export_coherence`` reason about *module*
-  exports. This is a call inside one function to another in the same scope —
-  no export, no import, no edge.
-* ``js_cycle_check``, ``js_layer_check`` and ``js_layer_cohesion`` reason about
-  the import graph, which this does not touch.
-* ``js_function_length`` measures how long ``start`` is, not who it calls.
-* ESLint has no rule for it: calling a sibling closure is ordinary, correct
-  JavaScript everywhere except inside a patchable service facade.
-
-The property none of them holds is that a service's *own* callers see the same
-implementation its consumers do.
-
-Contract, over ``addons/web/static/src``:
-
-    For any service registered in ``registry.category("services")``, no name
-    published on the object ``start()`` returns may also be invoked as a bare
-    identifier inside ``start()``.
-
-The fix is mechanical and preserves the closure shape — name the facade and
-route internal callers through it, so the lookup happens at call time::
-
-    const commandServiceApi = { openMainPalette, ... };
-    hotkey.add("control+k", () => commandServiceApi.openMainPalette());
-    return commandServiceApi;
-
-Parsed with acorn rather than a regex. An earlier hand-rolled scan of this same
-property mis-classified ``tree_processor_service`` because ``return new Map(...)``
-matched a "returns an instance" pattern; function and object extents are a
-parsing problem.
-
-Usage::
-
-    python tooling/architecture/js_patch_blind_facade.py           # report
-    python tooling/architecture/js_patch_blind_facade.py --check   # CI, exit 1
-    python tooling/architecture/js_patch_blind_facade.py --json
-    python tooling/architecture/js_patch_blind_facade.py --count
-"""
-
 import argparse
 import json
 import subprocess
@@ -84,15 +9,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+ADR = "0021"
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_patch_blind_facade")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 ACORN = ROOT / "node_modules" / "acorn" / "dist" / "acorn.mjs"
 
 SERVICE_MARKER = 'category("services").add'
 
-# The analyzer runs in node because function and object extents are a parsing
-# problem. Kept here rather than as a sibling .mjs so the gate is one file and
-# cannot drift from its helper.
 ANALYZER_JS = r"""
 import { parse } from "%(acorn)s";
 import { readFileSync } from "fs";
@@ -186,18 +110,7 @@ def _service_files(src: Path) -> list[Path]:
 
 
 def measure(src: Path | None = None, acorn: Path | None = None) -> list[Violation]:
-    """Every published name a service also calls through its closure.
 
-    Raises ``RuntimeError`` rather than returning ``[]`` when the tree holds no
-    services or the parser cannot run: a gate that reports "0 violations"
-    because it analysed nothing is worse than no gate.
-
-    ``src``/``acorn`` resolve at call time, not as default arguments. Binding
-    them in the signature captures the module-level values at import and makes
-    the roots unredirectable — the exact under-reach
-    ``test_every_gate_refuses_an_empty_tree`` documents, which would leave this
-    gate scanning the real tree while a probe believed it had emptied it.
-    """
     src = WEB_SRC if src is None else src
     acorn = ACORN if acorn is None else acorn
     if not src.is_dir():

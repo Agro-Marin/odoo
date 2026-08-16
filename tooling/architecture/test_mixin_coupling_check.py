@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for ``mixin_coupling_check.py``.
 
-A gate that measures the wrong thing is worse than no gate: it reports a number
-nobody can act on and green-lights the drift it exists to catch. The cases below
-pin the three ways this particular checker could lie —
-
-* counting a *local helper* class as a mixin (``traversal.py`` defines a
-  ``ReversibleComparator`` with ``__eq__``/``__lt__``/``__hash__``, ``cache.py``
-  a ``RecordCache`` with ``__getitem__``/``__iter__``/``__len__``; both collide
-  by name with ``IterationMixin`` and would fabricate edges and phantom MRO
-  collisions),
-* missing declarations inside ``if TYPE_CHECKING:`` (where several mixins state
-  their surface, so skipping it would drop real edges), and
-* reporting a cycle that is not there, or missing one that is.
-
-Run directly (``python tooling/architecture/test_mixin_coupling_check.py``) or
-under pytest.
-"""
 
 from __future__ import annotations
 
@@ -31,7 +14,6 @@ import mixin_coupling_check as mcc
 
 
 def _units_from_source(**sources: str) -> dict[str, mcc.Unit]:
-    """Build units from in-memory source, bypassing the filesystem walk."""
     units: dict[str, mcc.Unit] = {}
     for name, src in sources.items():
         unit = mcc.Unit(name)
@@ -54,7 +36,6 @@ class TestClassSelection(unittest.TestCase):
         self.assertEqual(units["b"].defines, {"bar"})
 
     def test_a_local_helper_class_does_not_count(self):
-        """The real trap: ``ReversibleComparator`` / ``RecordCache``."""
         units = _units_from_source(
             t="""
 class ReversibleComparator:
@@ -149,7 +130,6 @@ class TestScc(unittest.TestCase):
         self.assertEqual(found, [["a", "b", "c"]])
 
     def test_excluding_a_node_can_break_a_cycle(self):
-        """The ``scc_without_base`` metric depends on exactly this."""
         edges = {"a": {"hub": {"x"}}, "hub": {"b": {"y"}}, "b": {"hub": {"z"}}}
         nodes = {"a", "b", "hub"}
         with_hub = [c for c in mcc.strongly_connected(nodes, edges) if len(c) > 1]
@@ -161,8 +141,6 @@ class TestScc(unittest.TestCase):
 
 
 class TestRealTree(unittest.TestCase):
-    """The checker must produce a usable answer on the actual model package."""
-
     @classmethod
     def setUpClass(cls):
         cls.m = mcc.measure()
@@ -173,12 +151,10 @@ class TestRealTree(unittest.TestCase):
             self.assertIn(expected, self.m["units"])
 
     def test_the_read_group_subpackage_is_four_units_not_one(self):
-        """Collapsing it to one hid 10 edges and a 3-cycle; see ``_unit_name``."""
         for part in ("mixin", "sql", "format", "fill"):
             self.assertIn(f"read_group/{part}", self.m["units"])
 
     def test_every_unit_participates(self):
-        """A unit with no defines and no uses would be a measurement artefact."""
         for name, unit in self.m["_units"].items():
             self.assertTrue(unit.defines or unit.uses, f"{name} is an isolated node")
 
@@ -195,20 +171,6 @@ class TestRealTree(unittest.TestCase):
 
 
 class TestAgreesWithTheRuntimeMro(unittest.TestCase):
-    """The AST model must match what Python actually composes.
-
-    This is the check that caught the original version's real error: it treated
-    the ``read_group`` *subpackage* as one unit, but ``BaseModel.__mro__``
-    contains four separate classes from it (``ReadGroupMixin``,
-    ``_ReadGroupSQLMixin``, ``_ReadGroupFormatMixin``, ``_ReadGroupFillMixin``).
-    That collapse misattributed 14 names and hid 10 edges and an entire 3-cycle.
-
-    An AST tool agreeing with itself proves nothing; importing the real class and
-    comparing is the only independent oracle available. Skipped rather than
-    failed when ``odoo`` cannot be imported, so the gate's own suite stays
-    runnable in a bare checkout.
-    """
-
     @classmethod
     def setUpClass(cls):
         try:
@@ -265,7 +227,6 @@ class TestAgreesWithTheRuntimeMro(unittest.TestCase):
         self.assertEqual(mismatches, [], "AST ownership disagrees with the MRO")
 
     def test_the_mixins_really_are_stateless(self):
-        """``__slots__ = ()`` everywhere is what makes the composition free."""
         missing = [
             f"{c.__module__}.{c.__name__}"
             for c in self.mro
@@ -275,8 +236,6 @@ class TestAgreesWithTheRuntimeMro(unittest.TestCase):
 
 
 class TestRatchetDirection(unittest.TestCase):
-    """Both directions must fail: growth is drift, and so is an unrecorded win."""
-
     @staticmethod
     def _at_baseline(**overrides):
         m = {
@@ -304,14 +263,6 @@ class TestRatchetDirection(unittest.TestCase):
 
 
 class TestCyclicEdges(unittest.TestCase):
-    """``cyclic_edges``, not the raw edge count, is the tangling measure.
-
-    The raw count was ratcheted first and the first real refactor disproved it:
-    extracting a method onto a new leaf deleted a 3-cycle and *raised* ``edges``
-    85 -> 87, because a new unit brings its own edges. These pin the property
-    that made the replacement necessary.
-    """
-
     def test_a_dag_has_no_cyclic_edges(self):
         units = _units_from_source(
             a="class AMixin(_ModelStubs):\n    def go(self): return self.t\n",
@@ -322,7 +273,6 @@ class TestCyclicEdges(unittest.TestCase):
         self.assertEqual(sccs, [])
 
     def test_splitting_a_unit_out_does_not_raise_tangling(self):
-        """Before: a<->b cycle. After: the shared member moves to a leaf."""
         before = _units_from_source(
             a="class AMixin(_ModelStubs):\n    def go(self): return self.t\n    def shared(self): pass\n",
             b="class BMixin(_ModelStubs):\n    def t(self): return self.shared\n",
@@ -357,14 +307,6 @@ class TestCyclicEdges(unittest.TestCase):
 
 
 class TestFieldComposition(unittest.TestCase):
-    """The gate was hard-coded to ``BaseModel``; ``Field`` is built the same way.
-
-    ``Field(_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin)`` over a
-    ``_FieldStubs`` typing declaration is the same construction, and was measured
-    by nothing while being 1401 lines against 628 in its three mixins -- the
-    inverse of the ratio ``models/`` reached.
-    """
-
     @classmethod
     def setUpClass(cls) -> None:
         cls.comp = mcc.FIELD_COMPOSITION
@@ -384,13 +326,7 @@ class TestFieldComposition(unittest.TestCase):
         )
 
     def test_concrete_field_types_are_not_units(self):
-        """``textual``/``numeric``/``relational`` are subclasses, not mixins.
 
-        They override base methods freely -- ``BaseString`` overrides six of
-        ``Field``'s twelve cache methods -- but that is the *override* surface,
-        a different question from mixin composition. Including them would
-        conflate the two graphs.
-        """
         for name in ("textual", "numeric", "binary", "relational/many2many"):
             self.assertNotIn(name, self.units)
 
@@ -398,26 +334,13 @@ class TestFieldComposition(unittest.TestCase):
         self.assertNotIn("_field_stubs", self.units)
 
     def test_the_composition_is_a_dag(self):
-        """It was not when this gate first ran.
 
-        The first run found ``_field_convert`` <-> ``base.py``. These
-        assertions named both endpoints so that fixing it would be a visible
-        diff here rather than a silent baseline edit -- and it was: they failed
-        the moment the cycle went, which is what turned them into these.
-        """
         self.assertEqual([], self.m["sccs"])
         self.assertEqual(0, self.m["cyclic_edges"])
         self.assertEqual(0, mcc.FIELD_BASELINE["cyclic_edges"])
 
     def test_the_metadata_leaf_is_a_leaf(self):
-        """The property that broke the cycle, and the one that can silently rot.
 
-        ``base.py`` still reaches conversion from the descriptor protocol --
-        that edge is fine, one direction is a DAG edge. What must not come back
-        is conversion reaching the root: it now asks ``_field_metadata`` what a
-        field *is*, and that unit reaches nothing, so nothing that uses it can
-        close a cycle through it.
-        """
         edges, _ = mcc.build_edges(self.units)
         self.assertLessEqual(
             {"convert_to_cache", "convert_to_record", "convert_to_write"},
@@ -438,7 +361,6 @@ class TestFieldComposition(unittest.TestCase):
         )
 
     def test_it_has_its_own_floors(self):
-        """Two graphs, two baselines -- neither may mask the other."""
         self.assertIsNot(mcc.FIELD_BASELINE, mcc.BASELINE)
         self.assertEqual(
             {
@@ -451,14 +373,10 @@ class TestFieldComposition(unittest.TestCase):
         )
 
     def test_the_recordset_view_is_off_for_fields(self):
-        """``RECORDSET_PRODUCERS`` are BaseModel methods; a Field holds no
-        recordset of itself, so the wide view would just duplicate the narrow
-        one and double the ratchet noise."""
         self.assertFalse(self.comp.recordset_aware)
         self.assertTrue(mcc.MODEL_COMPOSITION.recordset_aware)
 
     def test_the_model_composition_is_unchanged_by_the_generalisation(self):
-        """The refactor must not move the graph it was already measuring."""
         model = mcc.measure()
         self.assertEqual(mcc.BASELINE["max_scc"], model["max_scc"])
         self.assertEqual(mcc.BASELINE["cyclic_edges"], model["cyclic_edges"])
@@ -466,15 +384,6 @@ class TestFieldComposition(unittest.TestCase):
 
 
 class TestRegistryComposition(unittest.TestCase):
-    """``Registry`` is the third class built this way, and was the tangled one.
-
-    ``Registry(_RegistryFieldsMixin, _RegistrySchemaMixin, ...)`` over a
-    ``_RegistryStubs`` typing declaration is the same construction as
-    ``BaseModel``/``_ModelStubs`` and ``Field``/``_FieldStubs``. It was measured
-    by nothing until 2026-08-09, and the first run found a **3-unit cycle over 4
-    edges** -- the only one of the three compositions that was not a DAG.
-    """
-
     @classmethod
     def setUpClass(cls) -> None:
         cls.comp = mcc.REGISTRY_COMPOSITION
@@ -482,11 +391,7 @@ class TestRegistryComposition(unittest.TestCase):
         cls.m = mcc.measure(comp=cls.comp)
 
     def test_it_collects_the_mixin_composition_and_nothing_else(self):
-        """``environment``/``transaction``/``backend`` are collaborators.
 
-        They live in the same flat package and contribute no composed class, so
-        the unit set stays the registry's own fragments.
-        """
         self.assertEqual(
             {
                 "registry.py",
@@ -500,24 +405,13 @@ class TestRegistryComposition(unittest.TestCase):
         )
 
     def test_the_composition_is_a_dag(self):
-        """The property the two leaves were extracted to buy.
 
-        Not "the tangle must not grow" -- there must be no tangle at all, the
-        same bar the other two compositions are held to.
-        """
         self.assertEqual(0, self.m["cyclic_edges"])
         self.assertEqual(1, self.m["max_scc"])
         self.assertEqual([], self.m["sccs"])
 
     def test_the_leaves_have_no_out_edge_into_the_composition(self):
-        """What makes the DAG hold, stated as the rule rather than the result.
 
-        ``_registry_models`` and ``_registry_init_phase`` exist to be depended
-        on. A leaf that reaches nothing back cannot close a cycle -- the design
-        rule under *Coupling the import graph cannot see* in
-        ``doc/architecture/module.md``. If either grows an out-edge, the cycle
-        can come back even while ``cyclic_edges`` is briefly still 0.
-        """
         edges = self.m["_edges"]
         for leaf in (
             "_registry_models",
@@ -531,11 +425,7 @@ class TestRegistryComposition(unittest.TestCase):
             )
 
     def test_the_two_mixins_reach_the_leaves_and_not_the_root(self):
-        """The back-edges that formed the original cycle, asserted gone.
 
-        ``_registry_fields`` and ``_registry_schema`` reached ``registry.py``
-        for ``models`` (and ``init_phase``); both now land on a leaf.
-        """
         edges = self.m["_edges"]
         for mixin in ("_registry_fields", "_registry_schema"):
             self.assertNotIn(
@@ -546,7 +436,6 @@ class TestRegistryComposition(unittest.TestCase):
             )
 
     def test_it_has_its_own_floors(self):
-        """Three graphs, three baselines -- none may mask another."""
         self.assertIsNot(mcc.REGISTRY_BASELINE, mcc.BASELINE)
         self.assertIsNot(mcc.REGISTRY_BASELINE, mcc.FIELD_BASELINE)
         self.assertEqual(
@@ -561,14 +450,6 @@ class TestRegistryComposition(unittest.TestCase):
 
 
 class TestUnownedSharedState(unittest.TestCase):
-    """The metric that says how much ``cyclic_edges`` cannot see.
-
-    Written after ``cyclic_edges`` 0 was claimed for ``Registry`` and turned out
-    to be a claim about *declared* ownership only. Two properties matter: it
-    must find state nobody declares, and it must rise exactly when someone
-    silences an edge by deleting a declaration.
-    """
-
     def test_state_read_by_two_units_and_declared_by_none_is_reported(self):
         units = _units_from_source(
             a="class AMixin(_ModelStubs):\n    def go(self): return self.shared\n",
@@ -577,7 +458,6 @@ class TestUnownedSharedState(unittest.TestCase):
         self.assertEqual({"shared": ["a", "b"]}, mcc.unowned_from_units(units))
 
     def test_state_declared_by_a_unit_is_an_edge_instead(self):
-        """Give it an owner and it leaves this count for the graph."""
         units = _units_from_source(
             a="class AMixin(_ModelStubs):\n    def go(self): return self.shared\n",
             b="class BMixin(_ModelStubs):\n    shared: dict\n    def go2(self): return self.shared\n",
@@ -601,13 +481,7 @@ class TestUnownedSharedState(unittest.TestCase):
         self.assertEqual({}, mcc.unowned_from_units(units))
 
     def test_deleting_a_declaration_moves_this_count_up_as_it_moves_edges_down(self):
-        """The gaming vector, demonstrated end to end.
 
-        Deleting a class-body declaration removes a measured edge without
-        changing behaviour — that is how ``Registry``'s ``cyclic_edges`` could
-        be taken from 4 to 2 on the pre-split tree. The two numbers must move in
-        opposite directions so the pair cannot be improved by hiding.
-        """
         declared = _units_from_source(
             a="class AMixin(_ModelStubs):\n    def go(self): return self.shared\n",
             b="class BMixin(_ModelStubs):\n    shared: dict\n    def go2(self): return self.shared\n",
@@ -625,7 +499,6 @@ class TestUnownedSharedState(unittest.TestCase):
         self.assertEqual(1, len(mcc.unowned_from_units(silenced)))
 
     def test_every_composition_ratchets_it(self):
-        """A number reported but not ratcheted would not stop the regression."""
         for comp in mcc.COMPOSITIONS:
             self.assertIn("unowned_shared_state", comp.baseline)
             self.assertEqual(
@@ -635,23 +508,11 @@ class TestUnownedSharedState(unittest.TestCase):
             )
 
     def test_the_registry_composition_has_none_left(self):
-        """The eight that qualified ``cyclic_edges`` 0 all have owners now.
 
-        ``_constraint_queue``, ``_ordinary_tables``, ``field_setup_dependents``,
-        ``has_trigram``, ``has_unaccent``, ``model_graph``, ``not_null_fields``
-        and ``unaccent`` were declared in ``_RegistryStubs`` and assigned in
-        ``Registry.init``. Each is now declared *and* initialised by the mixin
-        whose concern it is, which is what makes this composition a DAG under
-        assignment-site ownership as well as under this gate's model.
-        """
         self.assertEqual({}, mcc.unowned_shared_state(mcc.REGISTRY_COMPOSITION))
 
     def test_each_registry_mixin_initialises_its_own_state(self):
-        """The mechanism behind the 0, asserted rather than assumed.
 
-        A declaration alone would satisfy this gate while ``Registry.init`` kept
-        assigning the member — the exact half-measure the first round shipped.
-        """
         runtime = mcc.ROOT / "odoo" / "orm" / "runtime"
         for module, hook in (
             ("_registry_models", "_init_models_container"),
@@ -672,26 +533,6 @@ class TestUnownedSharedState(unittest.TestCase):
 
 
 class TestEveryOrmCompositionIsMeasured(unittest.TestCase):
-    """The gate has been blind twice; this is what stops a third time.
-
-    ``Field`` went unmeasured until 2026-08-08, ``Registry`` and ``Cursor``
-    until 2026-08-09, and **each turned out to be the worst of the set when
-    first measured** -- a 2-cycle, a 3-cycle and a 2-cycle respectively. Every
-    one was found by someone noticing the construction by eye, which is not a
-    gate.
-
-    So discover composition roots from the tree instead of trusting
-    :data:`COMPOSITIONS` to be complete: a class in the **core** with two or
-    more ``*Mixin`` bases is one, unless its own name ends in ``Mixin``, in
-    which case it is a *unit* of an outer composition (``ReadGroupMixin`` is
-    three mixins wide and is measured as one unit of ``BaseModel``).
-
-    The scope was ``odoo/orm`` when this test was written, which would have
-    reported clean while ``Cursor`` sat unmeasured in ``odoo/db`` with a cycle
-    in it. A coverage test narrower than the thing it guards reproduces the bug
-    it exists to catch -- the same lesson ``tooling/test_repo_root`` records.
-    """
-
     @staticmethod
     def _composition_roots() -> dict[str, Path]:
         roots: dict[str, Path] = {}
@@ -715,8 +556,6 @@ class TestEveryOrmCompositionIsMeasured(unittest.TestCase):
         return roots
 
     def test_the_discovered_roots_are_the_five_we_know(self):
-        """Pins the discovery itself, so the coverage test below cannot pass
-        vacuously by finding nothing."""
         self.assertEqual(
             {"BaseModel", "Field", "Registry", "Request", "Cursor"},
             set(self._composition_roots()),
@@ -737,7 +576,6 @@ class TestEveryOrmCompositionIsMeasured(unittest.TestCase):
         )
 
     def test_every_composition_carries_a_distinct_baseline(self):
-        """A shared baseline object would let one graph's floor mask another's."""
         baselines = [id(c.baseline) for c in mcc.COMPOSITIONS]
         self.assertEqual(len(baselines), len(set(baselines)))
 

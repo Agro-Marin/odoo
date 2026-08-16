@@ -137,11 +137,13 @@ import re
 import sys
 from pathlib import Path
 
-from js_imports import strip_comments  # sys.path set by conftest.py
+from js_imports import strip_comments
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import doc_measured
 from _repo_root import find_odoo_root
+
+ADR = "0020"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_extension_surface")
 WEB = ROOT / "addons" / "web"
@@ -154,16 +156,8 @@ CONSUMER_ROOTS = (
     ("design-themes", ROOT.parent / "design-themes"),
 )
 
-# The scope the MEASURED block is allowed to pin. `_named_roots` drops an absent
-# checkout silently, and CI checks this repo out alone, so a figure measured over
-# CONSUMER_ROOTS is one the build that verifies it cannot reproduce: it passes on
-# every developer's full workspace and fails only in CI. `--update` already
-# refuses to run without every checkout present, for the same reason from the
-# other side; the docstring needs the opposite guarantee, not the same one.
 REPO_ROOTS = CONSUMER_ROOTS[:1]
 
-# Members every OWL component declares; overriding one says nothing about the
-# base's behavioural contract.
 NOT_CONTRACT = frozenset(
     {"template", "props", "components", "defaultProps", "constructor"}
 )
@@ -171,7 +165,6 @@ NOT_CONTRACT = frozenset(
 _IMPORT = re.compile(r'import\s*\{([^}]*)\}\s*from\s*["\']([^"\']+)["\']', re.DOTALL)
 _REEXPORT = re.compile(r'export\s*\{([^}]*)\}\s*from\s*["\']([^"\']+)["\']', re.DOTALL)
 _STAR = re.compile(r'export\s*\*\s*from\s*["\']([^"\']+)["\']')
-# `extends Mixin(Base)` | `extends Base.Prop` | `extends Base`
 _EXTENDS = (
     r"(?:([A-Za-z_$][\w$]*)\s*\(\s*([A-Za-z_$][\w$]*)"
     r"|([A-Za-z_$][\w$]*)(?:\.([A-Za-z_$][\w$]*))?)"
@@ -187,12 +180,9 @@ _METHOD = re.compile(
     r"([a-zA-Z_$][\w$]*)\s*[(=]",
     re.MULTILINE,
 )
-# `export const formView = { Controller: FormController, ... }`
 _DESCRIPTOR = re.compile(
     r"(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*\{(.*?)\n\}", re.DOTALL
 )
-# `patch(Target, {...})` / `patch(Target.prototype, {...})` — the OTHER way a
-# consumer reaches a base's members. Same contract, different mechanism.
 _PATCH = re.compile(r"\bpatch\(\s*([A-Za-z_$][\w$]*)(\.prototype)?\s*,")
 _PATCH_MEMBER = re.compile(
     r"(?:async\s+)?(?:\*\s*)?(?:get\s+|set\s+)?([A-Za-z_$][\w$]*)"
@@ -203,25 +193,13 @@ _DESC_PROP = re.compile(
 
 
 def _skip(path: Path) -> bool:
-    """Vendored trees only.
 
-    Deliberately NOT a blanket ``/lib/`` match: ``static/src/core/lib/`` and
-    ``static/src/libs/`` are first-party modules that merely wrap a vendored
-    dependency, and ``@web/libs/bootstrap`` is imported by four addons today.
-    Nothing under them declares a class yet, so a looser match cost nothing —
-    which is exactly how it would have gone unnoticed once one did. Minified
-    payloads are dropped by line-length in ``Index``, not by path.
-    """
     text = path.as_posix()
     return "/static/lib/" in text or "/node_modules/" in text
 
 
 def addon_aliases(consumer_roots=CONSUMER_ROOTS) -> dict[str, Path]:
-    """``{"web": <addons/web/static/src>, ...}`` over every checkout present.
 
-    Derived from the tree rather than from ``tsconfig.json``, which names 38 of
-    the 164 aliases in use — see the module docstring.
-    """
     aliases: dict[str, Path] = {}
     for _name, root in _named_roots(consumer_roots):
         for addons in (root / "addons", root):
@@ -235,9 +213,6 @@ def addon_aliases(consumer_roots=CONSUMER_ROOTS) -> dict[str, Path]:
 
 
 def _named_roots(consumer_roots) -> list[tuple[str, Path]]:
-    """Normalise to ``(scope, root)`` for the roots present; see the twin in
-    ``js_public_surface.py``. Bare paths take their directory name as scope, so
-    tests can pass synthetic trees."""
     named = []
     for item in consumer_roots:
         if isinstance(item, tuple):
@@ -266,13 +241,7 @@ def _class_body(src: str, start: int) -> str:
 
 
 def object_literal_members(src: str, after: int) -> set[str]:
-    """Top-level keys of the object literal starting at or after *after*.
 
-    Used for ``patch(Target, { ... })``. Brace-depth tracked from the literal's
-    own ``{`` so only depth-1 keys count — a regex on indentation cannot do
-    this, because an object literal nested inside a patched method has exactly
-    the same shape as the patch body itself.
-    """
     opening = src.find("{", after)
     if opening < 0:
         return set()
@@ -307,13 +276,7 @@ def object_literal_members(src: str, after: int) -> set[str]:
 
 
 def scan_file(source: str) -> dict:
-    """Parse one module into the facts the walk needs.
 
-    ``{"imports": {name: spec}, "reexports": {name: (spec, orig)},
-       "stars": [spec], "descriptors": {name: {prop: cls}},
-       "classes": {name: {"base", "prop", "form", "methods"}},
-       "patches": [(target, members)]}``
-    """
     src = strip_comments(source)
     record = {
         "imports": {},
@@ -328,10 +291,6 @@ def scan_file(source: str) -> dict:
             name = raw.strip()
             if not name:
                 continue
-            # `import { A as B }` binds B locally, but the target module
-            # exports A. Keying only on B and then looking B up over there
-            # resolves nothing — which is how `patch(WebFileViewer.prototype,…)`
-            # in enterprise/sign went uncounted: the face exports `FileViewer`.
             parts = [part.strip() for part in name.split(" as ")]
             record["imports"][parts[-1]] = (spec, parts[0])
     for names, spec in _REEXPORT.findall(src):
@@ -365,8 +324,6 @@ def scan_file(source: str) -> dict:
 
 
 class Index:
-    """Every parsed module, plus the resolution the inheritance walk needs."""
-
     def __init__(self, consumer_roots=CONSUMER_ROOTS, web_src=None):
         self.web_src = Path(web_src or WEB / "static" / "src").resolve()
         self.roots = _named_roots(consumer_roots)
@@ -381,8 +338,6 @@ class Index:
                     source = path.read_text(encoding="utf8")
                 except UnicodeDecodeError, OSError:
                     continue
-                # Minified vendored payloads carry no readable class structure
-                # and cost more to parse than the whole rest of the tree.
                 if len(source) / (source.count("\n") + 1) > 300:
                     continue
                 resolved = path.resolve()
@@ -391,22 +346,10 @@ class Index:
         self._defs: dict[tuple[Path, str], tuple[Path, str] | None] = {}
 
     def in_web(self, path: Path) -> bool:
-        """Whether ``path`` is a ``web`` **source** module — one that can own a
-        contract. Scoped to ``static/src``: a base class lives there."""
         return path.is_relative_to(self.web_src)
 
     def is_web_addon(self, path: Path) -> bool:
-        """Whether ``path`` belongs to the ``web`` addon **at all**.
 
-        Wider than :meth:`in_web`, and the difference is load-bearing. A class in
-        ``web/static/tests/`` that subclasses ``FormController`` is web testing
-        itself, not a downstream consumer — but it is outside ``static/src``, so
-        the narrower predicate counted it as surface and let web's own suite
-        write entries into the pin. Worse, those entries move whenever anyone
-        edits a web test, so the pin drifts on changes that cross no boundary.
-        ``js_public_surface.py`` draws the same line at the addon, not the source
-        directory, for the same reason.
-        """
         return path.is_relative_to(self.web_src.parent.parent)
 
     def resolve_spec(self, spec: str, origin: Path) -> Path | None:
@@ -424,13 +367,12 @@ class Index:
         return None
 
     def find_class(self, path: Path, name: str, depth: int = 0):
-        """Resolve ``(module, exported name)`` to the module defining it."""
         if depth > 12:
             return None
         key = (path, name)
         if key in self._defs:
             return self._defs[key]
-        self._defs[key] = None  # cycle guard
+        self._defs[key] = None
         record = self.files.get(path)
         if record is None:
             return None
@@ -456,7 +398,6 @@ class Index:
         return found
 
     def find_descriptor(self, path: Path, name: str, depth: int = 0):
-        """Resolve a view descriptor (``formView``) to ``(module, {prop: cls})``."""
         if depth > 10:
             return None
         record = self.files.get(path)
@@ -493,7 +434,6 @@ class Index:
         return self.find_class(path, info["base"])
 
     def chain(self, path: Path, name: str) -> list[tuple[Path, str]]:
-        """``[(module, class), ...]`` from this class up to its root."""
         seen: set[tuple[Path, str]] = set()
         walk: list[tuple[Path, str]] = []
         current = (path, name)
@@ -509,12 +449,7 @@ class Index:
 def measure_detailed(
     consumer_roots=CONSUMER_ROOTS, web_src=None
 ) -> dict[str, dict[str, list[int]]]:
-    """``{"Owner.method": {scope: [production, test]}}``.
 
-    The one walk everything derives from. A point is attributed to the
-    **nearest ``web`` ancestor that defines the method** — the class whose
-    contract the override is actually against.
-    """
     index = Index(consumer_roots, web_src)
     found: dict[str, dict[str, list[int]]] = {}
     for path, record in index.files.items():
@@ -539,11 +474,6 @@ def measure_detailed(
                             scope, [0, 0]
                         )[slot] += 1
                         break
-        # `patch(Target, {...})` reaches the same members by a different
-        # mechanism, and the contract it depends on is identical: rename the
-        # member in `web` and the patch silently stops applying. Merged into the
-        # same `(owner, method)` key deliberately — the pin answers "is this
-        # member depended on from outside", not "by which syntax".
         for target, members in record["patches"]:
             defined = index.find_class(path, target)
             if not defined or not index.in_web(defined[0]):
@@ -564,15 +494,7 @@ def measure_detailed(
 
 
 def overriders(point: str, consumer_roots=CONSUMER_ROOTS, web_src=None) -> list[tuple]:
-    """``[(scope, path, subclass), ...]`` for one ``Owner.method`` point.
 
-    The pin says *how many* scopes reach a point; narrowing one needs *which
-    files*, and grepping the method name does not answer that — a bare
-    ``_reset(`` matches ``signature_pad`` and ``socket_io``, neither of which is
-    a ``SearchModel``. Only the resolved walk knows, and it already ran to build
-    the pin. Without this the single-use entries are a number rather than a
-    worklist, which is most of what the pin is *for*.
-    """
     owner, _, method = point.rpartition(".")
     index = Index(consumer_roots, web_src)
     found = []
@@ -597,7 +519,6 @@ def provenance(detailed) -> dict[str, frozenset[str]]:
 
 
 def load_pinned() -> dict[str, frozenset[str]]:
-    """``{point: pinned scopes}``. A tagless line pins every scope."""
     pinned: dict[str, frozenset[str]] = {}
     if not PINNED.is_file():
         return pinned
@@ -646,8 +567,6 @@ def write_pinned(measured_provenance: dict[str, frozenset[str]]) -> None:
 
 
 def drift(measured_provenance, pinned, present_scopes):
-    """``(new, gone)`` as ``{scope: [point, ...]}``, judged only for the scopes
-    present. Mirrors ``js_public_surface.drift``."""
     new: dict[str, list[str]] = {}
     gone: dict[str, list[str]] = {}
     for scope in present_scopes:
@@ -663,12 +582,7 @@ def drift(measured_provenance, pinned, present_scopes):
 
 
 def unresolved(points, web_src=None) -> list[str]:
-    """Pinned points whose owning class no longer declares the method.
 
-    A rename inside ``web`` orphans its pin; without this the entry would sit
-    in the list forever describing a contract that no longer exists. Judged
-    against the tree, exactly as ``js_public_surface.unresolved`` is.
-    """
     declared: dict[str, set[str]] = {}
     src = Path(web_src or WEB / "static" / "src").resolve()
     for path in src.rglob("*.js"):
@@ -691,11 +605,7 @@ def unresolved(points, web_src=None) -> list[str]:
 def metrics(
     detailed=None, consumer_roots=CONSUMER_ROOTS, web_src=None
 ) -> dict[str, int]:
-    """The figures the docstring's MEASURED block carries.
 
-    ``subclasses`` counts overriding classes, not override sites: one subclass
-    overriding four methods is one subclass and four sites.
-    """
     if detailed is None:
         detailed = measure_detailed(consumer_roots, web_src)
     totals = {
@@ -713,16 +623,11 @@ def metrics(
 
 
 def repo_metrics() -> dict[str, int]:
-    """``metrics()`` over this repository alone — what the MEASURED block pins.
 
-    The single entry point for the docstring figures, so the gate and the test
-    that checks it cannot disagree about scope.
-    """
     return metrics(consumer_roots=REPO_ROOTS)
 
 
 def count_patch_sites(consumer_roots=CONSUMER_ROOTS, web_src=None) -> int:
-    """`patch()` calls outside `web` whose target resolves to a `web` class."""
     index = Index(consumer_roots, web_src)
     total = 0
     for path, record in index.files.items():
@@ -736,7 +641,6 @@ def count_patch_sites(consumer_roots=CONSUMER_ROOTS, web_src=None) -> int:
 
 
 def count_subclasses(consumer_roots=CONSUMER_ROOTS, web_src=None) -> int:
-    """Classes outside ``web`` whose ancestry reaches a ``web`` class."""
     index = Index(consumer_roots, web_src)
     total = 0
     for path, record in index.files.items():
@@ -790,7 +694,6 @@ def main(argv: list[str] | None = None) -> int:
 
     detailed = measure_detailed(CONSUMER_ROOTS)
     if not detailed:
-        # A gate that scanned nothing must say so rather than report success.
         parser.error("measured an empty surface — the scan reached nothing")
     measured_provenance = provenance(detailed)
 

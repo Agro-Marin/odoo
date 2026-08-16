@@ -1,44 +1,3 @@
-"""Suite/source parity gate for the ``web`` addon's JavaScript tests.
-
-HOOT derives a suite's identity from the **test** file's path, not from the path
-of the source it exercises. So when source moves and its tests do not, the suite
-id silently keeps pointing at the old shape. Nothing fails: the tests still run,
-still pass, and still report green under their old id. What breaks is selecting
-a module's tests by where its source lives.
-
-The instance this gate was written for, now paid down: ``views/fields/`` became
-a top-level ``fields/`` with seven subcategories while its 84 test files stayed
-at ``static/tests/views/fields/``, so ``@web/fields`` — the obvious selector for
-114 source files — resolved to **zero** suites and ``@web/views/fields`` to 84.
-The suites have since moved to mirror the source, and ``fields`` is out of the
-pinned set below so it cannot come back unnoticed.
-
-Neither ESLint, the layer gate, the cycle gate, nor either typecheck lock can
-see this class of drift, because no import is wrong and no file is missing.
-
-Two contracts, both drift-zero:
-
-  A. **Layer coverage.** Every top-level directory under ``static/src`` holding
-     at least one ``.js`` file has at least one ``*.test.js`` under the same
-     name in ``static/tests``. Catches "a whole layer became unaddressable".
-
-  B. **No orphan test directories.** Every directory under ``static/tests``
-     containing ``*.test.js`` has a counterpart directory under ``static/src``.
-     Catches the same drift one level down, where it starts.
-
-``KNOWN_*`` entries are today's debt, pinned so it cannot grow. They may only
-shrink — a fixed entry that is still listed fails the gate exactly like a new
-violation, so the list cannot rot into a permanent allowlist. ``EXEMPT_*`` is
-different in kind: test infrastructure that mirrors no source by design and
-never will.
-
-Usage::
-
-    python tooling/architecture/js_suite_parity.py            # human-readable report
-    python tooling/architecture/js_suite_parity.py --check    # CI mode, exit 1 on drift
-    python tooling/architecture/js_suite_parity.py --json     # machine-readable
-"""
-
 import argparse
 import json
 import re
@@ -46,39 +5,28 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-# Repo root = the directory that contains ``odoo/`` and ``addons/``. This file
-# lives at ``<root>/tooling/architecture/js_suite_parity.py``.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
+
+ADR = "0023"
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_suite_parity")
 WEB_STATIC = ROOT / "addons" / "web" / "static"
 
-# Test infrastructure: mirrors no source directory by design. Not debt.
-#   _framework  the HOOT harness itself (mock server, fixtures, setup)
-#   helpers     assertions about those helpers
-#   mock_server assertions about the mock ORM, which is harness code
-#   tours       tour definitions, driven from Python, not a HOOT suite tree
 EXEMPT_TEST_DIRS = frozenset({"_framework", "helpers", "mock_server", "tours"})
 
-# Source directories that carry no JavaScript and so cannot own a suite.
 EXEMPT_SRC_DIRS = frozenset({"scss", "@types"})
 
-# Contract A debt: a source layer with no suite of its own name.
-#   boot    main.js / start.js are covered indirectly via tests/env.test.js
 KNOWN_UNCOVERED_LAYERS = frozenset({"boot"})
 
-# Contract B debt: test directories with no same-path source directory. Each is
-# the same drift as `fields`, caught smaller. The comment names where the source
-# actually lives, so paying one down is a lookup rather than an investigation.
 KNOWN_ORPHAN_TEST_DIRS = frozenset(
     {
-        "interactions",  # -> public/interactions (public-page interactions)
-        "l10n",  # -> core/l10n
-        "modules",  # -> (root) module_loader.js + core/module_bridge.js
-        "ui/notifications",  # -> ui/notification  (singular in src)
-        "webclient/barcode",  # -> components/barcode
-        "webclient/mobile",  # -> webclient/burger_menu and siblings
+        "interactions",
+        "l10n",
+        "modules",
+        "ui/notifications",
+        "webclient/barcode",
+        "webclient/mobile",
     }
 )
 
@@ -94,7 +42,6 @@ class Finding:
 
 
 def _src_layers(web_static: Path) -> dict[str, int]:
-    """Top-level ``static/src`` directories mapped to their ``.js`` count."""
     src = web_static / "src"
     return {
         d.name: len(list(d.rglob("*.js")))
@@ -104,9 +51,6 @@ def _src_layers(web_static: Path) -> dict[str, int]:
 
 
 def _test_dirs_with_suites(web_static: Path) -> list[str]:
-    """``static/tests`` directories holding at least one ``*.test.js``, as
-    paths relative to ``tests/``. The tests root itself is excluded — files
-    directly under it (``env.test.js``) mirror ``src`` root files by design."""
     tests = web_static / "tests"
     found = []
     for d in sorted(p for p in tests.rglob("*") if p.is_dir()):
@@ -118,9 +62,6 @@ def _test_dirs_with_suites(web_static: Path) -> list[str]:
     return found
 
 
-# ``registerField("x", …)`` / ``registerFallbackField("x", …)`` and the generic
-# ``registry.category("cat").add("x", …)``. These publish a name that arch and
-# view specs resolve at runtime — the only handle a suite has on the module.
 _REGISTRATION_RE = re.compile(
     r"""register(?:Fallback)?Field\(\s*["']([^"']+)["']"""
     r"""|category\(\s*["'][^"']+["']\s*\)\s*\.\s*add\(\s*["']([^"']+)["']""",
@@ -129,27 +70,12 @@ _REGISTRATION_RE = re.compile(
 
 
 def _registered_names(js_file: Path) -> set[str]:
-    """Every registry key a source file publishes."""
     text = js_file.read_text(encoding="utf-8", errors="replace")
     return {m.group(1) or m.group(2) for m in _REGISTRATION_RE.finditer(text)}
 
 
 def registered_name_hints(web_static: Path, directories: list[str]) -> dict[str, str]:
-    """For each directory, any registry key it publishes that a suite names.
 
-    The other half of ``uncovered_directories``. That function answers "has this
-    directory a selector of its own"; this one answers "is it reached some other
-    way" — the question a reader actually has when they see a directory listed,
-    and the one whose absence turned a selectability report into a false
-    coverage alarm.
-
-    A hit is weak evidence: the name is quoted somewhere in the suites, which
-    says the widget is exercised, not that it is well asserted. It is still far
-    stronger than the path-shaped inference it replaces.
-
-    Built once for the whole corpus — re-reading the suites per directory turned
-    a sub-second report into a multi-second one.
-    """
     src, tests = web_static / "src", web_static / "tests"
     published = {d: set() for d in directories}
     for d in directories:
@@ -171,31 +97,7 @@ def registered_name_hints(web_static: Path, directories: list[str]) -> dict[str,
 
 
 def uncovered_directories(web_static: Path) -> list[tuple[str, int, int]]:
-    """Every ``static/src`` directory holding JS that no suite addresses.
 
-    A report, not a contract. Contract A is deliberately coarse — it asks only
-    whether a whole *layer* became unaddressable — so this is what sits below
-    its resolution: ``(path, js files, lines)`` for each directory reachable by
-    no ``--test-tags`` selector of its own.
-
-    A directory counts as addressed by either shape the tree actually uses: a
-    mirrored ``tests/<path>/`` holding suites, or a sibling
-    ``tests/<parent>/<name>.test.js``. Checking only the first reports ~2.5x
-    the real number, which is how this measurement first went wrong.
-
-    **This measures selectability, not coverage, and the two are easy to
-    confuse.** A 2026-08-03 audit read this list as "untested" and concluded
-    ``fields/specialized/user_groups`` — the ``res.users`` access-rights widget
-    — was a security-adjacent coverage gap. It is exercised, by
-    ``tests/webclient/res_user_group_ids_field.test.js``, which reaches it the
-    only way a registry-driven widget can be reached: by naming it in an arch
-    string (``<field widget="res_user_group_ids"/>``). No path and no import
-    relate the two, so nothing here could see it — and the directory genuinely
-    still has no selector of its own, which is what this function is about.
-
-    ``registered_name_hints()`` supplies that missing half for the report, so a
-    reader gets both facts instead of inferring the wrong one from this number.
-    """
     src, tests = web_static / "src", web_static / "tests"
     found = []
     for d in sorted(p for p in src.rglob("*") if p.is_dir()):
@@ -230,16 +132,7 @@ def find_drift(
     known_uncovered: frozenset[str] | None = None,
     known_orphans: frozenset[str] | None = None,
 ) -> tuple[list[Finding], list[Finding]]:
-    """Returns ``(new_violations, stale_known_entries)``.
 
-    Stale entries are pinned debt that has since been fixed. They fail the gate
-    too: a shrink-only list that is never shrunk is an allowlist, and the whole
-    point of pinning is that paying debt down is visible in review.
-
-    The pinned sets are parameters rather than reads of the module constants so
-    that a caller — a test over a synthetic tree, or a scan of a different
-    checkout — is not silently judged against *this* checkout's debt.
-    """
     known_uncovered = (
         KNOWN_UNCOVERED_LAYERS if known_uncovered is None else known_uncovered
     )
@@ -249,7 +142,6 @@ def find_drift(
     seen_uncovered: set[str] = set()
     seen_orphans: set[str] = set()
 
-    # Contract A — every source layer owns a suite tree of its own name.
     for layer, js_count in _src_layers(web_static).items():
         if js_count == 0:
             continue
@@ -265,7 +157,6 @@ def find_drift(
                 )
             )
 
-    # Contract B — every suite directory has a source directory behind it.
     for rel in _test_dirs_with_suites(web_static):
         if (src / rel).is_dir():
             continue
@@ -316,14 +207,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not (args.web_static / "src").is_dir():
-        # A gate that cannot find its inputs must say so rather than scan
-        # nothing and report success.
         parser.error(f"no web static tree at {args.web_static}")
 
-    # The pins describe THIS checkout's debt. Applied to a tree that is not this
-    # checkout they are meaningless, and every one of them reports as "now
-    # clean" — noise that buries the real findings for the tree actually asked
-    # about. Scan a foreign tree against no pins, and say so.
     foreign = args.web_static.resolve() != WEB_STATIC.resolve()
     pins = (frozenset(), frozenset()) if foreign else (None, None)
 

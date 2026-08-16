@@ -1,10 +1,3 @@
-"""Tests for the service-types generator's anchoring and discovery.
-
-This generator previously anchored on the *workspace* and hardcoded
-``addons/odoo/...`` beneath it, so it could not run in a repo-alone checkout at
-all — and nothing said so, because it had no tests.
-"""
-
 from pathlib import Path
 
 import generate_service_types as gen
@@ -30,7 +23,6 @@ class TestOutputPathsAreMachineIndependent:
         assert gen._rel(gen.ODOO_ROOT / "addons/web/x.ts") == Path("addons/web/x.ts")
 
     def test_rel_never_returns_an_absolute_in_tree_path(self):
-        """Output must not leak a machine layout into CI logs."""
         assert not gen._rel(gen.DEFAULT_OUTPUT).is_absolute()
 
     def test_rel_passes_through_paths_outside_the_checkout(self):

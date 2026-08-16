@@ -1,63 +1,3 @@
-"""Forced-render gate: web core must not sweep a subtree to publish a change.
-
-``component.render(true)`` re-renders the component **and its whole subtree**,
-unconditionally. That is not a stronger version of ``render()`` — it is a
-different thing, and it has two costs that are easy to miss.
-
-It defeats prop diffing. ``ListRecordRow`` documents its props as "per-render
-invalidation keys: ``t-props`` diffing skips the row when they are all
-identical". A forced render walks past that and re-renders every row regardless.
-
-**It hides unsubscribed reads.** This is the reason the gate exists rather than
-a lint preference. ``useModelWithSampleData`` used to install a blanket
-``bus.on(ModelEvent.UPDATE, () => component.render(true))`` for every view. While
-it was there, a component could read state it had never subscribed to and still
-appear correct, because something re-rendered it anyway. Removing the blanket
-(2026-08-09) surfaced exactly that in two places:
-
-* ``progress_bar_hook.js`` built ``groupInfo.activeBar`` as a getter closed over
-  ``self`` — the proxy that happened to seed the group. A component reading it
-  during render could never subscribe: the value changed and nothing
-  re-rendered. It is now a plain reactive property.
-* Four view controllers (``web_cohort``, ``web_map``, ``web_grid``,
-  ``web_gantt``) never wrapped their model in ``useState`` at all, so their
-  template reads of ``model.hasData()`` subscribed nothing.
-
-Neither was visible while a forced render was papering over it, and no other
-gate here could see them: both are questions about what a component *subscribed
-to*, which no import-graph or export-surface check can reach.
-
-A third failure mode is worth naming because it cost the most to find. A forced
-render fires ``onWillUpdateProps`` on children **even when their props are
-identical**, so derived state rebuilt from that hook silently depends on the
-force. ``GanttRenderer.computeDerivedParams()`` did, and subscribing the
-renderer without noticing left it rendering fresh output from stale mappings —
-50 tests failed with no exception raised. The fix is ``Model.updateEpoch``.
-
-Contract, over ``addons/web/static/src``:
-
-    No ``.render(true)`` except at a site pinned in ``KNOWN_FORCED`` with a
-    reason.
-
-Limits, stated so a green result is not read as more than it is:
-
-* **Web core only.** Other addons still hold ~30 forced renders; they are
-  counted and reported, never faulted. Pulling them in is a per-domain
-  judgement, and several are legitimate (imperative mutation of a non-reactive
-  instance property, resizing, third-party editors driving their own redraw).
-* **Literal ``true`` only.** ``render(force)`` where ``force`` is a variable is
-  not matched. No such call site exists in web today; if one appears, this gate
-  will not see it.
-* It proves nothing about whether a *non*-forced render is sufficient. That is a
-  question about subscriptions, and only the test suite answers it.
-
-Usage::
-
-    python tooling/architecture/js_forced_render.py            # report
-    python tooling/architecture/js_forced_render.py --check    # exit 1 on drift
-    python tooling/architecture/js_forced_render.py --json
-"""
-
 import argparse
 import json
 import re
@@ -68,8 +8,8 @@ from pathlib import Path
 from js_import_resolution import EXCLUDED_PARTS, addon_static_dirs
 from js_layer_check import ROOT
 
-# `.render(true)`, tolerating the whitespace a formatter may introduce. A
-# non-literal argument is deliberately not matched — see *Limits*.
+ADR = "0027"
+
 FORCED_RENDER = re.compile(r"\.\s*render\s*\(\s*true\s*\)")
 
 WEB_ADDON = "web"
@@ -77,8 +17,6 @@ WEB_ADDON = "web"
 
 @dataclass(frozen=True)
 class KnownForced:
-    """A pinned site, with the argument for why forcing is the right call."""
-
     file: str
     reason: str
 
@@ -99,7 +37,6 @@ KNOWN_FORCED: tuple[KnownForced, ...] = (
 
 
 def _rel(path: Path, root: Path) -> str:
-    """Path relative to ``root`` when it is inside it, absolute otherwise."""
     return (
         path.relative_to(root).as_posix()
         if path.is_relative_to(root)
@@ -123,13 +60,7 @@ class ForcedRender:
 def find_forced_renders(
     statics: dict[str, Path] | None = None, root: Path = ROOT
 ) -> tuple[list[ForcedRender], int, int]:
-    """``(unpinned findings in web, web files scanned, forced renders elsewhere)``.
 
-    ``statics`` is a parameter rather than a call to ``addon_static_dirs()`` so
-    the whole pipeline is exercisable against a synthetic tree. A gate whose
-    only evidence is "it returns clean on the real tree" cannot distinguish
-    working from scanning nothing.
-    """
     statics = addon_static_dirs() if statics is None else statics
     pinned = {k.file for k in KNOWN_FORCED}
     findings: list[ForcedRender] = []
@@ -149,7 +80,7 @@ def find_forced_renders(
                 continue
             if addon == WEB_ADDON:
                 scanned += 1
-            if "render" not in text:  # cheap reject; the regex is the authority
+            if "render" not in text:
                 continue
             rel = _rel(path, root)
             for match in FORCED_RENDER.finditer(text):
@@ -178,14 +109,10 @@ def main(argv: list[str] | None = None) -> int:
     findings, n_files, n_elsewhere = find_forced_renders()
 
     if not n_files:
-        # A gate that cannot find its inputs must say so rather than scan
-        # nothing and report success.
         print("error: no web/static/src tree found under the checkout", file=sys.stderr)
         return 2
 
     if args.count:
-        # Web core is drift-zero above; this feeds the ratchet for everywhere
-        # else, so the ~21 forced renders in other addons can only shrink.
         print(n_elsewhere)
         return 0
 

@@ -26,22 +26,22 @@ The cause was that ``BaseModel`` held two responsibilities: it is the
 attributes reached as ``self._name`` / ``self._fields``; only the class that
 *declares* them moves, and attribute lookup crosses that hop through the MRO for
 free. That matters: counting ``self.``-qualified reads in this repo's two addon
-trees (``odoo/addons/`` and ``addons/``), ``self._name`` has at least 380 sites
-and ``self._fields`` at least 335 — a change in how they are *reached* would be
-a breaking change to the most widely used surface in the framework, for no
+trees (``odoo/addons/`` and ``addons/``), ``self._name`` has about 380 sites
+and ``self._fields`` about 340 — a change in how they are *reached* would be a
+breaking change to the most widely used surface in the framework, for no
 structural gain the MRO does not already give. The sibling repos
 (``enterprise``, ``agromarin``, ``design-themes``) add several hundred more;
 they are left uncounted on purpose, because a number this file cannot
 re-measure is a number that rots. The scope above is exactly what
-``test_architecture_doc.TestCountsRestatedElsewhere`` re-derives.
+``tooling/architecture/doc_restated_counts.py`` re-derives.
 
-**A floor, not an exact pair.** The claim being made is that this surface is
-used in hundreds of places, and a floor carries that claim exactly as well as an
-equality does while staying refutable: if the count collapsed below it, the
-sentence would be false and the gate would say so. An equality would instead go
-red on any unrelated commit that adds one ``self._name`` read to an addon, which
-is a gate that reports on the calendar rather than on the claim. Raise the floor
-when it stops being interesting, not when the tree grows.
+**Stated to the ten, not to the unit.** The claim being made is that this
+surface is used in hundreds of places, and a rounded pair carries that claim
+exactly as well as an exact one while staying refutable: the gate holds the
+sentence to within 5% of the tree it describes, and rewrites the digits under
+``--update`` once it drifts further. An exact pair would instead go red on any
+unrelated commit that adds one ``self._name`` read to an addon, which is a gate
+that reports on the calendar rather than on the claim.
 
 Two declarations deliberately stay in ``BaseModel``:
 

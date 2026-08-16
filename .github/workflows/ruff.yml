@@ -92,6 +92,40 @@ jobs:
         # unrelated AttributeError satisfy a rollback test.
         run: ruff check tooling/ tests/ --no-cache --output-format=concise
 
+      - name: Lint the promoted addons at zero
+        # Same argument as the step above, for the same kind of gap.
+        #
+        # `credential`, `api_transport` and `api_ai` were written
+        # in agromarin/ and promoted into this repo so that odoo/ and
+        # enterprise/ modules could depend on them. Promotion moved them OUT of
+        # agromarin's ruff gate and INTO nothing: the `ruff` ratchet below
+        # measures `odoo/`, the core package, and the only thing covering
+        # `addons/` is the C901 step. That left 17k lines of security-relevant
+        # code — the credential vault, its Fernet mixin, HMAC/bearer
+        # verification, the rate limiters and the outbound HTTP client — with
+        # complexity coverage and no lint coverage at all. It had collected
+        # three findings by the time anyone looked (two B043, one ISC004), all
+        # now fixed.
+        #
+        # `api_ai` reproduced the gap rather than inheriting the fix: it was
+        # promoted by 222372d7ae0 and not added here, so its 4k lines carried
+        # C901 and nothing else until this line was corrected. It was still
+        # clean when that was noticed, which is the only time adding a module
+        # to a hard-zero gate costs nothing — the reason to do it in the
+        # promoting commit rather than after.
+        #
+        # Zero rather than a floor, for the reason the step above gives: all
+        # three modules are clean today, so a finding here should block rather
+        # than hide inside an aggregate. `addons/` as a whole stands at ~5.2k
+        # and wants a ratchet, not a hard zero; that is a separate decision
+        # about 618 modules and is deliberately not made here.
+        #
+        # A module promoted into this repo in future belongs on this line.
+        run: |
+          ruff check addons/credential addons/api_transport \
+              addons/api_ai \
+              --no-cache --output-format=concise
+
       - name: Run ruff
         id: ruff
         # This step is a HARD ZERO: any new lint finding in odoo/ fails CI on its

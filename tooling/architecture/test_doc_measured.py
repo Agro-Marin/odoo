@@ -46,9 +46,6 @@ class DocMeasuredTests(unittest.TestCase):
         self.assertIn("docstring says 10, measured 11", problems[0])
 
     def test_metric_missing_from_the_docstring_is_drift(self):
-        # Adding a metric to the gate without adding it to the block would
-        # otherwise pass: the block would describe less than the gate measures,
-        # which is how a docstring becomes true-but-incomplete.
         problems = doc_measured.check(self.path, {"total": 10, "files": 2, "new": 3})
         self.assertEqual(len(problems), 1)
         self.assertIn("new: missing from the docstring", problems[0])
@@ -63,9 +60,6 @@ class DocMeasuredTests(unittest.TestCase):
         self.assertTrue(changed)
         text = self.path.read_text(encoding="utf-8")
         self.assertIn("    total=11 files=3", text)
-        # The surrounding docstring is untouched — a rewrite that ate the
-        # paragraph after the block would be the obvious way for this to go
-        # wrong, and it would go unnoticed until someone read the file.
         self.assertIn("Some prose citing the MEASURED block below.", text)
         self.assertIn("More prose after the block.", text)
         self.assertIn("X = 1", text)
@@ -91,8 +85,6 @@ class DocMeasuredTests(unittest.TestCase):
             doc_measured.extract(path.read_text(encoding="utf-8"))
 
     def test_negative_values_survive_a_round_trip(self):
-        # A drift metric can legitimately be negative; parsing it as 0 (or
-        # failing to match) would silently exempt exactly the interesting case.
         doc_measured.update(self.path, {"total": -3, "files": 2})
         self.assertEqual(
             doc_measured.extract(self.path.read_text(encoding="utf-8")),

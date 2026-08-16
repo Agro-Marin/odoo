@@ -1,92 +1,5 @@
 #!/usr/bin/env python3
-"""env_surface_check.py — drift-zero gate on the Layer -> runtime ``env`` seam.
 
-``layer_check.py`` enforces the ORM layer model on **import** edges:
-``orm-layer1-below-models-and-runtime`` and ``orm-models-below-runtime`` fail CI
-if ``orm/fields``, ``orm/domain`` or ``orm/models`` import ``orm/runtime``. They
-are clean, and they always will be — because that is not how those layers reach
-the runtime. They reach it through ``self.env``, on every call, and an
-``env.registry`` or ``env._field_cache_memo`` produces **no import edge at all**.
-
-So the ORM's widest cross-layer dependency is invisible to the checker that
-guards everything around it. ``mixin_coupling_check.py`` exists for exactly this
-reason one level down (mixins collaborating through ``self``); this is the same
-argument applied to the seam between the layers and Layer 3.
-
-The measurement that motivated this gate: **Layer 1 — the layer declared
-*furthest below* the runtime — is the heaviest consumer of the runtime's
-private internals, wider than Layer 2.**
-
-    orm/fields        21 public env members + 4 unsanctioned private (10 accesses)
-    orm/models        23 public env members + 2 unsanctioned private ( 3 accesses)
-    orm/domain         4 public env members + 0
-    orm/registration   2 public env members + 0
-    orm/components                        0 + 0   (its purity claim,
-                                                   independently confirmed here)
-
-Only the **private** figures are pinned against a live run
-(``test_architecture_doc.TestRuntimeSurfaceFigures``). The public ones are
-reported, not ratcheted — and had already drifted (fields was written as 19,
-models as 21) before anyone noticed, which is the argument for the pinning
-rather than against it. ``orm/registration`` appears at all only because the
-scope stopped being ``orm/models`` alone; see ``_orm_layer_scope``.
-
-The distinct unsanctioned private names across the whole ORM number FIVE, not
-six: ``_field_depends_context`` is reached from both packages. Counting that
-union as ``orm/fields``' own figure is the arithmetic slip this note used to
-make (and ARCHITECTURE.md copied); ``test_env_surface_check`` now derives both
-numbers from a live run so the two cannot drift apart again. The inversion the
-gate exists to show is unaffected -- 4 > 2 on members, 10 > 3 on accesses.
-
-WHAT IS ENFORCED
-----------------
-
-1. **No unsanctioned private access.** ``env.<_name>`` from Layer 0/1/2 is a
-   violation unless it is one of ``SANCTIONED_PRIVATE`` or pinned in
-   ``KNOWN_VIOLATIONS``. Two private names are sanctioned by design:
-
-   * ``env._``     — the gettext translation helper. Private *spelling*, public
-                     intent; the leading underscore is the i18n convention.
-   * ``env._core`` — the curated id-level cache/compute facade (``OrmCore``).
-                     It is deliberately the sanctioned route for framework ORM
-                     code, and its whole purpose is to keep the raw
-                     ``FieldCache``/``ComputeEngine`` private to ``Transaction``.
-
-2. **Every referenced member must exist on ``Environment``.** This is the part
-   nothing currently does, and it is why the gate earns its place. Four call
-   sites reach the cache memo as ``env.__dict__["_field_cache_memo"]`` — a
-   *string key*, to skip the ``cached_property`` descriptor on a hot path. That
-   is a legitimate optimisation and it is correctly ``try/except KeyError``
-   guarded, but it is invisible to every static tool in the repo: renaming
-   ``Environment._field_cache_memo`` would leave those four sites silently
-   reading a key that can never exist, and the ``except KeyError`` fallback
-   would quietly turn the fast path into a permanent slow path. **No test would
-   fail.** This checker resolves those string keys and validates them like any
-   other attribute.
-
-``components/`` is included in the scan with an empty allow-list: it must reach
-``env`` for nothing at all, which is the runtime half of the purity claim that
-``orm-components-are-pure-python`` makes about imports.
-
-WHAT IS NOT ENFORCED
---------------------
-
-The *public* env surface is reported, not ratcheted. Layer 1 using
-``env.context`` is the design working as intended, and a gate that fired on a
-19th public member would punish ordinary work. Private reach and name validity
-are the invariants; width is a metric.
-
-USAGE
------
-
-  python tooling/architecture/env_surface_check.py            # report
-  python tooling/architecture/env_surface_check.py --check    # CI: exit 1
-  python tooling/architecture/env_surface_check.py --json
-
-exit 0 — no new violations
-exit 1 — a new private reach, or a member that does not exist on Environment
-exit 2 — usage error
-"""
 
 from __future__ import annotations
 
@@ -104,28 +17,21 @@ from _orm_layer_scope import SCOPE
 from _orm_layer_scope import iter_scope_files as _iter_scope_files
 from _repo_root import find_odoo_root
 
+ADR = "0029"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="env_surface_check")
 CORE = REPO_ROOT / "odoo"
 ENVIRONMENT_PY = CORE / "orm" / "runtime" / "environment.py"
 
-#: Re-exported for callers and for the self-test. The scope itself lives in
-#: ``_orm_layer_scope`` because ``pool_surface_check`` needs the identical
-#: answer to "what is Layer N" -- the two used to keep byte-identical copies
-#: under a comment claiming they were "deliberately identical", which nothing
-#: enforced and which had already lapsed in two places.
 __all__ = ["SCOPE", "check", "environment_members", "iter_scope_files"]
 
-#: Private ``Environment`` members that lower layers may use. See the module
-#: docstring for why each one is here.
 SANCTIONED_PRIVATE: frozenset[str] = frozenset({"_", "_core"})
 
 
 @dataclass(frozen=True)
 class Known:
-    """A tolerated private reach, pinned so it stays visible and cannot spread."""
-
-    path: str  # repo-relative source file
-    attr: str  # the private Environment member it reaches
+    path: str
+    attr: str
     reason: str
 
 
@@ -203,13 +109,6 @@ class Report:
 
 
 class _EnvReachCollector(ast.NodeVisitor):
-    """Collect ``<x>.env.<attr>`` / ``env.<attr>`` reads.
-
-    Heuristic, and deliberately so: within ``odoo/orm/**`` an attribute named
-    ``env`` is the Environment. The alternative — resolving types — buys nothing
-    here and would make the gate unmaintainable.
-    """
-
     def __init__(self) -> None:
         self.hits: list[tuple[str, int, bool]] = []
 
@@ -220,8 +119,6 @@ class _EnvReachCollector(ast.NodeVisitor):
         )
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
-        # ``env.__dict__["_field_cache_memo"]`` — resolve the string key to the
-        # member it actually names, instead of recording an opaque ``__dict__``.
         value = node.value
         if (
             isinstance(value, ast.Attribute)
@@ -231,7 +128,7 @@ class _EnvReachCollector(ast.NodeVisitor):
             and isinstance(node.slice.value, str)
         ):
             self.hits.append((node.slice.value, node.lineno, True))
-            return  # do not also record the bare ``__dict__`` attribute
+            return
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
@@ -241,13 +138,7 @@ class _EnvReachCollector(ast.NodeVisitor):
 
 
 def environment_members(source: str | None = None) -> set[str]:
-    """Every attribute reachable on an ``Environment`` instance.
 
-    Class-body names (annotations, assignments, methods, ``@property`` and
-    ``@functools.cached_property``) plus what it inherits from ``Mapping`` —
-    ``env.get`` is used by Layers 1 and 2 and is defined by the ABC, not by
-    ``Environment``, so omitting the base would produce false positives.
-    """
     text = source if source is not None else ENVIRONMENT_PY.read_text(encoding="utf-8")
     members: set[str] = set(dir(Mapping))
     for node in ast.walk(ast.parse(text)):
@@ -264,7 +155,6 @@ def environment_members(source: str | None = None) -> set[str]:
                         members.add(tgt.id)
             elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
                 continue
-        # ``__slots__ = ("cr", "uid", ...)`` if it is ever used here
         for stmt in node.body:
             if (
                 isinstance(stmt, ast.Assign)
@@ -297,16 +187,13 @@ def check(files: list[tuple[Path, str]] | None = None) -> Report:
         for attr, lineno, via_dict in collector.hits:
             reach = Reach(rel, layer, attr, lineno, via_dict)
             report.reaches.append(reach)
-            # (1) does the member exist at all?
             if attr not in report.env_members and not attr.startswith("__"):
                 report.unknown_members.append(reach)
-            # (2) unsanctioned private reach from below Layer 3?
             if reach.is_private and attr not in SANCTIONED_PRIVATE:
                 if _is_known(rel, attr):
                     report.known.append(reach)
                 else:
                     report.new.append(reach)
-            # (3) components must reach env for nothing whatsoever
             elif layer == "components":
                 report.new.append(reach)
     return report

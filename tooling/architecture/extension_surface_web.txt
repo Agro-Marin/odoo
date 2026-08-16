@@ -214,15 +214,15 @@ GroupConfigMenu.setup  odoo enterprise
 ImageField.onFileRemove  odoo
 ImageField.setup  odoo enterprise
 IntegerField.formattedValue  odoo enterprise
-Interaction.destroy  odoo enterprise design-themes
-Interaction.dynamicContent  odoo enterprise design-themes
+Interaction.destroy  odoo enterprise
+Interaction.dynamicContent  odoo enterprise
 Interaction.dynamicSelectors  odoo enterprise
 Interaction.insert  odoo
-Interaction.selector  odoo enterprise design-themes
+Interaction.selector  odoo enterprise
 Interaction.selectorHas  odoo
 Interaction.selectorNotHas  odoo
-Interaction.setup  odoo enterprise design-themes
-Interaction.start  odoo enterprise design-themes
+Interaction.setup  odoo enterprise
+Interaction.start  odoo enterprise
 Interaction.updateContent  odoo
 Interaction.willStart  odoo enterprise
 JournalDashboardGraphField.getBarChartConfig  odoo

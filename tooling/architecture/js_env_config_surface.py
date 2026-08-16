@@ -80,6 +80,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+ADR = "0022"
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_env_config_surface")
 WEB = ROOT / "addons" / "web"
 CONTRACT = WEB / "static" / "src" / "views" / "view_config.js"
@@ -92,14 +94,9 @@ CONSUMER_ROOTS = (
     ("design-themes", ROOT.parent / "design-themes"),
 )
 
-#: Files that alias `env.config` and also rebind the alias name from elsewhere,
-#: so their keys cannot be attributed. Pinned as a total, not a list: the point
-#: is that it stays at zero, not which files would be in it.
 UNANALYSABLE_BUDGET = 0
 
 _DOT = re.compile(r"env\.config\??\.([A-Za-z_$][\w$]*)")
-#: Anchored: the destructure must consume the whole right-hand side. Without the
-#: trailing delimiter this matches the prefix of `env.config.foo[0]`.
 _DESTRUCTURE = re.compile(r"\{([^}]*)\}\s*=\s*(?:this\.)?env\.config\s*[;,)\n]")
 _ALIAS = re.compile(
     r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:this\.)?env\.config\s*[;,)\n]"
@@ -109,7 +106,6 @@ _ARRAY = r"export const {name} = \[(.*?)\];"
 
 
 def declared_surface() -> tuple[set[str], set[str]]:
-    """``(owned, foreign)`` read from ``view_config.js``."""
     source = CONTRACT.read_text(encoding="utf8")
 
     def names(const: str) -> set[str]:
@@ -135,16 +131,7 @@ def _named_roots(consumer_roots=CONSUMER_ROOTS) -> list[tuple[str, Path]]:
 
 
 def _js_files(root: Path):
-    """Production JS only.
 
-    ``static/tests/`` is excluded for the reason ``js_extension_surface`` learned
-    the hard way about web's own tests: a suite asserting on a config key is not
-    a production dependency on it, and counting it makes the pin drift whenever
-    anyone edits a test. ``view_config.js`` is excluded because it *declares* the
-    surface — its prose names ``env.config.onNodeClicked`` while explaining who
-    sets it, and a contract file that reads as its own consumer would pin web as
-    reaching every key it documents.
-    """
     for path in root.rglob("*.js"):
         parts = path.parts
         if "node_modules" in parts or "lib" in parts or ".git" in parts:
@@ -157,14 +144,7 @@ def _js_files(root: Path):
 
 
 def _alias_is_rebound(source: str, alias: str) -> bool:
-    """True when ``alias`` is also assigned from something that is not the bag.
 
-    Compare the captured right-hand side rather than using a negative lookahead
-    after ``\\s*=\\s*``: ``\\s*`` can match zero-width, so the lookahead lands on
-    the space before ``this.env.config``, fails to match ``env.config`` there,
-    and reports every alias as rebound. That is how the first draft flagged both
-    of the tree's two honest alias sites as unanalysable.
-    """
     for match in re.finditer(
         rf"(?:const|let|var)\s+{re.escape(alias)}\s*=\s*([^;\n]*)", source
     ):
@@ -174,7 +154,6 @@ def _alias_is_rebound(source: str, alias: str) -> bool:
 
 
 def keys_in(source: str) -> tuple[set[str], bool]:
-    """``(keys, analysable)`` for one file's text."""
     keys = set(_DOT.findall(source))
     for block in _DESTRUCTURE.findall(source):
         for part in block.split(","):
@@ -189,7 +168,6 @@ def keys_in(source: str) -> tuple[set[str], bool]:
 
 
 def measure(consumer_roots=CONSUMER_ROOTS) -> tuple[dict[str, set[str]], int]:
-    """``(provenance, unanalysable)`` — ``{key: {scope, ...}}``."""
     provenance: dict[str, set[str]] = defaultdict(set)
     unanalysable = 0
     for scope, root in _named_roots(consumer_roots):
@@ -251,7 +229,6 @@ def write_pinned(provenance: dict[str, set[str]]) -> None:
 
 
 def drift(provenance, pinned, present_scopes):
-    """``(new, gone)`` as ``{scope: [key, ...]}``, judged only for present scopes."""
     new: dict[str, list[str]] = {}
     gone: dict[str, list[str]] = {}
     for scope in present_scopes:
@@ -265,7 +242,6 @@ def drift(provenance, pinned, present_scopes):
 
 
 def undeclared(provenance, owned: set[str], foreign: set[str]) -> dict[str, list[str]]:
-    """Keys reached but named by neither list, by scope."""
     result: dict[str, list[str]] = defaultdict(list)
     for key, scopes in sorted(provenance.items()):
         if key in owned or key in foreign:

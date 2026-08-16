@@ -77,6 +77,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+ADR = "0022"
+
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_arch_info_surface")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 VIEWS = WEB_SRC / "views"
@@ -90,8 +92,6 @@ CONSUMER_ROOTS = (
     ("design-themes", ROOT.parent / "design-themes"),
 )
 
-#: View directories whose reads legitimately name another view type's archInfo.
-#: ``{directory: {key: reason}}``. Each entry is a decision, not a suppression.
 CROSS_VIEW_READS = {
     "form": {
         "limit": (
@@ -112,7 +112,6 @@ _ARRAY = r"export const {name} = \[(.*?)\];"
 
 
 def declared_surface() -> tuple[set[str], set[str]]:
-    """``(owned, foreign)`` template-scope keys, read from ``arch_info.js``."""
     source = CONTRACT.read_text(encoding="utf8")
 
     def names(const: str) -> set[str]:
@@ -157,12 +156,7 @@ def analyse(paths: list[Path]) -> list[dict]:
 
 
 def view_types() -> dict[str, Path]:
-    """``{name: directory}`` for every view directory holding JS.
 
-    Tolerates a missing tree so an emptied checkout reaches ``main``'s explicit
-    refusal instead of dying in a traceback — the empty-tree sweep reads the
-    exit code either way, but a gate that finds nothing should say so.
-    """
     if not VIEWS.is_dir():
         return {}
     return {

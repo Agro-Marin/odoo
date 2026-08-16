@@ -1,71 +1,5 @@
 #!/usr/bin/env python3
-"""generate_service_types.py — emit ``@types/services.d.ts`` from JS source.
 
-Produces ``addons/web/static/src/@types/services.d.ts`` from
-the actual ``registry.category("services").add(...)`` call sites under
-``addons/web/static/src/``.  The hand-maintained file drifts
-silently when a service is added or moved (one observed drift on
-2026-05-10: ``httpService`` was imported from ``@web/core/network/http_service``
-but the registration lives in ``@web/core/network/http_service``).  Pairs
-with ``tooling/typecheck/scope_gate.py``: a typed service registry resolves
-``useService("orm")`` to ``ORM`` instead of ``any``, shrinking the
-TS18047/TS18048 baseline.
-
-USAGE
------
-
-All paths below are relative to the odoo checkout root (the directory
-holding ``odoo-bin``); nothing here assumes a particular machine.
-
-Regenerate the file in place::
-
-    python tooling/codegen/generate_service_types.py
-
-Convenience wrapper (matches ``regen_model_types.sh``)::
-
-    ./tooling/codegen/regen_service_types.sh
-
-CI freshness check (paired with the existing scope_gate pattern)::
-
-    python tooling/codegen/generate_service_types.py --check
-    # exits non-zero if the committed file disagrees with the regenerated one
-
-DESIGN CHOICES
---------------
-
-- **Static parsing, not runtime introspection**: services live in JS
-  source; there is no Python-side service registry to introspect.  The
-  registration grammar is highly regular (one of two
-  ``registry.category("services").add(...)`` patterns), so a regex
-  parser is robust enough.  Trade-off: anonymous inline-object
-  registrations (``registry.category("services").add("name", { start(){} })``)
-  cannot be typed — they have no exported symbol to import — and are
-  silently skipped.  None of the in-tree web services use that pattern;
-  the few outside of web (``stock_warehouse``, ``mass_mailing.themes``,
-  ``clear_caches_on_approval_rules_change``) are out of scope for v1.
-
-- **web module only for v1**: matches the current ``services.d.ts``
-  scope.  Other addons (mail, point_of_sale, voip, web_studio, ...)
-  register 130+ services that are not currently typed.  Adding them is
-  a follow-up — each addon should own its own ``services.d.ts``
-  contribution via TS declaration merging, mirroring the per-module
-  model types already produced by ``generate_model_types.py``.
-
-- **Tests excluded**: registrations under ``/tests/`` are mocks for
-  test isolation (``bus/static/tests/multi_tab_*.test.js``), not
-  production services.  Including them would surface mock factories in
-  IDE autocomplete for application code.
-
-- **Directory-derived categories**: imports are grouped by top-level
-  directory (``core/``, ``public/``, ``services/``, ``ui/``, ``views/``,
-  ``webclient/``, ``fields/``, ``components/``).  Mirrors the layout of
-  the previous hand-maintained file so the regenerate diff is small
-  and reviewable on first roll-out.
-
-- **No regeneration order dependency**: the script reads JS source and
-  emits TypeScript; it never reads back its own output.  Safe to delete
-  ``services.d.ts`` and regenerate from scratch.
-"""
 
 from __future__ import annotations
 
@@ -78,9 +12,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-# Anchored on the checkout root, not the workspace: the previous `parents[6]`
-# resolved to the workspace and hardcoded `addons/odoo/...` beneath it, so this
-# generator could not run in a repo-alone CI checkout at all.
 ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="generate_service_types")
 WEB_SRC_ROOT = ODOO_ROOT / "addons/web/static/src"
 DEFAULT_OUTPUT = WEB_SRC_ROOT / "@types/services.d.ts"
@@ -104,7 +35,6 @@ _SKIP_FRAGMENTS = ("/tests/", "/legacy/")
 
 
 def _rel(path: Path) -> Path:
-    """Path relative to the checkout root, so output never leaks a machine layout."""
     try:
         return path.resolve().relative_to(ODOO_ROOT)
     except ValueError:
@@ -125,8 +55,6 @@ _CATEGORY_ORDER: list[tuple[str, str]] = [
 
 @dataclass(frozen=True, order=True)
 class Registration:
-    """One ``registry.category("services").add(key, factory)`` call site."""
-
     key: str
     factory_var: str
     import_path: str
@@ -135,46 +63,27 @@ class Registration:
 
 
 def _js_to_import_path(file: Path) -> str:
-    """Convert a JS file path to its ``@web/...`` import specifier.
 
-    ``addons/odoo/addons/web/static/src/core/network/orm_service.js``
-    → ``@web/core/network/orm_service``
-    """
     rel = file.relative_to(WEB_SRC_ROOT)
     return "@web/" + rel.with_suffix("").as_posix()
 
 
 def _top_level_dir(file: Path) -> str:
-    """First path segment under ``static/src/`` (e.g. ``services``, ``ui``)."""
     rel = file.relative_to(WEB_SRC_ROOT)
     return rel.parts[0] if rel.parts else ""
 
 
 def _find_export(text: str, var_name: str) -> bool:
-    """True iff the file declares ``export const <var_name> = ...``."""
     return any(match.group(1) == var_name for match in _EXPORT_CONST_RE.finditer(text))
 
 
 def _strip_jsdoc_casts(text: str) -> str:
-    """Remove ``/** @type {X} */ (name)`` wrappers, leaving the bare name.
 
-    Lets the registration regex stay simple (bare identifier as second
-    argument) instead of needing to match the cast inline.  Safe because
-    the result is only fed to the registration regex — we don't try to
-    re-parse the modified source for any other purpose.
-    """
     return _JSDOC_CAST_RE.sub(r"\1", text)
 
 
 def _build_registration_re(aliases: set[str]) -> re.Pattern[str]:
-    """Build the registration regex for one file's set of aliases.
 
-    The alternation covers both the direct chain
-    (``registry.category("services").add``) and any per-file alias
-    variable (``X.add``).  Aliases are anchored with ``\\b`` so an
-    alias named ``services`` does not also match the substring
-    ``services`` inside ``serviceRegistry``.
-    """
     alts = [_DIRECT_CHAIN]
     alts.extend(rf"\b{re.escape(alias)}\b" for alias in sorted(aliases))
     chain = "(?:" + "|".join(alts) + ")"
@@ -189,17 +98,7 @@ def _build_registration_re(aliases: set[str]) -> re.Pattern[str]:
 
 
 def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
-    """Walk web/static/src/ and collect every service registration.
 
-    Three call patterns are recognised: direct chain, multi-line chain,
-    and aliased registry variable.  JSDoc type-cast wrappers around the
-    factory argument are stripped during preprocessing.  Anonymous
-    inline-object registrations (no exported symbol to import) are
-    skipped with a warning.
-
-    :param src_root: filesystem root to scan (defaults to web/static/src).
-    :return: registrations sorted by service key.
-    """
     found: list[Registration] = []
     for js_file in sorted(src_root.rglob("*.js")):
         rel_str = "/" + js_file.relative_to(src_root).as_posix()
@@ -239,47 +138,14 @@ def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
 
 
 def _quote_if_needed(key: str) -> str:
-    """Wrap a service key in double quotes if it isn't a bare identifier.
 
-    Keys with dots (``"web.frequent.emoji"``) or starting with a digit
-    must be quoted; others are emitted bare.  TS accepts both, but bare
-    identifiers are slightly easier to read.
-    """
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
         return key
     return f'"{key}"'
 
 
 def render(registrations: list[Registration]) -> str:
-    """Render the full ``services.d.ts`` content for the given inventory.
 
-    Layout (matches the previous hand-maintained file):
-
-    ::
-
-        declare module "services" {
-            import { ServicesRegistryShape } from "registries";
-
-            // Core infrastructure services
-            import { fooService } from "@web/core/...";
-
-            // Domain services
-            import { barService } from "@web/services/...";
-
-            ...
-
-            type ExtractServiceFactory<T extends ServicesRegistryShape> =
-                Awaited<ReturnType<T["start"]>>;
-            export type ServiceFactories = {
-                [P in keyof Services]: ExtractServiceFactory<Services[P]>;
-            };
-
-            export interface Services {
-                "service.key": typeof factoryVariable;
-                ...
-            }
-        }
-    """
     out: list[str] = []
     out.append('declare module "services" {\n')
     out.append('    import { ServicesRegistryShape } from "registries";\n')

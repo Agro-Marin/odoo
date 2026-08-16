@@ -1,57 +1,3 @@
-"""Method-naming vocabulary gate: one verb per operation (§2.4).
-
-``doc/coding_guidelines.rst`` §2.4 fixes one canonical verb per operation and
-abolishes the synonyms that used to compete with it. This gate counts the
-definitions still spelled the abolished way, so the backlog is a number the
-shared ratchet can pin rather than a claim in a document.
-
-Why a count and not a hard failure
-----------------------------------
-The tree opens with hundreds of these. A blocking gate would fail every build
-on day one and be switched off within a week; the ratchet instead freezes the
-number where it stands, fails on any increase, and makes each cleanup batch
-lower the floor permanently. That is the same shape ``jsfunclen`` and
-``jsserviceshape`` use::
-
-    python tooling/architecture/naming_vocabulary.py --count \\
-        | xargs python tooling/ratchet/ratchet.py naming --count
-
-What it deliberately does NOT count
------------------------------------
-Three §2.4 rules are real but not mechanically decidable, and a ratchet number
-nobody can lower by reading the rule is a number people learn to ignore:
-
-* **The ``_get_``/``_prepare_`` split** (1,681 candidate definitions). §2.4's
-  discriminator is *"does the return value feed create()/write()/Command"* —
-  a question about the caller, not the name. Counting every payload-shaped
-  ``get_*`` would pin ~1,681 of which an unknown fraction are correct as-is.
-* **The EXEC verbs** (``_do_``, ``_run_``, ``_perform_``, ``_execute_``,
-  ``_process_``, ``_handle_``). §2.4 ships this rule marked *provisional*; the
-  replacement is "name the domain operation", which no script can generate.
-* **``_set_`` vs ``_update_``.** Also *provisional* in §2.4, and a near-even
-  368/357 split. The boundary moves; the baseline should not.
-
-``_build_``/``_make_``/``_compose_``/``_construct_`` are counted **only** on
-payload-shaped names (``_vals``, ``_values``, ``_data``, ``_dict``, ``_domain``,
-``_context``, ``_defaults``, ``_list``, ``_args``, ``_params``). ``_build_url``
-is not a payload builder and §2.4's Payload row does not reach it; scoping by
-suffix keeps the count to cases the rule actually decides. The other abolished
-verbs have no such ambiguity and are counted outright.
-
-Scope is the odoo checkout — ``odoo/`` and ``addons/`` — matching the ruff
-ratchet, which also measures this repo only. ``enterprise`` and ``agromarin``
-are separate repositories and need their own baselines; ``--roots`` points the
-same measurement at them.
-
-Usage::
-
-    python tooling/architecture/naming_vocabulary.py            # report
-    python tooling/architecture/naming_vocabulary.py --count    # the number only
-    python tooling/architecture/naming_vocabulary.py --json
-    python tooling/architecture/naming_vocabulary.py --verb validate
-    python tooling/architecture/naming_vocabulary.py --roots ../enterprise
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -65,11 +11,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-# Located by marker, not by counting parents — see _repo_root.
+ADR = "0033"
+
 ROOT = find_odoo_root(Path(__file__).resolve())
 SCAN_ROOTS = ("odoo", "addons")
 
-# Directories holding no model code, or code that is not ours to rename.
 SKIP_DIRS = frozenset(
     {".git", "node_modules", "__pycache__", ".mypy_cache", "static", "lib", "vendored"}
 )
@@ -87,7 +33,6 @@ PAYLOAD_SUFFIXES = (
     "_params",
 )
 
-# abolished verb -> (canonical replacement, only when payload-shaped)
 ABOLISHED: dict[str, tuple[str, bool]] = {
     "build": ("_prepare_", True),
     "make": ("_prepare_", True),
@@ -109,13 +54,6 @@ ABOLISHED: dict[str, tuple[str, bool]] = {
     "purge": ("_remove_", False),
 }
 
-# Verbs §2.4 reserves rather than abolishes, because each is a precise term of
-# art borrowed from a layer below the ORM. Measuring them was tried and
-# reverted: the first run flagged `_drop_table` / `_drop_column` (SQL DDL),
-# `_insert_cache` / `insert_rows` (SQL DML), `push_protection` (a stack push)
-# and `discard_field` (the `set.discard` contract, where discard-vs-remove is a
-# real distinction, not a synonym). Renaming any of them to `_remove_*` /
-# `_add_*` would destroy information rather than standardise it.
 RESERVED = {
     "drop": "SQL DDL",
     "insert": "SQL DML",
@@ -137,12 +75,11 @@ class Violation:
 
 
 def classify(name: str) -> tuple[str, str] | None:
-    """Return ``(verb, canonical)`` if ``name`` opens with an abolished verb."""
     if name.startswith("__") and name.endswith("__"):
         return None
     stem = name.lstrip("_")
     verb, _, rest = stem.partition("_")
-    if not rest:  # a bare verb ("create", "write") is an ORM hook, not a name we own
+    if not rest:
         return None
     entry = ABOLISHED.get(verb)
     if entry is None:
@@ -157,20 +94,11 @@ MODEL_BASES = frozenset({"Model", "TransientModel", "AbstractModel", "BaseModel"
 
 
 def is_model_class(node: ast.ClassDef) -> bool:
-    """Is this an Odoo model class?
 
-    §2.4 governs *model* method naming. The framework packages below the ORM —
-    ``odoo/db``, ``odoo/http``, ``odoo/tools``, ``odoo/orm`` internals — speak
-    SQL and Python data-structure vocabulary legitimately, and holding them to a
-    business-operation verb list produces exactly the false positives that
-    teach people to ignore a gate.
-    """
     for base in node.bases:
         name = base.attr if isinstance(base, ast.Attribute) else getattr(base, "id", "")
         if name in MODEL_BASES:
             return True
-    # Inheritance-only extensions (`class SaleOrder(models.Model)` is the norm,
-    # but `_inherit` alone appears in older files and in mixin re-openings).
     return any(
         isinstance(stmt, ast.Assign)
         and any(
@@ -197,7 +125,6 @@ def _python_files(roots: list[Path]) -> list[Path]:
 
 
 def _display(path: Path) -> Path:
-    """Repo-relative where possible — ``--roots`` may point outside this checkout."""
     try:
         return path.relative_to(ROOT)
     except ValueError:
@@ -205,13 +132,7 @@ def _display(path: Path) -> Path:
 
 
 def measure(roots: list[Path] | None = None) -> list[Violation]:
-    """Every class-level method whose name opens with an abolished verb.
 
-    Raises ``RuntimeError`` rather than returning an empty list when there is
-    nothing to scan. An empty scan prints 0, and 0 against a ratchet floor of
-    several hundred reads exactly like a tree that fixed them all — the failure
-    mode this gate exists to prevent.
-    """
     roots = roots or [ROOT / r for r in SCAN_ROOTS]
     files = _python_files(roots)
     if not files:
@@ -225,7 +146,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError, UnicodeDecodeError:
-            continue  # not ours to parse; ruff owns syntax
+            continue
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef) or not is_model_class(node):
                 continue

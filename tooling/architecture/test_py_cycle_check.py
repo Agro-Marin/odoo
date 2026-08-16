@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for ``py_cycle_check.py``.
 
-A cycle gate that cannot detect a cycle is decoration, and this one has two ways
-to be quietly wrong, both pinned below:
-
-* **Counting a deferred import.** A function-local import is the sanctioned way
-  to break a cycle in Python. If the collector counted it, the gate would report
-  the framework as tangled exactly where it has been *untangled* — and every
-  seam that exists to fix this problem would look like the problem.
-* **Missing a real cycle**, or reporting one that is not there. Tarjan is easy
-  to get subtly wrong on self-loops and on nested components, so both are tested
-  against hand-built graphs rather than only against the live tree.
-
-``TestPinsAreLive`` covers the third failure mode, which is the one that rots
-silently: a pinned cycle that has since been broken keeps the gate green while
-claiming debt that no longer exists.
-
-Run directly (``python tooling/architecture/test_py_cycle_check.py``) or under
-pytest.
-"""
 
 from __future__ import annotations
 
@@ -44,7 +25,6 @@ class TestEdgeCollection(unittest.TestCase):
         self.assertIn("a.b", _imports("import a.b\n"))
 
     def test_function_local_import_is_not_an_edge(self):
-        """The deferred-import seam must not be reported as coupling."""
         self.assertEqual(
             _imports("def f():\n    from a.b import C\n    return C\n"), []
         )
@@ -114,7 +94,6 @@ class TestCycleDetection(unittest.TestCase):
         self.assertEqual(self._sccs(edges), {("a", "b"), ("x", "y")})
 
     def test_a_shared_node_does_not_merge_distinct_cycles(self):
-        # b is reachable from both, but only one component is cyclic.
         edges = {"a": {"b"}, "b": {"a"}, "c": {"b"}}
         self.assertEqual(self._sccs(edges), {("a", "b")})
 
@@ -129,17 +108,12 @@ class TestAgainstTheRealTree(unittest.TestCase):
         )
 
     def test_it_actually_scanned_something(self):
-        """A path typo would make an empty graph look like a clean one."""
         report = pcc.check()
         self.assertGreater(report.modules, 200, "core modules not found")
         self.assertGreater(report.edges, 500, "no import edges resolved")
 
     def test_the_orm_is_acyclic(self):
-        """The most layered subsystem in the tree, and it has no cycles at all.
 
-        Worth asserting rather than only observing: it is the property the whole
-        four-layer decomposition exists to produce.
-        """
         report = pcc.check()
         orm_cycles = [
             c for c in report.cycles if any(m.startswith("odoo.orm") for m in c)
@@ -155,15 +129,6 @@ class TestAgainstTheRealTree(unittest.TestCase):
 
 
 class TestTestFrameworkIsInTheGraph(unittest.TestCase):
-    """``odoo/tests/`` is the shipped test framework, not a test suite.
-
-    A "drop any path with a ``tests`` component" filter removed all 17 of its
-    modules, so the gate reported on 323 modules and called that the core.
-    ``layer_check`` had the identical bug and fixed it at
-    ``_CORE_TEST_FRAMEWORK_PACKAGE``; nothing propagated the lesson here, and
-    the cost was a real strongly-connected component no gate had ever seen.
-    """
-
     FRAMEWORK = (
         "odoo.tests.common",
         "odoo.tests.case",
@@ -192,23 +157,16 @@ class TestTestFrameworkIsInTheGraph(unittest.TestCase):
         self.assertEqual(leaked[:5], [], "a real test suite leaked into the graph")
 
     def test_is_test_file_rule(self):
-        # framework code
         self.assertFalse(pcc._is_test_file(("tests", "common.py"), "common.py"))
-        # the framework's own tests
         self.assertTrue(
             pcc._is_test_file(("tests", "test_cursor.py"), "test_cursor.py")
         )
-        # an ordinary suite anywhere else
         self.assertTrue(pcc._is_test_file(("orm", "tests", "x.py"), "x.py"))
         self.assertTrue(pcc._is_test_file(("orm", "conftest.py"), "conftest.py"))
         self.assertFalse(pcc._is_test_file(("orm", "fields", "base.py"), "base.py"))
 
     def test_excluded_subpackages_match_only_at_the_top_level(self):
-        """``EXCLUDED_SUBPACKAGES`` names subpackages OF ``odoo/``.
 
-        A set intersection matched the name at any depth, so a future
-        ``odoo/<anything>/addons/`` would have vanished from the graph.
-        """
         self.assertNotIn("odoo.tools", str(pcc.EXCLUDED_SUBPACKAGES))
         modules, _edges, _lines = pcc.build_graph()
         self.assertTrue(any(m.startswith("odoo.tools") for m in modules))
@@ -216,7 +174,6 @@ class TestTestFrameworkIsInTheGraph(unittest.TestCase):
 
 class TestScanIsWiderThanBefore(unittest.TestCase):
     def test_module_count_includes_the_framework(self):
-        """Guards the regression directly: 323 was the count without it."""
         report = pcc.check()
         self.assertGreaterEqual(
             report.modules,

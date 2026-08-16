@@ -5,7 +5,7 @@ Several packages in the framework core document themselves with a per-module
 table — `odoo/db/`, `odoo/http/` and `odoo/upgrade_code/` under "Module map",
 `odoo/_monkeypatches/` under "Patch Index"; `PACKAGE_INDEXES` below is the
 authoritative list.  They are the best documentation in the tree, and they were
-the *least* protected: `subsystem_map_check.py` gates `ARCHITECTURE.md`'s
+the *least* protected: `subsystem_map_check.py` gates `module.md`'s
 top-level map, `doc_link_gate.py` proves a referenced file exists, and neither
 looks inside a package README.  A module added to `odoo/db/` appears in no
 index until someone remembers, and `db/README.md` explicitly invites additions
@@ -48,72 +48,34 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
-# Located by marker, not by counting parents — see _repo_root. The
-# ``parent.parent.parent`` this replaces resolved correctly only while the file
-# stayed three levels down, which is exactly the drift the shared anchor exists
-# to prevent.
+ADR = "0030"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="package_index_check")
 CORE_ROOT = REPO_ROOT / "odoo"
 
-#: ``package -> (readme, heading that introduces its module index)``.
-#:
-#: Adding a package here opts it into the gate. Keep the heading text exact —
-#: it is the anchor that separates the inventory from the README's other
-#: tables (see the module docstring on why that matters).
 PACKAGE_INDEXES: dict[str, tuple[str, str]] = {
     "db": ("README.md", "## Module map"),
     "_monkeypatches": ("README.md", "## Patch Index"),
     "http": ("README.md", "## Module map"),
-    # The dated rewrite scripts. Their stems (`18.1-00-sql-constraint`) are not
-    # importable identifiers, which is why _ROW_RE had to stop assuming they
-    # were: before that, an inventory here would have matched zero rows and
-    # enforced nothing.
     "upgrade_code": ("README.md", "## Module map"),
 }
 
-#: Core packages that ship a README with **no** module inventory, so there is
-#: nothing for this gate to check. Listed rather than merely absent because
-#: ``PACKAGE_INDEXES`` is an inclusion list: a package outside it cannot fail,
-#: so a new README carrying an inventory would be gated by nothing and no one
-#: would notice. ``test_every_core_readme_is_classified`` forces the choice.
-#:
-#: Empty today — every core README carries an inventory.
 READMES_WITHOUT_AN_INDEX: frozenset[str] = frozenset()
 
-#: Listed-but-not-required: the package's own module.
 OPTIONAL_MODULES = frozenset({"__init__"})
 
-#: A markdown table row whose first cell is a backticked file name, e.g.
-#: ``| `cursor.py` | … |``. Anchored to the row start so a backticked module
-#: mentioned mid-prose is not mistaken for an inventory entry.
-#: The name charset must agree with :func:`actual_modules`, which reports
-#: ``p.stem`` for every ``*.py`` in the package — any filename, not just an
-#: importable identifier. It used to be ``[A-Za-z_][A-Za-z0-9_]*``, which cannot
-#: match a dated rewrite script such as ``18.1-00-sql-constraint.py``: the stem
-#: starts with a digit and contains dots and hyphens. The consequence was not a
-#: false failure but a silent one — a README for ``odoo/upgrade_code/`` would
-#: have looked like an inventory, matched zero rows, and enforced nothing, which
-#: is the failure mode this whole checker exists to prevent one level up.
-#:
-#: ``/`` stays excluded so a backticked *path* (``| `db/cursor.py` |``) is not
-#: read as a module name; the ``^\|\s*`` anchor already keeps a module mentioned
-#: mid-prose out.
 _ROW_RE = re.compile(r"^\|\s*`(?P<name>[^`/]+)\.py`")
 
-#: A markdown ATX heading, with its level.
 _HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s")
 
 
 @dataclass
 class PackageReport:
-    """One package's verdict."""
-
     package: str
     listed: set[str] = field(default_factory=set)
     actual: set[str] = field(default_factory=set)
-    missing: list[str] = field(default_factory=list)  # in tree, not in index
-    phantom: list[str] = field(default_factory=list)  # in index, not in tree
-    #: (claim, stated, measured) for any count the README restates about itself
+    missing: list[str] = field(default_factory=list)
+    phantom: list[str] = field(default_factory=list)
     wrong_counts: list[tuple[str, int, int]] = field(default_factory=list)
 
     @property
@@ -123,8 +85,6 @@ class PackageReport:
 
 @dataclass
 class Report:
-    """The gate's verdict across every configured package."""
-
     packages: list[PackageReport] = field(default_factory=list)
 
     @property
@@ -133,16 +93,7 @@ class Report:
 
 
 def extract_section(text: str, heading: str) -> list[str]:
-    """Return the lines under ``heading``, up to the next heading of its level.
 
-    Sub-headings *deeper* than ``heading`` stay inside the section — the patch
-    index is split into ``### Standard Library Patches``, ``### Core Patches``
-    and so on, and all of them are part of the one inventory.
-
-    :raises ValueError: if the heading is absent. A checker that silently finds
-        no section would report a clean inventory of nothing, which is the
-        failure mode the whole file exists to prevent.
-    """
     lines = text.splitlines()
     try:
         start = next(i for i, ln in enumerate(lines) if ln.strip() == heading)
@@ -160,30 +111,15 @@ def extract_section(text: str, heading: str) -> list[str]:
 
 
 def listed_modules(section: list[str]) -> set[str]:
-    """Return the module stems named by the table rows of ``section``."""
     return {match.group("name") for line in section if (match := _ROW_RE.match(line))}
 
 
 def actual_modules(package_dir: Path) -> set[str]:
-    """Return the module stems actually present in ``package_dir``."""
     if not package_dir.is_dir():
         return set()
     return {p.stem for p in package_dir.glob("*.py")}
 
 
-#: Counts a README states *about its own package*, as
-#: ``{regex with one int group: how to measure it}``. The ``_monkeypatches``
-#: Statistics block said "12 patches" against a directory holding 14, and
-#: nothing read it — the gate was scoped to the index section.
-#:
-#: **A registered pattern that matches nothing is an error**, not a skip. This
-#: used to ``continue``, which meant the check was one reformat away from
-#: silently retiring itself: changing ``**Total**: 15 files`` to
-#: ``**Total:** 15 files`` left the count wrong at 99 and the gate green.
-#: Registering a pattern is a claim that the README states that count; if it
-#: stops stating it, delete the entry deliberately. Same policy as
-#: :func:`extract_section`, which raises rather than report a clean inventory of
-#: nothing — and for the same reason.
 SELF_COUNTS: dict[str, dict[str, str]] = {
     "_monkeypatches": {
         r"\*\*Total\*\*: (\d+) files": "files",
@@ -193,11 +129,8 @@ SELF_COUNTS: dict[str, dict[str, str]] = {
 
 
 def _measure(kind: str, package_dir: Path) -> int:
-    """Measure one self-stated count from the directory."""
     stems = {p.stem for p in package_dir.glob("*.py")} - OPTIONAL_MODULES
     if kind == "patches":
-        # A leading underscore marks a helper, not a patch (see the package
-        # docstring); patch_init skips them.
         return sum(not s.startswith("_") for s in stems)
     if kind == "files":
         return len(stems)
@@ -205,7 +138,6 @@ def _measure(kind: str, package_dir: Path) -> int:
 
 
 def check(core_root: Path | None = None, indexes: dict | None = None) -> Report:
-    """Run the gate over every configured package."""
     core_root = core_root or CORE_ROOT
     indexes = PACKAGE_INDEXES if indexes is None else indexes
     report = Report()
@@ -245,7 +177,6 @@ def check(core_root: Path | None = None, indexes: dict | None = None) -> Report:
 
 
 def render(report: Report) -> str:
-    """Render the human-readable report."""
     out: list[str] = []
     out.append("Package README index check")
     out.append("=" * 64)

@@ -1,14 +1,4 @@
-"""Tests for the JS import-cycle checker.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_js_cycle_check.py
-"""
-
-import js_cycle_check as jcc  # sys.path set by conftest.py
-
-# --- SCC detection: synthetic graphs, no filesystem ---
+import js_cycle_check as jcc
 
 
 def _cycles(graph):
@@ -26,8 +16,6 @@ def test_a_two_module_cycle_is_found():
 
 
 def test_the_py_js_shape_is_found_as_one_component():
-    # The real six-module component this gate was written for: py_date reaches
-    # py_builtin through py_args, and py_builtin reaches py_date back.
     graph = {
         "py_args": ["py_builtin"],
         "py_builtin": ["py_compare", "py_date", "py_utils"],
@@ -43,9 +31,6 @@ def test_the_py_js_shape_is_found_as_one_component():
 
 
 def test_breaking_the_back_edge_removes_the_cycle():
-    # What the fix did: py_args stopped importing py_builtin (EvaluationError
-    # moved to a leaf), which drops py_date/py_timedelta/py_utils out of the
-    # component and leaves a DAG.
     graph = {
         "py_args": ["py_errors"],
         "py_builtin": ["py_date", "py_utils", "py_type_name"],
@@ -75,12 +60,7 @@ def test_edges_are_restricted_to_the_component():
 
 
 def test_dangling_targets_are_ignored():
-    # An import of a module that is not in the graph (another addon, a lib)
-    # must not crash or invent an edge.
     assert _cycles({"a": ["not_scanned"], "b": []}) == []
-
-
-# --- specifier resolution ---
 
 
 def test_relative_specifier_resolves_within_the_addon():
@@ -112,8 +92,6 @@ def test_addon_alias_resolves():
 
 
 def test_a_cross_addon_import_resolves_to_the_other_addon():
-    # The whole point of widening past `web`: an edge from mail into web is a
-    # real edge, and so is one from mail into mail.
     assert (
         jcc._resolve("@web/core/registry", "mail/core/common/store_service")
         == "web/core/registry"
@@ -121,7 +99,6 @@ def test_a_cross_addon_import_resolves_to_the_other_addon():
 
 
 def test_specifier_escaping_the_src_root_is_not_first_party():
-    # `@web/../lib/...` and `@web/../tests/...` leave static/src entirely.
     assert jcc._resolve("@web/../lib/hoot/hoot", "web/core/domain") is None
 
 
@@ -144,9 +121,6 @@ def test_every_addon_with_client_source_is_scanned():
     assert dirs["web"].name == "src" and dirs["web"].parent.name == "static"
 
 
-# --- the drift-zero contract itself, against the real tree ---
-
-
 def test_no_new_cycles_in_the_web_addon():
     new, _known = jcc.check()
     assert new == [], "new JS import cycle(s): " + "; ".join(
@@ -155,8 +129,6 @@ def test_no_new_cycles_in_the_web_addon():
 
 
 def test_every_known_cycle_still_exists():
-    # A pinned cycle that has since been broken is stale debt: drop the entry
-    # so the gate keeps meaning what it says.
     _new, known = jcc.check()
     found = {frozenset(c.modules) for c in known}
     for entry in jcc.KNOWN_CYCLES:
@@ -169,7 +141,6 @@ def test_known_cycles_carry_a_reason():
 
 
 def test_the_gate_refuses_a_tree_it_cannot_find(tmp_path, monkeypatch):
-    # See test_layer_check for why every gate now proves it found its inputs.
     import pytest
 
     monkeypatch.setattr(jcc, "iter_source_files", list)

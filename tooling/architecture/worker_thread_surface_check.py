@@ -1,53 +1,3 @@
-"""Gate the framework's *untyped* reach into worker-thread bookkeeping.
-
-Odoo stashes per-request identity — ``dbname``, ``uid``, ``url``, the SQL
-counters, ``cursor_mode`` — as attributes on the ``threading.Thread`` object,
-and framework infrastructure (the logger, the profilers, the WSGI handler)
-reads them back. ``odoo/libs/worker_thread.py`` declares that contract once as
-the :class:`WorkerThread` Protocol and hands it out through
-``current_worker_thread()``, so the readers are typed and a checker can see the
-attribute set. The bare idiom it replaces —
-
-    threading.current_thread().dbname
-    getattr(threading.current_thread(), "cursor_mode", None)
-
-— is invisible to the type checker (the attribute is undeclared on
-``threading.Thread``) and to ``env_surface_check`` / ``layer_check`` (it is not
-an ``env`` access nor an import). Nothing stopped a new one from creeping in,
-and the audit that added the Protocol left the last readers unconverted.
-
-This gate closes that. It inventories every *inline* access to a
-:class:`WorkerThread` attribute made directly on ``threading.current_thread()``
-and ratchets the set **exact-mode** against :data:`KNOWN_RAW_SURFACE` (currently
-empty — core is fully converted): a *new* raw access fails CI, and a baseline
-entry that disappears also fails, so a conversion is committed rather than
-quietly reintroducible.
-
-Scope and deliberate limits:
-
-* **Core only.** ``odoo/addons`` is out of scope — an addon managing its own
-  thread state (``ir.cron`` / ``ir.job`` swap ``dbname`` around a job) is
-  application code, not framework infrastructure the Protocol was written for.
-  Tests and the accessor module itself are excluded.
-* **The inline idiom only.** A *stored* thread reference —
-  ``self._thread = threading.current_thread()`` in ``db/cursor.py``, or a local
-  ``t = threading.current_thread()`` held for a *specific* thread's identity —
-  is a different thing (binding to one thread, not reading the current one's
-  bookkeeping) and is not what the accessor replaces, so it is not flagged.
-  This is a coverage boundary, not a blessing: the value is preventing *new*
-  copies of the exact pattern the accessor exists to kill.
-
-The attribute set is read from the Protocol itself (see :func:`_protocol_attrs`),
-so adding a field to ``WorkerThread`` automatically extends the gate.
-
-Usage::
-
-  python tooling/architecture/worker_thread_surface_check.py            # report
-  python tooling/architecture/worker_thread_surface_check.py --check    # CI: exit 1 on drift
-  python tooling/architecture/worker_thread_surface_check.py --json     # machine-readable
-  python tooling/architecture/worker_thread_surface_check.py --print-baseline
-"""
-
 import argparse
 import ast
 import json
@@ -58,26 +8,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root
 
+ADR = "0029"
+
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="worker_thread_surface_check")
 CORE = REPO_ROOT / "odoo"
 
-#: The accessor module — its own ``threading.current_thread()`` is the sanctioned
-#: implementation, never a violation.
 ACCESSOR_REL = "odoo/libs/worker_thread.py"
 
-#: Acknowledged inline raw accesses, as ``(repo-relative path, attribute)`` pairs.
-#: Empty: core is fully converted to ``current_worker_thread()``. Ratcheted
-#: exact — regenerate with ``--print-baseline`` after an intentional change.
 KNOWN_RAW_SURFACE: frozenset[tuple[str, str]] = frozenset()
 
 
 def _protocol_attrs() -> frozenset[str]:
-    """The attribute names declared on the ``WorkerThread`` Protocol.
 
-    Parsed from the source so the gate tracks the Protocol instead of
-    duplicating it. Raises if the class cannot be found rather than silently
-    scanning for nothing.
-    """
     src = (CORE / "libs" / "worker_thread.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     for node in ast.walk(tree):
@@ -97,7 +39,6 @@ PROTOCOL_ATTRS: frozenset[str] = _protocol_attrs()
 
 
 def _is_current_thread_call(node: ast.expr) -> bool:
-    """True for ``threading.current_thread()`` or a bare ``current_thread()``."""
     if not isinstance(node, ast.Call):
         return False
     func = node.func
@@ -108,10 +49,8 @@ def _is_current_thread_call(node: ast.expr) -> bool:
 
 @dataclass(frozen=True)
 class Reach:
-    """One inline raw worker-thread attribute access."""
-
     attr: str
-    path: str  # repo-relative
+    path: str
     lineno: int
 
     @property
@@ -135,8 +74,6 @@ class Report:
 
 
 class _WorkerThreadCollector(ast.NodeVisitor):
-    """Collect inline ``threading.current_thread().<attr>`` reads/writes."""
-
     def __init__(self) -> None:
         self.hits: list[tuple[str, int]] = []
 
@@ -147,7 +84,6 @@ class _WorkerThreadCollector(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         self.generic_visit(node)
-        # getattr/hasattr/delattr(threading.current_thread(), "attr", ...)
         func = node.func
         if (
             isinstance(func, ast.Name)
@@ -188,7 +124,7 @@ def check(files: list[Path] | None = None) -> Report:
         try:
             rel = path.relative_to(REPO_ROOT).as_posix()
         except ValueError:
-            rel = path.as_posix()  # a caller-supplied path outside the tree
+            rel = path.as_posix()
         for attr, lineno in collector.hits:
             report.reaches.append(Reach(attr, rel, lineno))
     report.added = report.pairs - KNOWN_RAW_SURFACE

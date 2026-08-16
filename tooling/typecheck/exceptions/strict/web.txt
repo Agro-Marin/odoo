@@ -420,7 +420,6 @@ addons/web/static/tests/webclient/actions/report_hook.test.js
 addons/web/static/tests/webclient/actions/target.test.js
 addons/web/static/tests/webclient/actions/url_action.test.js
 addons/web/static/tests/webclient/actions/window_action.test.js
-addons/web/static/tests/webclient/barcode/barcode_scanner.test.js
 addons/web/static/tests/webclient/clickbot.test.js
 addons/web/static/tests/webclient/debug/debug_manager.test.js
 addons/web/static/tests/webclient/install_scoped_app/install_scoped_app.test.js

@@ -78,9 +78,14 @@ env:
   # rather than through web.assets_backend — the PoS UI and its customer
   # display, the attendance kiosk and the subcontracting portal — each of which
   # was shipping unresolvable tokens because no CI database had it installed.
+  # ... plus spreadsheet, which owns the only dynamic child bundle whose
+  # relative imports ever escaped: TestLazyBundleRelativeImports reads the
+  # registry, so a bundle whose module is not installed is a bundle the sweep
+  # cannot see. `/web/bundle/spreadsheet.o_spreadsheet` served HTTP 500 for
+  # nine days behind exactly that gap.
   INSTALL: >-
     web,mail,portal,project,im_livechat,website,
-    point_of_sale,hr_attendance,mrp_subcontracting,test_lint
+    point_of_sale,hr_attendance,mrp_subcontracting,spreadsheet,test_lint
   TEST_TAGS: >-
     /test_lint:TestAssetPathsExist,
     /test_lint:TestBundleTokenDefs,
@@ -89,7 +94,11 @@ env:
     /test_lint:TestGreyRampToken,
     /test_lint:TestColorSchemeReads,
     /web:TestDarkBundles,
-    /web:TestTokenLayer
+    /web:TestTokenLayer,
+    /web:TestLazyBundleRelativeImports,
+    /web:TestDynamicBundleIntegrity,
+    /web:TestDesignSystem,
+    /web:TestWebBundleSize
   # An HttpCase, so it cannot share the run above: `--no-http` logs a missing
   # server as a *skipped setUpClass*, at INFO, and the run still exits 0 --
   # a suite of nothing but HttpCase reports success having tested nothing.

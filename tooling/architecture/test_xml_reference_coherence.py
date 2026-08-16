@@ -1,24 +1,7 @@
-"""Tests for the XML string-reference coherence gate.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_xml_reference_coherence.py
-
-The detection tests build synthetic scope trees, so they keep their meaning
-as the real pin shrinks. Provider extraction goes through the real espree
-analyzer (a node subprocess), because the analyzer IS the part regressions
-hit: the bound registration form and the single-quoted form were each missed
-once, by the sibling registry gate's regex and by this gate's own first
-prefilter respectively, and only a test through the real parser would have
-caught either. The real-tree tests assert what a measurement gate silently
-loses: that it found its inputs, and that the shipped pin is the tree's own.
-"""
-
 from collections import Counter
 
 import pytest
-import xml_reference_coherence as xrc  # sys.path set by conftest.py
+import xml_reference_coherence as xrc
 
 
 def _write(root, rel, body):
@@ -29,12 +12,7 @@ def _write(root, rel, body):
 
 
 def _measure(*roots):
-    """Run the full pipeline over synthetic scope roots.
 
-    Returns ``(dangling refs, unverifiable counter)``. Bare paths take their
-    directory name as scope, and a scope outside CLOSURES is judged against
-    itself alone.
-    """
     unverifiable = Counter()
     named = xrc._named_roots(roots)
     js_providers = xrc.collect_js_providers(named, unverifiable)
@@ -48,12 +26,7 @@ def _entries(dangling):
     return {f"{ref.kind}:{ref.name}" for ref in dangling}
 
 
-# --- the defect class: a renamed key breaks its XML consumers ---
-
-
 def test_a_renamed_widget_key_dangles(tmp_path):
-    # The motivating failure: JS renames its registry key, the view still
-    # names the old one, nothing fails before runtime.
     root = tmp_path / "repo"
     _write(
         root,
@@ -150,12 +123,7 @@ def test_a_widget_element_resolves_in_view_widgets(tmp_path):
     assert _entries(dangling) == {"view_widget:gone"}
 
 
-# --- provider extraction: the forms a regex historically missed ---
-
-
 def test_a_bound_registration_is_still_a_provider(tmp_path):
-    # `const r = registry.category("views"); r.add(...)` — the form
-    # js_registry_layering's inline regex documents having missed.
     root = tmp_path / "repo"
     _write(
         root,
@@ -173,9 +141,6 @@ def test_a_bound_registration_is_still_a_provider(tmp_path):
 
 
 def test_a_single_quoted_registration_is_still_a_provider(tmp_path):
-    # Regression: the first prefilter matched only double-quoted needles, so
-    # every `category('views')` file never reached espree and its keys read
-    # as dangling (hr_expense, lunch, helpdesk...).
     root = tmp_path / "repo"
     _write(
         root,
@@ -188,9 +153,6 @@ def test_a_single_quoted_registration_is_still_a_provider(tmp_path):
 
 
 def test_register_field_spec_expands_view_prefix_and_aliases(tmp_path):
-    # This fork's canonical registration (fields/_registry.js): the spec
-    # object registers `view.name` plus every alias, and a view-prefixed key
-    # also answers the bare widget name.
     root = tmp_path / "repo"
     _write(
         root,
@@ -209,9 +171,6 @@ def test_register_field_spec_expands_view_prefix_and_aliases(tmp_path):
     assert _entries(dangling) == {"widget:nope"}
 
 
-# --- widget context: which registry `widget=` resolves in ---
-
-
 def test_a_pivot_widget_resolves_in_formatters_not_fields(tmp_path):
     root = tmp_path / "repo"
     _write(
@@ -228,8 +187,6 @@ def test_a_pivot_widget_resolves_in_formatters_not_fields(tmp_path):
         "</pivot></odoo>",
     )
     dangling, _ = _measure(root)
-    # `only_field` is a fields key; a pivot looks widgets up in `formatters`
-    # (via field_codec), so naming it there is the silent-formatting bug.
     assert _entries(dangling) == {"widget_formatter:only_field"}
 
 
@@ -251,8 +208,6 @@ def test_a_grid_widget_resolves_in_grid_components(tmp_path):
 
 
 def test_an_attribute_body_widget_is_unscoped_and_accepts_any_registry(tmp_path):
-    # An <attribute> body targets an arch this file does not contain, so the
-    # view type is unknowable; any widget registry satisfies it.
     root = tmp_path / "repo"
     _write(
         root,
@@ -269,11 +224,7 @@ def test_an_attribute_body_widget_is_unscoped_and_accepts_any_registry(tmp_path)
         "</xpath></odoo>",
     )
     dangling, _ = _measure(root)
-    # The empty body REMOVES the attribute — not a reference.
     assert _entries(dangling) == {"widget_unscoped:truly_gone"}
-
-
-# --- test trees are one-way ---
 
 
 def test_a_test_only_registration_cannot_mask_a_production_dangler(tmp_path):
@@ -313,9 +264,6 @@ def test_a_test_consumer_may_use_test_and_production_providers(tmp_path):
     assert dangling == []
 
 
-# --- unverifiable references are counted, never failed on ---
-
-
 def test_a_dynamic_t_call_is_unverifiable_not_dangling(tmp_path):
     root = tmp_path / "repo"
     _write(
@@ -344,7 +292,6 @@ def test_a_computed_registration_key_is_unverifiable(tmp_path):
     )
     dangling, unverifiable = _measure(root)
     assert unverifiable["dynamic JS registration key"] == 1
-    # The computed key cannot vouch for anything: the reference still dangles.
     assert _entries(dangling) == {"widget:something"}
 
 
@@ -361,12 +308,7 @@ def test_an_unparsable_xml_file_is_counted_not_crashed_on(tmp_path):
     assert _entries(dangling) == {"widget:gone"}
 
 
-# --- scopes: judged only when the provider closure is present ---
-
-
 def test_a_scope_without_its_closure_is_not_judged():
-    # enterprise's providers include odoo's; with odoo absent the verdict
-    # would depend on what happens to be checked out, so there is none.
     assert xrc.judged(["enterprise"]) == []
     assert xrc.judged(["odoo", "enterprise"]) == ["odoo", "enterprise"]
     assert xrc.judged(["odoo"]) == ["odoo"]
@@ -374,8 +316,6 @@ def test_a_scope_without_its_closure_is_not_judged():
 
 
 def test_a_cross_scope_provider_satisfies_a_downstream_consumer(tmp_path):
-    # enterprise XML may name an odoo-provided widget: odoo is in its
-    # closure. The judged() test above covers the reverse direction.
     odoo = tmp_path / "odoo"
     ent = tmp_path / "enterprise"
     _write(
@@ -393,9 +333,6 @@ def test_a_cross_scope_provider_satisfies_a_downstream_consumer(tmp_path):
 
 
 def test_an_upstream_consumer_cannot_use_a_downstream_provider(tmp_path):
-    # odoo XML naming an enterprise-only widget is a coherence break for this
-    # repo alone — and it must read the same whether or not enterprise
-    # happens to be checked out.
     odoo = tmp_path / "odoo"
     ent = tmp_path / "enterprise"
     _write(
@@ -410,9 +347,6 @@ def test_an_upstream_consumer_cannot_use_a_downstream_provider(tmp_path):
     )
     dangling, _ = _measure(odoo, ent)
     assert _entries(dangling) == {"widget:ent_only"}
-
-
-# --- the pin ---
 
 
 def test_growth_and_shrink_fail_per_scope():
@@ -469,8 +403,6 @@ def test_comments_and_blanks_are_not_pins(tmp_path):
 
 
 def test_update_refuses_a_partial_checkout(tmp_path, monkeypatch):
-    # A partial update could only erase the absent scopes' entries — the
-    # record of what dangles there.
     present = tmp_path / "odoo"
     _write(present, "mod/views/v.xml", "<odoo/>")
     monkeypatch.setattr(
@@ -481,9 +413,6 @@ def test_update_refuses_a_partial_checkout(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         xrc.main(["--update"])
     assert exc.value.code == 2
-
-
-# --- the gate must actually reach the real tree ---
 
 
 def test_real_tree_is_measured_and_matches_its_pin():
@@ -502,9 +431,6 @@ def test_real_tree_is_measured_and_matches_its_pin():
         "web's own templates are missing"
     )
     pinned = xrc.load_pinned()
-    # The pin FILE must exist (a gate with no baseline would pass against
-    # nothing); an EMPTY pin is the goal state — every hand-verified dangler
-    # fixed — so emptiness itself is not a failure.
     assert xrc.PINNED.is_file(), "no pin file — the gate would pass against nothing"
     dangling = xrc.resolve(js_providers, templates, consumers, xrc.judged(present))
     new, gone = xrc.drift(
@@ -517,14 +443,7 @@ def test_real_tree_is_measured_and_matches_its_pin():
 
 
 def test_the_real_danglers_are_few_which_is_what_makes_the_pin_honest():
-    # The pin is a hand-verified worklist, not a dumping ground. If it ever
-    # grows past this bound, collection precision has regressed (the
-    # single-quote prefilter miss alone produced 40+ false danglers) —
-    # tighten the scan rather than raising the bound.
     assert len(xrc.load_pinned()) < 30
-
-
-# --- refusal: a gate that reaches nothing must say so ---
 
 
 def test_an_empty_tree_is_refused(tmp_path, monkeypatch):

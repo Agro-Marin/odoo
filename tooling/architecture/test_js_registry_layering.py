@@ -1,17 +1,8 @@
-"""Tests for the registry-mediated layering gate.
-
-Stdlib + pytest only — no Odoo imports — so this runs in the same
-database-free way as the checker itself. Run with:
-
-    pytest tooling/architecture/test_js_registry_layering.py
-"""
-
-import js_layer_check as jlc  # sys.path set by tooling/conftest.py
+import js_layer_check as jlc
 import js_registry_layering as jrl
 
 
 def _tree(monkeypatch, tmp_path, files):
-    """Build a fake ``static/src`` from ``{relpath: source}`` and scan it."""
     for rel, body in files.items():
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -23,12 +14,7 @@ def _tree(monkeypatch, tmp_path, files):
 PRODUCER = 'registry.category("services").add("thing", {});'
 
 
-# --- the two gates must agree about what "upward" means -------------------
-
-
 def test_layer_order_matches_the_import_gate():
-    """If `js_layer_check` reorders its layers, this gate must not keep the
-    old order and quietly grade edges against a contract nobody holds."""
     forbidden_by = {
         src: {f for c in jlc.CONTRACTS for f in c.forbidden if src in c.source}
         for src in jrl.LAYER_ORDER
@@ -44,9 +30,6 @@ def test_layer_order_matches_the_import_gate():
 def test_ungoverned_layers_are_the_same_ones_the_import_gate_ignores():
     for name in ("boot", "public", "libs"):
         assert name not in jrl.RANK
-
-
-# --- direction ------------------------------------------------------------
 
 
 def test_an_upward_service_edge_is_an_inversion(monkeypatch, tmp_path):
@@ -87,7 +70,6 @@ def test_a_same_layer_service_edge_is_not_an_inversion(monkeypatch, tmp_path):
 
 
 def test_an_ungoverned_consumer_is_skipped(monkeypatch, tmp_path):
-    """`public/` sits outside the stack, exactly as in js_layer_check."""
     new, known = _tree(
         monkeypatch,
         tmp_path,
@@ -102,9 +84,6 @@ def test_an_ungoverned_consumer_is_skipped(monkeypatch, tmp_path):
 def test_a_service_with_no_resolvable_producer_yields_no_edge(monkeypatch, tmp_path):
     new, known = _tree(monkeypatch, tmp_path, {"core/c.js": 'useService("ghost");'})
     assert (new, known) == ([], [])
-
-
-# --- consumer forms -------------------------------------------------------
 
 
 def test_env_services_dotted_form_resolves(monkeypatch, tmp_path):
@@ -132,7 +111,6 @@ def test_services_bracket_form_resolves(monkeypatch, tmp_path):
 
 
 def test_a_commented_out_consumer_creates_no_edge(monkeypatch, tmp_path):
-    """Comments are stripped before matching — a JSDoc mention is not an edge."""
     new, known = _tree(
         monkeypatch,
         tmp_path,
@@ -157,9 +135,6 @@ def test_a_producer_consuming_its_own_service_is_not_an_edge(monkeypatch, tmp_pa
     assert (new, known) == ([], [])
 
 
-# --- pinning --------------------------------------------------------------
-
-
 def test_a_pinned_inversion_does_not_fail_the_gate(monkeypatch, tmp_path):
     monkeypatch.setattr(
         jrl,
@@ -179,7 +154,6 @@ def test_a_pinned_inversion_does_not_fail_the_gate(monkeypatch, tmp_path):
 
 
 def test_a_pin_does_not_cover_the_same_pair_at_different_layers(monkeypatch, tmp_path):
-    """A pinned file that MOVES layer is a new inversion, not a covered one."""
     monkeypatch.setattr(
         jrl,
         "KNOWN_INVERSIONS",
@@ -209,9 +183,6 @@ def test_every_pinned_layer_pair_is_genuinely_an_inversion():
         )
 
 
-# --- CLI contract ---------------------------------------------------------
-
-
 def test_check_exits_nonzero_on_a_new_inversion(monkeypatch, tmp_path):
     monkeypatch.setattr(jrl, "KNOWN_INVERSIONS", ())
     for rel, body in {
@@ -226,8 +197,6 @@ def test_check_exits_nonzero_on_a_new_inversion(monkeypatch, tmp_path):
 
 
 def test_report_mode_exits_zero_even_with_inversions(monkeypatch, tmp_path):
-    """Report mode is for humans; only --check gates. A CI call site that
-    forgets the flag must be the thing that fails, not this."""
     monkeypatch.setattr(jrl, "KNOWN_INVERSIONS", ())
     for rel, body in {
         "webclient/thing_service.js": PRODUCER,
@@ -245,9 +214,6 @@ def test_an_empty_tree_is_refused_rather_than_passed(monkeypatch, tmp_path):
     with __import__("pytest").raises(SystemExit) as exc:
         jrl.main(["--check"])
     assert exc.value.code != 0
-
-
-# --- contract B: keyed lookups, and why enumeration is not one ------------
 
 
 def _keyed(monkeypatch, tmp_path, files):
@@ -271,13 +237,7 @@ def test_a_keyed_get_naming_a_higher_layer_item_is_an_inversion(monkeypatch, tmp
 
 
 def test_enumerating_a_category_is_not_an_inversion(monkeypatch, tmp_path):
-    """The plugin pattern: a reader that names no item depends on no producer.
 
-    `ui/main_components_container.js` renders whatever registered; a
-    `webclient/` item registering into it creates no ui -> webclient edge.
-    Counting reader x producer pairs instead reports this as a violation, which
-    is how a first measurement reached 79 against a real 14.
-    """
     new, known = _keyed(
         monkeypatch,
         tmp_path,
@@ -293,7 +253,6 @@ def test_enumerating_a_category_is_not_an_inversion(monkeypatch, tmp_path):
 
 
 def test_a_keyed_get_through_a_bound_category_variable_resolves(monkeypatch, tmp_path):
-    """8 of the 14 real sites are only reachable through this form."""
     new, _ = _keyed(
         monkeypatch,
         tmp_path,
@@ -375,15 +334,6 @@ def test_the_pinned_keyed_entries_are_unique():
     assert len(seen) == len(jrl.KNOWN_KEYED_INVERSIONS)
 
 
-# --- contract B, third form: a category exported as a symbol ---------------
-#
-# `core/shared_components.js` exports its category as a binding, and six
-# `views/` modules register into it while eight sites in `fields/` read from
-# it. Until 2026-08-04 this gate saw none of that: the inline-`add` regex and
-# the same-file-binding regex both miss it, so the seam laundered every
-# dependency taken through it. These tests pin the shape, not the count.
-
-
 def test_a_registration_through_an_imported_category_binding_is_seen(
     monkeypatch, tmp_path
 ):
@@ -410,7 +360,6 @@ def test_a_registration_through_an_imported_category_binding_is_seen(
 
 
 def test_an_aliased_import_of_a_category_binding_resolves(monkeypatch, tmp_path):
-    """`import { sharedComponents as shared }` — the real form in x2many_dialog."""
     new, _ = _keyed(
         monkeypatch,
         tmp_path,
@@ -434,7 +383,6 @@ def test_an_aliased_import_of_a_category_binding_resolves(monkeypatch, tmp_path)
 def test_enumeration_through_an_imported_binding_is_still_not_an_inversion(
     monkeypatch, tmp_path
 ):
-    """Following the symbol must not cost the plugin pattern its exemption."""
     new, known = _keyed(
         monkeypatch,
         tmp_path,
@@ -485,18 +433,7 @@ def test_a_non_web_import_specifier_is_ignored(monkeypatch, tmp_path):
     )
 
 
-# --- the real tree ---
-#
-# Every test above monkeypatches ``WEB_SRC`` to a synthetic tree, so none of
-# them proves the gate holds on the actual ``web`` sources. These two do -- the
-# same shape ``test_js_face_boundary`` uses -- so a real inversion introduced by
-# a future change fails pytest here, not only the ratchet step in CI.
-
-
 def test_the_real_tree_has_registry_edges_to_check():
-    """A gate whose input set is empty passes vacuously; assert it is not: the
-    real tree carries both service consumers and keyed registry lookups for the
-    layering rule to classify."""
     files = jrl.iter_source_files()
     assert len(files) > 100
     _producers, consumers = jrl.resolve(files)
@@ -505,12 +442,8 @@ def test_the_real_tree_has_registry_edges_to_check():
 
 
 def test_the_real_tree_holds_the_property_today():
-    """The reason this gate holds at zero new cost. If this ever fails, the fix
-    is to route the consumer through the correct layer -- not to pin it."""
     new, known = jrl.check()
     assert new == [], f"{len(new)} new registry-layering inversion(s): " + ", ".join(
         f"{i.module} -> {i.service}" for i in new
     )
-    # The pins are real edges the resolver found, not dead config: at least one
-    # must still resolve, or the gate is silently classifying nothing.
     assert known, "no pinned inversion resolved -- the real-tree scan found nothing"

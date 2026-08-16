@@ -1,4 +1,6 @@
 #!/bin/sh
+# ruff format must not rewrite ''' to """ below — see tooling/_trampoline.sh.
+# fmt: off
 ''':'
 # Self-locating sh/python trampoline: re-exec this file with the workspace venv
 # interpreter. The logic is shared — see tooling/_trampoline.sh.
@@ -6,12 +8,8 @@ _t="$(dirname "$0")/../_trampoline.sh"
 [ -f "$_t" ] || { echo "$(basename "$0"): missing $_t" >&2; exit 1; }
 . "$_t"
 '''
+# fmt: on
 
-# The shell preamble above is the module's FIRST string literal, so Python binds
-# it as ``__doc__`` and the real documentation below becomes an inert expression
-# statement. ``hoot`` passes ``description=__doc__`` to argparse, so ``hoot
-# --help`` printed the trampoline's shell source instead of its own usage guide.
-# Rebinding it here is the one-line fix that keeps the polyglot intact.
 __doc__ = """Print the minimal set of @web/... HOOT suites affected by changed JS files.
 
 With no arguments, uses ``git diff --name-only HEAD`` inside addons/odoo and
@@ -31,8 +29,6 @@ Examples
 """
 
 
-# CLI tool: print() is the user-facing output channel (T201 is already
-# ignored for tooling/** in ruff.toml, so no per-file directive is needed).
 import sys
 from pathlib import Path
 
