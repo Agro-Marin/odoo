@@ -241,7 +241,7 @@
                 company_ids)]</field>
         </record>
 
-        <record model="ir.rule" id="account_lock_exception_comp_rule">
+        <record id="account_lock_exception_comp_rule" model="ir.rule">
             <field name="name">Account lock exception company rule</field>
             <field name="model_id" ref="model_account_lock_exception" />
             <field name="domain_force">[('company_id', 'parent_of', company_ids)]</field>

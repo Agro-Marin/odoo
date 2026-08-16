@@ -1,5 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import annotationlib
 import inspect
 import logging
 from collections.abc import Mapping, Sequence
@@ -77,7 +78,9 @@ class WebJson2Controller(http.Controller):
             raise UnprocessableEntity(e)
 
         records = Model.browse(ids)
-        signature = inspect.signature(func)
+        signature = inspect.signature(
+            func, annotation_format=annotationlib.Format.FORWARDREF
+        )
         try:
             signature.bind(records, **kwargs)
         except TypeError as exc:

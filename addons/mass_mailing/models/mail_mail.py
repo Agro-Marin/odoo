@@ -60,15 +60,24 @@ class MailMail(models.Model):
         return body
 
     def _prepare_outgoing_list(
-        self, mail_server=False, doc_to_followers=None, smtp_session=None
+        self,
+        mail_server=False,
+        doc_to_followers=None,
+        smtp_session=None,
+        already_sent_pids=None,
     ):
         """Update mailing specific links to replace generic unsubscribe and
         view links by email-specific links. Also add headers to allow
-        unsubscribe from email managers."""
+        unsubscribe from email managers.
+
+        Each entry owns its ``headers`` dict, so the per-recipient values written
+        below reach only the recipient they were computed for.
+        """
         email_list = super()._prepare_outgoing_list(
             mail_server=mail_server,
             doc_to_followers=doc_to_followers,
             smtp_session=smtp_session,
+            already_sent_pids=already_sent_pids,
         )
         if not self.res_id or not self.mailing_id:
             return email_list
@@ -141,10 +150,11 @@ class MailMail(models.Model):
         """Garbage collects old canceled mail.mail records as we consider
         nobody is going to look at them anymore, becoming noise."""
         # The 10000 limit is arbitrary, chosen a big limit so that the cleaning can be shorter and not too big so that we don't block the server
-        months_limit = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("mass_mailing.cancelled_mails_months_limit", 6)
+        # _get_int_param, not get_param: the latter answers with the stored *string*
+        # as soon as the parameter is set, and '6' <= 0 raises TypeError -- taking the
+        # whole autovacuum down with it.
+        months_limit = self.env["ir.config_parameter"]._get_int_param(
+            "mass_mailing.cancelled_mails_months_limit", 6
         )
         if months_limit <= 0:
             return

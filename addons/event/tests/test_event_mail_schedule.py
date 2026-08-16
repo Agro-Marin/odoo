@@ -505,7 +505,7 @@ class TestMailSchedule(EventMailCommon):
         user_admin = self.env.ref('base.user_admin')
         # templates are now protected, but bypass the check to force having a bad
         # value in DB
-        with patch.object(type(self.template_reminder), '_check_can_be_rendered', return_value=True):
+        with patch.object(type(self.template_reminder), '_check_rendering', return_value=True):
             self.template_reminder.with_user(user_admin).write({
                 'name': 'Take Ownership',
                 'body_html': '<p>Failing <t t-out="object.evnetypo_id"/></p>',

@@ -7,7 +7,7 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread}
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class TranscriptSender extends Component {
     static template = "im_livechat.TranscriptSender";

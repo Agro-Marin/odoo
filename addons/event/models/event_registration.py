@@ -406,10 +406,10 @@ class EventRegistration(models.Model):
             registration_id=self.id,
         )
 
-    def _message_add_default_recipients(self):
+    def _message_get_default_recipients_sources(self):
         # Prioritize registration email over partner_id, which may be shared when a single
         # partner booked multiple seats
-        results = super()._message_add_default_recipients()
+        results = super()._message_get_default_recipients_sources()
         for record in self:
             email_to_lst = results[record.id]['email_to_lst']
             if len(email_to_lst) == 1:

@@ -119,7 +119,7 @@ class CardCampaign(models.Model):
             'card_template_id',
         ]
 
-    def _check_access_right_dynamic_template(self):
+    def _check_access_right_dynamic_template(self, fnames=None):
         """ `_unrestricted_rendering` being True means we trust the value on model
         when rendering. This means once created, rendering is done without restriction.
         But this attribute triggers a check at create / write / translation update that

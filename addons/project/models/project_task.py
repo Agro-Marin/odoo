@@ -3861,9 +3861,11 @@ class ProjectTask(models.Model):
         headers = super()._notify_by_email_get_headers(headers=headers)
         if self.project_id:
             current_objects = [
-                h for h in headers.get("X-Odoo-Objects", "").split(",") if h
+                h for h in headers.get("X-Odoo-Objects", "").split(",") if h.strip()
             ]
-            current_objects.insert(0, "project.project-%s, " % self.project_id.id)
+            # no trailing separator on the inserted entry: the join adds it, and
+            # the extra one produced an empty element -- "project.project-1, ,task-2"
+            current_objects.insert(0, "project.project-%s" % self.project_id.id)
             headers["X-Odoo-Objects"] = ",".join(current_objects)
         if self.tag_ids:
             headers["X-Odoo-Tags"] = ",".join(self.tag_ids.mapped("name"))

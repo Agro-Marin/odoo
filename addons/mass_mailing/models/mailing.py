@@ -764,7 +764,7 @@ class MailingMailing(models.Model):
                 ab_testing_cron._trigger(at=at)
         mailings = super().create(vals_list)
         mailings._create_ab_testing_utm_campaigns()
-        mailings._fix_attachment_ownership()
+        mailings._update_attachment_ownership()
 
         for values, mailing in zip(vals_list, mailings, strict=False):
             if values.get("body_arch"):
@@ -800,7 +800,7 @@ class MailingMailing(models.Model):
         result = super().write(values)
         if values.get("ab_testing_enabled"):
             self._create_ab_testing_utm_campaigns()
-        self._fix_attachment_ownership()
+        self._update_attachment_ownership()
 
         if any(self.mapped("ab_testing_schedule_datetime")):
             schedule_date = min(
@@ -825,7 +825,7 @@ class MailingMailing(models.Model):
         ]
         return self.env["utm.campaign"].create(campaign_vals)
 
-    def _fix_attachment_ownership(self):
+    def _update_attachment_ownership(self):
         for record in self:
             record.attachment_ids.write(
                 {"res_model": record._name, "res_id": record.id}

@@ -196,7 +196,15 @@ class PortalChatter(ThreadController):
                     },
                 )
             Message = request.env["mail.message"].sudo()
-        res = Message._message_fetch(domain, **(fetch_params or {}))
+        # Sanitise like every other message route: this one splatted the raw
+        # client dict, so any key ``_message_fetch`` does not declare arrived as
+        # an unexpected keyword argument and surfaced as a bare TypeError -- an
+        # anonymous server-error primitive, since this route is auth="public".
+        # ``MESSAGE_FETCH_PARAMS`` exists for exactly this and five of the six
+        # call sites already used it.
+        res = Message._message_fetch(
+            domain, **Message._sanitize_fetch_params(fetch_params)
+        )
         messages = res.pop("messages")
         return {
             **res,

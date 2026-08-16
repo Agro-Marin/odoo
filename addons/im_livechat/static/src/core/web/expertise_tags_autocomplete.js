@@ -11,7 +11,7 @@ import { x2ManyCommands } from "@web/model/relational_model";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} channel
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ExpertiseTagsAutocomplete extends Component {
     static template = "im_livechat.ExpertiseTagsAutocomplete";

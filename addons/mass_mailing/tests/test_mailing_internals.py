@@ -524,7 +524,11 @@ class TestMassMailValues(MassMailCommon):
         self.assertFalse(composer.mass_mailing_id, "No mailing should've been created")
 
         with self.mock_mail_gateway():
-            composer._action_send_mail(recipient.ids)
+            # _action_send_mail takes no res_ids -- it reads them off the composer.
+            # Passing them positionally landed a truthy list in `auto_commit`, and
+            # only the `is True` test in mail.mail._send kept that from committing
+            # mid-test.
+            composer._action_send_mail()
 
         self.assertEqual(
             len(composer.mass_mailing_id.ids), 1, "A mailing should've been created"

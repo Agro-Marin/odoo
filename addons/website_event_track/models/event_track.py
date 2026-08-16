@@ -524,8 +524,8 @@ class EventTrack(models.Model):
     def _mail_get_timezone(self):
         return self.event_id._mail_get_timezone() or super()._mail_get_timezone()
 
-    def _message_add_default_recipients(self):
-        recipients = super()._message_add_default_recipients()
+    def _message_get_default_recipients_sources(self):
+        recipients = super()._message_get_default_recipients_sources()
         for track in self.filtered(lambda t: not t.partner_id.email_normalized and not email_normalize(t.contact_email) and t.partner_email):
             info = recipients[track.id]
             info['email_to_lst'] = tools.mail.email_split_and_format_normalize(track.partner_email) or [track.partner_email]

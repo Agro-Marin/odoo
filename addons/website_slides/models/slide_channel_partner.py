@@ -237,7 +237,7 @@ class SlideChannelPartner(models.Model):
 
         record_email_values = {}
         for template, records in template_to_records.items():
-            record_values = template._generate_template(
+            record_values = template._prepare_mail_vals(
                 records.ids,
                 [
                     "attachment_ids",

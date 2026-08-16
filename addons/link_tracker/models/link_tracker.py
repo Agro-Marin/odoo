@@ -54,8 +54,18 @@ class LinkTracker(models.Model):
             url = urlsplit(tracker.url)
             if url.scheme:
                 tracker.absolute_url = tracker.url
-            else:
+                continue
+            try:
                 tracker.absolute_url = tools.urls.urljoin(tracker.get_base_url(), urlunsplit(url))
+            except ValueError as err:
+                # A schemeless url is legitimate here — it is resolved against the
+                # base url, which is what this branch is for — but urljoin refuses a
+                # foreign host and any dot segment, and `write` does not normalise.
+                # Report it the way `_compute_short_url` reports its own join
+                # failure, rather than letting a bare ValueError out of a compute.
+                raise UserError(self.env._(
+                    "“%s” is not a valid link.", tracker.url,
+                )) from err
 
     @api.depends('link_click_ids.link_id')
     def _compute_count(self):

@@ -98,7 +98,13 @@ class TestMarketingCardMail(MailCase, MarketingCardCommon):
             mailing.action_update_cards()
         self.assertEqual(len(self._render_image_bodies), 5)
 
-        with self.mock_mail_gateway(), self.assertQueryCount(54):
+        # 54 -> 56: two reads moved *into* this window, they are not new work. The
+        # placeholder ACL used to read every field on the mailing on each write and
+        # warmed the record cache as a side effect; it now reads only the fields
+        # that can hold a placeholder, so `contact_list_ids` and the partner batch
+        # are fetched where the send path actually needs them. Restoring the old
+        # all-fields scan puts this back at 54 and costs 25 queries elsewhere.
+        with self.mock_mail_gateway(), self.assertQueryCount(56):
             mailing._action_send_mail()
 
         cards = self.env['card.card'].search([('campaign_id', '=', campaign.id)])
@@ -247,7 +253,7 @@ class TestMarketingCardRender(MarketingCardCommon):
         for tz in timezones:
             # force find different timezones to check the returned time
             with patch(
-                    'odoo.addons.mail.models.models.Base._mail_get_timezone',
+                    'odoo.addons.mail.models.base.Base._mail_get_timezone',
                     lambda model: tz
             ):
                 timezone_result_headers.append(

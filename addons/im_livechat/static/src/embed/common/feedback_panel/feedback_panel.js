@@ -11,7 +11,7 @@ import { session } from "@web/session";
  * @typedef {Object} Props
  * @property {Function} [onClickClose]
  * @property {import("models").Thread}
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class FeedbackPanel extends Component {
     static template = "im_livechat.FeedbackPanel";
