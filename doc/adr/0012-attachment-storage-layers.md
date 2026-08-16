@@ -1,6 +1,6 @@
 # ADR-0012: Attachment storage layers (object store, key policy, delivery)
 
-- **Status:** Proposed
+- **Status:** Withdrawn
 - **Date:** 2026-07-30
 
 ## Context
@@ -203,3 +203,30 @@ real, still-present diagnosis. It is reclassified so that a reader can tell
 which half is the tree and which half is the plan. Promote to `Accepted` when
 the Decision lands, at which point `test_adr_coherence.py` will begin requiring
 every name above to exist.
+
+### 2026-08-14 — Withdrawn: the work is not intended
+
+Confirmed on 2026-08-14 that the object-store layering this record proposes will
+not be built. The status is `Withdrawn` rather than the file deleted, because the
+argument is the reason to keep it: a later reader who proposes the same four
+layers should find the case that was already made — including what it would cost
+and what it deliberately does not do — instead of re-deriving it.
+
+Two things outlive the proposal and are recorded so they are not lost with it.
+
+The **Context is a diagnosis of this tree, and it stayed accurate**: attachment
+storage does fuse vendor I/O, key policy and a delivery decision in one class;
+there is no enumeration primitive beneath it, so nothing can compare a store
+against the database; and `cloud_storage` does depend on `mail` because a
+controller patching the chatter upload route lives inside it. None of that is
+withdrawn by withdrawing the remedy.
+
+The **delivery measurement is the part worth carrying forward**: worker occupancy
+dominates obtaining by four to five orders of magnitude, which is why `x_sendfile`
+and a redirect belong in the same class and why serving remote content through a
+worker is the worst of the three options. That conclusion does not depend on any
+of the layering above it.
+
+`doc/architecture/data.md` states the dual-storage seam directly now, rather than
+pointing at this record for it, and `doc/architecture/risks.md` R5 is closed by
+this withdrawal.

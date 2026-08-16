@@ -12,6 +12,7 @@ and the index of the views. Per-addon maps live in
 | debugging a runtime path | [`runtime.md`](runtime.md) |
 | changing a boundary | [`gates.md`](gates.md), then `doc/adr/` |
 | wondering why a rule exists | `doc/adr/`, then the gate's own module docstring |
+| deciding whether a decision is owed a record | *When a decision needs a record* in [`doc/adr/README.md`](../adr/README.md) |
 | judging a change's cost | [`qualities.md`](qualities.md) |
 
 ## Context
@@ -79,7 +80,7 @@ Each buys something above. An argument appealing to one is already settled.
 | **Stability of core internals** | the *façade* is the public surface — `odoo.api` / `odoo.fields` / `odoo.models`, each with an explicit `__all__` (ADR-0008); everything behind it is free to move (ADR-0001, ADR-0005) |
 | **Business behaviour in the core** | behaviour belonging to a business process belongs in an addon |
 | **A build step that freezes shape** | the contributor set is unknown until the module graph is loaded, so nothing resolves at import time |
-| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively and psycopg2 is not installed, so a stray import fails loudly instead of compiling a branch that can never run |
+| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and psycopg2 is not a declared dependency, so a stray import fails anywhere provisioned from `requirements.txt`, CI included, rather than compiling a branch that can never run. A developer virtualenv that installed it for some other reason is the exception, and there the absence does not bite |
 
 ## Mechanisms
 
@@ -149,7 +150,7 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Scenarios** | end-to-end threads — installing a module, upgrading a populated database | [`scenarios.md`](scenarios.md) |
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
-| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0016 | `doc/adr/` |
+| **Decisions** | why the architecture is this way, dated and immutable — architecture decisions, 0001–0041 | `doc/adr/` |
 
 Rationale is not a view. Each gate's module docstring carries its own, beside
 the `MEASURED` block `doc_measured.py` keeps fresh; decisions are in

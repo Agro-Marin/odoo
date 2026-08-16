@@ -114,7 +114,10 @@ row still references.
 - `db_datas` — the bytes, in the database
 
 They are alternatives, not layers, and which one is used is a per-attachment
-decision. That is the seam ADR-0012 and ADR-0013 (both `Proposed`) are about.
+decision, and one column carries both *which store* and *which key* — which
+is why nothing can map a store back to the content it holds. ADR-0012 and
+ADR-0013 proposed to change that and were withdrawn on 2026-08-14 with the
+seam as described here.
 **Any backup that captures PostgreSQL without the filestore, or the reverse,
 captures a torn state** — the most common way a restored database comes back
 subtly broken.

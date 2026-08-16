@@ -204,11 +204,20 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns fourteen tool
-counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, jsfunclen_mail, pyfunclen, jsprivate, jsserviceshape, jsserviceshape_mail, jsforcedrender and naming**
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns fifteen tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, jsfunclen, jsfunclen_mail, pyfunclen, pyfunclen_addons, jsprivate, jsserviceshape, jsserviceshape_mail, jsforcedrender and naming**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.
+
+`pyfunclen_addons` is the only floor invoked `--mode no-increase`, and it is the
+only one whose scope is the bundled-addons tree entire. It exists because
+`pyfunclen` stops at the core package: a long function *moved* out of `odoo/`
+into an addon improved one reading and was measured by nothing on the other
+side. The tree is too wide to hold still — it swung ~1700 excess lines in each
+direction over a month — so the floor gives up locking improvements in order to
+keep the property that matters, which is that excess cannot cross the boundary
+unseen. `coding_guidelines.rst` *The ratchets* carries the argument.
 
 ```bash
 python tooling/ratchet/test_ratchet.py     # self-test the tool
@@ -263,7 +272,7 @@ bucket lets one mask the other.
 | Floor | Split off because |
 |---|---|
 | `c901` | cyclomatic complexity in `odoo/`, threshold `[lint.mccabe] max-complexity = 20`. In the `ruff` aggregate a complexity fix could be masked by an unrelated new finding. It gated nothing before: `ruff.toml` selected the `C90` family while ignoring `C901`, its only rule |
-| `c901_addons` | the same gate over `addons/`, where the 618 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
+| `c901_addons` | the same gate over `addons/`, where the 621 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
 
 **A third floor, `ruff_docstring`, existed and is retired.** It is the worked
 example of why the split is worth making and of what to do when the question

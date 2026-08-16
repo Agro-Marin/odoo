@@ -1,4 +1,4 @@
-# ADR-0017: What `t-out` should render when the value is a recordset
+# ADR-0042: What `t-out` should render when the value is a recordset
 
 - **Status:** Proposed
 - **Date:** 2026-08-16

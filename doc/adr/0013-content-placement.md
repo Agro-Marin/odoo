@@ -1,6 +1,6 @@
 # ADR-0013: Content placement — where an attachment's bytes are, as data
 
-- **Status:** Proposed
+- **Status:** Withdrawn
 - **Date:** 2026-07-30
 - **Extends:** ADR-0012 (attachment storage layers)
 
@@ -198,3 +198,19 @@ Promote to `Accepted` when `ir.content.placement` exists. At that point
 `test_adr_coherence.py` stops exempting this file and begins requiring every
 name above to resolve, which is the check that would have caught this in the
 first place.
+
+### 2026-08-14 — Withdrawn: the work is not intended
+
+Withdrawn together with ADR-0012, which it extends, and for the same reason:
+confirmed on 2026-08-14 that the content-placement model will not be built.
+
+What its own 2026-08-07 amendment already identified as the strongest part of
+this record is also the part that survives it — the `skip_res_field_check`
+argument, that nine copies of one subtle precondition is evidence of a missing
+entity rather than of nine mistakes. That is a general observation about this
+codebase and does not depend on the placement model being built.
+
+The Context's diagnosis holds unchanged: one `store_fname` column carries both
+*which store* and *which key*, which is why nothing can map a store back to the
+content it holds. `doc/architecture/data.md` states that seam directly rather
+than delegating it to this record.

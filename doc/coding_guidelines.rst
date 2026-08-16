@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.15
+:Version: 5.19
 :Date: 2026-08-15
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -62,8 +62,8 @@ floor in ``tooling/ratchet/baselines/``. *How rules are enforced* states the
 model and what closed the gaps that let the floors drift.
 
 **A ratchet fails in both directions.** ``ratchet.py`` defaults to ``exact`` mode
-and all five workflows invoke it without ``--mode``, so the count must *equal* the
-floor: an improvement fails the build just as a regression does. This is
+and every floor but one is invoked without ``--mode``, so the count must *equal*
+the floor: an improvement fails the build just as a regression does. This is
 deliberate — it forces the gain to be locked in rather than silently re-spent.
 When you lower a count, commit the new floor in the same PR:
 
@@ -75,6 +75,17 @@ This bites most often through ``.pre-commit-config.yaml``, which runs
 ``ruff-check --fix``: touching any file that carries baseline findings can repair
 unrelated ones and drop the count. A green local commit is not a green CI run
 unless the floor moved with it.
+
+**The one exception is** ``pyfunclen_addons``, invoked ``--mode no-increase``.
+It measures the whole bundled-addons tree, which moved by roughly 1700 excess
+lines in each direction over a month against 587 commits touching
+``addons/**/*.py`` in a fortnight; under ``exact`` it would be red almost
+continuously, and a floor re-cut reflexively to clear a build is a floor nobody
+audits. One-sided keeps the property the gate exists for — excess relocated out
+of ``odoo/`` into an addon fails it — and gives up the one it cannot hold. An
+improvement there is free, not owed; lower it whenever you measure it lower.
+Prefer ``exact`` for every new floor, and record the argument here if you cannot
+have it.
 
 .. list-table::
    :header-rows: 1
@@ -116,6 +127,10 @@ unless the floor moved with it.
      - ``tooling/architecture/py_function_length.py``
      - core Python, **excess lines** over 80
      - ``architecture.yml``
+   * - Python function length (addons)
+     - ``tooling/architecture/py_function_length.py --addon addons``
+     - all of ``addons/``, same metric, **one-sided**
+     - ``architecture.yml``
    * - JS function length
      - ``tooling/architecture/js_function_length.py``
      - ``web`` JS
@@ -132,6 +147,13 @@ unless the floor moved with it.
      - ``tooling/architecture/js_forced_render.py``
      - ``web`` JS
      - ``architecture.yml``
+
+**Why a ratchet rather than a hard zero** is ADR-0006. Why each *architecture*
+gate above exists is a separate question per gate, and the answer is in the gate:
+every module in ``tooling/architecture/`` declares the record that argues for it
+as a module-level ``ADR`` constant, which ``test_gate_adr_coverage.py`` checks
+resolves to an ``Accepted`` record. The mapping is deliberately not repeated
+here — restating it would be a second copy of something the modules already say.
 
 ``tooling/ratchet/baselines/`` is the authoritative list: **one JSON per gate,
 and the directory is the count.** No number is written here on purpose. This
@@ -179,7 +201,8 @@ Five consequences you must internalise:
   naming the other.
 * **The architecture gate is different**: layer crossings are held at exactly
   zero and any new one fails outright. It is not a ratchet. The same job also
-  holds JS *import cycles* at zero (``tooling/architecture/js_cycle_check.py``),
+  holds JS *import cycles* at zero (``tooling/architecture/js_cycle_check.py``,
+  ADR-0019; ADR-0034 is the Python counterpart),
   because a cycle's damage depends on evaluation order rather than on the code:
   the same cycle throws a ``ReferenceError`` under debug's per-file native ESM
   and silently substitutes ``undefined`` under ``esbuild --bundle``. Pre-existing
@@ -395,7 +418,10 @@ it" disagree, this guide and the source in the repo are right.
 **Upstream is a baseline, not a ceiling.** ``19.0-marin`` carries no
 backward-compatibility obligation to upstream. "Upstream does it this way" does
 not settle an argument about correctness, performance or design. Before calling
-an inherited behaviour a bug, check whether a test pins it deliberately.
+an inherited behaviour a bug, check whether a test pins it deliberately. Nothing
+is merged or cherry-picked from ``19.0``; a useful upstream fix is re-implemented
+by hand. The argument for that, the alternatives weighed and the cost accepted
+are ``doc/adr/0018-upstream-is-a-baseline.md``.
 
 Change protocol
 ---------------
@@ -407,6 +433,16 @@ Change protocol
   (``odoo``, ``enterprise``, ``agromarin``, ``agromarin-knowledge``, and per-module
   ones) in the same PR, plus an Appendix D row.
 * Retire rules into Appendix C. Do not delete them silently.
+* **A rule whose rationale is architectural cites its record.** This guide says
+  what the rule is; ``doc/adr/`` says why the architecture is that way, and a
+  reader who disagrees with a rule needs the second to argue with. Cite it as a
+  bare ``ADR-NNNN`` — ``tooling/doclinks`` scans this file and fails on a citation
+  that does not resolve, so the reference cannot rot. Do not summarise the record
+  here: two copies drift, and the register's own rules exist because they did.
+* **A rule with no record may be one worth writing.** Not every rule needs one —
+  style and naming conventions are this document's own business. But a rule that
+  constrains what may import what, what may be overridden, or what a gate holds
+  at zero is a decision, and ``doc/adr/README.md`` states when one is owed.
 
 ----
 
@@ -574,7 +610,8 @@ Keys must come from the known set and appear in the canonical order
 **Reach the ORM through the public façade** ``[test_lint test_orm_import]``. Addon
 runtime code imports from ``odoo.api``, ``odoo.fields``, ``odoo.models`` — never
 from the ``odoo.orm`` package, whose internals are restructured freely by the
-fork. Test files are exempt by location, since testing an internal
+fork. ADR-0008 argues the boundary and ADR-0009 records how its scope was closed;
+the freedom it buys is what ADR-0001's decomposition spends. Test files are exempt by location, since testing an internal
 necessarily imports it.
 
 **On running the formatter.** ``ruff format`` is deliberately not automated and has
@@ -885,7 +922,9 @@ three are load-bearing and are not renamed by this section.
 **Adoption** ``[ratchet naming]``. As with §2.2, apply the vocabulary to methods you
 create or substantially rework rather than churning files you are passing through.
 ``tooling/architecture/naming_vocabulary.py`` counts the definitions still using an
-abolished verb and feeds the shared ratchet::
+abolished verb and feeds the shared ratchet — ADR-0033 argues why this section is
+counted rather than blocked, and which of its rules are deliberately left
+uncounted because no checker can decide them::
 
     python tooling/architecture/naming_vocabulary.py --count \
         | xargs python tooling/ratchet/ratchet.py naming --count
@@ -2020,6 +2059,9 @@ neither is caught by a module's own test suite:
   an empty one. A module moved inside ``web`` therefore blanks the web client of
   every database carrying an addon that still imports the old path — including
   addons that are not installed on yours ``[test_lint test_esm_specifiers]``.
+  ADR-0023 records the second half of this: a specifier that does not resolve in
+  a *test* file registers no suite at all, so the run reports fewer tests rather
+  than an error.
 * **A bundle rendered by ``t-call-assets`` must be declared under the manifest's
   ``esm`` key if it carries ES-module sources.** Undeclared, it is concatenated
   as legacy JS and every module-syntax file in it is replaced by a
@@ -3388,6 +3430,31 @@ than hand-written ``information_schema`` queries. (There is no ``odoo.tools.sql`
 this fork; the module is ``odoo/db/schema.py``.) ``openupgradelib`` is available but
 is not the house default.
 
+**Removing a stored field: its column is dropped in the same upgrade, and
+post-migrate is the last place its values can be read.** Odoo deletes the
+``ir.model.fields`` row for a field the code no longer declares and issues
+``ALTER TABLE ... DROP COLUMN CASCADE`` for it, from ``ir.model.data._process_end``
+— which ``modules/loading.py`` runs *after* every ``post-migrate``. So a
+``post-migrate`` that harvests the old values into their new home works, and there is
+nothing left for a later version to harvest. [review]
+
+**A Many2many is the exception: its relation table is never dropped.**
+``_drop_m2m_tables`` skips any field whose ``state`` is not ``manual``, and a field
+declared in Python is ``base``. So removing a code-defined Many2many deletes its
+``ir_model_fields`` row and leaves the join table, its rows and its foreign keys in
+the database for good. That is useful — the old configuration stays readable, and a
+post-migrate carrying it somewhere else can be written later rather than only in the
+same upgrade — but it is not cleanup. Drop the table yourself if the data is not
+worth keeping, and say so in the script. [review]
+
+**Do not plan that harvest across two versions.** ``migrate_module`` runs **every**
+``pre`` script for every version in range before **any** ``post`` script, so a
+``pre-migrate`` at a *higher* version still executes before a *lower* version's
+``post-migrate``. Splitting "copy the values" and "drop the column" across two
+versions therefore drops first and copies nothing — and the data is gone with no
+error, because dropping a column the ORM was going to drop anyway raises nothing.
+Copy and link in one ``post-migrate``. [review]
+
 12.3 When one is required
 -------------------------
 
@@ -3536,6 +3603,63 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.19
+     - 2026-08-15
+     - **A removed Many2many keeps its relation table forever.** §12.2 gains the
+       exception to the rule added in 5.16: ``_drop_m2m_tables`` acts only on
+       fields whose ``state`` is ``manual``, and a field declared in Python is
+       ``base``, so a code-defined Many2many loses its ``ir_model_fields`` row and
+       keeps its join table, rows and foreign keys. Measured while moving the AI
+       fallback chain from ``ai.provider`` to ``ai.model`` (ADR-0040), where the
+       old ``ai_provider_fallback_rel`` was still present and populated after the
+       upgrade that removed the field. The asymmetry is worth stating because the
+       scalar case is the opposite and unconditional.
+   * - 5.18
+     - 2026-08-15
+     - **A removed field's column goes away in the same upgrade, and the harvest
+       cannot be split across versions.** §12.2 gains both halves. Odoo drops the
+       column for a field the code no longer declares, from
+       ``ir.model.data._process_end``, which runs after every ``post-migrate`` —
+       so post-migrate is the last place the old values are readable, and no
+       later version can collect them. And because ``migrate_module`` runs every
+       ``pre`` script before any ``post`` script, a ``pre-migrate`` at a higher
+       version executes *before* a lower version's ``post-migrate``: the
+       plan-shaped "copy in 1.13.0, drop in 1.14.0" drops first, copies nothing,
+       and raises nothing while doing it. Found while moving twelve columns off
+       ``ai.provider`` onto ``ai.model`` (ADR-0039), where that two-version plan
+       had been written down before it was tried.
+   * - 5.17
+     - 2026-08-15
+     - **Excess extracted out of** ``odoo/`` **into an addon was measured by
+       nothing.** ``pyfunclen`` scopes to the core package and no gate covered
+       ``addons/``, so a function moved across that line left both readings
+       looking better — checked by hand once, when ``_run_action_webhook`` shed
+       12 units into ``addons/api_transport``, and catchable by nothing the
+       second time. ``py_function_length.py`` gains ``--addon addons``, the
+       whole tree as one number, floored as ``pyfunclen_addons``. The per-module
+       ``--addon`` pattern cannot close this seam: the receiving module is the
+       one nobody onboarded. It is the **first floor invoked with** ``--mode``
+       (``no-increase``) and *The ratchets* records why — the tree moves ~1700
+       in each direction per month, and an exact floor on it would be red
+       almost continuously.
+   * - 5.16
+     - 2026-08-14
+     - **The Change protocol gains two rules about the decision register.** A
+       rule whose rationale is architectural now cites its record as a bare
+       ``ADR-NNNN``; ``tooling/doclinks`` scans this file and fails on a citation
+       that does not resolve, so the reference cannot rot, and the record is
+       never summarised here because two copies drift. A rule with no record may
+       be one worth writing, and ``doc/adr/README.md`` states when one is owed.
+       Five citations added where the record genuinely argues for the rule: the
+       façade boundary (§2.1) to ADR-0008/0009, the ratchet *mechanism* to
+       ADR-0006, §2.4's count to ADR-0033, ESM specifier resolution (§4.1) to
+       ADR-0023, and the JS import-cycle gate to ADR-0019 with ADR-0034 as its
+       Python counterpart. Two candidate citations were checked and **not**
+       added, because the records do not argue for those rules: ADR-0007 is the
+       CI integration lane rather than §6.0's test tiers, and ADR-0021 is about
+       *service* facades rather than §4.3.3's component patching. The per-gate
+       mapping for ``tooling/architecture/`` is deliberately absent — each module
+       declares its own ``ADR`` constant, checked by ``test_gate_adr_coverage.py``.
    * - 5.15
      - 2026-08-15
      - **§7.1 requires a pathspec to name files, not a directory.** ``git commit

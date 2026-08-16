@@ -185,7 +185,9 @@ Related:
   every suppression. Note `ruff check` is **not** expected to be clean: CI runs it
   as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a
   ratchet fails in both directions** — lowering a count without committing the new
-  floor fails the build too. Ruff is one of several ratcheted gates; **the
+  floor fails the build too. `pyfunclen_addons` is the single exception, invoked
+  `--mode no-increase` because the bundled-addons tree is too wide to hold still;
+  the argument is in *The ratchets*. Ruff is one of several ratcheted gates; **the
   baselines directory is the list and `tooling/ratchet/ratchet.py --list` is the
   reading — no file states how many there are or what they hold**, because a
   restated floor is a second copy that drifts, and this line said "eleven" against
@@ -223,4 +225,9 @@ Related:
 - Changes to the guidelines are made by editing `doc/coding_guidelines.rst`
   directly. Its *Change protocol* binds what you do next: the same PR updates the
   `CLAUDE.md` files that summarise the rule — this one included — and adds a row
-  to Appendix D. Rules are retired into Appendix C, never deleted silently.
+  to Appendix D. Rules are retired into Appendix C, never deleted silently. A
+  rule whose rationale is architectural **cites its record** as a bare
+  `ADR-NNNN`, never a summary of it: `tooling/doclinks` scans the guide and fails
+  on a citation that does not resolve, so the pointer cannot rot while a restated
+  argument would. A rule with no record may be one worth writing — `doc/adr/README.md`
+  states when one is owed.

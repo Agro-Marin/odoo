@@ -146,22 +146,22 @@ and it runs four suites.
 **What would close it.** Broadening the integration lane is the only lever;
 adding structural gates cannot reach this class of defect by construction.
 
-## R5 — Two ADRs describe a subsystem the repository has never contained
+## R5 — Two ADRs describe a subsystem the repository has never contained — **CLOSED 2026-08-14**
 
 **What.** ADR-0012 (attachment storage layers) and ADR-0013 (content placement)
-sat at `Accepted` for a week while naming a subsystem that does not exist. Both
-are now `Proposed`, which is the honest status.
+sat at `Accepted` for a week while naming a subsystem that does not exist, then
+at `Proposed` for a fortnight while nobody built it.
 
 **Evidence.** `doc/adr/README.md`, and each record's own Amendments section. The
-existence check (`TestReferencedNamesExist`) caught it and now exempts
-`Proposed`.
+existence check (`TestReferencedNamesExist`) caught the false `Accepted` and
+exempts the unbuilt statuses.
 
-**Cost.** Low now that the status is correct — but the two records still
-describe the intended shape of the `ir.attachment` dual-storage seam
-([`data.md`](data.md#the-dual-storage-seam)), so a reader may take them as
-current design.
-
-**What would close it.** Build it, or supersede them.
+**How it closed.** The work was confirmed abandoned and both records are
+`Withdrawn`, each with an amendment saying so — the third answer to "build it or
+supersede it", added to the status vocabulary for exactly this case. The seam
+they described is now stated directly in
+[`data.md`](data.md#the-dual-storage-seam), so no reader has to open a withdrawn
+record to learn what `ir.attachment`'s dual storage costs.
 
 ## R6 — Sibling-repo public-surface exposure is recorded, not paid down
 
