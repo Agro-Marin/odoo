@@ -193,7 +193,7 @@ test("ReferenceField in modal readonly mode", async () => {
     Partner._records[1].trululu = 1;
     Partner._records[1].reference = "product,41";
 
-    Partner._views[["form", false]] = `
+    Partner._views[/** @type {any} */ (["form", false])] = `
         <form>
             <field name="display_name" />
             <field name="reference" />
@@ -238,7 +238,7 @@ test("ReferenceField in modal write mode", async () => {
     Partner._records[1].trululu = 1;
     Partner._records[1].reference = "product,41";
 
-    Partner._views[["form", false]] = `
+    Partner._views[/** @type {any} */ (["form", false])] = `
         <form>
             <field name="display_name" />
             <field name="reference" />

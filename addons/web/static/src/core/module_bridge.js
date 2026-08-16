@@ -11,29 +11,39 @@ const VALID_EXPORT_NAME = /^[a-zA-Z_$][\w$]*$/;
  * @returns {string}
  */
 export function buildBridgeModuleSource(specifier, exportNames) {
-    const lines = [
-        `const _m = odoo.loader.modules.get(${JSON.stringify(specifier)});`,
-        `const _d = _m?.default ?? _m;`,
-        `export default _d;`,
-    ];
     // Bound to a generated local and re-exported under an alias, never
     // `export const <name>`: an export name only has to be an IdentifierName,
     // so `export { x as class }` is legal and `Object.keys` hands it back --
     // whereas `export const class = ...` is a SyntaxError that takes down the
     // whole bridge module, every other export of it included.
+    //
+    // `let` and `export { _d as default }`, never `const` and never
+    // `export default <expr>`: both of those snapshot at evaluation, so a shim
+    // reached before its producer registered bound `undefined` and kept it
+    // forever. `_s` re-reads on the loader's `registered` event, then
+    // unsubscribes. Keep in step with `_bridge_shim_source` in
+    // `odoo/tools/assets/esm_graph.py`, which emits the same shape server-side.
     /** @type {string[]} */
-    const aliases = [];
+    const names = [];
     for (const name of exportNames) {
-        if (name === "default" || !VALID_EXPORT_NAME.test(name)) {
-            continue;
+        if (name !== "default" && VALID_EXPORT_NAME.test(name)) {
+            names.push(name);
         }
-        const local = `_e${aliases.length}`;
-        lines.push(`const ${local} = _m?.${name};`);
-        aliases.push(`${local} as ${name}`);
     }
-    if (aliases.length) {
-        lines.push(`export { ${aliases.join(", ")} };`);
-    }
+    const locals = ["_d", ...names.map((_, i) => `_e${i}`)];
+    const lines = [
+        `let ${locals.join(", ")};`,
+        `function _s() {`,
+        `  const _m = odoo.loader.modules.get(${JSON.stringify(specifier)});`,
+        `  if (_m === undefined) { return; }`,
+        `  _d = _m.default ?? _m;`,
+        ...names.map((name, i) => `  _e${i} = _m.${name};`),
+        `  odoo.loader.bus.removeEventListener("registered", _s);`,
+        `}`,
+        `_s();`,
+        `odoo.loader.bus.addEventListener("registered", _s);`,
+        `export { ${["_d as default", ...names.map((n, i) => `_e${i} as ${n}`)].join(", ")} };`,
+    ];
     return lines.join("\n");
 }
 

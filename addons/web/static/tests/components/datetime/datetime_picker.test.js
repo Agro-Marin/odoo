@@ -468,7 +468,7 @@ test("twelve-hour clock with non-null focus date index", async () => {
 
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => {
+            onSelect: (/** @type {any} */ value) => {
                 expect.step(formatForStep(value));
             },
             value: [
@@ -868,7 +868,7 @@ test("no value, select date without handler", async () => {
 test("no value, select date", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -883,7 +883,7 @@ test("no value, select date", async () => {
 test("no value, select time", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -896,7 +896,7 @@ test("no value, select time", async () => {
 test("minDate with time: selecting out-of-range and in-range times", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
             minDate: DateTime.fromISO("2023-04-25T16:00:00.000"),
         },
     });
@@ -913,7 +913,7 @@ test("minDate with time: selecting out-of-range and in-range times", async () =>
 test("maxDate with time: selecting out-of-range and in-range times", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
             maxDate: DateTime.fromISO("2023-04-25T16:00:00.000"),
         },
     });
@@ -930,7 +930,7 @@ test("maxDate with time: selecting out-of-range and in-range times", async () =>
 test("max and min date with time: selecting out-of-range and in-range times", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
             minDate: DateTime.fromISO("2023-04-25T16:00:00.000"),
             maxDate: DateTime.fromISO("2023-04-25T16:00:00.000"),
         },
@@ -949,7 +949,7 @@ test("max and min date with time: selecting out-of-range and in-range times", as
 test("max and min date with time: selecting invalid minutes and making it valid by selecting hours", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
             minDate: DateTime.fromISO("2023-04-25T16:10:00.000"),
             maxDate: DateTime.fromISO("2023-04-25T16:50:00.000"),
         },
@@ -967,7 +967,7 @@ test("max and min date with time: selecting invalid minutes and making it valid 
 test("max and min date with time: valid time on invalid day becomes valid when selecting day", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
             minDate: DateTime.fromISO("2023-04-24T16:10:00.000"),
             maxDate: DateTime.fromISO("2023-04-24T16:50:00.000"),
         },
@@ -986,7 +986,7 @@ test("custom invalidity function", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
             type: "date",
-            isDateValid: (date) => date.weekday <= 5,
+            isDateValid: (/** @type {any} */ date) => date.weekday <= 5,
         },
     });
 
@@ -1011,7 +1011,8 @@ test("custom date cell class function", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
             type: "date",
-            dayCellClass: (date) => (date.weekday >= 6 ? "o_weekend" : ""),
+            dayCellClass: (/** @type {any} */ date) =>
+                date.weekday >= 6 ? "o_weekend" : "",
         },
     });
 
@@ -1035,7 +1036,7 @@ test("single value, select date", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
             value: DateTime.fromObject({ day: 30, hour: 8, minute: 43 }),
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1048,7 +1049,7 @@ test("single value, select time", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
             value: DateTime.fromObject({ day: 30, hour: 8, minute: 43 }),
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1066,7 +1067,7 @@ test("single value, select time in twelve-hour clock format", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
             value: DateTime.fromObject({ day: 30, hour: 8, minute: 43 }),
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1083,7 +1084,7 @@ test("range value, select date for first value", async () => {
                 DateTime.fromObject({ day: 23, hour: 17, minute: 16 }),
             ],
             range: true,
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1100,7 +1101,7 @@ test("range value, select time for first value", async () => {
                 DateTime.fromObject({ day: 23, hour: 17, minute: 16 }),
             ],
             range: true,
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1119,7 +1120,7 @@ test("range value, select date for second value", async () => {
             ],
             range: true,
             focusedDateIndex: 1,
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1137,7 +1138,7 @@ test("range value, select time for second value", async () => {
             ],
             range: true,
             focusedDateIndex: 1,
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1156,7 +1157,7 @@ test("range value, select date for second value before first value", async () =>
             ],
             range: true,
             focusedDateIndex: 1,
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1174,7 +1175,7 @@ test("range value, select date for first value after second value", async () => 
             ],
             range: true,
             focusedDateIndex: 0,
-            onSelect: (value) => expect.step(formatForStep(value)),
+            onSelect: (/** @type {any} */ value) => expect.step(formatForStep(value)),
         },
     });
 
@@ -1308,7 +1309,7 @@ test("dynamic date<->datetime switch recomputes min/max with the NEW type", asyn
             this.maxDate = DateTime.fromISO("2023-04-25T09:30:00.000");
         }
 
-        onSelect(value) {
+        onSelect(/** @type {any} */ value) {
             expect.step(formatForStep(value));
         }
     }
@@ -1365,8 +1366,9 @@ test("grid refreshes when isDateValid / dayCellClass change their answer", async
     await mountWithCleanup(DateTimePicker, {
         props: {
             type: "date",
-            isDateValid: (date) => date.weekday !== rules.blockedWeekday,
-            dayCellClass: (date) =>
+            isDateValid: (/** @type {any} */ date) =>
+                date.weekday !== rules.blockedWeekday,
+            dayCellClass: (/** @type {any} */ date) =>
                 date.weekday === rules.blockedWeekday ? "o_blocked" : "",
         },
     });

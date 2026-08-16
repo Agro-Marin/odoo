@@ -31,7 +31,7 @@ describe("_notify — the single UPDATE-emission path", () => {
                 steps.push("reloadSections");
                 return Promise.resolve();
             },
-            trigger(ev) {
+            trigger(/** @type {any} */ ev) {
                 steps.push(`trigger:${ev}`);
             },
             ...overrides,
@@ -81,7 +81,7 @@ async function createSearchModel(searchProps = {}, config = {}) {
     return component.env.searchModel;
 }
 
-function sanitizeSearchItems(model) {
+function sanitizeSearchItems(/** @type {any} */ model) {
     const searchItems = Object.values(model.searchItems);
     return searchItems.map((searchItem) => {
         const copy = Object.assign({}, searchItem);
@@ -655,7 +655,9 @@ test("parsing a filter and a dateFilter", async () => {
             </search>
         `,
     });
-    const groupNumbers = model.getSearchItems(() => true).map((i) => i.groupNumber);
+    const groupNumbers = model
+        .getSearchItems(() => true)
+        .map((/** @type {any} */ i) => i.groupNumber);
     expect(groupNumbers).toEqual([1, 1]);
 });
 
@@ -668,7 +670,9 @@ test("parsing a groupBy and a dateGroupBy", async () => {
             </search>
         `,
     });
-    const groupNumbers = model.getSearchItems(() => true).map((i) => i.groupNumber);
+    const groupNumbers = model
+        .getSearchItems(() => true)
+        .map((/** @type {any} */ i) => i.groupNumber);
     expect(groupNumbers).toEqual([1, 1]);
 });
 
@@ -681,7 +685,9 @@ test("parsing a filter and a groupBy", async () => {
             </search>
         `,
     });
-    const groupNumbers = model.getSearchItems(() => true).map((i) => i.groupNumber);
+    const groupNumbers = model
+        .getSearchItems(() => true)
+        .map((/** @type {any} */ i) => i.groupNumber);
     expect(groupNumbers).toEqual([1, 2]);
 });
 
@@ -694,7 +700,9 @@ test("parsing a groupBy and a filter", async () => {
             </search>
         `,
     });
-    const groupNumbers = model.getSearchItems(() => true).map((i) => i.groupNumber);
+    const groupNumbers = model
+        .getSearchItems(() => true)
+        .map((/** @type {any} */ i) => i.groupNumber);
     // Arch order, not creation order: the parser collects every group-by into
     // one pregroup and appends it last, so ordering by id alone reported this
     // group-by after the filter that follows it in the arch.
@@ -1113,8 +1121,8 @@ test("field tags with invisible attribute", async () => {
         context: { abc: true },
     });
     const fields = model
-        .getSearchItems((f) => f.type === "field")
-        .map((item) => item.fieldName);
+        .getSearchItems((/** @type {any} */ f) => f.type === "field")
+        .map((/** @type {any} */ item) => item.fieldName);
     expect(fields).toEqual(["bar"]);
 });
 
@@ -1130,8 +1138,10 @@ test("filter tags with invisible attribute", async () => {
         context: { abc: true },
     });
     const filters = model
-        .getSearchItems((item) => ["filter", "dateFilter"].includes(item.type))
-        .map((item) => item.name);
+        .getSearchItems((/** @type {any} */ item) =>
+            ["filter", "dateFilter"].includes(item.type),
+        )
+        .map((/** @type {any} */ item) => item.name);
     expect(filters).toEqual(["filter2"]);
 });
 
@@ -1190,7 +1200,7 @@ test("allow filtering based on extra keys in getSearchItems", async () => {
             search_default_filter_1: true,
         },
     });
-    const items = model.getSearchItems((i) => i.isActive);
+    const items = model.getSearchItems((/** @type {any} */ i) => i.isActive);
     expect(items).toHaveLength(1);
     expect(items[0].name).toBe("filter_1");
 });
@@ -1345,7 +1355,10 @@ test("fillSearchViewItemsProperty refetches definitions on each sequential call"
     });
 
     const fetchedFields = [];
-    model._fetchPropertiesDefinition = (resModel, fieldName) => {
+    model._fetchPropertiesDefinition = (
+        /** @type {any} */ resModel,
+        /** @type {any} */ fieldName,
+    ) => {
         fetchedFields.push(fieldName);
         return Promise.resolve([]);
     };
@@ -1370,7 +1383,7 @@ test("a property added on the parent record reaches the group-by items", async (
     model._fetchPropertiesDefinition = async () => [
         { definitionRecordId: 1, definitionRecordName: "Parent", definitions },
     ];
-    const isPropertyGroupBy = (item) =>
+    const isPropertyGroupBy = (/** @type {any} */ item) =>
         item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
 
     await model.fillSearchViewItemsProperty();
@@ -1407,7 +1420,7 @@ test("concurrent fillSearchViewItemsProperty calls both see the loaded items", a
         ];
     };
 
-    const isPropertyGroupBy = (item) =>
+    const isPropertyGroupBy = (/** @type {any} */ item) =>
         item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
 
     const firstFill = model.fillSearchViewItemsProperty();
@@ -1535,12 +1548,14 @@ test("a property deleted on the parent record stops contributing to the domain",
     const propertiesItem = Object.values(model.searchItems).find(
         (item) => item.fieldType === "properties",
     );
-    const isFieldProperty = (item) => item.type === "field_property";
+    const isFieldProperty = (/** @type {any} */ item) => item.type === "field_property";
 
     const created = await model.getSearchItemsProperties(propertiesItem);
     expect(created).toHaveLength(2);
 
-    const gone = created.find((i) => i.propertyFieldDefinition.name === "gone");
+    const gone = created.find(
+        (/** @type {any} */ i) => i.propertyFieldDefinition.name === "gone",
+    );
     model.addAutoCompletionValues(gone.id, {
         label: "x",
         operator: "=",
@@ -1553,7 +1568,9 @@ test("a property deleted on the parent record stops contributing to the domain",
 
     expect(model.getSearchItems(isFieldProperty)).toHaveLength(1);
     expect(JSON.stringify(model.domain)).not.toInclude("properties.gone");
-    expect(model.query.some((q) => q.searchItemId === gone.id)).toBe(false);
+    expect(model.query.some((/** @type {any} */ q) => q.searchItemId === gone.id)).toBe(
+        false,
+    );
 });
 
 test("an active property group-by is retired when its definition is deleted", async () => {
@@ -1616,7 +1633,7 @@ test("a definition record dropping out entirely retires its group-bys", async ()
     result = [];
     await model.fillSearchViewItemsProperty();
 
-    expect(model.getSearchItems((i) => i.isProperty)).toEqual([]);
+    expect(model.getSearchItems((/** @type {any} */ i) => i.isProperty)).toEqual([]);
     expect(model.groupBy).toEqual([]);
     expect(model.facets).toEqual([]);
 });
@@ -1640,13 +1657,17 @@ test("an untouched property group-by keeps its id across a refresh", async () =>
         },
     ];
     await model.fillSearchViewItemsProperty();
-    const idsBefore = model.getSearchItems((i) => i.isProperty).map((i) => i.id);
+    const idsBefore = model
+        .getSearchItems((/** @type {any} */ i) => i.isProperty)
+        .map((/** @type {any} */ i) => i.id);
 
     await model.fillSearchViewItemsProperty();
 
-    expect(model.getSearchItems((i) => i.isProperty).map((i) => i.id)).toEqual(
-        idsBefore,
-    );
+    expect(
+        model
+            .getSearchItems((/** @type {any} */ i) => i.isProperty)
+            .map((/** @type {any} */ i) => i.id),
+    ).toEqual(idsBefore);
 });
 
 test("editing the domain of a favorite that group-bys a property", async () => {
@@ -1680,7 +1701,7 @@ test("editing the domain of a favorite that group-bys a property", async () => {
         },
     ];
     expect(model.groupBy).toEqual(["properties.p1"]);
-    const facet = model.facets.find((f) => f.type === "favorite");
+    const facet = model.facets.find((/** @type {any} */ f) => f.type === "favorite");
 
     await model.splitAndAddDomain(`[("foo", "=", "b")]`, facet.groupId);
 
@@ -1710,7 +1731,7 @@ test("a favorite group-by on a deleted property drops the group-by, not the sear
     model._fetchPropertiesDefinition = async () => [
         { definitionRecordId: 1, definitionRecordName: "Parent", definitions: [] },
     ];
-    const facet = model.facets.find((f) => f.type === "favorite");
+    const facet = model.facets.find((/** @type {any} */ f) => f.type === "favorite");
 
     await model.splitAndAddDomain(`[("foo", "=", "b")]`, facet.groupId);
 
@@ -1751,7 +1772,9 @@ describe("invisible search items", () => {
             context: { hide: true },
         });
         expect(
-            model.getSearchItems((i) => i.type === "filter").map((i) => i.description),
+            model
+                .getSearchItems((/** @type {any} */ i) => i.type === "filter")
+                .map((/** @type {any} */ i) => i.description),
         ).toEqual(["Shown"]);
     });
 
@@ -1764,7 +1787,9 @@ describe("invisible search items", () => {
             context: { ids: [] },
         });
         expect(
-            model.getSearchItems((i) => i.type === "filter").map((i) => i.description),
+            model
+                .getSearchItems((/** @type {any} */ i) => i.type === "filter")
+                .map((/** @type {any} */ i) => i.description),
         ).toEqual(["A"]);
     });
 
@@ -1781,7 +1806,9 @@ describe("invisible search items", () => {
         // The control panel reads every menu through getSearchItems; one bad
         // arch expression must not take all of them down.
         expect(
-            model.getSearchItems((i) => i.type === "filter").map((i) => i.description),
+            model
+                .getSearchItems((/** @type {any} */ i) => i.type === "filter")
+                .map((/** @type {any} */ i) => i.description),
         ).toEqual(["A", "B"]);
         expect.verifySteps(["warn"]);
     });
@@ -1810,14 +1837,18 @@ test("getSearchItems is ordered whether or not a favorite is in scope", async ()
     });
 
     const withoutFavorite = model
-        .getSearchItems((i) => i.type === "filter")
-        .map((i) => i.description);
+        .getSearchItems((/** @type {any} */ i) => i.type === "filter")
+        .map((/** @type {any} */ i) => i.description);
     const withFavorite = model
-        .getSearchItems((i) => ["filter", "favorite"].includes(i.type))
-        .map((i) => i.description);
+        .getSearchItems((/** @type {any} */ i) =>
+            ["filter", "favorite"].includes(i.type),
+        )
+        .map((/** @type {any} */ i) => i.description);
 
     expect(withoutFavorite).toEqual(["A", "B"]);
-    expect(withFavorite.filter((d) => d !== "Fav")).toEqual(withoutFavorite);
+    expect(withFavorite.filter((/** @type {any} */ d) => d !== "Fav")).toEqual(
+        withoutFavorite,
+    );
 });
 
 test("the Activities block ANDs across its invisible separator", async () => {

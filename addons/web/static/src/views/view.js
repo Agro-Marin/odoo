@@ -105,11 +105,19 @@ const viewRegistry = registry.category("views");
  * production and fires in every Hoot suite.
  */
 viewRegistry.addValidation({
-    type: { validate: (t) => t in session.view_info },
+    type: { validate: (/** @type {any} */ t) => t in session.view_info },
 
-    Controller: { validate: (c) => c.prototype instanceof Component },
-    Renderer: { validate: (c) => c.prototype instanceof Component, optional: true },
-    ControlPanel: { validate: (c) => c.prototype instanceof Component, optional: true },
+    Controller: {
+        validate: (/** @type {any} */ c) => c.prototype instanceof Component,
+    },
+    Renderer: {
+        validate: (/** @type {any} */ c) => c.prototype instanceof Component,
+        optional: true,
+    },
+    ControlPanel: {
+        validate: (/** @type {any} */ c) => c.prototype instanceof Component,
+        optional: true,
+    },
     // Not Components: `Model` and `SearchModel` are plain classes, `ArchParser`
     // and `Compiler` are instantiated with `new` by `props()` and the renderer.
     Model: { type: Function, optional: true },
@@ -142,7 +150,7 @@ export function getDefaultConfig() {
         getDisplayName: () => breadcrumbReactive[0].name,
         historyBack: () => {},
         pagerProps: {},
-        setDisplayName: (newDisplayName) => {
+        setDisplayName: (/** @type {any} */ newDisplayName) => {
             breadcrumbReactive[0].name = newDisplayName;
         },
         viewSwitcherEntries: [],
@@ -381,7 +389,7 @@ export class View extends Component {
         let { viewId, searchViewId } = props;
 
         const views = deepCopy(props.views || config.views);
-        const view = views.find((v) => v[1] === type) || [];
+        const view = views.find((/** @type {any} */ v) => v[1] === type) || [];
         if (view.length) {
             view[0] = viewId !== undefined ? viewId : view[0];
             viewId = view[0];
@@ -390,7 +398,7 @@ export class View extends Component {
             views.push(view);
         }
 
-        const searchView = views.find((v) => v[1] === "search");
+        const searchView = views.find((/** @type {any} */ v) => v[1] === "search");
         if (searchView) {
             searchView[0] = searchViewId !== undefined ? searchViewId : searchView[0];
             searchViewId = searchView[0];
@@ -410,7 +418,7 @@ export class View extends Component {
             actionMenus,
         } = props;
 
-        const hasSearchView = views.some((v) => v[1] === "search");
+        const hasSearchView = views.some((/** @type {any} */ v) => v[1] === "search");
         const loadView = !arch || (!actionMenus && loadActionMenus);
         const loadSearchView =
             hasSearchView &&

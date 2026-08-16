@@ -83,6 +83,7 @@ const isStaleWhileRevalidateURL = (url) =>
 
 const sessionInfoURL = "/web/__sw_session_info__";
 
+/** @type {any} */
 let sessionInfo = null;
 
 sw.addEventListener("install", (event) => {

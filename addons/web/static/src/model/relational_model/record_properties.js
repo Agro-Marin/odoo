@@ -3,9 +3,9 @@
 
 /** @module @web/model/relational_model/record_properties */
 
+import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
 
-import { x2ManyCommands } from "./commands.js";
 import { createPropertyActiveField } from "./field_metadata.js";
 import { invalidateAggregateSpecs } from "./field_values.js";
 import { invalidateModifierDependencies } from "./record_utils.js";

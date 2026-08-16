@@ -33,7 +33,7 @@ class DialogWrapper extends Component {
  * @typedef {{
  *      add(
  *          Component: import("@odoo/owl").ComponentConstructor,
- *          props?: {},
+ *          props?: Record<string, any>,
  *          options?: DialogServiceInterfaceAddOptions
  *      ): () => void;
  *      closeAll(params?: any): Promise<void>;
@@ -90,8 +90,14 @@ export class DialogService {
      * contract; that is the same fault as `loadDisplayNames: Function`, pointed
      * the other way.
      *
+     * `props` is `Record<string, any>` and NOT `{}`: `{}` accepts every
+     * non-null value at a call site, so it never checked what a caller passed,
+     * while forbidding every read of a property on it. Mocks and patches of
+     * this method have to read the props they were handed. Widening it costs no
+     * call-site checking, unlike `options` above.
+     *
      * @param {import("@odoo/owl").ComponentConstructor} dialogClass
-     * @param {{}} [props]
+     * @param {Record<string, any>} [props]
      * @param {DialogServiceInterfaceAddOptions} [options]
      * @returns {() => void}
      */

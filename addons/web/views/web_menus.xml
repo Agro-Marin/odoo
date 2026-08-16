@@ -12,7 +12,7 @@
     <!--
         Beacon views belong under Technical, not as siblings of it: it groups
         its entries into sections (bar the odd action leaf, e.g.
-        base_credential_manager's Rate Limit Buckets), and its base.group_no_one
+        credential's Rate Limit Buckets), and its base.group_no_one
         restriction is what keeps raw browser telemetry behind dev mode.
 
         "Observability" is this module's own term for the endpoint layer these

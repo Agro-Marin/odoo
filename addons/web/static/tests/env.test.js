@@ -89,7 +89,7 @@ function startEnv() {
 test(`can start a service`, async () => {
     registerService("test", [], () => 17);
     const env = await makeMockEnv();
-    expect(env.services.test).toBe(17);
+    expect(/** @type {any} */ (env.services).test).toBe(17);
 });
 
 test(`a service throwing synchronously is skipped, not fatal`, async () => {
@@ -159,7 +159,7 @@ test(`can start an asynchronous service`, async () => {
     deferred.resolve(15);
     await started;
     expect.verifySteps(["after"]);
-    expect(env.services.test).toBe(15);
+    expect(/** @type {any} */ (env.services).test).toBe(15);
 });
 
 test(`can start a service with a dependency`, async () => {
@@ -372,7 +372,7 @@ test(`startServices: still throws on genuine circular dependency`, async () => {
  * Capture console.warn calls during ``body`` and return them.  Restores
  * the original function on completion.  Async-aware via try/finally.
  */
-async function captureWarns(body) {
+async function captureWarns(/** @type {any} */ body) {
     const captured = [];
     const original = console.warn;
     console.warn = (...args) => captured.push(args);

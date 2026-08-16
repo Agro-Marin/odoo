@@ -203,7 +203,7 @@ function chainOnClose(own, stolen) {
     if (!stolen) {
         return own;
     }
-    return async (closeParams) => {
+    return async (/** @type {any} */ closeParams) => {
         const errors = [];
         for (const onClose of [own, stolen]) {
             try {
@@ -258,7 +258,7 @@ export class ActionManager {
         this.ControllerComponent = makeControllerComponent(this);
     }
 
-    async _controllersFromState(state) {
+    async _controllersFromState(/** @type {any} */ state) {
         return controllersFromState(state, this);
     }
 
@@ -351,15 +351,15 @@ export class ActionManager {
         return canProceed && token.isCurrent();
     }
 
-    async _loadAction(actionRequest, context = {}) {
+    async _loadAction(/** @type {any} */ actionRequest, context = {}) {
         return loadAction(actionRequest, context);
     }
 
-    _makeController(params) {
+    _makeController(/** @type {any} */ params) {
         return makeController(params, this);
     }
 
-    _preprocessAction(action, context = {}) {
+    _preprocessAction(/** @type {any} */ action, context = {}) {
         return preprocessAction(action, context, this);
     }
 
@@ -378,15 +378,17 @@ export class ActionManager {
         if (currentController.action.type !== "ir.actions.act_window") {
             return null;
         }
-        const view = currentController.views.find((view) => view.type === viewType);
+        const view = currentController.views.find(
+            (/** @type {any} */ view) => view.type === viewType,
+        );
         return view || null;
     }
 
-    _getBreadcrumbs(stack) {
+    _getBreadcrumbs(/** @type {any} */ stack) {
         return buildBreadcrumbs(stack, this);
     }
 
-    _getActionParams(state) {
+    _getActionParams(/** @type {any} */ state) {
         return getActionParams(state);
     }
 
@@ -538,7 +540,7 @@ export class ActionManager {
             action.target === "new" ? [] : this._getBreadcrumbs(nextStack),
         );
         controller.config.getDisplayName = () => controller.displayName;
-        controller.config.setDisplayName = (displayName) => {
+        controller.config.setDisplayName = (/** @type {any} */ displayName) => {
             controller.displayName = displayName;
             if (controller === this._getCurrentController()) {
                 // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `title` is a declared dependency (started before us)
@@ -548,7 +550,7 @@ export class ActionManager {
             }
             if (action.target !== "new") {
                 const crumb = controller.config.breadcrumbs.find(
-                    (bc) => bc.jsId === controller.jsId,
+                    (/** @type {any} */ bc) => bc.jsId === controller.jsId,
                 );
                 if (crumb) {
                     crumb.name = displayName;
@@ -755,11 +757,11 @@ export class ActionManager {
         await dispatch.settled();
     }
 
-    _openURL(url) {
+    _openURL(/** @type {any} */ url) {
         return openURL(url, this);
     }
 
-    _openActionInNewWindow(action, state) {
+    _openActionInNewWindow(/** @type {any} */ action, /** @type {any} */ state) {
         return openActionInNewWindow(action, state, this);
     }
 
@@ -965,16 +967,19 @@ export class ActionManager {
         });
     }
 
-    async loadState(state) {
+    async loadState(/** @type {any} */ state = undefined) {
         return loadState(this, state);
     }
 
-    async loadAction(actionRequest, context) {
+    async loadAction(
+        /** @type {any} */ actionRequest,
+        /** @type {any} */ context = {},
+    ) {
         const action = await this._loadAction(actionRequest, context);
         return this._preprocessAction(action, context);
     }
 
-    pushState(cStack = this.controllerStack, options) {
+    pushState(cStack = this.controllerStack, /** @type {any} */ options = {}) {
         if (!cStack.length) {
             return;
         }
@@ -1014,7 +1019,7 @@ export function makeActionManager(env, router = _router) {
 
 export const actionService = {
     dependencies: ["dialog", "effect", "localization", "notification", "title", "ui"],
-    start(env) {
+    start(/** @type {any} */ env) {
         const am = makeActionManager(env);
         am.uninstallActionCacheInvalidation = installActionCacheInvalidation(am);
         return am;

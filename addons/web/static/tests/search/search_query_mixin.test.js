@@ -49,7 +49,7 @@ function makeSearchModel(overrides = {}) {
             notifications.push("notify");
         },
         /** Derive selected generatorIds live from query so tests stay realistic. */
-        _getSelectedGeneratorIds(searchItemId) {
+        _getSelectedGeneratorIds(/** @type {any} */ searchItemId) {
             return this.query
                 .filter((q) => q.searchItemId === searchItemId && "generatorId" in q)
                 .map((q) => q.generatorId);
@@ -248,7 +248,9 @@ describe("toggleSearchItem", () => {
 
         model.toggleSearchItem(1);
 
-        expect(model.query.some((q) => q.searchItemId === 1)).toBe(true);
+        expect(model.query.some((/** @type {any} */ q) => q.searchItemId === 1)).toBe(
+            true,
+        );
     });
 
     test("deactivates an active filter", () => {
@@ -257,7 +259,9 @@ describe("toggleSearchItem", () => {
 
         model.toggleSearchItem(1);
 
-        expect(model.query.some((q) => q.searchItemId === 1)).toBe(false);
+        expect(model.query.some((/** @type {any} */ q) => q.searchItemId === 1)).toBe(
+            false,
+        );
     });
 
     test("activating a favorite clears the query first", () => {
@@ -363,8 +367,14 @@ describe("toggleDateFilter", () => {
 
         model.toggleDateFilter(1, "third_quarter");
 
-        expect(model.query.some((q) => q.generatorId === "year")).toBe(true);
-        expect(model.query.some((q) => q.generatorId === "third_quarter")).toBe(false);
+        expect(
+            model.query.some((/** @type {any} */ q) => q.generatorId === "year"),
+        ).toBe(true);
+        expect(
+            model.query.some(
+                (/** @type {any} */ q) => q.generatorId === "third_quarter",
+            ),
+        ).toBe(false);
     });
 
     test("removing last year entry clears all remaining entries for that item", () => {
@@ -374,7 +384,9 @@ describe("toggleDateFilter", () => {
 
         model.toggleDateFilter(1, "year");
 
-        expect(model.query.filter((q) => q.searchItemId === 1).length).toBe(0);
+        expect(
+            model.query.filter((/** @type {any} */ q) => q.searchItemId === 1).length,
+        ).toBe(0);
     });
 
     test("non-custom add: adds generatorId; with year already present no auto-year", () => {
@@ -385,8 +397,8 @@ describe("toggleDateFilter", () => {
         model.toggleDateFilter(1, "third_quarter");
 
         const generatorIds = model.query
-            .filter((q) => q.searchItemId === 1)
-            .map((q) => q.generatorId);
+            .filter((/** @type {any} */ q) => q.searchItemId === 1)
+            .map((/** @type {any} */ q) => q.generatorId);
         expect(generatorIds).toInclude("third_quarter");
         expect(generatorIds).toInclude("year");
     });
@@ -406,8 +418,8 @@ describe("toggleDateFilter", () => {
         expect(() => model.toggleDateFilter(1, "third_quarter")).not.toThrow();
 
         const generatorIds = model.query
-            .filter((q) => q.searchItemId === 1)
-            .map((q) => q.generatorId);
+            .filter((/** @type {any} */ q) => q.searchItemId === 1)
+            .map((/** @type {any} */ q) => q.generatorId);
         expect(generatorIds).toInclude("third_quarter");
     });
 });
@@ -443,7 +455,7 @@ describe("toggleDateFilter generator validation", () => {
 
         model.toggleDateFilter(1, "month");
 
-        const generatorIds = model.query.map((q) => q.generatorId);
+        const generatorIds = model.query.map((/** @type {any} */ q) => q.generatorId);
         expect(generatorIds).toInclude("month");
         expect(generatorIds).toInclude("year");
     });
@@ -461,7 +473,7 @@ describe("toggleDateFilter generator validation", () => {
         model.toggleDateFilter(1);
 
         expect.verifySteps(["warn"]);
-        const generatorIds = model.query.map((q) => q.generatorId);
+        const generatorIds = model.query.map((/** @type {any} */ q) => q.generatorId);
         expect(generatorIds).toInclude("month");
         expect(generatorIds).toInclude("year");
         expect(generatorIds).not.toInclude("bogus");
@@ -538,7 +550,9 @@ describe("createNewFilters", () => {
         ]);
 
         expect(ids).toEqual([5, 6]);
-        expect(model.query.map((q) => q.searchItemId)).toEqual([5, 6]);
+        expect(model.query.map((/** @type {any} */ q) => q.searchItemId)).toEqual([
+            5, 6,
+        ]);
     });
 
     test("all filters share the same groupId and groupNumber", () => {
@@ -566,7 +580,9 @@ describe("createNewGroupBy", () => {
         const item = model.searchItems[1];
         expect(item.type).toBe("groupBy");
         expect(item.fieldName).toBe("partner_id");
-        expect(model.query.some((q) => q.searchItemId === 1)).toBe(true);
+        expect(model.query.some((/** @type {any} */ q) => q.searchItemId === 1)).toBe(
+            true,
+        );
     });
 
     test("date field: creates dateGroupBy item with default interval", () => {

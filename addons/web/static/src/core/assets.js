@@ -32,7 +32,7 @@ const __odoo_assets_state__ = globalSingleton("assets", () => ({
     globalBundleCache: new Map(),
     assetCacheByDocument: new WeakMap(),
     crossDocESMBundleCache: new WeakMap(),
-    injectedImportMapKeys: new Set(),
+    injectedImportMapKeys: new Map(),
     crossDocImportMapKeys: new WeakMap(),
     crossDocLoadSeq: 0,
 }));
@@ -49,8 +49,16 @@ const crossDocImportMapKeys = __odoo_assets_state__.crossDocImportMapKeys;
  * specifier X was removed, as it conflicted with an existing rule"). So every
  * document gets its own record of what has been mapped in it.
  *
+ * The record is specifier -> TARGET, not a bare set of names. Whether a
+ * specifier is already claimed and whether it is claimed by the URL this bundle
+ * wants are different questions, and only the second one predicts whether
+ * `import(specifier)` returns the right module. Tracking names alone made the
+ * two indistinguishable, so a bundle whose specifier had been claimed by
+ * someone else's bridge silently imported that bridge instead — see
+ * `resolveSpecifierTarget`.
+ *
  * @param {Document} targetDoc
- * @returns {Set<string>}
+ * @returns {Map<string, string>}
  */
 function getInjectedImportMapKeys(targetDoc) {
     if (targetDoc === document || targetDoc.defaultView === window) {
@@ -58,15 +66,31 @@ function getInjectedImportMapKeys(targetDoc) {
     }
     let keys = crossDocImportMapKeys.get(targetDoc);
     if (!keys) {
-        keys = new Set();
+        keys = new Map();
         crossDocImportMapKeys.set(targetDoc, keys);
     }
     return keys;
 }
 
 /**
+ * Absolute form of an import-map target, so two spellings of one URL compare
+ * equal. `data:` targets are already absolute and `URL` leaves them alone.
+ *
+ * @param {string} url
  * @param {Document} targetDoc
- * @param {Set<string>} [keys]
+ * @returns {string}
+ */
+function absoluteTarget(url, targetDoc) {
+    try {
+        return new URL(url, targetDoc.baseURI).href;
+    } catch {
+        return url;
+    }
+}
+
+/**
+ * @param {Document} targetDoc
+ * @param {Map<string, string>} [keys]
  * @returns {number}
  */
 function seedInjectedImportMapKeys(targetDoc, keys) {
@@ -85,9 +109,10 @@ function seedInjectedImportMapKeys(targetDoc, keys) {
             const parsed = JSON.parse(text);
             const imports = parsed && parsed.imports;
             if (imports && typeof imports === "object") {
-                for (const spec of Object.keys(imports)) {
+                for (const [spec, url] of Object.entries(imports)) {
+                    // First rule wins, in the record exactly as in the browser.
                     if (!injected.has(spec)) {
-                        injected.add(spec);
+                        injected.set(spec, absoluteTarget(url, targetDoc));
                         seeded++;
                     }
                 }
@@ -95,6 +120,39 @@ function seedInjectedImportMapKeys(targetDoc, keys) {
         } catch {}
     }
     return seeded;
+}
+
+/**
+ * What to hand `import()` for one of a bundle's own specifiers.
+ *
+ * Normally the specifier itself: the import map resolves it. But when the
+ * document already maps it somewhere else, no import map can take it back —
+ * the browser drops the conflicting rule — so importing the specifier would
+ * return whichever module claimed the name first. That is how a bundle came to
+ * load against a bridge shim whose producer was never on the page, giving
+ * `undefined` for every export.
+ *
+ * Importing the URL directly sidesteps the map for this one module, and
+ * registering the result under the specifier repairs the rest of the graph:
+ * the bridges other modules resolve to read `odoo.loader.modules.get(spec)`.
+ *
+ * @param {string} specifier
+ * @param {Record<string, string> | null | undefined} importMap
+ * @param {Map<string, string>} injected
+ * @param {Document} targetDoc
+ * @returns {{ target: string, conflict: boolean }}
+ */
+function resolveSpecifierTarget(specifier, importMap, injected, targetDoc) {
+    const wanted = importMap?.[specifier];
+    if (!wanted) {
+        return { target: specifier, conflict: false };
+    }
+    const claimed = injected.get(specifier);
+    const wantedAbs = absoluteTarget(wanted, targetDoc);
+    if (claimed === undefined || claimed === wantedAbs) {
+        return { target: specifier, conflict: false };
+    }
+    return { target: wantedAbs, conflict: true };
 }
 
 /** @returns {Map<string, Promise<any>>} */
@@ -432,12 +490,20 @@ export const assets = {
                 /** @type {Record<string, any>} */
                 const freshEntries = {};
                 let nDup = 0;
+                /** @type {string[]} */
+                const conflicts = [];
                 for (const [spec, url] of Object.entries(importMap)) {
-                    if (!injectedImportMapKeys.has(spec)) {
+                    const claimed = injectedImportMapKeys.get(spec);
+                    const wanted = absoluteTarget(url, document);
+                    if (claimed === undefined) {
                         freshEntries[spec] = url;
-                        injectedImportMapKeys.add(spec);
-                    } else {
+                        injectedImportMapKeys.set(spec, wanted);
+                    } else if (claimed === wanted) {
                         nDup++;
+                    } else {
+                        // Not re-mappable, and not the same module: the bundle's
+                        // own import below goes to the URL instead.
+                        conflicts.push(spec);
                     }
                 }
                 const nFresh = Object.keys(freshEntries).length;
@@ -447,9 +513,17 @@ export const assets = {
                     nFresh,
                     "dup=",
                     nDup,
+                    "conflict=",
+                    conflicts.length,
                     "total=",
-                    nFresh + nDup,
+                    nFresh + nDup + conflicts.length,
                 );
+                if (conflicts.length) {
+                    // Loud: a conflict means some earlier bundle mapped this
+                    // specifier somewhere else, and every module that imports it
+                    // by name — including any bridge — still gets that one.
+                    log("loadESMBundle:specifier already claimed elsewhere", conflicts);
+                }
                 if (nFresh) {
                     const mapEl = document.createElement("script");
                     mapEl.type = "importmap";
@@ -460,7 +534,13 @@ export const assets = {
             }
             const results = await Promise.all(
                 specifiers.map(async (specifier) => {
-                    const mod = await import(specifier);
+                    const { target } = resolveSpecifierTarget(
+                        specifier,
+                        importMap,
+                        injectedImportMapKeys,
+                        document,
+                    );
+                    const mod = await import(target);
                     const mappedUrl = importMap?.[specifier];
                     if (mappedUrl && typeof mod.__setImplUrl === "function") {
                         await mod.__setImplUrl(
@@ -532,13 +612,22 @@ export const assets = {
         /** @type {Record<string, any>} */
         const freshEntries = {};
         let nDup = 0;
+        /** @type {string[]} */
+        const conflicts = [];
         for (const [spec, url] of Object.entries(extraMap)) {
-            if (injected.has(spec)) {
+            const claimed = injected.get(spec);
+            const wanted = absoluteTarget(url, targetDoc);
+            if (claimed === undefined) {
+                freshEntries[spec] = url;
+                injected.set(spec, wanted);
+            } else if (claimed === wanted) {
                 nDup++;
             } else {
-                freshEntries[spec] = url;
-                injected.add(spec);
+                conflicts.push(spec);
             }
+        }
+        if (conflicts.length) {
+            log("loadESMBundle:crossDoc specifier already claimed", conflicts);
         }
         const nFresh = Object.keys(freshEntries).length;
         if (nFresh) {
@@ -556,12 +645,21 @@ export const assets = {
         const token = ++__odoo_assets_state__.crossDocLoadSeq;
         const doneEvent = `__odoo_esm_bundle_loaded_${token}`;
         const errorEvent = `__odoo_esm_bundle_error_${token}`;
+        // `[specifier, whatToImport]` rather than the bare specifier: for a
+        // specifier this document already maps elsewhere, importing the name
+        // returns whatever claimed it first, so the URL is passed instead and
+        // the result is still registered under the specifier. Same reasoning as
+        // `resolveSpecifierTarget` in the same-document branch.
+        const importPairs = specifiers.map((specifier) => [
+            specifier,
+            resolveSpecifierTarget(specifier, extraMap, injected, targetDoc).target,
+        ]);
         const scriptText = `
             (async () => {
                 try {
-                    const specs = ${JSON.stringify(specifiers)};
+                    const specs = ${JSON.stringify(importPairs)};
                     const pairs = await Promise.all(
-                        specs.map(async (s) => [s, await import(s)])
+                        specs.map(async ([s, t]) => [s, await import(t)])
                     );
                     const modules = Object.fromEntries(pairs);
                     if (window.odoo?.loader?.registerNativeModules) {

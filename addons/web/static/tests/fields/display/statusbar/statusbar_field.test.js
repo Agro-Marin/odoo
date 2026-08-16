@@ -63,7 +63,7 @@ class Partner extends models.Model {
             foo: "yop",
             int_field: 10,
             qux: 0.44,
-            p: [],
+            p: /** @type {any[]} */ ([]),
             trululu: 4,
             user_id: 17,
         },
@@ -74,7 +74,7 @@ class Partner extends models.Model {
             foo: "blip",
             int_field: 9,
             qux: 13,
-            p: [],
+            p: /** @type {any[]} */ ([]),
             trululu: 1,
             product_id: 37,
             user_id: 17,
@@ -153,7 +153,7 @@ test("statusbar with an empty statusbar_visible attribute shows all stages", asy
 });
 
 test("folded statusbar widget on selection field has selected value in the toggler", async () => {
-    /** @type {any} */ (mockService)("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (/** @type {any} */ env) => {
         Object.defineProperty(env, "isSmall", {
             value: true,
         });
@@ -1094,7 +1094,7 @@ test("clickable statusbar widget on mobile view", async () => {
 test('"status" with no stages does not crash command palette', async () => {
     class Stage extends models.Model {
         name = fields.Char();
-        _records = [];
+        _records = /** @type {any[]} */ ([]);
     }
 
     class Task extends models.Model {
@@ -1173,6 +1173,7 @@ test("cache: update current status if it changed", async () => {
     };
 
     onRpc("has_group", () => true);
+    /** @type {any} */
     let def;
     onRpc("web_read", () => def);
     await mountWithCleanup(WebClient);

@@ -4,9 +4,9 @@
 /** @module @web/model/relational_model/record_preprocessors */
 
 import { markup } from "@odoo/owl";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
 
-import { x2ManyCommands } from "./commands.js";
 import { getFieldContext, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 

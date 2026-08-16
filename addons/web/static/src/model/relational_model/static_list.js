@@ -5,10 +5,10 @@
 
 import { markRaw } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { deepEqual, omit } from "@web/core/utils/collections/objects";
 
 import { serializeCommands } from "./command_builder.js";
-import { x2ManyCommands } from "./commands.js";
 import { DataPoint } from "./datapoint.js";
 import { getId, getSpecEvalContext, isX2Many } from "./field_context.js";
 import {
@@ -66,6 +66,10 @@ const RESTORABLE_CONFIG_KEYS = ["limit", "offset"];
 
 export class StaticList extends DataPoint {
     static type = "StaticList";
+
+    // No class-field declarations: `DataPoint`'s constructor calls `setup()`,
+    // and a subclass field initialiser runs after `super()` returns, so one
+    // would blank what `setup()` assigned. See the note on `RelationalRecord`.
 
     /**
      * @param {any} _config

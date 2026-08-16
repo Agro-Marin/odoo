@@ -50,7 +50,7 @@ function isInViewWithinScrollableY(target) {
     return y > 0 && y < containerHeight && x > 0 && x < containerWidth;
 }
 
-function buildSources(generate, options = {}) {
+function buildSources(/** @type {any} */ generate, options = {}) {
     return [
         {
             options: generate,
@@ -59,7 +59,11 @@ function buildSources(generate, options = {}) {
     ];
 }
 
-function item(label, onSelect, data = {}) {
+function item(
+    /** @type {any} */ label,
+    /** @type {any} */ onSelect = undefined,
+    data = {},
+) {
     return {
         data,
         label,
@@ -113,7 +117,7 @@ test("select option", async () => {
             item("Hello", this.onSelect.bind(this)),
         ]);
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             this.state.value = option.label;
             expect.step(option.label);
         }
@@ -150,7 +154,7 @@ test("autocomplete with resetOnSelect='true'", async () => {
             item("Hello", this.onSelect.bind(this)),
         ]);
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             this.state.value = option.label;
             expect.step(option.label);
         }
@@ -360,7 +364,7 @@ test("open twice should not display previous results", async () => {
         static template = xml`<AutoComplete value="''" sources="sources"/>`;
         static props = [];
 
-        sources = buildSources(async (request) => {
+        sources = buildSources(async (/** @type {any} */ request) => {
             await def;
             return ITEMS.filter((option) => option.label.includes(request));
         });
@@ -430,7 +434,7 @@ test("press enter on autocomplete with empty source (2)", async () => {
         static template = xml`<AutoComplete value="''" sources="sources"/>`;
         static props = [];
 
-        sources = buildSources((request) =>
+        sources = buildSources((/** @type {any} */ request) =>
             request.length > 2 ? [item("test A"), item("test B"), item("test C")] : [],
         );
     }
@@ -567,7 +571,7 @@ test("correct sequence of blur, focus and select", async () => {
         onChange() {
             expect.step("change");
         }
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             this.state.value = option.label;
             expect.step(`select ${option.label}`);
         }
@@ -632,7 +636,7 @@ test("autocomplete always closes on click away", async () => {
             item("Hello", this.onSelect.bind(this)),
         ]);
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             this.state.value = option.label;
         }
     }
@@ -656,7 +660,7 @@ test("autocomplete trim spaces for search", async () => {
         static props = [];
 
         state = useState({ value: " World" });
-        sources = buildSources((request) =>
+        sources = buildSources((/** @type {any} */ request) =>
             ITEMS.filter(({ label }) => label.startsWith(request)),
         );
     }
@@ -702,7 +706,7 @@ test("Clicking away selects the first option when selectOnBlur is true", async (
             item("Hello", this.onSelect.bind(this)),
         ]);
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             this.state.value = option.label;
             expect.step(option.label);
         }
@@ -730,7 +734,7 @@ test("selectOnBlur doesn't interfere with selecting by mouse clicking", async ()
             item("Hello", this.onSelect.bind(this)),
         ]);
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             this.state.value = option.label;
             expect.step(option.label);
         }
@@ -756,7 +760,7 @@ test("pointerdown on an unselectable option doesn't latch ignoreBlur", async () 
             { label: "unselectable header" },
         ]);
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             this.state.value = option.label;
             expect.step(option.label);
         }
@@ -894,7 +898,7 @@ test("unselectable options are... not selectable", async () => {
             { label: "unselectable" },
         ]);
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             expect.step(`selected: ${option.label}`);
         }
     }
@@ -961,7 +965,7 @@ test("keyboard navigation skips a loaded-but-empty source", async () => {
             { options: () => [] },
         ];
 
-        onSelect(option) {
+        onSelect(/** @type {any} */ option) {
             expect.step(`selected: ${option.label}`);
         }
     }
@@ -1167,7 +1171,7 @@ test("a new value prop is applied after the edit was abandoned with Escape", asy
         setup() {
             this.state = useState({ value: "initial" });
             this.sources = [{ options: [{ label: "alpha", onSelect: () => {} }] }];
-            setValue = (value) => (this.state.value = value);
+            setValue = (/** @type {any} */ value) => (this.state.value = value);
         }
     }
     await mountWithCleanup(Parent);

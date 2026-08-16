@@ -153,9 +153,9 @@ test("PersistentCache: can cache a simple call", async () => {
     });
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":123}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":123}');
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -182,9 +182,9 @@ test("PersistentCache: can cache a simple call", async () => {
     await microTick();
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":456}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":456}');
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 456 },
@@ -208,9 +208,9 @@ test("invalidate table", async () => {
 
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":123}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":123}');
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -218,7 +218,7 @@ test("invalidate table", async () => {
 
     rpcCache.invalidate("table");
 
-    expect(rpcCache.indexedDB.mockIndexedDB.table).toEqual({});
+    expect(/** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table).toEqual({});
     expect(rpcCache.ramCache.ram.table).toEqual({});
 });
 
@@ -247,12 +247,12 @@ test("invalidate multiple tables", async () => {
 
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":123}',
-    );
-    expect(rpcCache.indexedDB.mockIndexedDB.table2.key.ciphertext).toBe(
-        'encrypted data:{"test":456}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":123}');
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table2.key.ciphertext,
+    ).toBe('encrypted data:{"test":456}');
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -264,8 +264,8 @@ test("invalidate multiple tables", async () => {
 
     rpcCache.invalidate(["table", "table2"]);
 
-    expect(rpcCache.indexedDB.mockIndexedDB.table).toEqual({});
-    expect(rpcCache.indexedDB.mockIndexedDB.table2).toEqual({});
+    expect(/** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table).toEqual({});
+    expect(/** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table2).toEqual({});
     expect(rpcCache.ramCache.ram.table).toEqual({});
     expect(rpcCache.ramCache.ram.table2).toEqual({});
 });
@@ -287,9 +287,9 @@ test("IndexedDB Crypt: can cache a simple call", async () => {
     });
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":123}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":123}');
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -412,9 +412,9 @@ test("update callback - Disk Value", async () => {
     });
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        `encrypted data:{"test":123}`,
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe(`encrypted data:{"test":123}`);
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -448,9 +448,9 @@ test("update callback - Disk Value", async () => {
     await microTick();
     await microTick();
     expect.verifySteps(["Callback"]);
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        `encrypted data:{"test":456}`,
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe(`encrypted data:{"test":456}`);
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 456 },
@@ -532,9 +532,9 @@ test("Ram value shouldn't change (update the IndexedDB response)", async () => {
     });
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        `encrypted data:{"test":123}`,
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe(`encrypted data:{"test":123}`);
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -609,9 +609,9 @@ test("Changing the result shouldn't force the call to callback with hasChanged (
     });
     await microTick();
     await microTick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        `encrypted data:{"test":123}`,
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe(`encrypted data:{"test":123}`);
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -906,9 +906,9 @@ test("DiskCache: multiple consecutive calls, value already in disk cache", async
         type: "disk",
     });
     await tick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        `encrypted data:{"test":123}`,
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe(`encrypted data:{"test":123}`);
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -977,9 +977,9 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
         type: "disk",
     });
     await tick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        `encrypted data:{"test":123}`,
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe(`encrypted data:{"test":123}`);
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
         value: { test: 123 },
@@ -1376,7 +1376,7 @@ test("__version: a disk round-trip of an ARRAY payload preserves the version", a
     );
     await tick();
 
-    const stored = rpcCache.indexedDB.mockIndexedDB.t.karr;
+    const stored = /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.t.karr;
     expect(stored.ciphertext).toBe('encrypted data:[{"id":1},{"id":2}]');
     expect(stored.version).toBe("abc");
 
@@ -1489,14 +1489,18 @@ test("invalidateByModel: only matching-model entries removed from IndexedDB", as
     });
     await tick();
 
-    expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read).sort()).toEqual(
-        [keyPartner1, keyPartner2, keyUser].sort(),
-    );
+    expect(
+        Object.keys(
+            /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.web_read,
+        ).sort(),
+    ).toEqual([keyPartner1, keyPartner2, keyUser].sort());
 
     rpcCache.invalidateByModel(["web_read"], "res.partner");
     await tick();
 
-    expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read)).toEqual([keyUser]);
+    expect(
+        Object.keys(/** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.web_read),
+    ).toEqual([keyUser]);
 });
 
 test("invalidateByModel: entries lacking a model property are skipped", async () => {
@@ -1505,7 +1509,7 @@ test("invalidateByModel: entries lacking a model property are skipped", async ()
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    rpcCache.indexedDB.mockIndexedDB = {
+    /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB = {
         web_read: {
             "<not-json>": "stale-string",
             "no-model": { ciphertext: new ArrayBuffer(0), iv: new Uint8Array() },
@@ -1520,11 +1524,11 @@ test("invalidateByModel: entries lacking a model property are skipped", async ()
     rpcCache.invalidateByModel(["web_read"], "res.partner");
     await tick();
 
-    expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read).sort()).toEqual([
-        "<not-json>",
-        "no-model",
-        "wrong-model",
-    ]);
+    expect(
+        Object.keys(
+            /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.web_read,
+        ).sort(),
+    ).toEqual(["<not-json>", "no-model", "wrong-model"]);
 });
 
 test("RAM model-index: write+invalidateByModel is O(1) lookup, no JSON.parse", async () => {
@@ -1621,9 +1625,9 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
         type: "disk",
     });
     await tick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":1}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":1}');
 
     const def = new Deferred();
     rpcCache.read(
@@ -1663,9 +1667,9 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
         status: "fulfilled",
         value: { test: 2 },
     });
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":2}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":2}');
 
     const def2 = new Deferred();
     rpcCache
@@ -1730,7 +1734,9 @@ test("invalidate between RPC resolution and disk write persists NO stale entry",
     gate.resolve();
     await tick();
     await tick();
-    expect(rpcCache.indexedDB.mockIndexedDB?.table?.key).toBe(undefined);
+    expect(/** @type {any} */ (rpcCache.indexedDB).mockIndexedDB?.table?.key).toBe(
+        undefined,
+    );
     expect(rpcCache.ramCache.read("table", "key")).toBe(undefined);
 });
 
@@ -1757,7 +1763,9 @@ test("invalidateByModel between RPC resolution and disk write persists NO stale 
     gate.resolve();
     await tick();
     await tick();
-    expect(rpcCache.indexedDB.mockIndexedDB?.web_read?.key).toBe(undefined);
+    expect(/** @type {any} */ (rpcCache.indexedDB).mockIndexedDB?.web_read?.key).toBe(
+        undefined,
+    );
 });
 
 test("invalidating an unrelated table does not drop a concurrent disk write", async () => {
@@ -1779,9 +1787,9 @@ test("invalidating an unrelated table does not drop a concurrent disk write", as
     gate.resolve();
     await tick();
     await tick();
-    expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
-        'encrypted data:{"test":123}',
-    );
+    expect(
+        /** @type {any} */ (rpcCache.indexedDB).mockIndexedDB.table.key.ciphertext,
+    ).toBe('encrypted data:{"test":123}');
 });
 
 test("joined subscribers receive callbacks through their OWN shape", async () => {

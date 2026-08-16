@@ -139,8 +139,8 @@ test("getAll and getEntries return frozen cached arrays", () => {
     expect(all).toEqual(["foo1"]);
     expect(entries).toEqual([["foo1", "foo1"]]);
 
-    expect(() => all.push("foo2")).toThrow();
-    expect(() => entries.push(["foo2", "foo2"])).toThrow();
+    expect(() => /** @type {any[]} */ (all).push("foo2")).toThrow();
+    expect(() => /** @type {any[]} */ (entries).push(["foo2", "foo2"])).toThrow();
 
     expect(registry.getAll()).toEqual(["foo1"]);
     expect(registry.getEntries()).toEqual([["foo1", "foo1"]]);
@@ -274,7 +274,11 @@ test("can validate by adding a schema after the registry is filled", async () =>
 
 test("can validate subclassess", async () => {
     serverState.debug = "1";
-    const schema = { component: { validate: (c) => c.prototype instanceof Component } };
+    const schema = {
+        component: {
+            validate: (/** @type {any} */ c) => c.prototype instanceof Component,
+        },
+    };
     const widgetRegistry = new Registry();
     widgetRegistry.addValidation(schema);
     class Widget extends Component {}
@@ -336,6 +340,7 @@ test("non-debug: a quarantined invalid entry beacons the anomaly (observability)
     // reaches no one. This is the "debug throws, prod beacons" contract, and the
     // beacon is the half a console.warn assertion does not pin -- removing it
     // would let prod go silent again with the suite still green.
+    /** @type {any[]} */
     const calls = [];
     mockSendBeacon((url, blob) => {
         calls.push({ url, blob });
@@ -360,6 +365,7 @@ test("non-debug: a duplicate add with a different value beacons the anomaly (obs
     // the old code emitted nothing at all, so a real addon collision was
     // invisible in production. The collision must go through the same js_error
     // beacon as validation failures.
+    /** @type {any[]} */
     const calls = [];
     mockSendBeacon((url, blob) => {
         calls.push({ url, blob });
@@ -407,16 +413,21 @@ test("useRegistry: additions after a local splice keep sequence order", async ()
         }
     }
     await mountWithCleanup(MyComponent);
-    expect(state.entries.map(([k]) => k)).toEqual(["a", "b", "d"]);
+    expect(state.entries.map(([/** @type {any} */ k]) => k)).toEqual(["a", "b", "d"]);
 
     state.entries.splice(0, 1);
-    expect(state.entries.map(([k]) => k)).toEqual(["b", "d"]);
+    expect(state.entries.map(([/** @type {any} */ k]) => k)).toEqual(["b", "d"]);
 
     testRegistry.add("c", "C", { sequence: 30 });
-    expect(state.entries.map(([k]) => k)).toEqual(["b", "c", "d"]);
+    expect(state.entries.map(([/** @type {any} */ k]) => k)).toEqual(["b", "c", "d"]);
 
     testRegistry.add("e", "E", { sequence: 50 });
-    expect(state.entries.map(([k]) => k)).toEqual(["b", "c", "d", "e"]);
+    expect(state.entries.map(([/** @type {any} */ k]) => k)).toEqual([
+        "b",
+        "c",
+        "d",
+        "e",
+    ]);
 });
 
 test("useRegistry: listens from setup time, not onWillStart", async () => {
@@ -434,7 +445,7 @@ test("useRegistry: listens from setup time, not onWillStart", async () => {
         }
     }
     await mountWithCleanup(MyComponent);
-    expect(state.entries.map(([k]) => k)).toEqual(["a", "b"]);
+    expect(state.entries.map(([/** @type {any} */ k]) => k)).toEqual(["a", "b"]);
 });
 
 // SEMANTICS-PARITY-BLOCK

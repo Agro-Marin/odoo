@@ -16,11 +16,17 @@ describe("bridge source generation", () => {
         const source = buildBridgeModuleSource("@web/core/x", ["alpha"]);
         expect(source).toBe(
             [
-                `const _m = odoo.loader.modules.get("@web/core/x");`,
-                `const _d = _m?.default ?? _m;`,
-                `export default _d;`,
-                `const _e0 = _m?.alpha;`,
-                `export { _e0 as alpha };`,
+                `let _d, _e0;`,
+                `function _s() {`,
+                `  const _m = odoo.loader.modules.get("@web/core/x");`,
+                `  if (_m === undefined) { return; }`,
+                `  _d = _m.default ?? _m;`,
+                `  _e0 = _m.alpha;`,
+                `  odoo.loader.bus.removeEventListener("registered", _s);`,
+                `}`,
+                `_s();`,
+                `odoo.loader.bus.addEventListener("registered", _s);`,
+                `export { _d as default, _e0 as alpha };`,
             ].join("\n"),
         );
     });
@@ -32,11 +38,32 @@ describe("bridge source generation", () => {
             "invalid-name",
             "0invalid",
         ]);
-        expect(source).toInclude("const _e0 = _m?.valid_name;");
-        expect(source).toInclude("export { _e0 as valid_name };");
+        expect(source).toInclude("_e0 = _m.valid_name;");
+        expect(source).toInclude("_e0 as valid_name");
         expect(source).not.toInclude("invalid-name");
         expect(source).not.toInclude("0invalid");
-        expect(source.match(/export default/g)).toHaveLength(1);
+        // `export default <expr>` is NOT a live binding; `export { _d as default }` is.
+        expect(source).not.toInclude("export default");
+        expect(source.match(/_d as default/g)).toHaveLength(1);
+    });
+
+    test("a producer that registers later still reaches the bridge", async () => {
+        // The defect this shape exists for: a shim reached before its producer
+        // registered bound `undefined` with `const` and kept it forever, and an
+        // import-map entry cannot be re-mapped once the document holds it, so
+        // the consumer had no second chance either.
+        const spec = "@probe/registers/late";
+        const mod = await import(
+            toDataModuleUrl(buildBridgeModuleSource(spec, ["alpha", "beta"]))
+        );
+        expect(mod.alpha).toBe(undefined);
+        expect(mod.default).toBe(undefined);
+
+        odoo.loader.registerNativeModules({ [spec]: { alpha: 42, beta: "hi" } });
+
+        expect(mod.alpha).toBe(42);
+        expect(mod.beta).toBe("hi");
+        expect(mod.default).toEqual({ alpha: 42, beta: "hi" });
     });
 
     test("specifier is JSON-quoted (script-safe)", () => {
@@ -125,7 +152,7 @@ describe("bridge source with awkward export names", () => {
     test("a reserved word is re-exported under an alias, not `export const`", () => {
         const source = buildBridgeModuleSource("@web/x", ["foo", "class", "await"]);
         expect(source).not.toInclude("export const class");
-        expect(source).toInclude("_m?.class");
+        expect(source).toInclude("_m.class");
         expect(source).toInclude("as class");
         expect(source).toInclude("as await");
         expect(source).toInclude("as foo");

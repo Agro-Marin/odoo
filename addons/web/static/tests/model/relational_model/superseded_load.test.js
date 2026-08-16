@@ -104,7 +104,7 @@ test("a superseded load cancels the request it abandons", async () => {
     const superseded = model.load({ domain: [["bar", "=", true]] }).catch(() => {});
     await animationFrame();
 
-    const supersededSignal = signals.at(-1);
+    const supersededSignal = /** @type {AbortSignal} */ (signals.at(-1));
     expect(supersededSignal.aborted).toBe(false);
 
     const winner = model.load({ domain: [["bar", "=", false]] });
@@ -135,5 +135,5 @@ test("the winning load's signal is never aborted", async () => {
     await animationFrame();
 
     expect(signals.length > 0).toBe(true);
-    expect(signals.at(-1).aborted).toBe(false);
+    expect(/** @type {AbortSignal} */ (signals.at(-1)).aborted).toBe(false);
 });

@@ -46,7 +46,7 @@ function getColorIndex(value) {
         return ((Math.round(value) % COLORS.length) + COLORS.length) % COLORS.length;
     } else if (typeof value === "string") {
         const codePointSum = [...value].reduce(
-            (acc, char) => acc + char.codePointAt(0),
+            (acc, char) => acc + (char.codePointAt(0) ?? 0),
             0,
         );
         return codePointSum % COLORS.length;
@@ -171,13 +171,13 @@ export function getImageSrcFromRecordInfo(record, model, field, idOrIds, placeho
         record.resModel === model && (record.resId === id || (!record.resId && !id));
     const fieldVal = record.data[field];
     if (isCurrentRecord && fieldVal && !isBinSize(fieldVal)) {
-        const type = fileTypeMagicWordMap[fieldVal[0]];
+        const type = fileTypeMagicWordMap[fieldVal[0] ?? ""];
         return `data:image/${type};base64,${fieldVal}`;
     } else if (placeholder && (!model || !field || !id || !fieldVal)) {
         return placeholder;
     } else {
         const unique = isCurrentRecord && record.data.write_date;
-        return imageUrl(model, id, field, { unique });
+        return imageUrl(/** @type {string} */ (model), id, field, { unique });
     }
 }
 
@@ -262,7 +262,8 @@ export class KanbanRecord extends Component {
         this.hasTouch = hasTouch();
 
         this.longTouch = useLongTouchSelection({
-            getLongTouchThreshold: () => this.LONG_TOUCH_THRESHOLD,
+            getLongTouchThreshold: () =>
+                /** @type {number} */ (this.LONG_TOUCH_THRESHOLD),
             onLongTouch: () => this.props.record.toggleSelection(true),
         });
     }
@@ -339,7 +340,7 @@ export class KanbanRecord extends Component {
         if (this.props.getSelection().length > 0 || ev.altKey) {
             ev.stopPropagation();
             ev.preventDefault();
-            this.rootRef.el.focus();
+            this.rootRef.el?.focus();
             this.props.toggleSelection(this.props.record, ev.shiftKey);
             return;
         }

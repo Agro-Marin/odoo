@@ -117,7 +117,7 @@ class ResUserGroupIdsPrivilegeField extends Component {
      * @returns {"selection" | "boolean"}
      */
     get type() {
-        return this.field.type;
+        return /** @type {"selection" | "boolean"} */ (this.field.type);
     }
 
     /**

@@ -114,8 +114,10 @@ describe("a save whose server ids outnumber the staged CREATEs", () => {
         expect(list._currentIds).toEqual([2, 3, 90, 91]);
         // every member is backed by a datapoint: nothing silently dropped
         expect(list.records.length).toBe(4);
-        expect(list.records.map((r) => r.resId)).toEqual([2, 3, 90, 91]);
-        expect(list.records.map((r) => r.data.name)).toEqual([
+        expect(list.records.map((/** @type {any} */ r) => r.resId)).toEqual([
+            2, 3, 90, 91,
+        ]);
+        expect(list.records.map((/** @type {any} */ r) => r.data.name)).toEqual([
             "t2",
             "t3",
             "t90",
@@ -130,7 +132,9 @@ describe("a save whose server ids outnumber the staged CREATEs", () => {
 
     test("no virtual id survives in membership or cache", async () => {
         const { list } = await saveWith([2, 3, 90, 91]);
-        expect(list._currentIds.every((id) => typeof id === "number")).toBe(true);
+        expect(
+            list._currentIds.every((/** @type {any} */ id) => typeof id === "number"),
+        ).toBe(true);
         expect(Object.keys(list._cache).sort()).toEqual(["2", "3", "90", "91"]);
     });
 
@@ -165,18 +169,24 @@ describe("a save whose new id is not where the created row was", () => {
 
         // membership adopted from the server, nothing grafted
         expect(list._currentIds).toEqual([2, 3, 999]);
-        expect(list._currentIds.every((id) => typeof id === "number")).toBe(true);
+        expect(
+            list._currentIds.every((/** @type {any} */ id) => typeof id === "number"),
+        ).toBe(true);
         expect(virtualId in list._cache).toBe(false);
         // the foreign row shows the SERVER's data, not our edited datapoint
         const foreign = list._cache[999];
         expect(foreign.data.name).toBe("t999");
         expect(foreign._virtualId).toBe(false);
-        expect(list.records.map((r) => r.data.name)).toEqual(["t2", "t3", "t999"]);
+        expect(list.records.map((/** @type {any} */ r) => r.data.name)).toEqual([
+            "t2",
+            "t3",
+            "t999",
+        ]);
     });
 });
 
 describe("_healMissingWindow in isolation", () => {
-    function makeList({ resIds = [], limit = 5 } = {}) {
+    function makeList({ /** @type {any} */ resIds = [], limit = 5 } = {}) {
         const loaded = [];
         const rows = {};
         for (const id of [1, 2, 3, 4, 5]) {
@@ -184,10 +194,11 @@ describe("_healMissingWindow in isolation", () => {
         }
         const model = {
             Class: { Record: RelationalRecord, StaticList },
-            _patchConfig: (config, patch) => Object.assign(config, patch),
-            _loadRecords: async ({ resIds: ids }) => {
+            _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+                Object.assign(config, patch),
+            _loadRecords: async ({ resIds: /** @type {any} */ ids }) => {
                 loaded.push([...ids]);
-                return ids.map((id) => rows[id]);
+                return ids.map((/** @type {any} */ id) => rows[id]);
             },
         };
         const config = {

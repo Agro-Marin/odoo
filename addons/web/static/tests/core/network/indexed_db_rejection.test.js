@@ -27,7 +27,7 @@ function patchOpenToThrow() {
 test("constructor: a synchronous indexedDB.open throw is swallowed (no unhandled rejection)", async () => {
     patchOpenToThrow();
 
-    expect(() => new IndexedDB(CACHE_NAME, 1)).not.toThrow();
+    expect(() => new IndexedDB(CACHE_NAME, "1")).not.toThrow();
 
     await tick();
     await tick();
@@ -37,7 +37,7 @@ test("constructor: a synchronous indexedDB.open throw is swallowed (no unhandled
 test("operations after a failing open degrade to the no-db path", async () => {
     patchOpenToThrow();
 
-    const db = new IndexedDB(CACHE_NAME, 1);
+    const db = new IndexedDB(CACHE_NAME, "1");
     expect(await db.read("mytable", "key")).toBe(undefined);
     expect(await db.write("mytable", "key", { a: 1 })).toBe(undefined);
 });
@@ -45,7 +45,7 @@ test("operations after a failing open degrade to the no-db path", async () => {
 test("a failing open flips the instance to degraded mode", async () => {
     patchOpenToThrow();
 
-    const db = new IndexedDB(CACHE_NAME, 1);
+    const db = new IndexedDB(CACHE_NAME, "1");
     await db.read("mytable", "key");
     expect(db._degraded).toBe(true);
 });
@@ -78,7 +78,7 @@ test("invalidate() settles on the transaction, not on its clear() requests", asy
     // resolving there reported success for a transaction that could still go
     // on to abort -- the later `reject` lands on an already settled promise
     // and is lost.
-    const db = new IndexedDB(`${CACHE_NAME}_settle`, 1);
+    const db = new IndexedDB(`${CACHE_NAME}_settle`, "1");
     await db.write("mytable", "key", { a: 1 });
 
     const state = { completed: false };
@@ -132,7 +132,7 @@ test("an open that fails asynchronously is not retried on every call", async () 
     const state = { opens: 0 };
     patchOpenToFailAsynchronously(state);
 
-    const db = new IndexedDB(CACHE_NAME, 1);
+    const db = new IndexedDB(CACHE_NAME, "1");
     for (let i = 0; i < 5; i++) {
         expect(await db.read("mytable", `key${i}`)).toBe(undefined);
     }

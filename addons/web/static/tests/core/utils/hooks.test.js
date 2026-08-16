@@ -306,7 +306,7 @@ describe("useService", () => {
             static props = ["*"];
             static template = xml`<div/>`;
             setup() {
-                useService("toy_service");
+                useService(/** @type {any} */ ("toy_service"));
             }
         }
 
@@ -321,12 +321,11 @@ describe("useService", () => {
             static props = ["*"];
             static template = xml`<div/>`;
             setup() {
-                toyService = useService("toy_service");
+                toyService = useService(/** @type {any} */ ("toy_service"));
             }
         }
 
         registry.category("services").add("toy_service", {
-            name: "toy_service",
             start: () => null,
         });
 
@@ -386,7 +385,9 @@ describe("useService", () => {
         const state = reactive({ child: true });
         let nbCalls = 0;
         let def = new Deferred();
+        /** @type {any} */
         let objectService;
+        /** @type {any} */
         let functionService;
 
         class MyComponent extends Component {
@@ -394,8 +395,8 @@ describe("useService", () => {
             static template = xml`<div/>`;
 
             setup() {
-                objectService = useService("object_service");
-                functionService = useService("function_service");
+                objectService = useService(/** @type {any} */ ("object_service"));
+                functionService = useService(/** @type {any} */ ("function_service"));
             }
         }
 
@@ -410,7 +411,6 @@ describe("useService", () => {
         }
 
         registry.category("services").add("object_service", {
-            name: "object_service",
             async: ["asyncMethod"],
             start() {
                 return {
@@ -424,7 +424,6 @@ describe("useService", () => {
         });
 
         registry.category("services").add("function_service", {
-            name: "function_service",
             async: true,
             start() {
                 return async function asyncFunc() {

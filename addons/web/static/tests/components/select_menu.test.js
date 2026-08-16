@@ -18,7 +18,10 @@ import { MainComponentsContainer } from "@web/ui/main_components_container";
  * Mounts the Component and MainComponentContainer in the same App (unlike
  * `mountWithCleanup`) so refs/useEffects targeting elements inside the menu work.
  */
-async function mountSingleApp(ComponentClass, props) {
+async function mountSingleApp(
+    /** @type {any} */ ComponentClass,
+    /** @type {any} */ props = undefined,
+) {
     class TestComponent extends Component {
         static props = { components: { type: Array } };
         static template = xml`
@@ -61,7 +64,7 @@ class Parent extends Component {
             { label: "World", value: "world" },
         ];
     }
-    onSelect(value) {
+    onSelect(/** @type {any} */ value) {
         this.state.value = value;
     }
 }
@@ -75,7 +78,7 @@ async function open() {
     await animationFrame();
 }
 
-async function editInput(value) {
+async function editInput(/** @type {any} */ value) {
     await edit(value);
     await runAllTimers();
     await animationFrame();
@@ -121,7 +124,7 @@ test("Selecting a choice calls onSelect and the displayed value is updated", asy
             ];
         }
 
-        onSelect(value) {
+        onSelect(/** @type {any} */ value) {
             expect.step(value);
             this.state.value = value;
         }
@@ -269,7 +272,7 @@ test("Value with no corresponding choices displays as if no choice was selected"
             ];
             this.state = useState({ value: "coucou" });
         }
-        setValue(newValue) {
+        setValue(/** @type {any} */ newValue) {
             this.state.value = newValue;
         }
     }
@@ -294,7 +297,7 @@ test("Changing value props properly updates the selected choice", async () => {
             ];
             this.state = useState({ value: "company" });
         }
-        setValue(newValue) {
+        setValue(/** @type {any} */ newValue) {
             this.state.value = newValue;
         }
     }
@@ -325,7 +328,7 @@ test("Use a null value for choices", async () => {
                 value: null,
             });
         }
-        setValue(newValue) {
+        setValue(/** @type {any} */ newValue) {
             this.state.value = newValue;
         }
     }
@@ -354,7 +357,7 @@ test("Use an empty string as the value for a choice display the corresponding ch
             ];
             this.state = useState({ value: "" });
         }
-        setValue(newValue) {
+        setValue(/** @type {any} */ newValue) {
             this.state.value = newValue;
         }
     }
@@ -389,7 +392,7 @@ test("Clear the input calls 'onSelect' with null value and appears only when val
                 { label: "World", value: "world" },
             ];
         }
-        onSelect(value) {
+        onSelect(/** @type {any} */ value) {
             expect.step("Cleared");
             expect(value).toBe(null);
             this.state.value = value;
@@ -420,7 +423,7 @@ test("When the 'required' props is set to true, the input cannot be cleared", as
                 { label: "World", value: "world" },
             ];
         }
-        setValue(newValue) {
+        setValue(/** @type {any} */ newValue) {
             this.state.value = newValue;
         }
     }
@@ -451,7 +454,7 @@ test("When the 'required' props is set to true, the clear button is not shown", 
                 { label: "World", value: "world" },
             ];
         }
-        setValue(newValue) {
+        setValue(/** @type {any} */ newValue) {
             this.state.value = newValue;
         }
     }
@@ -586,7 +589,7 @@ test("Custom slot for the bottom area sends the current search value", async () 
                 { label: "World", value: "world" },
             ];
         }
-        onClick(value) {
+        onClick(/** @type {any} */ value) {
             expect.step(value + " clicked");
         }
     }
@@ -740,7 +743,7 @@ test("When multiSelect is enable, value is an array of values, multiple choices 
             ];
         }
 
-        onSelect(newValue) {
+        onSelect(/** @type {any} */ newValue) {
             expect.step(newValue);
             this.state.value = newValue;
         }
@@ -789,7 +792,7 @@ test("When multiSelect is enable, allow deselecting elements by clicking the sel
             ];
         }
 
-        onSelect(newValue) {
+        onSelect(/** @type {any} */ newValue) {
             expect.step(newValue);
             this.state.value = newValue;
         }
@@ -837,7 +840,7 @@ test("When multiSelect is enable, the clear button calls 'onSelect' with an empt
                 { label: "C", value: "c" },
             ];
         }
-        onSelect(newValue) {
+        onSelect(/** @type {any} */ newValue) {
             expect.step(newValue);
             this.state.value = newValue;
         }
@@ -875,7 +878,7 @@ test("Navigation is possible from the input when it is focused", async () => {
             ];
         }
 
-        onSelect(newValue) {
+        onSelect(/** @type {any} */ newValue) {
             expect.step(newValue);
             this.state.value = newValue;
         }
@@ -926,7 +929,7 @@ test("When only one choice is displayed, 'enter' key should select the value", a
             ];
         }
 
-        onSelect(newValue) {
+        onSelect(/** @type {any} */ newValue) {
             expect.step(newValue);
             this.state.value = newValue;
         }
@@ -962,7 +965,7 @@ test("Props onInput is executed when the search changes", async () => {
             });
         }
 
-        onInput(searchString) {
+        onInput(/** @type {any} */ searchString) {
             if (!searchString) {
                 expect.step("call with empty search");
                 return;
@@ -973,7 +976,7 @@ test("Props onInput is executed when the search changes", async () => {
             ];
         }
 
-        onSelect(value) {
+        onSelect(/** @type {any} */ value) {
             expect.step(value);
             this.state.value = value;
         }
@@ -1020,7 +1023,7 @@ test("Choices are updated and filtered when props change", async () => {
             });
         }
 
-        onInput(searchString) {
+        onInput(/** @type {any} */ searchString) {
             if (!searchString) {
                 return;
             }
@@ -1030,7 +1033,7 @@ test("Choices are updated and filtered when props change", async () => {
             ];
         }
 
-        onSelect(value) {
+        onSelect(/** @type {any} */ value) {
             expect.step(value);
             this.state.value = value;
         }
@@ -1086,7 +1089,7 @@ test("SelectMenu group items only after being opened", async () => {
             });
         }
 
-        onInput(searchString) {
+        onInput(/** @type {any} */ searchString) {
             if (searchString === "option d") {
                 this.state.choices = [{ label: "Option C", value: "optionC" }];
                 this.state.groups = [
@@ -1149,7 +1152,7 @@ test("search value is cleared when reopening the menu", async () => {
             });
         }
 
-        onInput(searchValue) {
+        onInput(/** @type {any} */ searchValue) {
             expect.step("search=" + searchValue);
         }
     }
@@ -1316,7 +1319,7 @@ test("Fetch choices", async () => {
         setup() {
             this.state = useState({ choices: [] }, { value: "" });
         }
-        loadChoice(searchString) {
+        loadChoice(/** @type {any} */ searchString) {
             if (searchString === "test") {
                 this.state.choices = [{ label: "test", value: "test" }];
             } else {
@@ -1346,7 +1349,7 @@ test("In the BottomSheet, a 'Clear' button is present", async () => {
             this.state = useState({ value: "hello" });
             this.choices = [{ label: "Test", value: "test" }];
         }
-        onSelect(value) {
+        onSelect(/** @type {any} */ value) {
             expect.step("Cleared");
             expect(value).toBe(null);
         }
@@ -1378,7 +1381,7 @@ test("In the BottomSheet, the 'Clear' button of a multiSelect calls 'onSelect' w
                 { label: "World", value: "world" },
             ];
         }
-        onSelect(value) {
+        onSelect(/** @type {any} */ value) {
             expect.step("Cleared");
             expect(value).toEqual([]);
             this.state.value = value;
@@ -1466,7 +1469,9 @@ test("a group header is never reported as the selected option", async () => {
     await click(".o_select_menu_toggler");
     await animationFrame();
 
-    const header = instance.state.choices.find((choice) => choice.isGroup);
+    const header = instance.state.choices.find(
+        (/** @type {any} */ choice) => choice.isGroup,
+    );
     expect(Boolean(header)).toBe(true);
     expect(instance.isOptionSelected(header)).toBe(false);
     expect(instance.getSelectedOptionIndex()).toBe(-1);
@@ -1874,7 +1879,7 @@ test("a multiSelect tag created in place shows up", async () => {
                 tagIds: [1],
             });
         }
-        createTag(label) {
+        createTag(/** @type {any} */ label) {
             this.state.tags.push({ value: "temp1", label });
             this.state.tagIds.push("temp1");
         }

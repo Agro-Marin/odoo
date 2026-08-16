@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/commands */
+/** @module @web/core/network/commands */
 
 export const x2ManyCommands = {
     CREATE: 0,

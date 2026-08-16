@@ -26,9 +26,9 @@ test("Barcode scanner crop overlay", async () => {
     let barcodeToGenerate = firstBarcodeValue;
     let videoReady = new Deferred();
 
-    function mockUserMedia() {
+    async function mockUserMedia() {
         const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+        const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
         const stream = canvas.captureStream();
 
         const multiFormatWriter = new ZXing.MultiFormatWriter();
@@ -56,9 +56,9 @@ test("Barcode scanner crop overlay", async () => {
         return stream;
     }
     patchWithCleanup(browser.navigator, {
-        mediaDevices: {
+        mediaDevices: /** @type {any} */ ({
             getUserMedia: mockUserMedia,
-        },
+        }),
     });
 
     patchWithCleanup(BarcodeVideoScanner.prototype, {
@@ -108,9 +108,9 @@ test("Barcode scanner crop overlay", async () => {
 });
 
 test("BarcodeVideoScanner onReady props", async () => {
-    function mockUserMedia() {
+    async function mockUserMedia() {
         const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+        const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
         const stream = canvas.captureStream();
         canvas.width = 250;
         canvas.height = 250;
@@ -120,9 +120,9 @@ test("BarcodeVideoScanner onReady props", async () => {
         return stream;
     }
     patchWithCleanup(browser.navigator, {
-        mediaDevices: {
+        mediaDevices: /** @type {any} */ ({
             getUserMedia: mockUserMedia,
-        },
+        }),
     });
     const resolvedOnReadyPromise = new Promise((resolve) => {
         mountWithCleanup(BarcodeVideoScanner, {
@@ -143,13 +143,13 @@ test("Closing barcode scanner before camera loads should not throw an error", as
     const cameraReady = new Deferred();
 
     patchWithCleanup(browser.navigator, {
-        mediaDevices: {
+        mediaDevices: /** @type {any} */ ({
             async getUserMedia() {
                 await cameraReady;
                 const canvas = document.createElement("canvas");
                 return canvas.captureStream();
             },
-        },
+        }),
     });
 
     scanBarcode(env);
@@ -173,12 +173,12 @@ test("Closing the barcode dialog manually resolves the scan promise with null", 
     await mountWithCleanup(WebClient, { env });
 
     patchWithCleanup(browser.navigator, {
-        mediaDevices: {
+        mediaDevices: /** @type {any} */ ({
             async getUserMedia() {
                 const canvas = document.createElement("canvas");
                 return canvas.captureStream();
             },
-        },
+        }),
     });
 
     const escScan = scanBarcode(env);
@@ -211,12 +211,12 @@ test("Closing barcode scanner while video is loading should not cause errors", a
     await mountWithCleanup(WebClient, { env });
 
     patchWithCleanup(browser.navigator, {
-        mediaDevices: {
+        mediaDevices: /** @type {any} */ ({
             async getUserMedia() {
                 const canvas = document.createElement("canvas");
                 return canvas.captureStream();
             },
-        },
+        }),
     });
 
     scanBarcode(env);
@@ -239,17 +239,19 @@ test("Closing barcode scanner while video is loading should not cause errors", a
  */
 function mockBlankCamera() {
     patchWithCleanup(browser.navigator, {
-        mediaDevices: {
+        mediaDevices: /** @type {any} */ ({
             getUserMedia() {
                 const canvas = document.createElement("canvas");
                 canvas.width = 250;
                 canvas.height = 250;
-                const ctx = canvas.getContext("2d");
+                const ctx = /** @type {CanvasRenderingContext2D} */ (
+                    canvas.getContext("2d")
+                );
                 ctx.fillStyle = "white";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 return canvas.captureStream();
             },
-        },
+        }),
     });
 }
 
@@ -268,7 +270,7 @@ function mockDetector(onDetect) {
     patchWithCleanup(window, { BarcodeDetector: ScriptedDetector });
 }
 
-async function mountScanner(props) {
+async function mountScanner(/** @type {any} */ props) {
     const ready = new Deferred();
     await mountWithCleanup(BarcodeVideoScanner, {
         props: {

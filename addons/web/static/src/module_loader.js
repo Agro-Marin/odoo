@@ -64,6 +64,18 @@
                     );
                 } catch {}
             }
+            // Unconditional, unlike `rebind`: a bridge shim generated for a
+            // specifier this page had not registered yet binds `undefined` and,
+            // being a plain `const`, would keep it forever. The shims listen for
+            // this and re-read once, so a producer that registers later still
+            // reaches the consumers that read at use time.
+            try {
+                this.bus.dispatchEvent(
+                    new CustomEvent("registered", {
+                        detail: { specifiers: entries.map(([name]) => name) },
+                    }),
+                );
+            } catch {}
         }
 
         /**

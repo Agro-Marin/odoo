@@ -16,7 +16,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { StaticList } from "@web/model/relational_model/static_list";
 
 /**

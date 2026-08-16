@@ -226,8 +226,8 @@ test("Many2ManyTagsField with color: rendering and edition on desktop", async ()
     onRpc("partner", "web_save", ({ args }) => {
         const commands = args[1].timmy;
         expect(commands).toHaveLength(2);
-        expect(commands.map((cmd) => cmd[0])).toEqual([4, 3]);
-        expect(commands.map((cmd) => cmd[1])).toEqual([13, 14], {
+        expect(commands.map((/** @type {any} */ cmd) => cmd[0])).toEqual([4, 3]);
+        expect(commands.map((/** @type {any} */ cmd) => cmd[1])).toEqual([13, 14], {
             message: "Should add 13, remove 14",
         });
     });
@@ -2032,7 +2032,7 @@ test("tag colour is applied to the clicked record even if the list reloads", asy
     });
 
     const goldBefore = queryOne("[name=timmy] .o_tag:eq(0)");
-    const idsBefore = model.root.data.timmy.records.map((r) => r.id);
+    const idsBefore = model.root.data.timmy.records.map((/** @type {any} */ r) => r.id);
     await contains(goldBefore).click();
     expect(".o_colorlist").toHaveCount(1);
 
@@ -2040,7 +2040,7 @@ test("tag colour is applied to the clicked record even if the list reloads", asy
     // so any id captured when the popover opened is now stale.
     await model.root.load();
     await animationFrame();
-    const idsAfter = model.root.data.timmy.records.map((r) => r.id);
+    const idsAfter = model.root.data.timmy.records.map((/** @type {any} */ r) => r.id);
     expect(idsAfter).not.toEqual(idsBefore, {
         message: "the reload must actually invalidate the datapoint ids",
     });

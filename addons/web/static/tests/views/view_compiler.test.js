@@ -29,11 +29,11 @@ import { toStringExpression } from "@web/views/view_utils";
  *  - `compile(tname, params) → Element` — returns a compilable DOM element
  */
 class TestCompiler {
-    constructor(templates) {
+    constructor(/** @type {any} */ templates) {
         this._templates = templates;
     }
 
-    compile(tname) {
+    compile(/** @type {any} */ tname) {
         const el = document.createElement("t");
         el.setAttribute("t-name", tname);
         return el;
@@ -484,7 +484,7 @@ test("a positioning class with no dropdown inside is left alone", async () => {
  * The modal pairing runs in `compile()`, so these go through a real template
  * rather than calling `compileNode` directly.
  */
-function compileArch(arch) {
+function compileArch(/** @type {any} */ arch) {
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
     return new ViewCompiler({ root: doc }).compile("root", {});
 }
@@ -614,7 +614,7 @@ test("the Odoo spelling drives the same modal construct as the Bootstrap one", a
 
 describe("ViewCompiler — shadowed compiler warning", () => {
     /** Build a bare ViewCompiler and drive its dispatch with a controlled set. */
-    function compilerWith(base, appended) {
+    function compilerWith(/** @type {any} */ base, /** @type {any} */ appended) {
         const compiler = new ViewCompiler({});
         compiler.compilers = [...base];
         compiler.baseCompilerCount = compiler.compilers.length;

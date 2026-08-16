@@ -36,6 +36,9 @@ class BasicHookParent extends Component {
         </div>
     `;
 
+    /** @type {ReturnType<typeof useNavigation>} */
+    navigation;
+
     setup() {
         useAutofocus({ refName: "outsideRef" });
         this.navigation = useNavigation("containerRef", this.navOptions);
@@ -43,13 +46,13 @@ class BasicHookParent extends Component {
     }
 
     navOptions = {};
-    onClick(id) {}
+    onClick(/** @type {any} */ id) {}
 }
 
 describe.current.tags("desktop");
 
 test("default navigation", async () => {
-    async function navigate(hotkey, focused) {
+    async function navigate(/** @type {any} */ hotkey, /** @type {any} */ focused) {
         await press(hotkey);
         await animationFrame();
 
@@ -58,7 +61,7 @@ test("default navigation", async () => {
     }
 
     class Parent extends BasicHookParent {
-        onClick(id) {
+        onClick(/** @type {any} */ id) {
             expect.step(id);
         }
     }
@@ -101,20 +104,20 @@ test("hotkey override options", async () => {
     class Parent extends BasicHookParent {
         navOptions = {
             hotkeys: {
-                arrowleft: (navigator) => {
+                arrowleft: (/** @type {any} */ navigator) => {
                     expect.step(navigator.activeItemIndex);
                     navigator.items[
                         (navigator.activeItemIndex + 2) % navigator.items.length
                     ].setActive();
                 },
-                escape: (navigator) => {
+                escape: (/** @type {any} */ navigator) => {
                     expect.step("escape");
                     navigator.items[0].setActive();
                 },
             },
         };
 
-        onClick(id) {
+        onClick(/** @type {any} */ id) {
             expect.step(id);
         }
     }
@@ -135,7 +138,7 @@ test("hotkey override options", async () => {
 });
 
 test("navigation with virtual focus", async () => {
-    async function navigate(hotkey, expected) {
+    async function navigate(/** @type {any} */ hotkey, /** @type {any} */ expected) {
         await press(hotkey);
         await animationFrame();
         expect(".outside").toBeFocused();
@@ -148,7 +151,7 @@ test("navigation with virtual focus", async () => {
             isNavigationAvailable: () => true,
         };
 
-        onClick(id) {
+        onClick(/** @type {any} */ id) {
             expect.step(id);
         }
     }
@@ -198,11 +201,14 @@ test("virtualFocus navigates by keyboard without a custom availability predicate
                 <button class="o-navigable one" t-on-click="() => this.onClick(1)">one</button>
                 <button class="o-navigable two" t-on-click="() => this.onClick(2)">two</button>
             </div>`;
+        /** @type {ReturnType<typeof useNavigation>} */
+        navigation;
+
         setup() {
             useAutofocus();
             this.navigation = useNavigation("containerRef", { virtualFocus: true });
         }
-        onClick(id) {
+        onClick(/** @type {any} */ id) {
             expect.step(id);
         }
     }
@@ -242,6 +248,9 @@ test("wrap: false clears past either end and re-enters from the opposite one", a
                 <button class="o-navigable two">two</button>
                 <button class="o-navigable three">three</button>
             </div>`;
+        /** @type {ReturnType<typeof useNavigation>} */
+        navigation;
+
         setup() {
             useAutofocus();
             this.navigation = useNavigation("containerRef", {
@@ -325,10 +334,13 @@ test("armed mouse activation ignores enter/leave the pointer did not cause", asy
                 <div class="row r2"><button class="o-navigable two">two</button></div>
                 <div class="row r3"><button class="o-navigable three">three</button></div>
             </div>`;
+        /** @type {ReturnType<typeof useNavigation>} */
+        navigation;
+
         setup() {
             this.navigation = useNavigation("containerRef", {
                 mouseActivation: "armed",
-                getHoverTarget: (el) => el.closest(".row"),
+                getHoverTarget: (el) => /** @type {HTMLElement} */ (el.closest(".row")),
             });
         }
     }
@@ -416,6 +428,9 @@ test("insert item before current", async () => {
                 </t>
             </div>
         `;
+
+        /** @type {ReturnType<typeof useNavigation>} */
+        navigation;
 
         setup() {
             this.navigation = useNavigation("containerRef");

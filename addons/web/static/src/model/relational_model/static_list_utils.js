@@ -10,7 +10,7 @@
  * @returns {boolean}
  */
 
-import { x2ManyCommands } from "./commands.js";
+import { x2ManyCommands } from "@web/core/network/commands";
 
 /** @import { DatapointId } from "@web/model/types" */
 /** @import { RelationalRecord } from "./record.js" */

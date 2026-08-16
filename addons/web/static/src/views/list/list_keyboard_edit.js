@@ -327,7 +327,7 @@ export function makeEditHandlers(nav, tableRef, ctx) {
                     if (firstAddButton) {
                         nav.focus(firstAddButton);
                     } else if (group && record.isNew) {
-                        const children = [...row.parentElement.children];
+                        const children = [...(row?.parentElement?.children ?? [])];
                         const idx = children.indexOf(row);
                         for (let i = idx + 1; i < children.length; i++) {
                             const r = children[i];

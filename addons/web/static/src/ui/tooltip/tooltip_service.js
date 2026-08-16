@@ -44,6 +44,7 @@ class TrackedTooltip {
             // alongside ours.
             el.removeAttribute("title");
         }
+        /** @type {(() => void) | null} */
         this.unwatch = watchForDetachedTarget(el, onDetached);
     }
 

@@ -1764,7 +1764,9 @@ describe("pushState", () => {
 describe("History", () => {
     test("properly handles history.back and history.forward", async () => {
         redirect("/");
-        on(routerBus, "ROUTE_CHANGE", () => expect.step("ROUTE_CHANGE"));
+        on(routerBus, /** @type {any} */ ("ROUTE_CHANGE"), () =>
+            expect.step(/** @type {any} */ ("ROUTE_CHANGE")),
+        );
         createRouter();
 
         router.pushState({ k1: 1 });
@@ -1839,7 +1841,9 @@ describe("History", () => {
     });
     test("properly handles history.back with hidden keys", async () => {
         redirect("/");
-        on(routerBus, "ROUTE_CHANGE", () => expect.step("ROUTE_CHANGE"));
+        on(routerBus, /** @type {any} */ ("ROUTE_CHANGE"), () =>
+            expect.step(/** @type {any} */ ("ROUTE_CHANGE")),
+        );
         createRouter();
 
         router.hideKeyFromUrl("k1");
@@ -2179,7 +2183,9 @@ describe("ephemeral history entries", () => {
         on(routerBus, RouterEvent.EPHEMERAL_POPPED, (ev) =>
             expect.step(`popped:${ev.detail.markers.length}`),
         );
-        on(routerBus, RouterEvent.ROUTE_CHANGE, () => expect.step("ROUTE_CHANGE"));
+        on(routerBus, RouterEvent.ROUTE_CHANGE, () =>
+            expect.step(/** @type {any} */ ("ROUTE_CHANGE")),
+        );
 
         router.pushEphemeral(marker);
         expect(router.ephemeralDepth).toBe(1);

@@ -9,11 +9,11 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 297 tests | ~45s |
+| `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 304 tests | ~45s |
 | `web_http` | HttpCase (url_open, no browser) | 100 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 tests | ~2 min |
 | `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
-| `addon_js` | HOOT suites of addons with no runner of their own | 159 tests | depends on the DB's module set |
+| `addon_js` | HOOT suites of addons with no runner of their own | 163 tests | depends on the DB's module set |
 | `web_perf` | Query count regression (@warmup) | 26 tests | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 tests | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 tests (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
@@ -32,7 +32,7 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 > `odoo.tests.result: … of N tests`. Give the HttpCase tags (`web_http`,
 > `web_js`, `click_all`) a real port — under `--no-http` they collect 0.
 >
-> `web_unit` runs 295, not 297, under `--no-http`: `TestJsonExportRoute`
+> `web_unit` runs 302, not 304, under `--no-http`: `TestJsonExportRoute`
 > (`tests/test_json_export.py`) is an **`HttpCase` tagged `web_unit`** rather
 > than `web_http`, so its 2 tests disappear silently without a port. That tag
 > is inconsistent with this table's own definition of `web_unit`.

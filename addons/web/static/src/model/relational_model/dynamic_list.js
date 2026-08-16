@@ -4,11 +4,11 @@
 /** @module @web/model/relational_model/dynamic_list */
 
 import { markRaw } from "@odoo/owl";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 import { Operation } from "@web/core/utils/operation";
 
-import { x2ManyCommands } from "./commands.js";
 import { buildKnownValuesKwargs } from "./concurrency_baseline.js";
 import { DataPoint } from "./datapoint.js";
 import { getSpecEvalContext, isX2Many } from "./field_context.js";

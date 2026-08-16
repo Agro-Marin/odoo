@@ -10,9 +10,9 @@
  * @property {string} timeFormat
  * @property {string} decimalPoint
  * @property {"ltr" | "rtl"} direction
- * @property {[number, number]} grouping
+ * @property {number[]} grouping
  * @property {boolean} multiLang
- * @property {string} thousandsSep
+ * @property {string | false} thousandsSep
  * @property {number} weekStart
  * @property {string} code
  */

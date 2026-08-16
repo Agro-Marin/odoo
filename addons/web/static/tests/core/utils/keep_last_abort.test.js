@@ -6,7 +6,12 @@ import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 
 /**
  * A promise carrying the `abort` that `rpc()` attaches to the one it returns.
- * @returns {Promise<any> & { abort: (rejectError?: boolean) => void, aborts: boolean[] }}
+ * @returns {Promise<any> & {
+ *     abort: (rejectError?: boolean) => void,
+ *     aborts: boolean[],
+ *     resolve: (value?: any) => void,
+ *     reject: (reason?: any) => void,
+ * }}
  */
 function abortablePromise() {
     const def = /** @type {any} */ (new Deferred());

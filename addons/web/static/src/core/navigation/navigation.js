@@ -57,12 +57,12 @@ class NavigationItem {
     /**
      * @type {HTMLElement}
      */
-    el = undefined;
+    el;
 
     /**
      * @type {HTMLElement}
      */
-    target = undefined;
+    target;
 
     /**
      * @param {{ index: number, el: HTMLElement, options: NavigationOptions, navigator: Navigator }} param0
@@ -140,7 +140,7 @@ class NavigationItem {
     setActive(focus = true) {
         scrollTo(this.target);
         this._navigator._setActiveItem(this.index);
-        this.target.classList.add(this._options.activeClass);
+        this.target.classList.add(this._options.activeClass ?? ACTIVE_ELEMENT_CLASS);
         this._setAriaSelected("true");
 
         if (focus && !this._options.virtualFocus) {
@@ -150,7 +150,7 @@ class NavigationItem {
     }
 
     setInactive(blur = true) {
-        this.target.classList.remove(this._options.activeClass);
+        this.target.classList.remove(this._options.activeClass ?? ACTIVE_ELEMENT_CLASS);
         this._setAriaSelected("false");
         if (blur && !this._options.virtualFocus) {
             this.target.blur();
@@ -220,7 +220,7 @@ export class Navigator {
     /**
      * @private
      * @type {import("@web/core/hotkeys/hotkey_service").HotkeyService}
-     */ _hotkeyService = undefined;
+     */ _hotkeyService;
 
     /**
      * @param {NavigationOptions} options
@@ -228,7 +228,9 @@ export class Navigator {
      */
     constructor(options, hotkeyService) {
         this._hotkeyService = hotkeyService;
-        /** @private */
+        // Module-internal, NOT `@private`: `NavigationItem.setActive` cancels
+        // and calls it, so it is the Navigator/NavigationItem collaboration
+        // surface. The tag said otherwise and made those two calls errors.
         this._throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) =>
             el?.focus(),
         );
@@ -285,7 +287,7 @@ export class Navigator {
                 /** @type {{ navigator: Navigator, target: HTMLElement }} */ { target },
             ) => {
                 if (this.contains(target)) {
-                    return this.isFocused || this._options.virtualFocus;
+                    return Boolean(this.isFocused || this._options.virtualFocus);
                 }
                 return Boolean(
                     this._options.virtualFocus &&
@@ -428,7 +430,7 @@ export class Navigator {
     activateLast() {
         this._rearmMouse();
         if (this.items.length) {
-            this.items.at(-1).setActive();
+            this.items.at(-1)?.setActive();
         } else {
             this.clearActiveItem();
         }

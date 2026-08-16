@@ -74,6 +74,17 @@ const MULTI_EDIT_RESULT = Symbol("multiEditResult");
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
+    // NO class-field declarations here, however much the type checker would
+    // like them. `DataPoint`'s constructor calls `this.setup(...)`, and a
+    // subclass field initialiser runs immediately AFTER `super()` returns —
+    // so `/** @type {X} */ _editState;` would define the property as
+    // `undefined` on top of what `setup()` had just assigned, wiping it on
+    // every record. Verified: `class B { constructor(){this.setup()} setup(){
+    // this.x=42} }; class S extends B { x }` yields `undefined`.
+    //
+    // The same trap applies to `StaticList` and to `RelationalModel`, whose
+    // base says so at model.js:259.
+
     /**
      * @type {typeof DataPoint.prototype.setup<{
      *  manuallyAdded?: boolean;
@@ -219,7 +230,7 @@ export class RelationalRecord extends DataPoint {
         return this._noUpdateParent;
     }
 
-    archive(reload) {
+    archive(/** @type {any} */ reload) {
         return this.model.mutex.exec(() => archive(this, reload));
     }
 
@@ -353,13 +364,13 @@ export class RelationalRecord extends DataPoint {
         return this.model.mutex.exec(() => this._switchMode(mode));
     }
 
-    toggleSelection(selected) {
+    toggleSelection(/** @type {any} */ selected) {
         return this.model.mutex.exec(() => {
             this._toggleSelection(selected);
         });
     }
 
-    unarchive(reload) {
+    unarchive(/** @type {any} */ reload) {
         return this.model.mutex.exec(() => unarchive(this, reload));
     }
 
@@ -504,6 +515,7 @@ export class RelationalRecord extends DataPoint {
         addSavePoint(this);
     }
 
+    /** @param {any} changes */
     _applyChanges(changes, serverChanges = {}, { undoable = false } = {}) {
         let undoChanges = NO_UNDO;
         if (undoable) {
@@ -597,7 +609,7 @@ export class RelationalRecord extends DataPoint {
         }
     }
 
-    _applyValues(values) {
+    _applyValues(/** @type {any} */ values) {
         const x2manyMerges = [];
         for (const fieldName of Object.keys(values)) {
             const field = this.fields[fieldName];
@@ -691,7 +703,7 @@ export class RelationalRecord extends DataPoint {
         return displayInvalidFieldNotification(this);
     }
 
-    _formatServerValue(fieldType, value) {
+    _formatServerValue(/** @type {any} */ fieldType, /** @type {any} */ value) {
         return formatServerValue(fieldType, value);
     }
 
@@ -847,7 +859,7 @@ export class RelationalRecord extends DataPoint {
         this._invalidFields.add(fieldName);
     }
 
-    _resetFieldValidity(fieldName) {
+    _resetFieldValidity(/** @type {any} */ fieldName) {
         return resetFieldValidity(this, fieldName);
     }
 
@@ -862,7 +874,7 @@ export class RelationalRecord extends DataPoint {
         }
     }
 
-    _toggleSelection(selected) {
+    _toggleSelection(/** @type {any} */ selected) {
         if (typeof selected === "boolean") {
             this.selected = selected;
         } else {
@@ -930,7 +942,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     async _update(
-        changes,
+        /** @type {any} */ changes,
         /** @type {{ withoutOnchange?: boolean, withoutParentUpdate?: boolean }} */ {
             withoutOnchange,
             withoutParentUpdate,

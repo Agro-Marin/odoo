@@ -48,14 +48,14 @@ export function useActiveElement(refName) {
         switch (hotkey) {
             case "tab":
                 if (document.activeElement === lastTabableEl) {
-                    firstTabableEl.focus();
+                    firstTabableEl?.focus();
                     e.preventDefault();
                     e.stopPropagation();
                 }
                 break;
             case "shift+tab":
                 if (document.activeElement === firstTabableEl) {
-                    lastTabableEl.focus();
+                    lastTabableEl?.focus();
                     e.preventDefault();
                     e.stopPropagation();
                 }
@@ -77,7 +77,7 @@ export function useActiveElement(refName) {
 
                 if (firstTabableEl) {
                     if (!el.contains(document.activeElement)) {
-                        firstTabableEl.focus();
+                        firstTabableEl?.focus();
                     }
                 } else if (el !== document.activeElement) {
                     el.focus();

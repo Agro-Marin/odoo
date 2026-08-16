@@ -156,6 +156,10 @@ export class RelationalModel extends Model {
     static DEFAULT_OPEN_GROUP_LIMIT = 10;
     static withCache = true;
 
+    // No class-field declarations: `Model`'s constructor calls `setup()` (it
+    // says so at model.js:259), and a subclass field initialiser runs after
+    // `super()` returns, so one would blank what `setup()` assigned.
+
     /** @returns {typeof RelationalModel} */
     get Class() {
         return /** @type {typeof RelationalModel} */ (this.constructor);

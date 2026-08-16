@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/core/network/commands";
 import {
     completeMany2OneValue,
     preprocessHtmlChanges,

@@ -7,7 +7,7 @@
  * The network module's published interface.
  *
  * Everything under `core/network/` that another addon imports today is re-exported here,
- * and nothing else. The names below are the contract; the 5 files behind them
+ * and nothing else. The names below are the contract; the 6 files behind them
  * are not, and may be renamed, split or moved without touching a
  * consumer OUTSIDE `web`. Inside it they are imported directly and a
  * rename does reach them — the face constrains other addons, which is
@@ -22,6 +22,13 @@
  * `/web/static/src/core/network.js` by appending `.js`, with no directory-index step.
  */
 
+// x2many command tuples are ORM *wire* vocabulary — what a create/write
+// RPC carries — not model implementation. They lived under
+// `model/relational_model/`, whose face is 42 files, so any consumer
+// outside `web` had to pull the whole model layer for 39 dependency-free
+// lines; a frontend page carries this face but not that one, which is why
+// the tour recorder could not save a tour from the website.
+export { x2ManyCommands } from "./network/commands.js";
 export { download, downloadFile } from "./network/download.js";
 export { get, post } from "./network/http_service.js";
 export { onModelMutation } from "./network/model_mutation.js";

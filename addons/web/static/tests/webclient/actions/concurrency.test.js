@@ -184,6 +184,7 @@ test("handle switching view and switching back on slow network", async () => {
 
 test.tags("desktop");
 test("clicking quickly on breadcrumbs...", async () => {
+    /** @type {any} */
     let def;
     onRpc("web_read", () => def);
 
@@ -218,6 +219,7 @@ test("execute a new action while loading a lazy-loaded controller", async () => 
     ]);
     redirect("/odoo/action-77/2?cids=1");
 
+    /** @type {any} */
     let def;
     onRpc("partner", "search_read", () => def);
     stepAllNetworkCalls();
@@ -318,6 +320,7 @@ test("execute a new action while handling a call_button", async () => {
 
 test.tags("desktop");
 test("execute a new action while switching to another controller", async () => {
+    /** @type {any} */
     let def;
     stepAllNetworkCalls();
     onRpc("web_read", () => def);
@@ -637,6 +640,7 @@ test("execute a new action while loading data of default view", async () => {
 
 test.tags("desktop");
 test("open a record while reloading the list view", async () => {
+    /** @type {any} */
     let def;
     onRpc("search_read", () => def);
 
@@ -697,6 +701,7 @@ test("properly drop client actions after new action is initiated", async () => {
 
 test.tags("desktop");
 test("restoring a controller when doing an action -- load_action slow", async () => {
+    /** @type {any} */
     let def;
     onRpc("/web/action/load", () => def);
     stepAllNetworkCalls();
@@ -738,6 +743,7 @@ test("restoring a controller when doing an action -- load_action slow", async ()
 
 test.tags("desktop");
 test("switching when doing an action -- load_action slow", async () => {
+    /** @type {any} */
     let def;
     onRpc("/web/action/load", () => def);
     stepAllNetworkCalls();
@@ -775,6 +781,7 @@ test("switching when doing an action -- load_action slow", async () => {
 
 test.tags("desktop");
 test("switching when doing an action -- get_views slow", async () => {
+    /** @type {any} */
     let def;
     onRpc("get_views", () => def);
     stepAllNetworkCalls();
@@ -955,6 +962,7 @@ test("local state, global state, and race conditions", async () => {
 
 test.tags("desktop");
 test("doing browser back navigates to the previous action", async () => {
+    /** @type {any} */
     let def;
     onRpc("partner", "web_search_read", () => def);
     await mountWithCleanup(WebClient);

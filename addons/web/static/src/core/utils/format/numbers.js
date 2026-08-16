@@ -175,7 +175,7 @@ export function floatIsZero(value, decimals) {
 
 /**
  * @param {string} number
- * @param {string} [thousandsSep=","]
+ * @param {string | false} [thousandsSep=","]
  * @param {number[]} [grouping=[]]
  * @returns {string}
  */

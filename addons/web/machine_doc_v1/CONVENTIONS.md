@@ -38,7 +38,7 @@ path, used specifically for UI button actions — it wraps the result through
 | CLEAR | `[5, 0, 0]` | Clear all relations |
 | SET | `[6, 0, [ids]]` | Replace all with id list |
 
-The canonical Python spelling of the unused slots is the integer `0` (`orm/primitives.py` `Command` helpers). The JS client (`model/relational_model/commands.js` and the command engine) emits `false` in those slots; this is **safe by construction** — the server-side command parser reads slot 2/3 only for CREATE/UPDATE/SET, and ignores the unused slots entirely for DELETE/UNLINK/LINK/CLEAR — and is pinned by ~115 HOOT test expectations, so do not "normalize" it. New Python code should still use the `Command` helpers (integer `0`).
+The canonical Python spelling of the unused slots is the integer `0` (`orm/primitives.py` `Command` helpers). The JS client (`core/network/commands.js` and the command engine) emits `false` in those slots; this is **safe by construction** — the server-side command parser reads slot 2/3 only for CREATE/UPDATE/SET, and ignores the unused slots entirely for DELETE/UNLINK/LINK/CLEAR — and is pinned by ~115 HOOT test expectations, so do not "normalize" it. New Python code should still use the `Command` helpers (integer `0`).
 
 ## Specification Pattern
 
@@ -575,8 +575,9 @@ When refactoring a widget:
     environment. In debug mode it throws (fail fast for developers); in production
     it emits a `console.warn` prefixed `[registry]` so a single malformed
     registration cannot crash the page while still surfacing schema mismatches.
-    Schema coverage is **33 of 35 web-module categories**; `serializers` and
-    `deserializers` (`core/field_codec.js`) have no schema yet. The `debug` registry IS
+    Schema coverage is **33 of 36 web-module categories**; `serializers` and
+    `deserializers` (`core/field_codec.js`) and `in_range_providers`
+    (`core/tree/in_range_providers.js`) have no schema yet. The `debug` registry IS
     schemable despite being "parent-only": its entries are sub-Registry instances
     created by `category()`, so `entry instanceof Registry` catches accidental
     direct `.add()` calls. Pattern to follow when adding a new registry or

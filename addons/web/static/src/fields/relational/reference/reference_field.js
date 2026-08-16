@@ -179,14 +179,14 @@ export class ReferenceField extends Component {
         });
     }
 
-    _isCharField(props) {
+    _isCharField(/** @type {any} */ props) {
         return props.record.fields[props.name].type === "char";
     }
 
     /**
      * @returns {Promise<{ resId: number, resModel: string, displayName: string }|false>}
      */
-    async _fetchReferenceCharData(props) {
+    async _fetchReferenceCharData(/** @type {any} */ props) {
         const recordData = props.record.data[props.name];
         if (!recordData) {
             return false;
@@ -207,7 +207,7 @@ export class ReferenceField extends Component {
         return { resId, resModel, displayName };
     }
 
-    _assertMany2OneToIrModel(props) {
+    _assertMany2OneToIrModel(/** @type {any} */ props) {
         const field = props.modelField && props.record.fields[props.modelField];
         if (field && (field.type !== "many2one" || field.relation !== "ir.model")) {
             throw new Error(
@@ -219,7 +219,7 @@ export class ReferenceField extends Component {
     /**
      * @returns {Promise<string|false>}
      */
-    async _fetchModelTechnicalName(props) {
+    async _fetchModelTechnicalName(/** @type {any} */ props) {
         this._assertMany2OneToIrModel(props);
         const record = props.record;
         const modelId = record.data[props.modelField]?.id;
@@ -231,10 +231,12 @@ export class ReferenceField extends Component {
         if (!specialDataCaches.has(key)) {
             specialDataCaches.set(
                 key,
-                orm.read("ir.model", [modelId], ["model"]).catch((e) => {
-                    specialDataCaches.delete(key);
-                    throw e;
-                }),
+                orm
+                    .read("ir.model", [modelId], ["model"])
+                    .catch((/** @type {any} */ e) => {
+                        specialDataCaches.delete(key);
+                        throw e;
+                    }),
             );
         }
         const result = await specialDataCaches.get(key);

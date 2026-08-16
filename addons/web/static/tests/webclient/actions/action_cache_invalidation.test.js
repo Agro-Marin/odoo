@@ -113,7 +113,7 @@ test("any ir.actions.* write clears the /web/action/load cache", async () => {
     await mountWithCleanup(WebClient);
 
     const cleared = [];
-    const onClear = (ev) => cleared.push(ev.detail);
+    const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
     for (const model of [
@@ -134,7 +134,7 @@ test("any ir.actions.* write clears the /web/action/load cache", async () => {
     expect(cleared.filter((d) => d === "/web/action/load").length).toBe(5);
 
     const clearedAfter = [];
-    const onClear2 = (ev) => clearedAfter.push(ev.detail);
+    const onClear2 = (/** @type {any} */ ev) => clearedAfter.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear2);
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model: "res.partner", method: "write" } },
@@ -151,7 +151,7 @@ test("installActionCacheInvalidation returns a disposer that removes the listene
     const uninstall = installActionCacheInvalidation(am);
 
     const cleared = [];
-    const onClear = (ev) => cleared.push(ev.detail);
+    const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
     fireActWindowWrite();
@@ -174,7 +174,7 @@ test("action service exposes the cache-invalidation disposer", async () => {
     expect(typeof am.uninstallActionCacheInvalidation).toBe("function");
 
     const cleared = [];
-    const onClear = (ev) => cleared.push(ev.detail);
+    const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
     am.uninstallActionCacheInvalidation();
@@ -210,7 +210,7 @@ test("failed breadcrumb refresh keeps the current names", async () => {
 });
 
 /** Simulate a mutating RPC on an arbitrary model reaching the rpcBus. */
-function fireWrite(model) {
+function fireWrite(/** @type {any} */ model) {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model, method: "write" } },
         settings: { silent: true },
@@ -235,7 +235,7 @@ test("a non-act_window action write clears the cache but skips the refresh", asy
     const uninstall = installActionCacheInvalidation(am);
 
     const cleared = [];
-    const onClear = (ev) => cleared.push(ev.detail);
+    const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
     fireWrite("ir.actions.server");
@@ -250,7 +250,7 @@ test("a non-act_window action write clears the cache but skips the refresh", asy
 });
 
 /** Simulate a mutating RPC on `model` with an explicit method reaching the bus. */
-function fireMutation(model, method) {
+function fireMutation(/** @type {any} */ model, /** @type {any} */ method) {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model, method } },
         settings: { silent: true },
@@ -279,7 +279,7 @@ test("an ir.embedded.actions create/unlink clears the cache but skips the refres
     const uninstall = installActionCacheInvalidation(am);
 
     const cleared = [];
-    const onClear = (ev) => cleared.push(ev.detail);
+    const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
     fireMutation("ir.embedded.actions", "create");
@@ -301,7 +301,7 @@ test("a write on an unrelated model is ignored entirely", async () => {
     const uninstall = installActionCacheInvalidation(am);
 
     const cleared = [];
-    const onClear = (ev) => cleared.push(ev.detail);
+    const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
     fireWrite("res.partner");

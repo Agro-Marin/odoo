@@ -56,7 +56,7 @@ export function url(route, queryParams, options = {}) {
 
 /**
  * @param {string} model
- * @param {number} id
+ * @param {number | null} id
  * @param {string} field
  * @param {Object} [options]
  * @param {string} [options.access_token]

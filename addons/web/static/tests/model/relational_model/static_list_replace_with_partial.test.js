@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
@@ -31,6 +31,9 @@ const SERVER_ROWS = {
     99: { id: 99, display_name: "Rec 99" },
 };
 
+/**
+ * @param {{ resIds?: number[], deleted?: Set<number> }} [options]
+ */
 function makeList({ resIds = [], deleted = new Set() } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
@@ -55,7 +58,10 @@ function makeList({ resIds = [], deleted = new Set() } = {}) {
         _isEvalContextReady: true,
     };
     const data = resIds.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]);
-    return new StaticList(model, config, data, { parent, onUpdate: async () => {} });
+    return new StaticList(/** @type {any} */ (model), config, data, {
+        parent,
+        onUpdate: async () => {},
+    });
 }
 
 describe("StaticList._replaceWith partial server response", () => {
@@ -64,7 +70,7 @@ describe("StaticList._replaceWith partial server response", () => {
 
         await list._replaceWith([1, 2, 99]);
 
-        expect(list.records.includes(undefined)).toBe(false);
+        expect(list.records.includes(/** @type {any} */ (undefined))).toBe(false);
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
         expect(list._currentIds).toEqual([1, 2]);
         expect(list.count).toBe(2);

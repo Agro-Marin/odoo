@@ -493,8 +493,8 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
         imports["@web/foo"].slice("data:text/javascript,".length),
     );
     expect(fooSrc.includes('odoo.loader.modules.get("@web/foo")')).toBe(true);
-    expect(fooSrc.includes("const _e0 = _m?.bar;")).toBe(true);
-    expect(fooSrc.includes("export { _e0 as bar };")).toBe(true);
+    expect(fooSrc.includes("_e0 = _m.bar;")).toBe(true);
+    expect(fooSrc.includes("_e0 as bar")).toBe(true);
 
     expect(imports["@web/served"]).toBe("/web/assets/esm/bridges/abc.js");
     expect(imports["/web/static/src/served.js"]).toBe("/web/assets/esm/bridges/abc.js");
@@ -512,6 +512,78 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
     targetWin.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
     await expect(promise).resolves.toBe(undefined);
 
+    iframe.remove();
+});
+
+test("loadESMBundle: a specifier the document already maps is imported by URL", async () => {
+    // An import map entry cannot be re-mapped once the document holds it: a
+    // later map carrying the same key has that rule dropped. So a bundle whose
+    // specifier was claimed by someone else -- classically a bridge shim whose
+    // producer never loaded on this page -- used to import that one and get
+    // `undefined` for every export. It now imports the URL directly and
+    // registers the result under the specifier, which is what the bridges other
+    // modules resolve to will read.
+    const { iframe, captured } = makeCrossDocTarget(new Map());
+    const targetDoc = iframe.contentDocument;
+    // Not appendChild: that is patched to capture rather than insert.
+    targetDoc.head.innerHTML =
+        '<script type="importmap">' +
+        JSON.stringify({
+            imports: { "@web/claimed": "/web/assets/esm/bridges/dead.js" },
+        }) +
+        "</" +
+        "script>";
+
+    const promise = assets.loadESMBundle(["@web/claimed", "@web/free"], {
+        targetDoc,
+        importMap: {
+            "@web/claimed": "/web/static/src/claimed.js",
+            "@web/free": "/web/static/src/free.js",
+        },
+    });
+
+    const imports = getInjectedImports(captured);
+    expect(imports["@web/claimed"]).toBe(undefined);
+    expect(imports["@web/free"]).toBe("/web/static/src/free.js");
+
+    const scriptNode = captured.find((n) => n.type === "module");
+    const pairs = JSON.parse(
+        scriptNode.textContent.match(/const specs = (\[[\s\S]*\]);/)[1],
+    );
+    const bySpec = Object.fromEntries(pairs);
+    expect(bySpec["@web/claimed"].endsWith("/web/static/src/claimed.js")).toBe(true);
+    expect(bySpec["@web/free"]).toBe("@web/free");
+
+    const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];
+    iframe.contentWindow.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
+    await expect(promise).resolves.toBe(undefined);
+    iframe.remove();
+});
+
+test("loadESMBundle: re-declaring the same target is not a conflict", async () => {
+    const { iframe, captured } = makeCrossDocTarget(new Map());
+    const targetDoc = iframe.contentDocument;
+    targetDoc.head.innerHTML =
+        '<script type="importmap">' +
+        JSON.stringify({ imports: { "@web/same": "/web/static/src/same.js" } }) +
+        "</" +
+        "script>";
+
+    const promise = assets.loadESMBundle(["@web/same"], {
+        targetDoc,
+        importMap: { "@web/same": "/web/static/src/same.js" },
+    });
+
+    const scriptNode = captured.find((n) => n.type === "module");
+    const pairs = JSON.parse(
+        scriptNode.textContent.match(/const specs = (\[[\s\S]*\]);/)[1],
+    );
+    // Same module, so the specifier still resolves through the map.
+    expect(Object.fromEntries(pairs)["@web/same"]).toBe("@web/same");
+
+    const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];
+    iframe.contentWindow.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
+    await expect(promise).resolves.toBe(undefined);
     iframe.remove();
 });
 

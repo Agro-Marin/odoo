@@ -31,8 +31,9 @@ async function waitForMacro() {
 beforeEach(() => {
     patchWithCleanup(Macro.prototype, {
         start() {
-            super.start(...arguments);
+            const started = super.start(...arguments);
             macro = this;
+            return started;
         },
     });
 });
@@ -68,7 +69,7 @@ test("simple use", async () => {
             await animationFrame();
             expect.step(queryText("span.value"));
         },
-    }).start(queryOne(".counter"));
+    }).start();
 
     const span = queryOne("span.value");
     expect(span).toHaveText("0");
@@ -106,7 +107,7 @@ test("multiple steps", async () => {
                 expect.step(queryText("span.value"));
             }
         },
-    }).start(queryOne(".counter"));
+    }).start();
     await waitForMacro();
     expect.verifySteps(["1", "2"]);
 });
@@ -125,7 +126,7 @@ test("can input values", async () => {
                 },
             },
         ],
-    }).start(queryOne(".counter"));
+    }).start();
     expect(input).toHaveValue("");
     await waitForMacro();
     expect(input).toHaveValue("aaron");
@@ -148,7 +149,7 @@ test("a step can have no trigger", async () => {
             },
             { action: () => expect.step("3") },
         ],
-    }).start(queryOne(".counter"));
+    }).start();
     expect(input).toHaveValue("");
     await waitForMacro();
     expect(input).toHaveValue("aaron");
@@ -178,7 +179,7 @@ test("onStep function is called at each step", async () => {
                 },
             },
         ],
-    }).start(queryOne(".counter"));
+    }).start();
     await waitForMacro();
     expect(span).toHaveText("1");
     expect.verifySteps([0, 1]);
@@ -199,7 +200,7 @@ test("trigger can be a function returning an htmlelement", async () => {
                 },
             },
         ],
-    }).start(queryOne(".counter"));
+    }).start();
     expect(span).toHaveText("0");
     await waitForMacro();
     expect(span).toHaveText("1");
@@ -225,7 +226,7 @@ test("macro wait element is visible to do action", async () => {
         onError: (error) => {
             expect.step(error);
         },
-    }).start(queryOne(".counter"));
+    }).start();
     advanceTime(500);
     button.classList.remove("d-none");
     await waitForMacro();
@@ -329,7 +330,7 @@ test("macro clears the step timeout timer once the step settles", async () => {
                 action: (el) => el.click(),
             },
         ],
-    }).start(queryOne(".counter"));
+    }).start();
     await waitForMacro();
     expect(queryOne("span.value")).toHaveText("1");
     expect(stepControllerAborts).toBe(1);
@@ -364,7 +365,7 @@ test("Macro.STOP halts the macro without onComplete or onError", async () => {
         ],
         onComplete: () => expect.step("onComplete"),
         onError: () => expect.step("onError"),
-    }).start(queryOne(".counter"));
+    }).start();
     await waitForMacro();
     expect(span).toHaveText("0");
     expect.verifySteps([]);

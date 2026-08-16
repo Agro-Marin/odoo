@@ -192,17 +192,27 @@ class ProgressBarState {
             return;
         }
         const coloredCount = groupInfo.bars
-            .filter((bar) => bar.value !== FALSE)
-            .reduce((sum, bar) => sum + bar.count, 0);
-        const otherBar = groupInfo.bars.find((bar) => bar.value === FALSE);
+            .filter((/** @type {any} */ bar) => bar.value !== FALSE)
+            .reduce(
+                (/** @type {any} */ sum, /** @type {any} */ bar) => sum + bar.count,
+                0,
+            );
+        const otherBar = groupInfo.bars.find(
+            (/** @type {any} */ bar) => bar.value === FALSE,
+        );
         if (otherBar) {
             otherBar.count = Math.max(0, group.count - coloredCount);
         }
-        groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
+        groupInfo.total = groupInfo.bars.reduce(
+            (/** @type {any} */ sum, /** @type {any} */ bar) => sum + bar.count,
+            0,
+        );
         const activeBar = this.activeBars[groupKey(group.serverValue)];
         if (activeBar) {
             activeBar.count =
-                groupInfo.bars.find((bar) => bar.value === activeBar.value)?.count ?? 0;
+                groupInfo.bars.find(
+                    (/** @type {any} */ bar) => bar.value === activeBar.value,
+                )?.count ?? 0;
         }
         this._syncActiveBar(group);
     }
@@ -277,7 +287,9 @@ class ProgressBarState {
      * @param {{ value: * }} bar
      */
     async selectBar(groupId, bar) {
-        const group = this.model.root.groups.find((group) => group.id === groupId);
+        const group = this.model.root.groups.find(
+            (/** @type {any} */ group) => group.id === groupId,
+        );
         const progressBar = this.getGroupInfo(group);
         const nextActiveBar = {};
         const key = groupKey(group.serverValue);
@@ -402,8 +414,12 @@ class ProgressBarState {
             return;
         }
         const groups = this.model.root.groups || [];
-        const sourceGroup = groups.find((g) => g.id === sourceGroupId);
-        const record = sourceGroup?.list.records.find((r) => r.id === recordId);
+        const sourceGroup = groups.find(
+            (/** @type {any} */ g) => g.id === sourceGroupId,
+        );
+        const record = sourceGroup?.list.records.find(
+            (/** @type {any} */ r) => r.id === recordId,
+        );
         this._recordMoves.set(recordId, {
             sourceGroupId,
             targetGroupId,
@@ -425,8 +441,12 @@ class ProgressBarState {
      */
     _reconcileMove(record, move) {
         const groups = this.model.root.groups || [];
-        const sourceGroup = groups.find((g) => g.id === move.sourceGroupId);
-        const targetGroup = groups.find((g) => g.id === move.targetGroupId);
+        const sourceGroup = groups.find(
+            (/** @type {any} */ g) => g.id === move.sourceGroupId,
+        );
+        const targetGroup = groups.find(
+            (/** @type {any} */ g) => g.id === move.targetGroupId,
+        );
         const { fieldName } = this.progressAttributes;
         if (
             this._pbCounts === null ||
@@ -470,7 +490,9 @@ class ProgressBarState {
             return;
         }
         if (bucket) {
-            const bar = groupInfo.bars.find((b) => b.value === bucket);
+            const bar = groupInfo.bars.find(
+                (/** @type {any} */ b) => b.value === bucket,
+            );
             if (bar) {
                 bar.count = Math.max(0, bar.count + delta);
             }
@@ -575,7 +597,9 @@ class ProgressBarState {
         const { context, domain, groupBy, resModel } = this.model.root;
         if (groupBy.length) {
             const epoch = ++this._pbEpoch;
-            const groupIds = new Set(this.model.root.groups.map((g) => g.id));
+            const groupIds = new Set(
+                this.model.root.groups.map((/** @type {any} */ g) => g.id),
+            );
             const res = await this._fetchProgressBarCounts({
                 context,
                 domain,
@@ -585,10 +609,12 @@ class ProgressBarState {
             if (epoch !== this._pbEpoch) {
                 return;
             }
-            const currentIds = this.model.root.groups.map((g) => g.id);
+            const currentIds = this.model.root.groups.map(
+                (/** @type {any} */ g) => g.id,
+            );
             if (
                 currentIds.length !== groupIds.size ||
-                currentIds.some((id) => !groupIds.has(id))
+                currentIds.some((/** @type {any} */ id) => !groupIds.has(id))
             ) {
                 this._scheduleMembershipRetry();
                 return;
@@ -664,7 +690,7 @@ class ProgressBarState {
 
     _pruneGroupsInfo() {
         const groupIds = new Set(
-            (this.model.root.groups || []).map((group) => group.id),
+            (this.model.root.groups || []).map((/** @type {any} */ group) => group.id),
         );
         for (const id of Object.keys(this._groupsInfo)) {
             if (!groupIds.has(id)) {
@@ -704,7 +730,7 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
 
     let prom;
     const unsubscribe = [
-        model.subscribeLifecycle("onWillLoadRoot", (config) => {
+        model.subscribeLifecycle("onWillLoadRoot", (/** @type {any} */ config) => {
             prom = progressBarState.loadProgressBar({
                 context: config.context,
                 domain: config.domain,

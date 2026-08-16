@@ -25,8 +25,10 @@ import {
 } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
 
-const onRpcRequest = (listener) => after(on(rpcBus, "RPC:REQUEST", listener));
-const onRpcResponse = (listener) => after(on(rpcBus, "RPC:RESPONSE", listener));
+const onRpcRequest = (listener) =>
+    after(on(rpcBus, /** @type {any} */ ("RPC:REQUEST"), listener));
+const onRpcResponse = (listener) =>
+    after(on(rpcBus, /** @type {any} */ ("RPC:RESPONSE"), listener));
 
 describe.current.tags("headless");
 
@@ -55,7 +57,7 @@ test("trigger an error when response has 'error' key", async () => {
     }));
 
     const error = new RPCError("message");
-    await expect(rpc("/test/")).rejects.toThrow(error);
+    await expect(rpc("/test/")).rejects.toThrow(/** @type {any} */ (error));
 });
 
 test("rpc with simple routes", async () => {
@@ -127,7 +129,7 @@ test("check trigger RPC:REQUEST and RPC:RESPONSE for a rpc with an error", async
     });
 
     const error = new RPCError("message");
-    await expect(rpc("/test/")).rejects.toThrow(error);
+    await expect(rpc("/test/")).rejects.toThrow(/** @type {any} */ (error));
     expect.verifySteps(["RPC:REQUEST", "RPC:RESPONSE(ko)"]);
 });
 
@@ -139,7 +141,7 @@ test("check connection aborted", async () => {
     const connection = rpc();
     connection.abort();
     const error = new ConnectionAbortedError();
-    await expect(connection).rejects.toThrow(error);
+    await expect(connection).rejects.toThrow(/** @type {any} */ (error));
     expect.verifySteps(["RPC:REQUEST", "RPC:RESPONSE"]);
 });
 

@@ -51,11 +51,29 @@ const PAIRS = [
     { name: "float", format: formatFloat, parse: parseFloat },
     { name: "integer", format: formatInteger, parse: parseInteger, domain: Math.round },
     { name: "float_time", format: formatFloatTime, parse: parseFloatTime },
-    { name: "percentage", format: formatPercentage, parse: parsePercentage },
+    {
+        name: "percentage",
+        format: formatPercentage,
+        // Returns `number | Operation`, and only ever an Operation when called
+        // with `allowOperation` — which this sweep never does.
+        parse: /** @type {(s: string) => number} */ (parsePercentage),
+    },
     { name: "monetary", format: formatMonetary, parse: parseMonetary },
 ];
 
-/** Locales that differ in every axis the number code branches on. */
+/**
+ * Locales that differ in every axis the number code branches on.
+ *
+ * `thousandsSep: false` is the shape the server sends for a locale that has
+ * none, and `grouping` is variable-length — Indian grouping is `[3, 2, 0]`.
+ *
+ * @type {{
+ *     name: string,
+ *     decimalPoint: string,
+ *     thousandsSep: string | false,
+ *     grouping: number[],
+ * }[]}
+ */
 const LOCALES = [
     { name: "en_US", decimalPoint: ".", thousandsSep: ",", grouping: [3, 0] },
     { name: "fr_BE", decimalPoint: ",", thousandsSep: ".", grouping: [3, 0] },

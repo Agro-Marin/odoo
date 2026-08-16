@@ -114,7 +114,7 @@ export function cyrb53(str) {
 /**
  * @param {string} str
  * @param {number[]} indices
- * @param {string} [separator=""]
+ * @param {string | false} [separator=""]
  * @returns {string}
  */
 export function intersperse(str, indices, separator) {

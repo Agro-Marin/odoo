@@ -8,6 +8,7 @@ import { SignalStore } from "@web/core/utils/reactive";
 
 import { getId } from "./field_context.js";
 /** @import { Field, FieldInfo } from "@web/model/types" */
+/** @import { RecordEditState } from "./record_edit_state.js" */
 /** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
 
 /**
@@ -24,6 +25,12 @@ import { getId } from "./field_context.js";
  */
 
 export class DataPoint extends SignalStore {
+    /** @type {RecordEditState} Owned by `RelationalRecord`. */
+    _editState;
+
+    /** @type {Set<string>} Owned by `RelationalRecord`. */
+    _loadedFieldNames;
+
     /**
      * @param {RelationalModel} model
      * @param {RelationalModelConfig} config

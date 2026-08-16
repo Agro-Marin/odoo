@@ -35,7 +35,7 @@ WORKSPACE="$ADDONS"                            # same directory: this fork keeps
 #
 # Convention (workspace CLAUDE.md): one `<env>.conf` per environment at the
 # workspace root, each paired with a venv directory of the same name —
-# `<workspace>/p314o19marin.conf` + `<workspace>/p314o19marin/bin/python`.
+# `<workspace>/p314o19m.conf` + `<workspace>/p314o19m/bin/python`.
 # Pair them BY NAME so a workspace holding several environments cannot run one
 # environment's config under another's interpreter.
 _discover_env() {
@@ -822,8 +822,11 @@ assert_eq "assetsbundle/bundle.py defines esbuild_native_bundle" \
 assert_eq "ir_qweb_assets.py defines _get_native_module_nodes" \
     "$(grep -cE 'def _get_native_module_nodes\(' "$PYBASE/ir_qweb_assets.py")" "1"
 fi
-assert_eq "ESM_BUNDLING.md documents the manifest 'esm' key" \
-    "$(grep -c 'dynamic_children' "$WEB/machine_doc_v1/ESM_BUNDLING.md")" "4"
+# (The "documents the manifest 'esm' key" assertion that lived here counted
+# occurrences of the literal `dynamic_children` against a hardcoded 4 — a
+# restated number that broke the moment a row was added, and that said nothing
+# about coverage. Superseded by the derived key-coverage assertion below, which
+# reads _ESM_MANIFEST_KEYS and requires a row per key.)
 
 # 19. Symbols named in STATE_MANAGEMENT.md "Key files".
 assert_eq "form_controller.js defines save()" \
@@ -881,28 +884,22 @@ elif ! (cd "$REPO" && "$VENV_PY" -c "import odoo" >/dev/null 2>&1); then
     echo "SKIP: TEST_TAGS make_suite counts — odoo not importable with $VENV_PY"
     SKIP=$((SKIP+16))
 else
-    # addon_js is generated (one method per uncovered addon), so it drifts
-    # whenever an addon gains or loses a bundled suite — exactly the number a
-    # hand-maintained doc gets wrong. It was 159 in the doc against 158 real.
-    for spec in \
-        "web_unit:297" \
-        "web_http:100" \
-        "web_tour:5" \
-        "web_js:37" \
-        "web_perf:26" \
-        "web_benchmark:8" \
-        "click_all:2" \
-        "addon_js:159"; do
-        tag="${spec%:*}"
-        expected="${spec##*:}"
+    # `make_suite` is the only source of truth here. This loop used to carry a
+    # hardcoded expected count per tag AND assert the doc cited it — two copies
+    # of one number, and the comment that stood here admitted the doc said 159
+    # against 158 real. `addon_js` is generated (one method per uncovered addon)
+    # and `web_unit` moves with every added test, so both drift by design; the
+    # only durable assertion is that the DOC agrees with the LOADER.
+    for tag in \
+        web_unit web_http web_tour web_js web_perf web_benchmark click_all addon_js; do
         actual=$(count_tag_tests "$tag")
         if [ -z "$actual" ]; then
-            actual="LOADER_FAILED: $(tail -n 1 "$LOADER_ERR")"
+            assert_eq "TEST_TAGS $tag test count (make_suite)" \
+                "LOADER_FAILED: $(tail -n 1 "$LOADER_ERR")" "a number"
+            continue
         fi
-        assert_eq "TEST_TAGS $tag test count (make_suite)" "$actual" "$expected"
-        # And the doc must cite the matching number.
-        assert_eq "TEST_TAGS.md cites $expected for $tag" \
-            "$(grep -cE "\`$tag\`.*\| $expected tests" "$WEB/machine_doc_v1/TEST_TAGS.md")" "1"
+        assert_doc_cites "TEST_TAGS.md cites the real $tag count" \
+            "$actual" "\`$tag\`.*\| %s tests" TEST_TAGS.md
     done
 fi
 
@@ -1268,6 +1265,55 @@ assert_doc_cites "ARCHITECTURE cites the real plain/spec split" \
     "${RF_PLAIN:-PARSE_FAILED}" '%s plain and' ARCHITECTURE.md
 assert_doc_cites "ARCHITECTURE cites the real spec-form count" \
     "${RF_SPEC:-PARSE_FAILED}" 'and %s through the typed spec form' ARCHITECTURE.md
+
+# ------- ESM_BUNDLING: the doc had drifted to symbols that no longer exist -------
+# Every one of these was cited by ESM_BUNDLING.md while resolving nowhere in the
+# tree, and nothing here checked it. A map that names a symbol the reader cannot
+# find is worse than no map: CLAUDE.md makes machine_doc the FIRST thing to read.
+for sym in ODOO_EXTERNAL_LIBS EXTERNAL_BARE_SPECIFIERS _validate_esm_config; do
+    cited=$(grep -c "$sym" "$DOC/ESM_BUNDLING.md" 2>/dev/null); cited=${cited:-0}
+    exists=$(grep -rl "$sym" --include="*.py" "$REPO" 2>/dev/null | grep -cv machine_doc); exists=${exists:-0}
+    if [ "$cited" -ge 1 ] && [ "$exists" -eq 0 ]; then
+        echo "FAIL: ESM_BUNDLING cites $sym, which exists nowhere in the tree"; FAIL=$((FAIL+1))
+    else
+        echo "PASS: ESM_BUNDLING does not cite a vanished $sym [$cited/$exists]"; PASS=$((PASS+1))
+    fi
+done
+
+# Every `esm` manifest key the registry accepts must be documented, and the doc
+# must name no key the registry would reject. Derived from the source both ways,
+# so neither side can drift alone.
+ESM_KEYS="$("$VENV_PY" - "$REPO" <<'PYEOF' 2>/dev/null
+import ast, sys, pathlib
+src = pathlib.Path(sys.argv[1], "odoo/tools/assets/esm_registry.py").read_text()
+tree = ast.parse(src)
+for node in ast.walk(tree):
+    if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "_ESM_MANIFEST_KEYS":
+        print(" ".join(sorted(ast.literal_eval(ast.unparse(node.value.args[0])))))
+        break
+PYEOF
+)"
+if [ -z "$ESM_KEYS" ]; then
+    echo "SKIP: could not parse _ESM_MANIFEST_KEYS"; SKIP=$((SKIP+1))
+else
+    missing=""
+    for key in $ESM_KEYS; do
+        grep -qF -- "\`$key\`" "$DOC/ESM_BUNDLING.md" || missing="$missing $key"
+    done
+    if [ -n "$missing" ]; then
+        echo "FAIL: ESM_BUNDLING documents no row for:$missing"; FAIL=$((FAIL+1))
+    else
+        echo "PASS: ESM_BUNDLING documents every accepted esm key [$(echo $ESM_KEYS | wc -w)]"; PASS=$((PASS+1))
+    fi
+fi
+
+# The route's predicate, named in prose. `use_esm` moved from
+# `dynamic_bundle_names` to `runtime_bundle_names`; the doc explaining the
+# manifest keys must not describe the old one.
+ROUTE_PRED=$(grep -oE 'use_esm = bundle_name in esm_registry\(\)\.[a-z_]+' \
+    "$WEB/controllers/webclient.py" | sed 's/.*\.//')
+assert_doc_cites "ESM_BUNDLING names the predicate /web/bundle actually reads" \
+    "${ROUTE_PRED:-PARSE_FAILED}" '%s' ESM_BUNDLING.md
 
 echo ""
 echo "================================================================"

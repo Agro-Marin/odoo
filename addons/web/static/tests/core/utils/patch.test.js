@@ -37,7 +37,7 @@ class BaseClass {
     }
 }
 
-function applyGenericPatch(Klass, tag) {
+function applyGenericPatch(/** @type {any} */ Klass, /** @type {any} */ tag) {
     return patch(Klass.prototype, {
         setup() {
             super.setup();
@@ -55,7 +55,7 @@ function applyGenericPatch(Klass, tag) {
     });
 }
 
-function applyGenericStaticPatch(Klass, tag) {
+function applyGenericStaticPatch(/** @type {any} */ Klass, /** @type {any} */ tag) {
     return patch(Klass, {
         staticStr: Klass.staticStr + tag,
         staticArr: [...Klass.staticArr, tag],
@@ -284,7 +284,7 @@ test("setter", () => {
     expect(instance.dynamic).toBe("1");
 
     const unpatch = patch(BaseClass.prototype, {
-        set dynamic(value) {
+        set dynamic(/** @type {any} */ value) {
             super.dynamic = "patch:" + value;
         },
     });
@@ -1220,7 +1220,7 @@ describe("mixin chains", () => {
     // target itself declares. The whole extensibility argument for mixin-composed
     // classes rests on this working, so it is pinned here rather than assumed.
 
-    const withDeep = (Base) =>
+    const withDeep = (/** @type {any} */ Base) =>
         class extends Base {
             deep() {
                 expect.step("deep.mixin");
@@ -1229,7 +1229,7 @@ describe("mixin chains", () => {
                 return "mixin";
             }
         };
-    const withMiddle = (Base) =>
+    const withMiddle = (/** @type {any} */ Base) =>
         class extends Base {
             deep() {
                 super.deep();

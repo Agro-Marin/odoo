@@ -61,7 +61,7 @@ export function findUnsetRequiredFields(
                 const value = data[fieldName];
                 if (value) {
                     const ok = value.every(
-                        (propertyDefinition) =>
+                        (/** @type {any} */ propertyDefinition) =>
                             propertyDefinition.name &&
                             propertyDefinition.name.length &&
                             propertyDefinition.string &&
@@ -133,11 +133,11 @@ export function checkValidity(
         pruneUnreachableInvalidFields(record);
     }
     const callbacks = {
-        isInvisible: (fieldName) => record._isInvisible(fieldName),
-        isRequired: (fieldName) => record._isRequired(fieldName),
-        isChildListValid: (_fieldName, list) => {
+        isInvisible: (/** @type {any} */ fieldName) => record._isInvisible(fieldName),
+        isRequired: (/** @type {any} */ fieldName) => record._isRequired(fieldName),
+        isChildListValid: (/** @type {any} */ _fieldName, /** @type {any} */ list) => {
             const membership = new Set(list.currentIds);
-            return list.cachedRecords.every((r) => {
+            return list.cachedRecords.every((/** @type {any} */ r) => {
                 if (!membership.has(listId(r))) {
                     return true;
                 }

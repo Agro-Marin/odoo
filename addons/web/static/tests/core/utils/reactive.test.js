@@ -14,6 +14,7 @@ test("SignalStore returns a reactive proxy of itself", () => {
     }
     const store = new Store();
     expect(store).toBeInstanceOf(Store);
+    /** @type {any[]} */
     const seen = [];
     const tracked = reactive(store, () => seen.push(tracked.n));
     tracked.n;
@@ -23,6 +24,7 @@ test("SignalStore returns a reactive proxy of itself", () => {
 
 test("effect fires once eagerly, then on every dependency write", () => {
     const state = reactive({ n: 0 });
+    /** @type {any[]} */
     const seen = [];
     effect((s) => seen.push(s.n), [state]);
     expect(seen).toEqual([0]);
@@ -33,6 +35,7 @@ test("effect fires once eagerly, then on every dependency write", () => {
 
 test("the effect disposer stops further firing", () => {
     const state = reactive({ n: 0 });
+    /** @type {any[]} */
     const seen = [];
     const dispose = effect((s) => seen.push(s.n), [state]);
     state.n = 1;
@@ -43,6 +46,7 @@ test("the effect disposer stops further firing", () => {
 
 test("disposableEffect delegates to effect", () => {
     const state = reactive({ n: 0 });
+    /** @type {any[]} */
     const seen = [];
     const dispose = disposableEffect((s) => seen.push(s.n), [state]);
     state.n = 1;
@@ -97,6 +101,8 @@ test("reading the same state through the component's own proxy does subscribe", 
     class Name extends Component {
         static template = xml`<span t-esc="fullName"/>`;
         static props = {};
+        /** @type {typeof store} */
+        state;
         setup() {
             this.state = useState(store);
         }

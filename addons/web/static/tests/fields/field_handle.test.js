@@ -14,8 +14,13 @@ class FakeRecord extends SignalStore {
         super();
         this.data = data;
         this.fields = { foo: { type: "char", string: "Foo" }, bar: { type: "char" } };
+        /** @type {any[][]} */
         this.written = [];
     }
+    /**
+     * @param {any} changes
+     * @param {any} [options]
+     */
     update(changes, options) {
         this.written.push([changes, options]);
         Object.assign(this.data, changes);
@@ -30,7 +35,7 @@ class Widget extends Component {
     }
 }
 
-async function mountWidget(record, name = "foo") {
+async function mountWidget(/** @type {any} */ record, name = "foo") {
     class Parent extends Component {
         static template = xml`<Widget record="state.record" name="state.name"/>`;
         static components = { Widget };

@@ -18,7 +18,9 @@ export class ListBadgeSelectionField extends BadgeSelectionField {
     };
     /**
      * @param {[string, string] | false} option
-     * @returns {string}
+     * @returns {string | object} a class string from `badgeColorClass`, or the
+     *  class object `mergeClasses` builds — both are what OWL's `t-att-class`
+     *  accepts, and the declaration named only the first.
      */
     getBadgeClassNames(option = false) {
         if (this.props.readonly) {
@@ -55,7 +57,7 @@ export const listBadgeSelectionField = {
     // `badgeColorClass` reads the colour out of `record.data`, so a view that
     // names the option but not the field fell back to the plain badge and the
     // option silently did nothing.
-    fieldDependencies: ({ options }) =>
+    fieldDependencies: ({ /** @type {any} */ options }) =>
         options.color_field
             ? [{ name: options.color_field, optional: true, readonly: true }]
             : [],

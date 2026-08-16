@@ -62,8 +62,11 @@ test("bus: fresh loader exposes an EventTarget", () => {
 
 test("rebind: re-binding a specifier to a DIFFERENT namespace fires the event", () => {
     const loader = new ModuleLoader();
+    /** @type {any[]} */
     const seen = [];
-    loader.bus.addEventListener("rebind", (ev) => seen.push(ev.detail.specifiers));
+    loader.bus.addEventListener("rebind", (/** @type {any} */ ev) =>
+        seen.push(ev.detail.specifiers),
+    );
 
     loader.registerNativeModules({ "@web/x": { v: "first" } });
     loader.registerNativeModules({ "@web/x": { v: "second" } });
@@ -88,8 +91,9 @@ test("rebind: re-registering the SAME namespace object is silent", () => {
 test("rebind: a mixed batch reports only the specifiers that changed", () => {
     const loader = new ModuleLoader();
     const stable = { a: 1 };
+    /** @type {any[]} */
     const detered = [];
-    loader.bus.addEventListener("rebind", (ev) =>
+    loader.bus.addEventListener("rebind", (/** @type {any} */ ev) =>
         detered.push(...ev.detail.specifiers),
     );
 

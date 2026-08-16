@@ -18,7 +18,7 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { fromUnityToServerValues } from "@web/model/relational_model/field_values";
 
 describe.current.tags("headless");

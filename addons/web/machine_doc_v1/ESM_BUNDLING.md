@@ -110,21 +110,24 @@ wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 | `esm` manifest key | Purpose |
 |-----|---------|
 | `bundles` | This module's esbuild-compiled bundles |
-| `dynamic_children` | Parent → lazy children pre-registered in the parent's import map for runtime `import()` via `loadBundle`; declared by the CHILD's module |
+| `runtime_bundles` | Bundles fetched at runtime through `/web/bundle` (`loadBundle`). A property of the BUNDLE — no parent page is named. Aggregated into `EsmRegistry.runtime_bundle_names` (together with every `dynamic_children` child), which is the predicate `use_esm` reads in `web/controllers/webclient.py`; without it the route serves the legacy branch and every module-syntax file becomes a `console.error` stub while `loadBundle` still resolves |
+| `dynamic_children` | Parent → lazy children whose specifiers the parent's page must *not* bridge. A dynamic child is a runtime bundle without restating it. Since 2026-08-16 production no longer merges the children's specifiers into the page import map — the child carries its own through `/web/bundle` — so this key is now page-side only: bridge exclusion, and the debug per-file map |
 | `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild; used for test-runner bundles |
-| `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map |
+| `external_libs` | Bare specifier → root-relative URL for a library this module ships (`@odoo/owl`, `chartjs-chart-geo`, …). One specifier resolves to one URL and the owning module declares it; a second module declaring it differently is an error |
+| `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map. **Gated**: the merge runs only when the satellites are actually rendered (`'tests' in debug or test_mode_enabled`), the same condition `web.conditional_assets_tests` uses |
 
 Choosing between the last two, since both silence the "module-syntax file in a
 non-ESM bundle" stub and neither raises when it is the wrong one:
 
 - `import_map_includes` — the child is **never compiled**: `EsbuildCompiler.compile`
-  returns an empty result at `esbuild.py:481` when `_import_map_included` is set
-  (fed from `registry.import_map_included_bundles`, `bundle.py:467`). Its specifiers
+  returns an empty result when `_import_map_included` is set
+  (fed from `registry.import_map_included_bundles` in `AssetsBundle._make_esbuild_compiler`). Its specifiers
   ride the parent's map and resolve to individual source URLs, which is what a test
   runner loading files on demand wants.
 - `secondary_import_map_includes` — the child **is** compiled, and this is the only
   key that populates `secondary_parents`, the mapping that makes esbuild `--alias`
-  the child's shared specifiers onto `odoo.loader.modules` shims (`esbuild.py:535`).
+  the child's shared specifiers onto `odoo.loader.modules` shims
+  (`EsbuildCompiler._esbuild_stub_aliases`).
   Required whenever the satellite must drive the parent's *live* instances, e.g. a
   tour calling `patchWithCleanup(browser, …)` against an already-running app.
 
@@ -152,33 +155,58 @@ Example:
 # point_of_sale/__manifest__.py — bundles-only (no children/includes).
 ```
 
-Invariants (same as the old class-level `_validate_esm_config`) are enforced
-by `validate_esm_config` (`esm_registry.py`) when the registry is built —
+### Not every ESM bundle can be a runtime bundle
+
+`esm.runtime_bundles` switches a bundle to the **per-file** payload, and a bundle
+built for esbuild is not automatically servable that way. esbuild walks the
+import graph from disk, so a member's relative `./sibling.js` resolves whether or
+not the sibling is in the bundle's file list; served per-file there is no such
+walk, and the specifier would fetch a second copy of a module some other bundle
+on the page already owns. `_validate_lazy_bundle_relative_imports` refuses that,
+and `TestDynamicBundleIntegrity` sweeps every bundle in `runtime_bundle_names` so
+the refusal lands in CI rather than as an HTTP 500.
+
+Five declared bundles currently fail that check, and **all five are correct as
+they are** — do not "fix" them by adding the escaping files to the bundle:
+
+| Bundle | Why the escape is right |
+|---|---|
+| `web.assets_frontend_lazy` | It is `web.assets_frontend` **minus** the five files `web.assets_frontend_minimal` owns (`session`, `cookie`, `dom/ui`, `minimal_dom`, `lazyloader`). Removing them from the member list is what stops this bundle re-registering specifiers the minimal bundle already registered. Adding them back would create the singleton split the removal exists to prevent |
+| `web.assets_inside_builder_iframe` | Rendered into the builder iframe — a separate document with its own module graph |
+| `api_doc.assets` | Its own page, which does not render `web.assets_frontend` |
+| `im_livechat.embed_assets_unit_tests_setup` | A test-setup bundle that removes `im_livechat/static/**` and re-adds a chosen few |
+| `im_livechat.assets_embed_core` | Include-only. Its first entry removes `web/static/src/core/browser/title_service.js`, which only exists in the parents that include it (`web.assets_frontend`, `im_livechat.assets_embed_external`) — an exact-path `remove` is strict, so standalone it raises. Note the side effect: installing `im_livechat` drops `title_service.js` from `web.assets_frontend`. Verified harmless — nothing on the frontend calls `useService("title")`, and `mail.assets_public`, whose `discuss_patch.js` does, keeps both |
+
+The rule is not "close every bundle under its relative imports". It is: a bundle
+is servable per-file only if it is closed, and `esm.runtime_bundles` is the
+declaration that says it must be.
+
+Invariants are enforced by `validate_esm_config` (`esm_registry.py`) when the
+registry is built —
 loud by design, so a bad manifest fails the first render/bundle that touches
 the registry.  For ALL THREE mappings (`dynamic_children`,
 `import_map_includes`, AND `secondary_import_map_includes`):
 - Every parent is a registered ESM bundle (in `bundles`)
 - Every child is a registered ESM bundle (in `bundles`)
 - No duplicate name within a parent's merged children list
-Plus, cross-mapping: no bundle is both a dynamic child AND an
+Plus: every `runtime_bundles` and `standalone_bundles` entry is a registered
+bundle, and, cross-mapping: no bundle is both a dynamic child AND an
 import-map-include of the same parent.  Unknown keys under `esm` are rejected
 (`_ESM_MANIFEST_KEYS`); a non-Mapping `esm`, a bare-string `bundles`, or a
 non-dict mapping value raise `TypeError` earlier in the build.
 
 The esbuild alias table `_LIB_CANDIDATES` (vendored `@odoo/*` paths)
-lives on `EsbuildCompiler` (odoo/tools/assets/esbuild.py).
-Cross-file invariants enforced at module-load
-(`AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)` in
-assetsbundle/bundle.py, invoked at import time; `ODOO_EXTERNAL_LIBS`
-itself is defined in odoo/libs/constants.py with a class alias
-`IrQweb._ODOO_EXTERNAL_LIBS` in ir_qweb_assets.py):
-- Every `ODOO_EXTERNAL_LIBS` entry has a matching `_LIB_CANDIDATES` alias,
-  an `EXTERNAL_BARE_SPECIFIERS` membership, or `--external:@odoo/*`
-  pattern coverage
-- Every `EXTERNAL_BARE_SPECIFIERS` entry has an `ODOO_EXTERNAL_LIBS` URL
-  (esbuild emits those imports verbatim; the browser needs the map entry)
-- Every `ODOO_EXTERNAL_LIBS` URL exists on disk (URLs under addons absent
-  from `addons_path` are skipped)
+lives on `EsbuildCompiler` (odoo/tools/assets/esbuild.py). External libs are
+**declared per manifest** under `esm.external_libs` (bare specifier → root-relative
+URL) and aggregated by `esm_registry.external_libs()`; a specifier is owned by
+exactly one module, and two modules declaring it differently is an error.
+Cross-file invariants are checked once per process by
+`AssetsBundle._validate_external_libs(external_libs())`, reached through
+`_check_external_libs_once()` in `AssetsBundle.__init__`:
+- Every `esm.external_libs` specifier resolves for esbuild — a `_LIB_CANDIDATES`
+  alias, `external_bare_specifiers()` membership, or `--external:@odoo/*` coverage
+- Every `esm.external_libs` URL exists on disk (URLs under addons absent from
+  `addons_path` are skipped)
 - Every `_LIB_CANDIDATES` alias target exists on disk (same skip rule — the
   addon scan would otherwise silently skip a typo'd alias and every bundle
   importing it would fail to build)

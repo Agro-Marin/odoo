@@ -12,12 +12,11 @@ import {
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
-
-import { x2ManyCommands } from "./commands.js";
 
 const granularityToInterval = {
     hour: { hours: 1 },
@@ -39,7 +38,9 @@ deserializers
     .add("datetime", (value) => (value ? deserializeDateTime(value) : false))
     .add("selection", (value, field) => {
         if (value === false) {
-            return field.selection.some((opt) => opt[0] === 0) ? 0 : value;
+            return field.selection.some((/** @type {any} */ opt) => opt[0] === 0)
+                ? 0
+                : value;
         }
         return value;
     })
@@ -73,7 +74,7 @@ deserializers
     })
     .add("properties", (value) =>
         value
-            ? value.map((property) => {
+            ? value.map((/** @type {any} */ property) => {
                   property = { ...property };
                   if (property.value !== undefined) {
                       property.value = parseServerValue(
@@ -365,7 +366,7 @@ export function fromUnityToServerValues(
         switch (field.type) {
             case "one2many":
             case "many2many":
-                value = value.map((c) => {
+                value = value.map((/** @type {any} */ c) => {
                     if (c[0] === CREATE || c[0] === UPDATE) {
                         const related = activeField?.related;
                         if (!related) {

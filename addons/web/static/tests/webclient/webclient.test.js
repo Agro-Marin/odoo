@@ -231,6 +231,7 @@ test("the default app falls through a dangling first menu id", async () => {
     });
 
     await makeMockEnv();
+    /** @type {any[]} */
     const selected = [];
     patchWithCleanup(getService("menu"), {
         selectMenu: (menu) => selected.push(menu?.id ?? menu),

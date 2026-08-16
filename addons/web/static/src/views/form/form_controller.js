@@ -97,6 +97,12 @@ export class FormController extends Component {
         updateActionState: () => {},
     };
 
+    /** @type {import("@web/core/action_port").ActionPort} */
+    actionService;
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
     /** @type {any} */
     ui;
     /** @type {any} */

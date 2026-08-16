@@ -57,10 +57,11 @@ function makeList({ loadRecords = async () => [] } = {}) {
         _tmpIncreaseLimit: 0,
         _extendedRecords: new Set(),
         model: {
-            _patchConfig: (config, patch) => Object.assign(config, patch),
-            _loadRecords: (config) => loadRecords(config),
+            _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
+                Object.assign(config, patch),
+            _loadRecords: (/** @type {any} */ config) => loadRecords(config),
         },
-        _createRecordDatapoint(data, params = {}) {
+        _createRecordDatapoint(/** @type {any} */ data, params = {}) {
             const resId = data.id || false;
             const record = {
                 resId,
@@ -75,19 +76,19 @@ function makeList({ loadRecords = async () => [] } = {}) {
                 data: { ...data },
                 _changes: {},
                 _discard() {},
-                _applyChanges(changes, serverChanges = {}) {
+                _applyChanges(/** @type {any} */ changes, serverChanges = {}) {
                     Object.assign(
                         this.data,
                         changes,
                         this._parseServerValues(serverChanges),
                     );
                 },
-                _applyValues(values) {
+                _applyValues(/** @type {any} */ values) {
                     if (values) {
                         Object.assign(this.data, values);
                     }
                 },
-                _parseServerValues: (changes) => changes,
+                _parseServerValues: (/** @type {any} */ changes) => changes,
             };
             this._cache[resId || record._virtualId] = record;
             return record;
@@ -159,7 +160,7 @@ describe("save barrier on pending commands", () => {
      * StaticList is backed by the real prototype (same shape as
      * record_save.test.js's factory, plus the x2many field).
      */
-    function makeRecord(list, { webSave }) {
+    function makeRecord(/** @type {any} */ list, { /** @type {any} */ webSave }) {
         return {
             resId: 1,
             resIds: [1],
@@ -215,7 +216,11 @@ describe("save barrier on pending commands", () => {
         /** @type {any[]} */
         let savedChanges = null;
         const rec = makeRecord(list, {
-            webSave: async (_model, _ids, changes) => {
+            webSave: async (
+                /** @type {any} */ _model,
+                /** @type {any} */ _ids,
+                /** @type {any} */ changes,
+            ) => {
                 expect.step("webSave");
                 savedChanges = changes;
                 return [{ id: 1 }];
@@ -260,7 +265,10 @@ describe("save barrier on pending commands", () => {
                 if (failLoads) {
                     throw new Error("replay boom");
                 }
-                return resIds.map((id) => ({ id, display_name: `Rec ${id}` }));
+                return resIds.map((/** @type {any} */ id) => ({
+                    id,
+                    display_name: `Rec ${id}`,
+                }));
             },
         });
 
@@ -277,7 +285,11 @@ describe("save barrier on pending commands", () => {
         /** @type {any} */
         let savedChanges = null;
         const rec = makeRecord(list, {
-            webSave: async (_model, _ids, changes) => {
+            webSave: async (
+                /** @type {any} */ _model,
+                /** @type {any} */ _ids,
+                /** @type {any} */ changes,
+            ) => {
                 savedChanges = changes;
                 return [{ id: 1 }];
             },

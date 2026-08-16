@@ -103,7 +103,7 @@ test("view switcher", async () => {
     expect(views[1]).not.toHaveClass("active");
     expect(`.o_switch_view:eq(1) .oi-view-kanban`).toHaveCount(1);
 
-    getService("action").switchView = (viewType) => expect.step(viewType);
+    getService("action").switchView = async (viewType) => expect.step(viewType);
     await click(views[1]);
     expect.verifySteps(["kanban"]);
 });
@@ -177,7 +177,7 @@ test("view switcher on mobile", async () => {
     expect(views[1]).not.toHaveClass("selected");
     expect(queryAll(`.oi-view-kanban`, { root: views[1] })).toHaveCount(1);
 
-    getService("action").switchView = (viewType) => expect.step(viewType);
+    getService("action").switchView = async (viewType) => expect.step(viewType);
     await click(views[1]);
     expect.verifySteps(["kanban"]);
 });

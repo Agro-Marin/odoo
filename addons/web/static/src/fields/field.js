@@ -76,7 +76,7 @@ const supportedInfoValidation = {
 };
 
 fieldRegistry.addValidation({
-    component: { validate: (c) => c.prototype instanceof Component },
+    component: { validate: (/** @type {any} */ c) => c.prototype instanceof Component },
     displayName: { type: String, optional: true },
     supportedAttributes: supportedInfoValidation,
     supportedOptions: supportedInfoValidation,
@@ -84,7 +84,8 @@ fieldRegistry.addValidation({
         type: Array,
         element: String,
         optional: true,
-        validate: (array) => array.every((x) => validFieldTypes.includes(x)),
+        validate: (/** @type {any} */ array) =>
+            array.every((/** @type {any} */ x) => validFieldTypes.includes(x)),
     },
     extractProps: { type: Function, optional: true },
     isEmpty: { type: Function, optional: true },
@@ -120,7 +121,8 @@ fieldRegistry.addValidation({
             {
                 type: Array,
                 element: Number,
-                validate: (array) => array.length === 1 || array.length === 2,
+                validate: (/** @type {any} */ array) =>
+                    array.length === 1 || array.length === 2,
             },
             Function,
         ],
@@ -324,7 +326,7 @@ export function getPropertyFieldInfo(propertyField) {
             relatedFields = relatedFields({ options: {}, attrs: {} });
         }
         fieldInfo.relatedFields = Object.fromEntries(
-            relatedFields.map((f) => [f.name, f]),
+            relatedFields.map((/** @type {any} */ f) => [f.name, f]),
         );
     }
 

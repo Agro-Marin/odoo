@@ -4,6 +4,7 @@
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_field */
 
 import { Component, onWillRender, toRaw, useChildSubEnv } from "@odoo/owl";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
@@ -12,7 +13,6 @@ import { escape } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { Record } from "@web/model/record";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
 
 const viewRegistry = registry.category("views");
 

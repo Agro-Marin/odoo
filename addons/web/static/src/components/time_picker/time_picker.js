@@ -110,7 +110,7 @@ export class TimePicker extends Component {
      * @returns {import("@web/core/navigation/navigation").NavigationOptions}
      */
     getNavigationOptions() {
-        const handleArrow = (navigator) => {
+        const handleArrow = (/** @type {any} */ navigator) => {
             const value = this.suggestions[navigator.activeItemIndex];
             if (value) {
                 this.navigatedValue = value;
@@ -120,7 +120,7 @@ export class TimePicker extends Component {
 
         return {
             virtualFocus: true,
-            onUpdated: (navigator) => (this.navigator = navigator),
+            onUpdated: (/** @type {any} */ navigator) => (this.navigator = navigator),
             hotkeys: {
                 enter: {
                     bypassEditableProtection: true,
@@ -148,13 +148,13 @@ export class TimePicker extends Component {
                     },
                 },
                 arrowdown: {
-                    callback: (navigator) => {
+                    callback: (/** @type {any} */ navigator) => {
                         navigator.next();
                         handleArrow(navigator);
                     },
                 },
                 arrowup: {
-                    callback: (navigator) => {
+                    callback: (/** @type {any} */ navigator) => {
                         navigator.previous();
                         handleArrow(navigator);
                     },
@@ -207,7 +207,8 @@ export class TimePicker extends Component {
         if (!value) {
             return 0;
         }
-        const toMinutes = (time) => time.hour * 60 + time.minute + time.second / 60;
+        const toMinutes = (/** @type {any} */ time) =>
+            time.hour * 60 + time.minute + time.second / 60;
         const target = toMinutes(value);
         let nearestIndex = 0;
         let nearestDistance = Infinity;

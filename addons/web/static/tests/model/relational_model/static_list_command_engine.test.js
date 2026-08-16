@@ -47,25 +47,25 @@ function makeList(overrides = {}) {
         },
         config: {},
         fields: {},
-        _createRecordDatapoint(data, opts = {}) {
+        _createRecordDatapoint(/** @type {any} */ data, opts = {}) {
             const virtualId = opts.virtualId || `virtual_${nextVirtualId++}`;
             const record = {
                 resId: data.id || false,
                 _virtualId: virtualId,
                 activeFields: {},
-                _applyChanges(changes, serverChanges = {}) {
+                _applyChanges(/** @type {any} */ changes, serverChanges = {}) {
                     Object.assign(
                         this.data,
                         changes,
                         this._parseServerValues(serverChanges),
                     );
                 },
-                _applyValues(values) {
+                _applyValues(/** @type {any} */ values) {
                     if (values) {
                         Object.assign(this.data, values);
                     }
                 },
-                _parseServerValues: (changes) => changes,
+                _parseServerValues: (/** @type {any} */ changes) => changes,
                 data: { ...data },
             };
             if (data.id) {
@@ -75,8 +75,8 @@ function makeList(overrides = {}) {
             }
             return record;
         },
-        _getResIdsToLoad: (ids) => ids,
-        _bumpLimit(n) {
+        _getResIdsToLoad: (/** @type {any} */ ids) => ids,
+        _bumpLimit(/** @type {any} */ n) {
             this._tmpIncreaseLimit += n;
             this.model._patchConfig(this.config, { limit: this.limit + n });
         },
@@ -112,15 +112,15 @@ function addRecord(list, resId) {
         _virtualId: null,
         activeFields: {},
         data: { id: resId },
-        _applyChanges(changes, serverChanges = {}) {
+        _applyChanges(/** @type {any} */ changes, serverChanges = {}) {
             Object.assign(this.data, changes, this._parseServerValues(serverChanges));
         },
-        _applyValues(values) {
+        _applyValues(/** @type {any} */ values) {
             if (values) {
                 Object.assign(this.data, values);
             }
         },
-        _parseServerValues: (changes) => changes,
+        _parseServerValues: (/** @type {any} */ changes) => changes,
     };
     list._cache[resId] = record;
     list.records.push(record);
@@ -233,7 +233,9 @@ describe("applyCommands — UNLINK", () => {
 
         applyCommands(list, [[UNLINK, 3]]);
 
-        const unlinkCmds = list._commands.filter((c) => c[0] === UNLINK);
+        const unlinkCmds = list._commands.filter(
+            (/** @type {any} */ c) => c[0] === UNLINK,
+        );
         expect(unlinkCmds.length).toBe(0);
     });
 
@@ -250,7 +252,7 @@ describe("applyCommands — UNLINK", () => {
 
         expect(list._commands[0]).toEqual([SET, false, [1, 3]]);
         expect(list._currentIds).toEqual([1, 3]);
-        expect(list.records.map((r) => r.resId)).toEqual([1, 3]);
+        expect(list.records.map((/** @type {any} */ r) => r.resId)).toEqual([1, 3]);
         expect(list.count).toBe(2);
     });
 
@@ -266,7 +268,11 @@ describe("applyCommands — UNLINK", () => {
         addRecord(list, 3);
 
         applyCommands(list, [[UPDATE, 2, { name: "edited" }]]);
-        expect(list._commands.some((c) => c[0] === UPDATE && c[1] === 2)).toBe(true);
+        expect(
+            list._commands.some(
+                (/** @type {any} */ c) => c[0] === UPDATE && c[1] === 2,
+            ),
+        ).toBe(true);
 
         applyCommands(list, [[UNLINK, 2]]);
 
@@ -303,7 +309,7 @@ describe("applyCommands — LINK", () => {
 
         applyCommands(list, [[LINK, 11]]);
 
-        const linkCmds = list._commands.filter((c) => c[0] === LINK);
+        const linkCmds = list._commands.filter((/** @type {any} */ c) => c[0] === LINK);
         expect(linkCmds.length).toBe(1);
         expect(linkCmds[0][1]).toBe(11);
     });
@@ -342,7 +348,7 @@ describe("applyCommands — LINK", () => {
         applyCommands(list, [[LINK, 9, { id: 9, display_name: "Rec 9" }]]);
 
         expect(list._currentIds).toEqual([1, 2, 9, 90, 91]);
-        expect(list.records.map((r) => r.resId)).toEqual([1, 2, 9]);
+        expect(list.records.map((/** @type {any} */ r) => r.resId)).toEqual([1, 2, 9]);
     });
 
     test("a LINK past the page limit appends to membership (not displayed)", () => {
@@ -356,7 +362,7 @@ describe("applyCommands — LINK", () => {
         applyCommands(list, [[LINK, 9]]);
 
         expect(list._currentIds).toEqual([1, 2, 9]);
-        expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
+        expect(list.records.map((/** @type {any} */ r) => r.resId)).toEqual([1, 2]);
     });
 });
 
@@ -431,7 +437,7 @@ describe("applyCommands — UPDATE", () => {
         list.fields = { name: { type: "char" } };
         record.activeFields = { name: {} };
         const calls = [];
-        record._applyChanges = (changes, serverChanges = {}) => {
+        record._applyChanges = (/** @type {any} */ changes, serverChanges = {}) => {
             calls.push([changes, serverChanges]);
         };
 
@@ -449,7 +455,9 @@ describe("applyCommands — UPDATE", () => {
 
         applyCommands(list, [[UPDATE, 30, { name: "Changed" }]]);
 
-        const updateCmds = list._commands.filter((c) => c[0] === UPDATE);
+        const updateCmds = list._commands.filter(
+            (/** @type {any} */ c) => c[0] === UPDATE,
+        );
         expect(updateCmds.length).toBe(1);
     });
 
@@ -463,7 +471,9 @@ describe("applyCommands — UPDATE", () => {
             [UPDATE, 40, { name: "Second" }],
         ]);
 
-        const updateCmds = list._commands.filter((c) => c[0] === UPDATE);
+        const updateCmds = list._commands.filter(
+            (/** @type {any} */ c) => c[0] === UPDATE,
+        );
         expect(updateCmds.length).toBe(1);
     });
 });
@@ -486,7 +496,9 @@ describe("applyCommands — CREATE", () => {
 
         applyCommands(list, [[CREATE, false, { name: "New" }]]);
 
-        const createCmds = list._commands.filter((c) => c[0] === CREATE);
+        const createCmds = list._commands.filter(
+            (/** @type {any} */ c) => c[0] === CREATE,
+        );
         expect(createCmds.length).toBe(1);
     });
 
@@ -520,7 +532,7 @@ describe("applyCommands — re-adding within one batch", () => {
 
         expect(list._currentIds).toEqual([5]);
         expect(list.count).toBe(1);
-        expect(list.records.map((r) => r.resId)).toEqual([5]);
+        expect(list.records.map((/** @type {any} */ r) => r.resId)).toEqual([5]);
     });
 
     test("LINK then UNLINK in one batch leaves nothing behind", () => {
@@ -547,7 +559,7 @@ describe("applyCommands — command log integrity", () => {
             activeFields: {},
             data: {},
             _applyChanges() {},
-            _parseServerValues: (v) => v,
+            _parseServerValues: (/** @type {any} */ v) => v,
         };
         list.records.push(fakeVirtual);
         list._currentIds.push("virtual_1");
@@ -555,8 +567,12 @@ describe("applyCommands — command log integrity", () => {
 
         applyCommands(list, [[DELETE, 1]]);
 
-        expect(list._commands.some((c) => c[0] === CREATE)).toBe(true);
-        expect(list._commands.some((c) => c[0] === DELETE)).toBe(true);
+        expect(list._commands.some((/** @type {any} */ c) => c[0] === CREATE)).toBe(
+            true,
+        );
+        expect(list._commands.some((/** @type {any} */ c) => c[0] === DELETE)).toBe(
+            true,
+        );
     });
 
     test("command order is preserved by index", () => {
@@ -571,7 +587,7 @@ describe("applyCommands — command log integrity", () => {
             [DELETE, 4],
         ]);
 
-        const deletedIds = list._commands.map((c) => c[1]);
+        const deletedIds = list._commands.map((/** @type {any} */ c) => c[1]);
         expect(deletedIds).toEqual([2, 3, 4]);
     });
 
@@ -680,7 +696,9 @@ describe("applyCommands — SET and CLEAR", () => {
 
         expect(list.records.length).toBe(1);
         expect(list._currentIds).toEqual([virtualId]);
-        expect(list._commands.filter((c) => c[0] === CREATE).length).toBe(1);
+        expect(
+            list._commands.filter((/** @type {any} */ c) => c[0] === CREATE).length,
+        ).toBe(1);
     });
 });
 
@@ -689,7 +707,7 @@ describe("applyCommands — record loading", () => {
         const list = makeList({
             model: {
                 _patchConfig: () => {},
-                _loadRecords: ({ resIds }) => {
+                _loadRecords: ({ /** @type {any} */ resIds }) => {
                     expect(resIds).toEqual([1, 2, 3]);
                     return Promise.resolve([
                         { id: 1, name: "One" },

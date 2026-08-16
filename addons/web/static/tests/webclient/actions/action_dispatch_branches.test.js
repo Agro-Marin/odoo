@@ -34,25 +34,28 @@ describe.current.tags("desktop");
 
 /** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
+    /** @type {{ restore: any[], pushState: number, busEvents: any[], title: any[] }} */
     const calls = { restore: [], pushState: 0, busEvents: [], title: [] };
     let id = 0;
     const am = {
-        controllerStack: [],
-        dialog: null,
+        controllerStack: /** @type {any[]} */ ([]),
+        dialog: /** @type {any} */ (null),
         navigation: new NavigationTracker(),
-        nextDialog: null,
+        nextDialog: /** @type {any} */ (null),
         env: {
             bus: new EventBus(),
             services: {
-                title: { setParts: (parts) => calls.title.push(parts) },
+                title: {
+                    setParts: (/** @type {any} */ parts) => calls.title.push(parts),
+                },
             },
         },
         pushState: () => calls.pushState++,
-        restore: (jsId) => {
+        restore: (/** @type {any} */ jsId) => {
             calls.restore.push(jsId);
             return "restore-result";
         },
-        settlePendingDispatch(dispatch) {
+        settlePendingDispatch(/** @type {any} */ dispatch) {
             if (this._pendingDispatch === dispatch) {
                 this._pendingDispatch = null;
             }

@@ -123,9 +123,9 @@ const toDateItem = ({
     isValid = true,
     label,
     range,
-    extraClass,
+    extraClass = "",
 }) => ({
-    id: range[0].toISODate(),
+    id: /** @type {string} */ (range[0].toISODate()),
     includesToday: isInRange(today(), range),
     isOutOfRange,
     isValid,

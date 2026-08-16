@@ -522,7 +522,7 @@ All 37 files under `static/src/model/relational_model/` are listed.
 | JS | `relational_model/field_spec.js` | 140 | Specification tree builder |
 | JS | `relational_model/field_context.js` | 103 | Per-field context computation |
 | JS | `relational_model/command_builder.js` | 137 | Write command construction |
-| JS | `relational_model/commands.js` | 39 | ORM command constants |
+| JS | `core/network/commands.js` | 39 | ORM command constants |
 | JS | `relational_model/config_transitions.js` | 117 | Model config diffing between loads |
 | JS | `relational_model/resequence.js` | 135 | Handle field resequencing |
 | JS | `relational_model/special_data_cache.js` | 66 | Cache for widget-specific side data |

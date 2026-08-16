@@ -51,6 +51,7 @@ regenerated baseline alongside any PR that bumps ``BUDGETS``.
 import json
 import logging
 import os
+import unittest
 from datetime import date
 from pathlib import Path
 
@@ -81,17 +82,152 @@ _UPDATE_ENV_VAR = "ODOO_BUNDLE_SIZE_UPDATE_BASELINE"
 class TestWebBundleSize(TransactionCase):
     """Pin upper-bound byte sizes for ESM bundles to catch regressions."""
 
+    #: The exact module set the budgets below were measured against.
+    #: A bundle is the union of what the installed modules contribute, so a
+    #: byte ceiling only means anything at a stated set: on a database
+    #: carrying more, the same bundle is legitimately larger and the budget
+    #: reports an install difference rather than a regression.
+    #:
+    #: This is the closure of ``INSTALL`` in
+    #: ``.github/workflows/asset_lint.yml`` — the lane that runs this class —
+    #: and it is the closure rather than that list because ``auto_install``
+    #: modules join on their own once their dependencies are satisfied, which
+    #: no walk of declared dependencies predicts. Regenerate by installing
+    #: that INSTALL set and reading ``ir.module.module`` in state installed.
+    CALIBRATION_MODULES = frozenset(
+        {
+            "account",
+            "account_add_gln",
+            "account_edi_ubl_cii",
+            "account_payment",
+            "analytic",
+            "api_doc",
+            "auth_passkey",
+            "auth_portal",
+            "auth_signup",
+            "auth_totp",
+            "auth_totp_mail",
+            "barcodes",
+            "barcodes_gs1_nomenclature",
+            "base",
+            "base_account",
+            "base_attribute_mixin",
+            "base_geolocalize",
+            "base_import",
+            "base_import_module",
+            "base_install_request",
+            "base_recurrence",
+            "base_tax",
+            "bus",
+            "digest",
+            "google_address_autocomplete",
+            "google_gmail",
+            "google_recaptcha",
+            "hr",
+            "hr_attendance",
+            "hr_homeworking",
+            "hr_livechat",
+            "hr_org_chart",
+            "hr_skills",
+            "html_builder",
+            "html_editor",
+            "http_routing",
+            "iap",
+            "iap_mail",
+            "im_livechat",
+            "iot_base",
+            "mail",
+            "mail_bot",
+            "mail_bot_hr",
+            "microsoft_outlook",
+            "mrp",
+            "mrp_account",
+            "mrp_subcontracting",
+            "mrp_subcontracting_account",
+            "onboarding",
+            "partner_autocomplete",
+            "payment",
+            "phone_validation",
+            "point_of_sale",
+            "portal",
+            "portal_rating",
+            "pos_hr",
+            "pos_mrp",
+            "pos_online_payment",
+            "privacy_lookup",
+            "product",
+            "project",
+            "project_account",
+            "project_mrp",
+            "project_mrp_account",
+            "project_sms",
+            "project_stock",
+            "project_stock_account",
+            "project_todo",
+            "rating",
+            "resource",
+            "resource_mail",
+            "rpc",
+            "sms",
+            "snailmail",
+            "snailmail_account",
+            "social_media",
+            "spreadsheet",
+            "spreadsheet_account",
+            "spreadsheet_dashboard",
+            "spreadsheet_dashboard_account",
+            "spreadsheet_dashboard_im_livechat",
+            "spreadsheet_dashboard_pos_hr",
+            "spreadsheet_dashboard_stock_account",
+            "stock",
+            "stock_account",
+            "stock_sms",
+            "test_lint",
+            "uom",
+            "utm",
+            "web",
+            "web_hierarchy",
+            "web_tour",
+            "web_unsplash",
+            "website",
+            "website_livechat",
+            "website_mail",
+            "website_payment",
+            "website_project",
+            "website_sms",
+        }
+    )
+
+    #: Measured at CALIBRATION_INSTALL on 2026-08-16, actual + ~10% headroom.
     BUDGETS = {
-        "web.assets_web": 4_335_000,
-        "web.assets_frontend": 1_630_000,
-        "web.assets_frontend_lazy": 1_630_000,
+        "web.assets_web": 5_012_000,
+        "web.assets_frontend": 3_290_000,
+        "web.assets_frontend_lazy": 3_279_000,
         "web.assets_emoji": 515_000,
-        "web.assets_frontend_minimal": 8_800,
-        "web.assets_web_dark": 4_335_000,
-        "web.assets_web_print": 4_335_000,
-        "web.report_assets_common": 97_000,
+        "web.assets_frontend_minimal": 98_000,
+        "web.assets_web_dark": 5_012_000,
+        "web.assets_web_print": 5_010_000,
+        "web.report_assets_common": 77_800,
         "web.report_assets_pdf": 1_000_000,
     }
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        installed = set(
+            cls.env["ir.module.module"]
+            .search([("state", "=", "installed")])
+            .mapped("name")
+        )
+        if installed != cls.CALIBRATION_MODULES:
+            extra = sorted(installed - cls.CALIBRATION_MODULES)
+            missing = sorted(cls.CALIBRATION_MODULES - installed)
+            raise unittest.SkipTest(
+                "bundle budgets are calibrated for the asset_lint install "
+                f"set; this database differs (extra: {extra or 'none'}, "
+                f"missing: {missing or 'none'}), so its bundles are not the "
+                "ones the budgets describe"
+            )
 
     @staticmethod
     def _parse_metafile_inputs(metafile_raw):

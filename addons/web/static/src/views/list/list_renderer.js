@@ -210,6 +210,9 @@ export class ListRenderer extends Component {
      */
     tooltipInfoByColumn = {};
 
+    /** @type {import("./list_renderer").ListGridContext} */
+    gridContext;
+
     static props = [
         "activeActions?",
         "list",

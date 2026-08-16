@@ -3,7 +3,7 @@
 
 /** @module @web/model/relational_model/command_builder */
 
-import { x2ManyCommands } from "./commands.js";
+import { x2ManyCommands } from "@web/core/network/commands";
 
 const { CREATE, UPDATE, UNLINK, LINK, SET } = x2ManyCommands;
 

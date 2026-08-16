@@ -65,17 +65,17 @@
 | `core/l10n/utils/` | shared | 5 | Locale helpers: `Intl.ListFormat` list formatting, locale codes, normalisation, unaccent + its table |
 | `core/lib/` | shared | 2 | Lazy ESM loaders for import-map libraries: `chartjs.js` (`loadChartJS`) and `fullcalendar.js` (`loadFullCalendar`) |
 | `core/navigation/` | shared | 1 | Keyboard arrow-key navigation hook for selectable item lists |
-| `core/network/` | shared | 10 | RPC stack: `rpc.js`, the RAM/IndexedDB cache, in-flight dedup, model-mutation constants, download helper, Content-Disposition parser, and the `orm` / `http` / `slow_rpc` / `result_set_cache_invalidator` services |
+| `core/network/` | shared | 11 | RPC stack: `rpc.js`, the x2many command constants, the RAM/IndexedDB cache, in-flight dedup, model-mutation constants, download helper, Content-Disposition parser, and the `orm` / `http` / `slow_rpc` / `result_set_cache_invalidator` services |
 | `core/network/web_vitals/` | shared | 1 | `web_vitals` service — `PerformanceObserver` capture of LCP/FCP/CLS/TTFB/INP, beaconed to `/web/observability/cwv` on `pagehide` |
 | `core/position/` | shared | 2 | Hook and geometry utilities for repositioning a popper element against a target |
 | `core/py_js/` | shared | 16 | Python expression tokenizer, parser and interpreter used by `domain=` / `context=` evaluation |
-| `core/tree/` | shared | 16 | Data-only condition-tree primitives: AST, domain ↔ tree ↔ Python-expression conversions, virtual operators, and the `tree_processor` service |
+| `core/tree/` | shared | 17 | Data-only condition-tree primitives: AST, domain ↔ tree ↔ Python-expression conversions, virtual operators, and the `tree_processor` service |
 | `core/utils/` | shared | 23 | Cross-cutting utilities: reactivity (`SignalStore`, `effect`, `derived`), `patch`, concurrency, hooks, timing, IndexedDB, URLs, macros, PDF.js loader, render instrumentation |
 | `core/utils/collections/` | shared | 3 | Array/object helpers: groupBy, sortBy, unique, intersection, cartesian, zip |
 | `core/utils/dnd/` | shared | 8 | Drag-and-drop hook builders (`useDraggable`, `useSortable`, nested sortable) and the `sortable` service |
 | `core/utils/dom/` | shared | 9 | DOM helpers: autoresize, class names, click-away, viewport units, events, HTML/Markup sanitisation, scrolling, XML |
 | `core/utils/format/` | shared | 5 | Value formatting primitives: binary sizes, colours, digit precision, numbers, strings |
-| `fields/` | features | 14 | Field infrastructure: `registerField()` / `registerFallbackField()`, the `Field` component, standard props, widths, tooltips, dirty signal, translation button/dialog, input hooks |
+| `fields/` | features | 16 | Field infrastructure: `registerField()` / `registerFallbackField()`, the `Field` component, standard props, widths, tooltips, dirty signal, translation button/dialog, input hooks |
 | `fields/basic/` | features | 4 | Shared bases for the basic widgets: numeric, text, trimming inputs, plus the `boolean_toggle` face |
 | `fields/basic/boolean/` | features | 1 | Checkbox field widget for Boolean columns |
 | `fields/basic/boolean_favorite/` | features | 1 | Star toggle field for marking records as favourites |
@@ -158,7 +158,7 @@
 | `libs/fontawesome7/css/` | misc | 0 | FontAwesome 7 stylesheets |
 | `libs/fontawesome7/webfonts/` | misc | 0 | FontAwesome 7 webfont files |
 | `model/` | entities | 9 | `Model` base + `useReactiveModel`, the sample-data server/generators/coordinator, search-param schema, shared model types |
-| `model/relational_model/` | entities | 42 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership, x2many command serialization |
+| `model/relational_model/` | entities | 41 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership |
 | `public/` | pages | 15 | Public (anonymous) page runtime: the `public.interactions` service, `Interaction`/`Colibri`, frontend boot (`public_boot.js`, `public_boot_instance.js`), early-boot `lazyloader.js` / `minimal_dom.js`, login-page interactions, database manager |
 | `scss/` | misc | 0 | Shared SCSS base (variables, mixins, backend styles) — 32 `.scss`, no JS |
 | `search/` | widgets | 16 | Search model and its mixins (domain, group-by, favorites, properties, query, split-domain), search facets/state/context, arch parser, layout, pager hook |
@@ -190,7 +190,7 @@
 | `ui/popover/` | shared | 4 | `popover` service, the component, its hook, and the detached-target watcher |
 | `ui/pwa/` | shared | 2 | `pwa` service (install prompt) and the Safari install-instructions dialog |
 | `ui/tooltip/` | shared | 2 | `tooltip` service driven by `data-tooltip` attributes, and its component |
-| `views/` | widgets | 27 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, the shared multi-record renderer layer (`multi_record_selection.js`, `multi_record_group.js`), and the per-view faces (form, list, kanban, calendar, graph, pivot) |
+| `views/` | widgets | 29 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, the shared multi-record renderer layer (`multi_record_selection.js`, `multi_record_group.js`), and the per-view faces (form, list, kanban, calendar, graph, pivot) |
 | `views/calendar/` | widgets | 8 | Calendar view: arch parser, model, controller, renderer, record wrapper, date-range and utility helpers |
 | `views/calendar/calendar_common/` | widgets | 3 | Day/week/month renderer and its event popover |
 | `views/calendar/calendar_filter_section/` | widgets | 1 | Collapsible sidebar filter section for one calendar filter field |

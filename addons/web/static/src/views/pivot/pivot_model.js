@@ -16,13 +16,13 @@ import {
 } from "@web/core/utils/concurrency";
 import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
+import { aggregateSubdivisions } from "@web/views/pivot/pivot_aggregation";
 import {
     computeReportMeasures,
     dropUnknownMeasures,
     processMeasure,
 } from "@web/views/view_measurements";
 
-import { aggregateSubdivisions } from "./pivot_aggregation.js";
 import { computeExportedTableWidth, formatPivotForExport } from "./pivot_export.js";
 import {
     findGroup,

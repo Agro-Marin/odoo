@@ -3,13 +3,14 @@
 
 /** @module @web/model/relational_model/static_list_command_engine */
 
+import { x2ManyCommands } from "@web/core/network/commands";
+
 import {
     absorbUnlinkIntoSet,
     isUpdateRedundant,
     shouldEmitDelete,
     shouldEmitUnlink,
 } from "./command_builder.js";
-import { x2ManyCommands } from "./commands.js";
 import { getId, isX2Many } from "./field_context.js";
 import { listId } from "./static_list_utils.js";
 

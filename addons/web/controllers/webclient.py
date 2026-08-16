@@ -150,7 +150,14 @@ class WebClient(http.Controller):
 
         debug = bundle_params.get("debug", request.session.debug)
 
-        use_esm = bundle_name in esm_registry().dynamic_bundle_names
+        # `runtime_bundles`, not `dynamic_bundle_names`: what this route has to
+        # know is whether the bundle is *fetched at runtime* -- a property of the
+        # bundle -- and not which page happens to fetch it. Gating on
+        # `dynamic_children` conflated the two and made every author enumerate
+        # every page that might ever `loadBundle` the thing; a missed parent fell
+        # through to the legacy branch, where each module-syntax file becomes a
+        # console.error stub and `loadBundle` still resolves.
+        use_esm = bundle_name in esm_registry().runtime_bundle_names
         log_event(
             _http_log,
             logging.DEBUG,

@@ -225,7 +225,7 @@ class Currency extends models.Model {
 defineModels([Foo, Bar, Currency, ResCompany, ResPartner, ResUsers]);
 
 async function clickControlPanelAction(buttonName) {
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(
             ".o_control_panel_breadcrumbs .o_cp_action_menus .fa-cog",
         ).click();
@@ -236,7 +236,7 @@ async function clickControlPanelAction(buttonName) {
 }
 
 async function clickRecordSelector() {
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(".o_data_row").drag();
     } else {
         await contains(`.o_data_row .o_list_record_selector input`).click();
@@ -244,7 +244,7 @@ async function clickRecordSelector() {
 }
 
 async function selectAllRecords() {
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         const cells = queryAll(
             "tbody tr.o_data_row[data-id]:not(.o_data_row_selected)",
         );
@@ -256,7 +256,7 @@ async function selectAllRecords() {
     }
 }
 async function unselectAllRecords() {
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         const cells = queryAll("tbody tr.o_data_row.o_data_row_selected[data-id]");
         for (const cell of cells) {
             await contains(cell).drag();
@@ -268,7 +268,7 @@ async function unselectAllRecords() {
 
 async function selectMany2xItem(fieldName, value) {
     await contains(`.o_field_cell:has(>.o_field_widget[name="${fieldName}"])`).click();
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(
             `.o_selected_row .o_field_widget[name="${fieldName}"] input`,
         ).click();
@@ -279,7 +279,7 @@ async function selectMany2xItem(fieldName, value) {
 }
 
 async function toggleMultiCurrencyPopover(el) {
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(el).click();
     } else {
         await contains(el).hover();
@@ -1355,7 +1355,7 @@ test(`list view: give a context dependent on the current context to a header but
             a: "yop",
         },
     });
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(".btn.dropdown-toggle").click();
     }
     await contains(`button[name=toDo]`).click();
@@ -2035,7 +2035,7 @@ test(`discard a new record in editable="top" list with less than 4 records`, asy
     expect(`.o_data_row`).toHaveCount(4);
     expect(`tbody tr:eq(0)`).toHaveClass("o_selected_row");
 
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(".o_control_panel_main_buttons button > .oi-ellipsis-v").click();
     }
 
@@ -2639,7 +2639,7 @@ test(`grouped list rendering with groupby m2o field: edit group`, async () => {
     await contains(`.o_group_header:first .o_group_config button`, {
         visible: false,
     }).click();
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(".o_bottom_sheet_backdrop").click();
     } else {
         await contains(getFixture()).click();
@@ -17469,7 +17469,7 @@ test(`list view with default_group_by`, async () => {
     });
     expect(`.o_list_renderer table`).toHaveClass("o_list_table_grouped");
     expect(`.o_group_header`).toHaveCount(2);
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(".o_control_panel_navigation > button").click();
     }
     expect(`.o_searchview_facet`).toHaveCount(1);
@@ -17522,7 +17522,7 @@ test(`list view with multi-fields default_group_by`, async () => {
     });
     expect(`.o_list_renderer table`).toHaveClass("o_list_table_grouped");
     expect(`.o_group_header`).toHaveCount(3);
-    if (getMockEnv().isSmall) {
+    if (getMockEnv()?.isSmall) {
         await contains(".o_control_panel_navigation > button").click();
     }
     expect(`.o_searchview_facet`).toHaveCount(1);

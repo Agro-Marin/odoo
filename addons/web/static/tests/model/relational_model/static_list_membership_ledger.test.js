@@ -35,7 +35,7 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { x2ManyCommands } from "@web/core/network/commands";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";

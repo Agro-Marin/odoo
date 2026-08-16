@@ -279,7 +279,7 @@ test("single operation: after", async () => {
     }
 });
 
-test("single operation: attributes", async (/** @type {any} */ assert) => {
+test("single operation: attributes", async () => {
     const toTest = [
         {
             arch: `<t t-name="web.A"> <div attr1="12" attr2="a b" attr3="to remove" /> </t>`,
