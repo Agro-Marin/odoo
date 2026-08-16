@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.addons.mail_group.tests.common import TestMailListCommon
 from odoo.addons.mail_group.tests.data import GROUP_TEMPLATE
 from odoo.exceptions import AccessError
@@ -27,7 +24,6 @@ class TestMailGroupMessage(TestMailListCommon):
 
         self.assertEqual(len(self.test_group.member_ids), 42)
 
-        # force a batch split with a low limit
         self.env['ir.config_parameter'].sudo().set_param('mail.session.batch.size', 10)
 
         with self.mock_mail_gateway():
@@ -41,7 +37,6 @@ class TestMailGroupMessage(TestMailListCommon):
 
         mails = self.env['mail.mail'].search([('mail_message_id', '=', message.mail_message_id.id)])
 
-        # 42 -1 as the sender doesn't get an email
         self.assertEqual(len(mails), 41, 'Should have send one and only one email per recipient')
 
     def test_group_closed(self):
@@ -104,7 +99,6 @@ class TestMailGroupMessage(TestMailListCommon):
         self.test_group.access_group_id = user_group
         self.test_group.access_mode = 'groups'
 
-        # Message pending
         with self.assertRaises(AccessError, msg='Portal should not have access to pending messages'):
             self.test_group_msg_1_pending.with_user(self.user_portal).check_access('read')
 
@@ -116,7 +110,6 @@ class TestMailGroupMessage(TestMailListCommon):
         self.assertEqual(self.test_group_msg_1_pending.with_user(self.user_employee).moderation_status, 'pending_moderation',
                          msg='Moderators should have access to pending message')
 
-        # Message accepted
         self.test_group_msg_2_accepted.invalidate_recordset()
         self.assertEqual(self.test_group_msg_2_accepted.with_user(self.user_portal).moderation_status, 'accepted',
                          msg='Portal should have access to accepted messages')
@@ -129,7 +122,6 @@ class TestMailGroupMessage(TestMailListCommon):
     def test_mail_group_message_security_public(self):
         self.test_group.access_mode = 'public'
 
-        # Message pending
         with self.assertRaises(AccessError, msg='Portal should not have access to pending messages'):
             self.test_group_msg_1_pending.with_user(self.user_portal).check_access('read')
 
@@ -140,11 +132,9 @@ class TestMailGroupMessage(TestMailListCommon):
         self.assertEqual(self.test_group_msg_1_pending.with_user(self.user_employee).moderation_status, 'pending_moderation',
                          msg='Moderators should have access to pending message')
 
-        # Message rejected
         with self.assertRaises(AccessError, msg='Portal should not have access to pending messages'):
             self.test_group_msg_1_pending.with_user(self.user_portal).check_access('read')
 
-        # Message accepted
         self.assertEqual(self.test_group_msg_2_accepted.with_user(self.user_portal).moderation_status, 'accepted',
                          msg='Portal should have access to accepted messages')
 
@@ -161,7 +151,6 @@ class TestMailGroupMessage(TestMailListCommon):
             'alias_contact': 'followers',
             'moderation': False,
         })
-        # new member without email
         self.env['mail.group.member'].create({
             'email': '',
             'mail_group_id': self.test_group.id,

@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import base64
 import json
 import logging
@@ -77,7 +74,7 @@ class MailPluginController(http.Controller):
         domain = tools.email_domain_extract(normalized_email)
         iap_data = self._iap_enrich(domain)
 
-        if 'enrichment_info' in iap_data:  # means that an issue happened with the enrichment request
+        if 'enrichment_info' in iap_data:
             return {
                 'enrichment_info': iap_data['enrichment_info'],
                 'company': self._get_company_data(partner),
@@ -110,7 +107,6 @@ class MailPluginController(http.Controller):
             'website': 'domain',
         }
 
-        # only update keys for which we dont have values yet
         partner_values.update({
             model_field: iap_data.get(iap_key)
             for model_field, iap_key in model_fields_to_iap_mapping.items() if not partner[model_field]
@@ -165,15 +161,11 @@ class MailPluginController(http.Controller):
                 },
             }
 
-        # Search for the partner based on the email.
-        # If multiple are found, take the first one.
         partner = request.env['res.partner'].search(['|', ('email', 'in', [normalized_email, email]),
                                                      ('email_normalized', '=', normalized_email)], limit=1)
 
         response = self._get_contact_data(partner)
 
-        # if no partner is found in the database, we should also return an empty one having id = -1, otherwise older versions of
-        # plugin won't work
         if not response['partner']:
             response['partner'] = {
                 'id': -1,
@@ -185,7 +177,7 @@ class MailPluginController(http.Controller):
 
             can_create_partner = request.env['res.partner'].has_access('create')
 
-            if not company and can_create_partner:  # create and enrich company
+            if not company and can_create_partner:
                 company, enrichment_info = self._create_company_from_iap(normalized_email)
                 response['partner']['enrichment_info'] = enrichment_info
             response['partner']['company'] = self._get_company_data(company)
@@ -209,8 +201,6 @@ class MailPluginController(http.Controller):
             filter_domain = ['|', '|', ('complete_name', 'ilike', search_term), ('ref', '=', search_term),
                              ('email', 'ilike', search_term)]
 
-        # Search for the partner based on the email.
-        # If multiple are found, take the first one.
         partners = request.env['res.partner'].search(filter_domain, limit=limit)
 
         partners = [
@@ -230,16 +220,11 @@ class MailPluginController(http.Controller):
         notification_emails = request.env['mail.alias.domain'].sudo().search([]).mapped('default_from_email')
         if tools.email_normalize(email) in notification_emails:
             raise Forbidden()
-        # old route name "/mail_client_extension/partner/create is deprecated as of saas-14.3,it is not needed for newer
-        # versions of the mail plugin but necessary for supporting older versions
-        # TODO search the company again instead of relying on the one provided here?
-        # Create the partner if needed.
         partner_info = {
             'name': name,
             'email': email,
         }
 
-        #see if the partner has a parent company
         if company and company > -1:
             partner_info['parent_id'] = company
         partner = request.env['res.partner'].create(partner_info)
@@ -279,12 +264,11 @@ class MailPluginController(http.Controller):
         contain an enrichment_info key explaining what went wrong
         """
         if domain in iap_tools._MAIL_PROVIDERS:
-            # Can not enrich the provider domain names (gmail.com; outlook.com, etc)
             return {'enrichment_info': {'type': 'missing_data'}}
 
         enriched_data = {}
         try:
-            response = request.env['iap.enrich.api']._request_enrich({domain: domain})  # The key doesn't matter
+            response = request.env['iap.enrich.api']._request_enrich({domain: domain})
         except iap_tools.InsufficientCreditError:
             enriched_data['enrichment_info'] = {'type': 'insufficient_credit', 'info': request.env['iap.account'].get_credits_url('reveal')}
         except Exception:
@@ -401,7 +385,6 @@ class MailPluginController(http.Controller):
             partner_values['can_write_on_partner'] = False
 
         if not partner_values['name']:
-            # Always ensure that the partner has a name
             name, email_normalized = tools.parse_contact_from_email(partner_values['email'])
             partner_values['name'] = name or email_normalized
 
@@ -420,7 +403,7 @@ class MailPluginController(http.Controller):
                 partner_response['company'] = self._get_company_data(partner.parent_id)
             else:
                 partner_response['company'] = self._get_company_data(None)
-        else:  # no partner found
+        else:
             partner_response = {}
 
         return {

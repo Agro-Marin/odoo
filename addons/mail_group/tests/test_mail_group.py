@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.mail_group.tests.common import TestMailListCommon
 from odoo.exceptions import ValidationError, AccessError
@@ -111,17 +108,12 @@ class TestMailGroup(TestMailListCommon):
         user2 = mail_new_test_user(self.env, login='login_2', email=user.email)
 
         member = self.env['mail.group.member'].create({
-            # subscribe with the first user
             'partner_id': user.partner_id.id,
             'mail_group_id': self.test_group.id,
         })
         self.assertEqual(member.email, user.email)
 
-        # In case of matching, function return a falsy value.
-        # Should not return string (exception) if at least one members have the same email, whatever
-        # the partner (author_id) that could match this email.
         msg_dict = {
-            # send mail with the second user
             'author_id': user2.partner_id.id,
             'email_from': user2.email,
         }
@@ -140,7 +132,6 @@ class TestMailGroup(TestMailListCommon):
         mail_group._join_group('"Jack the developer" <jack@test.com>')
         self.assertEqual(len(mail_group.member_ids), 5, 'Should not have added the duplicated email')
 
-        # Join a group with a different email than the partner
         portal_partner = self.user_portal.partner_id
         mail_group._join_group('"Bob" <email_different_than_partner@test.com>', portal_partner.id)
         self.assertEqual(len(mail_group.member_ids), 6, 'Should have added the new member')
@@ -174,19 +165,16 @@ class TestMailGroup(TestMailListCommon):
         with self.assertRaises(AccessError):
             mail_group.with_user(self.user_employee_2).check_access('read')
 
-        # Add the group to the user
         self.user_employee_2.group_ids |= test_group
         mail_group.with_user(self.user_employee_2).check_access('read')
         with self.assertRaises(AccessError, msg='Only moderator / responsible and admin can write on the group'):
             mail_group.with_user(self.user_employee_2).check_access('write')
 
-        # Remove the group of the user BUT add it in the moderators list
         self.user_employee_2.group_ids -= test_group
         mail_group.moderator_ids |= self.user_employee_2
         mail_group.with_user(self.user_employee_2).check_access('read')
         mail_group.with_user(self.user_employee_2).check_access('write')
 
-        # Test with public user
         mail_group.access_group_id = self.env.ref('base.group_public')
         mail_group.with_user(public_user).check_access('read')
         with self.assertRaises(AccessError):
@@ -230,7 +218,6 @@ class TestMailGroup(TestMailListCommon):
         })]})
         self.assertIn(partner, mail_group.member_partner_ids)
 
-        # Now that portal is in the member list they should have access
         mail_group.with_user(self.user_employee_2).check_access('read')
         with self.assertRaises(AccessError, msg='Only moderator / responsible and admin can write on the group'):
             mail_group.with_user(self.user_employee_2).check_access('write')

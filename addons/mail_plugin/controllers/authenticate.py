@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import base64
 import datetime
 import hmac
@@ -48,7 +45,6 @@ class Authenticate(http.Controller):
         if do:
             name = friendlyname if not info else f'{friendlyname}: {info}'
             auth_code = self._generate_auth_code(scope, name)
-            # the state attribute is needed for the gmail connector
             params.update({'success': 1, 'auth_code': auth_code, 'state': kw.get('state', '')})
         else:
             params.update({'success': 0, 'state': kw.get('state', '')})
@@ -61,7 +57,6 @@ class Authenticate(http.Controller):
         """Allow to know if the module is installed and which addin version is supported."""
         return 1
 
-    # In this case, an exception will be thrown in case of preflight request if only POST is allowed.
     @http.route(['/mail_client_extension/auth/access_token', '/mail_plugin/auth/access_token'], type='jsonrpc', auth="none", cors="*",
                 methods=['POST', 'OPTIONS'])
     def auth_access_token(self, auth_code='', **kw):
@@ -95,15 +90,12 @@ class Authenticate(http.Controller):
             return None
 
         auth_message = json.loads(data)
-        # Check the expiration
         if datetime.datetime.now(datetime.UTC) - datetime.datetime.fromtimestamp(auth_message['timestamp'], tz=datetime.UTC) > datetime.timedelta(
                 minutes=3):
             return None
 
         return auth_message
 
-    # Using UTC explicitly in case of a distributed system where the generation and the signature verification do not
-    # necessarily happen on the same server
     def _generate_auth_code(self, scope, name):
         if not request.env.user._is_internal():
             raise NotFound()
@@ -111,7 +103,6 @@ class Authenticate(http.Controller):
             'scope': scope,
             'name': name,
             'timestamp': int(datetime.datetime.now(datetime.UTC).timestamp()),
-            # <- elapsed time should be < 3 mins when verifying
             'uid': request.env.uid,
         }
         auth_message = json.dumps(auth_dict, sort_keys=True).encode()

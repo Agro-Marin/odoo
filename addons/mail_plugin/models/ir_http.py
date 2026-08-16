@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from werkzeug.exceptions import BadRequest
 
 from odoo import models
@@ -23,8 +20,6 @@ class IrHttp(models.AbstractModel):
         if not user_id:
             raise BadRequest('Access token invalid')
 
-        # take the identity of the API key user
         request.update_env(user=user_id)
 
-        # switch to the user context
         request.update_context(**request.env.user.context_get())

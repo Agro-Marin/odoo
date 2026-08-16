@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command, tools
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.mail.tests.common import MailCommon
@@ -12,7 +9,6 @@ class TestMailListCommon(MailCommon):
     def setUpClass(cls):
         super(TestMailListCommon, cls).setUpClass()
 
-        # Test credentials / from
         cls.email_from_unknown = tools.formataddr(("Bob Lafrite", "bob.email@test.example.com"))
         cls.user_employee_2 = mail_new_test_user(
             cls.env, login='employee_2',
@@ -22,7 +18,6 @@ class TestMailListCommon(MailCommon):
             name='Albertine Another Employee',
         )
 
-        # Test group: members, moderation
         cls.test_group = cls.env['mail.group'].create({
             'access_mode': 'public',
             'alias_name': 'test.mail.group',
@@ -55,7 +50,6 @@ class TestMailListCommon(MailCommon):
         })
         cls.test_group_valid_members = cls.test_group_member_1 + cls.test_group_member_2 + cls.test_group_member_4_emp
 
-        # Create some messages
         cls.test_group_msg_1_pending = cls.env['mail.group.message'].create({
             'subject': 'Test message pending',
             'mail_group_id': cls.test_group.id,

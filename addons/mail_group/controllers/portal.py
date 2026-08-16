@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import babel.dates
 import werkzeug
 
@@ -21,8 +18,6 @@ class PortalMailGroup(http.Controller):
     _replies_per_page = 5
 
     def _get_website_domain(self):
-        # Base group domain in addition to the security access rules
-        # Do not show rejected message on the portal view even for admin
         return [('moderation_status', '!=', 'rejected')]
 
     def _get_archives(self, group_id):
@@ -56,13 +51,8 @@ class PortalMailGroup(http.Controller):
             'threads_time_data': date_groups,
         }
 
-    # ------------------------------------------------------------
-    # MAIN PAGE
-    # ------------------------------------------------------------
-
     @http.route('/groups', type='http', auth='public', sitemap=True, website=True, list_as_website_content=_lt("Groups"))
     def groups_index(self, email='', **kw):
-        """View of the group lists. Allow the users to subscribe and unsubscribe."""
         if kw.get('group_id') and kw.get('token'):
             group_id = int(kw.get('group_id'))
             token = kw.get('token')
@@ -79,7 +69,6 @@ class PortalMailGroup(http.Controller):
             mail_groups = request.env['mail.group'].search([]).sudo()
 
         if not request.env.user._is_public():
-            # Force the email if the user is logged
             email_normalized = request.env.user.email_normalized
             partner_id = request.env.user.partner_id.id
         else:
@@ -97,10 +86,6 @@ class PortalMailGroup(http.Controller):
             'is_mail_group_manager': request.env.user.has_group('mail_group.group_mail_group_manager'),
         })
 
-    # ------------------------------------------------------------
-    # THREAD DISPLAY / MANAGEMENT
-    # ------------------------------------------------------------
-
     @http.route([
         '/groups/<model("mail.group"):group>',
         '/groups/<model("mail.group"):group>/page/<int:page>',
@@ -115,7 +100,6 @@ class PortalMailGroup(http.Controller):
         if date_begin and date_end:
             domain &= Domain('create_date', '>', date_begin) & Domain('create_date', '<=', date_end)
 
-        # SUDO after the search to apply access rules but be able to read attachments
         messages_sudo = GroupMessage.search(
             domain, limit=self._thread_per_page,
             offset=(page - 1) * self._thread_per_page).sudo()
@@ -190,7 +174,6 @@ class PortalMailGroup(http.Controller):
             self._get_website_domain(),
             [('id', '>', int(last_displayed_id)), ('group_message_parent_id', '=', message.id)],
         ])
-        # SUDO after the search to apply access rules but be able to read attachments
         replies_sudo = request.env['mail.group.message'].search(replies_domain, limit=self._replies_per_page).sudo()
         message_count = request.env['mail.group.message'].search_count(replies_domain)
 
@@ -210,26 +193,15 @@ class PortalMailGroup(http.Controller):
         }
         return request.env['ir.qweb']._render('mail_group.messages_short', values)
 
-    # ------------------------------------------------------------
-    # SUBSCRIPTION
-    # ------------------------------------------------------------
-
-    # csrf is disabled here because it will be called by the MUA with unpredictable session at that time
     @http.route('/group/<int:group_id>/unsubscribe_oneclick', website=True, type='http', auth='public',
            methods=['POST'], csrf=False)
     def group_unsubscribe_oneclick(self, group_id, token, email):
-        """ Unsubscribe a given user from a given group. One-click unsubscribe
-        allow mail user agent to propose a one click button to the user to
-        unsubscribe as defined in rfc8058. Only POST method is allowed preventing
-        the risk that anti-spam trigger unwanted unsubscribe (scenario explained
-        in the same rfc).
+        """Unsubscribe ``email`` from the group, over rfc8058's one-click header.
 
-        :param int group_id: group ID from which user wants to unsubscribe;
-        :param str token: optional access token ensuring security;
-        :param email: email to unsubscribe;
+        POST only, so that an anti-spam probe following the link cannot
+        unsubscribe anybody.
         """
         group_sudo = request.env['mail.group'].sudo().browse(group_id).exists()
-        # new route parameters
         if group_sudo and token and email:
             correct_token = group_sudo._generate_email_access_token(email)
             if not consteq(correct_token, token):
@@ -241,23 +213,10 @@ class PortalMailGroup(http.Controller):
 
     @http.route('/group/subscribe', type='jsonrpc', auth='public', website=True)
     def group_subscribe(self, group_id=0, email=None, token=None, **kw):
-        """Subscribe the current logged user or the given email address to the mailing list.
+        """Subscribe the logged user, or ``email`` when the caller is public.
 
-        If the user is logged, the action is automatically done.
-
-        But if the user is not logged (public user) an email will be send with a token
-        to confirm the action.
-
-        :param group_id: Id of the group
-        :param email: Email to add in the member list
-        :param token: An access token to bypass the <mail.group> access rule
-        :return:
-            'added'
-                if the member was added in the mailing list
-            'email_sent'
-                if we send a confirmation email
-            'is_already_member'
-                if we try to subscribe but we are already member
+        :return: ``'added'``, ``'email_sent'`` when a public caller must confirm
+            by email, or ``'is_already_member'``
         """
         group_sudo, is_member, partner_id = self._group_subscription_get_group(group_id, email, token)
 
@@ -265,33 +224,18 @@ class PortalMailGroup(http.Controller):
             return 'is_already_member'
 
         if not request.env.user._is_public():
-            # For logged user, automatically join / leave without sending a confirmation email
             group_sudo._join_group(request.env.user.email, partner_id)
             return 'added'
 
-        # For non-logged user, send an email with a token to confirm the action
         group_sudo._send_subscribe_confirmation_email(email)
         return 'email_sent'
 
     @http.route('/group/unsubscribe', type='jsonrpc', auth='public', website=True)
     def group_unsubscribe(self, group_id=0, email=None, token=None, **kw):
-        """Unsubscribe the current logged user or the given email address to the mailing list.
+        """Unsubscribe the logged user, or ``email`` when the caller is public.
 
-        If the user is logged, the action is automatically done.
-
-        But if the user is not logged (public user) an email will be send with a token
-        to confirm the action.
-
-        :param group_id: Id of the group
-        :param email: Email to add in the member list
-        :param token: An access token to bypass the <mail.group> access rule
-        :return:
-            'removed'
-                if the member was removed from the mailing list
-            'email_sent'
-                if we send a confirmation email
-            'is_not_member'
-                if we try to unsubscribe but we are not member
+        :return: ``'removed'``, ``'email_sent'`` when a public caller must
+            confirm by email, or ``'is_not_member'``
         """
         group_sudo, is_member, partner_id = self._group_subscription_get_group(group_id, email, token)
 
@@ -299,28 +243,22 @@ class PortalMailGroup(http.Controller):
             return 'is_not_member'
 
         if not request.env.user._is_public():
-            # For logged user, automatically join / leave without sending a confirmation email
             group_sudo._leave_group(request.env.user.email, partner_id)
             return 'removed'
 
-        # For non-logged user, send an email with a token to confirm the action
         group_sudo._send_unsubscribe_confirmation_email(email)
         return 'email_sent'
 
     def _group_subscription_get_group(self, group_id, email, token):
-        """Check the given token and return,
+        """Return ``(group_sudo, is_member, partner_id)``.
 
-        :return:
-            - The group sudo-ed
-            - True if the email is member of the group
-            - The partner of the current user
-        :raise NotFound: if the given token is not valid
+        :raise NotFound: the group does not exist, the token does not match it,
+            or the caller may not read it
         """
         group = request.env['mail.group'].browse(int(group_id)).exists()
         if not group:
             raise werkzeug.exceptions.NotFound()
 
-        # SUDO to have access to field of the many2one
         group_sudo = group.sudo()
 
         if token and token != group_sudo._generate_group_access_token():
@@ -328,7 +266,6 @@ class PortalMailGroup(http.Controller):
 
         elif not token:
             try:
-                # Check that the current user has access to the group
                 group.check_access('read')
             except AccessError:
                 raise werkzeug.exceptions.NotFound()
@@ -343,7 +280,6 @@ class PortalMailGroup(http.Controller):
 
     @http.route('/group/subscribe-confirm', type='http', auth='public', website=True)
     def group_subscribe_confirm(self, group_id, email, token, **kw):
-        """Confirm the subscribe / unsubscribe action which was sent by email."""
         group = self._group_subscription_confirm_get_group(group_id, email, token, 'subscribe')
         if not group:
             return request.render('mail_group.invalid_token_subscription')
@@ -359,7 +295,6 @@ class PortalMailGroup(http.Controller):
 
     @http.route('/group/unsubscribe-confirm', type='http', auth='public', website=True)
     def group_unsubscribe_confirm(self, group_id, email, token, **kw):
-        """Confirm the subscribe / unsubscribe action which was sent by email."""
         group = self._group_subscription_confirm_get_group(group_id, email, token, 'unsubscribe')
         if not group:
             return request.render('mail_group.invalid_token_subscription')
@@ -373,10 +308,8 @@ class PortalMailGroup(http.Controller):
         })
 
     def _group_subscription_confirm_get_group(self, group_id, email, token, action):
-        """Retrieve the group and check the token use to perform the given action."""
         if not group_id or not email or not token:
             return False
-        # Here we can SUDO because the token will be checked
         group = request.env['mail.group'].browse(int(group_id)).exists().sudo()
         if not group:
             raise werkzeug.exceptions.NotFound()

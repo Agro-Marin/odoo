@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import itertools
 import random
 
@@ -55,11 +53,9 @@ class MailBot(models.AbstractModel):
 
     def _get_answer(self, channel, body, values, command=False):
         odoobot = self.env.ref("base.partner_root")
-        # onboarding
         odoobot_state = self.env.user.odoobot_state
 
         if channel.channel_type == "chat" and odoobot in channel.channel_member_ids.partner_id:
-            # main flow
             source = _("Thanks")
             if odoobot_state == 'onboarding_emoji' and self._body_contains_emoji(body):
                 self.env.user.odoobot_state = "onboarding_command"
@@ -117,7 +113,6 @@ class MailBot(models.AbstractModel):
                         **self._get_style_dict(),
                     ),
                 ]
-            # repeat question if needed
             elif odoobot_state == 'onboarding_canned' and not self._is_help_requested(body):
                 self.env.user.odoobot_failed = True
                 return self.env._(
@@ -128,12 +123,10 @@ class MailBot(models.AbstractModel):
             elif odoobot_state in (False, "idle", "not_initialized") and (_('start the tour') in body.lower()):
                 self.env.user.odoobot_state = "onboarding_emoji"
                 return _("To start, try to send me an emoji :)")
-            # easter eggs
             elif odoobot_state == "idle" and body in ['❤️', _('i love you'), _('love')]:
                 return _("Aaaaaw that's really cute but, you know, bots don't work that way. You're too human for me! Let's keep it professional ❤️")
             elif _('fuck') in body or "fuck" in body:
                 return _("That's not nice! I'm a bot but I have feelings... 💔")
-            # help message
             elif self._is_help_requested(body) or odoobot_state == 'idle':
                 return self.env._(
                     "Unfortunately, I'm just a bot 😞 I don't understand! If you need help "
@@ -143,7 +136,6 @@ class MailBot(models.AbstractModel):
                     **self._get_style_dict()
                 )
             else:
-                # repeat question
                 if odoobot_state == 'onboarding_emoji':
                     self.env.user.odoobot_failed = True
                     return self.env._(
@@ -195,7 +187,6 @@ class MailBot(models.AbstractModel):
         return False
 
     def _body_contains_emoji(self, body):
-        # coming from https://unicode.org/emoji/charts/full-emoji-list.html
         emoji_list = itertools.chain(
             range(0x231A, 0x231c),
             range(0x23E9, 0x23f4),

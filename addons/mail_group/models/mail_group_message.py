@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 
 from markupsafe import Markup
@@ -25,25 +22,19 @@ class MailGroupMessage(models.Model):
     _order = 'create_date DESC'
     _primary_email = 'email_from'
 
-    # <mail.message> fields, can not be done with inherits because it will impact
-    # the performance of the <mail.message> model (different cache, so the ORM will need
-    # to do one more SQL query to be able to update the <mail.group.message> cache)
     attachment_ids = fields.Many2many(related='mail_message_id.attachment_ids', readonly=False)
     author_id = fields.Many2one(related='mail_message_id.author_id', readonly=False)
     email_from = fields.Char(related='mail_message_id.email_from', readonly=False)
     email_from_normalized = fields.Char('Normalized From', compute='_compute_email_from_normalized', store=True)
     body = fields.Html(related='mail_message_id.body', readonly=False)
     subject = fields.Char(related='mail_message_id.subject', readonly=False)
-    # Thread
     mail_group_id = fields.Many2one(
         'mail.group', string='Group',
         required=True, index=True, ondelete='cascade')
     mail_message_id = fields.Many2one('mail.message', 'Mail Message', required=True, ondelete='cascade', index=True, copy=False)
-    # Parent and children
     group_message_parent_id = fields.Many2one(
         'mail.group.message', string='Parent', store=True, index=True)
     group_message_child_ids = fields.One2many('mail.group.message', 'group_message_parent_id', string='Children')
-    # Moderation
     author_moderation = fields.Selection([('ban', 'Banned'), ('allow', 'Whitelisted')], string='Author Moderation Status',
                                          compute='_compute_author_moderation')
     is_group_moderated = fields.Boolean('Is Group Moderated', related='mail_group_id.moderation')
@@ -108,10 +99,6 @@ class MailGroupMessage(models.Model):
             vals['mail_message_id'] = message.mail_message_id.copy().id
         return vals_list
 
-    # --------------------------------------------------
-    # MODERATION API
-    # --------------------------------------------------
-
     def action_moderate_accept(self):
         """Accept the incoming email.
 
@@ -123,7 +110,6 @@ class MailGroupMessage(models.Model):
             'moderator_id': self.env.uid,
         })
 
-        # Send the email to the members of the group
         for message in self:
             message.mail_group_id._notify_members(message)
 
@@ -143,14 +129,12 @@ class MailGroupMessage(models.Model):
     def action_moderate_allow(self):
         self._create_moderation_rule('allow')
 
-        # Accept all emails of the same authors
         same_author = self._get_pending_same_author_same_group()
         same_author.action_moderate_accept()
 
     def action_moderate_ban(self):
         self._create_moderation_rule('ban')
 
-        # Reject all emails of the same author
         same_author = self._get_pending_same_author_same_group()
         same_author.action_moderate_reject()
 
@@ -160,7 +144,6 @@ class MailGroupMessage(models.Model):
         if ban_subject or ban_comment:
             self._moderate_send_reject_email(ban_subject, ban_comment)
 
-        # Reject all emails of the same author
         same_author = self._get_pending_same_author_same_group()
         same_author.action_moderate_reject()
 
@@ -199,7 +182,6 @@ class MailGroupMessage(models.Model):
         )
         existing_moderation.status = status
 
-        # Add the value in a set to create only 1 moderation rule per (email_normalized, group)
         moderation_to_create = {
             (email_normalize(message.email_from), message.mail_group_id.id)
             for message in self

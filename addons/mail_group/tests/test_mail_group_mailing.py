@@ -16,7 +16,6 @@ class TestMailGroupMailing(TestMailListCommon, HttpCase):
     def test_mail_mail_headers(self):
         """ Test headers notably unsubscribe headers """
         test_group = self.test_group.with_env(self.env)
-        # don't contact yourself, banned people receive outgoing emails
         expected_recipients = self.test_group_member_1 + self.test_group_member_2 + self.test_group_member_3_banned
 
         with self.mock_mail_gateway(mail_unlink_sent=False):

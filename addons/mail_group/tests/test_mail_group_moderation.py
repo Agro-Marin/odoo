@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from psycopg import IntegrityError
 
 from odoo import Command, tools
@@ -77,7 +74,6 @@ class TestMailGroupModeration(TestMailListCommon):
             'mail_group_id': mail_group.id,
         }])
 
-        # status 'bouh' does not exist
         with self.assertRaises(ValueError):
             (message_1 | message_2 | message_3)._create_moderation_rule('bouh')
 
@@ -131,7 +127,6 @@ class TestModeration(TestMailListCommon):
     def setUpClass(cls):
         super(TestModeration, cls).setUpClass()
 
-        # Test group: members, moderation
         cls.test_group_2 = cls.env['mail.group'].create({
             'access_mode': 'members',
             'alias_name': 'test.mail.group.2',
@@ -145,7 +140,6 @@ class TestModeration(TestMailListCommon):
             'mail_group_id': cls.test_group_2.id,
         })
 
-        # Existing messages on group 2
         cls.test_group_2_msg_1_pending = cls.env['mail.group.message'].create({
             'email_from': cls.email_from_unknown,
             'subject': 'Group 2 Pending',
@@ -169,18 +163,15 @@ class TestModeration(TestMailListCommon):
                 GROUP_TEMPLATE, self.email_from_unknown, self.test_group.alias_id.display_name,
                 subject='New email', target_model='mail.group')
 
-        # find messages
         self.assertEqual(len(mail_group.mail_group_message_ids), 5)
         old_email_message = mail_group.mail_group_message_ids[-2]
         new_email_message = mail_group.mail_group_message_ids[-1]
 
-        # check message content
         self.assertEqual(old_email_message.moderation_status, 'pending_moderation')
         self.assertEqual(old_email_message.subject, 'Old email')
         self.assertEqual(new_email_message.moderation_status, 'pending_moderation')
         self.assertEqual(new_email_message.subject, 'New email')
 
-        # accept email without any moderation rule
         with self.mock_mail_gateway():
             new_email_message.action_moderate_accept()
 
@@ -215,12 +206,10 @@ class TestModeration(TestMailListCommon):
                 GROUP_TEMPLATE, self.email_from_unknown, self.test_group.alias_id.display_name,
                 subject='New email', target_model='mail.group')
 
-        # find messages
         self.assertEqual(len(mail_group.mail_group_message_ids), 5)
         old_email_message = mail_group.mail_group_message_ids[-2]
         new_email_message = mail_group.mail_group_message_ids[-1]
 
-        # check message content
         self.assertEqual(old_email_message.email_from, self.email_from_unknown)
         self.assertEqual(old_email_message.moderation_status, 'pending_moderation')
         self.assertEqual(old_email_message.subject, 'Old email')
@@ -228,21 +217,18 @@ class TestModeration(TestMailListCommon):
         self.assertEqual(new_email_message.moderation_status, 'pending_moderation')
         self.assertEqual(new_email_message.subject, 'New email')
 
-        # Create a moderation rule to always accept this email address
         with self.mock_mail_gateway():
             new_email_message.action_moderate_allow()
 
         self.assertEqual(new_email_message.moderation_status, 'accepted', 'Should have accepted the message')
         self.assertEqual(old_email_message.moderation_status, 'accepted', 'Should have accepted the old message of the same author')
 
-        # Test that the moderation rule has been created
         new_rule = self.env['mail.group.moderation'].search([
             ('status', '=', 'allow'),
             ('email', '=', tools.email_normalize(self.email_from_unknown))
         ])
         self.assertEqual(len(new_rule), 1, 'Should have created a moderation rule')
 
-        # Check emails have been sent
         self.assertEqual(len(self._new_mails), 8)
         for email in self.test_group_valid_members.mapped('email'):
             self.assertMailMailWEmails([email], 'outgoing',
@@ -260,7 +246,6 @@ class TestModeration(TestMailListCommon):
                                        },
                                        mail_message=old_email_message.mail_message_id)
 
-        # Send a second email with the same FROM, but with a different name
         with self.mock_mail_gateway():
             self.format_and_process(
                 GROUP_TEMPLATE,
@@ -268,7 +253,6 @@ class TestModeration(TestMailListCommon):
                 self.test_group.alias_id.display_name,
                 subject='Another email', target_model='mail.group')
 
-        # find messages
         self.assertEqual(len(mail_group.mail_group_message_ids), 6)
         new_email_message = mail_group.mail_group_message_ids[-1]
 
@@ -299,29 +283,24 @@ class TestModeration(TestMailListCommon):
                 GROUP_TEMPLATE, self.email_from_unknown, self.test_group.alias_id.display_name,
                 subject='New email', target_model='mail.group')
 
-        # find messages
         self.assertEqual(len(mail_group.mail_group_message_ids), 5)
         old_email_message = mail_group.mail_group_message_ids[-2]
         new_email_message = mail_group.mail_group_message_ids[-1]
 
-        # ban and check moderation rule has been
         with self.mock_mail_gateway():
             new_email_message.action_moderate_ban()
 
         self.assertEqual(old_email_message.moderation_status, 'rejected')
         self.assertEqual(new_email_message.moderation_status, 'rejected')
 
-        # Test that the moderation rule has been created
         new_rule = self.env['mail.group.moderation'].search([
             ('status', '=', 'ban'),
             ('email', '=', tools.email_normalize(self.email_from_unknown))
         ])
         self.assertEqual(len(new_rule), 1, 'Should have created a moderation rule')
 
-        # Check no mail.mail has been sent
         self.assertEqual(len(self._new_mails), 0, 'Should not have send emails')
 
-        # Send a second email with the same FROM, but with a different name
         with self.mock_mail_gateway():
             self.format_and_process(
                 GROUP_TEMPLATE,
@@ -329,12 +308,10 @@ class TestModeration(TestMailListCommon):
                 self.test_group.alias_id.display_name,
                 subject='Another email', target_model='mail.group')
 
-        # find messages
         self.assertEqual(len(mail_group.mail_group_message_ids), 6)
         new_email_message = mail_group.mail_group_message_ids[-1]
         self.assertEqual(new_email_message.moderation_status, 'rejected', 'Should have automatically rejected the email')
 
-        # Check no mail.mail has been sent
         self.assertEqual(len(self._new_mails), 0, 'Should not have send emails')
 
     @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.addons.mail_group.models.mail_group_message', 'odoo.models.unlink')
@@ -353,12 +330,10 @@ class TestModeration(TestMailListCommon):
                 GROUP_TEMPLATE, self.email_from_unknown, self.test_group.alias_id.display_name,
                 subject='New email', target_model='mail.group')
 
-        # find messages
         self.assertEqual(len(mail_group.mail_group_message_ids), 5)
         old_email_message = mail_group.mail_group_message_ids[-2]
         new_email_message = mail_group.mail_group_message_ids[-1]
 
-        # reject without moderation rule
         with self.mock_mail_gateway():
             new_email_message.action_moderate_reject_with_comment('Test Rejected', 'Bad email')
 

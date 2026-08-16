@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from markupsafe import Markup
 
 from odoo import _, fields, models
@@ -18,7 +16,7 @@ class ResUsers(models.Model):
             ('onboarding_canned', 'Onboarding canned'),
             ('idle', 'Idle'),
             ('disabled', 'Disabled'),
-        ], string="OdooBot Status", readonly=True, required=False)  # keep track of the state: correspond to the code of the last message sent
+        ], string="OdooBot Status", readonly=True, required=False)
     odoobot_failed = fields.Boolean(readonly=True)
 
     @property

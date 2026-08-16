@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
 from unittest.mock import Mock, patch
 
@@ -118,7 +115,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
         self.assertEqual(first_company.name, "Name")
         self.assertEqual(first_company.email, "contact@gmail.com")
 
-        # Test that we do not duplicate the company and that we return the previous one
         mock_iap_enrich = Mock()
         result = self.mock_plugin_partner_get("Test", "qsd@test_domain.xyz", mock_iap_enrich)
         self.assertFalse(mock_iap_enrich.called, "We already enriched this company, should not call IAP a second time")
@@ -136,7 +132,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
             "iap_search_domain": "@test.example.com",
         })
 
-        # sanity check, we can access the partner
         result = self.mock_plugin_partner_get(
             "Test", "test@test.example.com",
             lambda _, domain: {"name": "Name", "email": "test@test.example.com"},
@@ -145,7 +140,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
         new_partner_count = self.env['res.partner'].search_count([])
         self.assertEqual(new_partner_count, partner_count, "Should not have created a new partner")
 
-        # now we can't access it
         def _check_access(record, operation):
             if operation == "read" and record == partner:
                 return record, lambda: AccessError("No Access")
@@ -180,7 +174,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
         self.assertEqual(first_company.name, "Name")
         self.assertFalse(first_company.email)
 
-        # Test that we do not duplicate the company and that we return the previous one
         result = self.mock_plugin_partner_get(
             "Test", "qsd@domain.com",
             lambda _, domain: {"name": "Name", "email": ["contact@" + domain]},

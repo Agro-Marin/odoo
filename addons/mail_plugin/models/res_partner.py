@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from odoo import api, fields, models
 
 
@@ -30,8 +29,6 @@ class ResPartner(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         partners = super().create(vals_list)
-        # Not done with inverse method so we do not need to search
-        # for existing <res.partner.iap>
         partner_iap_vals_list = [{
             'partner_id': partner.id,
             'iap_enrich_info': vals.get('iap_enrich_info'),
@@ -44,8 +41,6 @@ class ResPartner(models.Model):
         res = super(ResPartner, self).write(vals)
 
         if 'iap_enrich_info' in vals or 'iap_search_domain' in vals:
-            # Not done with inverse method so we do need to search
-            # for existing <res.partner.iap> only once
             partner_iaps = self.env['res.partner.iap'].sudo().search([('partner_id', 'in', self.ids)])
             missing_partners = self
             for partner_iap in partner_iaps:
@@ -57,7 +52,6 @@ class ResPartner(models.Model):
                 missing_partners -= partner_iap.partner_id
 
             if missing_partners:
-                # Create new <res.partner.iap> for missing records
                 self.env['res.partner.iap'].sudo().create([
                     {
                         'partner_id': partner.id,
