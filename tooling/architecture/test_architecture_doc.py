@@ -346,6 +346,14 @@ class TestCountsRestatedElsewhere(unittest.TestCase):
         Sibling repos are deliberately out of scope: CI checks out this repo
         alone, so a cross-repo figure could never be re-measured here — which
         is how the original went unchecked in the first place.
+
+        The stated pair is a **floor**, not an equality. As an equality it went
+        red on any commit that added one ``self._name`` read to an addon: it
+        broke at 372/333 against a tree holding 383/338, from mail work that
+        had nothing to do with metadata, and would have broken again before the
+        fix could land. The sentence claims this surface is used in hundreds of
+        places; a floor carries that claim and stays refutable — a collapse
+        below it still fails — without reporting on the calendar.
         """
         docstring = (
             ast.get_docstring(
@@ -359,7 +367,9 @@ class TestCountsRestatedElsewhere(unittest.TestCase):
         )
         flat = " ".join(docstring.split())
         match = re.search(
-            r"``self\._name`` has (\d+) sites and ``self\._fields`` (\d+)", flat
+            r"``self\._name`` has at least (\d+) sites\s+and ``self\._fields`` "
+            r"at least (\d+)",
+            flat,
         )
         self.assertIsNotNone(match, "the call-site sentence changed shape")
 
@@ -371,10 +381,16 @@ class TestCountsRestatedElsewhere(unittest.TestCase):
                 for tree in ("odoo/addons", "addons")
                 for path in (ROOT / tree).rglob("*.py")
             )
-        self.assertEqual(
-            {"_name": int(match.group(1)), "_fields": int(match.group(2))},
-            measured,
-        )
+        stated = {"_name": int(match.group(1)), "_fields": int(match.group(2))}
+        for attr, floor in stated.items():
+            self.assertGreaterEqual(
+                measured[attr],
+                floor,
+                f"the page claims at least {floor} ``self.{attr}`` sites across "
+                f"odoo/addons + addons; the tree holds {measured[attr]}. Either "
+                f"the surface stopped being widely used or the scope moved -- "
+                f"both are worth reading before lowering the number.",
+            )
 
 
 class TestPosture(unittest.TestCase):
