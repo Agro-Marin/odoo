@@ -50,6 +50,7 @@ from werkzeug.local import LocalStack
 
 from odoo import api, modules
 from odoo.db import PoolError, db_connect
+from odoo.exceptions import AccessDenied
 from odoo.http import (
     Request,
     Response,
@@ -1533,11 +1534,24 @@ class WebsocketConnectionHandler:
                     websocket.close(CloseCode.SESSION_EXPIRED)
                 except PoolError:
                     websocket.close(CloseCode.TRY_LATER)
-                except (InvalidWebsocketRequestError, ValueError) as exc:
+                except (
+                    InvalidWebsocketRequestError,
+                    ValueError,
+                    AccessDenied,
+                ) as exc:
                     # Client-controlled input (malformed JSON, bad subscribe
                     # payload shape, non-string channels, ...): reject the
                     # message without the log noise of a full traceback --
                     # any anonymous peer can send garbage at will.
+                    #
+                    # AccessDenied belongs here for the same reason: the channel
+                    # list is client-supplied, and a public visitor subscribing
+                    # to an ``editor_collaboration:*`` channel raises it from
+                    # ``html_editor``'s guard. (An *authenticated* user failing
+                    # the read/write check never reaches us -- that guard
+                    # catches AccessError and drops the channel silently.) So
+                    # the only way to produce this is an anonymous peer, which
+                    # was logging a full ERROR traceback per attempt.
                     _logger.warning("Invalid websocket request: %s", exc)
                 except Exception:
                     _logger.exception(
