@@ -1,2 +1,2 @@
-from . import certificate
-from . import key
+from . import certificate_certificate
+from . import certificate_key

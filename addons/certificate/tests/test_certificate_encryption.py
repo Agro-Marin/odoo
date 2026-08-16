@@ -7,8 +7,8 @@ from cryptography.fernet import Fernet
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import file_open
 
-from odoo.addons.base_credential_manager.models.mixins import (
-    credential_encryption_mixin as mixin_mod,
+from odoo.addons.base_encryption_mixin.models import (
+    encryption_mixin as mixin_mod,
 )
 
 PKCS12_PASSWORD = "example"
@@ -28,15 +28,8 @@ class TestCertificateEncryption(TransactionCase):
         )
         cls.env_patcher.start()
         cls.addClassCleanup(cls.env_patcher.stop)
-        mixin_mod.CredentialEncryptionMixin._invalidate_key_version_cache()
-        cls.addClassCleanup(
-            mixin_mod.CredentialEncryptionMixin._invalidate_key_version_cache
-        )
-
-        # action_migrate_encryption_keys is admin-gated.
-        cls.env.user.group_ids |= cls.env.ref(
-            "base_credential_manager.group_credential_admin",
-        )
+        mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+        cls.addClassCleanup(mixin_mod.EncryptionMixin._invalidate_key_version_cache)
 
         cls.company = cls.env.ref("base.main_company")
         with file_open(
@@ -49,9 +42,23 @@ class TestCertificateEncryption(TransactionCase):
             [("res_model", "=", model), ("res_field", "=", field)],
         )
 
-    # ------------------------------------------------------------------
-    # Encryption at rest
-    # ------------------------------------------------------------------
+    def _rotate(self, records):
+        """Re-encrypt *records* exactly as a rotation driver's inner loop does.
+
+        The driver that ships today is
+        ``credential.credential.action_migrate_encryption_keys``, in a module
+        this one does not depend on and must not: a deployment can take
+        encrypted certificates without the credential vault. What this module
+        owes any driver is the mixin contract below — discovery, the
+        decrypt/encrypt seam, the stamp — and that is what these tests pin. The
+        driver's own eligibility filter, admin gate and per-row error handling
+        are covered in ``credential``.
+        """
+        version = records._get_current_encryption_key_version()
+        for record in records:
+            if record._reencrypt_with_current_key():
+                record._stamp_encryption_key_version(version)
+        self.env.cr.flush()
 
     def test_key_material_never_lands_in_the_clear(self):
         """No column, attachment or filestore entry holds the key or password."""
@@ -64,7 +71,7 @@ class TestCertificateEncryption(TransactionCase):
         self.env.cr.flush()
 
         self.env.cr.execute(
-            "SELECT password, content_encrypted, password_encrypted "
+            "SELECT password_plain, content_encrypted, password_encrypted "
             "FROM certificate_key WHERE id = %s",
             (key.id,),
         )
@@ -72,7 +79,7 @@ class TestCertificateEncryption(TransactionCase):
 
         self.assertIsNone(
             password_column,
-            "the legacy plaintext password column must stay empty",
+            "the cleartext password column must stay empty once a key exists",
         )
         for label, blob in (("content", content_enc), ("password", password_enc)):
             self.assertTrue(
@@ -90,7 +97,7 @@ class TestCertificateEncryption(TransactionCase):
             "no PEM armour may survive into the stored ciphertext",
         )
         self.assertFalse(
-            self._attachments("certificate.key", "content"),
+            self._attachments("certificate.key", "content_plain"),
             "the uploaded key file must not be kept as an attachment",
         )
         self.assertFalse(
@@ -111,7 +118,8 @@ class TestCertificateEncryption(TransactionCase):
         self.env.cr.flush()
 
         self.env.cr.execute(
-            "SELECT pkcs12_password, content_encrypted, pkcs12_password_encrypted "
+            "SELECT pkcs12_password_plain, content_encrypted, "
+            "pkcs12_password_encrypted "
             "FROM certificate_certificate WHERE id = %s",
             (certificate.id,),
         )
@@ -119,26 +127,19 @@ class TestCertificateEncryption(TransactionCase):
         self.assertIsNone(password_column)
         self.assertTrue(bytes(content_enc).startswith(b"gAAAAA"))
         self.assertTrue(bytes(password_enc).startswith(b"gAAAAA"))
-        self.assertFalse(self._attachments("certificate.certificate", "content"))
+        self.assertFalse(self._attachments("certificate.certificate", "content_plain"))
 
-        # pem_certificate is deliberately still stored in the clear: a
-        # certificate is public, and _search_is_valid searches on it.
         self.assertTrue(
             self._attachments("certificate.certificate", "pem_certificate"),
             "pem_certificate must remain stored — _search_is_valid needs it",
         )
 
-        # The key auto-extracted from the bundle is itself encrypted.
         self.assertTrue(certificate.private_key_id)
         self.env.cr.execute(
             "SELECT content_encrypted FROM certificate_key WHERE id = %s",
             (certificate.private_key_id.id,),
         )
         self.assertTrue(bytes(self.env.cr.fetchone()[0]).startswith(b"gAAAAA"))
-
-    # ------------------------------------------------------------------
-    # Behaviour preserved
-    # ------------------------------------------------------------------
 
     def test_roundtrip_through_encrypted_storage(self):
         """Everything the consumers read still reads back identical."""
@@ -217,9 +218,6 @@ class TestCertificateEncryption(TransactionCase):
 
         self.assertEqual(duplicate.password, "dup-pw")
         self.assertEqual(duplicate.loading_error, "")
-        # Not the PEM bytes: BestAvailableEncryption re-salts on every
-        # serialization, so the same key encodes differently each time. The
-        # public key is the stable identity of the pair.
         self.assertEqual(
             duplicate._get_public_key_bytes(),
             key._get_public_key_bytes(),
@@ -239,17 +237,39 @@ class TestCertificateEncryption(TransactionCase):
         self.assertTrue(key.loading_error)
         self.assertFalse(key.pem_key)
 
-    # ------------------------------------------------------------------
-    # Key rotation
-    # ------------------------------------------------------------------
-
     def test_models_are_registered_for_rotation(self):
         """Unregistered ciphertext becomes undecryptable once old keys retire."""
-        discovered = self.env[
-            "credential.credential"
-        ]._get_encryption_migration_models()
+        discovered = self.env["certificate.key"]._get_encryption_migration_models()
         self.assertIn("certificate.key", discovered)
         self.assertIn("certificate.certificate", discovered)
+
+    def test_one_private_key_is_shared_by_identical_bundles(self):
+        """The dedup in _compute_private_key must see through the storage.
+
+        It used to read the ``ir.attachment`` that backed ``certificate.key.content``,
+        which no longer exists once the bytes are encrypted; matching now goes
+        through the field, so the lookup keeps working in either mode.
+        """
+        certificates = self.env["certificate.certificate"].create(
+            [
+                {
+                    "name": f"shared bundle {index}",
+                    "content": self.pkcs12,
+                    "pkcs12_password": PKCS12_PASSWORD,
+                    "company_id": self.company.id,
+                }
+                for index in range(2)
+            ]
+        )
+        self.env.cr.flush()
+
+        self.assertTrue(certificates[0].private_key_id)
+        self.assertEqual(
+            certificates[0].private_key_id,
+            certificates[1].private_key_id,
+            "the same bundle must not mint a second certificate.key",
+        )
+        self.assertTrue(certificates[1]._sign(b"canary"))
 
     def test_key_version_is_stamped_on_write(self):
         key = self.env["certificate.key"]._generate_rsa_private_key(
@@ -258,7 +278,6 @@ class TestCertificateEncryption(TransactionCase):
         )
         self.assertEqual(key.encryption_key_version, 1)
 
-        # A write that carries no encrypted payload must not restamp.
         key.encryption_key_version = 0
         key.write({"name": "renamed"})
         self.assertEqual(key.encryption_key_version, 0)
@@ -269,7 +288,7 @@ class TestCertificateEncryption(TransactionCase):
     def test_legacy_wire_format_still_decrypts(self):
         """Rows written before 19.0.1.0.2 hold base64(token), not a raw token.
 
-        Moved here from base_credential_manager: after the certificate fields
+        Moved here from credential: after the certificate fields
         were dropped from credential.credential, certificate.key.content is the
         binary encrypted column in the suite, so this is where the legacy shape
         has to keep being exercised.
@@ -288,9 +307,6 @@ class TestCertificateEncryption(TransactionCase):
             "UPDATE certificate_key SET content_encrypted = %s WHERE id = %s",
             [legacy_stored, key.id],
         )
-        # Whole recordset, not just content_encrypted: `content` is a
-        # non-stored compute that already cached the placeholder, and
-        # invalidate_recordset does not cascade to dependent computes.
         key.invalidate_recordset()
 
         self.assertEqual(
@@ -301,7 +317,7 @@ class TestCertificateEncryption(TransactionCase):
     def test_rotation_promotes_legacy_binary_to_canonical(self):
         """The binary half of _ENCRYPTED_FIELD_PAIRS must survive a rotation.
 
-        Also moved from base_credential_manager, and the reason it matters:
+        Also moved from credential, and the reason it matters:
         rotation runs _decrypt_binary_value -> _encrypt_binary_value, a seam
         where a mistake corrupts silently rather than raising.
         """
@@ -320,21 +336,15 @@ class TestCertificateEncryption(TransactionCase):
             "encryption_key_version = 0 WHERE id = %s",
             [legacy_stored, key.id],
         )
-        # Park every other row at the current version so the eligibility filter
-        # leaves only the fixture — a shared database can hold rows encrypted
-        # with a key this test environment does not have.
-        current_version = self.env[
-            "credential.credential"
-        ]._get_current_encryption_key_version()
-        self.env.cr.execute(
-            "UPDATE certificate_key SET encryption_key_version = %s WHERE id != %s",
-            [current_version, key.id],
+        key.invalidate_recordset()
+
+        self._rotate(key)
+
+        self.assertEqual(
+            key.encryption_key_version,
+            key._get_current_encryption_key_version(),
+            "a rotated row must be stamped so the next rotation skips it",
         )
-        self.env["certificate.key"].invalidate_model()
-
-        result = self.env["credential.credential"].action_migrate_encryption_keys()
-        self.assertEqual(result["failed"], 0, result["errors"])
-
         key.invalidate_recordset()
         self.env.cr.execute(
             "SELECT content_encrypted FROM certificate_key WHERE id = %s", (key.id,)
@@ -381,12 +391,9 @@ class TestCertificateEncryption(TransactionCase):
             },
             clear=True,
         ):
-            mixin_mod.CredentialEncryptionMixin._invalidate_key_version_cache()
-            result = self.env["credential.credential"].action_migrate_encryption_keys()
-
-            self.assertEqual(result["failed"], 0, result["errors"])
-            self.assertIn("certificate.key", result["models"])
-            self.assertIn("certificate.certificate", result["models"])
+            mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+            self._rotate(key | certificate.private_key_id)
+            self._rotate(certificate)
 
             self.env.cr.execute(
                 "SELECT content_encrypted FROM certificate_key WHERE id = %s",
@@ -409,4 +416,129 @@ class TestCertificateEncryption(TransactionCase):
                 "rotation must not disturb the private key itself",
             )
 
-        mixin_mod.CredentialEncryptionMixin._invalidate_key_version_cache()
+        mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+
+
+@tagged("post_install", "-at_install")
+class TestCertificateWithoutEncryptionKey(TransactionCase):
+    """Without ODOO_API_ENCRYPTION_KEY the module behaves as it did before.
+
+    This is what makes the encryption optional rather than a deployment
+    precondition: an EDI, payroll or sign installation that never provisioned a
+    Fernet key keeps uploading, signing and searching exactly as it always has,
+    with the material in the cleartext columns.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env_patcher = patch.dict(os.environ, {}, clear=True)
+        cls.env_patcher.start()
+        cls.addClassCleanup(cls.env_patcher.stop)
+        mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+        cls.addClassCleanup(mixin_mod.EncryptionMixin._invalidate_key_version_cache)
+
+        cls.company = cls.env.ref("base.main_company")
+        with file_open(
+            "certificate/tests/data/cert.pfx", "rb", filter_ext=(".pfx",)
+        ) as fh:
+            cls.pkcs12 = base64.b64encode(fh.read())
+
+    def test_upload_without_a_key_lands_in_the_cleartext_columns(self):
+        secret = "no-fernet-key-here"
+        key = self.env["certificate.key"]._generate_rsa_private_key(
+            self.company,
+            name="cleartext",
+            password=secret,
+        )
+        self.env.cr.flush()
+
+        self.env.cr.execute(
+            "SELECT password_plain, content_encrypted, password_encrypted "
+            "FROM certificate_key WHERE id = %s",
+            (key.id,),
+        )
+        password_plain, content_enc, password_enc = self.env.cr.fetchone()
+
+        self.assertEqual(password_plain, secret)
+        self.assertIsNone(content_enc, "nothing may be encrypted without a key")
+        self.assertIsNone(password_enc, "nothing may be encrypted without a key")
+
+        key.invalidate_recordset()
+        self.assertEqual(key.password, secret)
+        self.assertTrue(key.with_context(bin_size=False).content)
+        self.assertFalse(key.loading_error)
+        self.assertTrue(key._sign(b"payload"))
+
+    def test_certificate_signing_works_without_a_key(self):
+        certificate = self.env["certificate.certificate"].create(
+            {
+                "name": "cleartext cert",
+                "content": self.pkcs12,
+                "pkcs12_password": PKCS12_PASSWORD,
+                "company_id": self.company.id,
+            }
+        )
+        self.env.cr.flush()
+
+        self.assertFalse(certificate.loading_error)
+        self.assertTrue(certificate.is_valid)
+        self.assertTrue(certificate._sign(b"canary"))
+        self.assertEqual(certificate.pkcs12_password, PKCS12_PASSWORD)
+
+        self.env.cr.execute(
+            "SELECT pkcs12_password_plain, pkcs12_password_encrypted "
+            "FROM certificate_certificate WHERE id = %s",
+            (certificate.id,),
+        )
+        cleartext, encrypted = self.env.cr.fetchone()
+        self.assertEqual(cleartext, PKCS12_PASSWORD)
+        self.assertIsNone(encrypted)
+
+    def test_pem_key_filters_still_search(self):
+        key = self.env["certificate.key"]._generate_rsa_private_key(
+            self.company,
+            name="searchable",
+        )
+        self.env.cr.flush()
+
+        self.assertIn(
+            key, self.env["certificate.key"].search([("pem_key", "!=", False)])
+        )
+        self.assertNotIn(
+            key, self.env["certificate.key"].search([("pem_key", "=", False)])
+        )
+
+    def test_a_later_key_promotes_the_cleartext_rows(self):
+        secret = "promote-me"
+        key = self.env["certificate.key"]._generate_rsa_private_key(
+            self.company,
+            name="promotable",
+            password=secret,
+        )
+        self.env.cr.flush()
+
+        new_key = Fernet.generate_key().decode()
+        with patch.dict(os.environ, {"ODOO_API_ENCRYPTION_KEY": new_key}, clear=True):
+            mixin_mod.EncryptionMixin._invalidate_key_version_cache()
+            self.assertTrue(key._reencrypt_with_current_key())
+            self.env.cr.flush()
+
+            self.env.cr.execute(
+                "SELECT password_plain, content_encrypted, password_encrypted "
+                "FROM certificate_key WHERE id = %s",
+                (key.id,),
+            )
+            password_plain, content_enc, password_enc = self.env.cr.fetchone()
+            self.assertIsNone(password_plain, "the cleartext column must be emptied")
+            for label, blob in (("content", content_enc), ("password", password_enc)):
+                self.assertTrue(
+                    bytes(blob).startswith(b"gAAAAA"),
+                    f"{label} must have been promoted to a Fernet token",
+                )
+
+            key.invalidate_recordset()
+            self.assertEqual(key.password, secret)
+            self.assertTrue(key._sign(b"payload"))
+
+        mixin_mod.EncryptionMixin._invalidate_key_version_cache()

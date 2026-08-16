@@ -1,5 +1,7 @@
 UPDATE certificate_certificate
-   SET pkcs12_password = 'dummy';
-   
+   SET pkcs12_password_plain = 'dummy',
+       pkcs12_password_encrypted = NULL;
+
 UPDATE certificate_key
-   SET password = 'dummy';
+   SET password_plain = 'dummy',
+       password_encrypted = NULL;

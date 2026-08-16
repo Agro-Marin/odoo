@@ -1,5 +1,3 @@
-"""Tests for the signing/verification primitives of certificate.key."""
-
 import base64
 
 from cryptography.hazmat.primitives import hashes, serialization
@@ -75,8 +73,12 @@ class TestKeySigning(TransactionCase):
         signature = self.Key._sign_with_key("m", self.pem_b64, formatting="raw")
         with self.assertRaises(UserError):
             self.Key._verify_with_key(
-                "m", signature, self.pub_pem_b64, signature_algorithm="md5",
+                "m",
+                signature,
+                self.pub_pem_b64,
+                signature_algorithm="md5",
             )
+
 
 @tagged("post_install", "-at_install")
 class TestKeyCryptoOperations(TransactionCase):

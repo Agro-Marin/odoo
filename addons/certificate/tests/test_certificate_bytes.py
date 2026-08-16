@@ -1,5 +1,3 @@
-"""Certificate byte getters, content lifecycle and is_valid search."""
-
 import base64
 import hashlib
 from datetime import UTC, datetime, timedelta
@@ -13,7 +11,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestCertificateBytesAndLifecycle(TransactionCase):
-    """Byte getters and compute lifecycle of certificate.certificate."""
 
     @classmethod
     def setUpClass(cls):
