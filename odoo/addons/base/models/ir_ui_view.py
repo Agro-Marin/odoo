@@ -1,3 +1,4 @@
+import annotationlib
 import ast
 import collections
 import functools
@@ -2462,7 +2463,9 @@ class IrUiView(models.Model):
                     )
                     self._raise_view_error(msg, node)
                 try:
-                    inspect.signature(func).bind()
+                    inspect.signature(
+                        func, annotation_format=annotationlib.Format.FORWARDREF
+                    ).bind()
                 except TypeError:
                     msg = "%s on %s has parameters and cannot be called from a button"
                     self._log_view_warning(msg % (name, name_manager.model._name), node)

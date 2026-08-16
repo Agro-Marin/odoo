@@ -2,16 +2,16 @@ from . import _py_scan
 from .lint_case import LintCase
 
 FLOORS = {
-    "sql-injection": 42,
+    "sql-injection": 41,
     "gettext-variable": 1,
     "gettext-placeholders": 5,
     "gettext-repr": 8,
     "missing-gettext": 23,
     "raise-unlink-override": 1,
     "orm-import": 0,
-    "noqa-rationale": 78,
+    "noqa-rationale": 77,
     "onchange-domain": 0,
-    "n-plus-one-query": 420,
+    "n-plus-one-query": 417,
 }
 
 

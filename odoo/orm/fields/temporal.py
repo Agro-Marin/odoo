@@ -19,6 +19,30 @@ def _get_all_timezones_set() -> frozenset[str]:
     return frozenset(all_timezones())
 
 
+#: PostgreSQL's timezone catalogue, per database. Static for the life of a
+#: server, so it is read once and kept.
+_sql_timezones_set: dict[str, frozenset[str]] = {}
+
+
+def _get_sql_timezones_set(env) -> frozenset[str]:
+    """Timezone names *the database* accepts, for anything reaching SQL.
+
+    Odoo's own catalogue is a superset of the server's -- 599 zoneinfo names
+    against PostgreSQL 18's 487 here. Every legacy alias ('Asia/Calcutta',
+    'America/Buenos_Aires', 'US/Samoa', ...) is offered by the ``tz`` dropdown
+    and refused by ``AT TIME ZONE``, so validating a timezone against Python's
+    set and then interpolating it into a query turns one user's profile setting
+    into an ``InvalidParameterValue`` on every grouped read they perform.
+    Grouping degrades to UTC instead, with a warning naming the timezone.
+    """
+    names = _sql_timezones_set.get(env.cr.dbname)
+    if names is None:
+        env.cr.execute("SELECT name FROM pg_timezone_names")
+        names = frozenset(name for [name] in env.cr.fetchall())
+        _sql_timezones_set[env.cr.dbname] = names
+    return names
+
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -94,12 +118,16 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
     ) -> SQL:
         sql_expr = field_sql
         if self.type == "datetime" and (tz_name := model.env.context.get("tz")):
-            if tz_name in _get_all_timezones_set():
+            if tz_name in _get_sql_timezones_set(model.env):
                 sql_expr = SQL(
-                    "timezone('%s', timezone('UTC', %%s))" % tz_name, sql_expr
+                    "timezone(%s, timezone('UTC', %s))",
+                    SQL.literal(tz_name),
+                    sql_expr,
                 )
             else:
-                _logger.warning("Grouping in unknown / legacy timezone %r", tz_name)
+                _logger.warning(
+                    "Grouping in UTC: the database does not know timezone %r", tz_name
+                )
         if property_name == "tz":
             return sql_expr
         if property_name not in READ_GROUP_NUMBER_GRANULARITY:

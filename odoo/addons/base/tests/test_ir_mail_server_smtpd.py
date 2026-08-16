@@ -16,7 +16,7 @@ from odoo.exceptions import UserError
 from odoo.tools import config, file_path, mute_logger
 
 from .common import TransactionCaseWithUserDemo
-from odoo.addons.base.models.ir_mail_server import IrMail_Server
+from odoo.addons.base.models.ir_mail_server import IrMail_Server, OutgoingEmailError
 
 try:
     import aiosmtpd
@@ -75,6 +75,18 @@ class _EhloRecordingHandler(aiosmtpd.handlers.Debugging if aiosmtpd else object)
         self.hostnames.append(hostname)
         session.host_name = hostname
         return responses
+
+
+class _EnvelopeRecordingHandler(aiosmtpd.handlers.Debugging if aiosmtpd else object):
+    def __init__(self):
+        super().__init__()
+        self.envelopes = []
+
+    async def handle_DATA(self, server, session, envelope):
+        self.envelopes.append(
+            (envelope.mail_from, list(envelope.rcpt_tos), bytes(envelope.content))
+        )
+        return "250 OK"
 
 
 @unittest.skipUnless(aiosmtpd, "aiosmtpd couldn't be imported")
@@ -579,3 +591,216 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                             self.assertRegex(capture.exception.args[0], error_pattern)
                         else:
                             mail_server.test_smtp_connection()
+
+
+@unittest.skipUnless(aiosmtpd, "aiosmtpd couldn't be imported")
+@unittest.skipUnless(_openssl, "openssl not found in path")
+class TestIrMailServerEnvelopeSMTPD(TransactionCaseWithUserDemo):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.enterClassContext(config.patch(smtp_server="", smtp_timeout=SMTP_TIMEOUT))
+        family, addr, cls.port = _find_free_local_address()
+        cls.localhost = getaddrinfo(addr, cls.port, family)
+        cls.startClassPatcher(patch("socket.getaddrinfo", cls.getaddrinfo))
+
+    def setUp(self):
+        super().setUp()
+        patcher = patch.object(IrMail_Server, "_disable_send", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.mail_server = self.env["ir.mail_server"].create(
+            {
+                "name": "envelope probe",
+                "from_filter": "example.com",
+                "smtp_host": "localhost",
+                "smtp_port": self.port,
+                "smtp_authentication": "login",
+                "smtp_user": "",
+                "smtp_pass": "",
+            }
+        )
+
+    @classmethod
+    def getaddrinfo(cls, host, port, *args, **kwargs):
+        if host in ("localhost", "notlocalhost") and port == cls.port:
+            return cls.localhost
+        return getaddrinfo(host, port, family=0, type=0, proto=0, flags=0)
+
+    @contextlib.contextmanager
+    def _recording_smtpd(self, smtputf8=True):
+        handler = _EnvelopeRecordingHandler()
+        controller = aiosmtpd.controller.Controller(
+            handler,
+            hostname=aiosmtpd.controller.get_localhost(),
+            server_hostname="localhost",
+            port=self.port,
+            auth_required=False,
+            auth_require_tls=False,
+            enable_SMTPUTF8=smtputf8,
+        )
+        try:
+            controller.start()
+            yield handler
+        finally:
+            controller.stop()
+
+    def _send(self, handler_ctx=None, context=None, **build_kwargs):
+        IrMailServer = self.env["ir.mail_server"]
+        if context:
+            IrMailServer = IrMailServer.with_context(**context)
+        build_kwargs.setdefault("email_from", "sender@example.com")
+        build_kwargs.setdefault("subject", "envelope probe")
+        build_kwargs.setdefault("body", "body")
+        message = IrMailServer._build_email__(**build_kwargs)
+        IrMailServer.send_email(message, mail_server_id=self.mail_server.id)
+
+    @staticmethod
+    def _delivered(handler):
+        assert len(handler.envelopes) == 1, (
+            "expected exactly one delivery, got %s" % len(handler.envelopes)
+        )
+        mail_from, rcpt_tos, content = handler.envelopes[0]
+        return mail_from, sorted(rcpt_tos), content.decode()
+
+    @mute_logger("mail.log")
+    def test_bcc_is_an_envelope_recipient(self):
+        message = self.env["ir.mail_server"]._build_email__(
+            email_from="sender@example.com",
+            email_to=["to@example.com"],
+            subject="envelope probe",
+            body="body",
+            email_bcc=["hidden@example.com"],
+        )
+        with self._recording_smtpd() as handler:
+            self.env["ir.mail_server"].send_email(
+                message, mail_server_id=self.mail_server.id
+            )
+        _mail_from, rcpt_tos, _content = self._delivered(handler)
+        self.assertEqual(
+            rcpt_tos,
+            ["hidden@example.com", "to@example.com"],
+            "a blind-copied address is an envelope recipient or it never arrives",
+        )
+        self.assertEqual(
+            message["Bcc"],
+            "hidden@example.com",
+            "send_email works on a detached copy: the caller's message must come "
+            "back unmodified, or a retry loses its blind recipients",
+        )
+
+    @mute_logger("mail.log")
+    def test_x_msg_to_add_widens_the_visible_to_but_not_the_envelope(self):
+        with self._recording_smtpd() as handler:
+            self._send(
+                handler,
+                email_to=["to@example.com"],
+                headers={"X-Msg-To-Add": "reply.all@example.com"},
+            )
+        _mail_from, rcpt_tos, content = self._delivered(handler)
+        self.assertEqual(
+            rcpt_tos,
+            ["to@example.com"],
+            "X-Msg-To-Add exists to make reply-all work by listing correspondents "
+            "in the visible To; adding them to the envelope would deliver this "
+            "copy to people who are meant to get their own",
+        )
+        self.assertIn("reply.all@example.com", content)
+        self.assertNotIn("X-Msg-To-Add", content, "the control header was transmitted")
+
+    @mute_logger("mail.log")
+    def test_x_forge_to_replaces_the_visible_to_but_not_the_envelope(self):
+        with self._recording_smtpd() as handler:
+            self._send(
+                handler,
+                email_to=["real@example.com"],
+                headers={"X-Forge-To": '"A List" <list@example.com>'},
+            )
+        _mail_from, rcpt_tos, content = self._delivered(handler)
+        self.assertEqual(
+            rcpt_tos,
+            ["real@example.com"],
+            "the forged To must not redirect actual delivery",
+        )
+        headers = content.split("\r\n\r\n", 1)[0]
+        self.assertIn("list@example.com", headers)
+        self.assertNotIn("real@example.com", headers, "the forged To did not replace")
+        self.assertNotIn("X-Forge-To", content, "the control header was transmitted")
+
+    @mute_logger("mail.log")
+    def test_send_validated_to_restricts_the_envelope(self):
+        with self._recording_smtpd() as handler:
+            self._send(
+                handler,
+                email_to=["kept@example.com", "dropped@example.com"],
+                context={"send_validated_to": ["kept@example.com"]},
+            )
+        _mail_from, rcpt_tos, _content = self._delivered(handler)
+        self.assertEqual(
+            rcpt_tos,
+            ["kept@example.com"],
+            "send_validated_to is how the caller says which addresses it has "
+            "already checked; anything else must not be handed to RCPT TO",
+        )
+
+    @mute_logger("mail.log")
+    def test_cc_is_an_envelope_recipient(self):
+        with self._recording_smtpd() as handler:
+            self._send(
+                handler,
+                email_to=["to@example.com"],
+                email_cc=["copy@example.com"],
+            )
+        _mail_from, rcpt_tos, content = self._delivered(handler)
+        self.assertEqual(rcpt_tos, ["copy@example.com", "to@example.com"])
+        self.assertIn("copy@example.com", content.split("\r\n\r\n", 1)[0])
+
+    @mute_logger("mail.log")
+    def test_return_path_becomes_the_envelope_sender(self):
+        with self._recording_smtpd() as handler:
+            self._send(
+                handler,
+                email_to=["to@example.com"],
+                headers={"Return-Path": "bounces@example.com"},
+            )
+        mail_from, _rcpt_tos, content = self._delivered(handler)
+        self.assertEqual(
+            mail_from,
+            "bounces@example.com",
+            "the envelope sender is where bounces go and is set from Return-Path; "
+            "the visible From stays the author",
+        )
+        self.assertIn("sender@example.com", content.split("\r\n\r\n", 1)[0])
+        self.assertNotIn(
+            "Return-Path", content, "Return-Path is the receiving MTA's to write"
+        )
+
+    @mute_logger("mail.log")
+    def test_unicode_recipient_reaches_a_server_that_advertises_smtputf8(self):
+        with self._recording_smtpd(smtputf8=True) as handler:
+            self._send(handler, email_to=["\u00fcser@example.com"])
+        _mail_from, rcpt_tos, _content = self._delivered(handler)
+        self.assertEqual(rcpt_tos, ["\u00fcser@example.com"])
+
+    @mute_logger("mail.log")
+    def test_unicode_recipient_is_refused_when_the_server_cannot_carry_it(self):
+        with self._recording_smtpd(smtputf8=False) as handler:
+            with self.assertRaises(OutgoingEmailError) as capture:
+                self._send(handler, email_to=["\u00fcser@example.com"])
+        self.assertEqual(
+            capture.exception.code,
+            self.env["ir.mail_server"].NO_VALID_RECIPIENT,
+            "a server that did not advertise SMTPUTF8 cannot carry the address; "
+            "refusing is the only alternative to mangling it on the wire",
+        )
+        self.assertFalse(
+            handler.envelopes,
+            "the message was handed to a server that cannot represent its recipient",
+        )
+
+    @mute_logger("mail.log")
+    def test_ascii_still_flows_to_a_server_without_smtputf8(self):
+        with self._recording_smtpd(smtputf8=False) as handler:
+            self._send(handler, email_to=["plain@example.com"])
+        _mail_from, rcpt_tos, _content = self._delivered(handler)
+        self.assertEqual(rcpt_tos, ["plain@example.com"])

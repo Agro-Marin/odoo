@@ -76,6 +76,22 @@ class IrConfig_Parameter(models.Model):
             )
             return default
 
+    _FALSY_PARAM_VALUES = frozenset({"", "0", "false", "no", "off", "none"})
+
+    @api.model
+    def get_param_bool(self, key: str, default: bool = False) -> bool:
+        """Read a boolean ICP, the missing sibling of ``get_param_int``.
+
+        The stored value is free text, so ``get_param(key)`` answers with a
+        *string*: ``'False'``, ``'0'`` and ``'no'`` are all truthy in Python and
+        every caller that tested the raw value read them as "on". Spell the
+        false-ish words out instead, and treat anything else non-empty as true.
+        """
+        raw = self.get_param(key)
+        if raw is False or raw is None:
+            return default
+        return str(raw).strip().lower() not in self._FALSY_PARAM_VALUES
+
     @api.model
     @ormcache("key", cache="stable")
     def _get_param(self, key: str) -> str | None:

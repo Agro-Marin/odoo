@@ -641,9 +641,16 @@ _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 
 
 def validate_url(url: str) -> str:
-    if urlparse(url).scheme not in ("http", "https", "ftp", "ftps"):
-        return "http://" + url
-    return url
+    if urlparse(url).scheme in ("http", "https", "ftp", "ftps"):
+        return url
+    if url.startswith(("/", "?", "#")):
+        # A path, query or fragment on its own carries no host, so there is
+        # nothing for a scheme to attach to: "/index.html" became
+        # "http:///index.html", an empty authority that resolves nowhere. Leave it
+        # relative and let the caller join it to the base URL it owns —
+        # `link.tracker._compute_absolute_url` already has that branch.
+        return url
+    return "http://" + url
 
 
 def is_html_empty(

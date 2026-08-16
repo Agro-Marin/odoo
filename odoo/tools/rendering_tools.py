@@ -1,6 +1,7 @@
 import functools
 import numbers
 import re
+from collections.abc import Callable
 from urllib.parse import quote, urlencode
 
 from dateutil import relativedelta
@@ -73,8 +74,16 @@ def renders_as_no_value(result: object) -> bool:
 
 
 def render_inline_template(
-    template_instructions: list[tuple[str, str, str]], variables: dict[str, object]
+    template_instructions: list[tuple[str, str, str]],
+    variables: dict[str, object],
+    format_value: Callable[[object], str] = str,
 ) -> str:
+    """Evaluate an inline template.
+
+    ``format_value`` turns a resolved value into text. It exists so that the caller
+    — mail, the only consumer — can render a recordset the same way its
+    evaluation-free renderer does; ``str`` alone answers ``res.partner(11,)``.
+    """
     results = []
     for string, expression, default in template_instructions:
         results.append(string)
@@ -84,7 +93,7 @@ def render_inline_template(
             if renders_as_no_value(result):
                 result = default
             if result != "":
-                results.append(str(result))
+                results.append(format_value(result))
 
     return "".join(results)
 

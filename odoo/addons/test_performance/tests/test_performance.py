@@ -568,7 +568,7 @@ class TestPerformance(SavepointCaseWithUserDemo):
             records.invalidate_model(["value"])
             records.mapped("value")
 
-        with self.assertQueryCount(__system__=2, demo=2):
+        with self.assertQueryCount(__system__=1, demo=1):  # -1: one uniform UPDATE instead of a VALUES join per batch
             records.invalidate_model(["value"])
             new_recs = records.browse(
                 records.new(origin=record).id for record in records
@@ -633,7 +633,7 @@ class TestPerformance(SavepointCaseWithUserDemo):
         new_records_ids.append(new_record.id)
         new_records = model.browse(new_records_ids)
 
-        with self.assertQueryCount(3):
+        with self.assertQueryCount(2):  # -1: one uniform UPDATE instead of a VALUES join per batch
             for record in new_records:
                 for line in record.line_ids:
                     line.value

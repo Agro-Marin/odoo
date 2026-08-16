@@ -37,5 +37,6 @@ from . import (
     test_validation,
     test_views,
     test_web_save,
+    test_write_uniform_update,
 )
 from . import test_translation_write_propagation
