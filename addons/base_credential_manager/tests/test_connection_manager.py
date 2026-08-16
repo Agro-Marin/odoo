@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 from odoo.tests.common import BaseCase
 
+from odoo.addons.base_credential_manager.tools import connection_manager
 from odoo.addons.base_credential_manager.tools.connection_manager import (
     ConnectionManager,
     get_connection_manager,
@@ -266,6 +267,30 @@ class TestConnectionManager(BaseCase):
         meta = self.manager.get_metadata(None, "nonexistent")
         self.assertIsNone(meta)
 
+    def test_cleanup_stops_background_loop(self):
+        """Cleanup must stop the network thread, not just disconnect.
+
+        paho-mqtt's ``disconnect()`` leaves the ``loop_start()`` thread running,
+        and that thread auto-reconnects — so a client that was only
+        disconnected keeps talking to the broker under the same client_id.
+        ``loop_stop()`` has to be called too, and before the disconnect.
+        """
+
+        class PahoLikeClient:
+            def __init__(self):
+                self.calls = []
+
+            def loop_stop(self):
+                self.calls.append("loop_stop")
+
+            def disconnect(self):
+                self.calls.append("disconnect")
+
+        conn = PahoLikeClient()
+        self.manager._cleanup_connection(conn)
+
+        self.assertEqual(conn.calls, ["loop_stop", "disconnect"])
+
     def test_cleanup_none_connection(self):
         """Test cleanup handles None connection gracefully."""
         # Should not raise exception
@@ -283,28 +308,29 @@ class TestConnectionManager(BaseCase):
 
 
 class TestConnectionManagerRegistry(BaseCase):
-    """Test registry-based connection manager functionality."""
+    """Test the process-global connection manager registry."""
+
+    def setUp(self):
+        """Isolate the process-global manager registry for each test."""
+        super().setUp()
+        # get_connection_manager keys managers by database in a module-level
+        # dict, so tests would otherwise leak managers into one another.
+        connection_manager._managers.clear()
+        self.addCleanup(connection_manager._managers.clear)
 
     def test_get_connection_manager_creates_new(self):
         """Test that get_connection_manager creates manager if not exists."""
-        # Mock environment with registry
         env = Mock()
-        env.registry = Mock()
         env.cr.dbname = "test_db"
-
-        # No manager exists yet
-        del env.registry._connection_manager
 
         manager = get_connection_manager(env)
 
         self.assertIsNotNone(manager)
         self.assertIsInstance(manager, ConnectionManager)
-        self.assertTrue(hasattr(env.registry, "_connection_manager"))
 
     def test_get_connection_manager_returns_existing(self):
         """Test that get_connection_manager returns existing manager."""
         env = Mock()
-        env.registry = Mock()
         env.cr.dbname = "test_db"
 
         # Create first manager
@@ -315,12 +341,40 @@ class TestConnectionManagerRegistry(BaseCase):
 
         self.assertIs(manager1, manager2)
 
+    def test_manager_is_isolated_per_database(self):
+        """Two databases must never share a connection manager."""
+        env_a, env_b = Mock(), Mock()
+        env_a.cr.dbname = "db_a"
+        env_b.cr.dbname = "db_b"
+
+        self.assertIsNot(get_connection_manager(env_a), get_connection_manager(env_b))
+
+    def test_manager_survives_registry_rebuild(self):
+        """A registry rebuild must not orphan live connections.
+
+        Connections here are backed by real OS threads that outlive the
+        registry. When the manager hung off ``env.registry``, every rebuild
+        handed out a fresh empty manager while the previous clients kept
+        running unreachable — which is how a leaked MQTT client per rebuild
+        ended up reconnecting forever under a duplicate client_id.
+        """
+        env = Mock()
+        env.cr.dbname = "test_db"
+        manager = get_connection_manager(env)
+        conn = MockConnection("device:1")
+        manager.set(env, "device:1", conn)
+
+        # Simulate a registry rebuild: same database, new registry object.
+        env.registry = Mock()
+
+        self.assertIs(get_connection_manager(env), manager)
+        self.assertIs(get_connection_manager(env).get(env, "device:1"), conn)
+        self.assertFalse(conn.disconnected)
+
     def test_different_max_connections(self):
         """Test creating manager with different max_connections."""
         env = Mock()
-        env.registry = Mock()
         env.cr.dbname = "test_db"
-        del env.registry._connection_manager
 
         manager = get_connection_manager(env, max_connections=500)
 

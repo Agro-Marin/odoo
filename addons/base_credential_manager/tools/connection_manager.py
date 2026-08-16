@@ -1,4 +1,4 @@
-"""Registry-based, thread-safe manager for long-lived protocol connections.
+"""Process-global, thread-safe manager for long-lived protocol connections.
 
 Handles connection lifecycle (LRU eviction, metadata tracking, graceful
 cleanup) for persistent protocols such as MQTT, WebSocket and Modbus TCP.
@@ -7,6 +7,7 @@ manager is specifically for persistent protocol connections, not HTTP.
 """
 
 import logging
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -16,7 +17,7 @@ _logger = logging.getLogger(__name__)
 
 
 class ConnectionManager(BaseLRUCache):
-    """Registry-based connection pool for long-lived connections.
+    """Process-global connection pool for long-lived connections.
 
     Extends BaseLRUCache with graceful connection cleanup, metadata tracking,
     and no TTL (connections stay open until evicted or removed).
@@ -40,8 +41,11 @@ class ConnectionManager(BaseLRUCache):
     def __del__(self):
         """Cleanup all connections when the manager is garbage collected."""
         try:
-            # Non-blocking acquire avoids deadlocks during garbage collection
-            # (triggered when the registry is rebuilt or the manager is deleted).
+            # Non-blocking acquire avoids deadlocks during garbage collection.
+            # Note this is a backstop, not the primary teardown path: a manager
+            # holding a thread-backed connection is not reliably collectable
+            # (see :func:`get_connection_manager`). Use
+            # :meth:`invalidate_all` for deterministic cleanup.
             if self._lock.acquire(blocking=False):
                 try:
                     connections_to_cleanup = [
@@ -181,7 +185,9 @@ class ConnectionManager(BaseLRUCache):
 
     def invalidate_all(self) -> None:
         """Invalidate all connections and cleanup gracefully."""
-        # Called when the registry is rebuilt or for manual cleanup.
+        # The deterministic teardown entry point: call this from a consumer's
+        # ``_register_hook`` to drop connections on module upgrade/registry
+        # reload, which no longer happens implicitly.
         entries = self._clear()
 
         # Cleanup connections OUTSIDE the lock (can take time)
@@ -212,30 +218,49 @@ class ConnectionManager(BaseLRUCache):
         return len(removed)
 
     def _cleanup_connection(self, connection: Any) -> None:
-        """Gracefully close a connection by trying common disconnect/close methods.
+        """Gracefully close a connection and stop any background network thread.
 
         :param connection: connection object to cleanup
         """
         if connection is None:
             return
 
-        # Try common disconnect/close methods
-        cleanup_methods = [
-            "disconnect",
-            "close",
-            "stop",
-            "shutdown",
-            "terminate",
-        ]
+        # Stop the background network loop FIRST, before the protocol-level
+        # disconnect. This targets paho-mqtt specifically: its ``loop_start()``
+        # thread survives ``disconnect()`` and auto-reconnects on its own, so
+        # dropping our last reference does not stop it — it only makes it
+        # unreachable. An unreachable client that keeps reconnecting with the
+        # same client_id collides with its own replacement on the broker (AWS
+        # IoT enforces unique client IDs) and the broker starts refusing
+        # connections. ``loop_stop()`` joins the thread; paho skips the join
+        # when called from inside that thread, so this is safe from a callback.
+        #
+        # Order matters and is safe: after ``loop_stop()`` paho has set
+        # ``_thread`` to None, so the ``disconnect()`` below takes paho's
+        # synchronous ``loop_write()`` path — the DISCONNECT packet is still
+        # sent and ``_packet_write`` closes the socket. Doing it the other way
+        # round would leave the reconnect loop running between the two calls.
+        #
+        # Other connection types have no such thread and no ``loop_stop``:
+        # websocket-client's WebSocketApp and pymodbus clients both stop
+        # cleanly via ``close()`` in the loop below, and are unaffected here.
+        loop_stop = getattr(connection, "loop_stop", None)
+        if callable(loop_stop):
+            try:
+                loop_stop()
+                _logger.debug("Background network loop stopped via loop_stop()")
+            except Exception as e:
+                _logger.warning("Error calling loop_stop() during cleanup: %s", e)
 
-        for method_name in cleanup_methods:
-            if hasattr(connection, method_name):
+        # Then the protocol-level close. Unlike the loop stoppers above these
+        # are alternatives, so stop at the first one that succeeds.
+        for method_name in ("disconnect", "close", "stop", "shutdown", "terminate"):
+            method = getattr(connection, method_name, None)
+            if callable(method):
                 try:
-                    method = getattr(connection, method_name)
-                    if callable(method):
-                        method()
-                        _logger.debug("Connection closed via %s() method", method_name)
-                        return
+                    method()
+                    _logger.debug("Connection closed via %s() method", method_name)
+                    return
                 except Exception as e:
                     _logger.warning(
                         "Error calling %s() during cleanup: %s",
@@ -249,32 +274,60 @@ class ConnectionManager(BaseLRUCache):
 # ==================== Registry-Based Manager ====================
 
 
-def get_connection_manager(env, max_connections: int = 1000) -> ConnectionManager:
-    """Get or create the connection manager from the registry.
+_managers: dict[str, ConnectionManager] = {}
+_managers_lock = threading.Lock()
 
-    :param env: Odoo environment (provides access to the registry)
+
+def get_connection_manager(env, max_connections: int = 1000) -> ConnectionManager:
+    """Get or create the connection manager for this database.
+
+    :param env: Odoo environment (provides the database name)
     :param int max_connections: maximum connections (default 1000)
     :return: connection manager instance for this database
     :rtype: ConnectionManager
     """
-    # Registry-based storage gives automatic cleanup on module upgrade/reload
-    # (registry is rebuilt), per-database isolation, and no stale connections
-    # after code changes.
-    registry = env.registry
+    # Process-global, keyed by database. This manager owns connections backed by
+    # real OS threads (paho's ``loop_start()``, websocket-client's
+    # ``run_forever()``), whose lifetime is the *process* — so the owning
+    # container must be the process too.
+    #
+    # This was previously attached to ``env.registry`` on the theory that a
+    # registry rebuild would garbage-collect the manager and its connections.
+    # It does not, for two compounding reasons:
+    #
+    #   1. A paho client is wired to bound methods of the recordset that opened
+    #      it (``client.on_connect = self._mqtt_on_connect``), and a bound method
+    #      holds its recordset -> env -> registry -> the manager -> the client.
+    #      That cycle is anchored by the live network thread, so the old registry
+    #      stays reachable and ``ConnectionManager.__del__`` never runs.
+    #   2. Even when cleanup does run, dropping a reference never stops a
+    #      background thread (see :meth:`ConnectionManager._cleanup_connection`).
+    #
+    # The observed result was one leaked paho client *per device per registry
+    # rebuild*, each still auto-reconnecting with the same client_id, colliding
+    # with its own replacement until the broker refused every connection.
+    # Keying by database preserves the per-database isolation the registry
+    # provided; consumers that need teardown on module upgrade should call
+    # :meth:`ConnectionManager.invalidate_all` from their ``_register_hook``.
+    dbname = env.cr.dbname
+    manager = _managers.get(dbname)
+    if manager is not None:
+        return manager
 
-    # Check if manager exists in registry
-    if not hasattr(registry, "_connection_manager"):
-        # Create new manager and attach to registry
-        registry._connection_manager = ConnectionManager(
-            max_connections=max_connections
-        )
-        _logger.info(
-            "Created new connection manager for database '%s': max_connections=%d",
-            env.cr.dbname,
-            max_connections,
-        )
-
-    return registry._connection_manager
+    with _managers_lock:
+        # Re-check inside the lock: concurrent workers race to create the first
+        # manager, and losing that race must not discard the winner's live
+        # connections.
+        manager = _managers.get(dbname)
+        if manager is None:
+            manager = ConnectionManager(max_connections=max_connections)
+            _managers[dbname] = manager
+            _logger.info(
+                "Created new connection manager for database '%s': max_connections=%d",
+                dbname,
+                max_connections,
+            )
+        return manager
 
 
 def invalidate_all_connections(env) -> None:
@@ -283,7 +336,7 @@ def invalidate_all_connections(env) -> None:
     :param env: Odoo environment
     """
     # WARNING: this disconnects all active connections.
-    if hasattr(env.registry, "_connection_manager"):
-        manager = env.registry._connection_manager
+    manager = _managers.get(env.cr.dbname)
+    if manager is not None:
         manager.invalidate_all()
         _logger.warning("All connections invalidated for database '%s'", env.cr.dbname)
