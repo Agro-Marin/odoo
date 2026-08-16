@@ -64,8 +64,10 @@ class AttachmentController(ThreadController):
         if not thread:
             raise NotFound
         vals = {
-            "name": ufile.filename,
-            "raw": ufile.read(),
+            # no `name`/`raw` here: _from_request_file derives the name from
+            # the request file and reads the payload itself. Passing them
+            # collided with its own `name` argument on the streaming path and
+            # drained the file object before it could be streamed.
             # reuse the id already coerced and access-checked by
             # _get_thread_with_access_for_post, not the raw client input
             "res_id": thread.id,
