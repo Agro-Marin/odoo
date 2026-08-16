@@ -50,6 +50,16 @@
  * UNTESTED-BY-SUITE: no automated suite exercises this worker. Changes here
  * are verified by `node --check`, eslint and manual tracing only.
  */
+/**
+ * `self` is typed `WorkerGlobalScope` by `lib.webworker` — the generic worker
+ * scope, which carries neither `skipWaiting` nor `clients` nor `registration`.
+ * A script cannot have `self` re-typed from outside it, so the narrowing is
+ * stated once here; the `any` hop is what the two scopes not overlapping costs.
+ *
+ * @type {ServiceWorkerGlobalScope}
+ */
+const sw = /** @type {any} */ (self);
+
 const CACHE_VERSION = "v1";
 const CACHE_PREFIX = "odoo-sw-cache";
 const STATIC_CACHE_PREFIX = "odoo-static-cache";
@@ -75,7 +85,7 @@ const sessionInfoURL = "/web/__sw_session_info__";
 
 let sessionInfo = null;
 
-self.addEventListener("install", (event) => {
+sw.addEventListener("install", (event) => {
     event.waitUntil(
         Promise.all([
             fetch(homepageURL).then((res) =>
@@ -86,7 +96,7 @@ self.addEventListener("install", (event) => {
     );
 });
 
-self.addEventListener("activate", (event) => {
+sw.addEventListener("activate", (event) => {
     event.waitUntil(activateCaches());
 });
 
@@ -515,7 +525,7 @@ const serveShareTarget = (event) => {
     );
 };
 
-self.addEventListener("fetch", (event) => {
+sw.addEventListener("fetch", (event) => {
     if (
         event.request.method === "POST" &&
         new URL(event.request.url).searchParams.has("share_target")
@@ -554,9 +564,9 @@ const waitingMessage = async (message) =>
         nextMessageMap.get(message).push(resolve);
     });
 
-self.addEventListener("message", (event) => {
+sw.addEventListener("message", (event) => {
     if (event.data?.type === "SKIP_WAITING") {
-        self.skipWaiting();
+        sw.skipWaiting();
         return;
     }
     const messageNotifiers = nextMessageMap.get(event.data);
@@ -572,7 +582,7 @@ self.addEventListener("message", (event) => {
     }
 });
 
-self.__ODOO_SW_TEST_HOOKS__ = {
+sw.__ODOO_SW_TEST_HOOKS__ = {
     extractSessionInfo,
     isStaleWhileRevalidateURL,
     restoreSessionInfo,

@@ -79,7 +79,6 @@ addons/web/static/src/search/search_arch_parser.js
 addons/web/static/src/search/search_bar_menu/search_bar_menu.js
 addons/web/static/src/search/search_model.js
 addons/web/static/src/search/search_panel/search_panel.js
-addons/web/static/src/service_worker.js
 addons/web/static/src/ui/block/block_ui.js
 addons/web/static/src/ui/bottom_sheet/bottom_sheet.js
 addons/web/static/src/ui/dialog/confirmation_dialog.js
@@ -254,7 +253,6 @@ addons/web/static/tests/fields/basic/monetary/monetary_field.test.js
 addons/web/static/tests/fields/basic/numeric_fields.test.js
 addons/web/static/tests/fields/basic/phone/phone_field.test.js
 addons/web/static/tests/fields/basic/url/url_field.test.js
-addons/web/static/tests/fields/display/gauge/gauge_field.test.js
 addons/web/static/tests/fields/field_audit_regressions.test.js
 addons/web/static/tests/fields/input_field_hook.test.js
 addons/web/static/tests/fields/media/binary/binary_field.test.js
@@ -272,7 +270,6 @@ addons/web/static/tests/fields/relational/reference/reference_field.test.js
 addons/web/static/tests/fields/relational/x2many/many2many_field.test.js
 addons/web/static/tests/fields/relational/x2many/one2many_field.test.js
 addons/web/static/tests/fields/relational/x2many/x2many_field.test.js
-addons/web/static/tests/fields/relational/x2many_dialog.test.js
 addons/web/static/tests/fields/selection/badge_selection/badge_selection_field.test.js
 addons/web/static/tests/fields/selection/badge_selection_with_filter/badge_selection_with_filter_field.test.js
 addons/web/static/tests/fields/selection/priority/priority_field.test.js

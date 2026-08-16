@@ -38,6 +38,10 @@ Five ways to fail, all drift-zero
 4. ``resolved`` — an excepted file is now clean. In the default ``exact`` mode
    this FAILS, telling you to commit the shorter list, so the win is locked in
    and can never slip back. Same reasoning as ``tooling/ratchet``'s exact mode.
+A file ``tsconfig.json`` excludes outright is NOT in scope: it belongs to
+another lane (see ``excluded_from_program``), so an exception entry for it is
+reported as out-of-scope rather than kept alive asserting nothing.
+
 5. ``unchecked`` — an in-scope file tsc never compiled. Its silence is not
    evidence of cleanliness, so counting it as locked inflates coverage with
    files nothing looked at. This is not hypothetical: ``exclude: ["**/l10n*"]``,
@@ -152,9 +156,46 @@ CODE_EASE = {
 DEFAULT_EASE = 0.5
 
 
+def excluded_from_program() -> frozenset[str]:
+    """The literal paths ``tsconfig.json`` keeps out of the DOM program.
+
+    A file the main program never compiles is not this gate's to lock. It has
+    either moved to another lane — the service workers are checked by
+    ``tsconfig.serviceworker.*.json`` against ``lib.webworker``, because DOM and
+    WebWorker cannot share a program — or to nothing at all. Either way an
+    exception entry for it asserts nothing, and without this it would keep
+    asserting nothing forever: an excluded path that is already excepted is
+    subtracted from ``unchecked`` (see ``evaluate``), so it goes on counting
+    toward coverage while no compiler looks at it. That is the ``l10n*`` hole in
+    the other direction, and it is how ``web/static/src/service_worker.js``
+    behaved the moment it left the program.
+
+    Read from the tsconfig rather than restated here, for the reason
+    ``is_hidden`` matches tsc's own dotfile rule instead of carrying a list:
+    a second source of truth for what the program contains drifts from the
+    first. Only literal entries are honoured — the globs (``addons/l10n_*``,
+    ``**/lib/…``) name directories this gate's scope never reaches.
+    """
+    tsconfig = ROOT / "tsconfig.json"
+    if not tsconfig.is_file():
+        # No tsconfig, nothing excluded. Reached only by the self-tests, which
+        # point ROOT at a temp tree; a real checkout always has one, and a
+        # missing one is the caller's problem to notice, not this gate's to
+        # guess at.
+        return frozenset()
+    text = re.sub(r"//.*", "", tsconfig.read_text(encoding="utf8"))
+    return frozenset(
+        entry
+        for entry in json.loads(text).get("exclude", [])
+        if not any(ch in entry for ch in "*?")
+    )
+
+
 def module_of(path: str) -> str | None:
     """The gated module a repo-relative path belongs to, or None if unscoped."""
     if not path.endswith(CHECKED_SUFFIXES) or path.endswith(".d.ts"):
+        return None
+    if path in excluded_from_program():
         return None
     match = MODULE_PATH_RE.match(path)
     if not match or match["module"] not in SCOPED_MODULES:

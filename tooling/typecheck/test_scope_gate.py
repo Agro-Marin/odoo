@@ -75,6 +75,27 @@ class ModuleOfTests(unittest.TestCase):
         self.assertIsNone(module_of(f"{WEB_SRC}ui/dialog/dialog.xml"))
         self.assertIsNone(module_of(f"{WEB_SRC}ui/dialog/dialog.scss"))
 
+    def test_file_excluded_from_the_program_is_out_of_scope(self):
+        # A service worker is checked by tsconfig.serviceworker.*.json against
+        # lib.webworker, so tsconfig.json excludes it and this gate must not
+        # claim it. Silence from a compiler that never ran is not cleanliness —
+        # and while such a file is still excepted it is subtracted from
+        # `unchecked` too, so it would count toward coverage forever.
+        self.assertIn(
+            "addons/web/static/src/service_worker.js", scope_gate.excluded_from_program()
+        )
+        self.assertIsNone(module_of("addons/web/static/src/service_worker.js"))
+        # its window-side namesake is not excluded and stays gated
+        self.assertEqual(
+            module_of("addons/web/static/src/webclient/service_worker_service.js"), "web"
+        )
+
+    def test_only_literal_exclusions_narrow_the_scope(self):
+        # The glob entries name directories the scope never reaches; honouring
+        # them here would need a second globber and a second reading of the
+        # tsconfig, which is what this function exists to avoid.
+        self.assertFalse(any("*" in e for e in scope_gate.excluded_from_program()))
+
 
 class CommittedScopeTests(unittest.TestCase):
     """The scope as actually committed — guards against an accidental widening

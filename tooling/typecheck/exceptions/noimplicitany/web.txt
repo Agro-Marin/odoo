@@ -126,7 +126,6 @@ addons/web/static/src/search/search_query_mixin.js
 addons/web/static/src/search/search_split_domain_mixin.js
 addons/web/static/src/search/search_state.js
 addons/web/static/src/search/utils/dates.js
-addons/web/static/src/service_worker.js
 addons/web/static/src/views/calendar/calendar_arch_parser.js
 addons/web/static/src/views/calendar/calendar_common/calendar_common_renderer.js
 addons/web/static/src/views/calendar/calendar_controller.js
@@ -351,7 +350,6 @@ addons/web/static/tests/fields/relational/reference/reference_field.test.js
 addons/web/static/tests/fields/relational/x2many/many2many_field.test.js
 addons/web/static/tests/fields/relational/x2many/one2many_field.test.js
 addons/web/static/tests/fields/relational/x2many/x2many_field.test.js
-addons/web/static/tests/fields/relational/x2many_dialog.test.js
 addons/web/static/tests/fields/selection/badge_selection/badge_selection_field.test.js
 addons/web/static/tests/fields/selection/badge_selection_with_filter/badge_selection_with_filter_field.test.js
 addons/web/static/tests/fields/selection/priority/priority_field.test.js
@@ -466,7 +464,6 @@ addons/web/static/tests/views/calendar/calendar_view.test.js
 addons/web/static/tests/views/calendar/calendar_year_popover.test.js
 addons/web/static/tests/views/calendar/calendar_year_renderer.test.js
 addons/web/static/tests/views/form/auto_save.test.js
-addons/web/static/tests/views/form/form_compiler.test.js
 addons/web/static/tests/views/form/form_save_coordinator.test.js
 addons/web/static/tests/views/form/form_view.test.js
 addons/web/static/tests/views/graph/graph_test_helpers.js

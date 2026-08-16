@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "WebWorker"],
+    "checkJs": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true
+  },
+  "include": []
+}

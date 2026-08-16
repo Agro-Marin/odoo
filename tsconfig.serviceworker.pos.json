@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.serviceworker.json",
+  "files": ["addons/point_of_sale/static/src/app/service_worker.js"]
+}

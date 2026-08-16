@@ -308,6 +308,17 @@
         // .test.js files — were dropped from the program. They reported no
         // errors because nothing compiled them, and the default-deny gate
         // counted that silence as eight files locked at zero.
+        // Service-worker scope: these run against `lib.webworker`, not `DOM`,
+        // and are checked by tsconfig.serviceworker.*.json. Left in this
+        // program they would be compiled a second time against the wrong
+        // globals, which is the reading the other lanes would report.
+        "addons/mail/static/src/service_worker.js",
+        // and the ambient scope it is checked against, which declares types
+        // `lib.dom` does not have and must not be read as if it did
+        "addons/mail/static/src/@types/service_worker_scope.d.ts",
+        "addons/web/static/src/service_worker.js",
+        "addons/point_of_sale/static/src/app/service_worker.js",
+        "addons/website_event_track/static/src/js/service_worker.js",
         "addons/l10n_*",
         "addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js"
     ]

@@ -1,5 +1,15 @@
 // @odoo-module ignore
 
+/**
+ * `self` is typed `WorkerGlobalScope` by `lib.webworker` — the generic worker
+ * scope, which carries neither `skipWaiting` nor `clients` nor `registration`.
+ * A script cannot have `self` re-typed from outside it, so the narrowing is
+ * stated once here; the `any` hop is what the two scopes not overlapping costs.
+ *
+ * @type {ServiceWorkerGlobalScope}
+ */
+const sw = /** @type {any} */ (self);
+
 const cacheName = "odoo-pos-cache";
 
 const fetchCacheRespond = async (event) => {
@@ -32,7 +42,7 @@ const cacheResources = async (event) => {
     }
 };
 
-self.addEventListener("fetch", (event) => {
+sw.addEventListener("fetch", (event) => {
     const url = event.request.url;
 
     // Ignore Chrome extensions and dataset. Dataset will be cached in indexedDB.
@@ -49,7 +59,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 // Handle notification
-self.addEventListener("message", (event) => {
+sw.addEventListener("message", (event) => {
     const data = event.data;
     if (data.urlsToCache && navigator.onLine) {
         for (const url of data.urlsToCache) {

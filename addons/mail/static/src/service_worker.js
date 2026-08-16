@@ -1,32 +1,32 @@
 /** @odoo-module native */
 
 /* global idbKeyval, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url, planPushNotification, notificationTargetPath */
-// The bare-global helpers above are inlined from service_worker_utils.js by the
-// webmanifest controller (this file is served as a classic worker, not bundled).
+/**
+ * @type {ServiceWorkerGlobalScope}
+ */
+const sw = /** @type {any} */ (self);
+
 importScripts("/mail/static/lib/idb-keyval/idb-keyval.js");
 
 const MESSAGE_TYPE = {
     POST_RTC_LOGS: "POST_RTC_LOGS",
 };
-// PUSH_NOTIFICATION_TYPE, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url,
-// planPushNotification and notificationTargetPath are provided by
-// service_worker_utils.js, inlined ahead of this file by the webmanifest
-// controller (see mail/controllers/webmanifest.py).
 
 const { Store, set, get } = idbKeyval;
-const LOG_AGE_LIMIT = 24 * 60 * 60 * 1000; // 24h
+const LOG_AGE_LIMIT = 24 * 60 * 60 * 1000;
+/** @type {IDBDatabase|undefined} */
 let db;
+/** @type {Promise<IDBDatabase>|undefined} */
 let dbPromise;
 const unread_store = new Store("odoo-mail-unread-db", "odoo-mail-unread-store");
 let interactionSinceCleanupCount = 0;
 
 function openDatabase() {
-    // Memoize the open: openDatabase() is called from both the `activate`
-    // handler and lazily from storeLogs(); without this, concurrent calls each
-    // open a separate IDB connection and clobber the shared `db` global.
     dbPromise ??= new Promise((resolve, reject) => {
         const request = indexedDB.open("RtcLogsDB", 1);
-        request.onupgradeneeded = function (event) {
+        request.onupgradeneeded = /** @param {IDBVersionChangeEvent} event */ function (
+            event,
+        ) {
             const db = event.target.result;
             if (!db.objectStoreNames.contains("logs")) {
                 const store = db.createObjectStore("logs", {
@@ -36,7 +36,7 @@ function openDatabase() {
                 store.createIndex("timestamp", "timestamp", { unique: false });
             }
         };
-        request.onsuccess = async function (event) {
+        request.onsuccess = /** @param {Event} event */ async function (event) {
             db = event.target.result;
             try {
                 await cleanupLogs(db);
@@ -45,8 +45,7 @@ function openDatabase() {
             }
             resolve(db);
         };
-        request.onerror = function (event) {
-            // allow a later retry to re-open after a failed attempt
+        request.onerror = /** @param {Event} event */ function (event) {
             dbPromise = undefined;
             reject(event.target.error);
         };
@@ -54,23 +53,21 @@ function openDatabase() {
     return dbPromise;
 }
 
-self.addEventListener("install", () => {
-    // Activate a freshly installed/updated worker without waiting for every
-    // controlled tab to close, so clients.claim() below can take control of the
-    // pages that are already open.
-    self.skipWaiting();
+sw.addEventListener("install", () => {
+    sw.skipWaiting();
 });
 
-self.addEventListener("activate", (event) => {
-    // clients.claim(): take control of already-open pages immediately. Without
-    // it, the page that registered the worker stays uncontrolled until its next
-    // navigation, so navigator.serviceWorker.controller is null there and the
-    // push-dedup response (see the notification-display-request handshake)
-    // cannot be routed back through it — the worker then always times out and
-    // shows a duplicate notification on the focused tab.
-    event.waitUntil(Promise.all([openDatabase(), self.clients.claim()]));
-});
+sw.addEventListener(
+    "activate",
+    /** @param {ExtendableEvent} event */ (event) => {
+        event.waitUntil(Promise.all([openDatabase(), sw.clients.claim()]));
+    },
+);
 
+/**
+ * @param {IDBDatabase} dataBase
+ * @returns {Promise<void>}
+ */
 async function cleanupLogs(dataBase) {
     const cutoffTime = Date.now() - LOG_AGE_LIMIT;
     return new Promise((resolve, reject) => {
@@ -79,25 +76,31 @@ async function cleanupLogs(dataBase) {
         const index = store.index("timestamp");
         const range = IDBKeyRange.upperBound(cutoffTime);
         const request = index.openCursor(range);
-        request.onsuccess = (event) => {
+        request.onsuccess = /** @param {Event} event */ (event) => {
             const cursor = event.target.result;
             if (cursor) {
                 cursor.delete();
                 cursor.continue();
             }
         };
-        request.onerror = (event) => reject(event.target.error);
+        request.onerror = /** @param {Event} event */ (event) =>
+            reject(event.target.error);
         tx.oncomplete = () => resolve();
-        tx.onerror = (event) => reject(event.target.error);
+        tx.onerror = /** @param {Event} event */ (event) => reject(event.target.error);
     });
 }
 
+/**
+ * @param {Array<{type: string, entry: string, value: any}|undefined>} logs
+ * @param {Object} [options]
+ * @param {boolean} [options.download=false]
+ * @returns {Promise<{timelines: Object, snapshots: Object}|undefined>}
+ */
 async function storeLogs(logs, { download = false } = {}) {
     if (!db) {
         await openDatabase();
     }
     if (interactionSinceCleanupCount > 30) {
-        // cleanup logs in case the service worker lives for a long time
         interactionSinceCleanupCount = 0;
         await cleanupLogs(db);
     }
@@ -117,11 +120,13 @@ async function storeLogs(logs, { download = false } = {}) {
                 value: value,
                 timestamp: Date.now(),
             });
-            request.onerror = (event) => reject(event.target.error);
+            request.onerror = /** @param {Event} event */ (event) =>
+                reject(event.target.error);
         }
         if (download) {
             const request = store.getAll();
-            request.onerror = (event) => reject(event.target.error);
+            request.onerror = /** @param {Event} event */ (event) =>
+                reject(event.target.error);
             request.onsuccess = () => {
                 const allLogs = request.result;
                 const timelines = {};
@@ -137,16 +142,16 @@ async function storeLogs(logs, { download = false } = {}) {
             };
         }
         tx.oncomplete = () => resolve(output);
-        tx.onerror = (event) => reject(event.target.error);
+        tx.onerror = /** @param {Event} event */ (event) => reject(event.target.error);
     });
 }
 
 /**
- * @param {number} channelId id of the mail discuss channel
+ * @param {number} channelId
  * @param {Object} param1
- * @param {string} [param1.action] odoo client action
- * @param {boolean} [param1.joinCall] whether we want to join a call on that channel
- * @param {Client | ServiceWorker | MessagePort} [source] if set, will not open the channel on the source
+ * @param {string} [param1.action]
+ * @param {boolean} [param1.joinCall]
+ * @param {Client | ServiceWorker | MessagePort} [source]
  */
 async function openDiscussChannel(
     channelId,
@@ -159,14 +164,16 @@ async function openDiscussChannel(
             new RegExp(`/odoo/action-${action}`),
         );
     }
-    // Prefer the client the user is looking at (focused, then visible), and
-    // among equals a discuss client over any other.
+    /**
+     * @param {WindowClient} client
+     * @returns {number}
+     */
     const getScore = (client) =>
         (client.focused ? 4 : 0) +
         (client.visibilityState === "visible" ? 2 : 0) +
         (discussURLRegexes.some((r) => r.test(new URL(client.url).pathname)) ? 1 : 0);
     let targetClient;
-    for (const client of await self.clients.matchAll({
+    for (const client of await sw.clients.matchAll({
         type: "window",
         includeUncontrolled: true,
     })) {
@@ -185,7 +192,6 @@ async function openDiscussChannel(
         targetClient.focus().catch(() => {});
         return;
     }
-    // No client at all: open a new window on the channel.
     const url = action
         ? new URL(`/odoo/action-${action}`, location.origin)
         : new URL("/odoo/discuss", location.origin);
@@ -193,145 +199,132 @@ async function openDiscussChannel(
     if (joinCall) {
         url.searchParams.set("call", "accept");
     }
-    await self.clients.openWindow(url.toString());
+    await sw.clients.openWindow(url.toString());
 }
 
-self.addEventListener("notificationclick", (event) => {
-    event.notification.close();
-    if (event.notification.data) {
-        const { action, model, res_id } = event.notification.data;
-        if (model === "discuss.channel") {
-            if (event.action === PUSH_NOTIFICATION_ACTION.DECLINE) {
-                event.waitUntil(
-                    fetch("/mail/rtc/channel/leave_call", {
-                        headers: { "Content-type": "application/json" },
-                        body: JSON.stringify({
-                            id: 1,
-                            jsonrpc: "2.0",
-                            method: "call",
-                            params: { channel_id: res_id },
+sw.addEventListener(
+    "notificationclick",
+    /** @param {NotificationEvent} event */ (event) => {
+        event.notification.close();
+        if (event.notification.data) {
+            const { action, model, res_id } = event.notification.data;
+            if (model === "discuss.channel") {
+                if (event.action === PUSH_NOTIFICATION_ACTION.DECLINE) {
+                    event.waitUntil(
+                        fetch("/mail/rtc/channel/leave_call", {
+                            headers: { "Content-type": "application/json" },
+                            body: JSON.stringify({
+                                id: 1,
+                                jsonrpc: "2.0",
+                                method: "call",
+                                params: { channel_id: res_id },
+                            }),
+                            method: "POST",
+                            mode: "cors",
+                            credentials: "include",
                         }),
-                        method: "POST",
-                        mode: "cors",
-                        credentials: "include",
+                    );
+                    return;
+                }
+                event.waitUntil(
+                    openDiscussChannel(res_id, {
+                        action,
+                        joinCall: event.action === PUSH_NOTIFICATION_ACTION.ACCEPT,
                     }),
                 );
-                return;
+            } else if (model) {
+                event.waitUntil(
+                    clients.openWindow(notificationTargetPath(model, res_id)),
+                );
             }
-            event.waitUntil(
-                openDiscussChannel(res_id, {
-                    action,
-                    joinCall: event.action === PUSH_NOTIFICATION_ACTION.ACCEPT,
-                }),
-            );
-        } else if (model) {
-            // model can be absent (payload evolution, third-party push types
-            // reusing options.data): dereferencing it would throw inside the
-            // handler and swallow the click entirely
-            event.waitUntil(clients.openWindow(notificationTargetPath(model, res_id)));
         }
-    }
-});
-self.addEventListener("push", (event) => {
-    let notification;
-    try {
-        notification = event.data?.json();
-    } catch {
-        notification = undefined;
-    }
-    // Pure decision (unit-tested in service_worker_utils.test.js); this handler
-    // only executes the resulting plan against the ServiceWorker APIs.
-    const plan = planPushNotification(notification, {
-        isAndroid: navigator.userAgent.includes("Android"),
-    });
-    switch (plan.type) {
-        case "generic":
-            event.waitUntil(self.registration.showNotification("Odoo"));
-            return;
-        case "show":
-            event.waitUntil(
-                self.registration.showNotification(plan.title, plan.options || {}),
-            );
-            return;
-        case "ignore":
-            return;
-        case "cancel":
-            // waitUntil: without it the worker may be terminated before the
-            // async getNotifications() resolves, leaving the notification up.
-            event.waitUntil(
-                self.registration
-                    .getNotifications({ tag: plan.tag })
-                    .then((notifications) => {
-                        for (const toCancel of notifications) {
-                            toCancel.close();
-                        }
-                    }),
-            );
-            return;
-        case "handshake":
-            event.waitUntil(handlePushEvent(notification));
-            return;
-    }
-});
-
-/** @type {Map<string, Function>} string is correlationId and Function is handler */
-self.handlePushEventMessageFns = new Map();
-
-self.addEventListener("message", ({ data }) => {
-    const { type, payload } = data;
-    if (type === "notification-display-response") {
-        const fn = self.handlePushEventMessageFns.get(payload.correlationId);
-        if (fn) {
-            self.handlePushEventMessageFns.delete(payload.correlationId);
-            fn();
+    },
+);
+sw.addEventListener(
+    "push",
+    /** @param {PushEvent} event */ (event) => {
+        let notification;
+        try {
+            notification = event.data?.json();
+        } catch {
+            notification = undefined;
         }
-    }
-});
+        const plan = planPushNotification(notification, {
+            isAndroid: navigator.userAgent.includes("Android"),
+        });
+        switch (plan.type) {
+            case "generic":
+                event.waitUntil(sw.registration.showNotification("Odoo"));
+                return;
+            case "show":
+                event.waitUntil(
+                    sw.registration.showNotification(plan.title, plan.options || {}),
+                );
+                return;
+            case "ignore":
+                return;
+            case "cancel":
+                event.waitUntil(
+                    sw.registration
+                        .getNotifications({ tag: plan.tag })
+                        .then((notifications) => {
+                            for (const toCancel of notifications) {
+                                toCancel.close();
+                            }
+                        }),
+                );
+                return;
+            case "handshake":
+                event.waitUntil(handlePushEvent(notification));
+                return;
+        }
+    },
+);
 
-// App-badge ownership contract: the "unread" key of `unread_store` is written
-// by BOTH this worker (incrementUnread, for background pushes no client
-// acknowledged) and the web client (store_service_patch.updateAppBadge, which
-// overwrites it with the authoritative inbox counter whenever a tab is running
-// and synced). The worker increments on top of the last client value; the
-// client resets to its true count. Keep the store name/key in sync between the
-// two files if either changes.
-//
-// Serialize the read-modify-write cycles on the unread counter: concurrent
-// push events would otherwise read the same value and lose increments.
+/** @type {Map<string, Function>} */
+sw.handlePushEventMessageFns = new Map();
+
+sw.addEventListener(
+    "message",
+    /** @param {ExtendableMessageEvent} ev */ ({ data }) => {
+        const { type, payload } = data;
+        if (type === "notification-display-response") {
+            const fn = sw.handlePushEventMessageFns.get(payload.correlationId);
+            if (fn) {
+                sw.handlePushEventMessageFns.delete(payload.correlationId);
+                fn();
+            }
+        }
+    },
+);
+
 let unreadUpdatePromise = Promise.resolve();
 function incrementUnread() {
-    // best-effort: an IndexedDB failure (private browsing, quota, blocked
-    // upgrade) must neither reject into the caller — handlePushEvent awaits
-    // this before showing the notification — nor poison this chain: chaining
-    // .then() off a rejected promise never runs, so one failure would freeze
-    // the badge for the rest of the worker's lifetime, with one unhandled
-    // rejection per push on top.
     unreadUpdatePromise = unreadUpdatePromise.then(async () => {
         try {
             const oldCounter = (await get("unread", unread_store)) ?? 0;
             const newCounter = oldCounter + 1;
             await set("unread", newCounter, unread_store);
             navigator.setAppBadge?.(newCounter);
-        } catch {
-            // the web client overwrites the badge with the authoritative
-            // inbox counter whenever a tab is running and synced
-        }
+        } catch {}
     });
     return unreadUpdatePromise;
 }
 
+/**
+ * @param {{options?: {data?: {model: string, res_id: number}}}} notification
+ * @returns {Promise<void>}
+ */
 async function handlePushEvent(notification) {
     const { model, res_id } = notification.options?.data || {};
     const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     let timeoutId;
     return new Promise((resolve) => {
-        // The single `message` dispatcher matches by correlationId and invokes
-        // this handler only for the matching response, so no re-check is needed.
-        self.handlePushEventMessageFns.set(correlationId, () => {
+        sw.handlePushEventMessageFns.set(correlationId, () => {
             clearTimeout(timeoutId);
             resolve();
         });
-        self.clients
+        sw.clients
             .matchAll({ includeUncontrolled: true, type: "window" })
             .then((clients) => {
                 clients.forEach((client) =>
@@ -342,10 +335,9 @@ async function handlePushEvent(notification) {
                 );
             });
         timeoutId = setTimeout(async () => {
-            // No client answered the display request: drop its handler.
-            self.handlePushEventMessageFns.delete(correlationId);
+            sw.handlePushEventMessageFns.delete(correlationId);
             await incrementUnread();
-            self.clients
+            sw.clients
                 .matchAll({ includeUncontrolled: true, type: "window" })
                 .then((clients) => {
                     clients.forEach((client) =>
@@ -356,7 +348,7 @@ async function handlePushEvent(notification) {
                     );
                 });
             resolve(
-                self.registration.showNotification(
+                sw.registration.showNotification(
                     notification.title,
                     notification.options,
                 ),
@@ -364,24 +356,21 @@ async function handlePushEvent(notification) {
         }, 500);
     });
 }
-self.addEventListener("pushsubscriptionchange", (event) => {
-    if (!event.oldSubscription) {
-        return;
-    }
-    // waitUntil: without it the browser may terminate the worker between the
-    // resubscription and the register_devices call, leaving the device row
-    // on the dead endpoint (i.e. no more push notifications, silently).
-    event.waitUntil(resubscribePushDevice(event));
-});
+sw.addEventListener(
+    "pushsubscriptionchange",
+    /** @param {PushSubscriptionChangeEvent} event */ (event) => {
+        if (!event.oldSubscription) {
+            return;
+        }
+        event.waitUntil(resubscribePushDevice(event));
+    },
+);
 
+/** @param {PushSubscriptionChangeEvent} event */
 async function resubscribePushDevice(event) {
-    const subscription = await self.registration.pushManager.subscribe(
+    const subscription = await sw.registration.pushManager.subscribe(
         event.oldSubscription.options,
     );
-    // register_devices rejects with InvalidVapidError unless it receives the
-    // current VAPID public key; the key is the applicationServerKey the old
-    // subscription was created with. Without it this rotation call is dropped
-    // and the device row keeps the dead endpoint.
     const applicationServerKey =
         event.oldSubscription.options?.applicationServerKey ||
         subscription.options?.applicationServerKey;
@@ -415,22 +404,25 @@ async function resubscribePushDevice(event) {
         credentials: "include",
     });
 }
-self.addEventListener("message", async ({ data, source }) => {
-    switch (data.name) {
-        case MESSAGE_TYPE.POST_RTC_LOGS: {
-            const { logs, download } = data;
-            try {
-                const data = await storeLogs(logs, { download });
-                if (download) {
-                    source.postMessage({
-                        action: "POST_RTC_LOGS",
-                        data,
-                    });
+sw.addEventListener(
+    "message",
+    /** @param {ExtendableMessageEvent} ev */ async ({ data, source }) => {
+        switch (data.name) {
+            case MESSAGE_TYPE.POST_RTC_LOGS: {
+                const { logs, download } = data;
+                try {
+                    const data = await storeLogs(logs, { download });
+                    if (download) {
+                        source.postMessage({
+                            action: "POST_RTC_LOGS",
+                            data,
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error storing log:", error);
                 }
-            } catch (error) {
-                console.error("Error storing log:", error);
+                break;
             }
-            break;
         }
-    }
-});
+    },
+);

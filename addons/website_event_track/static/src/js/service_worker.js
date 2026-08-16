@@ -2,6 +2,16 @@
 /* eslint-env serviceworker */
 /* eslint-disable no-restricted-globals */
 /* global idbKeyval */
+/**
+ * `self` is typed `WorkerGlobalScope` by `lib.webworker` — the generic worker
+ * scope, which carries neither `skipWaiting` nor `clients` nor `registration`.
+ * A script cannot have `self` re-typed from outside it, so the narrowing is
+ * stated once here; the `any` hop is what the two scopes not overlapping costs.
+ *
+ * @type {ServiceWorkerGlobalScope}
+ */
+const sw = /** @type {any} */ (self);
+
 importScripts("/website_event_track/static/lib/idb-keyval/idb-keyval.js");
 
 const PREFIX = "odoo-event";
@@ -17,8 +27,8 @@ const pendingRequestsQueueName = `${PREFIX}-pending-requests`;
 const cacheName = `${PREFIX}-cache`;
 const syncStore = new Store(`${PREFIX}-sync-db`, `${PREFIX}-sync-store`);
 const cacheStore = new Store(`${PREFIX}-cache-db`, `${PREFIX}-cache-store`);
-const offlineRoute = `${self.registration.scope}/offline`;
-const scopeURL = new URL(self.registration.scope);
+const offlineRoute = `${sw.registration.scope}/offline`;
+const scopeURL = new URL(sw.registration.scope);
 const cdnURL = CDN_URL ? (CDN_URL.startsWith("http") ? new URL(CDN_URL) : new URL(`http:${CDN_URL}`)) : undefined;
 
 /**
@@ -268,8 +278,8 @@ const processFetchRequest = async (request, options) => {
             const pendingRequests = (await get(pendingRequestsQueueName, syncStore)) || [];
             const serializedRequest = await serializeRequest(requestCopy);
             await set(pendingRequestsQueueName, [...pendingRequests, serializedRequest], syncStore);
-            if (self.registration.sync) {
-                await self.registration.sync.register(pendingRequestsQueueName).catch((err) => {
+            if (sw.registration.sync) {
+                await sw.registration.sync.register(pendingRequestsQueueName).catch((err) => {
                     console.warn("Cannot use BackgroundSync", err);
                     throw requestError;
                 });
@@ -358,22 +368,22 @@ const processMessage = (data) => {
     throw new Error(`Action '${action}' not found.`);
 };
 
-self.addEventListener("fetch", (event) => {
+sw.addEventListener("fetch", (event) => {
     event.respondWith(processFetchRequest(event.request));
 });
 
-self.addEventListener("sync", (event) => {
+sw.addEventListener("sync", (event) => {
     console.info(`Syncing pending requests...`);
     if (event.tag === pendingRequestsQueueName) {
         event.waitUntil(processPendingRequests());
     }
 });
 
-self.addEventListener("message", (event) => {
+sw.addEventListener("message", (event) => {
     event.waitUntil(processMessage(event.data));
 });
 
 // Precache static resources here. Like offline page
-self.addEventListener('install', (event) => {
+sw.addEventListener('install', (event) => {
     event.waitUntil(fetchToCacheOfflinePage());
 });

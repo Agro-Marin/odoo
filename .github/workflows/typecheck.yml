@@ -1,6 +1,6 @@
 name: TypeScript Check
 
-# Three blocking type-check gates over the JS layer (none use continue-on-error):
+# Four blocking type-check gates over the JS layer (none use continue-on-error):
 #
 #   1. tsc ratchet         — project-wide error COUNT, floor in
 #                            tooling/ratchet/baselines/tsc.json. Covers every
@@ -9,6 +9,11 @@ name: TypeScript Check
 #   3. noImplicitAny       — same, and it is what makes (2) real: `any` is
 #                            null-safe by fiat, so an implicit-any value slips
 #                            through a strictNullChecks lock untouched.
+#   4. tsc_serviceworker   — count ratchet over the service-worker lane, which
+#                            the first three cannot see at all: lib.dom and
+#                            lib.webworker cannot share a program, so what they
+#                            report for a worker is measured against `Window`.
+#                            One tsc run per DEPLOYED ROUTE, summed.
 #
 # Gates 2 and 3 are default-deny (tooling/typecheck): every .js/.ts under
 # a gated module's static/{src,tests} must be clean unless it is listed in
@@ -52,6 +57,7 @@ on:
       - 'tsconfig.json'
       - 'tsconfig.strict.json'
       - 'tsconfig.noimplicitany.json'
+      - 'tsconfig.serviceworker*.json'
       - 'jsconfig.json'
       - 'package.json'
       - 'package-lock.json'
@@ -147,6 +153,29 @@ jobs:
 
       - name: noImplicitAny excepted-file budgets
         run: python tooling/typecheck/excepted_budget.py noimplicitany --log /tmp/tsc-noimplicitany.log
+
+      - name: Service-worker lane (lib.webworker, one program per route)
+        id: sw
+        # Three runs, not one: a TS program is a global scope and each deployed
+        # worker is its own, so a single program makes their top-level consts
+        # collide. The three counts are summed into one floor -- what matters is
+        # that this scope stops growing, and splitting the floor three ways would
+        # only make a file moving between routes look like drift.
+        run: |
+          set +e
+          TOTAL=0
+          for lane in web pos event; do
+            npx tsc --project "tsconfig.serviceworker.$lane.json" --noEmit \
+              > "/tmp/tsc-sw-$lane.log" 2>&1
+            N=$(grep -c "error TS" "/tmp/tsc-sw-$lane.log" || true)
+            echo "  $lane: $N"
+            TOTAL=$((TOTAL + N))
+          done
+          set -e
+          echo "error_count=${TOTAL}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce service-worker ratchet
+        run: python tooling/ratchet/ratchet.py tsc_serviceworker --count "${{ steps.sw.outputs.error_count }}"
 
       - name: Summarise
         if: always()
