@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="job_channel_document_extract" model="ir.job.channel">
+        <field name="name">document_extract</field>
+        <field name="capacity">2</field>
+    </record>
+
+</odoo>
