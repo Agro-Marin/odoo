@@ -20,7 +20,6 @@ class ListActivityButton extends ActivityButton {
 
 export class ListActivity extends Component {
     static components = { ActivityButton: ListActivityButton };
-    // also used in children, in particular in ActivityButton
     static fieldDependencies = [
         { name: "activity_exception_decoration", type: "selection", selection: [] },
         { name: "activity_exception_icon", type: "char" },

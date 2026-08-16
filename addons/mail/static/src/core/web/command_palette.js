@@ -6,6 +6,11 @@ registry.category("command_categories").add("activity", {}, { sequence: 45 });
 const commandProviderRegistry = registry.category("command_provider");
 
 commandProviderRegistry.add("activity", {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {Object} options
+     * @returns {Object[]}
+     */
     provide: (env, options) => [
         {
             name: _t("Show My Activities"),

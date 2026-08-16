@@ -3,7 +3,7 @@ import { Component } from "@odoo/owl";
 
 /**
  * @typedef {Object} Props
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class CountryFlag extends Component {
     static props = ["country", "class?"];

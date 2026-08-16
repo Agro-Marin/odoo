@@ -22,9 +22,6 @@ export class MailServerConfiguratorSelection extends SelectionField {
         });
     }
 
-    /**
-     * Allow to change the value displayed without making the field dirty.
-     */
     get value() {
         return this.state.value || super.value;
     }
@@ -37,6 +34,7 @@ export class MailServerConfiguratorSelection extends SelectionField {
         return !!this.props.record.data.outgoing_mail_server_id;
     }
 
+    /** @param {string} value */
     async onOptionChange(value) {
         const oldValue = this.value;
         this.state.value = value;
@@ -52,7 +50,6 @@ export class MailServerConfiguratorSelection extends SelectionField {
             }
         } catch (error) {
             this.state.value = oldValue;
-            // optional chain: transport-level errors (connection lost) have no .data
             this.notification.add(error.data?.message || error.message, {
                 type: "danger",
             });

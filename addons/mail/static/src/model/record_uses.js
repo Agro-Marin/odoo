@@ -3,16 +3,7 @@
 /** @typedef {import("./record_list").RecordList} RecordList */
 
 export class RecordUses {
-    /**
-     * Track the uses of a record. Each record contains a single `RecordUses`:
-     * - Key: record that uses current record. Keyed by reference, not by
-     *   localId: localId strings are reusable after delete + re-insert,
-     *   which would alias stale entries onto the new record.
-     * - Value: Map where key is relational field name, and value is number
-     *          of time current record is present in this relation.
-     *
-     * @type {Map<Record, Map<string, number>>}
-     */
+    /** @type {Map<Record, Map<string, number>>} */
     data = new Map();
     /** @param {RecordList} list */
     add(list) {

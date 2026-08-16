@@ -67,8 +67,6 @@ export class ChatHub extends Component {
             onDragEnd: () => (this.position.isDragging = false),
             onDrop: this.onDrop.bind(this),
         });
-        // useBus: a raw addEventListener would leak a listener holding the
-        // destroyed component on every mount (see chat_bubble.js).
         useBus(this.env.bus, "ChatWindow:will-open", () => {
             this.resetPosition();
         });
@@ -121,6 +119,11 @@ export class ChatHub extends Component {
         return isMobileOS();
     }
 
+    /**
+     * @param {Object} position
+     * @param {number} position.top
+     * @param {number} position.left
+     */
     onDrop({ top, left }) {
         this.position.bottom = "unset";
         this.position.right = "unset";
@@ -158,17 +161,18 @@ export class ChatHub extends Component {
         return counter;
     }
 
-    /** @deprecated */
     get displayConversations() {
         return this.chatHub.showConversations && !this.chatHub.compact;
     }
 
-    /** @deprecated */
     get isShown() {
         return true;
     }
 
-    /** @deprecated */
+    /**
+     * @param {import("models").ChatWindow} cw
+     * @returns {boolean}
+     */
     shouldDisplayChatWindow(cw) {
         return cw.canShow;
     }

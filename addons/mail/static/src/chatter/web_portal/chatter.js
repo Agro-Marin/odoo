@@ -14,7 +14,23 @@ import { useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 /**
  * @typedef {Object} Props
- * @extends {Component<Props, Env>}
+ * @property {boolean} [composer=true]
+ * @property {number|false} [threadId=false]
+ * @property {string} threadModel
+ * @property {boolean} [twoColumns=false]
+ */
+/**
+ * @typedef {Object} State
+ * @property {number} jumpThreadPresent
+ * @property {import("models").Thread} thread
+ * @property {boolean} aside
+ * @property {boolean} disabled
+ * @property {boolean} [isTopStickyPinned]
+ */
+/**
+ * @template {Props} [P=Props]
+ * @template {State} [S=State]
+ * @extends {Component<P, import("@web/env").OdooEnv>}
  */
 export class Chatter extends Component {
     static template = "mail.Chatter";
@@ -24,46 +40,42 @@ export class Chatter extends Component {
 
     setup() {
         this.store = useService("mail.store");
-        this.state = useState({
-            jumpThreadPresent: 0,
-            /** @type {import("models").Thread} */
-            thread: undefined,
-            aside: false,
-            disabled: !this.props.threadId,
-        });
+        /** @type {S} */
+        this.state = /** @type {S} */ (
+            useState({
+                jumpThreadPresent: 0,
+                /** @type {import("models").Thread} */
+                thread: undefined,
+                aside: false,
+                disabled: !this.props.threadId,
+            })
+        );
         this.rootRef = useRef("root");
         this.onScrollDebounced = useThrottleForAnimation(this.onScroll);
         useChildSubEnv(this.childSubEnv);
 
         onMounted(this._onMounted);
-        onWillUpdateProps((nextProps) => {
-            this.state.disabled = !nextProps.threadId;
-            const threadChanged =
-                this.props.threadId !== nextProps.threadId ||
-                this.props.threadModel !== nextProps.threadModel;
-            if (threadChanged) {
-                this.changeThread(nextProps.threadModel, nextProps.threadId);
-            }
-            // Two independent reasons to fetch, and they must stay independent.
-            // `env.chatter.fetchThreadData` is a *shared* flag the form
-            // controller raises before every root load and the first chatter
-            // render to observe it clears; it covers "same thread, its data may
-            // be stale after a save". It cannot also stand in for "the thread
-            // changed": a render that consumes the flag before the new
-            // `threadId` arrives leaves the switch itself unfetched, which is
-            // how paging to another record showed the previous record's
-            // followers, activities and scheduled messages. A new thread has no
-            // data by construction, so that case answers for itself.
-            const staleDataRequested = this.env.chatter
-                ? this.env.chatter.fetchThreadData
-                : true;
-            if (this.env.chatter) {
-                this.env.chatter.fetchThreadData = false;
-            }
-            if (threadChanged || staleDataRequested) {
-                this.load(this.state.thread, this.requestList);
-            }
-        });
+        onWillUpdateProps(
+            /** @param {{threadModel: string, threadId: number|false}} nextProps */
+            (nextProps) => {
+                this.state.disabled = !nextProps.threadId;
+                const threadChanged =
+                    this.props.threadId !== nextProps.threadId ||
+                    this.props.threadModel !== nextProps.threadModel;
+                if (threadChanged) {
+                    this.changeThread(nextProps.threadModel, nextProps.threadId);
+                }
+                const staleDataRequested = this.env.chatter
+                    ? this.env.chatter.fetchThreadData
+                    : true;
+                if (this.env.chatter) {
+                    this.env.chatter.fetchThreadData = false;
+                }
+                if (threadChanged || staleDataRequested) {
+                    this.load(this.state.thread, this.requestList);
+                }
+            },
+        );
     }
 
     get afterPostRequestList() {
@@ -74,14 +86,20 @@ export class Chatter extends Component {
         return { inChatter: this.state };
     }
 
+    /** @returns {string[]} */
     get onCloseFullComposerRequestList() {
         return ["messages"];
     }
 
+    /** @returns {string[]} */
     get requestList() {
         return [];
     }
 
+    /**
+     * @param {string} threadModel
+     * @param {number|false} threadId
+     */
     changeThread(threadModel, threadId) {
         this.state.thread = this.store.Thread.insert({
             model: threadModel,
@@ -94,9 +112,13 @@ export class Chatter extends Component {
                 this.state.thread.messages.push({
                     id: this.store.getNextTemporaryId(),
                     author_id:
-                        authorModelName === "res.partner" ? effectiveSelf : undefined,
+                        authorModelName === "res.partner"
+                            ? /** @type {import("models").ResPartner} */ (effectiveSelf)
+                            : undefined,
                     author_guest_id:
-                        authorModelName === "mail.guest" ? effectiveSelf : undefined,
+                        authorModelName === "mail.guest"
+                            ? /** @type {import("models").MailGuest} */ (effectiveSelf)
+                            : undefined,
                     body: _t("Creating a new record..."),
                     message_type: "notification",
                     thread: this.state.thread,
@@ -109,7 +131,6 @@ export class Chatter extends Component {
     }
 
     /**
-     * Fetch data for the thread according to the request list.
      * @param {import("models").Thread} thread
      * @param {string[]} requestList
      */
@@ -136,7 +157,6 @@ export class Chatter extends Component {
 
     onPostCallback() {
         this.state.jumpThreadPresent++;
-        // Load new messages to fetch potential new messages from other users (useful due to lack of auto-sync in chatter).
         this.load(this.state.thread, this.afterPostRequestList);
     }
 

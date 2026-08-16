@@ -1,8 +1,7 @@
 $o-mail-Avatar-size: 32px !default;
-$o-mail-ChatWindow-width: 380px !default; // same value as WINDOW
+$o-mail-ChatWindow-width: 380px !default;
 $o-mail-Discuss-inspector: 300px !default;
 $o-mail-Avatar-sizeSmall: 24px !default;
-// Needed because $border-radius variations are all set to 0 in enterprise.
 $o-RoundedRectangle-small: 0.2rem !default;
 $o-RoundedRectangle-large: 3 * $o-RoundedRectangle-small !default;
 
@@ -12,11 +11,6 @@ $o-mail-LinkPreview-width: 320px !default;
 $o-mail-LinkPreview-height: 240px !default;
 $o-mail-LinkPreviewCard-height: 80px !default;
 
-// The talking indicator and the meeting surface. Both are read from files that
-// only the light bundle carries, so their dark answers have to be nameable
-// there. In the *primary* variables rather than beside `$o-discuss-talkingColor`
-// in `core/common/core.scss`, because `call_invitation.scss` also rides
-// `assets_frontend`, which carries no derived variables at all.
 $o-dark-discuss-talkingColor: rgba(
     darken($o-dark-enterprise-action-color, 5%),
     0.75

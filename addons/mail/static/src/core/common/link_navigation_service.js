@@ -4,33 +4,16 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { getOrigin } from "@web/core/utils/urls";
 
-/**
- * Where a click inside message content goes.
- *
- * Message bodies are server-rendered HTML carrying `o_channel_redirect`,
- * `o_mail_redirect` and `o_message_redirect` anchors, so following one is a
- * decision about a DOM event, not about a record: read the anchor's dataset,
- * decide between opening a thread, popping an avatar card, highlighting a
- * message, or letting the browser navigate.
- *
- * That decision used to live on `Store` — ~95 lines of `ev.target.closest("a")`
- * on a reactive record in `recordByLocalId`, alongside the record registry, the
- * RPC batcher and the session identity. It reaches into the store constantly
- * (`Thread.getOrFetch`, `mail.message`, `ChatWindow`, `self_partner`), which is
- * what made it look like it belonged there; but it *consumes* the store rather
- * than being part of it, and nothing about a click handler wants to be a
- * reactive graph node.
- *
- * A class, not an object literal: the `web` layer extends this with the
- * backend-only "open the record's form view" branch, and a prototype is the seam
- * that lets it do so with `super` (@see tooling/architecture/js_service_shape).
- */
 export class LinkNavigation {
     /** @type {import("models").Store} */
     store;
     /** @type {import("@web/env").OdooEnv} */
     env;
 
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {import("models").Store} store
+     */
     constructor(env, store) {
         this.env = env;
         this.store = store;
@@ -38,8 +21,8 @@ export class LinkNavigation {
 
     /**
      * @param {MouseEvent} ev
-     * @param {import("models").Thread} [thread] the thread the click happened in
-     * @returns {boolean} whether the click was handled here
+     * @param {import("models").Thread} [thread]
+     * @returns {boolean}
      */
     handleClickOnLink(ev, thread) {
         const link = ev.target.closest("a");
@@ -101,10 +84,6 @@ export class LinkNavigation {
                 link.href &&
                 new URL(link.href, getOrigin()).origin === getOrigin()
             ) {
-                // link.href (not the raw attribute): a relative
-                // /mail/message/... href is same-origin by definition but a
-                // raw-attribute startsWith(origin) check never matched it,
-                // navigating away instead of showing the access error
                 showAccessError();
                 ev.preventDefault();
                 return true;
@@ -119,7 +98,6 @@ export class LinkNavigation {
             try {
                 url = new URL(link.href);
             } catch {
-                // Ignore invalid URLs
                 return false;
             }
             if (
@@ -133,33 +111,22 @@ export class LinkNavigation {
     }
 
     /**
-     * Neutral on the public page, where there is no avatar card to pop and no
-     * popover service to pop it with. `discuss/core/web` supplies the backend
-     * behaviour.
-     *
      * @param {MouseEvent} ev
-     * @param {number} id `res.partner` id
+     * @param {number} id
      */
     onClickPartnerMention(ev, id) {}
 
-    /**
-     * Called after a link has been followed away from `fromThread`. Neutral
-     * here; the backend uses it to fold the chat window the click came from.
-     *
-     * @param {import("models").Thread} fromThread
-     */
+    /** @param {import("models").Thread} fromThread */
     onLinkFollowed(fromThread) {}
 }
 
 export const linkNavigationService = {
-    // `notification` and `ui` are read lazily through `env.services` inside the
-    // handler rather than declared here, which is how this code already behaved
-    // on `Store`. Promoting them to hard dependencies would be tidier but is a
-    // behaviour change at service-startup time on the public page, where the
-    // set of started services differs -- a separate decision from moving the
-    // code, and deliberately not bundled into it.
     dependencies: ["mail.store"],
-    /** @returns {LinkNavigation} */
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ "mail.store": any }} services
+     * @returns {LinkNavigation}
+     */
     start(env, services) {
         return new LinkNavigation(env, services["mail.store"]);
     },

@@ -15,7 +15,7 @@ import { usePopover } from "@web/ui/popover";
  * @property {import("models").Activity} activity
  * @property {function} onActivityChanged
  * @property {function} reloadParentView
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Activity extends Component {
     static components = { ActivityMailTemplate, FileUploader };
@@ -28,8 +28,6 @@ export class Activity extends Component {
         this.linkNavigation = useService("mail.link_navigation");
         this.state = useState({ showDetails: false });
         this.markDonePopover = usePopover(ActivityMarkAsDone, { position: "right" });
-        // Registered by the discuss web layer, which is always bundled with
-        // core/web (backend assets).
         this.avatarCard = usePopover(discussComponentRegistry.get("AvatarCardPopover"));
         onMounted(() => {
             this.updateDelayAtNight();
@@ -49,9 +47,8 @@ export class Activity extends Component {
         browser.clearTimeout(this.updateDelayMidnightTimeout);
         this.updateDelayMidnightTimeout = browser.setTimeout(() => {
             this.render();
-            // re-arm so the "delay" label keeps updating past midnight
             this.updateDelayAtNight();
-        }, getMsToTomorrow() + 100); // Make sure there is no race condition
+        }, getMsToTomorrow() + 100);
     }
 
     get delay() {
@@ -62,6 +59,7 @@ export class Activity extends Component {
         this.state.showDetails = !this.state.showDetails;
     }
 
+    /** @param {MouseEvent} ev */
     async onClickMarkAsDone(ev) {
         if (this.markDonePopover.isOpen) {
             this.markDonePopover.close();
@@ -74,6 +72,7 @@ export class Activity extends Component {
         });
     }
 
+    /** @param {{data: string, name: string, type: string}} data */
     async onFileUploaded(data) {
         const thread = this.thread;
         const { id: attachmentId } = await this.attachmentUploader.uploadData(data, {
@@ -84,6 +83,7 @@ export class Activity extends Component {
         await thread.fetchNewMessages();
     }
 
+    /** @param {MouseEvent} ev */
     onClickAvatar(ev) {
         if (!this.props.activity.user_id) {
             return;
@@ -105,8 +105,6 @@ export class Activity extends Component {
     async unlink() {
         const thread = this.thread;
         const { activity } = this.props;
-        // server first: the local remove() broadcasts to every tab and has no
-        // rollback, so a failed unlink must not reach it
         await this.env.services.orm.unlink("mail.activity", [activity.id]);
         activity.remove();
         this.props.onActivityChanged(thread);
@@ -119,9 +117,7 @@ export class Activity extends Component {
         });
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     async onClick(ev) {
         this.linkNavigation.handleClickOnLink(ev, this.thread);
     }

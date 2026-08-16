@@ -28,29 +28,30 @@ import { useDebounced } from "@web/core/utils/timing";
  * @property {import("@web/components/emoji_picker/emoji_picker").Emoji} [emoji]
  * @property {string} [help]
  * @property {string} [source]
+ * @property {true} [isSpecial]
+ * @property {string} [displayName]
+ * @property {string} [description]
+ * @property {string[]} [channel_types]
  */
-
 /**
- * @typedef {import("models").ResPartner
- *   | import("models").ResRole
- *   | import("models").Thread
- *   | import("models").CannedResponse
- *   | import("@web/components/emoji_picker/emoji_picker").Emoji
- *   | import("@mail/core/common/store_service").SpecialMention} Suggestion
+ * @typedef {Object} SuggestionSearch
+ * @property {string|undefined} delimiter
+ * @property {number|undefined} position
+ * @property {string} term
+ */
+/**
+ * @typedef {import("models").ResPartner | import("models").ResRole | import("models").Thread | import("models").CannedResponse | import("@web/components/emoji_picker/emoji_picker").Emoji | (import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}) | import("@mail/core/common/store_service").SpecialMention} Suggestion
  */
 export const DELAY_FETCH = 250;
 
 export class UseSuggestion {
+    /** @param {import("@mail/core/common/composer").Composer} comp */
     constructor(comp) {
         this.comp = comp;
         this.fetchSuggestions = useDebounced(
             this.fetchSuggestions.bind(this),
             DELAY_FETCH,
         );
-        // `detect()` recomputes `this.search`, which the effect below reads as
-        // its dependencies. It must run first: registered the other way round,
-        // the search effect saw the previous render's search and only caught up
-        // on a second render forced by bumping a counter nobody read.
         useEffect(
             () => {
                 this.detect();
@@ -66,16 +67,16 @@ export class UseSuggestion {
             () => {
                 this.update();
                 if (this.search.position === undefined || !this.search.delimiter) {
-                    return; // nothing else to fetch
+                    return;
                 }
                 if (!this.composer.store.self_partner) {
-                    return; // guests cannot access fetch suggestion method
+                    return;
                 }
                 if (
                     this.lastFetchedSearch?.count === 0 &&
                     this.isSearchMoreSpecificThanLastFetch
                 ) {
-                    return; // no need to fetch since this is more specific than last and last had no result
+                    return;
                 }
                 this.fetchSuggestions();
             },
@@ -92,11 +93,15 @@ export class UseSuggestion {
         items: undefined,
         isFetching: false,
     });
+    /** @type {SuggestionSearch} */
     search = {
         delimiter: undefined,
         position: undefined,
         term: "",
     };
+    /**
+     * @type {(SuggestionSearch & {count: number})|null|undefined}
+     */
     lastFetchedSearch;
     get isSearchMoreSpecificThanLastFetch() {
         return (
@@ -144,7 +149,6 @@ export class UseSuggestion {
             text = this.composer.composerText;
         }
         if (start !== end) {
-            // avoid interfering with multi-char selection
             this.clearSearch();
             return;
         }
@@ -154,16 +158,11 @@ export class UseSuggestion {
             if (/\s/.test(text[index])) {
                 numberOfSpaces++;
                 if (numberOfSpaces === 2) {
-                    // The consideration stops after the second space since
-                    // a majority of partners have a two-word name. This
-                    // removes the need to check for mentions following a
-                    // delimiter used earlier in the content.
                     break;
                 }
             }
             candidatePositions.push(index);
         }
-        // keep the current delimiter if it is still valid
         if (this.search.position !== undefined && this.search.position < start) {
             candidatePositions.push(this.search.position);
         }
@@ -184,13 +183,13 @@ export class UseSuggestion {
                     minCharCountAfter,
                 ] of supportedDelimiters) {
                     if (
-                        text.substring(candidatePosition).startsWith(delimiter) && // delimiter is used
+                        text.substring(candidatePosition).startsWith(delimiter) &&
                         (allowedPosition === undefined ||
-                            allowedPosition === candidatePosition) && // delimiter is allowed position
+                            allowedPosition === candidatePosition) &&
                         (minCharCountAfter === undefined ||
                             start - candidatePosition - delimiter.length + 1 >
-                                minCharCountAfter) && // delimiter is allowed (enough custom char typed after)
-                        (!goodCandidate || delimiter.length > goodCandidate.length) // delimiter is more specific
+                                minCharCountAfter) &&
+                        (!goodCandidate || delimiter.length > goodCandidate.length)
                     ) {
                         goodCandidate = delimiter;
                     }
@@ -221,6 +220,7 @@ export class UseSuggestion {
     get thread() {
         return this.composer.thread || this.composer.message?.thread;
     }
+    /** @param {Option} option */
     insert(option) {
         let position = this.search.position + 1;
         if (
@@ -244,9 +244,6 @@ export class UseSuggestion {
         } else if (option.role) {
             this.composer.mentionedRoles.add(option.role);
         } else if (option.thread) {
-            // "discuss.channel" literal: identity key of the mentioned
-            // channel in the post payload (channel suggestions are channels
-            // by construction).
             this.composer.mentionedChannels.add({
                 model: "discuss.channel",
                 id: option.thread.id,
@@ -288,8 +285,6 @@ export class UseSuggestion {
             this.state.items = undefined;
             return;
         }
-        // arbitrary limit to avoid displaying too many elements at once
-        // ideally a load more mechanism should be introduced
         const limit = 8;
         suggestions.length = Math.min(suggestions.length, limit);
         this.state.items = { type, suggestions };
@@ -299,10 +294,6 @@ export class UseSuggestion {
         if (!this.thread || status(this.comp) === "destroyed") {
             return;
         }
-        // Snapshot now: `this.search` can change while the fetch is in
-        // flight, and `lastFetchedSearch` must describe the search that was
-        // actually fetched, not the current one (otherwise the cache-coverage
-        // check trusts results that were never fetched).
         const fetchedSearch = { ...this.search };
         let resetFetchingState = true;
         try {
@@ -329,8 +320,6 @@ export class UseSuggestion {
             return;
         }
         this.update();
-        // `count` must also describe the fetched search: `state.items` may
-        // already reflect a newer search term.
         this.lastFetchedSearch = {
             ...fetchedSearch,
             count: this.suggestionService.searchSuggestions(fetchedSearch, {
@@ -348,14 +337,10 @@ export function useSuggestion() {
 }
 
 /**
- * Maps raw suggestion records to navigable list option objects for all suggestion types.
- *
  * @param {string} type
  * @param {Suggestion[]} suggestions
  * @param {Object} [params]
- * @param {import("models").Thread} [params.thread] The thread where the suggestion is being
- *   composed. Used e.g. to resolve partner display names in context and stored on the resulting
- *   Option so that consumers (insertion handlers, mention templates) can access it.
+ * @param {import("models").Thread} [params.thread]
  * @returns {{ optionTemplate?: string, options: Option[] }}
  */
 export function mapSuggestionsToOptions(type, suggestions, { thread } = {}) {
@@ -364,54 +349,65 @@ export function mapSuggestionsToOptions(type, suggestions, { thread } = {}) {
         case "Partner":
             return {
                 optionTemplate: "mail.Composer.suggestionPartner",
-                options: suggestions.map((suggestion) => {
-                    if (suggestion.isSpecial) {
+                options:
+                    /**
+                     * @type {(import("models").ResPartner | import("models").ResRole | import("@mail/core/common/store_service").SpecialMention)[]}
+                     */ (suggestions).map((suggestion) => {
+                        if ("isSpecial" in suggestion) {
+                            return {
+                                ...suggestion,
+                                group: 1,
+                                optionTemplate: "mail.Composer.suggestionSpecial",
+                                classList,
+                            };
+                        }
+                        if (suggestion?.Model?.getName?.() === "res.role") {
+                            return {
+                                label: suggestion.name,
+                                role: suggestion,
+                                thread,
+                                optionTemplate: "mail.Composer.suggestionRole",
+                                classList,
+                            };
+                        }
                         return {
-                            ...suggestion,
-                            group: 1,
-                            optionTemplate: "mail.Composer.suggestionSpecial",
-                            classList,
-                        };
-                    }
-                    if (suggestion?.Model?.getName?.() === "res.role") {
-                        return {
-                            label: suggestion.name,
-                            role: suggestion,
+                            label:
+                                thread?.getPersonaName(suggestion) ?? suggestion.name,
+                            partner: suggestion,
                             thread,
-                            optionTemplate: "mail.Composer.suggestionRole",
                             classList,
                         };
-                    }
-                    return {
-                        label: thread?.getPersonaName(suggestion) ?? suggestion.name,
-                        partner: suggestion,
-                        thread,
-                        classList,
-                    };
-                }),
+                    }),
             };
         case "Thread":
             return {
                 optionTemplate: "mail.Composer.suggestionThread",
-                options: suggestions.map((suggestion) => ({
-                    label: suggestion.fullNameWithParent,
-                    thread: suggestion,
-                    classList,
-                })),
+                options: /** @type {(import("models").Thread)[]} */ (suggestions).map(
+                    (suggestion) => ({
+                        label: suggestion.fullNameWithParent,
+                        thread: suggestion,
+                        classList,
+                    }),
+                ),
             };
         case "ChannelCommand":
             return {
                 optionTemplate: "mail.Composer.suggestionChannelCommand",
-                options: suggestions.map((suggestion) => ({
-                    label: suggestion.name,
-                    help: suggestion.help,
-                    classList,
-                })),
+                options:
+                    /** @type {(import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string})[]} */ (
+                        suggestions
+                    ).map((suggestion) => ({
+                        label: suggestion.name,
+                        help: suggestion.help,
+                        classList,
+                    })),
             };
         case "mail.canned.response":
             return {
                 optionTemplate: "mail.Composer.suggestionCannedResponse",
-                options: suggestions.map((suggestion) => ({
+                options: /** @type {(import("models").CannedResponse)[]} */ (
+                    suggestions
+                ).map((suggestion) => ({
                     cannedResponse: suggestion,
                     label: suggestion.substitution,
                     source: suggestion.source,
@@ -422,10 +418,13 @@ export function mapSuggestionsToOptions(type, suggestions, { thread } = {}) {
         case "emoji":
             return {
                 optionTemplate: "mail.Composer.suggestionEmoji",
-                options: suggestions.map((suggestion) => ({
-                    emoji: suggestion,
-                    label: suggestion.codepoints,
-                })),
+                options:
+                    /** @type {(import("@web/components/emoji_picker/emoji_picker").Emoji)[]} */ (
+                        suggestions
+                    ).map((suggestion) => ({
+                        emoji: suggestion,
+                        label: suggestion.codepoints,
+                    })),
             };
         default:
             return { options: [] };
@@ -435,8 +434,7 @@ export function mapSuggestionsToOptions(type, suggestions, { thread } = {}) {
 /**
  * @param {Option} option
  * @param {Object} [params]
- * @param {import("models").Thread} [params.thread] The thread being viewed by the
- *   user, needed to generate mention links that point back to the right record.
+ * @param {import("models").Thread} [params.thread]
  */
 export function makeMentionFromOption(option, { thread } = {}) {
     let inlineElement;

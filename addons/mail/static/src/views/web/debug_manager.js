@@ -1,10 +1,16 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+/**
+ * @param {Object} params
+ * @param {import("@odoo/owl").Component} params.component
+ * @param {import("@web/env").OdooEnv} params.env
+ * @returns {Object|null}
+ */
 export function manageMessages({ component, env }) {
     const resId = component.model.root.resId;
     if (!resId) {
-        return null; // No record
+        return null;
     }
     const description = _t("Messages");
     return {

@@ -23,6 +23,7 @@ export class ImStatusDropdown extends Component {
         };
     }
 
+    /** @param {"online"|"away"|"busy"|"offline"} status */
     setManualImStatus(status) {
         rpc("/mail/set_manual_im_status", { status });
     }
@@ -38,6 +39,10 @@ export class ImStatusDropdown extends Component {
     }
 }
 
+/**
+ * @param {import("@web/env").OdooEnv} env
+ * @returns {Object}
+ */
 export function imStatusItem(env) {
     return {
         type: "component",

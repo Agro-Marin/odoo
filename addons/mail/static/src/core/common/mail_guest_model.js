@@ -8,7 +8,6 @@ import { imageUrl } from "@web/core/utils/urls";
 const TRANSPARENT_AVATAR =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAABpN6lAAAAAqElEQVR42u3QMQEAAAwCoNm/9GJ4CBHIjYsAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBDQ9+KgAIHd5IbMAAAAAElFTkSuQmCC";
 const { DateTime } = luxon;
-
 /**
  * @typedef {'offline' | 'bot' | 'online' | 'away' | 'im_partner' | undefined} ImStatus
  * @typedef Data
@@ -22,8 +21,10 @@ export class MailGuest extends Record {
     static id = "id";
     static _name = "mail.guest";
     static new() {
+        /** @type {import("models").MailGuest} */
         const record = super.new(...arguments);
         record.debouncedSetImStatus = debounce(
+            /** @param {string} newStatus */
             (newStatus) => record.updateImStatus(newStatus),
             IM_STATUS_DEBOUNCE_DELAY,
         );
@@ -34,16 +35,20 @@ export class MailGuest extends Record {
     avatar_128_access_token;
     /** @type {number} */
     id;
+    /** @type {(newStatus: string) => void} */
     debouncedSetImStatus;
     monitorPresence = fields.Attr(false, {
+        /** @this {import("models").MailGuest} */
         compute() {
             return this.store.env.services.bus_service.isActive && this.id > 0;
         },
     });
     _triggerPresenceSubscription = fields.Attr(null, {
+        /** @this {import("models").MailGuest} */
         compute() {
             return this.monitorPresence && this.presenceChannel;
         },
+        /** @this {import("models").MailGuest} */
         onUpdate() {
             if (this.previousPresencechannel) {
                 this.store.env.services.bus_service.deleteChannel(
@@ -54,9 +59,6 @@ export class MailGuest extends Record {
                 this.store.env.services.bus_service.addChannel(this.presenceChannel);
                 this.previousPresencechannel = this.presenceChannel;
             } else {
-                // Only remember a channel we actually subscribed to — see the
-                // same guard on res.partner: an unconditional record makes the
-                // next update release a claim this record never took.
                 this.previousPresencechannel = undefined;
             }
         },
@@ -68,6 +70,7 @@ export class MailGuest extends Record {
     email;
     /** @type {ImStatus} */
     im_status = fields.Attr(null, {
+        /** @this {import("models").MailGuest} */
         onUpdate() {
             if (
                 this.eq(this.store.self_guest) &&
@@ -86,6 +89,7 @@ export class MailGuest extends Record {
     /** @type {string|undefined} */
     previousPresencechannel;
     presenceChannel = fields.Attr(null, {
+        /** @this {import("models").MailGuest} */
         compute() {
             const channel = `odoo-presence-mail.guest_${this.id}`;
             if (this.im_status_access_token) {
@@ -98,7 +102,7 @@ export class MailGuest extends Record {
 
     get avatarUrl() {
         const accessTokenParam = {};
-        if (this.store.self.main_user_id?.share !== false) {
+        if (this.store.self_partner?.main_user_id?.share !== false) {
             accessTokenParam.access_token = this.avatar_128_access_token;
         }
         if (this.id === -1) {
@@ -110,6 +114,7 @@ export class MailGuest extends Record {
         });
     }
 
+    /** @param {string} name */
     async updateGuestName(name) {
         await rpc("/mail/guest/update_name", {
             guest_id: this.id,
@@ -117,6 +122,7 @@ export class MailGuest extends Record {
         });
     }
 
+    /** @param {string} newStatus */
     updateImStatus(newStatus) {
         if (newStatus === "offline") {
             this.offline_since = DateTime.now();

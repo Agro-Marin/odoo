@@ -10,8 +10,10 @@ export class ResPartner extends Record {
     static id = "id";
     static _name = "res.partner";
     static new() {
+        /** @type {import("models").ResPartner} */
         const record = super.new(...arguments);
         record.debouncedSetImStatus = debounce(
+            /** @param {string} newStatus */
             (newStatus) => record.updateImStatus(newStatus),
             IM_STATUS_DEBOUNCE_DELAY,
         );
@@ -19,9 +21,11 @@ export class ResPartner extends Record {
     }
 
     _triggerPresenceSubscription = fields.Attr(null, {
+        /** @this {import("models").ResPartner} */
         compute() {
             return this.monitorPresence && this.presenceChannel;
         },
+        /** @this {import("models").ResPartner} */
         onUpdate() {
             if (this.previousPresencechannel) {
                 this.store.env.services.bus_service.deleteChannel(
@@ -32,11 +36,6 @@ export class ResPartner extends Record {
                 this.store.env.services.bus_service.addChannel(this.presenceChannel);
                 this.previousPresencechannel = this.presenceChannel;
             } else {
-                // Only remember a channel we actually subscribed to. Recording
-                // `presenceChannel` unconditionally made the *next* update
-                // release a claim this record never took: at best a
-                // "deleteChannel without a matching addChannel" warning, at
-                // worst stealing another consumer's claim on the same channel.
                 this.previousPresencechannel = undefined;
             }
         },
@@ -46,20 +45,18 @@ export class ResPartner extends Record {
     /** @type {string} */
     commercial_company_name;
     country_id = fields.One("res.country");
+    /** @type {(newStatus: string) => void} */
     debouncedSetImStatus;
     /** @type {string} */
     email;
-    /**
-     * function = job position (Frenchism)
-     *
-     * @type {string}
-     */
+    /** @type {string} */
     function;
     group_ids = fields.Many("res.groups", { inverse: "partners" });
     /** @type {number} */
     id;
     /** @type {ImStatus} */
     im_status = fields.Attr(null, {
+        /** @this {import("models").ResPartner} */
         onUpdate() {
             if (this.eq(this.store.self_partner) && this.im_status === "offline") {
                 this.store.env.services.im_status.updateBusPresence();
@@ -74,6 +71,7 @@ export class ResPartner extends Record {
     is_public;
     main_user_id = fields.One("res.users");
     monitorPresence = fields.Attr(false, {
+        /** @this {import("models").ResPartner} */
         compute() {
             if (!this.store.env.services.bus_service.isActive || this.id <= 0) {
                 return false;
@@ -90,6 +88,7 @@ export class ResPartner extends Record {
     /** @type {luxon.DateTime} */
     offline_since = fields.Datetime();
     presenceChannel = fields.Attr(null, {
+        /** @this {import("models").ResPartner} */
         compute() {
             const channel = `odoo-presence-res.partner_${this.id}`;
             if (this.im_status_access_token) {
@@ -102,23 +101,13 @@ export class ResPartner extends Record {
     previousPresencechannel;
     write_date = fields.Datetime();
 
-    /**
-     * @deprecated
-     *
-     * `MessagingMenu.threads` uses this field to filter threads based on search
-     * terms. For each computation, the `menuThread` field is marked as needing a
-     * recompute, which can lead to excessive recursion—sometimes even exceeding the
-     * call stack size. This computation is simple enough that it doesn’t need a
-     * compute and has been replaced by a getter. To override the display name
-     * computation, override the displayName getter.
-     */
     _computeDisplayName() {
         return this.name || this.display_name;
     }
 
     get avatarUrl() {
         const accessTokenParam = {};
-        if (this.store.self.main_user_id?.share !== false) {
+        if (this.store.self_partner?.main_user_id?.share !== false) {
             accessTokenParam.access_token = this.avatar_128_access_token;
         }
         return imageUrl("res.partner", this.id, "avatar_128", {
@@ -137,6 +126,7 @@ export class ResPartner extends Record {
         );
     }
 
+    /** @param {string} newStatus */
     updateImStatus(newStatus) {
         if (newStatus === "offline") {
             this.offline_since = DateTime.now();

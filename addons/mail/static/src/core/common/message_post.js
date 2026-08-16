@@ -3,23 +3,12 @@ import { generateEmojisOnHtml } from "@mail/utils/common/format";
 import { createDocumentFragmentFromContent, isMarkup } from "@web/core/utils/dom/html";
 import { renderToElement } from "@web/core/utils/render";
 
-/**
- * Message-posting helpers: mention detection from composed text and assembly
- * of the `/mail/message/post` parameters. Free functions taking the store
- * explicitly, so they are unit testable without standing up the whole store.
- */
-
-/**
- * Rewrite in place the `#channel` mention anchors of a rendered message body to
- * carry the channel/thread icon. Pure DOM transform — no store needed.
- *
- * @param {HTMLAnchorElement[]} channelLinks
- */
+/** @param {HTMLAnchorElement[]} channelLinks */
 export function handleValidChannelMention(channelLinks) {
     for (const linkEl of channelLinks.filter(
         (el) => !el.querySelector(".fa-comments-o, .fa-hashtag"),
     )) {
-        const text = linkEl.textContent.substring(1); // remove '#' prefix
+        const text = linkEl.textContent.substring(1);
         const icon = linkEl.classList.contains("o_channel_redirect_asThread")
             ? "fa-regular fa-comments"
             : "fa-solid fa-hashtag";
@@ -30,11 +19,29 @@ export function handleValidChannelMention(channelLinks) {
 }
 
 /**
- * Fill `postData.partner_ids_mention_token` from the mention tokens of the
- * partners already listed in `postData.partner_ids`.
- *
+ * @typedef {Object} MessagePostData
+ * @property {import("models").Attachment[]} [attachments]
+ * @property {number[]} [cannedResponseIds]
+ * @property {boolean} [emailAddSignature]
+ * @property {boolean} [isNote]
+ * @property {import("models").Thread[]} [mentionedChannels]
+ * @property {import("models").ResPartner[]} [mentionedPartners]
+ * @property {import("models").ResRole[]} [mentionedRoles]
+ * @property {string|ReturnType<import("@odoo/owl").markup>} [body]
+ * @property {boolean} [email_add_signature]
+ * @property {string} [message_type]
+ * @property {string} [subtype_xmlid]
+ * @property {number[]} [attachment_ids]
+ * @property {string[]} [attachment_tokens]
+ * @property {number[]} [partner_ids]
+ * @property {Object<number, string>} [partner_ids_mention_token]
+ * @property {number[]} [role_ids]
+ * @property {string[]} [special_mentions]
+ * @property {string[]} [partner_emails]
+ */
+/**
  * @param {import("models").Store} store
- * @param {Object} postData
+ * @param {MessagePostData} postData
  */
 export function fillPartnersMentionToken(store, postData) {
     postData.partner_ids_mention_token ||= {};
@@ -47,12 +54,13 @@ export function fillPartnersMentionToken(store, postData) {
 }
 
 /**
- * From a composed `body`, keep only the mentions (threads, partners, roles,
- * special mentions) whose textual form actually appears in it.
- *
  * @param {import("models").Store} store
  * @param {string|ReturnType<import("@odoo/owl").markup>} body
  * @param {Object} [options]
+ * @param {import("models").Thread[]} [options.mentionedChannels=[]]
+ * @param {import("models").ResPartner[]} [options.mentionedPartners=[]]
+ * @param {import("models").ResRole[]} [options.mentionedRoles=[]]
+ * @param {import("models").Thread} [options.thread]
  */
 export function getMentionsFromText(
     store,
@@ -68,9 +76,9 @@ export function getMentionsFromText(
     const segments = isMarkup(body)
         ? Array.from(
               createDocumentFragmentFromContent(body).querySelectorAll("a"),
-              (a) => a.textContent,
+              /** @param {HTMLAnchorElement} a */ (a) => a.textContent,
           )
-        : [body];
+        : [/** @type {string} */ (body)];
     validMentions.threads = mentionedChannels.filter((thread) => {
         const mention = thread.parent_channel_id
             ? `#${thread.parent_channel_id.displayName} > ${thread.displayName}`
@@ -93,20 +101,7 @@ export function getMentionsFromText(
     return validMentions;
 }
 
-/**
- * Keys of the composer `postData` that are consumed here to build the route
- * parameters and must NOT be forwarded to the server: they are client-side
- * objects (recordsets, component state), not `message_post` arguments.
- * `parentId` is consumed by the caller (`Thread.post`) as `parent_id`.
- *
- * Every OTHER key is forwarded, because `Composer.postData` is an extension
- * seam: modules patch it to contribute server-bound values (`portal_rating`
- * adds `rating_value`). Rebuilding the payload from a fixed whitelist silently
- * dropped those, so e.g. a portal rating never reached `message_post` and the
- * posted message carried no rating at all. Forwarding is safe because the
- * server keeps the final say: `_prepare_message_data` filters `post_data`
- * against `thread._get_allowed_message_params()`.
- */
+/** @type {Set<string>} */
 const CLIENT_ONLY_POST_DATA_KEYS = new Set([
     "attachments",
     "cannedResponseIds",
@@ -119,11 +114,12 @@ const CLIENT_ONLY_POST_DATA_KEYS = new Set([
 ]);
 
 /**
- * Assemble the parameters for the `/mail/message/post` route from the composer
- * `postData` and the target `thread`.
- *
  * @param {import("models").Store} store
  * @param {Object} param1
+ * @param {string|ReturnType<import("@odoo/owl").markup>} param1.body
+ * @param {MessagePostData} param1.postData
+ * @param {import("models").Thread} param1.thread
+ * @returns {Promise<{ post_data: MessagePostData, thread_id: number, thread_model: string, canned_response_ids?: number[], }>}
  */
 export async function getMessagePostParams(store, { body, postData, thread }) {
     const {
@@ -144,6 +140,7 @@ export async function getMessagePostParams(store, { body, postData, thread }) {
     });
     const partner_ids = validMentions?.partners.map((partner) => partner.id) ?? [];
     const role_ids = validMentions?.roles.map((role) => role.id) ?? [];
+    /** @type {string[]} */
     const recipientEmails = [];
     if (!isNote) {
         const allRecipients = [
@@ -161,7 +158,6 @@ export async function getMessagePostParams(store, { body, postData, thread }) {
         partner_ids.push(...recipientIds);
     }
     postData = {
-        // module-contributed keys first, so the four below always win
         ...Object.fromEntries(
             Object.entries(postData).filter(
                 ([key]) => !CLIENT_ONLY_POST_DATA_KEYS.has(key),
@@ -194,7 +190,6 @@ export async function getMessagePostParams(store, { body, postData, thread }) {
         postData.partner_emails = recipientEmails;
     }
     const params = {
-        // Changed in 18.2+: finally get rid of autofollow, following should be done manually
         post_data: postData,
         thread_id: thread.id,
         thread_model: thread.model,

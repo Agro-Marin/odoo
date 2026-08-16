@@ -44,7 +44,7 @@ export class Mailbox extends Component {
 
 /**
  * @typedef {Object} Props
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSidebarMailboxes extends Component {
     static template = "mail.DiscussSidebarMailboxes";

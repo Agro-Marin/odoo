@@ -10,6 +10,7 @@ patch(Activity.prototype, {
     setup() {
         super.setup(...arguments);
         this.isNoteEmpty = fields.Attr(true, {
+            /** @this {import("models").Activity} */
             compute() {
                 return (
                     !this.note ||
@@ -80,6 +81,10 @@ patch(Activity.prototype, {
         });
         return action;
     },
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.broadcast=true]
+     */
     remove({ broadcast = true } = {}) {
         if (!this.exists()) {
             return;

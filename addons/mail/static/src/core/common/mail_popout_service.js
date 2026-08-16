@@ -7,22 +7,18 @@ import { appTranslateFn } from "@web/core/translation";
 const DEFAULT_ID = Symbol("default");
 
 export const mailPopoutService = {
-    /**
-     * To be overridden to add specific assets to call PiP.
-     * @param {Window} window the window on which we may add assets
-     */
+    /** @param {Window} window */
     async addAssets(window) {},
 
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     */
     start(env) {
         /**
          * @type {Map<any, { externalWindow: Window|null, generation: number, hooks: { beforePopout?: Function, afterPopoutClosed?: Function }, app?: App }>}
          */
         const popouts = new Map();
 
-        // Close any still-open popout windows when the main window unloads.
-        // Registered ONCE for the service's lifetime, and through `browser` so
-        // the test harness detaches it per test (@see store_service.js
-        // `onStarted`); services have no teardown hook here.
         const onBeforeUnload = () => {
             for (const popout of popouts.values()) {
                 const externalWindow = popout.externalWindow;
@@ -34,11 +30,7 @@ export const mailPopoutService = {
         browser.addEventListener("beforeunload", onBeforeUnload);
 
         /**
-         * Reset the external window to its initial state:
-         * - Reset the external window header from main window (for appropriate title and other meta data)
-         * - clear the external window's document body
-         * - destroy the current app mounted on the window
-         * @param {any} id - The ID of the popout instance to reset
+         * @param {any} id
          * @param {Object} [options]
          * @param {Boolean} [options.useAlternativeAssets]
          */
@@ -64,16 +56,10 @@ export const mailPopoutService = {
         }
 
         /**
-         * Poll the external window to detect when it is closed.
-         * the afterPopoutClosed hook (afterFn) is then called after the window is closed
-         *
          * @param {any} id
-         * @param {number} generation - token of the window this poller owns
+         * @param {number} generation
          */
         async function pollClosedWindow(id, generation) {
-            // A poller only ever owns the window it was started for (its
-            // `generation` token): a reopen within the 1s tick must not leave
-            // two pollers racing over the same popout.
             while (
                 popouts.get(id)?.externalWindow &&
                 popouts.get(id).generation === generation
@@ -87,9 +73,6 @@ export const mailPopoutService = {
                     const hooks = popout.hooks;
                     hooks?.afterPopoutClosed?.();
                     popout.externalWindow = null;
-                    // Destroy the OWL app mounted on the now-dead document,
-                    // else its tree stays subscribed to the store reactives.
-                    // `reset()` tolerates a null externalWindow.
                     await reset(id);
                 }
             }
@@ -101,12 +84,9 @@ export const mailPopoutService = {
          * @param {Object} param2
          * @param {Object} [param2.props]
          * @param {Object} [param2.options]
-         *      If only one of width or height is provided, the other is calculated based on the aspect ratio.
-         *      If neither is provided, the height defaults to 240px (capped to
-         *      the current window height).
-         * @param {number} [param2.options.width] - The width of the popout window.
-         * @param {number} [param2.options.height] - The height of the popout window.
-         * @param {number} [param2.options.aspectRatio=16/9] - The aspect ratio of the popout window.
+         * @param {number} [param2.options.width]
+         * @param {number} [param2.options.height]
+         * @param {number} [param2.options.aspectRatio=16/9]
          * @param {boolean} [param2.options.useAlternativeAssets]
          * @returns {Promise<Window|null>}
          */
@@ -132,9 +112,6 @@ export const mailPopoutService = {
                     height ||
                     (width ? width / aspectRatio : Math.min(240, browser.innerHeight));
                 width = width || height * aspectRatio;
-                // `window`, not `browser`: the facade does not expose
-                // `documentPictureInPicture` (@see web/core/browser/browser.js),
-                // so going through it would silently disable native PiP.
                 if (window.documentPictureInPicture) {
                     externalWindow =
                         await window.documentPictureInPicture.requestWindow({
@@ -149,7 +126,6 @@ export const mailPopoutService = {
                     );
                 }
                 popout.externalWindow = externalWindow;
-                // one poller per window creation, identified by its token
                 popout.generation++;
                 pollClosedWindow(id, popout.generation);
             }
@@ -157,10 +133,6 @@ export const mailPopoutService = {
             popout.app = new App(component, {
                 name: "Popout",
                 env: Object.assign({}, env, {
-                    /**
-                     * Some sub components may need a reference to the external window to
-                     * access window information such as its dimensions, or to attach event listeners.
-                     */
                     pipWindow: externalWindow,
                 }),
                 props,
@@ -173,8 +145,10 @@ export const mailPopoutService = {
         }
 
         /**
-         * Mounts the passed component (with its props) on an external window.
-         * If the external window does not exist, it is created.
+         * @param {any} id
+         * @param {typeof import("@odoo/owl").Component} component
+         * @param {Object} props
+         * @returns {Window}
          */
         function popout(id, component, props) {
             const popout = popouts.get(id);
@@ -184,7 +158,6 @@ export const mailPopoutService = {
                 hooks?.beforePopout?.();
                 externalWindow = browser.open("about:blank", "_blank", "popup=yes");
                 popout.externalWindow = externalWindow;
-                // one poller per window creation, identified by its token
                 popout.generation++;
                 pollClosedWindow(id, popout.generation);
             }
@@ -201,22 +174,25 @@ export const mailPopoutService = {
             return externalWindow;
         }
 
+        /**
+         * @param {any} id
+         * @returns {Window|null}
+         */
         function getExternalWindow(id) {
             const externalWindow = popouts.get(id)?.externalWindow;
             return externalWindow && !externalWindow.closed ? externalWindow : null;
         }
 
+        /**
+         * @param {any} id
+         * @param {{beforePopout?: () => void, afterPopout?: () => void}} hooks
+         */
         function addHooks(id, hooks) {
             const popout = popouts.get(id);
             popout.hooks = hooks;
         }
 
-        /**
-         * Creates an ID-aware popout manager for a specific ID.
-         * This allows using multiple popout instances with different IDs,
-         *
-         * @param {any} id - An identifier for this popout instance
-         */
+        /** @param {any} id */
         function createManager(id = DEFAULT_ID) {
             popouts.set(id, {
                 externalWindow: null,
@@ -225,53 +201,43 @@ export const mailPopoutService = {
             });
             return {
                 /**
-                 * Registers hooks for this popout instance.
-                 * @param {Function} beforePopout - called before the external window is created.
-                 * @param {Function} afterPopoutClosed - called after the external window is closed.
+                 * @param {Function} beforePopout
+                 * @param {Function} afterPopoutClosed
                  */
                 addHooks(beforePopout = () => {}, afterPopoutClosed = () => {}) {
                     addHooks(id, { beforePopout, afterPopoutClosed });
                 },
 
                 /**
-                 * Creates a picture-in-picture window and mounts the component
                  * @param component - The component to be mounted.
-                 * @param {Object} [props] - `{ props, options }` (@see pip).
-                 * @returns {Promise<Window|null>} The external window
+                 * @param {Object} [props]
+                 * @returns {Promise<Window|null>}
                  */
                 async pip(component, props) {
                     return pip(id, component, props);
                 },
 
                 /**
-                 * Creates a popup window and mounts the component
                  * @param component - The component to be mounted.
-                 * @param {Object} props - The props of the component.
-                 * @returns {Window} The external window
+                 * @param {Object} props
+                 * @returns {Window}
                  */
                 popout(component, props) {
                     return popout(id, component, props);
                 },
 
-                /**
-                 * Resets this popout instance to its initial state
-                 */
                 reset() {
                     reset(id);
                 },
 
                 /**
-                 * Gets the external window for this ID
-                 * @returns {Window|null} The external window or null if closed/doesn't exist
+                 * @returns {Window|null}
                  */
                 get externalWindow() {
                     return getExternalWindow(id);
                 },
 
-                /**
-                 * Gets the ID of this manager
-                 * @returns {any} The ID
-                 */
+                /** @returns {any} */
                 get id() {
                     return id;
                 },

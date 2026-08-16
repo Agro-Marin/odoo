@@ -27,13 +27,9 @@ import { useService } from "@web/core/utils/hooks";
  * @typedef {Object} Props
  * @property {import("models").ChatWindow} chatWindow
  * @property {boolean} [right]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ChatWindow extends Component {
-    // The memberTyping template block is only reachable when
-    // thread.hasOtherMembersTyping is set, which requires the discuss typing
-    // layer; that layer contributes the Typing component (see
-    // @mail/discuss/typing/common/chat_window_patch).
     static components = {
         ActionList,
         CountryFlag,
@@ -121,6 +117,7 @@ export class ChatWindow extends Component {
         return `${offsetFrom}: ${visibleOffset}px; ${oppositeFrom}: auto;`;
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         const chatWindow = toRaw(this.props.chatWindow);
         if (ev.key === "Escape" && this.threadActions.activeAction) {
@@ -134,7 +131,7 @@ export class ChatWindow extends Component {
         ) {
             return;
         }
-        ev.stopPropagation(); // not letting home menu steal my CTRL-C
+        ev.stopPropagation();
         switch (getActiveHotkey(ev)) {
             case "escape":
                 if (
@@ -169,6 +166,7 @@ export class ChatWindow extends Component {
         }
     }
 
+    /** @param {MouseEvent} ev */
     onClickHeader(ev) {
         if (
             this.ui.isSmall ||
@@ -189,6 +187,7 @@ export class ChatWindow extends Component {
         chatWindow.fold();
     }
 
+    /** @param {Object} [options] */
     close(options) {
         const chatWindow = toRaw(this.props.chatWindow);
         chatWindow.close(options);
@@ -198,6 +197,7 @@ export class ChatWindow extends Component {
         return _t("Open Actions Menu");
     }
 
+    /** @param {string} name */
     async renameThread(name) {
         const thread = toRaw(this.thread);
         await thread.rename(name);
@@ -208,10 +208,11 @@ export class ChatWindow extends Component {
         this.state.editingName = false;
     }
 
+    /** @param {string} name */
     async renameGuest(name) {
         const newName = name.trim();
         if (this.store.self.name !== newName) {
-            await this.store.self.updateGuestName(newName);
+            await this.store.self_guest?.updateGuestName(newName);
         }
         this.state.editingGuestName = false;
     }
@@ -220,6 +221,7 @@ export class ChatWindow extends Component {
         this.state.editingGuestName = false;
     }
 
+    /** @param {boolean} isOpen */
     async onActionsMenuStateChanged(isOpen) {
         this.state.actionsMenuOpened = isOpen;
     }

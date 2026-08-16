@@ -98,6 +98,7 @@ export class MailComposerTemplateSelector extends Component {
             multiSelect: false,
             noCreate: true,
             domain: [["model", "=", this.props.record.data.render_model]],
+            /** @param {number[]} templateIds */
             onSelected: async (templateIds) => {
                 await this.props.record.update({
                     template_id: { id: templateIds[0] },

@@ -8,8 +8,6 @@ import { patch } from "@web/core/utils/patch";
 import { renderToElement } from "@web/core/utils/render";
 patch(Composer.prototype, {
     /**
-     * Construct an editor friendly html representation of the body.
-     *
      * @param {string|ReturnType<markup>} defaultBody
      * @param {string|ReturnType<markup>} [signature=""]
      * @returns {ReturnType<markup>}

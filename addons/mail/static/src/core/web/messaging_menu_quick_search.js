@@ -15,6 +15,7 @@ export class MessagingMenuQuickSearch extends Component {
         onExternalClick("search", () => this.props.onClose());
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydownInput(ev) {
         const hotkey = getActiveHotkey(ev);
         if (hotkey === "escape") {

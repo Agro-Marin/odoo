@@ -28,13 +28,13 @@ export class AutoresizeInput extends Component {
             isFocused: false,
         });
         this.inputRef = useRef("input");
-        onWillUpdateProps((nextProps) => {
-            // don't clobber a focused input: a bus-driven rename arriving
-            // while the user is editing would destroy their keystrokes
-            if (this.props.value !== nextProps.value && !this.state.isFocused) {
-                this.state.value = nextProps.value;
-            }
-        });
+        onWillUpdateProps(
+            /** @param {{value: string}} nextProps */ (nextProps) => {
+                if (this.props.value !== nextProps.value && !this.state.isFocused) {
+                    this.state.value = nextProps.value;
+                }
+            },
+        );
         useAutoresize(this.inputRef);
         onMounted(() => {
             if (this.props.autofocus) {
@@ -44,9 +44,7 @@ export class AutoresizeInput extends Component {
         });
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onKeydownInput(ev) {
         switch (ev.key) {
             case "Enter":
@@ -64,9 +62,6 @@ export class AutoresizeInput extends Component {
     onBlurInput() {
         this.state.isFocused = false;
         if (this.cancelled) {
-            // Escape restores the original value: don't validate (a rename
-            // RPC on every cancelled edit otherwise). Still notify the owner:
-            // it may need to leave its editing mode (e.g. chat window rename).
             this.cancelled = false;
             this.props.onCancel();
             return;

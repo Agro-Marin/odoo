@@ -1,21 +1,23 @@
 /** @odoo-module native */
 import { loadPDFJS } from "@web/core/utils/pdfjs";
+/**
+ * @param {string} pdfUrl
+ * @param {Object} [options]
+ * @param {number} [options.height=256]
+ * @param {number} [options.width=256]
+ * @returns {Promise<{isPdfValid: boolean|undefined, thumbnail: string|undefined, pdfEnabled?: boolean}>}
+ */
 export async function generatePdfThumbnail(
     pdfUrl,
     options = { height: 256, width: 256 },
 ) {
     let isPdfValid, pdf, pdfjsLib, thumbnail, loadingTask;
     try {
-        // The loader sets GlobalWorkerOptions.workerSrc centrally, so
-        // rendering runs in a real worker instead of hanging the tab.
         pdfjsLib = await loadPDFJS();
     } catch {
         return { isPdfValid: false, thumbnail, pdfEnabled: false };
     }
     try {
-        // pdfjs' getDocument accepts a URL string directly, including a
-        // "blob:" object URL: it must not be re-wrapped in
-        // URL.createObjectURL(), which requires a Blob and would throw.
         loadingTask = pdfjsLib.getDocument(pdfUrl);
         pdf = await loadingTask.promise;
     } catch (_error) {
@@ -41,9 +43,6 @@ export async function generatePdfThumbnail(
                 .replace("data:image/jpeg;base64,", "");
         }
     } finally {
-        // Release the parsed document and its worker port: pdfjs never
-        // reclaims the PDFDocumentProxy on its own, so every generated
-        // thumbnail would leak its parsed data.
         await loadingTask?.destroy();
     }
     return { isPdfValid, thumbnail, pdfEnabled: true };

@@ -1,6 +1,5 @@
 /* global chrome */
 
-// https://chromewebstore.google.com/detail/discuss-push-to-talk/mdiacebcbkmjjlpclnbcgiepgifcnpmg
 const EXT_ID = "mdiacebcbkmjjlpclnbcgiepgifcnpmg";
 
 chrome.runtime.onMessage.addListener(function (request, sender) {

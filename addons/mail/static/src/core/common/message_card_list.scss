@@ -23,12 +23,13 @@
     font-size: 0.9rem;
 }
 
-
-// The dark half, folded in from `message_card_list.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-MessageCardList {
-            --mail-MessageCardList-cardBodyBg: #{mix($o-dark-gray-100, $o-dark-gray-200)};
+            --mail-MessageCardList-cardBodyBg: #{mix(
+                    $o-dark-gray-100,
+                    $o-dark-gray-200
+                )};
         }
     }
 }

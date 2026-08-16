@@ -147,10 +147,12 @@ patch(MessagingMenu.prototype, {
             this.dropdown.close();
         }
     },
+    /** @param {import("models").Thread} thread */
     async openThread(thread) {
         thread.open({ focus: true, fromMessagingMenu: true });
         this.dropdown.close();
     },
+    /** @param {import("models").Failure} failure */
     openFailureView(failure) {
         if (failure.type !== "email") {
             return;
@@ -170,6 +172,10 @@ patch(MessagingMenu.prototype, {
             context: { create: false },
         });
     },
+    /**
+     * @param {import("models").Failure} failure
+     * @returns {Promise<any>}
+     */
     cancelNotifications(failure) {
         return this.env.services.orm.call(
             failure.resModel,
@@ -205,6 +211,10 @@ patch(MessagingMenu.prototype, {
             !this.store.isNotificationPermissionDismissed
         );
     },
+    /**
+     * @param {import("models").Failure} failure
+     * @returns {string}
+     */
     getFailureNotificationName(failure) {
         if (failure.type === "email") {
             return _t("Email Failure: %(modelName)s", { modelName: failure.modelName });

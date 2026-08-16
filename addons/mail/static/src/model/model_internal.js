@@ -2,16 +2,7 @@
 import { ATTR_SYM, MANY_SYM, ONE_SYM } from "./misc.js";
 
 export class ModelInternal {
-    /**
-     * Kind of each declared field, by name. A single lookup answers all three
-     * questions the hot paths ask — is this a field at all, is it relational,
-     * and which relation is it — where four parallel Maps (`fields`,
-     * `fieldsAttr`, `fieldsOne`, `fieldsMany`) meant up to three lookups on
-     * every property read of every record. Its keys are the field names, so it
-     * doubles as the field iterator.
-     *
-     * @type {Map<string, ATTR_SYM|ONE_SYM|MANY_SYM>}
-     */
+    /** @type {Map<string, ATTR_SYM|ONE_SYM|MANY_SYM>} */
     fields = new Map();
     /** @type {Map<string, boolean>} */
     fieldsHtml = new Map();
@@ -19,13 +10,7 @@ export class ModelInternal {
     fieldsTargetModel = new Map();
     /** @type {Map<string, () => any>} */
     fieldsCompute = new Map();
-    /**
-     * Default values of attr fields, interned once per Model at registration.
-     * Only object defaults are re-read from the per-instance definition object,
-     * so that each record gets its own instance.
-     *
-     * @type {Map<string, any>}
-     */
+    /** @type {Map<string, any>} */
     fieldsDefault = new Map();
     /** @type {Map<string, string>} */
     fieldsInverse = new Map();
@@ -39,15 +24,13 @@ export class ModelInternal {
     fieldsSort = new Map();
     /** @type {Map<string, string>} */
     fieldsType = new Map();
-    /**
-     * Names of fields participating in the model's id (from `static id`,
-     * flattening AND/OR expressions). These fields are immutable once the
-     * record is inserted. Populated by `makeStore`.
-     *
-     * @type {Set<string>}
-     */
+    /** @type {Set<string>} */
     idFields = new Set();
 
+    /**
+     * @param {string} fieldName
+     * @param {Object} data
+     */
     prepareField(fieldName, data) {
         if (data[ONE_SYM]) {
             this.fields.set(fieldName, ONE_SYM);
@@ -103,10 +86,6 @@ export class ModelInternal {
                     break;
                 }
                 default: {
-                    // An unknown option is a typo ("computed", "sortBy") making
-                    // a silently inert field. Warn rather than throw: options
-                    // may come from addons in other repos, and breaking their
-                    // registration at load time is a worse failure.
                     console.warn(
                         `Record field ${fieldName}: unknown option "${key}" is ignored.`,
                     );

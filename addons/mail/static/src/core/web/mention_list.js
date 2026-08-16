@@ -32,6 +32,11 @@ export class MentionList extends Component {
         this.ref = useAutofocus({ mobile: true });
 
         useEffect(
+            /**
+             * @param {string} term
+             * @param {string} delimiter
+             * @param {import("models").Thread} thread
+             */
             (term, delimiter, thread) => {
                 if (!term) {
                     this.state.options = [];
@@ -78,6 +83,7 @@ export class MentionList extends Component {
             anchorRef: this.ref.el,
             position: "bottom-fit",
             isLoading: !!this.state.searchTerm && this.state.isFetching,
+            /** @param {...any} args */
             onSelect: (...args) => {
                 this.props.onSelect(...args);
                 this.props.close();
@@ -88,6 +94,7 @@ export class MentionList extends Component {
         };
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         switch (ev.key) {
             case "Escape": {

@@ -57,11 +57,16 @@ class MessageDropdown extends Dropdown {
  * @property {boolean} [squashed]
  * @property {import("models").Thread} [thread]
  * @property {ReturnType<import('@mail/core/common/message_search_hook').useMessageSearch>} [messageSearch]
- * @property {String} [className]
- * @extends {Component<Props, Env>}
+ * @property {string} [className]
+ * @property {boolean} [asCard]
+ * @property {( message: import("models").Message, ref: import("@odoo/owl").Ref|null, ) => void} [registerMessageRef]
+ * @property {boolean} [isInChatWindow=false]
+ * @property {import("models").Message} [previousMessage]
+ * @property {boolean} [showDates]
+ * @property {boolean} [isReadOnly]
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Message extends Component {
-    // This is the darken version of #71639e
     static SHADOW_LINK_COLOR = "#66598f";
     static SHADOW_HIGHLIGHT_COLOR = "#e99d00bf";
     static SHADOW_LINK_HOVER_COLOR = "#564b79";
@@ -99,6 +104,10 @@ export class Message extends Component {
         "isReadOnly?",
     ];
     static template = "mail.Message";
+    /**
+     * @type {{body: string, description: string, result: boolean}|undefined}
+     */
+    subtypeDescriptionCache;
 
     setup() {
         super.setup();
@@ -122,9 +131,11 @@ export class Message extends Component {
                 predicate: () => !this.isEditing,
             });
         }
-        onWillUpdateProps((nextProps) => {
-            this.props.registerMessageRef?.(this.props.message, null);
-        });
+        onWillUpdateProps(
+            /** @param {Object} nextProps */ (nextProps) => {
+                this.props.registerMessageRef?.(this.props.message, null);
+            },
+        );
         onMounted(() => this.props.registerMessageRef?.(this.props.message, this.root));
         onPatched(() => this.props.registerMessageRef?.(this.props.message, this.root));
         onWillDestroy(() => this.props.registerMessageRef?.(this.props.message, null));
@@ -134,9 +145,6 @@ export class Message extends Component {
             message: () => this.message,
             thread: () => this.props.thread,
         });
-        // In onWillRender (not in the template): computing actions writes
-        // fields read during rendering, and doing that mid-render on a
-        // reactive state scheduled a useless second render pass per message.
         onWillRender(() => this.computeActions());
         this.shadowBody = useRef("shadowBody");
         this.dialog = useService("dialog");
@@ -152,15 +160,8 @@ export class Message extends Component {
             () => {
                 const el = this.shadowBody.el;
                 if (el) {
-                    // The shadowBody node is conditional (t-if branches in the
-                    // template): (re)attach against the CURRENT element. A
-                    // root created against a previous element would be
-                    // detached (email body silently blank), and a node
-                    // appearing only after mount would have no root at all.
                     if (!this.shadowRoot || this.shadowRoot.host !== el) {
                         if (el.shadowRoot) {
-                            // same element re-entering the effect: root and
-                            // styles are already in place
                             this.shadowRoot = el.shadowRoot;
                         } else {
                             this.shadowRoot = el.attachShadow({ mode: "open" });
@@ -198,10 +199,6 @@ export class Message extends Component {
                     this.prepareMessageBody(this.messageBody.el);
                 }
             },
-            // the body is re-rendered (t-out) when the search term or the
-            // translation toggles: the post-processing ("(edited)" chip,
-            // mention decoration, redirect handlers) must re-run then too,
-            // not only on body/edit changes
             () => [
                 this.isEditing,
                 this.message.richBody,
@@ -212,12 +209,7 @@ export class Message extends Component {
         );
     }
 
-    /**
-     * Injects the email-message styles into the given shadow root (once per
-     * root; the root lives and dies with its host element).
-     *
-     * @param {ShadowRoot} shadowRoot
-     */
+    /** @param {ShadowRoot} shadowRoot */
     setupShadowStyles(shadowRoot) {
         const color = this.store.isOdooWhiteTheme ? "dark" : "white";
         loadCssFromBundle(shadowRoot, "mail.assets_message_email");
@@ -274,7 +266,7 @@ export class Message extends Component {
             previousActions.length === allActions.length &&
             previousActions.every((action, index) => action === allActions[index])
         ) {
-            return; // same available actions: keep the computed partition
+            return;
         }
         this.lastComputedActions = allActions;
         const quickActions = allActions.slice(
@@ -305,12 +297,6 @@ export class Message extends Component {
         if (this.isAlignedRight) {
             actions.reverse();
         }
-        // Plain fields: they are recomputed in `onWillRender`, so no reactive
-        // write is needed (writing them on `state` during rendering scheduled
-        // an extra render pass after every first paint of each message).
-        // `moreAction` comes from `messageActions` (a `useState` proxy), so
-        // reading `moreAction.isActive` still subscribes this component to
-        // the dropdown open state.
         this.moreAction = moreAction;
         this.quickActions = quickActions;
         this.actions = actions;
@@ -374,7 +360,6 @@ export class Message extends Component {
         return this.props.message;
     }
 
-    /** Max amount of quick actions, including "..." */
     get quickActionCount() {
         if (isMobileOS()) {
             return 1;
@@ -388,8 +373,6 @@ export class Message extends Component {
             return description;
         }
         const body = this.message.body || "";
-        // Cache: extracting the body's text content builds a DOM per call and
-        // this getter runs on every render of the message.
         let cache = this.subtypeDescriptionCache;
         if (cache?.description !== description || cache.body !== body) {
             cache = {
@@ -427,9 +410,6 @@ export class Message extends Component {
         return (
             this.state.isHovered ||
             this.state.isClicked ||
-            // reactionPicker (set by the "Add a Reaction" message action);
-            // `emojiPicker` never existed on Message, so the toolbar hid while
-            // the reaction picker anchored to it was still open.
             this.reactionPicker?.isOpen ||
             Boolean(this.moreAction?.isActive)
         );
@@ -473,9 +453,7 @@ export class Message extends Component {
         this.state.isClicked = false;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get shouldDisplayAuthorName() {
         if (!this.env.inChatWindow) {
             return true;
@@ -489,13 +467,12 @@ export class Message extends Component {
         return true;
     }
 
+    /** @param {import("models").Attachment} attachment */
     async onClickAttachmentUnlink(attachment) {
         await toRaw(attachment).remove();
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     async onClick(ev) {
         if (this.linkNavigation.handleClickOnLink(ev, this.props.thread)) {
             return;
@@ -511,8 +488,6 @@ export class Message extends Component {
                 document.body.addEventListener(
                     "click",
                     () => {
-                        // once-capture listener: it can fire long after this
-                        // component was destroyed.
                         if (status(this) !== "destroyed") {
                             this.state.isClicked = false;
                         }
@@ -533,7 +508,6 @@ export class Message extends Component {
         const channelLinks = bodyEl.querySelectorAll("a.o_channel_redirect");
         handleValidChannelMention(Array.from(channelLinks));
         for (const el of bodyEl.querySelectorAll(".o_message_redirect")) {
-            // only transform links targetting the same database
             if (el.getAttribute("href")?.startsWith(getOrigin())) {
                 const message = this.store["mail.message"].get(el.dataset.oeId);
                 if (message?.thread?.displayName) {
@@ -561,6 +535,7 @@ export class Message extends Component {
         this.message.exitEditMode(this.props.thread);
     }
 
+    /** @param {MouseEvent} ev */
     onClickNotification(ev) {
         const message = toRaw(this.message);
         if (message.failureNotifications.length > 0) {
@@ -578,6 +553,7 @@ export class Message extends Component {
         this.optionsDropdown.open();
     }
 
+    /** @param {import("models").MessageReactions} [reaction] */
     openReactionMenu(reaction) {
         const message = toRaw(this.props.message);
         this.dialog.add(

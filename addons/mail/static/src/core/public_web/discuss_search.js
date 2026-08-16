@@ -6,7 +6,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSearch extends Component {
     static template = "mail.DiscussSearch";

@@ -2,6 +2,12 @@
 import { visitXML } from "@web/core/utils/dom/xml";
 import { parseFieldNode } from "@web/views/field_arch";
 export class ActivityArchParser {
+    /**
+     * @param {Element} xmlDoc
+     * @param {Object<string, Object>} models
+     * @param {string} modelName
+     * @returns {Object}
+     */
     parse(xmlDoc, models, modelName) {
         const jsClass = xmlDoc.getAttribute("js_class");
         const title = xmlDoc.getAttribute("string");
@@ -10,40 +16,45 @@ export class ActivityArchParser {
         const templateDocs = {};
         const fieldNextIds = {};
 
-        visitXML(xmlDoc, (node) => {
-            if (node.hasAttribute("t-name")) {
-                templateDocs[node.getAttribute("t-name")] = node;
-                return;
-            }
-
-            if (node.tagName === "field") {
-                const fieldInfo = parseFieldNode(
-                    node,
-                    models,
-                    modelName,
-                    "activity",
-                    jsClass,
-                );
-                if (!(fieldInfo.name in fieldNextIds)) {
-                    fieldNextIds[fieldInfo.name] = 0;
+        visitXML(
+            xmlDoc,
+            /** @param {Element} node */ (node) => {
+                if (node.hasAttribute("t-name")) {
+                    templateDocs[node.getAttribute("t-name")] = node;
+                    return;
                 }
-                const fieldId = `${fieldInfo.name}_${fieldNextIds[fieldInfo.name]++}`;
-                fieldNodes[fieldId] = fieldInfo;
-                node.setAttribute("field_id", fieldId);
-            }
 
-            // Keep track of last update so images can be reloaded when they may have changed.
-            if (node.tagName === "img") {
-                const attSrc = node.getAttribute("t-att-src");
-                if (
-                    attSrc &&
-                    /\bactivity_image\b/.test(attSrc) &&
-                    !Object.values(fieldNodes).some((f) => f.name === "write_date")
-                ) {
-                    fieldNodes.write_date_0 = { name: "write_date", type: "datetime" };
+                if (node.tagName === "field") {
+                    const fieldInfo = parseFieldNode(
+                        node,
+                        models,
+                        modelName,
+                        "activity",
+                        jsClass,
+                    );
+                    if (!(fieldInfo.name in fieldNextIds)) {
+                        fieldNextIds[fieldInfo.name] = 0;
+                    }
+                    const fieldId = `${fieldInfo.name}_${fieldNextIds[fieldInfo.name]++}`;
+                    fieldNodes[fieldId] = fieldInfo;
+                    node.setAttribute("field_id", fieldId);
                 }
-            }
-        });
+
+                if (node.tagName === "img") {
+                    const attSrc = node.getAttribute("t-att-src");
+                    if (
+                        attSrc &&
+                        /\bactivity_image\b/.test(attSrc) &&
+                        !Object.values(fieldNodes).some((f) => f.name === "write_date")
+                    ) {
+                        fieldNodes.write_date_0 = {
+                            name: "write_date",
+                            type: "datetime",
+                        };
+                    }
+                }
+            },
+        );
         return {
             fieldNodes,
             templateDocs,

@@ -17,7 +17,7 @@ import { useService } from "@web/core/utils/hooks";
  * @property {number} [action.context.active_id]
  * @property {Object} [action.params]
  * @property {number} [action.params.active_id]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussClientAction extends Component {
     static components = { Discuss };
@@ -28,17 +28,21 @@ export class DiscussClientAction extends Component {
         super.setup();
         this.store = useService("mail.store");
         onWillStart(() => {
-            // bracket to avoid blocking rendering with restore promise
             this.restoreDiscussThread(this.props);
         });
-        onWillUpdateProps((nextProps) => {
-            // bracket to avoid blocking rendering with restore promise
-            this.restoreDiscussThread(nextProps);
-        });
+        onWillUpdateProps(
+            /** @param {{action: Object}} nextProps */ (nextProps) => {
+                this.restoreDiscussThread(nextProps);
+            },
+        );
         onMounted(() => (this.store.discuss.isActive = true));
         onWillUnmount(() => (this.store.discuss.isActive = false));
     }
 
+    /**
+     * @param {{action: Object}} props
+     * @returns {string|number|undefined}
+     */
     getActiveId(props) {
         return (
             props.action.context.active_id ??
@@ -60,16 +64,8 @@ export class DiscussClientAction extends Component {
         return [model, parseInt(id)];
     }
 
-    /**
-     * Restore the discuss thread according to the active_id in the action if
-     * necessary.
-     *
-     * @param {Props} props
-     */
+    /** @param {Props} props */
     async restoreDiscussThread(props) {
-        // deliberately un-awaited by its callers (rendering must not block
-        // on the fetch): two in-flight runs can resolve out of order, so
-        // only the latest may apply its result
         const token = (this._restoreToken = (this._restoreToken ?? 0) + 1);
         const rawActiveId = this.getActiveId(props);
         const parsedActiveId = this.parseActiveId(rawActiveId);
@@ -86,8 +82,6 @@ export class DiscussClientAction extends Component {
         const [model, id] = parsedActiveId;
         const activeThread = await this.store.Thread.getOrFetch({ model, id });
         if (token !== this._restoreToken) {
-            // superseded by a newer restore: applying this stale result
-            // would set the PREVIOUS thread as the active discuss thread
             return;
         }
         if (activeThread && activeThread.notEq(this.store.discuss.thread)) {

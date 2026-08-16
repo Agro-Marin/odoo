@@ -17,8 +17,8 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { Transition } from "@web/core/transition";
 import { browser } from "@web/core/browser/browser";
+import { Transition } from "@web/core/transition";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -34,7 +34,7 @@ export const PRESENT_VIEWPORT_THRESHOLD = 1;
  * @property {import("models").Thread} thread
  * @property {string} [searchTerm]
  * @property {import("@web/core/utils/hooks").Ref} [scrollRef]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Thread extends Component {
     static components = { Message, NotificationMessage, Transition, DateSection };
@@ -64,8 +64,6 @@ export class Thread extends Component {
 
     setup() {
         super.setup();
-        // Throttled: the handler does several layout reads and a reactive
-        // record write, way too much work for every native scroll tick.
         this.onScroll = useThrottleForAnimation(this.onScroll);
         this.registerMessageRef = this.registerMessageRef.bind(this);
         this.store = useService("mail.store");
@@ -73,12 +71,6 @@ export class Thread extends Component {
         this.state = useState({
             isReplyingTo: false,
             mountedAndLoaded: false,
-            /**
-             * Bumped by the scroll machine's reset (see the `onReset` option of
-             * `useThreadScroll`). Used as a dependency of the effect mirroring
-             * `isLoaded` into `mountedAndLoaded` so the mirror is re-synced after
-             * a reset without making `mountedAndLoaded` depend on itself.
-             */
             resetCount: 0,
             showJumpPresent: false,
             scrollTop: null,
@@ -104,11 +96,6 @@ export class Thread extends Component {
         this.visibleState = useVisible("messages", () => {
             this.updateShowJumpPresent();
         });
-        /**
-         * This is the reference element with the scrollbar. The reference can
-         * either be the chatter scrollable (if chatter) or the thread
-         * scrollable (in other cases).
-         */
         this.scrollableRef = this.props.scrollRef ?? this.root;
         useRefListener(
             this.scrollableRef,
@@ -126,18 +113,10 @@ export class Thread extends Component {
             getMessageHighlight: () => this.messageHighlight,
             getHighlightedMessageId: () =>
                 this.env.messageHighlight?.highlightedMessageId,
-            // Routed through the component method so patches/subclasses can
-            // override the contextual step of the pipeline.
+            /** @param {import("models").Thread} thread */
             applyScrollContextually: (thread) => this.applyScrollContextually(thread),
             onReset: () => {
                 this.state.mountedAndLoaded = false;
-                // Bump `resetCount` (a mirror-effect dependency) so the effect
-                // re-runs and re-syncs `mountedAndLoaded`. Only when loaded:
-                // while `!isLoaded`, `applyScroll` resets on every patch, so an
-                // unconditional bump would spin the render loop until the fetch
-                // resolves. When loaded the bump re-renders once, the mirror
-                // sets `mountedAndLoaded` true and `applyScroll` stops
-                // resetting, so it converges.
                 if (this.props.thread.isLoaded) {
                     this.state.resetCount++;
                 }
@@ -150,6 +129,7 @@ export class Thread extends Component {
             onImageLoaded: this.threadScroll.applyScroll,
         });
         useEffect(
+            /** @param {number} focus */
             (focus) => {
                 if (focus && this.state.mountedAndLoaded) {
                     this.root.el.focus();
@@ -213,19 +193,10 @@ export class Thread extends Component {
             }
         });
         useEffect(
+            /** @param {boolean} isLoaded */
             (isLoaded) => {
                 this.state.mountedAndLoaded = isLoaded;
             },
-            /**
-             * The scroll reset forces `mountedAndLoaded` false and this effect
-             * writes it too, so it can't be its own dependency: `useEffect`
-             * records dependencies before running the body, hence a reset
-             * landing while this effect is being applied would leave the
-             * recorded value matching the current one and strand
-             * `mountedAndLoaded` at false. Depend on `resetCount`, bumped by
-             * the reset, so every reset re-syncs `mountedAndLoaded` with
-             * `isLoaded`.
-             */
             () => [this.props.thread.isLoaded, this.state.resetCount],
         );
         useEffect(
@@ -237,10 +208,6 @@ export class Thread extends Component {
                 if (!separatorId) {
                     return;
                 }
-                // Message ids form a global sequence, so the message of id
-                // `separatorId - 1` almost never belongs to this thread. Jump
-                // to the last message of the thread before the separator (=
-                // the message with the greatest id strictly below it).
                 let jumpMessage;
                 for (const message of this.props.thread.messages) {
                     if (
@@ -263,23 +230,31 @@ export class Thread extends Component {
             },
             () => [this.props.jumpToNewMessage],
         );
-        useBus(this.env.bus, "MAIL:RELOAD-THREAD", ({ detail }) => {
-            const { model, id } = this.props.thread;
-            if (detail.model === model && detail.id === id) {
-                toRaw(this.props.thread).fetchNewMessages();
-            }
-        });
-        onWillUpdateProps((nextProps) => {
-            if (nextProps.thread.notEq(this.props.thread)) {
-                this.lastJumpPresent = nextProps.jumpPresent;
-            }
-            if (!this.env.chatter || this.env.chatter?.fetchMessages) {
-                if (this.env.chatter) {
-                    this.env.chatter.fetchMessages = false;
+        useBus(
+            this.env.bus,
+            "MAIL:RELOAD-THREAD",
+            /** @param {CustomEvent<{model: string, id: number}>} ev */
+            ({ detail }) => {
+                const { model, id } = this.props.thread;
+                if (detail.model === model && detail.id === id) {
+                    toRaw(this.props.thread).fetchNewMessages();
                 }
-                toRaw(nextProps.thread).fetchNewMessages();
-            }
-        });
+            },
+        );
+        onWillUpdateProps(
+            /** @param {{thread: import("models").Thread, jumpPresent: number}} nextProps */
+            (nextProps) => {
+                if (nextProps.thread.notEq(this.props.thread)) {
+                    this.lastJumpPresent = nextProps.jumpPresent;
+                }
+                if (!this.env.chatter || this.env.chatter?.fetchMessages) {
+                    if (this.env.chatter) {
+                        this.env.chatter.fetchMessages = false;
+                    }
+                    toRaw(nextProps.thread).fetchNewMessages();
+                }
+            },
+        );
     }
 
     computeJumpPresentPosition() {
@@ -302,16 +277,7 @@ export class Thread extends Component {
         }px)`;
     }
 
-    /**
-     * Contextual step of the scroll pipeline: how the scroll position must be
-     * adjusted for the current render (the "5 behaviors" documented on
-     * `ThreadScroll` in @mail/core/common/thread_scroll_hook). Kept as a
-     * component method purely as the override seam: `useThreadScroll` routes
-     * the pipeline through this method so patches and subclasses (e.g. discuss
-     * scrolling to the first unread message) can intercept it mid-pipeline.
-     *
-     * @param {import("models").Thread} thread
-     */
+    /** @param {import("models").Thread} thread */
     applyScrollContextually(thread) {
         this.threadScroll.applyScrollContextually(thread);
     }
@@ -359,7 +325,7 @@ export class Thread extends Component {
 
     async onClickPreferences() {
         const actionDescription = await this.orm.call("res.users", "action_get");
-        actionDescription.res_id = this.store.self.main_user_id?.id;
+        actionDescription.res_id = this.store.self_partner?.main_user_id?.id;
         this.env.services.action.doAction(actionDescription);
     }
 
@@ -372,6 +338,7 @@ export class Thread extends Component {
         this.props.thread.isFocusedByThread = false;
     }
 
+    /** @param {import("models").Message} [parentMessage] */
     async onParentMessageClick(parentMessage) {
         if (!parentMessage) {
             return;
@@ -388,6 +355,10 @@ export class Thread extends Component {
         }
     }
 
+    /**
+     * @param {import("models").Message} message
+     * @returns {string}
+     */
     getMessageClassName(message) {
         return !message.isNotification &&
             this.messageHighlight?.highlightedMessageId === message.id
@@ -395,6 +366,10 @@ export class Thread extends Component {
             : "";
     }
 
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.immediate=false]
+     */
     async jumpToPresent({ immediate = false } = {}) {
         this.messageHighlight?.clear();
         if (!immediate || this.props.thread.loadNewer) {
@@ -408,6 +383,10 @@ export class Thread extends Component {
         }
     }
 
+    /**
+     * @param {import("models").Message} message
+     * @param {import("@odoo/owl").Ref|null} ref
+     */
     registerMessageRef(message, ref) {
         if (!ref) {
             this.refByMessageId.delete(message.id);
@@ -416,6 +395,11 @@ export class Thread extends Component {
         this.refByMessageId.set(message.id, markRaw(ref));
     }
 
+    /**
+     * @param {import("models").Message} msg
+     * @param {import("models").Message} [prevMsg]
+     * @returns {boolean}
+     */
     isSquashed(msg, prevMsg) {
         if (this.props.thread.isMailbox) {
             return false;
@@ -438,12 +422,9 @@ export class Thread extends Component {
 
     onScroll() {
         if (!this.scrollableRef.el) {
-            // rAF-throttled: can fire after the scrollable is unmounted.
             return;
         }
         this.threadScroll.saveScroll();
-        // Also mirror scrollTop into the reactive state from here: the
-        // dedicated "scrollend" listener never fires on Safari.
         this.state.scrollTop = this.scrollableRef.el.scrollTop;
         markThreadAsReadIfAtBottom(this.props.thread);
     }
@@ -484,9 +465,6 @@ export class Thread extends Component {
     }
 
     /**
-     * Kept as a component method as an override/consumer seam (patches and
-     * tests target it); the smooth-scrolling machinery lives on the hook.
-     *
      * @type {import("@mail/core/common/thread_scroll_hook").ThreadScroll["setScroll"]}
      */
     setScroll(value, options) {

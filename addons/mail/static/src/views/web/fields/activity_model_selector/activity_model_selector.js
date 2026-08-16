@@ -7,14 +7,13 @@ import { memoize } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
-/** Selects a model among the accessible ones (getAvailableResModels), then one of
- * its records through a SelectCreateDialog list, like documents'
- * DocumentsDetailsPanel.
- **/
 
-// Small hack, memoize uses the first argument as cache key, but we need the orm which will not be the same.
-const getAvailableResModels = memoize((_null, orm) =>
-    orm.call("mail.activity.schedule", "get_model_options"),
+const getAvailableResModels = memoize(
+    /**
+     * @param {null} _null
+     * @param {import("@web/core/network/orm_service").ORM} orm
+     */
+    (_null, orm) => orm.call("mail.activity.schedule", "get_model_options"),
 );
 
 class ActivityModelSelector extends Component {
@@ -23,7 +22,6 @@ class ActivityModelSelector extends Component {
     static props = standardFieldProps;
 
     setup() {
-        // Use a state for the model to not write on the record the model without record id
         this.orm = useService("orm");
         this.dialog = useService("dialog");
         this.state = useState({
@@ -36,6 +34,7 @@ class ActivityModelSelector extends Component {
         );
     }
 
+    /** @param {{technical: string, label?: string}} value */
     async onModelSelected(value) {
         this.state.resModel = value.technical;
         this.state.resModelName = value.label || "";
@@ -47,12 +46,8 @@ class ActivityModelSelector extends Component {
                     noCreate: true,
                     multiSelect: false,
                     resModel: this.state.resModel,
+                    /** @param {number[]} resId */
                     onSelected: async (resId) => {
-                        /* Changing the model changes the available activity
-                         * types, which recomputes the fields depending on them
-                         * (including the possibly already edited summary and
-                         * note): save both to restore them after.
-                         */
                         const persistDataThroughModelChange = {
                             summary: this.props.record.data.summary,
                             note: this.props.record.data.note,
@@ -75,7 +70,6 @@ class ActivityModelSelector extends Component {
                         );
                         this.state.resModelName = recordInfo[0][1];
 
-                        // recover saved inputs
                         this.props.record.update(persistDataThroughModelChange);
                     },
                 },
@@ -91,7 +85,6 @@ class ActivityModelSelector extends Component {
     }
 
     onRecordReset() {
-        // information to persist current summary and notes through res_model changes
         const persistDataThroughModelChange = {
             summary: this.props.record.data.summary,
             note: this.props.record.data.note,

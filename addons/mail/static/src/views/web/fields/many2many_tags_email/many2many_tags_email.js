@@ -12,19 +12,23 @@ import {
 } from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { usePopover } from "@web/ui/popover";
+/**
+ * @typedef {import("@web/model/relational_model/record").RelationalRecord} RelationalRecord
+ */
 export class FieldMany2ManyTagsEmailTagsList extends RecipientsInputTagsList {
     static template = "FieldMany2ManyTagsEmailTagsList";
 }
 
 export class FieldMany2ManyTagsEmailMany2xAutocomplete extends Many2XAutocomplete {
     /**
-     * @override
      * @param {string} value
      * @returns {Object}
      */
     getCreationContext(value) {
         const [name, email] = value ? parseEmail(value) : ["", ""];
-        const context = super.getCreationContext(name);
+        const context = /** @type {Object<string, any>} */ (
+            super.getCreationContext(name)
+        );
         if (email) {
             context["default_email"] = email;
         }
@@ -35,7 +39,7 @@ export class FieldMany2ManyTagsEmailMany2xAutocomplete extends Many2XAutocomplet
 export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
     static template = "FieldMany2ManyTagsEmailTags";
     static components = {
-        ...FieldMany2ManyTagsEmail.components,
+        ...Many2ManyTagsField.components,
         TagsList: FieldMany2ManyTagsEmailTagsList,
         Many2XAutocomplete: FieldMany2ManyTagsEmailMany2xAutocomplete,
     };
@@ -57,13 +61,17 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
     get tags() {
         const tags = super.tags;
         const emailByResId = this.props.record.data[this.props.name].records.reduce(
+            /**
+             * @param {Object<number, string>} acc
+             * @param {RelationalRecord} record
+             */
             (acc, record) => {
                 acc[record.resId] = record.data.email;
                 return acc;
             },
-            {},
+            /** @type {Object<number, string>} */ ({}),
         );
-        tags.forEach((tag) => {
+        tags.forEach((/** @type {Object<string, any>} */ tag) => {
             tag.email = emailByResId[tag.resId];
             tag.name = tag.text;
             tag.title = tag.text;
@@ -72,8 +80,7 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
     }
 
     /**
-     * @override
-     * @param {Record} record
+     * @param {RelationalRecord} record
      * @returns {Object}
      */
     getTagProps(record) {
@@ -84,13 +91,14 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
                 record.data.email ||
                 record.data.display_name ||
                 _t("Unnamed"),
+            /** @param {MouseEvent} ev */
             onClick: (ev) => this.onTagClick(ev, record),
         };
     }
 
     /**
-     * @param {Event} event
-     * @param {Record} record
+     * @param {MouseEvent} event
+     * @param {RelationalRecord} record
      */
     onTagClick(event, record) {
         const viewProfileBtnOverride = () => {
@@ -103,12 +111,16 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
             };
             this.actionService.doAction(action);
         };
-        this.recipientsPopover.open(event.target, {
+        this.recipientsPopover.open(/** @type {HTMLElement} */ (event.target), {
             id: record.resId,
             viewProfileBtnOverride,
         });
     }
 
+    /**
+     * @param {string} request
+     * @returns {Promise<any>}
+     */
     async quickCreateRecipient(request) {
         const [name, email] = parseEmail(request);
         const [partnerId] = await this.orm.create("res.partner", [{ name, email }]);
@@ -117,9 +129,16 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
         });
     }
 
+    /**
+     * @param {string} newEmail
+     * @param {number} partnerId
+     * @returns {Promise<any>}
+     */
     async updateRecipient(newEmail, partnerId) {
         const list = this.props.record.data[this.props.name];
-        const partnerRecord = list.records.find((r) => r.resId === partnerId);
+        const partnerRecord = list.records.find(
+            /** @param {RelationalRecord} r */ (r) => r.resId === partnerId,
+        );
         partnerRecord.canSaveOnUpdate = true;
         return partnerRecord.update({ email: newEmail }, { save: true });
     }
@@ -136,6 +155,13 @@ export const fieldMany2ManyTagsEmail = {
             type: "boolean",
         },
     ],
+    /**
+     * @param {Object} fieldInfo
+     * @param {Object} fieldInfo.options
+     * @param {Object} fieldInfo.attrs
+     * @param {Object} dynamicInfo
+     * @returns {Object}
+     */
     extractProps({ options, attrs }, dynamicInfo) {
         const props = many2ManyTagsField.extractProps(...arguments);
         props.context = dynamicInfo.context;
@@ -145,6 +171,10 @@ export const fieldMany2ManyTagsEmail = {
         props.canEditTags = options.edit_tags ? hasEditPermission : false;
         return props;
     },
+    /**
+     * @param {{attrs: Object, options: Object, viewType?: string}} fieldInfo
+     * @returns {Object[]}
+     */
     relatedFields: (fieldInfo) => [
         ...many2ManyTagsField.relatedFields(fieldInfo),
         { name: "email", type: "char", readonly: false },

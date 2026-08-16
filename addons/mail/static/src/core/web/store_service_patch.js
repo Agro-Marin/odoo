@@ -12,7 +12,9 @@ const unread_store = (() => {
     return new window.idbKeyval.Store("odoo-mail-unread-db", "odoo-mail-unread-store");
 })();
 
-/** @type {import("models").Store} */
+/**
+ * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
+ */
 const StorePatch = {
     setup() {
         super.setup(...arguments);
@@ -20,14 +22,13 @@ const StorePatch = {
         this.activity_counter_bus_id = 0;
         /** @type {Object[]} */
         this.activityGroups = fields.Attr([], {
+            /** @this {import("models").Store} */
             onUpdate() {
                 this.onUpdateActivityGroups();
             },
+            /** @this {import("models").Store} */
             sort(g1, g2) {
-                /**
-                 * Sort by model ID ASC but always place the activity group for "mail.activity" model at
-                 * the end (other activities).
-                 */
+                /** @param {{id: number, model: string}} activityGroup */
                 const getSortId = (activityGroup) =>
                     activityGroup.model === "mail.activity"
                         ? Number.MAX_VALUE
@@ -36,9 +37,11 @@ const StorePatch = {
             },
         });
         this.globalCounter = fields.Attr(0, {
+            /** @this {import("models").Store} */
             compute() {
                 return this.computeGlobalCounter();
             },
+            /** @this {import("models").Store} */
             onUpdate() {
                 this.updateAppBadge();
             },
@@ -79,14 +82,12 @@ const StorePatch = {
             model: "mail.box",
         };
         try {
-            // useful for synchronizing activity data between multiple tabs
             this.activityBroadcastChannel = new browser.BroadcastChannel(
                 "mail.activity.channel",
             );
             this.activityBroadcastChannel.onmessage =
                 this._onActivityBroadcastChannelMessage.bind(this);
         } catch {
-            // BroadcastChannel API is not supported (e.g. Safari < 15.4), so disabling it.
             this.activityBroadcastChannel = null;
         }
     },
@@ -130,12 +131,10 @@ const StorePatch = {
     },
     updateAppBadge() {
         if (unread_store) {
-            // Authoritative reset of the shared "unread" badge key, overwriting
-            // background-push increments (see service_worker.js incrementUnread)
             window.idbKeyval.set("unread", this.globalCounter, unread_store);
             Promise.resolve(navigator.setAppBadge?.(this.globalCounter)).catch(
                 () => {},
-            ); // FIXME: Illegal invocation error in HOOT
+            );
         }
     },
     /**
@@ -160,22 +159,16 @@ const StorePatch = {
                     id: data.payload.id,
                 });
                 thread.fetchNewMessages();
-                // messages alone are not enough: the activity list must be
-                // refreshed too. `fetchThreadData` is patched onto Thread by
-                // the chatter layer, which core/web may load without.
                 thread.fetchThreadData?.(["activities"]);
                 break;
             }
         }
     },
     async unstarAll() {
-        // apply the change immediately for faster feedback
         const starredBox = this.store.starred;
         const messages = starredBox.messages.slice();
         const counterSnapshot = snapshotCounter(starredBox, "counter");
         for (const message of messages) {
-            // keep message state in sync so the echoed
-            // `mail.message/toggle_star` notification sees no transition
             message.starred = false;
         }
         starredBox.counter = 0;
@@ -183,8 +176,6 @@ const StorePatch = {
         try {
             await this.env.services.orm.call("mail.message", "unstar_all");
         } catch (error) {
-            // rollback the optimistic update; the counter is restored only if
-            // its bus id did not advance (see snapshotCounter fencing)
             for (const message of messages) {
                 message.starred = true;
             }

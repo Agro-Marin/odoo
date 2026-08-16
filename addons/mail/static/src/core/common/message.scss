@@ -62,8 +62,6 @@
         margin-bottom: 0 !important;
     }
 
-    // overflow: auto can break rendering of next element of a frequent broken Outlook 365
-    // warning table. If detected, we prevent the issue by removing flotation.
     table[align="left"][width="100%"] {
         float: none;
     }
@@ -94,9 +92,6 @@
 
 .o-mail-Message-bubble,
 .o-mail-Message-bubbleTail {
-    // The token beside the colour: every mix below is between two palette
-    // values, so as `color-mix()` they follow the scheme and the colour is only
-    // a fallback. `mix($a, $b, 90%)` is `color-mix(in srgb, A 90%, B)`.
     $_bubble_colors_map: (
         ("o-blue", --info, $info),
         ("o-green", --success, $success),
@@ -108,9 +103,7 @@
             $-surface: o-token(--o-bg-view, $o-view-background-color);
             $-hue: o-token($_token, $_color);
             $-text: o-palette-token(--o-text, $body-color);
-            $-border-base: unquote(
-                "color-mix(in srgb, #{$-hue} 75%, #{$-text})"
-            );
+            $-border-base: unquote("color-mix(in srgb, #{$-hue} 75%, #{$-text})");
 
             --o-message-bubble-bg: #{unquote(
                     "color-mix(in srgb, #{$-surface} 90%, #{$-hue})"
@@ -202,8 +195,6 @@
     color: $o-enterprise-action-color;
 }
 
-
-// The dark half, folded in from `message.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-Message.o-card {
@@ -220,9 +211,16 @@
 
         .o-mail-Message-bubble {
             &.o-blue {
-                background-color: mix($o-dark-gray-100, darken($o-dark-bs-info, 10%), 85.5%) !important;
+                background-color: mix(
+                    $o-dark-gray-100,
+                    darken($o-dark-bs-info, 10%),
+                    85.5%
+                ) !important;
                 border-color: mix(
-                    lighten(mix($o-dark-gray-100, darken($o-dark-bs-info, 10%), 85.5%), 2.5%),
+                    lighten(
+                        mix($o-dark-gray-100, darken($o-dark-bs-info, 10%), 85.5%),
+                        2.5%
+                    ),
                     black,
                     75%
                 ) !important;
@@ -235,9 +233,16 @@
                 }
             }
             &.o-green {
-                background-color: mix($o-dark-gray-100, darken($o-dark-bs-success, 2.5%), 85.5%) !important;
+                background-color: mix(
+                    $o-dark-gray-100,
+                    darken($o-dark-bs-success, 2.5%),
+                    85.5%
+                ) !important;
                 border-color: mix(
-                    lighten(mix($o-dark-gray-100, darken($o-dark-bs-success, 2.5%), 85.5%), 2.5%),
+                    lighten(
+                        mix($o-dark-gray-100, darken($o-dark-bs-success, 2.5%), 85.5%),
+                        2.5%
+                    ),
                     black,
                     75%
                 ) !important;
@@ -250,9 +255,16 @@
                 }
             }
             &.o-orange {
-                background-color: mix($o-dark-gray-100, darken($o-dark-bs-warning, 5%), 70.5%) !important;
+                background-color: mix(
+                    $o-dark-gray-100,
+                    darken($o-dark-bs-warning, 5%),
+                    70.5%
+                ) !important;
                 border-color: mix(
-                    lighten(mix($o-dark-gray-100, darken($o-dark-bs-warning, 5%), 70.5%), 2.5%),
+                    lighten(
+                        mix($o-dark-gray-100, darken($o-dark-bs-warning, 5%), 70.5%),
+                        2.5%
+                    ),
                     black,
                     75%
                 ) !important;
@@ -269,11 +281,18 @@
         .o-mail-Message-bubbleTail {
             &.o-blue {
                 .o-mail-Message-bubbleTailBg {
-                    color: mix($o-dark-gray-100, darken($o-dark-bs-info, 10%), 85.5%) !important;
+                    color: mix(
+                        $o-dark-gray-100,
+                        darken($o-dark-bs-info, 10%),
+                        85.5%
+                    ) !important;
                 }
                 .o-mail-Message-bubbleTailBorder {
                     color: mix(
-                        lighten(mix($o-dark-gray-100, darken($o-dark-bs-info, 10%), 85.5%), 2.5%),
+                        lighten(
+                            mix($o-dark-gray-100, darken($o-dark-bs-info, 10%), 85.5%),
+                            2.5%
+                        ),
                         black,
                         75%
                     ) !important;
@@ -281,11 +300,22 @@
             }
             &.o-green {
                 .o-mail-Message-bubbleTailBg {
-                    color: mix($o-dark-gray-100, darken($o-dark-bs-success, 2.5%), 85.5%) !important;
+                    color: mix(
+                        $o-dark-gray-100,
+                        darken($o-dark-bs-success, 2.5%),
+                        85.5%
+                    ) !important;
                 }
                 .o-mail-Message-bubbleTailBorder {
                     color: mix(
-                        lighten(mix($o-dark-gray-100, darken($o-dark-bs-success, 2.5%), 85.5%), 2.5%),
+                        lighten(
+                            mix(
+                                $o-dark-gray-100,
+                                darken($o-dark-bs-success, 2.5%),
+                                85.5%
+                            ),
+                            2.5%
+                        ),
                         black,
                         75%
                     ) !important;
@@ -293,11 +323,22 @@
             }
             &.o-orange {
                 .o-mail-Message-bubbleTailBg {
-                    color: mix($o-dark-gray-100, darken($o-dark-bs-warning, 5%), 70.5%) !important;
+                    color: mix(
+                        $o-dark-gray-100,
+                        darken($o-dark-bs-warning, 5%),
+                        70.5%
+                    ) !important;
                 }
                 .o-mail-Message-bubbleTailBorder {
                     color: mix(
-                        lighten(mix($o-dark-gray-100, darken($o-dark-bs-warning, 5%), 70.5%), 2.5%),
+                        lighten(
+                            mix(
+                                $o-dark-gray-100,
+                                darken($o-dark-bs-warning, 5%),
+                                70.5%
+                            ),
+                            2.5%
+                        ),
                         black,
                         75%
                     ) !important;

@@ -10,8 +10,8 @@ import { useService } from "@web/core/utils/hooks";
  * @typedef {Object} Props
  * @property {function} [onAddFollowers]
  * @property {function} [onFollowerChanged]
- * @property {import('@mail/core/common/thread_model').Thread} thread
- * @extends {Component<Props, Env>}
+ * @property {import("models").Thread} thread
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 
 export class FollowerList extends Component {
@@ -23,11 +23,14 @@ export class FollowerList extends Component {
         super.setup();
         this.action = useService("action");
         this.store = useService("mail.store");
-        useVisible("load-more", (isVisible) => {
-            if (isVisible) {
-                this.props.thread.loadMoreFollowers();
-            }
-        });
+        useVisible(
+            "load-more",
+            /** @param {boolean} isVisible */ (isVisible) => {
+                if (isVisible) {
+                    this.props.thread.loadMoreFollowers();
+                }
+            },
+        );
     }
 
     onClickAddFollowers() {
@@ -53,8 +56,6 @@ export class FollowerList extends Component {
     }
 
     async onClickFollow() {
-        // await: onFollowerChanged triggers a reload whose follower fetch
-        // would otherwise race the subscribe RPC and show "not following".
         await this.props.thread.follow();
         this.props.onFollowerChanged?.();
     }

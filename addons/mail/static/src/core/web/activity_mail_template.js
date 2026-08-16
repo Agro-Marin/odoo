@@ -7,7 +7,7 @@ import { useService } from "@web/core/utils/hooks";
  * @property {import("models").Activity} activity
  * @property {function} [onClickButtons]
  * @property {function} [onActivityChanged]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ActivityMailTemplate extends Component {
     static defaultProps = {

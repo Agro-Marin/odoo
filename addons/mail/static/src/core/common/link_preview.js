@@ -8,9 +8,9 @@ import { useService } from "@web/core/utils/hooks";
  * @property {import("models").LinkPreview} linkPreview
  * @property {import("models").Message} [message]
  * @property {Boolean} [gifPaused]
- * @property {function} [delete] Function bound to the delete button
- * @property {function} [deleteAll] Function bound to the delete all button
- * @extends {Component<Props, Env>}
+ * @property {function} [delete]
+ * @property {function} [deleteAll]
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class LinkPreview extends Component {
     static template = "mail.LinkPreview";
@@ -23,15 +23,12 @@ export class LinkPreview extends Component {
         this.state = useState({ startVideo: false, videoLoaded: false });
         this.videoRef = useRef("video");
         useEffect(
+            /** @param {HTMLVideoElement|null} el */
             (el) => {
                 if (!el) {
                     return;
                 }
                 el.onload = () => (this.state.videoLoaded = true);
-                // Reveal the player even if the embed never fires `load`
-                // (blocked embed, CSP, network error); otherwise the iframe
-                // stays permanently `d-none` and the user clicks play to see
-                // nothing, with no way to recover.
                 el.onerror = () => (this.state.videoLoaded = true);
                 return () => {
                     el.onload = null;

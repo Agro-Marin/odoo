@@ -16,21 +16,34 @@ import {
 /** @typedef {import("./misc").FieldDefinition} FieldDefinition */
 /** @typedef {import("./record_list").RecordList} RecordList */
 /**
- * @typedef {Object} Ongoing
- * @property {Object} storeData Store insert-able data grouped by model names
- * @property {Set<string>} seenRecords A set of localIDs to track visited records
- * @property {boolean} depth Whether to recursively fetch deep data for all related records
- * @property {string[]} fields An array of field names to fetch, using dot notation (e.g., `"persona.group_ids"`).
+ * @typedef {Object<string, any>} RecordData
  */
-
-const Markup = markup().constructor;
+/**
+ * @typedef {Object<string, any>} RecordFields
+ */
+/**
+ * @typedef {Object<string, typeof Record>} StoreModels
+ */
+/**
+ * @typedef {Object} Ongoing
+ * @property {Object<string, RecordData[]>} storeData
+ * @property {Set<string>} seenRecords
+ * @property {boolean} depth
+ * @property {string[]|undefined} fields
+ */
+const Markup = markup("").constructor;
 
 export class Record {
     /** @type {import("./model_internal").ModelInternal} */
     static _;
     /** @type {import("./record_internal").RecordInternal} */
     _;
+    /** @type {import("./misc").IdExpression} */
     static id;
+    /**
+     * @type {string|undefined}
+     */
+    static _name;
     /** @type {import("@web/env").OdooEnv} */
     static env;
     /** @type {import("@web/env").OdooEnv} */
@@ -39,39 +52,65 @@ export class Record {
     static records;
     /** @type {import("models").Store} */
     static store;
-    /** @param {() => void} cb */
+    /**
+     * @type {import("models").Store}
+     */
+    static _rawStore;
+    /**
+     * @param {Record} record
+     * @param {string|string[]} name
+     * @param {() => void} cb
+     * @returns {() => void}
+     */
     static onChange(record, name, cb) {
-        // route through the record's own store, not the last-created one
         return toRaw(record)._raw._rawStore.onChange(record, name, cb);
     }
+    /**
+     * @param {Object|string|number} data
+     * @returns {Record|undefined}
+     */
     static get(data) {
         const Model = toRaw(this);
         return this.records[Model.localId(data)];
     }
+    /** @returns {string} */
     static getName() {
         return this._name || this.name;
     }
+    /**
+     * @param {import("@web/core/registry").Registry<typeof Record>} [localRegistry]
+     */
     static register(localRegistry) {
         if (localRegistry) {
-            // Record-specific tests use local registry as to not affect other tests
             localRegistry.add(this.getName(), this);
         } else {
             modelRegistry.add(this.getName(), this);
         }
     }
+    /**
+     * @param {Object|string|number} data
+     * @returns {string}
+     */
     static localId(data) {
         const Model = toRaw(this);
         let idStr;
         if (typeof data === "object" && data !== null) {
             idStr = Model._localId(Model.id, data);
         } else {
-            idStr = data; // non-object data => single id
+            idStr = data;
         }
         return `${Model.getName()},${idStr}`;
     }
     get localId() {
         return toRaw(this)._.localId;
     }
+    /**
+     * @param {import("./misc").IdExpression} expr
+     * @param {RecordData} data
+     * @param {Object} [options]
+     * @param {boolean} [options.brackets=false]
+     * @returns {string|undefined}
+     */
     static _localId(expr, data, { brackets = false } = {}) {
         const Model = toRaw(this);
         if (!Array.isArray(expr)) {
@@ -85,7 +124,6 @@ export class Record {
                     return data[expr];
                 }
                 if (isCommand(data[expr])) {
-                    // Note: only fields.One is supported
                     const [cmd, data2] = data[expr].at(-1);
                     if (cmd === "DELETE") {
                         return undefined;
@@ -93,12 +131,14 @@ export class Record {
                         return `(${data2?.localId})`;
                     }
                 }
-                // relational field (note: optional when OR)
                 if (isRecord(data[expr])) {
                     return `(${data[expr]?.localId})`;
                 }
                 const TargetModelName = Model._.fieldsTargetModel.get(expr);
-                return `(${Model.store[TargetModelName].get(data[expr])?.localId})`;
+                const TargetModel = /** @type {StoreModels} */ (
+                    /** @type {unknown} */ (Model.store)
+                )[TargetModelName];
+                return `(${TargetModel.get(data[expr])?.localId})`;
             }
             return data[expr];
         }
@@ -112,14 +152,20 @@ export class Record {
         }
         return res;
     }
+    /**
+     * @param {RecordData|string|number} data
+     * @returns {RecordData}
+     */
     static _retrieveIdFromData(data) {
         const Model = toRaw(this);
+        /** @type {RecordData} */
         const res = {};
+        const dataObject = /** @type {RecordData} */ (data);
+        /** @param {import("./misc").IdExpression} expr2 */
         function _deepRetrieve(expr2) {
             if (typeof expr2 === "string") {
-                if (isCommand(data[expr2])) {
-                    // Note: only fields.One() is supported
-                    const [cmd, data2] = data[expr2].at(-1);
+                if (isCommand(dataObject[expr2])) {
+                    const [cmd, data2] = dataObject[expr2].at(-1);
                     return Object.assign(res, {
                         [expr2]:
                             cmd === "DELETE"
@@ -131,10 +177,9 @@ export class Record {
                                     : data2,
                     });
                 }
-                return Object.assign(res, { [expr2]: data[expr2] });
+                return Object.assign(res, { [expr2]: dataObject[expr2] });
             }
             if (expr2 instanceof Array) {
-                // nested AND/OR expression: first element is the marker symbol
                 for (const expr of expr2) {
                     if (typeof expr === "symbol") {
                         continue;
@@ -148,10 +193,9 @@ export class Record {
         }
         if (typeof Model.id === "string") {
             if (typeof data !== "object" || data === null) {
-                return { [Model.id]: data }; // non-object data => single id
+                return { [Model.id]: data };
             }
             if (isCommand(data[Model.id])) {
-                // Note: only fields.One is supported
                 const [cmd, data2] = data[Model.id].at(-1);
                 return Object.assign(res, {
                     [Model.id]:
@@ -174,20 +218,11 @@ export class Record {
         }
         return res;
     }
-    /**
-     * Technical attribute, DO NOT USE in business code.
-     * This class is almost equivalent to current class of model,
-     * except this is a function, so we can new() it, whereas
-     * `this` is not, because it's an object.
-     * (in order to comply with OWL reactivity)
-     *
-     * @type {typeof Record}
-     */
+    /** @type {typeof Record} */
     static Class;
     /**
-     * This method is almost equivalent to new Class, except that it properly
-     * setup relational fields of model with get/set, @see Class
-     *
+     * @param {RecordData} data
+     * @param {RecordData} ids
      * @returns {Record}
      */
     static new(data, ids) {
@@ -213,27 +248,36 @@ export class Record {
             return recordProxy;
         });
     }
-    /** @returns {Record|Record[]} */
+    /**
+     * @param {RecordData|RecordData[]} data
+     * @param {Object} [options]
+     * @returns {Record|Record[]}
+     */
     static insert(data, options = {}) {
         const ModelFullProxy = this;
         const Model = toRaw(ModelFullProxy);
         const store = Model._rawStore;
         return store.MAKE_UPDATE(function RecordInsert() {
             const isMulti = Array.isArray(data);
-            if (!isMulti) {
-                data = [data];
-            }
-            const res = data.map(function RecordInsertMap(d) {
-                return Model._insert.call(ModelFullProxy, d, options);
-            });
+            const dataList = isMulti ? data : [data];
+            const res = dataList.map(
+                /** @param {RecordData} d */
+                function RecordInsertMap(d) {
+                    return Model._insert.call(ModelFullProxy, d, options);
+                },
+            );
             if (!isMulti) {
                 return res[0];
             }
             return res;
         });
     }
-    /** @returns {Record} */
-    static _insert(data) {
+    /**
+     * @param {RecordData} data
+     * @param {Object} [options]
+     * @returns {Record}
+     */
+    static _insert(data, options) {
         const ModelFullProxy = this;
         const Model = toRaw(ModelFullProxy);
         const recordFullProxy = Model.preinsert.call(ModelFullProxy, data);
@@ -241,7 +285,10 @@ export class Record {
         record.update.call(record._proxy, data);
         return recordFullProxy;
     }
-    /** @returns {Record} */
+    /**
+     * @param {RecordData} data
+     * @returns {Record}
+     */
     static preinsert(data) {
         const ModelFullProxy = this;
         const Model = toRaw(ModelFullProxy);
@@ -253,11 +300,9 @@ export class Record {
                 !isCommand(ids[name]) &&
                 isRelation(Model, name)
             ) {
-                // preinsert that record in relational field,
-                // as it is required to make current local id
-                ids[name] = Model._rawStore[
-                    Model._.fieldsTargetModel.get(name)
-                ].preinsert(ids[name]);
+                ids[name] = /** @type {StoreModels} */ (
+                    /** @type {unknown} */ (Model._rawStore)
+                )[Model._.fieldsTargetModel.get(name)].preinsert(ids[name]);
             }
         }
         return Model.get.call(ModelFullProxy, data) ?? Model.new(data, ids);
@@ -271,15 +316,7 @@ export class Record {
     get _rawStore() {
         return toRaw(this)._raw.Model._rawStore;
     }
-    /**
-     * Technical attribute, contains the Model entry in the store. Almost the
-     * same as the class, except it's an object (so it works with OWL
-     * reactivity), and it's the actual object that stores the records: the
-     * class `static records` is non-reactive, and records must not persist on
-     * the class so that different tests do not share them.
-     *
-     * @type {typeof Record}
-     */
+    /** @type {typeof Record} */
     Model;
     /** @type {this} */
     _raw;
@@ -290,6 +327,7 @@ export class Record {
 
     setup() {}
 
+    /** @param {RecordData|string|number} data */
     update(data) {
         const record = toRaw(this)._raw;
         const store = record._rawStore;
@@ -315,53 +353,70 @@ export class Record {
         });
     }
 
+    /** @returns {boolean} */
     exists() {
-        return !this[IS_DELETED_SYM];
+        return !(/** @type {Object<symbol, boolean>} */ (this)[IS_DELETED_SYM]);
     }
 
-    /** @param {Record} record */
+    /**
+     * @param {Record} record
+     * @returns {boolean}
+     */
     eq(record) {
         return toRaw(this)._raw === toRaw(record)?._raw;
     }
 
-    /** @param {Record} record */
+    /**
+     * @param {Record} record
+     * @returns {boolean}
+     */
     notEq(record) {
         return !this.eq(record);
     }
 
-    /** @param {Record[]|RecordList} collection */
+    /**
+     * @param {Record[]|RecordList} collection
+     * @returns {boolean}
+     */
     in(collection) {
         if (!collection) {
             return false;
         }
-        return collection.some((record) => toRaw(record)._raw.eq(this));
+        return collection.some(
+            /** @param {Record} record */
+            (record) => toRaw(record)._raw.eq(this),
+        );
     }
 
-    /** @param {Record[]|RecordList} collection */
+    /**
+     * @param {Record[]|RecordList} collection
+     * @returns {boolean}
+     */
     notIn(collection) {
         return !this.in(collection);
     }
 
     /**
-     * Converts the current record and its related data into Store insert-able data.
-     * @param {Array<string> | { depth: boolean }} options Configuration options or an array of field names.
-     * @returns {Object} A data object grouped by model names.
+     * @param {string[] | { depth: boolean }} options
+     * @returns {Object<string, RecordData[]>}
      */
     toData(options = { depth: false }) {
         const prefix = this._getActualModelName();
+        const isFieldList = Array.isArray(options);
+        /** @type {Ongoing} */
         const ongoing = {
             seenRecords: new Set(),
             storeData: {},
-            depth: options.depth,
-            fields: undefined,
+            depth: isFieldList ? false : options.depth,
+            fields: isFieldList
+                ? options.map((field) => `${prefix}.${field}`)
+                : undefined,
         };
-        if (Array.isArray(options)) {
-            ongoing.fields = options.map((field) => `${prefix}.${field}`);
-        }
         this._toData(ongoing, prefix);
         return ongoing.storeData;
     }
 
+    /** @param {RecordData} data */
     _cleanupData(data) {
         const fieldsToDelete = [
             "_",
@@ -374,13 +429,14 @@ export class Record {
         fieldsToDelete.forEach((field) => delete data[field]);
     }
 
+    /** @returns {string} */
     _getActualModelName() {
         return this.Model.getName();
     }
 
     /**
-     * @param {Ongoing} ongoing The ongoing data conversion state.
-     * @param {string} [prefix] The prefix for the current field (used for nested fields).
+     * @param {Ongoing} ongoing
+     * @param {string} [prefix]
      */
     _toData(ongoing, prefix = undefined) {
         if (ongoing.depth && ongoing.seenRecords.has(this.localId)) {
@@ -391,28 +447,33 @@ export class Record {
         const recordProxy = this;
         const record = toRaw(recordProxy)._raw;
         const Model = record.Model;
+        /** @type {RecordData} */
         const data = { ...recordProxy };
+        const fieldsOfProxy = /** @type {RecordData} */ (recordProxy);
+        const fieldsOfInternal = /** @type {RecordData} */ (record._proxyInternal);
         for (const name of Model._.fields.keys()) {
             const fullFieldName = prefix ? `${prefix}.${name}` : name;
             if (isMany(Model, name)) {
-                data[name] = record._proxyInternal[name].map((recordProxy) => {
-                    const record = toRaw(recordProxy)._raw;
-                    return record._toDataRelationalRecord.call(
-                        record._proxyInternal,
-                        ongoing,
-                        fullFieldName,
-                    );
-                });
+                data[name] = fieldsOfInternal[name].map(
+                    /** @param {Record} recordProxy */
+                    (recordProxy) => {
+                        const record = toRaw(recordProxy)._raw;
+                        return record._toDataRelationalRecord.call(
+                            record._proxyInternal,
+                            ongoing,
+                            fullFieldName,
+                        );
+                    },
+                );
             } else if (isOne(Model, name)) {
-                const otherRecord = toRaw(record._proxyInternal[name])?._raw;
+                const otherRecord = toRaw(fieldsOfInternal[name])?._raw;
                 data[name] = otherRecord?._toDataRelationalRecord.call(
                     otherRecord._proxyInternal,
                     ongoing,
                     fullFieldName,
                 );
             } else {
-                // fields.Attr()
-                const value = recordProxy[name];
+                const value = fieldsOfProxy[name];
                 if (Model._.fieldsType.get(name) === "datetime" && value) {
                     data[name] = serializeDateTime(value);
                 } else if (Model._.fieldsType.get(name) === "date" && value) {
@@ -432,17 +493,14 @@ export class Record {
     }
 
     /**
-     * @param {Ongoing} ongoing The ongoing data conversion state.
-     * @param {string} prefix The prefix for the current field (used for nested fields).
-     * @returns {Object} A data object grouped by model names.
+     * @param {Ongoing} ongoing
+     * @param {string} [prefix]
+     * @returns {RecordData}
      */
     _toDataRelationalRecord(ongoing, prefix = undefined) {
         const data = this.Model._retrieveIdFromData(this);
         if (
             ongoing.depth ||
-            // Match the exact field or a nested path under it, never a sibling
-            // that merely shares a string prefix (e.g. prefix "a.author" must
-            // not match requested "a.author_id").
             ongoing.fields?.some(
                 (field) => field === prefix || field.startsWith(`${prefix}.`),
             )

@@ -8,6 +8,10 @@ export class RottingColumnProgress extends ColumnProgress {
         onRotIconClicked: { type: Function },
     };
 
+    /**
+     * @param {import("@web/model/relational_model/group").Group} group
+     * @returns {Object}
+     */
     getRottingGroupCount(group) {
         const isRottingField = group._config.fields.is_rotting;
         if (!isRottingField) {
@@ -19,19 +23,10 @@ export class RottingColumnProgress extends ColumnProgress {
         };
     }
 
-    /**
-     * Whether the rotting filter can be toggled — used by the template only for
-     * the cursor affordance. The badge is rendered (and click-wired) only when the
-     * is_rotting field exists, which is exactly when the toggle works.
-     */
     get rottingFilterAvailable() {
         return Boolean(this.props.group._config.fields.is_rotting);
     }
 
-    /**
-     * Checks that a filter verifying rotting status exists for the current set view.
-     * If that filter exists, it is toggled.
-     */
     async onRottingIconClick() {
         await this.props.onRotIconClicked(this.props.group);
     }

@@ -29,34 +29,14 @@ import {
 import { url } from "@web/core/utils/urls";
 const { DateTime } = luxon;
 
-/**
- * Fallback datetimes of messages without a `date` (pending/transient), keyed
- * by raw record. Kept outside the records so reading `datetime` never writes
- * through the record proxy: getters run during renders and field computes,
- * where a proxy write would trigger a store update flush.
- *
- * @type {WeakMap<import("models").Message, luxon.DateTime>}
- */
+/** @type {WeakMap<import("models").Message, luxon.DateTime>} */
 const fallbackDatetimes = new WeakMap();
 
-/**
- * Parsed-body cache: several computes (edited, extra body attachments,
- * hasLink, notification detection, onlyEmojis) each need the body as a DOM
- * and all (re)run on every body change — one parse per body serves them all.
- * Keyed by the body markup instance: a new markup is created whenever the
- * body changes, so entries die with their body.
- *
- * The fragment is shared — consumers must NOT mutate it (mutating call
- * sites like edit() keep their own fresh parses).
- *
- * @type {WeakMap<object, DocumentFragment>}
- */
+/** @type {WeakMap<object, DocumentFragment>} */
 const parsedBodies = new WeakMap();
 /** @param {string|ReturnType<markup>} body */
 function parseBody(body) {
     if (!body || typeof body === "string") {
-        // strings cannot key a WeakMap; html fields normally store markup
-        // instances and empty bodies are cheap to parse
         return createDocumentFragmentFromContent(body || "");
     }
     let fragment = parsedBodies.get(body);
@@ -75,8 +55,6 @@ export class Message extends Record {
     update(data) {
         super.update(data);
         if (typeof this.id === "number" && this.store.deletedMessageIds?.has(this.id)) {
-            // tombstoned: a stale fetch response must not resurrect a
-            // message deleted via the bus (see mail_core_common_service)
             this.delete();
             return;
         }
@@ -85,8 +63,9 @@ export class Message extends Record {
         }
         if (this.isNotification && !this.notificationType) {
             const htmlBody = parseBody(this.body);
-            this.notificationType =
-                htmlBody.querySelector(".o_mail_notification")?.dataset.oeType;
+            this.notificationType = /** @type {HTMLElement|null} */ (
+                htmlBody.querySelector(".o_mail_notification")
+            )?.dataset.oeType;
         }
     }
 
@@ -97,12 +76,8 @@ export class Message extends Record {
         return this.author_id || this.author_guest_id;
     }
     body = fields.Html("");
-    // Declared next to `body` and before every compute that reads it
-    // (`hasLink`, `isEmpty`): fields are computed in declaration order, so a
-    // compute reading a *computed* field declared after it runs once against
-    // that field's default and again once it settles. Ordering dependencies
-    // first costs nothing and removes the wasted pass.
     isBodyEmpty = fields.Attr(undefined, {
+        /** @this {import("models").Message} */
         compute() {
             return (
                 !this.body || isEmptyBlock(createElementWithContent("div", this.body))
@@ -111,6 +86,7 @@ export class Message extends Record {
     });
     call_history_ids = fields.Many("discuss.call.history");
     richBody = fields.Html("", {
+        /** @this {import("models").Message} */
         compute() {
             if (!this.store.emojiLoader.loaded) {
                 loadEmoji();
@@ -119,6 +95,7 @@ export class Message extends Record {
         },
     });
     richTranslationValue = fields.Html("", {
+        /** @this {import("models").Message} */
         compute() {
             if (!this.store.emojiLoader.loaded) {
                 loadEmoji();
@@ -136,20 +113,21 @@ export class Message extends Record {
     default_subject;
     /** @type {boolean} */
     edited = fields.Attr(false, {
+        /** @this {import("models").Message} */
         compute() {
             return Boolean(
-                // ".o-mail-Message-edited" is the class added by the mail.thread in _message_update_content
-                // when the message is edited
                 parseBody(this.body).querySelector(".o-mail-Message-edited"),
             );
         },
     });
-    /** attachments not already clearly visible in the body, unlike inlined images */
     extra_body_attachment_ids = fields.Many("ir.attachment", {
+        /** @this {import("models").Message} */
         compute() {
             const parsedBody = parseBody(this.body);
             const inlinedImageAttachmentIds = [
-                ...parsedBody.querySelectorAll("img[data-attachment-id]"),
+                .../** @type {NodeListOf<HTMLImageElement>} */ (
+                    parsedBody.querySelectorAll("img[data-attachment-id]")
+                ),
             ].map((img) => parseInt(img.dataset.attachmentId));
 
             return this.attachment_ids.filter(
@@ -158,6 +136,7 @@ export class Message extends Record {
         },
     });
     hasLink = fields.Attr(false, {
+        /** @this {import("models").Message} */
         compute() {
             if (this.isBodyEmpty) {
                 return false;
@@ -168,6 +147,7 @@ export class Message extends Record {
         },
     });
     hasMailNotificationSummary = fields.Attr(false, {
+        /** @this {import("models").Message} */
         compute() {
             return Boolean(
                 parseBody(this.body).querySelector('[summary="o_mail_notification"]'),
@@ -193,12 +173,7 @@ export class Message extends Record {
     });
     /** @type {import("models").Message} */
     parent_id = fields.One("mail.message");
-    /**
-     * When set, this temporary/pending message failed message post, and the
-     * value is a callback to re-attempt to post the message.
-     *
-     * @type {(() => Promise<void>)|undefined}
-     */
+    /** @type {(() => Promise<void>)|undefined} */
     postFailRedo = undefined;
     reactions = fields.Many("MessageReactions", {
         inverse: "message",
@@ -213,6 +188,7 @@ export class Message extends Record {
     subtype_id = fields.One("mail.message.subtype");
     thread = fields.One("Thread");
     threadAsNeedaction = fields.One("Thread", {
+        /** @this {import("models").Message} */
         compute() {
             if (this.needaction) {
                 return this.thread;
@@ -221,6 +197,7 @@ export class Message extends Record {
     });
     threadAsNewest = fields.One("Thread");
     threadAsInEdition = fields.One("Thread", {
+        /** @this {import("models").Message} */
         compute() {
             if (this.composer) {
                 return this.thread;
@@ -229,9 +206,8 @@ export class Message extends Record {
     });
     scheduledDatetime = fields.Datetime();
     onlyEmojis = fields.Attr(false, {
+        /** @this {import("models").Message} */
         compute() {
-            // .body.textContent: parseBody returns a Document (DOMParser),
-            // whose own textContent is null
             const bodyWithoutTags = parseBody(this.body).body?.textContent ?? "";
             const withoutEmojis = bodyWithoutTags.replace(EMOJI_REGEX, "");
             return (
@@ -262,12 +238,9 @@ export class Message extends Record {
     starred = false;
     showTranslation = false;
 
-    /**
-     * True if the backend would technically allow edition
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get allowsEdition() {
-        return this.store.self.main_user_id?.is_admin || this.isSelfAuthored;
+        return this.store.self_partner?.main_user_id?.is_admin || this.isSelfAuthored;
     }
 
     get bubbleColor() {
@@ -306,7 +279,7 @@ export class Message extends Record {
             .toLocaleString(DateTime.TIME_SIMPLE, {
                 locale: user.lang,
             })
-            .replace(" ", " "); // so that AM/PM are properly wrapped
+            .replace(" ", " ");
     }
 
     get dateSimpleWithDay() {
@@ -332,8 +305,6 @@ export class Message extends Record {
         if (this.date) {
             return this.date;
         }
-        // Stable fallback: returning a fresh now() on each read would make
-        // sort keys unstable.
         const raw = toRaw(this)._raw;
         let fallback = fallbackDatetimes.get(raw);
         if (!fallback) {
@@ -343,12 +314,7 @@ export class Message extends Record {
         return fallback;
     }
 
-    /**
-     * Get the effective persona performing actions on this message.
-     * Priority order: logged-in user, portal partner (token-authenticated), guest.
-     *
-     * @returns {import("models").ResPartner|import("models").MailGuest}
-     */
+    /** @returns {import("models").ResPartner|import("models").MailGuest} */
     get effectiveSelf() {
         return this.thread?.effectiveSelf ?? this.store.self;
     }
@@ -366,6 +332,7 @@ export class Message extends Record {
     }
 
     isSelfAuthored = fields.Attr(false, {
+        /** @this {import("models").Message} */
         compute() {
             return Boolean(this.author?.eq(this.effectiveSelf));
         },
@@ -413,6 +380,10 @@ export class Message extends Record {
         );
     }
 
+    /**
+     * @param {import("models").Thread} [thread]
+     * @returns {boolean}
+     */
     isTranslatable(thread) {
         return (
             !this.isEmpty &&
@@ -444,13 +415,6 @@ export class Message extends Record {
         );
     }
 
-    /**
-     * Determines if the link preview is actually the main content of the
-     * message. Meaning:
-     * - The link is the only part of the message body.
-     * - There is only one link in the message body.
-     * - The link preview is of image type.
-     */
     get linkPreviewSquash() {
         return (
             this.store.hasLinkPreviewFeature &&
@@ -458,17 +422,12 @@ export class Message extends Record {
             this.body.startsWith("<a") &&
             this.body.endsWith("/a>") &&
             // global flag: a non-global match() returns the single match plus
-            // its capture groups, so `.length === 1` held for ANY body with a
-            // link and the "only one link" condition was never enforced
             this.body.match(/<\/a>/gi)?.length === 1 &&
             this.message_link_preview_ids.length === 1 &&
             this.message_link_preview_ids[0].link_preview_id.isImage
         );
     }
 
-    /**
-     * This is the preferred way to display the name of the author of a message.
-     */
     get authorName() {
         if (this.author) {
             return this.getPersonaName(this.author);
@@ -590,7 +549,7 @@ export class Message extends Record {
         }
     }
 
-    /** @param {import("models").Thread} thread the thread where the message is shown */
+    /** @param {import("models").Thread} thread */
     canAddReaction(thread) {
         return Boolean(
             !this.is_transient &&
@@ -601,7 +560,7 @@ export class Message extends Record {
         );
     }
 
-    /** @param {import("models").Thread} thread the thread where the message is shown */
+    /** @param {import("models").Thread} thread */
     canReplyTo(thread) {
         return (
             (thread?.isChannelKind || thread?.isMailbox) &&
@@ -609,7 +568,7 @@ export class Message extends Record {
         );
     }
 
-    /** @param {import("models").Thread} thread the thread where the message is shown */
+    /** @param {import("models").Thread} thread */
     canUnfollow(thread) {
         return Boolean(this.thread?.selfFollower && thread?.isMailbox);
     }
@@ -644,6 +603,14 @@ export class Message extends Record {
         });
     }
 
+    /**
+     * @param {string|ReturnType<markup>} body
+     * @param {import("models").Attachment[]} [attachments=[]]
+     * @param {Object} [mentions]
+     * @param {import("models").Thread[]} [mentions.mentionedChannels=[]]
+     * @param {import("models").Persona[]} [mentions.mentionedPartners=[]]
+     * @param {Object[]} [mentions.mentionedRoles=[]]
+     */
     async edit(
         body,
         attachments = [],
@@ -665,7 +632,7 @@ export class Message extends Record {
             mentionedRoles,
             thread: this.thread,
         });
-        const hadLink = this.hasLink; // to remove old previews if message no longer contains any link
+        const hadLink = this.hasLink;
         const updateData = {
             attachment_ids: attachments
                 .concat(this.attachment_ids)
@@ -690,19 +657,16 @@ export class Message extends Record {
         return data;
     }
 
-    /** @param {import("models").Thread} thread the thread where the message is being viewed when starting edition */
+    /** @param {import("models").Thread} thread */
     async enterEditMode(thread) {
         const doc = parseBody(this.body);
-        // "discuss.channel" literals: `data-oe-model` is part of the mention
-        // markup protocol embedded in message bodies (server-rendered HTML),
-        // not a Thread-record conditional.
         const validChannels = (
             await Promise.all(
                 Array.from(
                     doc.querySelectorAll(
                         ".o_channel_redirect[data-oe-model='discuss.channel']",
                     ),
-                ).map(async (el) =>
+                ).map(async (/** @type {HTMLElement} */ el) =>
                     this.store.Thread.getOrFetch({
                         id: el.dataset.oeId,
                         model: "discuss.channel",
@@ -711,7 +675,9 @@ export class Message extends Record {
             )
         ).filter((channel) => channel?.exists());
         const validRoles = Array.from(
-            doc.querySelectorAll(".o-discuss-mention[data-oe-model='res.role']"),
+            /** @type {NodeListOf<HTMLElement>} */ (
+                doc.querySelectorAll(".o-discuss-mention[data-oe-model='res.role']")
+            ),
         ).map((el) => this.store["res.role"].get(el.dataset.oeId));
         const text = convertBrToLineBreak(this.body);
         if (thread?.messageInEdition) {
@@ -730,7 +696,7 @@ export class Message extends Record {
         };
     }
 
-    /** @param {import("models").Thread} thread the thread where the message is being viewed when stopping edition */
+    /** @param {import("models").Thread} thread */
     exitEditMode(thread) {
         const threadAsInEdition = this.threadAsInEdition;
         this.composer = undefined;
@@ -740,15 +706,15 @@ export class Message extends Record {
     }
 
     /**
-     * Provide fallback to displayName in the absence of a thread
-     *
      * @param {import("models").ResPartner|import("models").MailGuest} persona
      * @returns {string}
      */
     getPersonaName(persona) {
+        const displayName =
+            persona && "displayName" in persona ? persona.displayName : undefined;
         return (
             this.thread?.getPersonaName(persona) ||
-            persona?.displayName ||
+            displayName ||
             persona?.name ||
             _t("Unnamed")
         );
@@ -766,6 +732,7 @@ export class Message extends Record {
         this.showTranslation = !this.showTranslation && Boolean(this.translationValue);
     }
 
+    /** @param {string} content */
     async react(content) {
         this.store.insert(
             await rpc(
@@ -781,6 +748,10 @@ export class Message extends Record {
         );
     }
 
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.removeFromThread=false]
+     */
     async remove({ removeFromThread = false } = {}) {
         const data = await rpc("/mail/message/update_content", {
             message_id: this.id,
@@ -797,6 +768,7 @@ export class Message extends Record {
         return data;
     }
 
+    /** @returns {import("@mail/core/common/message_post").MessagePostData} */
     get removeParams() {
         return {
             attachment_ids: [],
@@ -808,11 +780,8 @@ export class Message extends Record {
     }
 
     async setDone() {
-        // Optimistic UI update: immediately mark as read so the notification
-        // disappears and the systray counter decreases without waiting for
-        // the bus notification.
         const wasNeedaction = this.needaction;
-        const inbox = this.store.inbox; // absent outside the web bundles
+        const inbox = this.store.inbox;
         const inboxSnapshot = inbox && snapshotCounter(inbox, "counter");
         const threadSnapshot =
             this.thread && snapshotCounter(this.thread, "message_needaction_counter");
@@ -839,14 +808,6 @@ export class Message extends Record {
                 [[this.id]],
             );
         } catch (e) {
-            // Roll back the optimistic update: the server still has the message
-            // as needaction and no correcting bus notification will arrive, so
-            // without this the inbox and its counter stay wrong until reload.
-            // Counters are only rolled back when their bus id did not advance
-            // in the meantime: a newer absolute bus snapshot must not be
-            // overwritten by a stale local value.
-            // These call sites are fire-and-forget, so swallow (log) rather
-            // than surface an unhandled rejection / crash dialog.
             if (wasNeedaction) {
                 this.needaction = true;
                 if (inbox) {

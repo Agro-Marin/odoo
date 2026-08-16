@@ -1,4 +1,5 @@
 declare module "models" {
+    import { Store as StoreServiceClass } from "@mail/core/common/store_service";
     import { Activity as ActivityClass } from "@mail/core/common/activity_model";
     import { Attachment as AttachmentClass } from "@mail/core/common/attachment_model";
     import { CannedResponse as CannedResponseClass } from "@mail/core/common/canned_response_model";
@@ -63,31 +64,65 @@ declare module "models" {
     export interface Thread extends ThreadClass {}
     export interface Volume extends VolumeClass {}
 
+    export type Persona = ResPartner | MailGuest;
+
+    export interface ResPartner {
+        /**
+         * Server-side field, absent from the JS model class: the token that
+         * authorises mentioning this partner, read when a post fills
+         * `partner_ids_mention_token` and when the suggestions rank a partner.
+         */
+        mention_token: string | undefined;
+    }
+
+    export interface Store extends StoreServiceClass {}
+
     export interface Store {
         ChatHub: StaticMailRecord<ChatHub, typeof ChatHubClass>;
         ChatWindow: StaticMailRecord<ChatWindow, typeof ChatWindowClass>;
         Composer: StaticMailRecord<Composer, typeof ComposerClass>;
         DataResponse: StaticMailRecord<DataResponse, typeof DataResponseClass>;
-        "discuss.call.history": StaticMailRecord<DiscussCallHistory, typeof DiscussCallHistoryClass>;
+        "discuss.call.history": StaticMailRecord<
+            DiscussCallHistory,
+            typeof DiscussCallHistoryClass
+        >;
         Failure: StaticMailRecord<Failure, typeof FailureClass>;
         "ir.attachment": StaticMailRecord<Attachment, typeof AttachmentClass>;
         "mail.activity": StaticMailRecord<Activity, typeof ActivityClass>;
-        "mail.activity.type": StaticMailRecord<MailActivityType, typeof MailActivityTypeClass>;
-        "mail.canned.response": StaticMailRecord<CannedResponse, typeof CannedResponseClass>;
+        "mail.activity.type": StaticMailRecord<
+            MailActivityType,
+            typeof MailActivityTypeClass
+        >;
+        "mail.canned.response": StaticMailRecord<
+            CannedResponse,
+            typeof CannedResponseClass
+        >;
         "mail.followers": StaticMailRecord<Follower, typeof FollowerClass>;
         "mail.guest": StaticMailRecord<MailGuest, typeof MailGuestClass>;
         "mail.link.preview": StaticMailRecord<LinkPreview, typeof LinkPreviewClass>;
         "mail.message": StaticMailRecord<Message, typeof MessageClass>;
-        "mail.message.link.preview": StaticMailRecord<MessageLinkPreview, typeof MessageLinkPreviewClass>;
-        "mail.message.subtype": StaticMailRecord<MailMessageSubtype, typeof MailMessageSubtypeClass>;
+        "mail.message.link.preview": StaticMailRecord<
+            MessageLinkPreview,
+            typeof MessageLinkPreviewClass
+        >;
+        "mail.message.subtype": StaticMailRecord<
+            MailMessageSubtype,
+            typeof MailMessageSubtypeClass
+        >;
         "mail.notification": StaticMailRecord<Notification, typeof NotificationClass>;
         "mail.template": StaticMailRecord<MailTemplate, typeof MailTemplateClass>;
-        MessageReactions: StaticMailRecord<MessageReactions, typeof MessageReactionsClass>;
+        MessageReactions: StaticMailRecord<
+            MessageReactions,
+            typeof MessageReactionsClass
+        >;
         MessagingMenu: StaticMailRecord<MessagingMenu, typeof MessagingMenuClass>;
         "res.company": StaticMailRecord<ResCompany, typeof ResCompanyClass>;
         "res.country": StaticMailRecord<Country, typeof CountryClass>;
         "res.groups": StaticMailRecord<ResGroups, typeof ResGroupsClass>;
-        "res.groups.privilege": StaticMailRecord<ResGroupsPrivilege, typeof ResGroupsPrivilegeClass>;
+        "res.groups.privilege": StaticMailRecord<
+            ResGroupsPrivilege,
+            typeof ResGroupsPrivilegeClass
+        >;
         "res.lang": StaticMailRecord<ResLang, typeof ResLangClass>;
         "res.partner": StaticMailRecord<ResPartner, typeof ResPartnerClass>;
         "res.role": StaticMailRecord<ResRole, typeof ResRoleClass>;

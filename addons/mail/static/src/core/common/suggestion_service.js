@@ -7,12 +7,7 @@ import { registry } from "@web/core/registry";
 import { fuzzyLookup } from "@web/core/utils/search";
 
 /**
- * Build a comparator ordering suggestions by: entries whose cleaned key starts
- * with the search term first, then alphabetically by that key, then by
- * ascending id. Shared by the canned-response, role and channel suggestion
- * sorts.
- *
- * @param {(item: any) => string} cleanedKeyFn returns the already-cleaned key
+ * @param {(item: any) => string} cleanedKeyFn
  * @param {string} cleanedSearchTerm
  * @returns {(a: any, b: any) => number}
  */
@@ -32,6 +27,8 @@ function byPrefixThenAlphaThenId(cleanedKeyFn, cleanedSearchTerm) {
     };
 }
 
+/** @typedef {import("@web/components/emoji_picker/emoji_picker").Emoji} Emoji */
+/** @typedef {import("@mail/core/common/suggestion_hook").Suggestion} Suggestion */
 export class SuggestionService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -46,19 +43,22 @@ export class SuggestionService {
     }
 
     /**
-     * Returns list of supported delimiters, each supported
-     * delimiter is in an array [a, b, c] where:
-     * - a: chars to trigger
-     * - b: (optional) if set, the exact position in composer text input to allow using this delimiter
-     * - c: (optional) if set, this is the minimum amount of extra char after delimiter to allow using this delimiter
-     *
      * @param {import('models').Thread} thread
+     * @param {import("@web/env").OdooEnv} [env]
      * @returns {Array<[string, number?, number?]>}
      */
     getSupportedDelimiters(thread, env) {
         return [["@"], ["#"], ["::"], [":", undefined, 2]];
     }
 
+    /**
+     * @param {Object} search
+     * @param {string} search.delimiter
+     * @param {string} search.term
+     * @param {Object} [options]
+     * @param {import("models").Thread} [options.thread]
+     * @param {AbortSignal} [options.abortSignal]
+     */
     async fetchSuggestions({ delimiter, term }, { thread, abortSignal } = {}) {
         const cleanedSearchTerm = cleanTerm(term);
         switch (delimiter) {
@@ -82,18 +82,19 @@ export class SuggestionService {
     }
 
     /**
-     * Make an ORM call with a cancellable signal. Useful to abort fetch
-     * requests from outside of the suggestion service.
-     *
-     * @param {String} model
-     * @param {String} method
-     * @param {Array} args
+     * @param {string} model
+     * @param {string} method
+     * @param {any[]} args
      * @param {Object} kwargs
-     * @param {Object} options
-     * @param {AbortSignal} options.abortSignal
+     * @param {Object} [options={}]
+     * @param {AbortSignal} [options.abortSignal]
+     * @returns {Promise<any>}
      */
     makeOrmCall(model, method, args, kwargs, { abortSignal } = {}) {
         return new Promise((res, rej) => {
+            /**
+             * @type {Promise<any> & {abort?: () => void}}
+             */
             const req = this.orm.silent.call(model, method, args, kwargs);
             const onAbort = () => {
                 try {
@@ -111,8 +112,11 @@ export class SuggestionService {
     /**
      * @param {string} term
      * @param {import("models").Thread} [thread]
+     * @param {Object} [options]
+     * @param {AbortSignal} [options.abortSignal]
      */
     async fetchPartnersRoles(term, thread, { abortSignal } = {}) {
+        /** @type {{search: string, channel_id?: number}} */
         const kwargs = { search: term };
         if (thread?.isChannelKind) {
             kwargs.channel_id = thread.id;
@@ -131,10 +135,10 @@ export class SuggestionService {
 
     /**
      * @param {string} term
+     * @param {Object} [options]
+     * @param {AbortSignal} [options.abortSignal]
      */
     async fetchThreads(term, { abortSignal } = {}) {
-        // "discuss.channel" literal: ORM model name of the "#" channel
-        // mention endpoint (RPC payload, not a Thread-record conditional).
         const data = await this.makeOrmCall(
             "discuss.channel",
             "get_mention_suggestions",
@@ -145,6 +149,10 @@ export class SuggestionService {
         this.store.insert(data);
     }
 
+    /**
+     * @param {string} cleanedSearchTerm
+     * @returns {{type: string, suggestions: Object[]}}
+     */
     searchCannedResponseSuggestions(cleanedSearchTerm) {
         const cannedResponses = Object.values(
             this.store["mail.canned.response"].records,
@@ -154,17 +162,27 @@ export class SuggestionService {
         return {
             type: "mail.canned.response",
             suggestions: cannedResponses.sort(
-                byPrefixThenAlphaThenId((c) => cleanTerm(c.source), cleanedSearchTerm),
+                byPrefixThenAlphaThenId(
+                    /** @param {import("models").CannedResponse} c */
+                    (c) => cleanTerm(c.source),
+                    cleanedSearchTerm,
+                ),
             ),
         };
     }
 
+    /**
+     * @param {string} cleanedSearchTerm
+     * @returns {{type: string, suggestions: Emoji[]}}
+     */
     searchEmojisSuggestions(cleanedSearchTerm) {
+        /** @type {Emoji[]} */
         let emojis = [];
         if (this.emojis && cleanedSearchTerm) {
             emojis = fuzzyLookup(
                 cleanedSearchTerm,
                 this.emojis,
+                /** @param {{shortcodes: string[]}} emoji */
                 (emoji) => emoji.shortcodes,
             );
         }
@@ -175,15 +193,12 @@ export class SuggestionService {
     }
 
     /**
-     * Returns suggestions that match the given search term from specified type.
-     *
-     * @param {Object} [param0={}]
-     * @param {String} [param0.delimiter] one of ["@", "#", "::", ":"]
-     * @param {String} [param0.term]
+     * @param {Object} param0
+     * @param {string} [param0.delimiter]
+     * @param {string} [param0.term]
      * @param {Object} [options={}]
-     * @param {import("models").Thread} [options.thread] prioritize and/or restrict
-     *  result in the context of given thread
-     * @returns {{ type: String, suggestions: Array }}
+     * @param {import("models").Thread} [options.thread]
+     * @returns {{ type: string, suggestions: Suggestion[] }}
      */
     searchSuggestions({ delimiter, term }, { thread } = {}) {
         thread = toRaw(thread);
@@ -213,17 +228,30 @@ export class SuggestionService {
         };
     }
 
+    /**
+     * @param {string} cleanedSearchTerm
+     * @returns {{suggestions: Object[]}}
+     */
     searchRoleSuggestions(cleanedSearchTerm) {
         const roles = Object.values(this.store["res.role"].records).filter((role) =>
             cleanTerm(role.name).includes(cleanedSearchTerm),
         );
         return {
             suggestions: roles.sort(
-                byPrefixThenAlphaThenId((r) => cleanTerm(r.name), cleanedSearchTerm),
+                byPrefixThenAlphaThenId(
+                    /** @param {import("models").ResRole} r */
+                    (r) => cleanTerm(r.name),
+                    cleanedSearchTerm,
+                ),
             ),
         };
     }
 
+    /**
+     * @param {import("models").ResPartner} partner
+     * @param {import("models").Thread} [thread]
+     * @returns {boolean}
+     */
     isSuggestionValid(partner, thread) {
         return (
             (this.store.self_partner?.main_user_id?.share === false ||
@@ -232,12 +260,21 @@ export class SuggestionService {
         );
     }
 
+    /**
+     * @param {import("models").Thread} [thread]
+     * @returns {import("models").ResPartner[]}
+     */
     getPartnerSuggestions(thread) {
         return Object.values(this.store["res.partner"].records).filter((partner) =>
             this.isSuggestionValid(partner, thread),
         );
     }
 
+    /**
+     * @param {string} cleanedSearchTerm
+     * @param {import("models").Thread} [thread]
+     * @returns {{type: string, suggestions: Object[]}}
+     */
     searchPartnerSuggestions(cleanedSearchTerm, thread) {
         const partners = this.getPartnerSuggestions(thread);
         const suggestions = [];
@@ -282,14 +319,14 @@ export class SuggestionService {
         const cleanedSearchTerm = cleanTerm(searchTerm);
         const compareFunctions = partnerCompareRegistry.getAll();
         const context = this.sortPartnerSuggestionsContext(thread);
-        // Special mentions (@everyone/@here) are not real partners: mixing
-        // them into the comparator makes it non-transitive. Sort only the
-        // regular partners and surface the specials first, so they survive the
-        // suggestion hook's 8-item truncation.
+        /** @type {(import("@mail/core/common/store_service").SpecialMention)[]} */
         const specials = [];
+        /** @type {(import("models").ResPartner)[]} */
         const regular = [];
         for (const partner of partners) {
-            (toRaw(partner).isSpecial ? specials : regular).push(partner);
+            ("isSpecial" in toRaw(partner) ? specials : regular).push(
+                /** @type {any} */ (partner),
+            );
         }
         regular.sort((p1, p2) => {
             p1 = toRaw(p1);
@@ -305,25 +342,20 @@ export class SuggestionService {
                     return result;
                 }
             }
-            // no comparator was decisive: keep a stable order rather than
-            // returning undefined (which Array.sort treats as non-ordering).
             return 0;
         });
         return [...specials, ...regular];
     }
 
-    /**
-     * Per-sort context handed to every partner comparator. Overridable; the
-     * `thread` parameter is part of the contract even though the base makes no
-     * use of it (@see isSuggestionValid, same shape) — declaring it is what
-     * lets an override below `discuss`'s patch in the chain receive it.
-     *
-     * @param {import("models").Thread} [thread]
-     */
+    /** @param {import("models").Thread} [thread] */
     sortPartnerSuggestionsContext(thread) {
         return {};
     }
 
+    /**
+     * @param {string} cleanedSearchTerm
+     * @returns {{type: string, suggestions: Object[]}}
+     */
     searchChannelSuggestions(cleanedSearchTerm) {
         const suggestionList = Object.values(this.store.Thread.records).filter(
             (thread) =>
@@ -332,12 +364,16 @@ export class SuggestionService {
                 cleanTerm(thread.displayName).includes(cleanedSearchTerm),
         );
         const byName = byPrefixThenAlphaThenId(
+            /** @param {import("models").Thread} c */
             (c) => cleanTerm(c.displayName),
             cleanedSearchTerm,
         );
+        /**
+         * @param {import("models").Thread} c1
+         * @param {import("models").Thread} c2
+         * @returns {number}
+         */
         const sortFunc = (c1, c2) => {
-            // public channels first, then channels the user is a member of,
-            // then the shared prefix/alpha/id ordering by display name.
             const isPublicChannel1 =
                 c1.channel_type === "channel" && !c1.group_public_id;
             const isPublicChannel2 =

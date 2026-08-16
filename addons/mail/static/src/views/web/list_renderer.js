@@ -2,6 +2,11 @@
 import { patch } from "@web/core/utils/patch";
 import { ListRenderer } from "@web/views/list";
 patch(ListRenderer.prototype, {
+    /**
+     * @param {Object} _
+     * @param {import("@web/model/relational_model/dynamic_list").DynamicList} list
+     * @returns {Object[]}
+     */
     getPropertyFieldColumns(_, list) {
         const columns = super.getPropertyFieldColumns(...arguments);
         for (const column of columns) {

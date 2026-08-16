@@ -31,7 +31,10 @@
     }
     &.o-isActive {
         background-color: o-palette-token(--o-gray-200, $gray-200) !important;
-        outline: $border-width solid unquote("color-mix(in srgb, #{o-palette-token(--o-gray-300, $gray-300)} 50%, #{o-palette-token(--o-gray-400, $gray-400)})");
+        outline: $border-width solid
+            unquote(
+                "color-mix(in srgb, #{o-palette-token(--o-gray-300, $gray-300)} 50%, #{o-palette-token(--o-gray-400, $gray-400)})"
+            );
         outline-offset: -$border-width;
         opacity: 100%;
     }
@@ -41,7 +44,9 @@
 }
 
 .o-mail-DiscussContent-headerActionsGroup {
-    background-color: unquote("color-mix(in srgb, #{o-palette-token(--o-gray-100, $gray-100)} 65%, #{o-palette-token(--o-gray-200, $gray-200)})");
+    background-color: unquote(
+        "color-mix(in srgb, #{o-palette-token(--o-gray-100, $gray-100)} 65%, #{o-palette-token(--o-gray-200, $gray-200)})"
+    );
     outline: 1px solid o-palette-token(--o-gray-200, $gray-200);
     outline-offset: -1px;
 }
@@ -85,8 +90,6 @@
     max-width: 75%;
 }
 
-
-// The dark half, folded in from `discuss_content.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-DiscussContent-header {
@@ -98,7 +101,10 @@
                 background-color: mix($o-dark-gray-200, $o-dark-gray-300) !important;
             }
             &.o-isActive {
-                background-color: o-palette-token(--o-gray-300, $o-dark-gray-300) !important;
+                background-color: o-palette-token(
+                    --o-gray-300,
+                    $o-dark-gray-300
+                ) !important;
             }
             &.o-isActive:hover {
                 background-color: mix($o-dark-gray-300, $o-dark-gray-400) !important;

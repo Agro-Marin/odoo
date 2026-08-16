@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <!-- Add time to the stage buttons -->
 
     <t t-name="mail.StatusBarDurationField.Dropdown" t-inherit="web.StatusBarField.Dropdown" t-inherit-mode="primary">
         <xpath expr="//*[@t-esc='item.label']" position="inside">

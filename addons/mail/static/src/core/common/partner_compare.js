@@ -1,16 +1,15 @@
 /** @odoo-module native */
 import { cleanTerm } from "@mail/utils/common/format";
 import { registry } from "@web/core/registry";
-/**
- * Registry of functions to sort partner suggestions.
- * The expected value is a function with the following
- * signature:
- *     (partner1: Partner, partner2: Partner, { env: OdooEnv, searchTerm: string, thread?: Thread , context?: Object}) => number|undefined
- */
 export const partnerCompareRegistry = registry.category("mail.partner_compare");
 
 partnerCompareRegistry.add(
     "mail.archived-last-except-odoobot",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @returns {number|undefined}
+     */
     (p1, p2) => {
         const p1active = p1.active || p1.eq(p1.store.odoobot);
         const p2active = p2.active || p2.eq(p2.store.odoobot);
@@ -26,6 +25,11 @@ partnerCompareRegistry.add(
 
 partnerCompareRegistry.add(
     "mail.internal-users",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @returns {number|undefined}
+     */
     (p1, p2) => {
         const isAInternalUser = p1.main_user_id?.share === false;
         const isBInternalUser = p2.main_user_id?.share === false;
@@ -41,6 +45,13 @@ partnerCompareRegistry.add(
 
 partnerCompareRegistry.add(
     "mail.followers",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @param {Object} context
+     * @param {*} context.thread
+     * @returns {number|undefined}
+     */
     (p1, p2, { thread }) => {
         if (thread) {
             const followerList = [...thread.followers];
@@ -66,6 +77,13 @@ partnerCompareRegistry.add(
 
 partnerCompareRegistry.add(
     "mail.name",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @param {Object} context
+     * @param {*} context.searchTerm
+     * @returns {number|undefined}
+     */
     (p1, p2, { searchTerm }) => {
         const cleanedName1 = cleanTerm(p1.name);
         const cleanedName2 = cleanTerm(p2.name);
@@ -93,6 +111,13 @@ partnerCompareRegistry.add(
 
 partnerCompareRegistry.add(
     "mail.email",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @param {Object} context
+     * @param {*} context.searchTerm
+     * @returns {number|undefined}
+     */
     (p1, p2, { searchTerm }) => {
         const cleanedEmail1 = cleanTerm(p1.email);
         const cleanedEmail2 = cleanTerm(p2.email);
@@ -118,4 +143,13 @@ partnerCompareRegistry.add(
     { sequence: 55 },
 );
 
-partnerCompareRegistry.add("mail.id", (p1, p2) => p1.id - p2.id, { sequence: 75 });
+partnerCompareRegistry.add(
+    "mail.id",
+    /**
+     * @param {import("models").ResPartner} p1
+     * @param {import("models").ResPartner} p2
+     * @returns {number}
+     */
+    (p1, p2) => p1.id - p2.id,
+    { sequence: 75 },
+);

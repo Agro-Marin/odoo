@@ -1,25 +1,15 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-export const AWAY_DELAY = 30 * 60 * 1000; // 30 minutes
+export const AWAY_DELAY = 30 * 60 * 1000;
 
-/**
- * This service keeps the user's presence up to date with the server. When the
- * connection to the server is established, the user's presence is updated. If
- * another device or browser updates the user's presence, the presence is sent to
- * the server if relevant (e.g., another device is away or offline, but this one
- * is online).
- *
- * To receive updates through the bus, subscribe to presence channels
- * (e.g., subscribe to `odoo-presence-res.partner_3-token` to receive updates about
- * this partner). Token is optional and can be used to grant access to the presence
- * channel if the user is not allowed to read the partner's presence.
- * See `_get_im_status_access_token`.
- */
 export const imStatusService = {
     dependencies: ["bus_service", "presence"],
-    // and cyclic dependecy with "mail.store" (both services should be merged together)
 
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ bus_service: any, presence: any }} services
+     */
     start(env, { bus_service, presence }) {
         let lastSentInactivity;
         let becomeAwayTimeout;
@@ -42,13 +32,18 @@ export const imStatusService = {
                 );
             }
         };
-        // on every (re)connection: after a websocket drop the server forgot our
-        // presence, so a present-but-idle user (reading) would appear offline
-        // until their next interaction or the away timeout
         bus_service.addEventListener("BUS:CONNECT", () => updateBusPresence());
         bus_service.addEventListener("BUS:RECONNECT", () => updateBusPresence());
         bus_service.subscribe(
             "bus.bus/im_status_updated",
+            /**
+             * @param {Object} payload
+             * @param {string} payload.presence_status
+             * @param {string} payload.im_status
+             * @param {number} [payload.partner_id]
+             * @param {number} [payload.guest_id]
+             * @param {boolean} [payload.debounce=true]
+             */
             async ({
                 presence_status,
                 im_status,
@@ -60,7 +55,7 @@ export const imStatusService = {
                 const partner = store["res.partner"].get(partner_id);
                 const guest = store["mail.guest"].get(guest_id);
                 if (!partner && !guest) {
-                    return; // Do not store unknown persona's status
+                    return;
                 }
                 if (debounce) {
                     partner?.debouncedSetImStatus(im_status);
@@ -81,9 +76,6 @@ export const imStatusService = {
             },
         );
         presence.bus.addEventListener("presence", () => {
-            // Re-send only when nothing was ever sent or the server last saw
-            // us "away". Test `=== undefined`, not falsiness:
-            // `lastSentInactivity` is legitimately 0 on an active user.
             if (lastSentInactivity === undefined || lastSentInactivity >= AWAY_DELAY) {
                 updateBusPresence();
             }

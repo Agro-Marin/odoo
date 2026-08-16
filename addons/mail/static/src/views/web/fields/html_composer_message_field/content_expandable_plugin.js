@@ -8,6 +8,7 @@ export class ContentExpandablePlugin extends Plugin {
     static id = "contentexpandable";
     static dependencies = ["protectedNode", "selection"];
     resources = {
+        /** @param {{root: HTMLElement}} params */
         clean_for_save_handlers: ({ root }) => this.cleanForSave(root),
         delete_backward_overrides: this.deleteBackward.bind(this),
         move_node_blacklist_selectors:
@@ -18,6 +19,10 @@ export class ContentExpandablePlugin extends Plugin {
         this.insertReplyContent();
     }
 
+    /**
+     * @param {{endContainer: Node}} range
+     * @returns {boolean|undefined}
+     */
     deleteBackward({ endContainer }) {
         const closestReplyContainer = closestElement(
             endContainer,
@@ -32,7 +37,8 @@ export class ContentExpandablePlugin extends Plugin {
     }
 
     /**
-     * @override
+     * @param {Event} ev
+     * @returns {boolean|undefined}
      */
     isValidTargetForDomListener(ev) {
         if (
@@ -40,7 +46,6 @@ export class ContentExpandablePlugin extends Plugin {
             ev.target &&
             closestElement(ev.target, ".o-mail-Message-viewMore-btn")
         ) {
-            // Allow clicking on the viewMore button even if it is protected.
             return true;
         }
         return super.isValidTargetForDomListener(ev);
@@ -67,6 +72,7 @@ export class ContentExpandablePlugin extends Plugin {
         ele.prepend(buttonTemplate);
     }
 
+    /** @param {MouseEvent} ev */
     onClickViewButton(ev) {
         const ele = closestElement(ev.target, ".o_mail_reply_container");
         if (!ele) {
@@ -78,6 +84,7 @@ export class ContentExpandablePlugin extends Plugin {
         closestElement(ev.target, ".o-mail-Message-viewMore-container")?.remove();
     }
 
+    /** @param {HTMLElement} root */
     cleanForSave(root) {
         for (const el of selectElements(root, ".o_mail_reply_container")) {
             delete el.dataset.oeProtected;

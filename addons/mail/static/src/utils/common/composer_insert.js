@@ -1,10 +1,6 @@
 /** @odoo-module native */
 
 /**
- * Inserts `text` at the composer's current selection: through the editor (plus
- * a history step) in HTML mode, or by splicing `composer.composerText` and
- * reporting the cursor position through `moveCursor` in plain-text mode.
- *
  * @param {import("models").Composer} composer
  * @param {string} text
  * @param {Object} [options]

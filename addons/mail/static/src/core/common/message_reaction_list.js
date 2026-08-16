@@ -77,10 +77,15 @@ export class MessageReactionList extends Component {
         }
     }
 
+    /**
+     * @param {import("models").MessageReactions} reaction
+     * @returns {boolean}
+     */
     hasSelfReacted(reaction) {
         return this.props.message.effectiveSelf.in(reaction.personas);
     }
 
+    /** @param {import("models").MessageReactions} reaction */
     onClickReaction(reaction) {
         if (!this.props.message.canAddReaction()) {
             return;
@@ -92,6 +97,7 @@ export class MessageReactionList extends Component {
         }
     }
 
+    /** @param {MouseEvent} ev */
     onContextMenu(ev) {
         if (this.ui.isSmall) {
             ev.preventDefault();
@@ -99,8 +105,9 @@ export class MessageReactionList extends Component {
         }
     }
 
+    /** @param {import("models").MessageReactions} reaction */
     onClickReactionList(reaction) {
-        this.preview.isOpen = false; // closes dropdown immediately as to not recover focus after dropdown closes
+        this.preview.isOpen = false;
         this.props.openReactionMenu(reaction);
     }
 }

@@ -19,8 +19,6 @@
     visibility: hidden;
 }
 
-
-// The dark half, folded in from `message_reactions.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-MessageReaction {

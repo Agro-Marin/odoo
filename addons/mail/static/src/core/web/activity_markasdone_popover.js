@@ -27,6 +27,7 @@ export class ActivityMarkAsDone extends Component {
         useExternalListener(window, "keydown", this.onKeydown);
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         if (ev.key === "Escape" && this.props.close) {
             this.props.close();

@@ -66,12 +66,7 @@ chrome.runtime.onMessageExternal.addListener(
     },
 );
 
-/**
- * Broadcast commands to all subcribers. Note that anyone can subscribe to the
- * extension thus no sensitive data should be sent.
- *
- * @param {"toggle-voice"|"ptt-pressed"} command
- */
+/** @param {"toggle-voice"|"ptt-pressed"} command */
 async function onCommand(command) {
     const isTalkingByTabId = await getIsTalkingByTabId();
     for (const tabId of Object.keys(isTalkingByTabId)) {

@@ -14,9 +14,9 @@ import { useAutofocus } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {ReturnType<typeof import("@mail/core/common/message_search_hook").useMessageSearch>} messageSearch
- * @property {import("@mail/core/common/thread_model").Thread} thread
+ * @property {import("models").Thread} thread
  * @property {function} [closeSearch]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class SearchMessageInput extends Component {
     static template = "mail.SearchMessageInput";
@@ -30,6 +30,7 @@ export class SearchMessageInput extends Component {
         useExternalListener(
             browser,
             "keydown",
+            /** @param {KeyboardEvent} ev */
             (ev) => {
                 if (ev.key === "Escape") {
                     this.props.closeSearch?.();
@@ -52,6 +53,7 @@ export class SearchMessageInput extends Component {
         this.props.closeSearch?.();
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydownSearch(ev) {
         if (ev.key !== "Enter") {
             return;

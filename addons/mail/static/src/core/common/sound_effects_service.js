@@ -3,9 +3,7 @@ import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { url } from "@web/core/utils/urls";
 export class SoundEffects {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
         this.soundEffects = {
             "call-join": {
@@ -56,9 +54,8 @@ export class SoundEffects {
     /**
      * @param {String} soundEffectName
      * @param {Object} param1
-     * @param {boolean} [param1.loop] true if we want to make the audio loop, will only stop if stop() is called
-     * @param {float} [param1.volume] the volume percentage in decimal to play this sound.
-     *   If not provided, uses the default volume of this sound effect.
+     * @param {boolean} [param1.loop]
+     * @param {float} [param1.volume]
      */
     play(soundEffectName, { loop = false, volume } = {}) {
         if (typeof browser.Audio === "undefined") {
@@ -82,10 +79,7 @@ export class SoundEffects {
         soundEffect.audio.volume = volume ?? soundEffect.defaultVolume ?? 1;
         Promise.resolve(soundEffect.audio.play()).catch(() => {});
     }
-    /**
-     * Resets the audio to the start of the track and pauses it.
-     * @param {String} [soundEffectName]
-     */
+    /** @param {String} [soundEffectName] */
     stop(soundEffectName) {
         const soundEffect = this.soundEffects[soundEffectName];
         if (soundEffect) {
@@ -105,9 +99,7 @@ export class SoundEffects {
 }
 
 export const soundEffects = {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     start(env) {
         return new SoundEffects(env);
     },

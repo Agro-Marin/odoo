@@ -5,7 +5,6 @@ import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 export class KanbanActivity extends Component {
     static components = { ActivityButton };
-    // used in children, in particular in ActivityButton
     static fieldDependencies = [
         {
             name: "activity_exception_decoration",

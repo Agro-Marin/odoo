@@ -7,6 +7,11 @@ import {
     Many2OneField,
 } from "@web/fields/relational/many2one";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+/**
+ * @param {string} modelName
+ * @param {number} rotDays
+ * @returns {string}
+ */
 export function getRottingDaysTitle(modelName, rotDays) {
     switch (modelName) {
         case "crm.lead":
@@ -42,9 +47,6 @@ export class KanbanRottingField extends Component {
     };
     static template = "mail.KanbanRottingField";
 
-    // getters, not setup() fields: the widget instance is reused across data
-    // updates (OWL calls onWillUpdateProps, not a fresh setup), so a cached value
-    // would keep a stale rotting_days after the server recomputed it.
     get dayCount() {
         return _t("%(numberOfDays)sd", {
             numberOfDays: this.props.record.data.rotting_days,
@@ -62,9 +64,6 @@ export class KanbanRottingField extends Component {
 export class Many2OneFieldRotting extends Many2OneField {
     static template = "mail.Many2OneFieldRotting";
 
-    // getter (see KanbanRottingField): reads live rotting_days each render.
-    // As this widget is appended to another field's value, we display no
-    // additional title to prevent title overlap.
     get dayCount() {
         return _t("%(numberOfDays)sd", {
             numberOfDays: this.props.record.data.rotting_days,

@@ -37,6 +37,10 @@ export class ActivityMenu extends Component {
         this.store.fetchStoreData("systray_get_activities");
     }
 
+    /**
+     * @param {{id: number, model: string, name: string, activity_ids: number[], domain?: any, view_type?: string}} group
+     * @returns {Array<[number|false, string]>}
+     */
     availableViews(group) {
         return [
             [false, "kanban"],
@@ -46,11 +50,14 @@ export class ActivityMenu extends Component {
         ];
     }
 
+    /**
+     * @param {{id: number, model: string, name: string, activity_ids: number[], domain?: any, view_type?: string}} group
+     * @param {"all"|"overdue"|"today"|"upcoming_all"} [filter="all"]
+     * @param {boolean} [newWindow]
+     */
     openActivityGroup(group, filter = "all", newWindow) {
         this.dropdown.close();
         const context = {
-            // activity_ids of mail.activity.mixin is bypass_search_access, so
-            // duplicates fake the count and "Load more" doesn't show up
             force_search_count: 1,
             search_default_filter_activities_my: 1,
         };
@@ -86,9 +93,11 @@ export class ActivityMenu extends Component {
     }
 
     /**
-     * This logic is extracted into a separate method to allow other modules (e.g., documents)
-     * to override *how* the action is executed (e.g., loading a specific XML ID)
-     * without needing to duplicate the domain and filter preparation logic in `openActivityGroup`.
+     * @param {{id: number, model: string, name: string, activity_ids: number[], domain?: any, view_type?: string}} group
+     * @param {any[]} domain
+     * @param {Array<[number|false, string]>} views
+     * @param {Object} context
+     * @param {boolean} [newWindow]
      */
     executeActivityAction(group, domain, views, context, newWindow) {
         this.action.doAction(
@@ -109,6 +118,7 @@ export class ActivityMenu extends Component {
         );
     }
 
+    /** @param {boolean} [newWindow] */
     openMyActivities(newWindow) {
         this.dropdown.close();
         this.action.doAction("mail.mail_activity_action_my", {

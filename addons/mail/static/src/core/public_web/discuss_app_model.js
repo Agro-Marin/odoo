@@ -14,6 +14,7 @@ export class DiscussApp extends Record {
     isActive = false;
     _recomputeIsMemberPanelOpenByDefault = 0;
     isMemberPanelOpenByDefault = fields.Attr(true, {
+        /** @this {import("models").DiscussApp} */
         compute() {
             void this._recomputeIsMemberPanelOpenByDefault;
             return browser.localStorage.getItem(NO_MEMBERS_DEFAULT_OPEN_LS) !== "true";
@@ -21,6 +22,7 @@ export class DiscussApp extends Record {
     });
     _recomputeIsSidebarCompact = 0;
     isSidebarCompact = fields.Attr(false, {
+        /** @this {import("models").DiscussApp} */
         compute() {
             void this._recomputeIsSidebarCompact;
             return browser.localStorage.getItem(DISCUSS_SIDEBAR_COMPACT_LS) === "true";
@@ -52,6 +54,7 @@ export class DiscussApp extends Record {
     hasRestoredThread = false;
 
     static new() {
+        /** @type {import("models").DiscussApp} */
         const record = super.new(...arguments);
         record.onStorage = record.onStorage.bind(record);
         browser.addEventListener("storage", record.onStorage);
@@ -63,6 +66,7 @@ export class DiscussApp extends Record {
         super.delete(...arguments);
     }
 
+    /** @param {StorageEvent} ev */
     onStorage(ev) {
         if (ev.key === DISCUSS_SIDEBAR_COMPACT_LS) {
             this._recomputeIsSidebarCompact++;

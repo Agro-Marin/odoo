@@ -13,8 +13,6 @@ export class AvatarUserFormViewDialog extends FormViewDialog {
 
         onMounted(() => {
             this._focusTimeout = browser.setTimeout(() => {
-                // optional chain: a dialog destroyed in the same tick has no
-                // modal element anymore
                 const input = this.modalRef.el?.querySelector("#name_0");
                 input?.focus();
             });

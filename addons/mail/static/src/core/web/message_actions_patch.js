@@ -4,6 +4,13 @@ import { getNonEditableMentions, parseEmail } from "@mail/utils/common/format";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { renderToMarkup } from "@web/core/utils/render";
+
+/** @typedef {import("@mail/core/common/message_actions").ActionParams} ActionParams */
+/**
+ * @param {string} title
+ * @param {Object} context
+ * @param {import("@odoo/owl").Component} component
+ */
 export function messageActionOpenFullComposer(title, context, component) {
     const message = component.props.message;
     const thread = component.props.thread;
@@ -28,9 +35,11 @@ export function messageActionOpenFullComposer(title, context, component) {
 }
 
 registerMessageAction("reply-all", {
+    /** @param {ActionParams} params */
     condition: ({ message, thread }) => message.canReplyAll(thread),
     icon: "fa-solid fa-reply",
     name: _t("Reply All"),
+    /** @param {ActionParams} params */
     onSelected: async ({ message, owner, thread }) => {
         const recipients = await rpc("/mail/thread/recipients", {
             thread_model: thread.model,
@@ -50,7 +59,7 @@ registerMessageAction("reply-all", {
             email,
             message,
             name: name || email,
-            signature: thread.effectiveSelf.main_user_id?.getSignatureBlock(),
+            signature: thread.store.self_partner?.main_user_id?.getSignatureBlock(),
         });
         const context = {
             default_body: body,
@@ -64,9 +73,11 @@ registerMessageAction("reply-all", {
     sequence: 71,
 });
 registerMessageAction("forward", {
+    /** @param {ActionParams} params */
     condition: ({ message, thread }) => message.canForward(thread),
     icon: "fa-solid fa-share",
     name: _t("Forward"),
+    /** @param {ActionParams} params */
     onSelected: async ({ message, owner, store, thread }) => {
         const emailFrom = message.author_id?.email || message.email_from;
         const [name, email] = emailFrom ? parseEmail(emailFrom) : ["", ""];
@@ -80,7 +91,7 @@ registerMessageAction("forward", {
             email,
             message,
             name: name || email,
-            signature: thread.effectiveSelf.main_user_id?.getSignatureBlock(),
+            signature: thread.store.self_partner?.main_user_id?.getSignatureBlock(),
         });
         const attachmentIds = message.attachment_ids.map((a) => a.id);
         const newAttachmentIds = await store.env.services.orm.call(

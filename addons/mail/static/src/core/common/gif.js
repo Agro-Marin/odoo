@@ -12,7 +12,7 @@ import { memoize } from "@web/core/utils/functions";
  * @property {((event: Event) => void)} [onClick]
  * @property {boolean} [paused]
  * @property {string} [style]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Gif extends Component {
     static template = "mail.Gif";
@@ -28,28 +28,29 @@ export class Gif extends Component {
     };
     static components = {};
 
-    generateGifSnapshot = memoize(async (src) => {
-        const deferred = new Deferred();
-        const image = document.createElement("img");
-        if (new URL(src).origin !== location.origin) {
-            image.crossOrigin = "anonymous";
-        }
-        image.src = src;
-        image.onerror = () => {
-            // resolve with no snapshot (don't memoize a forever-pending
-            // deferred): the gif then simply keeps animating instead of the
-            // pause feature silently wedging for this src
-            deferred.resolve(null);
-        };
-        image.onload = () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = image.width;
-            canvas.height = image.height;
-            canvas.getContext("2d").drawImage(image, 0, 0, image.width, image.height);
-            deferred.resolve(canvas.toDataURL("image/gif"));
-        };
-        return deferred;
-    });
+    generateGifSnapshot = memoize(
+        /** @param {string} src */ async (src) => {
+            const deferred = new Deferred();
+            const image = document.createElement("img");
+            if (new URL(src).origin !== location.origin) {
+                image.crossOrigin = "anonymous";
+            }
+            image.src = src;
+            image.onerror = () => {
+                deferred.resolve(null);
+            };
+            image.onload = () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = image.width;
+                canvas.height = image.height;
+                canvas
+                    .getContext("2d")
+                    .drawImage(image, 0, 0, image.width, image.height);
+                deferred.resolve(canvas.toDataURL("image/gif"));
+            };
+            return deferred;
+        },
+    );
 
     setup() {
         this.state = useState({ snapshot: null });

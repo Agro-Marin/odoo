@@ -17,7 +17,6 @@ export function searchHighlight(searchTerm, target) {
     const htmlDoc = createDocumentFragmentFromContent(target);
     for (const term of searchTerm.split(" ")) {
         const regexp = new RegExp(`(${escapeRegExp(term)})`, "gi");
-        // Apostrophes need concat(): browsers use XPath 1.0, which has no ||
         const split = term.toLowerCase().split("'");
         let lowercase = split.map((s) => `'${s}'`).join(', "\'", ');
         let uppercase = lowercase.toUpperCase();
@@ -26,7 +25,7 @@ export function searchHighlight(searchTerm, target) {
             uppercase = `concat(${uppercase})`;
         }
         const matchs = htmlDoc.evaluate(
-            `//*[text()[contains(translate(., ${uppercase}, ${lowercase}), ${lowercase})]]`, // Equivalent to `.toLowerCase()` on all searched chars
+            `//*[text()[contains(translate(., ${uppercase}, ${lowercase}), ${lowercase})]]`,
             htmlDoc,
             null,
             XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
@@ -69,6 +68,7 @@ export function useMessageSearch(thread) {
     const sequential = makeSequential();
     const state = useState({
         thread,
+        /** @param {boolean} [before=false] */
         async search(before = false) {
             if (this.searchTerm || this.is_notification !== undefined) {
                 this.searching = true;
@@ -83,8 +83,6 @@ export function useMessageSearch(thread) {
                         ),
                     );
                 } finally {
-                    // a failed RPC (or a superseded call resolving undefined)
-                    // must not leave the spinner on forever
                     this.searching = false;
                 }
                 if (!data) {
@@ -95,8 +93,6 @@ export function useMessageSearch(thread) {
                 this.count = count;
                 this.loadMore = loadMore;
                 if (before) {
-                    // dedupe: a retried/overlapping load-more otherwise
-                    // renders duplicate result cards
                     const known = new Set(this.messages.map((m) => m.id));
                     this.messages.push(...messages.filter((m) => !known.has(m.id)));
                 } else {
@@ -117,7 +113,7 @@ export function useMessageSearch(thread) {
         /** @type {true | false | undefined} */
         is_notification: undefined,
         loadMore: false,
-        /** @type {import('@mail/core/common/message_model').Message[]} */
+        /** @type {import("models").Message[]} */
         messages: [],
         /** @type {string|undefined} */
         searchTerm: undefined,

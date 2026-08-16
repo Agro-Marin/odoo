@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-
 /** @typedef {{ thread?: import("models").Thread }} ChatWindowData */
 
 export class ChatWindow extends Record {
@@ -12,7 +11,6 @@ export class ChatWindow extends Record {
     autofocus = 0;
     jumpToNewMessage = 0;
     hidden = false;
-    /** Whether the chat window was created from the messaging menu */
     fromMessagingMenu = false;
     hubAsOpened = fields.One("ChatHub", { inverse: "opened" });
     hubAsFolded = fields.One("ChatHub", { inverse: "folded" });
@@ -44,6 +42,7 @@ export class ChatWindow extends Record {
     }
 
     canShow = fields.Attr(true, {
+        /** @this {import("models").ChatWindow} */
         compute() {
             return this.computeCanShow();
         },
@@ -56,6 +55,11 @@ export class ChatWindow extends Record {
         return !this.store.discuss?.isActive;
     }
 
+    /**
+     * @param {Object} [options={}]
+     * @param {boolean} [options.escape=false]
+     * @param {boolean} [options.notifyState=true]
+     */
     async close(options = {}) {
         await this.store.chatHub.initPromise;
         const { escape = false } = options;
@@ -74,6 +78,10 @@ export class ChatWindow extends Record {
         this.delete();
     }
 
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.jumpToNewMessage=false]
+     */
     focus({ jumpToNewMessage = false } = {}) {
         this.autofocus++;
         if (jumpToNewMessage) {
@@ -90,6 +98,13 @@ export class ChatWindow extends Record {
         this.bypassCompact = false;
     }
 
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.focus=false]
+     * @param {boolean} [options.notifyState=true]
+     * @param {boolean} [options.jumpToNewMessage=false]
+     * @param {boolean} [options.swapOpened=true]
+     */
     async open({
         focus = false,
         notifyState = true,

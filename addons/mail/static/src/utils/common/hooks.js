@@ -21,8 +21,15 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+/**
+ * @param {() => EventTarget|undefined} target
+ * @param {string} eventName
+ * @param {(ev: Event) => void} handler
+ * @param {boolean|AddEventListenerOptions} [eventParams]
+ */
 function useLazyExternalListener(target, eventName, handler, eventParams) {
     const boundHandler = handler.bind(useComponent());
+    /** @type {EventTarget|undefined} */
     let t;
     onMounted(() => {
         t = target();
@@ -52,15 +59,6 @@ function useLazyExternalListener(target, eventName, handler, eventParams) {
 }
 
 /**
- * Component-scoped `onChange` (@see utils/common/misc.js): the observer is
- * dropped when the component is destroyed.
- *
- * Observing long-lived store state (`store.settings`, the `Rtc` record, ...)
- * from a component without this outlives the component: OWL keeps the
- * callback registered, so the destroyed component's state and props keep
- * being written to — and its whole graph stays reachable — for the rest of
- * the page's life.
- *
  * @param {Object} target
  * @param {string|string[]} key
  * @param {Function} callback
@@ -71,18 +69,28 @@ export function useOnChange(target, key, callback) {
     return dispose;
 }
 
+/**
+ * @param {string} refName
+ * @param {(ev: MouseEvent, targets: {downTarget: EventTarget, upTarget: EventTarget}) => void} cb
+ */
 export function onExternalClick(refName, cb) {
-    let downTarget, upTarget;
+    /** @type {EventTarget|null} */
+    let downTarget;
+    /** @type {EventTarget|null} */
+    let upTarget;
     const ref = useRef(refName);
+    /** @param {MouseEvent} ev */
     function onClick(ev) {
-        if (ref.el && !ref.el.contains(ev.composedPath()[0])) {
+        if (ref.el && !ref.el.contains(/** @type {Node} */ (ev.composedPath()[0]))) {
             cb(ev, { downTarget, upTarget });
             upTarget = downTarget = null;
         }
     }
+    /** @param {MouseEvent} ev */
     function onMousedown(ev) {
         downTarget = ev.target;
     }
+    /** @param {MouseEvent} ev */
     function onMouseup(ev) {
         upTarget = ev.target;
     }
@@ -99,42 +107,42 @@ export function onExternalClick(refName, cb) {
 }
 
 /**
- * Hook that allows to determine precisely when refs are (mouse-)hovered.
- * Should provide a list of ref names, and can add callbacks when elements are
- * hovered-in (onHover), hovered-out (onAway), hovering for some time (onHovering).
- *
- * @param {string | string[] | Function} refNames name of refs that determine whether this is in state "hovering".
- *   ref name that end with "*" means it takes parented HTML node into account too. Useful for floating
- *   menu where dropdown menu container is not accessible. Function type is for useChildRef support.
+ * @typedef {Object} HoverTarget
+ * @property {{el: HTMLElement|null}} ref
+ */
+
+/**
+ * @param {string | string[] | Function} refNames
  * @param {Object} param1
- * @param {() => void} [param1.onHover] callback when hovering the ref names.
- * @param {() => void} [param1.onAway] callback when stop hovering the ref names.
- * @param {[number, () => void]} [param1.onHovering] array where 1st param is duration until start hovering
- *   and function to be executed at this delay duration after hovering is kept true.
- * @param {() => Array} [param1.stateObserver] when provided, function that, when called, returns list of
- *   reactive state related to presence of targets' el. This is used to help the hook detect when the targets
- *   are removed from DOM, to properly mark the hovered target as non-hovered.
+ * @param {() => void} [param1.onHover]
+ * @param {() => void} [param1.onAway]
+ * @param {[number, () => void]} [param1.onHovering]
+ * @param {() => any[]} [param1.stateObserver]
  * @returns {({ isHover: boolean })}
  */
 export function useHover(
     refNames,
     { onHover, onAway, stateObserver, onHovering } = {},
 ) {
-    refNames = Array.isArray(refNames) ? refNames : [refNames];
+    const refNameList = Array.isArray(refNames) ? refNames : [refNames];
+    /** @type {HoverTarget[]} */
     const targets = [];
     let wasHovering = false;
+    /** @type {ReturnType<typeof setTimeout>} */
     let hoveringTimeout;
+    /** @type {ReturnType<typeof setTimeout>} */
     let awayTimeout;
+    /** @type {HoverTarget|null} */
     let lastHoveredTarget;
-    for (const refName of refNames) {
+    for (const refName of refNameList) {
         if (typeof refName === "function") {
-            // Special case: useChildRef support
             targets.push({ ref: refName });
             continue;
         }
         targets.push({ ref: useRef(refName) });
     }
     const state = useState({
+        /** @param {boolean} newIsHover */
         set isHover(newIsHover) {
             if (this._isHover !== newIsHover) {
                 this._isHover = newIsHover;
@@ -145,14 +153,18 @@ export function useHover(
             void this._count;
             return this._isHover;
         },
-        _contains: [],
+        _contains: /** @type {((target: EventTarget|null) => boolean)[]} */ ([]),
         _count: 0,
         _isHover: false,
         _targets: targets,
+        /**
+         * @param {HoverTarget} target
+         * @returns {() => void}
+         */
         addTarget(target) {
             state._targets.push(target);
-            const handleMouseenter = (ev) => onmouseenter(ev);
-            const handleMouseleave = (ev) => onmouseleave(ev);
+            const handleMouseenter = (/** @type {MouseEvent} */ ev) => onmouseenter(ev);
+            const handleMouseleave = (/** @type {MouseEvent} */ ev) => onmouseleave(ev);
             target.ref.el.addEventListener("mouseenter", handleMouseenter, true);
             target.ref.el.addEventListener("mouseleave", handleMouseleave, true);
             return () => {
@@ -165,6 +177,7 @@ export function useHover(
             };
         },
     });
+    /** @param {boolean} hovering */
     function setHover(hovering) {
         if (hovering && !wasHovering) {
             state.isHover = true;
@@ -182,9 +195,6 @@ export function useHover(
         } else if (!hovering) {
             state.isHover = false;
             clearTimeout(awayTimeout);
-            // unconditional: with no onAway callback, or a delay expiring
-            // inside the 100ms away debounce, the pending timer would fire
-            // its callback while not hovering anymore
             clearTimeout(hoveringTimeout);
             if (typeof onAway === "function") {
                 awayTimeout = setTimeout(() => {
@@ -194,19 +204,17 @@ export function useHover(
         }
         wasHovering = hovering;
     }
+    /** @param {MouseEvent} ev */
     function onmouseenter(ev) {
         if (state.isHover) {
             return;
         }
-        // raw reads: these handlers only need the current lists, and reading
-        // `_targets` / `_contains` through the reactive state subscribes the
-        // component to them, so every addTarget()/_contains push re-renders
         const rawState = toRaw(state);
         for (const target of rawState._targets) {
             if (!target.ref.el) {
                 continue;
             }
-            if (target.ref.el.contains(ev.target)) {
+            if (target.ref.el.contains(/** @type {Node} */ (ev.target))) {
                 setHover(true);
                 lastHoveredTarget = target;
                 return;
@@ -220,11 +228,10 @@ export function useHover(
         }
     }
     onWillUnmount(() => {
-        // The callbacks close over the component: firing them after unmount
-        // would run them against a destroyed component.
         clearTimeout(hoveringTimeout);
         clearTimeout(awayTimeout);
     });
+    /** @param {MouseEvent} ev */
     function onmouseleave(ev) {
         if (!state.isHover) {
             return;
@@ -234,7 +241,7 @@ export function useHover(
             if (!target.ref.el) {
                 continue;
             }
-            if (target.ref.el.contains(ev.relatedTarget)) {
+            if (target.ref.el.contains(/** @type {Node} */ (ev.relatedTarget))) {
                 return;
             }
         }
@@ -251,27 +258,27 @@ export function useHover(
         useLazyExternalListener(
             () => target.ref.el,
             "mouseenter",
-            (ev) => onmouseenter(ev),
+            (ev) => onmouseenter(/** @type {MouseEvent} */ (ev)),
             true,
         );
         useLazyExternalListener(
             () => target.ref.el,
             "mouseleave",
-            (ev) => onmouseleave(ev),
+            (ev) => onmouseleave(/** @type {MouseEvent} */ (ev)),
             true,
         );
     }
 
     if (stateObserver) {
-        useEffect((open) => {
-            // Note: stateObserver is essentially used with useDropdownState()?.isOpen.
-            // While isOpen can become false, the ref.el can still be there for a short period of time.
-            // Relying on isOpen becoming false forces good syncing of isHover state on dropdown close.
-            if ((lastHoveredTarget && !lastHoveredTarget.ref.el) || !open) {
-                setHover(false);
-                lastHoveredTarget = null;
-            }
-        }, stateObserver);
+        useEffect(
+            /** @param {any} open */ (open) => {
+                if ((lastHoveredTarget && !lastHoveredTarget.ref.el) || !open) {
+                    setHover(false);
+                    lastHoveredTarget = null;
+                }
+            },
+            stateObserver,
+        );
     }
     return state;
 }
@@ -283,7 +290,12 @@ export class UseHoverOverlay extends Component {
     setup() {
         super.setup();
         this.root = useRef("root");
-        const overlayContains = toRaw(this.env[OVERLAY_SYMBOL].contains);
+        const overlayContains = toRaw(
+            /** @type {Record<symbol, {contains: (target: EventTarget|null) => boolean}>} */ (
+                this.env
+            )[OVERLAY_SYMBOL].contains,
+        );
+        /** @type {(() => void)|undefined} */
         let removeTarget;
         onMounted(() => {
             this.props.hover._contains.push(overlayContains);
@@ -302,12 +314,9 @@ export class UseHoverOverlay extends Component {
 }
 
 /**
- * Hook that execute the callback function each time the scrollable element hit
- * the bottom minus the threshold.
- *
- * @param {string} refName scrollable t-ref name to observe
- * @param {function} callback function to execute when scroll hit the bottom minus the threshold
- * @param {number} threshold number of threshold pixel to trigger the callback
+ * @param {string} refName
+ * @param {function} callback
+ * @param {number} threshold
  */
 export function useOnBottomScrolled(refName, callback, threshold = 1) {
     const ref = useRef(refName);
@@ -319,15 +328,15 @@ export function useOnBottomScrolled(refName, callback, threshold = 1) {
             callback();
         }
     }
-    // Bind through useLazyExternalListener so the listener (re)attaches when
-    // the scroll target appears or changes: a target rendered behind a t-if
-    // (e.g. gif_picker's scroller) has no ref.el at mount.
     useLazyExternalListener(() => ref.el, "scroll", onScroll);
 }
 
 /**
  * @param {string} refName
- * @param {function} [cb]
+ * @param {(isVisible: boolean|undefined) => void} [cb]
+ * @param {Object} [options]
+ * @param {boolean} [options.ready=true]
+ * @returns {{isVisible: boolean|undefined, ready: boolean}}
  */
 export function useVisible(refName, cb, { ready = true } = {}) {
     const ref = useRef(refName);
@@ -335,22 +344,26 @@ export function useVisible(refName, cb, { ready = true } = {}) {
         isVisible: undefined,
         ready,
     });
+    /** @param {boolean|undefined} value */
     function setValue(value) {
         state.isVisible = value;
         cb?.(state.isVisible);
     }
-    const observer = new IntersectionObserver((entries) => {
-        setValue(entries.at(-1).isIntersecting);
-    });
+    const observer = new IntersectionObserver(
+        /** @param {IntersectionObserverEntry[]} entries */
+        (entries) => {
+            setValue(entries.at(-1).isIntersecting);
+        },
+    );
     useEffect(
+        /**
+         * @param {HTMLElement|null} el
+         * @param {boolean} ready
+         */
         (el, ready) => {
             if (el && ready) {
                 observer.observe(el);
                 return () => {
-                    // Dispatching `cb` here is deliberate: consumers derive
-                    // state from `isVisible` and this is how they learn the
-                    // observed element went away (@see core/common/thread.js
-                    // updateShowJumpPresent).
                     setValue(undefined);
                     observer.unobserve(el);
                 };
@@ -358,9 +371,6 @@ export function useVisible(refName, cb, { ready = true } = {}) {
         },
         () => [ref.el, state.ready],
     );
-    // `unobserve` above already drops the element ref; this closes the window
-    // in which an entry queued before destruction fires against a dead
-    // component.
     onWillUnmount(() => observer.disconnect());
     return state;
 }
@@ -370,9 +380,14 @@ export function useVisible(refName, cb, { ready = true } = {}) {
  * @property {function} clear
  * @property {function} highlightMessage
  * @property {number|null} highlightedMessageId
+ */
+
+/**
+ * @param {number} [duration=2000]
  * @returns {MessageScrolling}
  */
 export function useMessageScrolling(duration = 2000) {
+    /** @type {ReturnType<typeof browser.setTimeout>|null} */
     let timeout;
     const state = useState({
         clear() {
@@ -397,8 +412,6 @@ export function useMessageScrolling(duration = 2000) {
             const lastHighlightedMessageId = state.highlightedMessageId;
             this.clear();
             if (lastHighlightedMessageId === message.id) {
-                // Give some time for the state to update. Routed through
-                // `browser` so tests can mock time.
                 await new Promise((resolve) => browser.setTimeout(resolve));
             }
             thread.scrollTop = messageScrollDirection === "top" ? "bottom" : undefined;
@@ -412,23 +425,14 @@ export function useMessageScrolling(duration = 2000) {
             timeout = browser.setTimeout(() => this.clear(), duration);
         },
         initiated: false,
-        /**
-         * Deferred during highlight startup, i.e. highlight is initiated but isn't scrolling yet
-         * Useful to set correct starting condition to initiate scroll to highlight, like scroll to bottom.
-         */
         startupDeferred: null,
-        /** Deferred during scrolling to highlight */
         scrollPromise: null,
-        /**
-         * Scroll the element into view and expose a promise that will resolved
-         * once the scroll is done.
-         *
-         * @param {Element} el
-         */
+        /** @param {Element} el */
         scrollTo(el) {
             state.scrollPromise?.resolve();
             const scrollPromise = new Deferred();
             state.scrollPromise = scrollPromise;
+            /** @type {ReturnType<typeof browser.setTimeout>} */
             let scrollTimeout;
             const onScrollEnd = () => {
                 browser.clearTimeout(scrollTimeout);
@@ -442,13 +446,8 @@ export function useMessageScrolling(duration = 2000) {
                     capture: true,
                     once: true,
                 });
-                // Safety net: "scrollend" never fires when scrollIntoView
-                // needs no movement (target already in place) and can be
-                // missed on interrupted scrolls; an unresolved scrollPromise
-                // wedges loadOlder/loadNewer, which await it.
                 scrollTimeout = browser.setTimeout(onScrollEnd, 3000);
             } else {
-                // To remove when safari will support the "scrollend" event.
                 scrollTimeout = browser.setTimeout(onScrollEnd, 250);
             }
             el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -456,10 +455,6 @@ export function useMessageScrolling(duration = 2000) {
         },
         highlightedMessageId: null,
     });
-    // The hook owns a highlight-clear timer plus two Deferreds: closing a chat
-    // window mid-highlight must not leave the timer firing against a destroyed
-    // component, nor `startupDeferred` pending (Thread.scrollingToHighlight
-    // awaits it) nor `scrollPromise` pending (it gates fetchMoreMessages).
     onWillUnmount(() => {
         browser.clearTimeout(timeout);
         timeout = null;
@@ -471,8 +466,11 @@ export function useMessageScrolling(duration = 2000) {
 
 export function useMicrophoneVolume() {
     let isClosed = false;
+    /** @type {MediaStreamTrack|null} */
     let audioTrack = null;
+    /** @type {(() => void)|undefined} */
     let disconnectAudioMonitor;
+    /** @type {Promise<() => void>|undefined} */
     let audioMonitorPromise;
     const store = useService("mail.store");
     const state = useState({
@@ -516,7 +514,7 @@ export function useMicrophoneVolume() {
                     return;
                 }
                 audioMonitorPromise = monitorAudio(track, {
-                    onTic: (value) => {
+                    onTic: /** @param {number} value */ (value) => {
                         state.value = value;
                     },
                     processInterval: 100,
@@ -525,10 +523,8 @@ export function useMicrophoneVolume() {
                 audioTrack = track;
                 state.isActive = true;
             } catch {
-                // monitorAudio failed: don't keep a dangling live track
                 track?.stop();
             } finally {
-                // a stuck false would permanently disable the toggle
                 state.isReady = true;
             }
         },
@@ -537,26 +533,32 @@ export function useMicrophoneVolume() {
         isClosed = true;
         try {
             await audioMonitorPromise;
-        } catch {
-            // already handled by toggle()'s catch: re-awaiting the same
-            // rejected promise would escape as an unhandled rejection and
-            // skip the cleanup below
-        }
+        } catch {}
         audioTrack?.stop();
         disconnectAudioMonitor?.();
     });
     return state;
 }
 
+/**
+ * @param {Object} options
+ * @param {string} options.refName
+ * @param {{start: number, end: number, direction: "forward"|"backward"|"none"}} options.model
+ * @param {(ev: MouseEvent) => boolean|Promise<boolean>} [options.preserveOnClickAwayPredicate]
+ * @returns {{restore: () => void, moveCursor: (position: number) => void}}
+ */
 export function useSelection({
     refName,
     model,
     preserveOnClickAwayPredicate = () => false,
 }) {
     const ui = useService("ui");
-    const ref = useRef(refName);
+    const ref = /** @type {{el: HTMLInputElement|HTMLTextAreaElement|null}} */ (
+        useRef(refName)
+    );
     function onSelectionChange() {
-        const activeElement = ref.el?.getRootNode().activeElement;
+        const activeElement = /** @type {Document|ShadowRoot} */ (ref.el?.getRootNode())
+            ?.activeElement;
         if (activeElement && activeElement === ref.el) {
             Object.assign(model, {
                 start: ref.el.selectionStart,
@@ -565,19 +567,22 @@ export function useSelection({
             });
         }
     }
-    onExternalClick(refName, async (ev) => {
-        if (await preserveOnClickAwayPredicate(ev)) {
-            return;
-        }
-        if (!ref.el) {
-            return;
-        }
-        Object.assign(model, {
-            start: ref.el.value.length,
-            end: ref.el.value.length,
-            direction: ref.el.selectionDirection,
-        });
-    });
+    onExternalClick(
+        refName,
+        /** @param {MouseEvent} ev */ async (ev) => {
+            if (await preserveOnClickAwayPredicate(ev)) {
+                return;
+            }
+            if (!ref.el) {
+                return;
+            }
+            Object.assign(model, {
+                start: ref.el.value.length,
+                end: ref.el.value.length,
+                direction: ref.el.selectionDirection,
+            });
+        },
+    );
     onMounted(() => {
         document.addEventListener("selectionchange", onSelectionChange);
         document.addEventListener("input", onSelectionChange);
@@ -590,21 +595,25 @@ export function useSelection({
         restore() {
             ref.el?.setSelectionRange(model.start, model.end, model.direction);
         },
+        /** @param {number} position */
         moveCursor(position) {
             model.start = model.end = position;
             if (ref.el && !ui.isSmall) {
-                // In mobile, selection seems to adjust correctly.
-                // Don't programmatically adjust, otherwise it shows soft keyboard!
                 ref.el.selectionStart = ref.el.selectionEnd = position;
             }
         },
     };
 }
 
+/**
+ * @param {{isOpen: boolean}} [dropdownState]
+ * @returns {{class: string, contentClass: string, menuClass: string}}
+ */
 export function useDiscussSystray(dropdownState) {
     const ui = useService("ui");
     if (dropdownState) {
         useEffect(
+            /** @param {boolean} isOpen */
             (isOpen) => {
                 if (isOpen) {
                     document.body.classList.add("o-mail-discuss-systray-menu-open");
@@ -637,6 +646,7 @@ export function useDiscussSystray(dropdownState) {
 
 export const useMovable = makeDraggableHook({
     name: "useMovable",
+    /** @param {import("@web/core/utils/dnd/draggable_hook_builder").DraggableBuildHandlerParams} params */
     onWillStartDrag({ ctx, addCleanup, addStyle, getRect }) {
         ctx.current.container = document.createElement("div");
         addStyle(ctx.current.container, {
@@ -651,6 +661,10 @@ export const useMovable = makeDraggableHook({
     },
     onDragStart: () => true,
     onDragEnd: () => true,
+    /**
+     * @param {import("@web/core/utils/dnd/draggable_hook_builder").DraggableBuildHandlerParams} params
+     * @returns {{top: number, left: number}}
+     */
     onDrop({ ctx, getRect }) {
         const { top, left } = getRect(ctx.current.element);
         return { top, left };
@@ -660,17 +674,15 @@ export const useMovable = makeDraggableHook({
 export const LONG_PRESS_DELAY = 400;
 
 /**
- * Subscribes to long press events on the element matching the given ref name.
- * It internally prevents false positives caused by scroll gestures.
- *
- * @param {string} refName The ref name of the element to listen for long presses on.
+ * @param {string} refName
  * @param {Object} options
- * @param {() => void} [options.action] Function called when a long press is detected.
- * @param {() => boolean} [options.predicate] Optional function to enable long press detection.
+ * @param {() => void} [options.action]
+ * @param {() => boolean} [options.predicate]
  */
 export function useLongPress(refName, { action, predicate = () => true } = {}) {
     const MOVE_TRESHOLD = 10;
     const ref = useRef(refName);
+    /** @type {ReturnType<typeof setTimeout>|null} */
     let timer = null;
     let startX = 0;
     let startY = 0;
@@ -679,11 +691,6 @@ export function useLongPress(refName, { action, predicate = () => true } = {}) {
         clearTimeout(timer);
         timer = null;
     }
-    // `touchend`/`touchcancel` are the only other way to cancel the timer, and
-    // `useLazyExternalListener` drops them on unmount — so a component torn
-    // down inside the press window (thread reload, chat window closed, message
-    // removed) would otherwise leave the timer to fire `action()` against a
-    // destroyed component. @see useHover, same class.
     onWillUnmount(reset);
     useLazyExternalListener(
         () => ref.el,
@@ -692,7 +699,7 @@ export function useLongPress(refName, { action, predicate = () => true } = {}) {
             if (!predicate()) {
                 return;
             }
-            const touch = ev.touches[0];
+            const touch = /** @type {TouchEvent} */ (ev).touches[0];
             startX = touch.clientX;
             startY = touch.clientY;
             timer = setTimeout(() => {
@@ -708,7 +715,7 @@ export function useLongPress(refName, { action, predicate = () => true } = {}) {
             if (!timer) {
                 return;
             }
-            const touch = ev.touches[0];
+            const touch = /** @type {TouchEvent} */ (ev).touches[0];
             const dx = touch.clientX - startX;
             const dy = touch.clientY - startY;
             if (Math.hypot(dx, dy) > MOVE_TRESHOLD) {

@@ -19,6 +19,7 @@ export class MessageReactions extends Component {
         this.isMobileOS = isMobileOS();
         this.messageActions = useMessageActions({ message: () => this.props.message });
         this.emojiPicker = useEmojiPicker(this.addRef, {
+            /** @param {string} emoji */
             onSelect: (emoji) => {
                 const reaction = this.props.message.reactions.find(
                     ({ content, personas }) =>

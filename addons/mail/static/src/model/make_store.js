@@ -15,10 +15,14 @@ import { RecordInternal } from "./record_internal.js";
 import { Store } from "./store.js";
 import { StoreInternal } from "./store_internal.js";
 
-/** @returns {import("models").Store} */
+/**
+ * @param {import("@web/env").OdooEnv} env
+ * @param {Object} [options]
+ * @param {import("@web/core/registry").Registry} [options.localRegistry]
+ * @returns {import("models").Store}
+ */
 export function makeStore(env, { localRegistry } = {}) {
     const recordByLocalId = reactive(new Map());
-    // fake store for now, until it becomes a model
     /** @type {import("models").Store} */
     let store = new Store();
     store.env = env;
@@ -40,12 +44,8 @@ export function makeStore(env, { localRegistry } = {}) {
                 `There must be no duplicated Model Names (duplicate found: ${OgClass.getName()})`,
             );
         }
-        // classes cannot be made reactive because they are functions and they are not supported.
-        // work-around: make an object whose prototype is the class, so that static props become
-        // instance props.
         /** @type {typeof Record} */
         const Model = Object.create(OgClass);
-        // Produce another class with changed prototype, so that there are automatic get/set on relational fields
         const Class = {
             [OgClass.getName()]: class extends OgClass {
                 constructor() {
@@ -68,9 +68,6 @@ export function makeStore(env, { localRegistry } = {}) {
                                 record,
                                 recordFullProxy,
                             );
-                            // one lookup answers all three questions this trap
-                            // asks; it runs on every property read of every
-                            // record, so the parallel-Map version cost three
                             const kind = Model._.fields.get(name);
                             if (record._.gettingField || kind === undefined) {
                                 let res = Reflect.get(...arguments);
@@ -80,11 +77,6 @@ export function makeStore(env, { localRegistry } = {}) {
                                 return res;
                             }
                             if (kind !== ATTR_SYM) {
-                                // read through the receiver so a reactive
-                                // receiver wraps the returned list; the counter
-                                // makes the re-entrant trap call fall through
-                                // (a boolean would be reset early by a nested
-                                // read of another field on the SAME record)
                                 record._.gettingField++;
                                 let recordList;
                                 try {
@@ -98,11 +90,6 @@ export function makeStore(env, { localRegistry } = {}) {
                                 }
                                 return recordListFullProxy[0];
                             }
-                            // attrs are own data properties written by
-                            // `prepareField`, so the receiver cannot change what
-                            // is read and a plain read beats Reflect.get here
-                            // (OWL's own reactive trap already subscribed the
-                            // receiver before this ran)
                             return record[name];
                         },
                         /**
@@ -120,11 +107,13 @@ export function makeStore(env, { localRegistry } = {}) {
                             });
                         },
                         /**
-                         * Using record.update(data) is preferable for performance to batch process
-                         * when updating multiple fields at the same time.
+                         * @param {Record} record
+                         * @param {string} name
+                         * @param {any} val
+                         * @param {Record} receiver
+                         * @returns {boolean}
                          */
                         set(record, name, val, receiver) {
-                            // ensure each field write goes through the updatingAttrs method exactly once
                             if (record._.updatingAttrs.has(name)) {
                                 record[name] = val;
                                 return true;
@@ -149,10 +138,6 @@ export function makeStore(env, { localRegistry } = {}) {
                     const recordProxy = reactive(recordProxyInternal);
                     record._proxy = recordProxy;
                     if (record?.[STORE_SYM]) {
-                        // Bootstrap: this Store record replaces the temporary
-                        // plain store, so rebind the makeStore closure and the
-                        // `Record.store` global to it. makeStore re-points the
-                        // Models within the same update cycle, before any flush.
                         record.recordByLocalId = store.recordByLocalId;
                         record._ = markRaw(toRaw(store._));
                         store = record;
@@ -172,7 +157,6 @@ export function makeStore(env, { localRegistry } = {}) {
         });
         Models[Model.getName()] = Model;
         store[Model.getName()] = Model;
-        // Detect fields with a dummy record and setup getter/setters on them
         const obj = new OgClass();
         obj.setup();
         for (const [name, val] of Object.entries(obj)) {
@@ -180,6 +164,7 @@ export function makeStore(env, { localRegistry } = {}) {
                 Model._.prepareField(name, val);
             }
         }
+        /** @param {import("./misc").IdExpression} expr */
         (function collectIdFields(expr) {
             if (typeof expr === "string") {
                 Model._.idFields.add(expr);
@@ -225,23 +210,12 @@ export function makeStore(env, { localRegistry } = {}) {
             }
         }
     }
-    // Point every Model at the temporary plain store so the initial store
-    // insert can run: it shares its internal `_` (queues, UPDATE counter) with
-    // the real Store record, so both count as one update cycle.
     for (const Model of Object.values(Models)) {
         Model._rawStore = store;
         Model.store = store._proxy;
     }
-    // Bootstrap: create the real store (as a record) inside one enclosing
-    // update cycle. Fields being always eager, the Store record's
-    // computes/sorts/hooks are queued during the insert, and the enclosing
-    // MAKE_UPDATE defers their flush until every Model has been re-pointed at
-    // the real store record. Flushing earlier would run computes like
-    // `this.Thread.records` against a half-wired store.
     const temporaryStore = store;
     temporaryStore.MAKE_UPDATE(function storeBootstrap() {
-        // Make true store (as a model); this reassigns the `store` closure
-        // variable to the created record (see the STORE_SYM branch above)
         store = toRaw(store.Store.insert())._raw;
         for (const Model of Object.values(Models)) {
             Model._rawStore = store;

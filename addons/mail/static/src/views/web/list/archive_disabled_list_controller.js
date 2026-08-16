@@ -15,7 +15,6 @@ export class ArchiveDisabledListController extends ListController {
                 false,
             )
             .then(async () => {
-                // Refresh view once new activity has been added
                 await this.model.root.load();
             });
     }

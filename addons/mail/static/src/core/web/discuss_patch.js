@@ -12,6 +12,7 @@ patch(Discuss.prototype, {
         super.setup();
         this.prevInboxCounter = this.store.inbox.counter;
         useEffect(
+            /** @param {string|undefined} threadName */
             (threadName) => {
                 if (threadName) {
                     this.env.config?.setDisplayName(threadName);

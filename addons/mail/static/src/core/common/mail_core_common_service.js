@@ -13,43 +13,64 @@ export class MailCoreCommon {
     }
 
     setup() {
-        this.busService.subscribe("ir.attachment/delete", (payload) => {
-            const { id: attachmentId, message: messageData } = payload;
-            if (messageData) {
-                this.store["mail.message"].insert(messageData);
-            }
-            const attachment = this.store["ir.attachment"].get(attachmentId);
-            attachment?.delete();
-        });
-        this.busService.subscribe("mail.message/delete", (payload, { id: notifId }) => {
-            for (const messageId of payload.message_ids) {
-                // tombstone FIRST, including ids not currently loaded: an
-                // in-flight fetch whose response was computed before the
-                // deletion (but processed after) would otherwise resurrect
-                // the message — store.insert is last-write-wins and only
-                // counters are bus-fenced
-                this.store.deletedMessageIds.add(messageId);
-                const message = this.store["mail.message"].get(messageId);
-                if (!message) {
-                    continue;
+        this.busService.subscribe(
+            "ir.attachment/delete",
+            /** @param {{id: number, message?: Object}} payload */ (payload) => {
+                const { id: attachmentId, message: messageData } = payload;
+                if (messageData) {
+                    this.store["mail.message"].insert(messageData);
                 }
-                this.env.bus.trigger("mail.message/delete", { message, notifId });
-                message.delete();
-            }
-        });
-        this.busService.subscribe("mail.message/toggle_star", (payload, metadata) =>
-            this._handleNotificationToggleStar(payload, metadata),
+                const attachment = this.store["ir.attachment"].get(attachmentId);
+                attachment?.delete();
+            },
         );
-        this.busService.subscribe("res.users.settings", (payload) => {
-            if (payload) {
-                this.store.settings.update(payload);
-            }
-        });
-        this.busService.subscribe("mail.record/insert", (payload) => {
-            this.store.insert(payload);
-        });
+        this.busService.subscribe(
+            "mail.message/delete",
+            /**
+             * @param {{message_ids: number[]}} payload
+             * @param {{id: number}} metadata
+             */
+            (payload, { id: notifId }) => {
+                for (const messageId of payload.message_ids) {
+                    this.store.deletedMessageIds.add(messageId);
+                    const message = this.store["mail.message"].get(messageId);
+                    if (!message) {
+                        continue;
+                    }
+                    this.env.bus.trigger("mail.message/delete", { message, notifId });
+                    message.delete();
+                }
+            },
+        );
+        this.busService.subscribe(
+            "mail.message/toggle_star",
+            /**
+             * @param {{message_ids: number[], starred: boolean}} payload
+             * @param {Object} metadata
+             */
+            (payload, metadata) =>
+                this._handleNotificationToggleStar(payload, metadata),
+        );
+        this.busService.subscribe(
+            "res.users.settings",
+            /** @param {Object|undefined} payload */ (payload) => {
+                if (payload) {
+                    this.store.settings.update(payload);
+                }
+            },
+        );
+        this.busService.subscribe(
+            "mail.record/insert",
+            /** @param {Object} payload */ (payload) => {
+                this.store.insert(payload);
+            },
+        );
     }
 
+    /**
+     * @param {{message_ids: number[], starred: boolean}} payload
+     * @param {Object} metadata
+     */
     _handleNotificationToggleStar(payload, metadata) {
         const { message_ids: messageIds, starred } = payload;
         this.store["mail.message"].insert(messageIds.map((id) => ({ id, starred })));

@@ -8,6 +8,10 @@ export class MentionPlugin extends Plugin {
     static id = "mention";
     static dependencies = ["baseContainer", "selection", "history"];
     resources = {
+        /**
+         * @param {Node} node
+         * @returns {boolean|undefined}
+         */
         is_node_editable_predicates: (node) => {
             for (const { selector } of this.MENTION_SELECTORS) {
                 if (closestElement(node, selector)) {
@@ -28,8 +32,11 @@ export class MentionPlugin extends Plugin {
     }
 
     /**
-     * Extend the selection to include whole mention elements at the borders
-     * so that it doesn't get stuck into the contenteditable=false
+     * @param {Object} selection
+     * @param {Node} selection.anchorNode
+     * @param {number} selection.anchorOffset
+     * @param {Node} selection.focusNode
+     * @param {number} selection.focusOffset
      */
     selectAll({ anchorNode, anchorOffset, focusNode, focusOffset }) {
         const SELECTOR = this.MENTION_SELECTORS.map(({ selector }) => selector).join(
@@ -61,7 +68,9 @@ export class MentionPlugin extends Plugin {
         return [
             {
                 selector: "a.o_channel_redirect",
+                /** @param {HTMLAnchorElement} el */
                 checker: (el) => this.isValidChannelMentionElement(el),
+                /** @param {HTMLAnchorElement[]} channelLinks */
                 validMentionsHandler: (channelLinks) => {
                     handleValidChannelMention(channelLinks);
                     this.dependencies.history.addStep();
@@ -69,15 +78,18 @@ export class MentionPlugin extends Plugin {
             },
             {
                 selector: "a.o_mail_redirect",
+                /** @param {HTMLAnchorElement} el */
                 checker: (el) => true,
             },
             {
                 selector: "a.o-discuss-mention",
+                /** @param {HTMLAnchorElement} el */
                 checker: (el) => true,
             },
         ];
     }
 
+    /** @param {Event} ev */
     async detectMentions(ev) {
         for (const { selector, checker, validMentionsHandler } of this
             .MENTION_SELECTORS) {
@@ -98,12 +110,9 @@ export class MentionPlugin extends Plugin {
         }
     }
 
+    /** @param {HTMLAnchorElement[]} validMentionLinks */
     prepareValidMentionLinks(validMentionLinks) {
         for (const el of validMentionLinks) {
-            // if el's parent is odoo-editor-editable, which happens when the html is computed or set with setContent,
-            // considering the mention blocks are protected and not editable.
-            // This will lead to issues where the mention cannot be deleted or edited properly.
-            // In this case, we wrap the mention with a base container.
             if (el.parentElement === this.editable) {
                 const baseContainer =
                     this.dependencies.baseContainer.createBaseContainer();
@@ -114,9 +123,11 @@ export class MentionPlugin extends Plugin {
         }
     }
 
+    /**
+     * @param {HTMLAnchorElement} el
+     * @returns {Promise<boolean>}
+     */
     async isValidChannelMentionElement(el) {
-        // "discuss.channel" literals: `data-oe-model` mention markup protocol
-        // (editor DOM), not a Thread-record conditional.
         if (el.dataset.oeModel !== "discuss.channel") {
             return false;
         }

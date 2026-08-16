@@ -12,6 +12,7 @@ export class MessageReactions extends Record {
     message = fields.One("mail.message");
     partners = fields.Many("res.partner");
     personas = fields.Attr([], {
+        /** @this {import("models").MessageReactions} */
         compute() {
             return [...this.partners, ...this.guests];
         },

@@ -7,10 +7,6 @@
     opacity: 100% !important;
 }
 
-//==========================================================
-// Menu slide in effect
-//==========================================================
-
 $quick-reaction-menu-slide-in-duration: 0.2s;
 
 @keyframes qrm-menuSlideInAnimation {
@@ -49,10 +45,6 @@ $quick-reaction-menu-slide-in-duration: 0.2s;
 .o-mail-QuickReactionMenu-emojiPicker {
     padding: calc(map-get($spacers, 3) / 2);
 }
-
-//==========================================================
-// Emoji buttons pop effect
-//==========================================================
 
 $quick-reaction-menu-total-buttons: 7;
 $quick-reaction-menu-emoji-delay-increment: 0.05s;
@@ -96,10 +88,6 @@ $quick-reaction-menu-emoji-pop-out-duration: 0.15s;
             )};
     }
 }
-
-//==========================================================
-// Picker grow effect
-//==========================================================
 
 $quick-reaction-menu-picker-grow-duration: 0.25s;
 

@@ -26,15 +26,13 @@ import { useRecordObserver } from "@web/fields/hooks/record_observer";
 export const DELAY_FOR_SPINNER = 1000;
 
 /**
- * Backend (web client) chatter: extends the base document chatter with
- * activities, followers, attachments, scheduled messages, message search and
- * suggested recipients. Backend mount points (form view integration, backend
- * panels, ...) must use this class; portal-side bundles, which do not ship
- * this layer, keep mounting the base Chatter.
- *
- * @typedef {Object} Props
- * @property {function} [close]
- * @extends {Chatter<Props, Env>}
+ * @typedef {import("@mail/chatter/web_portal/chatter").Props & { close?: function, compactHeight?: boolean, has_activities?: boolean, hasAttachmentPreview?: boolean, hasParentReloadOnActivityChanged?: boolean, hasParentReloadOnAttachmentsChanged?: boolean, hasParentReloadOnFollowersUpdate?: boolean, hasParentReloadOnMessagePosted?: boolean, highlightMessageId?: number, isAttachmentBoxVisibleInitially?: boolean, isChatterAside?: boolean, isInFormSheetBg?: boolean, saveRecord?: function, record?: Object, }} Props
+ */
+/**
+ * @typedef {import("@mail/chatter/web_portal/chatter").State & { composerType: "message"|"note"|false, isAttachmentBoxOpened: boolean, isCollapsed: boolean, isSearchOpen: boolean, showActivities: boolean, showAttachmentLoading: boolean, showScheduledMessages: boolean, }} State
+ */
+/**
+ * @extends {Chatter<Props, State>}
  */
 export class WebChatter extends Chatter {
     static template = "mail.Chatter";
@@ -86,9 +84,12 @@ export class WebChatter extends Chatter {
         super.setup(...arguments);
         this.orm = useService("orm");
         this.keepLastSuggestedRecipientsUpdate = new KeepLast();
-        /** @deprecated equivalent to partner_fields and primary_email_field on thread */
         this.mailImpactingFields = { recordFields: [], emailFields: [] };
-        useRecordObserver((record) => this.updateRecipients(record));
+        useRecordObserver(
+            /** @param {import("@web/model/relational_model/record").RelationalRecord} record */ (
+                record,
+            ) => this.updateRecipients(record),
+        );
         this.attachmentPopout = usePopoutAttachment();
         Object.assign(this.state, {
             composerType: false,
@@ -131,10 +132,6 @@ export class WebChatter extends Chatter {
                                 return;
                             }
                         }
-                        // after a just-performed save, state.thread still
-                        // points at the transient (id-less) thread until the
-                        // parent re-renders: uploading against it would send
-                        // thread_id=false and the files would silently vanish
                         const thread = this.state.thread.id
                             ? this.state.thread
                             : this.store.Thread.insert({
@@ -200,11 +197,14 @@ export class WebChatter extends Chatter {
         );
     }
 
+    /**
+     * @param {import("@web/model/relational_model/record").RelationalRecord} record
+     * @param {"message"|"note"|false} [mode=this.state.composerType]
+     */
     async updateRecipients(record, mode = this.state.composerType) {
         if (!record) {
             return;
         }
-        // Hack: Make the useRecordObserver subscribe to the record changes
         Object.keys(record.data).forEach((field) => record.data[field]);
         const partnerIds = [];
         let email;
@@ -229,10 +229,6 @@ export class WebChatter extends Chatter {
             return;
         }
         const thread = this.state.thread;
-        // The record observer fires updateRecipients on *every* field change and a
-        // recipient field stays in _changes until save, so skip the RPC when the
-        // (thread, partnerIds, email) inputs are unchanged. Keyed on thread so a
-        // record switch still fetches.
         const queryKey = JSON.stringify({
             threadId: thread?.localId,
             partnerIds: [...partnerIds].sort((a, b) => a - b),
@@ -249,15 +245,9 @@ export class WebChatter extends Chatter {
                 main_email: email,
             }),
         );
-        // KeepLast only supersedes when a newer call happens: on a record
-        // switch nothing does, so an in-flight response for the previous
-        // record must not land on the new record's thread
         if (status(this) === "destroyed" || !this.state.thread?.eq(thread)) {
             return;
         }
-        // Only remember the key once the matching result has actually landed on
-        // this thread, so a discarded (superseded / thread-switched) response
-        // doesn't suppress a later identical query.
         this._lastRecipientsQueryKey = queryKey;
         this.state.thread.suggestedRecipients = recipients.map((result) => ({
             display_name: result.display_name,
@@ -275,9 +265,7 @@ export class WebChatter extends Chatter {
             );
     }
 
-    /**
-     * @returns {import("models").Activity[]}
-     */
+    /** @returns {import("models").Activity[]} */
     get activities() {
         return this.state.thread?.activities ?? [];
     }
@@ -314,16 +302,11 @@ export class WebChatter extends Chatter {
         return _t("Following");
     }
 
-    /**
-     * Whether the chatter is collapsed in aside mode.
-     */
     get isCollapsedAside() {
         return this.props.isChatterAside && this.state.isCollapsed;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isDisabled() {
         return !this.state.thread.id || !this.state.thread?.hasReadAccess;
     }
@@ -352,13 +335,15 @@ export class WebChatter extends Chatter {
         return _t("Unfollow");
     }
 
+    /**
+     * @param {string} threadModel
+     * @param {number|false} threadId
+     */
     changeThread(threadModel, threadId) {
         super.changeThread(...arguments);
         this.attachmentUploader.thread = this.state.thread;
         if (threadId === false) {
             this.state.composerType = false;
-            // close the search too: leaving it open would keep rendering the
-            // previous record's search results on the new record's chatter
             this.closeSearch();
         } else {
             this.onThreadCreated?.(this.state.thread);
@@ -373,7 +358,10 @@ export class WebChatter extends Chatter {
         this.state.isSearchOpen = false;
     }
 
-    /** @override */
+    /**
+     * @param {import("models").Thread} thread
+     * @param {string[]} requestList
+     */
     async load(thread, requestList) {
         await super.load(...arguments);
         if (!thread.id || !this.state.thread?.eq(thread)) {
@@ -385,15 +373,11 @@ export class WebChatter extends Chatter {
                 : [],
             recordFields: this.state.thread.partner_fields || [],
         };
-        // super.load() replaced `suggestedRecipients` with the server's view of the
-        // *saved* record, dropping the recipients derived from unsaved fields; the
-        // updateRecipients call below re-overlays them, but its dedup cache keys on
-        // (thread, partnerIds, email), all unchanged here. Invalidate the cache so
-        // the overlay is always recomputed after a fetch.
         this._lastRecipientsQueryKey = undefined;
         this.updateRecipients(this.props.record);
     }
 
+    /** @param {import("models").Thread} thread */
     onActivityChanged(thread) {
         this.load(thread, [...this.requestList, "messages"]);
         if (this.props.hasParentReloadOnActivityChanged) {
@@ -419,6 +403,7 @@ export class WebChatter extends Chatter {
         }
     }
 
+    /** @param {MouseEvent} ev */
     async onClickAttachFile(ev) {
         if (this.state.thread.id) {
             return;
@@ -434,11 +419,9 @@ export class WebChatter extends Chatter {
         this.state.isSearchOpen = !this.state.isSearchOpen;
     }
 
+    /** @param {boolean} isDiscard */
     onCloseFullComposerCallback(isDiscard) {
         this.toggleComposer();
-        // forward like every other super call in this file (`load`,
-        // `changeThread`): the base takes no argument today, and an override
-        // inserted between the two must not be the thing that discovers it
         super.onCloseFullComposerCallback(...arguments);
         if (!isDiscard) {
             this.reloadParentView();
@@ -446,7 +429,7 @@ export class WebChatter extends Chatter {
     }
 
     onFollowerChanged() {
-        document.body.click(); // hack to close dropdown
+        document.body.click();
         this.reloadParentView();
     }
 
@@ -465,58 +448,56 @@ export class WebChatter extends Chatter {
         super.onPostCallback();
     }
 
+    /** @param {import("models").Thread} thread */
     onScheduledMessageChanged(thread) {
-        // reload messages as well as a scheduled message could have been sent
         this.load(thread, ["scheduledMessages", "messages"]);
-        // sending a message could trigger another action (eg. move so to quotation sent)
         this.reloadParentView();
     }
 
+    /** @param {import("models").Thread} thread */
     onSuggestedRecipientAdded(thread) {
         this.load(thread, ["suggestedRecipients"]);
     }
 
     /**
-     * @param {string} data deprecated, passing thread is enough
+     * @param {string} data
      * @param {import("models").Thread} thread
      */
     onUploaded(data, { thread } = {}) {
         const threadLocalId = thread.localId;
         if (!this.uploadHandlers.has(threadLocalId)) {
             const self = this;
-            this.uploadHandlers.set(threadLocalId, async function handleUpload(data) {
-                try {
-                    // Upload against the thread this handler was created for, NOT
-                    // whatever `state.thread` happens to be once the async file read
-                    // ends (a pager navigation would re-target the upload).
-                    // Exception, mirroring the onDrop fallback: a transient record
-                    // just saved by onClickAttachFile still has its id-less thread
-                    // captured here, and uploading against it sends thread_id=false.
-                    const uploadThread =
-                        thread.id || !self.props.record.resId
-                            ? thread
-                            : self.store.Thread.insert({
-                                  model: self.props.threadModel,
-                                  id: self.props.record.resId,
-                              });
-                    await self.attachmentUploader.uploadData(data, {
-                        thread: uploadThread,
-                    });
-                    if (!uploadThread.eq(self.state.thread)) {
-                        return;
+            this.uploadHandlers.set(
+                threadLocalId,
+                /** @param {string} data */
+                async function handleUpload(data) {
+                    try {
+                        const uploadThread =
+                            thread.id || !self.props.record.resId
+                                ? thread
+                                : self.store.Thread.insert({
+                                      model: self.props.threadModel,
+                                      id: self.props.record.resId,
+                                  });
+                        await self.attachmentUploader.uploadData(data, {
+                            thread: uploadThread,
+                        });
+                        if (!uploadThread.eq(self.state.thread)) {
+                            return;
+                        }
+                        if (self.props.hasParentReloadOnAttachmentsChanged) {
+                            self.reloadParentView();
+                        }
+                        self.state.isAttachmentBoxOpened = true;
+                        if (self.rootRef.el) {
+                            self.rootRef.el.scrollTop = 0;
+                        }
+                        self.state.thread.scrollTop = "bottom";
+                    } finally {
+                        self.uploadHandlers.delete(threadLocalId);
                     }
-                    if (self.props.hasParentReloadOnAttachmentsChanged) {
-                        self.reloadParentView();
-                    }
-                    self.state.isAttachmentBoxOpened = true;
-                    if (self.rootRef.el) {
-                        self.rootRef.el.scrollTop = 0;
-                    }
-                    self.state.thread.scrollTop = "bottom";
-                } finally {
-                    self.uploadHandlers.delete(threadLocalId);
-                }
-            });
+                },
+            );
         }
         return this.uploadHandlers.get(threadLocalId);
     }
@@ -524,9 +505,6 @@ export class WebChatter extends Chatter {
     async reloadParentView() {
         const saved = await this.props.saveRecord?.();
         if (saved === false) {
-            // client-side validation failure: FormController.save() resolves
-            // false instead of throwing. Loading the record anyway would run
-            // _clearChanges() and silently discard the user's pending edits.
             return;
         }
         if (this.props.record) {
@@ -536,6 +514,7 @@ export class WebChatter extends Chatter {
 
     async scheduleActivity() {
         this.closeSearch();
+        /** @param {import("models").Thread} thread */
         const schedule = async (thread) => {
             await this.store.scheduleActivity(thread.model, [thread.id]);
             this.load(thread, ["activities", "messages"]);
@@ -549,8 +528,6 @@ export class WebChatter extends Chatter {
             this.onThreadCreated = schedule;
             const saved = await this.props.saveRecord?.();
             if (!saved) {
-                // failed/refused save: disarm, or the callback would fire on
-                // the next unrelated successful save or record switch
                 this.onThreadCreated = null;
             }
         }
@@ -560,14 +537,16 @@ export class WebChatter extends Chatter {
         this.state.showActivities = !this.state.showActivities;
     }
 
-    /**
-     * Toggle chatter collapsed state and persist to localStorage.
-     */
     toggleChatterCollapse() {
         this.state.isCollapsed = !this.state.isCollapsed;
         browser.localStorage.setItem("chatter_aside_collapsed", this.state.isCollapsed);
     }
 
+    /**
+     * @param {"message"|"note"|false} [mode=false]
+     * @param {Object} [options]
+     * @param {boolean} [options.force=false]
+     */
     async toggleComposer(mode = false, { force = false } = {}) {
         this.closeSearch();
         const toggle = async () => {
@@ -586,8 +565,6 @@ export class WebChatter extends Chatter {
             this.onThreadCreated = toggle;
             const saved = await this.props.saveRecord?.();
             if (!saved) {
-                // failed/refused save: disarm, or the composer would pop on
-                // the next unrelated successful save or record switch
                 this.onThreadCreated = null;
             }
         }
@@ -597,6 +574,7 @@ export class WebChatter extends Chatter {
         this.state.showScheduledMessages = !this.state.showScheduledMessages;
     }
 
+    /** @param {import("models").Attachment} attachment */
     async unlinkAttachment(attachment) {
         await this.attachmentUploader.unlink(attachment);
         if (this.props.hasParentReloadOnAttachmentsChanged) {

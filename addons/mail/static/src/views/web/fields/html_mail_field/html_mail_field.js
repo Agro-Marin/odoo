@@ -4,6 +4,7 @@ import { ColumnPlugin } from "@html_editor/main/column_plugin";
 import { registry } from "@web/core/registry";
 
 import { getCSSRules, toInline } from "./convert_inline.js";
+/** @type {WeakMap<Element, Object[]>} */
 const cssRulesByElement = new WeakMap();
 
 export class HtmlMailField extends HtmlField {
@@ -17,25 +18,17 @@ export class HtmlMailField extends HtmlField {
             cssRulesByElement.set(editor.editable, getCSSRules(editor.document));
         }
         const cssRules = cssRulesByElement.get(editor.editable);
-        // Insert the cloned element in the live DOM so we can get its computed style.
         editor.editable.after(el);
         el.classList.remove("odoo-editor-editable");
         try {
             await toInline(el, cssRules);
         } finally {
-            // Never leave the clone in the live DOM, even when the
-            // conversion throws (its content would show up twice).
             el.remove();
         }
     }
 
     async getEditorContent() {
         const el = await super.getEditorContent();
-        // Mirror the base method's own `editor.editable` guard: the urgent
-        // save path fires this capture in the background ("finish pending
-        // image uploads"), and the editor can be destroyed -- its `editable`
-        // nulled -- before the capture settles. There is nothing to inline
-        // against then (the WeakMap key and the DOM insertion point are gone).
         if (this.editor.editable) {
             await HtmlMailField.getInlinedEditorContent(
                 cssRulesByElement,
@@ -59,6 +52,13 @@ export const htmlMailField = {
     ...htmlField,
     component: HtmlMailField,
     additionalClasses: ["o_field_html"],
+    /**
+     * @param {Object} fieldInfo
+     * @param {Object} fieldInfo.attrs
+     * @param {Object} fieldInfo.options
+     * @param {Object} dynamicInfo
+     * @returns {Object}
+     */
     extractProps({ attrs, options }, dynamicInfo) {
         const props = htmlField.extractProps({ attrs, options }, dynamicInfo);
         props.embeddedComponents = false;

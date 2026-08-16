@@ -26,7 +26,6 @@ export class MailComposerAttachmentSelector extends Component {
         if (this.props.record.resModel === "mail.scheduled.message") {
             resIds = [this.props.record.data.res_id.resId];
         } else {
-            // composer does not store res_ids past a certain limit, assume active_ids is used
             resIds = this.props.record.data.res_ids
                 ? JSON.parse(this.props.record.data.res_ids)
                 : this.props.record.context.active_ids;
@@ -38,9 +37,6 @@ export class MailComposerAttachmentSelector extends Component {
         const file = new File([dataUrlToBlob(data, type)], name, { type });
         const isThreadComposer = this.props.record.context.is_thread_composer;
         let composer = isThreadComposer ? thread.composer : undefined;
-        // Use an isolated composer object instead of thread.composer to
-        // avoid pushing into the main thread's composer.attachments list,
-        // which is observed by the chatter.
         if (this.props.record.resModel === "mail.scheduled.message") {
             composer = { attachments: [] };
         }

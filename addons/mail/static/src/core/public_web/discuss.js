@@ -42,6 +42,7 @@ export class Discuss extends Component {
         useExternalListener(
             window,
             "keydown",
+            /** @param {KeyboardEvent} ev */
             (ev) => {
                 if (
                     getActiveHotkey(ev) === "escape" &&
@@ -63,6 +64,10 @@ export class Discuss extends Component {
         );
         if (this.store.inPublicPage) {
             useEffect(
+                /**
+                 * @param {import("models").Thread|undefined} thread
+                 * @param {boolean} isSmall
+                 */
                 (thread, isSmall) => {
                     if (!thread) {
                         return;
@@ -74,9 +79,6 @@ export class Discuss extends Component {
                                 if (this._openChatWindowPromise === promise) {
                                     this.chatWindow = chatWindow;
                                 } else {
-                                    // superseded while in flight: only the
-                                    // latest window is tracked, an untracked
-                                    // one could never be closed
                                     chatWindow?.close();
                                 }
                             }));

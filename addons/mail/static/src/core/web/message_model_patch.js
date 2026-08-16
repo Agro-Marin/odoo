@@ -2,9 +2,11 @@
 import { Message } from "@mail/core/common/message_model";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { patch } from "@web/core/utils/patch";
-/** @type {import("models").Message} */
+/**
+ * @type {Partial<import("models").Message> & ThisType<import("models").Message>}
+ */
 const messagePatch = {
-    /** @param {import("models").Thread} thread the thread where the message is shown */
+    /** @param {import("models").Thread} thread */
     canReplyAll(thread) {
         return this.canForward(thread) && !this.isNote;
     },
@@ -19,10 +21,6 @@ const messagePatch = {
         );
     },
     async toggleStar() {
-        // The echoed `mail.message/toggle_star` notification only moves the
-        // "Starred" counter on an actual transition, and the base RPC result
-        // already flipped `starred`. So move it optimistically here (like
-        // unstarAll) and let the notification's guard dedupe it.
         const starredBox = this.store.starred;
         if (!starredBox) {
             return super.toggleStar(...arguments);
@@ -39,8 +37,6 @@ const messagePatch = {
         try {
             await super.toggleStar(...arguments);
         } catch (error) {
-            // roll back the optimistic update (the snapshot is skipped if a
-            // newer absolute counter snapshot landed in the meantime)
             this.starred = !willStar;
             counterSnapshot.restore();
             if (willStar) {

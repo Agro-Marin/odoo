@@ -32,7 +32,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 .o-discuss-badge {
     &,
     & .o-innerBadge {
-        --o-discuss-badge-bg: #{$o-success}; // sync with --o-navbar-badge-bg
+        --o-discuss-badge-bg: #{$o-success};
         color: white !important;
         background-color: var(--o-discuss-badge-bg) !important;
         align-items: center;
@@ -45,7 +45,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
     }
 
     & .o-innerBadge {
-        min-width: $o-badge-min-width; // same as .badge, without using .badge to keep semantics of a single .badge
+        min-width: $o-badge-min-width;
     }
 }
 
@@ -107,8 +107,8 @@ $o-discuss-talkingColor: lighten($success, 10%);
     &,
     & .o-innerBadge {
         display: flex;
-        transform: translate(0, 0) !important; // cancel systray style on badge
-        font-size: 0.78572 * $font-size-base !important; // roughly 11px, small but readable
+        transform: translate(0, 0) !important;
+        font-size: 0.78572 * $font-size-base !important;
         user-select: none;
     }
 }
@@ -309,7 +309,9 @@ $o-mail-utilities: map-merge(
 .o-secondary {
     color: var(
         --o-secondary,
-        #{unquote("color-mix(in srgb, #{o-token(--o-gray-200, $o-gray-200)} 50%, #{o-token(--o-gray-300, $o-gray-300)})")}
+        #{unquote(
+                "color-mix(in srgb, #{o-token(--o-gray-200, $o-gray-200)} 50%, #{o-token(--o-gray-300, $o-gray-300)})"
+            )}
     );
 }
 
@@ -322,13 +324,6 @@ $o-mail-utilities: map-merge(
     background-color: mix(mix($white, $gray-100, 15%), $o-action, 97.5%) !important;
 }
 
-// see `@mixin button-variant`, this is the implementation without requiring `.btn` classname
-/// A mention's colours, with the scheme it decides by handed in.
-///
-/// Every default below reads `color-contrast()`, `shade-color()` or
-/// `tint-color()`, and all three answer for whichever palette is compiling — so
-/// a caller stating the dark scheme's colours would still get the light
-/// scheme's labels and mixes on top of them. `$-scheme` is what closes that.
 @mixin o-mention-variant(
     $background,
     $outline,
@@ -383,10 +378,7 @@ $o-mail-utilities: map-merge(
     $disabled-background: o-or($disabled-background, $background);
     $disabled-outline: o-or($disabled-outline, $outline);
 
-    color: #{o-or(
-            $color,
-            o-scheme-contrast(opaque($-surface, $background), $-scheme)
-        )} !important;
+    color: #{o-or($color, o-scheme-contrast(opaque($-surface, $background), $-scheme))} !important;
     background-color: #{$background};
     outline-color: #{$outline};
     &:hover {
@@ -462,19 +454,19 @@ a.o-discuss-mention {
 }
 
 .o-mail-DiscussSystray {
-    --border-color: #{$o-gray-300} !important; // cancel custom border color of dropdown
+    --border-color: #{$o-gray-300} !important;
 }
 
 .o-mail-DiscussSystray-class {
-    margin-top: -$o-navbar-padding-v; // cancel navbar padding
-    margin-bottom: -$o-navbar-padding-v; // cancel navbar padding
+    margin-top: -$o-navbar-padding-v;
+    margin-bottom: -$o-navbar-padding-v;
     display: flex;
     align-items: center;
 }
 
 .o-mail-systrayFullscreenDropdownMenu {
     top: $o-navbar-height !important;
-    height: calc(100% - #{$o-navbar-height}); // no bottom-0 otherwise performance issue
+    height: calc(100% - #{$o-navbar-height});
     border-radius: 0 !important;
 }
 
@@ -493,8 +485,6 @@ a.o-discuss-mention {
     }
 }
 
-// .o-opacity-hoberable class disable the opacity effect (see opacity-100-hover) on
-// device that dont support the hover effect (mainly touch device).
 @media (hover: none) {
     .o-opacity-hoverable {
         opacity: 100 !important;
@@ -506,14 +496,14 @@ a.o-discuss-mention {
     filter: drop-shadow(1px 1px 0px #000000b0);
 }
 
-
-// The dark half, folded in from `core.dark.scss`. Same selectors, different
-// arguments -- which is what a `*.dark.scss` skin is, and why it can become a
-// scoped block rather than a second file the dark bundles carry alone.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-discussSidebarBgColor {
-            background-color: mix($o-dark-white, $o-dark-webclient-background-color, 15%) !important;
+            background-color: mix(
+                $o-dark-white,
+                $o-dark-webclient-background-color,
+                15%
+            ) !important;
         }
 
         a.o_mail_redirect,

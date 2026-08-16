@@ -14,71 +14,82 @@ export const ACTION_TAGS = Object.freeze({
     JOIN_LEAVE_CALL: "JOIN_LEAVE_CALL",
 });
 
-/** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {import("@mail/model/record").Record} Record */
-/** @typedef {Component|Record} ActionOwner */
 /**
- * Argument every action hook and definition callback receives: the `params`
- * getter of the action, which owner-specific subclasses extend (e.g. `message`
- * and `thread` for message actions).
- *
- * @typedef {{ action: Action, store: import("models").Store, owner: ActionOwner }} ActionParams
+ * @typedef {Component|Record} ActionOwner
  */
-
 /**
+ * @template {ActionOwner} [O=ActionOwner]
+ * @typedef {{ action: Action<O>, store: import("models").Store, owner: O }} ActionParams
+ */
+/**
+ * @template {ActionOwner} [O=ActionOwner]
+ * @template {ActionParams<O>} [P=ActionParams<O>] what a definition callback is
+ * @template {Action<O>} [A=Action<O>] the `this` a definition callback runs
  * @typedef {Object} ActionDefinition
- * @property {boolean|(params: ActionParams) => boolean} [badge]
- * @property {string|(params: ActionParams) => string} [badgeIcon]
- * @property {string|(params: ActionParams) => string} [badgeText]
- * @property {string|(params: ActionParams) => string} [btnClass]
- * @property {Component} [component]
- * @property {boolean|(params: ActionParams) => boolean} [componentCondition=true]
- * @property {(params: ActionParams) => Object} [componentProps]
- * @property {boolean|(params: ActionParams) => boolean} [disabledCondition]
+ * @property {boolean|((this: A, params: P) => boolean)} [badge]
+ * @property {string|((this: A, params: P) => string)} [badgeIcon]
+ * @property {string|((this: A, params: P) => string)} [badgeText]
+ * @property {string|((this: A, params: P) => string)} [btnClass]
+ * @property {import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>} [component]
+ * @property {boolean|((this: A, params: P) => boolean)} [componentCondition=true]
+ * @property {(this: A, params: P) => Object} [componentProps]
+ * @property {boolean|((this: A, params: P) => boolean)} [disabledCondition]
  * @property {boolean} [dropdown]
- * @property {Component|(params: ActionParams) => Component} [dropdownComponent]
- * @property {Object|(params: ActionParams) => Object} [dropdownComponentProps]
- * @property {string|(params: ActionParams) => string} [dropdownMenuClass]
- * @property {string|(params: ActionParams) => string} [dropdownPosition]
- * @property {DropdownState|(params: ActionParams) => DropdownState} [dropdownState]
- * @property {string|(params: ActionParams) => string} [dropdownTemplate]
- * @property {Object|(params: ActionParams) => Object} [dropdownTemplateParams]
- * @property {boolean|(params: ActionParams) => boolean} [hasBtnBg]
- * @property {string|(params: ActionParams) => string} [hotkey]
- * @property {string|(params: ActionParams) => string} [icon]
- * @property {boolean|(params: ActionParams) => boolean} [inlineName=false]
- * @property {boolean|(params: ActionParams) => boolean} [isActive]
- * @property {string|(params: ActionParams) => string} [name]
- * @property {(params: ActionParams, ev: Event) => void} [onSelected]
- * @property {number|(params: ActionParams) => number} [sequence]
- * @property {boolean|(params: ActionParams) => boolean} [sequenceGroup]
- * @property {boolean|(params: ActionParams) => boolean} [sequenceQuick]
- * @property {() => void} [setup]
- * @property {string|string[]|(params: ActionParams) => string|string[]} [tags]
+ * @property {import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>|((this: A, params: P) => import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>)} [dropdownComponent]
+ * @property {Object|((this: A, params: P) => Object)} [dropdownComponentProps]
+ * @property {string|((this: A, params: P) => string)} [dropdownMenuClass]
+ * @property {string|((this: A, params: P) => string)} [dropdownPosition]
+ * @property {DropdownState|((this: A, params: P) => DropdownState)} [dropdownState]
+ * @property {string|((this: A, params: P) => string)} [dropdownTemplate]
+ * @property {Object|((this: A, params: P) => Object)} [dropdownTemplateParams]
+ * @property {boolean|((this: A, params: P) => boolean)} [hasBtnBg]
+ * @property {string|((this: A, params: P) => string)} [hotkey]
+ * @property {string|((this: A, params: P) => string)} [icon]
+ * @property {boolean|((this: A, params: P) => boolean)} [inlineName=false]
+ * @property {boolean|((this: A, params: P) => boolean)} [isActive]
+ * @property {string|((this: A, params: P) => string)} [name]
+ * @property {(this: A, params: P, ev: Event) => void|Promise<any>} [onSelected]
+ * @property {number|((this: A, params: P) => number)} [sequence]
+ * @property {number|((this: A, params: P) => number)} [sequenceGroup]
+ * @property {number|((this: A, params: P) => number)} [sequenceQuick]
+ * @property {(this: A, params: P) => void} [setup]
+ * @property {string|string[]|((this: A, params: P) => string|string[])} [tags]
+ * @property {Action<O>[]|Array<Action<O>[]>} [actions]
+ * @property {boolean} [isMoreAction]
  */
-
+/**
+ * @template {ActionOwner} [O=ActionOwner] what hosts this action. A subclass
+ * @template {ActionDefinition<O, any, any>} [D=ActionDefinition<O, any, any>] the
+ */
 export class Action {
-    /** @type {ActionDefinition}  User-defined explicit definition of this action */
+    /** @type {D} */
     definition;
-    /** @type {ActionOwner} Entity that is using this action */
+    /** @type {O} */
     owner;
-    /** @type {string} Unique id of this action. */
+    /** @type {string} */
     id;
     /** @type {import("models").Store} */
     store;
 
-    /** param `store` is required for actions made with new Action() by hand in components and outside component.setup() */
+    /**
+     * @param {Object} params
+     * @param {O} params.owner
+     * @param {string} params.id
+     * @param {D} params.definition
+     * @param {import("models").Store} [params.store]
+     */
     constructor({ owner, id, definition, store }) {
         this.definition = definition;
         this.id = id;
         this.owner = owner;
-        const rawOwner = toRaw(owner);
+        const rawOwner = /** @type {any} */ (toRaw(owner));
         this.store =
             store ??
             (rawOwner[STORE_SYM]
-                ? owner
+                ? /** @type {import("models").Store} */ (owner)
                 : isRecord(owner)
-                  ? owner.store
+                  ? /** @type {import("@mail/model/record").Record} */ (owner).store
                   : useService("mail.store"));
     }
 
@@ -87,97 +98,65 @@ export class Action {
     }
 
     /**
-     * Resolve a definition option that may be given as a value or as a function
-     * of the action's params.
-     *
-     * Almost every option below is polymorphic this way, and each getter used to
-     * spell the resolution out in full: a `_x()` subclass hook, then a `typeof`
-     * test, then the call, then the bare value — six lines that differed only in
-     * the option's name, twenty-odd times. That repetition is not free: the
-     * option list existed in three parallel places (this typedef, the `_x` hooks
-     * and the getters), and they had already drifted — `btnAttrs` was documented
-     * and implemented here while being read by nothing at all.
-     *
-     * The getters stay explicit rather than being generated onto the prototype.
-     * `tsconfig.json` maps `@mail/*` and the repo ratchets `tsc`, so a
-     * dynamically defined accessor would take every `action.<option>` read in
-     * this addon and its consumers off the type surface. One line each keeps
-     * them typed, greppable and jump-to-definition-able.
-     *
      * @param {string} name
      * @returns {any}
      */
     _option(name) {
-        const value = this.definition[name];
+        const value = /** @type {Record<string, any>} */ (this.definition)[name];
         return typeof value === "function" ? value.call(this, this.params) : value;
     }
 
     /**
-     * `_option`, with a default used only when the option is absent.
-     *
-     * The default applies to the *value* branch, not to the function's result:
-     * an explicit callback returning `undefined` keeps `undefined`. That is the
-     * pre-existing semantics of `condition` and `componentCondition`, and it is
-     * deliberately NOT the same as `?? default` around the whole expression —
-     * see `inlineName`, which does the latter.
-     *
      * @param {string} name
      * @param {any} fallback
      */
     _optionOr(name, fallback) {
-        const value = this.definition[name];
+        const value = /** @type {Record<string, any>} */ (this.definition)[name];
         return typeof value === "function"
             ? value.call(this, this.params)
             : (value ?? fallback);
     }
 
-    /**
-     * Resolve an option that is only ever a function — never a bare value — so
-     * a non-callable is a definition error rather than a value to pass through.
-     *
-     * @param {string} name
-     */
+    /** @param {string} name */
     _callOption(name) {
-        return this.definition[name]?.call(this, this.params);
+        return /** @type {Record<string, any>} */ (this.definition)[name]?.call(
+            this,
+            this.params,
+        );
     }
 
-    /** @param {ActionParams} action @returns {boolean|undefined} */
+    /** @param {ActionParams<O>} action */
     _badge(action) {}
-    /** Condition for showing badge on this action */
     get badge() {
         return this._badge(this.params) ?? this._option("badge");
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _badgeIcon(action) {}
-    /** When action shows badge @see badge this property tells the icon inside badge */
     get badgeIcon() {
         return this._badgeIcon(this.params) ?? this._option("badgeIcon");
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _badgeText(action) {}
-    /** When action shows badge @see badge this property tells the text inside badge. */
     get badgeText() {
         return this._badgeText(this.params) ?? this._option("badgeText");
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _btnClass(action) {}
     get btnClass() {
         return this._btnClass(this.params) ?? this._option("btnClass");
     }
 
-    /** @param {ActionParams} action @returns {Component|undefined} */
+    /** @param {ActionParams<O>} action */
     _component(action) {}
-    /** When provided, this component is mounted for this action. UI/UX of action is fully managed by the component */
     get component() {
         return this._component(this.params) ?? this.definition.component;
     }
 
-    /** @param {ActionParams} action @returns {boolean|undefined} */
+    /** @param {ActionParams<O>} action */
     _componentCondition(action) {}
-    /** When provided, action.component is conditionally picked based on this condition. When condition is false, the usual UI/UX of action from other explicit definitions is chosen */
     get componentCondition() {
         return (
             this._componentCondition(this.params) ??
@@ -185,23 +164,20 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams} action @returns {Object|undefined} */
+    /** @param {ActionParams<O>} action */
     _componentProps(action) {}
-    /** Props to pass to the component of this action. */
     get componentProps() {
         return this._componentProps(this.params) ?? this._callOption("componentProps");
     }
 
-    /** @param {ActionParams} action @returns {boolean|undefined} */
+    /** @param {ActionParams<O>} action */
     _condition(action) {}
-    /** Condition for availability of this action */
     get condition() {
         return this._condition(this.params) ?? this._optionOr("condition", true);
     }
 
-    /** @param {ActionParams} action @returns {boolean|undefined} */
+    /** @param {ActionParams<O>} action */
     _disabledCondition(action) {}
-    /** Condition to disable the button of this action (but still display it). */
     get disabledCondition() {
         return Boolean(
             this._disabledCondition(this.params) ??
@@ -209,22 +185,15 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams} action @returns {boolean|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdown(action) {}
-    /** Determines whether this action opens a dropdown on selection. */
     get dropdown() {
         return this._dropdown(this.params) ?? this.definition.dropdown;
     }
 
-    /** @param {ActionParams} action @returns {Component|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdownComponent(action) {}
-    /** When action is a dropdown @see dropdown, this determines an optional component to use for the content slot */
     get dropdownComponent() {
-        // The one option `_option()` cannot resolve, and the reason it takes a
-        // name rather than a value: an OWL Component subclass IS a function, so
-        // the plain `typeof === "function"` test would CALL the component class
-        // instead of returning it. The prototype check distinguishes "a factory
-        // of a component" from "a component".
         return (
             this._dropdownComponent(this.params) ??
             (typeof this.definition.dropdownComponent === "function" &&
@@ -234,9 +203,8 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams} action @returns {Object|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdownComponentProps(action) {}
-    /** When action is a dropdown @see dropdown, this determines optional props to pass to component of the content slot of dropdown. */
     get dropdownComponentProps() {
         return (
             this._dropdownComponentProps(this.params) ??
@@ -244,43 +212,34 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdownMenuClass(action) {}
-    /** When action is a dropdown @see dropdown, this determines an optional menu class for the dropdown, in addition to default dropdown menu classes */
     get dropdownMenuClass() {
         return (
             this._dropdownMenuClass(this.params) ?? this._option("dropdownMenuClass")
         );
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdownPosition(action) {}
-    /** When action is a dropdown @see dropdown, this determines the preferred position of the dropdown */
     get dropdownPosition() {
         return this._dropdownPosition(this.params) ?? this._option("dropdownPosition");
     }
 
-    /** @param {ActionParams} action @returns {DropdownState|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdownState(action) {}
-    /** When action is a dropdown @see dropdown, this determines the preferred position of the dropdown */
     get dropdownState() {
         return this._dropdownState(this.params) ?? this._option("dropdownState");
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdownTemplate(action) {}
-    /** When action is a dropdown @see dropdown, this determines an optional template to use for the content slot */
     get dropdownTemplate() {
         return this._dropdownTemplate(this.params) ?? this._option("dropdownTemplate");
     }
 
-    /** @param {ActionParams} action @returns {Object|undefined} */
+    /** @param {ActionParams<O>} action */
     _dropdownTemplateParams(action) {}
-    /**
-     * When action is a dropdown @see dropdown, this determines optional params to pass to template of the content slot of dropdown.
-     * The params are provided to template in object `templateParams` with named parameters as given by explicit definition.
-     * For example: `{ myParam1: 1 }` is retrieved in template with `templateParams.myParam1`.
-     */
     get dropdownTemplateParams() {
         return (
             this._dropdownTemplateParams(this.params) ??
@@ -288,58 +247,45 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams} action @returns {boolean|undefined} */
+    /** @param {ActionParams<O>} action */
     _hasBtnBg(action) {}
     get hasBtnBg() {
         return this._hasBtnBg(this.params) ?? this._option("hasBtnBg");
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _hotkey(action) {}
-    /** Determines whether this action has a keyboard hotkey to trigger the onSelected */
     get hotkey() {
         return this._hotkey(this.params) ?? this._option("hotkey");
     }
 
-    /** @param {ActionParams} action @returns {string|Object|undefined} */
+    /** @param {ActionParams<O>} action */
     _icon(action) {}
-    /**
-     * Icon for the button this action.
-     * - When a string, this is considered an icon as classname (.fa and .oi).
-     * - When an object with property `template`, this is an icon rendered in template.
-     *   Template params are provided in `params` and passed to template as a `t-set="templateParams"`
-     */
     get icon() {
         return this._icon(this.params) ?? this._option("icon");
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _inlineName(action) {}
-    /** If set, when action is used in inline, shows action name in addition to icon. */
     get inlineName() {
-        // `?? false` wraps the WHOLE expression, so a callback returning
-        // undefined yields false here — unlike `condition`, where the
-        // default applies to the value branch only.
         return this._inlineName(this.params) ?? this._option("inlineName") ?? false;
     }
 
-    /** @param {ActionParams} action @returns {boolean|undefined} */
+    /** @param {ActionParams<O>} action */
     _isActive(action) {}
-    /** States whether this action is currently active. */
     get isActive() {
         return Boolean(this._isActive(this.params) ?? this._option("isActive"));
     }
 
-    /** @param {ActionParams} action @returns {string|undefined} */
+    /** @param {ActionParams<O>} action */
     _name(action) {}
-    /** Name of this action, displayed to the user. */
     get name() {
         return this._name(this.params) ?? this._option("name");
     }
 
-    /** @param {ActionParams} action @param {Event} ev @returns {true|undefined} */
+    /** @param {ActionParams<O>} action */
     _onSelected(action, ev) {}
-    /** Action to execute when this action is selected @param {Event} ev */
+    /** @param {Event} ev */
     onSelected(ev) {
         return (
             this._onSelected(this.params, ev) ??
@@ -347,37 +293,34 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams} action @returns {number|undefined} */
+    /** @param {ActionParams<O>} action */
     _sequence(action) {}
-    /** Determines the order of this action (smaller first). */
     get sequence() {
         return this._sequence(this.params) ?? this._option("sequence");
     }
 
-    /** @param {ActionParams} action @returns {number|undefined} */
+    /** @param {ActionParams<O>} action */
     _sequenceGroup(action) {}
     get sequenceGroup() {
         return this._sequenceGroup(this.params) ?? this._option("sequenceGroup");
     }
 
-    /** @param {ActionParams} action @returns {number|undefined} */
+    /** @param {ActionParams<O>} action */
     _sequenceQuick(action) {}
     get sequenceQuick() {
         return this._sequenceQuick(this.params) ?? this._option("sequenceQuick");
     }
 
-    /** @param {ActionParams} action @returns {true|undefined} */
+    /** @param {ActionParams<O>} action */
     _setup(action) {}
-    /** setup is executed when the owner is being setup. */
     setup() {
         return (
             this._setup(this.params) ?? this.definition.setup?.call(this, this.params)
         );
     }
 
-    /** @param {ActionParams} action @returns {string|string[]|undefined} */
+    /** @param {ActionParams<O>} action */
     _tags(action) {}
-    /** If set, list of tags of this action. */
     get tags() {
         const res = this._tags(this.params) ?? this._option("tags");
         return Array.isArray(res) ? res : [res];
@@ -388,17 +331,28 @@ export class Action {
     }
 }
 
+/**
+ * @template {Action<any>} [A=Action] the action class this family builds.
+ */
 export class UseActions extends SignalStore {
-    ActionClass = Action;
+    /**
+     * @type {new (...args: any[]) => A}
+     */
+    ActionClass = /** @type {any} */ (Action);
     /** @type {Component} */
     component;
-    /** @type {Map<string, Action>} */
+    /** @type {Map<string, A>} */
     moreActions = new Map();
-    /** @type {Action[]} */
+    /** @type {A[]} */
     transformedActions;
     /** @type {import("models").Store} */
     store;
 
+    /**
+     * @param {Component} component
+     * @param {A[]} transformedActions
+     * @param {import("models").Store} store
+     */
     constructor(component, transformedActions, store) {
         super();
         this.component = component;
@@ -407,11 +361,10 @@ export class UseActions extends SignalStore {
     }
 
     /**
-     * @typedef {Object} MoreActionSpecificDefinition
-     * @property {Action[]|Array<Action[]>} actions
+     * @param {ActionDefinition} data
+     * @param {string} id
+     * @returns {A}
      */
-    /** @typedef {ActionDefinition & MoreActionSpecificDefinition} MoreActionDefinition */
-    /** @param {MoreActionDefinition} [data] */
     more(data = {}, id) {
         if (!toRaw(this).moreActions.get(id)) {
             toRaw(this).moreActions.set(
@@ -424,6 +377,7 @@ export class UseActions extends SignalStore {
                         dropdown: true,
                         dropdownState: new DropdownState(),
                         icon: data?.icon ?? "oi oi-ellipsis-v",
+                        /** @param {ActionParams} params */
                         isActive: ({ action }) => action.dropdownState.isOpen,
                         isMoreAction: true,
                         sequence: data.sequence ?? 1000,
@@ -432,9 +386,6 @@ export class UseActions extends SignalStore {
                 }),
             );
         }
-        // Read (and update) the action through `this` (usually a `useState`
-        // proxy): reads like `moreAction.isActive` must subscribe the caller
-        // to the dropdown open state, including right after creation.
         const moreAction = this.moreActions.get(id);
         moreAction.definition.actions = data.actions;
         return moreAction;
@@ -453,6 +404,7 @@ export class UseActions extends SignalStore {
             .filter((a) => a.sequenceQuick)
             .sort((a1, a2) => a1.sequenceQuick - a2.sequenceQuick);
         const grouped = actions.filter((a) => a.sequenceGroup);
+        /** @type {{[sequenceGroup: string]: A[]}} */
         const groups = {};
         for (const a of grouped) {
             if (!(a.sequenceGroup in groups)) {
@@ -461,7 +413,7 @@ export class UseActions extends SignalStore {
             groups[a.sequenceGroup].push(a);
         }
         const sortedGroups = Object.entries(groups).sort(
-            ([groupId1], [groupId2]) => groupId1 - groupId2,
+            ([groupId1], [groupId2]) => Number(groupId1) - Number(groupId2),
         );
         for (const [, actions] of sortedGroups) {
             actions.sort((a1, a2) => a1.sequence - a2.sequence);

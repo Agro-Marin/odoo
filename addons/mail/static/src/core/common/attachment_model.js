@@ -24,6 +24,7 @@ export class Attachment extends FileModelMixin(Record) {
     thread = fields.One("Thread", { inverse: "attachments" });
     /** @type {string} */
     raw_access_token;
+    /** @type {string} */
     res_name;
     /** @type {string} */
     thumbnail_access_token;
@@ -32,12 +33,12 @@ export class Attachment extends FileModelMixin(Record) {
     ownership_token;
     create_date = fields.Datetime();
     has_thumbnail = fields.Attr(undefined, {
+        /** @this {import("models").Attachment} */
         onUpdate() {
             if (
                 this.isPdf &&
                 !this.has_thumbnail &&
                 (this.ownership_token ||
-                    // If related to a record, must have write access to it
                     ((!this.thread || this.thread.hasWriteAccess) &&
                         this.store.self.main_user_id?.share === false))
             ) {
@@ -86,7 +87,6 @@ export class Attachment extends FileModelMixin(Record) {
         return this.id < 0;
     }
 
-    /** Remove the given attachment globally. */
     delete() {
         if (this.tmpUrl) {
             URL.revokeObjectURL(this.tmpUrl);
@@ -94,10 +94,6 @@ export class Attachment extends FileModelMixin(Record) {
         super.delete();
     }
 
-    /**
-     * Delete the given attachment on the server as well as removing it
-     * globally.
-     */
     async remove() {
         if (this.id > 0) {
             await rpc(

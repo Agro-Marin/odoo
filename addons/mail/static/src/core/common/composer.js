@@ -65,15 +65,19 @@ const EDIT_CLICK_TYPE = {
 /**
  * @typedef {Object} Props
  * @property {import("models").Composer} composer
- * @property {'compact'|'normal'|'extended'} [mode] default: 'normal'
- * @property {'message'|'note'|false} [type] default: false
+ * @property {'compact'|'normal'|'extended'} [mode]
+ * @property {'message'|'note'|false} [type]
  * @property {string} [placeholder]
  * @property {string} [className]
  * @property {function} [onDiscardCallback]
  * @property {function} [onPostCallback]
  * @property {number} [autofocus]
  * @property {import("@web/core/utils/hooks").Ref} [dropzoneRef]
- * @extends {Component<Props, Env>}
+ * @property {boolean} [sidebar=true]
+ * @property {boolean} [showFullComposer=true]
+ * @property {boolean} [allowUpload=true]
+ * @property {function} [onCloseFullComposerCallback]
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Composer extends Component {
     static components = {
@@ -147,9 +151,8 @@ export class Composer extends Component {
         this.selection = useSelection({
             refName: "textarea",
             model: this.props.composer.selection,
+            /** @param {MouseEvent} ev */
             preserveOnClickAwayPredicate: async (ev) => {
-                // Let event be handled by bubbling handlers first. Routed
-                // through `browser` so tests can mock time.
                 await new Promise((resolve) => browser.setTimeout(resolve));
                 return (
                     !this.isEventTrusted(ev) ||
@@ -169,6 +172,7 @@ export class Composer extends Component {
         useExternalListener(
             window,
             "click",
+            /** @param {MouseEvent} ev */
             (ev) => {
                 const target = ev.composedPath()[0];
                 if (
@@ -176,7 +180,7 @@ export class Composer extends Component {
                     this.composerActions.activePicker &&
                     this.pickerContainerRef.el &&
                     target !== this.pickerContainerRef.el &&
-                    !this.pickerContainerRef.el.contains(target)
+                    !this.pickerContainerRef.el.contains(/** @type {Node} */ (target))
                 ) {
                     this.composerActions.activePicker.close?.();
                 }
@@ -198,6 +202,7 @@ export class Composer extends Component {
         }
         useChildSubEnv({ inComposer: true });
         useEffect(
+            /** @param {number} focus */
             (focus) => {
                 if (focus && this.ref.el) {
                     this.selection.restore();
@@ -208,11 +213,6 @@ export class Composer extends Component {
                     this.editor.shared.selection.selectAroundNonEditable();
                 }
             },
-            // Track the two focus triggers as separate dependencies: summing
-            // them let an offsetting change in the same tick (the boolean prop
-            // going true->false while the record counter increments) collapse
-            // to an unchanged key, so the effect would skip and the composer
-            // would silently never focus.
             () => [
                 this.props.autofocus,
                 this.props.composer.autofocus,
@@ -229,15 +229,18 @@ export class Composer extends Component {
         );
         useEffect(
             () => {
-                if (this.fakeTextarea.el?.scrollHeight) {
+                const fakeTextarea = /** @type {HTMLTextAreaElement|null} */ (
+                    this.fakeTextarea.el
+                );
+                if (fakeTextarea?.scrollHeight) {
                     let wasEmpty = false;
-                    if (!this.fakeTextarea.el.value) {
+                    if (!fakeTextarea.value) {
                         wasEmpty = true;
-                        this.fakeTextarea.el.value = "0";
+                        fakeTextarea.value = "0";
                     }
-                    this.ref.el.style.height = this.fakeTextarea.el.scrollHeight + "px";
+                    this.ref.el.style.height = fakeTextarea.scrollHeight + "px";
                     if (wasEmpty) {
-                        this.fakeTextarea.el.value = "";
+                        fakeTextarea.value = "";
                     }
                 }
             },
@@ -258,17 +261,9 @@ export class Composer extends Component {
         });
         onWillUnmount(() => {
             this.props.composer.isFocused = false;
-            // drop the editor reference so the reactive callback below (bound
-            // to the persistent composer record, which outlives this
-            // component) can never write into a destroyed editor.
             this.editor = undefined;
         });
         const composerProxy = reactive(this.props.composer, () => {
-            // `this.status` does not exist on an OWL component (status lives on
-            // __owl__); the guard was always false, so the callback re-read
-            // composerHtml and re-subscribed on every mount, leaking a
-            // subscription per Composer mount. Use the public status() helper
-            // and stop observing once destroyed.
             if (status(this) === "destroyed") {
                 return;
             }
@@ -283,7 +278,7 @@ export class Composer extends Component {
             this.setEditorCursorEnd();
             this.editor.shared.history.addStep();
         });
-        void composerProxy.composerHtml; // start observing
+        void composerProxy.composerHtml;
     }
 
     setEditorCursorEnd() {
@@ -293,7 +288,7 @@ export class Composer extends Component {
         }
         const nonEditableAncestor = closestElement(
             lastNode,
-            (el) => !el.isContentEditable,
+            /** @param {HTMLElement} el */ (el) => !el.isContentEditable,
         );
         if (nonEditableAncestor && this.editor.editable.contains(nonEditableAncestor)) {
             const [anchorNode, anchorOffset] = rightPos(nonEditableAncestor);
@@ -328,6 +323,10 @@ export class Composer extends Component {
             placeholder: this.placeholder,
             Plugins: this.ui.isSmall ? MAIL_SMALL_UI_PLUGINS : MAIL_PLUGINS,
             composerPluginDependencies: {
+                /**
+                 * @param {Selection} selection
+                 * @param {ClipboardEvent} ev
+                 */
                 onBeforePaste: (selection, ev) => this.onPaste(ev),
                 onFocusin: this.onFocusin.bind(this),
                 onFocusout: this.onFocusout.bind(this),
@@ -343,12 +342,14 @@ export class Composer extends Component {
         };
     }
 
+    /** @param {MouseEvent} ev */
     onClickCancelOrSaveEditText(ev) {
         const composer = toRaw(this.props.composer);
-        if (composer.message && ev.target.dataset?.type === EDIT_CLICK_TYPE.CANCEL) {
+        const target = /** @type {HTMLElement} */ (ev.target);
+        if (composer.message && target.dataset?.type === EDIT_CLICK_TYPE.CANCEL) {
             this.props.onDiscardCallback(ev);
         }
-        if (composer.message && ev.target.dataset?.type === EDIT_CLICK_TYPE.SAVE) {
+        if (composer.message && target.dataset?.type === EDIT_CLICK_TYPE.SAVE) {
             this.editMessage(ev);
         }
     }
@@ -424,12 +425,17 @@ export class Composer extends Component {
         const props = {
             anchorRef: this.inputContainerRef.el,
             position: this.env.inChatter ? "bottom-fit" : "top-fit",
+            /**
+             * @param {Event} ev
+             * @param {Object} option
+             */
             onSelect: (ev, option) => {
                 this.suggestion.insert(option);
                 markEventHandled(ev, "composer.selectSuggestion");
             },
             isLoading:
                 !!this.suggestion.search.term && this.suggestion.state.isFetching,
+            /** @type {Object[]} */
             options: [],
         };
         if (!this.hasSuggestions) {
@@ -445,6 +451,7 @@ export class Composer extends Component {
         };
     }
 
+    /** @param {DragEvent} ev */
     onDropFile(ev) {
         if (isDragSourceExternalFile(ev.dataTransfer)) {
             for (const file of ev.dataTransfer.files) {
@@ -453,6 +460,7 @@ export class Composer extends Component {
         }
     }
 
+    /** @param {boolean} isDiscard */
     onCloseFullComposerCallback(isDiscard) {
         if (this.props.onCloseFullComposerCallback) {
             this.props.onCloseFullComposerCallback(isDiscard);
@@ -461,15 +469,14 @@ export class Composer extends Component {
         }
     }
 
+    /** @param {InputEvent} ev */
     onInput(ev) {
         if (!this.props.composer.isDirty) {
             this.props.composer.isDirty = true;
         }
     }
 
-    /**
-     * This doesn't work on firefox https://bugzilla.mozilla.org/show_bug.cgi?id=1699743
-     */
+    /** @param {ClipboardEvent} ev */
     onPaste(ev) {
         if (!this.allowUpload) {
             return;
@@ -486,6 +493,7 @@ export class Composer extends Component {
         }
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         const composer = toRaw(this.props.composer);
         switch (ev.key) {
@@ -513,7 +521,7 @@ export class Composer extends Component {
                 if (!shouldPost) {
                     return;
                 }
-                ev.preventDefault(); // to prevent useless return
+                ev.preventDefault();
                 if (composer.message) {
                     this.editMessage();
                 } else {
@@ -534,7 +542,6 @@ export class Composer extends Component {
     }
 
     get fullComposerAdditionalContext() {
-        // To be overridden by inheriting classes
         return {};
     }
 
@@ -551,7 +558,7 @@ export class Composer extends Component {
         if (signature) {
             defaultBody = markup`${defaultBody}<br>${signature}`;
         }
-        return markup`<div>${defaultBody}</div>`; // as to not wrap in <p> by html_sanitize
+        return markup`<div>${defaultBody}</div>`;
     }
 
     clear() {
@@ -563,11 +570,17 @@ export class Composer extends Component {
         this.store.notifySendFromMailbox(this.thread.displayName);
     }
 
+    /**
+     * @param {Event} ev
+     * @returns {boolean}
+     */
     isEventTrusted(ev) {
-        // Allow patching during tests
         return ev.isTrusted;
     }
 
+    /**
+     * @param {(value: ReturnType<markup>|string) => Promise<void>} cb
+     */
     async processMessage(cb) {
         if (this.props.composer.attachments.some(({ uploading }) => uploading)) {
             this.env.services.notification.add(
@@ -586,15 +599,9 @@ export class Composer extends Component {
                 if (this.props.onPostCallback) {
                     this.props.onPostCallback();
                 }
-                // Only clear the composer on success; a failed post must keep
-                // the user's draft.
                 this.clear();
                 this.ref.el?.focus();
             } finally {
-                // Always re-enable: on a record thread cb() rethrows RPC
-                // failures (unlike the fire-and-forget channel path), and
-                // without this the composer stays disabled until remount,
-                // silently swallowing every later send.
                 this.state.active = true;
             }
         }
@@ -625,8 +632,6 @@ export class Composer extends Component {
                     (recipient) => !recipient.email || !isEmail(recipient.email),
                 )
             ) {
-                // Surface why nothing was sent instead of silently returning
-                // (an unexplained no-op reads as a dead Send button).
                 this.env.services.notification.add(
                     _t(
                         "Cannot send: a recipient has a missing or invalid email address.",
@@ -636,9 +641,11 @@ export class Composer extends Component {
                 return;
             }
         }
-        await this.processMessage(async (value) => {
-            await this._sendMessage(value, this.postData, this.extraData);
-        });
+        await this.processMessage(
+            /** @param {ReturnType<markup>|string} value */ async (value) => {
+                await this._sendMessage(value, this.postData, this.extraData);
+            },
+        );
     }
 
     get postData() {
@@ -666,11 +673,10 @@ export class Composer extends Component {
      * @property {import("models").ResRole[]} mentionedRoles
      * @property {number[]} cannedResponseIds
      */
-
     /**
-     * @param {ReturnType<markup>} value message body
-     * @param {postData} postData Message meta data info
-     * @param {Object} extraData Message extra meta data info needed by other modules
+     * @param {ReturnType<markup>} value
+     * @param {postData} postData
+     * @param {Object} extraData
      */
     async _sendMessage(value, postData, extraData) {
         const thread = toRaw(this.props.composer.thread);
@@ -678,7 +684,6 @@ export class Composer extends Component {
         const post = postThread.post.bind(postThread, value, postData, extraData);
         let message;
         if (postThread.hasOptimisticPost) {
-            // feature of (optimistic) temp message
             post();
         } else {
             message = await post();
@@ -697,12 +702,13 @@ export class Composer extends Component {
     async editMessage() {
         const composer = toRaw(this.props.composer);
         if (!this.askDeleteFromEdit) {
-            await this.processMessage(async (value) =>
-                composer.message.edit(value, composer.attachments, {
-                    mentionedChannels: composer.mentionedChannels,
-                    mentionedPartners: composer.mentionedPartners,
-                    mentionedRoles: composer.mentionedRoles,
-                }),
+            await this.processMessage(
+                /** @param {ReturnType<markup>|string} value */ async (value) =>
+                    composer.message.edit(value, composer.attachments, {
+                        mentionedChannels: composer.mentionedChannels,
+                        mentionedPartners: composer.mentionedPartners,
+                        mentionedRoles: composer.mentionedRoles,
+                    }),
             );
         } else {
             this.env.services.dialog.add(
@@ -728,6 +734,7 @@ export class Composer extends Component {
         return !composer.composerText && composer.message.attachment_ids.length === 0;
     }
 
+    /** @param {MouseEvent} ev */
     onClickInsertCannedResponse(ev) {
         markEventHandled(ev, "composer.clickInsertCannedResponse");
         const composer = toRaw(this.props.composer);
@@ -744,6 +751,7 @@ export class Composer extends Component {
         }
         insertAtSelection(composer, toInsert, {
             editor: this.editor,
+            /** @param {number} position */
             moveCursor: (position) => this.selection.moveCursor(position),
         });
         if (!this.ui.isSmall || !this.env.inChatter) {
@@ -753,7 +761,6 @@ export class Composer extends Component {
 
     onChangeWysiwygContent() {
         this.updateFromEditor = true;
-        // markup: editor content is trusted
         this.props.composer.composerHtml = markup(this.editor.getContent());
         if (!this.props.composer.isDirty) {
             this.props.composer.isDirty = true;
@@ -761,14 +768,20 @@ export class Composer extends Component {
         this.updateFromEditor = false;
     }
 
+    /** @param {import("@html_editor/editor").Editor} editor */
     onLoadWysiwyg(editor) {
         this.editor = editor;
     }
 
+    /**
+     * @param {string} str
+     * @returns {boolean|undefined}
+     */
     addEmoji(str) {
         const composer = toRaw(this.props.composer);
         insertAtSelection(composer, str, {
             editor: this.editor,
+            /** @param {number} position */
             moveCursor: (position) => this.selection.moveCursor(position),
         });
         if (this.ui.isSmall && !this.env.inChatter) {
@@ -778,6 +791,7 @@ export class Composer extends Component {
         }
     }
 
+    /** @param {FocusEvent} ev */
     onFocusin(ev) {
         ev.stopPropagation();
         const composer = toRaw(this.props.composer);
@@ -787,13 +801,13 @@ export class Composer extends Component {
         }
     }
 
+    /** @param {FocusEvent} ev */
     onFocusout(ev) {
         if (
             [EDIT_CLICK_TYPE.CANCEL, EDIT_CLICK_TYPE.SAVE].includes(
-                ev.relatedTarget?.dataset?.type,
+                /** @type {HTMLElement|null} */ (ev.relatedTarget)?.dataset?.type,
             )
         ) {
-            // Edit or Save most likely clicked: early return as to not re-render (which prevents click)
             return;
         }
         this.props.composer.isFocused = false;

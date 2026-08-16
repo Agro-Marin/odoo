@@ -4,11 +4,6 @@ import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { isEmail } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-/**
- * This class represents the popover opened when we detect that one of our recipients is missing an email
- * address in the RecipientsInput. It allows the user to correct this error and update the partner
- * with an email address.
- */
 export class RecipientsInputTagsListPopover extends Component {
     static props = {
         tagToUpdate: { type: Object },
@@ -21,13 +16,18 @@ export class RecipientsInputTagsListPopover extends Component {
         this.orm = useService("orm");
         this.state = useState({ value: "" });
         this.popoverRef = useRef("tagsListPopoverRef");
-        useExternalListener(window, "click", (ev) => {
-            if (!this.popoverRef.el?.contains(ev.target)) {
-                this.discardTag();
-            }
-        });
+        useExternalListener(
+            window,
+            "click",
+            /** @param {MouseEvent} ev */ (ev) => {
+                if (!this.popoverRef.el?.contains(ev.target)) {
+                    this.discardTag();
+                }
+            },
+        );
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         this.state.error = false;

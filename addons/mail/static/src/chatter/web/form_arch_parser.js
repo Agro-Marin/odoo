@@ -2,6 +2,12 @@
 import { patch } from "@web/core/utils/patch";
 import { FormArchParser } from "@web/views/form";
 patch(FormArchParser.prototype, {
+    /**
+     * @param {Element} xmlDoc
+     * @param {Object<string, Object>} models
+     * @param {string} modelName
+     * @returns {Object}
+     */
     parse(xmlDoc, models, modelName) {
         const result = super.parse(...arguments);
         result.has_activities = Boolean(models[modelName].has_activities);

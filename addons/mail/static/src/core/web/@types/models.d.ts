@@ -13,8 +13,14 @@ declare module "models" {
         canReplyAll: (thread: Thread) => boolean;
     }
     export interface Store {
-        _onActivityBroadcastChannelMessage: (param0: { data: { type: "INSERT"|"DELETE"|"RELOAD_CHATTER", payload: Partial<Activity> } }) => void;
+        _onActivityBroadcastChannelMessage: (param0: {
+            data: {
+                type: "INSERT" | "DELETE" | "RELOAD_CHATTER";
+                payload: Partial<Activity>;
+            };
+        }) => void;
         activity_counter_bus_id: number;
+        activityBroadcastChannel: BroadcastChannel | null;
         activityCounter: number;
         activityGroups: Object[];
         computeGlobalCounter: () => number;
@@ -23,7 +29,11 @@ declare module "models" {
         inbox: Thread;
         onLinkFollowed: (fromThread: Thread) => void;
         onUpdateActivityGroups: () => void;
-        scheduleActivity: (resModel: string, resIds: number[], defaultActivityTypeId: number|undefined) => Promise<void>;
+        scheduleActivity: (
+            resModel: string,
+            resIds: number[],
+            defaultActivityTypeId: number | undefined,
+        ) => Promise<void>;
         starred: Thread;
         unstarAll: () => Promise<void>;
         updateAppBadge: () => void;
@@ -32,10 +42,11 @@ declare module "models" {
         activities: Activity[];
         follow: () => Promise<void>;
         isDisplayedInDiscussAppDesktop: boolean;
+        openRecordActionRequest: Readonly<ActionDescription>;
         loadMoreFollowers: () => Promise<void>;
         loadMoreRecipients: () => Promise<void>;
         recipients: Follower[];
-        recipientsCount: number|undefined;
+        recipientsCount: number | undefined;
         recipientsFullyLoaded: Readonly<boolean>;
     }
 }

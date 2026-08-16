@@ -32,6 +32,7 @@ export class Avatar extends Component {
         };
     }
 
+    /** @param {MouseEvent} ev */
     onClickAvatar(ev) {
         const target = ev.currentTarget;
         if (!this.avatarCard.isOpen && this.canOpenPopover) {

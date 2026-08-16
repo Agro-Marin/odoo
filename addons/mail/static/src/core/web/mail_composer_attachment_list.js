@@ -7,16 +7,12 @@ import {
 } from "@web/fields/relational/many2many_binary/many2many_binary_field";
 export class MailComposerAttachmentList extends Many2ManyBinaryField {
     static template = "mail.MailComposerAttachmentList";
-    /** @override */
     setup() {
         super.setup();
         this.mailStore = useService("mail.store");
         this.attachmentUploadService = useService("mail.attachment_upload");
     }
-    /**
-     * @override
-     * @param {integer} fileId
-     */
+    /** @param {integer} fileId */
     async onFileRemove(fileId) {
         super.onFileRemove(fileId);
         const attachment = this.mailStore["ir.attachment"].insert(fileId);

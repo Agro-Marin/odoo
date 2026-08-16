@@ -7,6 +7,7 @@ export class Many2XAvatarUserAutocomplete extends Many2XAutocomplete {
         return [
             {
                 enabled: () => this.activeActions.create,
+                /** @param {string} request */
                 build: (request) => {
                     const label = request
                         ? _t(`Invite "%s"`, request)
@@ -35,6 +36,10 @@ export class Many2XAvatarUserAutocomplete extends Many2XAutocomplete {
         return "md";
     }
 
+    /**
+     * @param {string} request
+     * @returns {Promise<any>}
+     */
     slowCreate(request) {
         return this.openMany2X({
             context: this.getCreationContext(request),

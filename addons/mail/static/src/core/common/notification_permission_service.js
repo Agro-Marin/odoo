@@ -20,6 +20,10 @@ async function getIosPwaPermission() {
 export const notificationPermissionService = {
     dependencies: ["notification"],
 
+    /**
+     * @param {NotificationPermission|undefined} permission
+     * @returns {"prompt"|"granted"|"denied"}
+     */
     _normalizePermission(permission) {
         switch (permission) {
             case "default":
@@ -48,9 +52,7 @@ export const notificationPermissionService = {
                     name: "notifications",
                 });
             }
-        } catch {
-            // noop
-        }
+        } catch {}
         const state = reactive({
             /** @type {"prompt" | "granted" | "denied"} */
             permission:

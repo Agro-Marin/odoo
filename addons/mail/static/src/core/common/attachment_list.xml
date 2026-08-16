@@ -25,7 +25,6 @@
  t-on-click="() => this.onClickAttachment(attachment)"
  role="menuitem"
  >
- <!-- display of image attachments-->
  <Gif
  t-if="attachment.mimetype === 'image/gif'"
  src="getImageUrl(attachment)"
@@ -53,10 +52,7 @@
  t-on-load="onImageLoaded"
  loading="lazy"
  />
- <!-- display of non image attachments -->
  <div t-else="" class="o-mail-AttachmentCard d-flex flex-column w-100 h-100">
- <!-- no click handler here: the container div above already has one, and
- a bubbling duplicate opened the file viewer twice (full remount) -->
  <div class="d-flex justify-content-center align-items-center flex-grow-1 bg-white position-relative rounded-3 rounded-bottom-0">
  <div t-if="!attachment.has_thumbnail" class="o_image" role="menuitem" aria-label="Preview" t-att-tabindex="-1" t-att-aria-disabled="false" t-att-data-mimetype="attachment.mimetype"/>
  <img t-else="" t-att-src="attachment.thumbnailUrl" t-att-alt="attachment.name" loading="lazy"/>
@@ -66,7 +62,6 @@
  <div t-if="attachment.name" class="text-truncate align-items-center fw-bold" t-out="props.messageSearch?.highlight(attachment.name) ?? attachment.name"/>
  </div>
  </div>
- <!-- hover information (not for mobile view) -->
  <div t-if="!isMobileOS" class="o-mail-Attachment-hover position-absolute top-0 bottom-0 start-0 end-0 p-2 d-flex flex-column align-items-start o-opacity-hoverable opacity-100-hover opacity-0 rounded-3" t-att-class="{ 'o-image': attachment.isImage }">
  <div class="d-flex flex-row align-items-start gap-2">
  <img t-if="attachment.isImage" src="/mail/static/src/img/image_icon.png" class="mw-100 mh-100 rounded o-mt-0_5" draggable="false"/>
@@ -76,7 +71,6 @@
  <div t-if="attachment.file_size" class="ms-4 o-mt-0_5" t-att-class="{ 'ps-1': !attachment.isImage }">
  <span class="opacity-75" t-att-class="{ 'o-text-white': attachment.isImage }"><t t-out="Math.round(attachment.file_size / 1024, 4)"/>KB</span>
  </div>
- <!-- buttons on hover -->
  <div class="o-mail-AttachmentButtons d-flex justify-content-start ms-1 mb-1 mt-auto pt-2 gap-2">
  <a t-if="!attachment.isImage and attachment.type === 'url'" class="w-100 h-100 btn bg-500 o-p-1_5 d-flex justify-content-center align-items-center" t-att-href="attachment.url" target='_blank' title="Open Link">
  <i class="fa-solid fa-up-right-from-square o-text-white" role="img" aria-label="Open Link"/>
@@ -89,13 +83,10 @@
  </button>
  </div>
  </div>
- <!-- dropdown (for mobile view only) -->
  <Actions t-else="" actions="getActions(attachment)"/>
- <!-- uploading info -->
  <div t-if="attachment.uploading" class="position-absolute top-0 bottom-0 start-0 end-0 d-flex align-items-center justify-content-center" title="Uploading">
  <i class="fa-solid fa-circle-notch fa-spin"/>
  </div>
- <!-- uploaded info -->
  <div t-if="showUploaded(attachment)" class="o-Attachment-uploaded position-absolute top-0 d-flex" t-att-class="!isMobileOS ? 'end-0' : 'start-0'" title="Uploaded">
  <i class="fa-solid fa-check"/>
  </div>

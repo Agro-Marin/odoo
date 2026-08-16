@@ -1,18 +1,4 @@
 /** @odoo-module native */
-// Side-effect index: every Record subclass in ``core/common/`` so that
-// ``modelRegistry`` is populated before ``makeStore()`` iterates over it.
-//
-// ``Store`` (``store_service.js``) declares fields whose ``targetModel``
-// is a string identifier (``fields.One("res.partner")`` and similar).
-// Those strings are invisible to esbuild, so without this index every
-// satellite bundle that pulls ``store_service.js`` transitively (e.g.
-// ``web.assets_tests`` via mail tours) registers the ``mail.store``
-// service against an incomplete model registry, and service startup on
-// the public frontend fails with ``Error: No target model X exists``.
-//
-// Keep this list aligned with ``mail/static/src/core/common/*_model.js``.
-// A missing entry resurfaces as the same crash, pointing at the new
-// model — no silent failure mode.
 import "./activity_model.js";
 import "./attachment_model.js";
 import "./canned_response_model.js";

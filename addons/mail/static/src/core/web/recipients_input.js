@@ -34,7 +34,7 @@ export class RecipientsInput extends Component {
             resModel: "res.partner",
             activeActions: {
                 create: false,
-                link: true, // enables multi-select
+                link: true,
             },
             /** @param {Object} resIds */
             onSelected: async (resIds) => {
@@ -54,6 +54,7 @@ export class RecipientsInput extends Component {
         });
     }
 
+    /** @param {number} index */
     deleteTagByIndex(index) {
         const tags = this.getTagsFromMailThread();
         if (tags[index]) {
@@ -86,7 +87,7 @@ export class RecipientsInput extends Component {
                             ["id", "not in", Array.from(partnerIds)],
                             "|",
                             ["display_name", "ilike", name],
-                            email ? ["email_normalized", "ilike", email] : [0, "=", 1], // if no email, use a false leaf
+                            email ? ["email_normalized", "ilike", email] : [0, "=", 1],
                         ],
                         ["display_name", "email", "id", "lang", "name"],
                         { limit },
@@ -176,14 +177,16 @@ export class RecipientsInput extends Component {
     /** @returns {Object[]} */
     getTagsFromMailThread() {
         const tags = [];
+        /**
+         * @param {{name?: string, display_name?: string, email?: string, partner_id?: number}} recipient
+         * @param {string} recipientField
+         */
         const createTagForRecipient = (recipient, recipientField) => {
             const title =
                 `${recipient.name || recipient.display_name || _t("Unnamed")} ${
                     recipient.email ? "<" + recipient.email + ">" : ""
                 }`.trim();
             tags.push({
-                // Stable per recipient across re-renders: a changing identity
-                // makes the tags-list useEffect reopen the popover, losing focus
                 id: `${recipientField}_${
                     recipient.partner_id ?? recipient.email ?? uniqueId("tag_")
                 }`,
@@ -197,6 +200,7 @@ export class RecipientsInput extends Component {
                 name: recipient.name || recipient.display_name || _t("Unnamed"),
                 email: recipient.email,
                 title,
+                /** @param {MouseEvent} ev */
                 onClick: (ev) => {
                     if (recipient.partner_id && recipient.email) {
                         const viewProfileBtnOverride = () => {
@@ -245,11 +249,8 @@ export class RecipientsInput extends Component {
     }
 
     /**
-     * Updates a recipient with a new email address.
-     *
-     * @param {string} emailNormalized bare address to set on the partner,
-     * never mailbox notation
-     * @param {number} recipientPartnerId ID of the partner to update
+     * @param {string} emailNormalized
+     * @param {number} recipientPartnerId
      */
     async updateRecipient(emailNormalized, recipientPartnerId) {
         await this.orm.write("res.partner", [recipientPartnerId], {
@@ -270,8 +271,6 @@ export class RecipientsInput extends Component {
      */
     hasRecipient(recipient) {
         return this.getAllMailThreadRecipients().some((current) =>
-            // match by partner_id when both have one: comparing emails alone
-            // conflates two distinct partners that both lack one
             current.partner_id && recipient.partner_id
                 ? current.partner_id === recipient.partner_id
                 : Boolean(current.email) && current.email === recipient.email,

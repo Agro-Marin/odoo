@@ -1,5 +1,10 @@
 /** @odoo-module native */
 class BiquadBandpassFilter {
+    /**
+     * @param {number} sampleRate
+     * @param {number} frequency
+     * @param {number} Q
+     */
     constructor(sampleRate, frequency, Q) {
         this.x1 = 0;
         this.x2 = 0;
@@ -19,6 +24,10 @@ class BiquadBandpassFilter {
         this.a2 = (1 - alpha) / a0;
     }
 
+    /**
+     * @param {number} input
+     * @returns {number}
+     */
     processSample(input) {
         const output =
             this.b0 * input +
@@ -36,21 +45,14 @@ class BiquadBandpassFilter {
     }
 }
 
-// This processor allows access to audio channels directly on the audio rendering thread.
-// This can be useful for running possibly expensive audio monitoring or processing operations
-// off the main thread.
 class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
     /**
-     * @param {Object} param0 options
+     * @param {Object} param0
      * @param {Object} param0.processorOptions
-     * @param {Array<number>} param0.processorOptions.frequencyRange array of two numbers that represent the range of
-            frequencies that we want to monitor in hz.
-     * @param {number} [param0.processorOptions.minimumActiveCycles] - how many cycles have to pass since the last time the
-            threshold was exceeded to go back to inactive state. It prevents the microphone to shut down
-            when the user's voice drops in volume mid-sentence. Time in ms = minimumActiveCycles * processInterval.
-     * @param {boolean} [param0.processorOptions.postAllTics] true if we need to postMessage at each tics, this prevents
-            sending events to the main thread on all tics when not necessary.
-     * @param {number} [param0.processorOptions.volumeThreshold] the minimum value for audio detection
+     * @param {Array<number>} param0.processorOptions.frequencyRange
+     * @param {number} [param0.processorOptions.minimumActiveCycles]
+     * @param {boolean} [param0.processorOptions.postAllTics]
+     * @param {number} [param0.processorOptions.volumeThreshold]
      * @param {{ boost, shift }} [param0.processorOptions.normalizationParameters]
      */
     constructor({
@@ -65,15 +67,9 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
     }) {
         super();
 
-        this.processInterval = processInterval; // how many ms between each computation
+        this.processInterval = processInterval;
         this.minimumActiveCycles = minimumActiveCycles;
         this.intervalInFrames = (this.processInterval / 1000) * globalThis.sampleRate;
-        // Counted down in frames (process() decrements by the quantum size and
-        // re-adds intervalInFrames), so it must be seeded in frames too. Seeding
-        // with the raw processInterval -- a millisecond value -- made the very
-        // first tic fire one quantum in (~2.7ms) instead of after 50ms. Same bug
-        // that utils/common/media_monitoring.js documents for the ScriptProcessor
-        // fallback path.
         this.nextUpdateFrame = this.intervalInFrames;
 
         this.boost = normalizationParameters.boost;
@@ -85,8 +81,6 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
         this.postAllTics = postAllTics;
         this.volume = 0;
         this.wasAboveThreshold = undefined;
-        // read from this.frequencyRange (not the raw parameter): a caller
-        // omitting the option would otherwise throw right past the default
         const centerFrequency = (this.frequencyRange[0] + this.frequencyRange[1]) / 2;
         const bandwidth = this.frequencyRange[1] - this.frequencyRange[0];
         this.bandpassFilter = new BiquadBandpassFilter(
@@ -96,12 +90,15 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
         );
     }
 
+    /**
+     * @param {Float32Array[][]} inputs
+     * @param {Float32Array[][]} outputs
+     * @param {Record<string, Float32Array>} parameters
+     * @returns {boolean}
+     */
     process(inputs, outputs, parameters) {
         const input = inputs[0];
         if (input.length < 1) {
-            // a falsy return value would let the browser reclaim the node on a
-            // transiently silent/channel-less input (e.g. OS-level mute or
-            // device switch), killing the monitoring for the rest of the call.
             return true;
         }
         const samples = input[0];
@@ -109,19 +106,16 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
         for (let i = 0; i < samples.length; i++) {
             filteredSamples[i] = this.bandpassFilter.processSample(samples[i]);
         }
-        // throttles down the processing tic rate
         this.nextUpdateFrame -= samples.length;
         if (this.nextUpdateFrame >= 0) {
             return true;
         }
         this.nextUpdateFrame += this.intervalInFrames;
-        // root mean square (too get a normalized volume)
         let sumOfSquares = 0;
         for (const sample of filteredSamples) {
             sumOfSquares += sample * sample;
         }
         const rms = Math.sqrt(sumOfSquares / filteredSamples.length);
-        // bias the volume for a better spread on the [0,1] range
         const k = 1 + this.boost;
         const v = Math.pow(rms, this.shift);
         this.volume = (k * v) / ((k - 1) * v + 1);

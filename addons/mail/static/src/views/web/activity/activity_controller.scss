@@ -62,7 +62,6 @@
         }
     }
 
-    // it contains a kanban card representing the record
     .o_activity_record > div {
         display: flex;
         flex: 1 1 auto;
@@ -167,5 +166,5 @@
 }
 
 .o_activity_view_table {
-    height: 1px; // this value is ignored on the table but it is necessary to ensure h-100 works on descendants to vertically center content inside cells
+    height: 1px;
 }

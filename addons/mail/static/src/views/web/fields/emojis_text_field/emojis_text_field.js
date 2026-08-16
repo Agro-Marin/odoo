@@ -2,9 +2,6 @@
 import { EmojisFieldCommon } from "@mail/views/web/fields/emojis_field_common/emojis_field_common";
 import { registry } from "@web/core/registry";
 import { TextField, textField } from "@web/fields/basic/text/text_field";
-/**
- * Extension of the TextField that will add emojis support
- */
 export class EmojisTextField extends EmojisFieldCommon(TextField) {
     static template = "mail.EmojisTextField";
     static components = { ...TextField.components };

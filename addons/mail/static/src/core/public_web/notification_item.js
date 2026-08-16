@@ -56,10 +56,15 @@ export class NotificationItem extends Component {
         return this.props.datetime?.toLocaleString(DateTime.DATE_MED);
     }
 
+    /** @param {MouseEvent} ev */
     onClick(ev) {
         this.props.onClick(this.markAsReadRef.el?.contains(ev.target));
     }
 
+    /**
+     * @param {number} maxLine
+     * @returns {string}
+     */
     webkitLineClamp(maxLine) {
         return `
             display: -webkit-box;

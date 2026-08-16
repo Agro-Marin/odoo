@@ -15,7 +15,7 @@
         }
         &:focus {
             --o-input-border-color: #{$o-component-active-border};
-            color: $body-color !important; // Reset eventual text-muted.
+            color: $body-color !important;
         }
     }
 

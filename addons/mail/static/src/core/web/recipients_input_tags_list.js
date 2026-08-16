@@ -5,11 +5,6 @@ import { usePopover } from "@web/ui/popover";
 
 import { RecipientsInputTagsListPopover } from "./recipients_input_tags_list_popover.js";
 
-/**
- * Override of the TagsList so that the email address of each recipients can be checked.
- * If a recipient doesn't have an email address set to its partner a popover is opened below the corresponding
- * Tag.
- */
 export class RecipientsInputTagsList extends TagsList {
     static template = "web.RecipientsInputTagsList";
     static props = {
@@ -26,9 +21,13 @@ export class RecipientsInputTagsList extends TagsList {
         this.state = useState({
             tagToUpdate: this.getFirstTagToUpdate(this.props.tags),
         });
-        onWillUpdateProps((nextProps) => {
-            this.state.tagToUpdate = this.getFirstTagToUpdate(nextProps.tags);
-        });
+        onWillUpdateProps(
+            /** @param {{tags: Array<{id: string, resId?: number, text: string, email?: string, canEdit: boolean}>}} nextProps */ (
+                nextProps,
+            ) => {
+                this.state.tagToUpdate = this.getFirstTagToUpdate(nextProps.tags);
+            },
+        );
         useEffect(
             () => {
                 if (this.state.tagToUpdate && this.tagToUpdateRef.el) {
@@ -41,6 +40,10 @@ export class RecipientsInputTagsList extends TagsList {
         );
     }
 
+    /**
+     * @param {Array<{id: string, resId?: number, text: string, email?: string, canEdit: boolean}>} tags
+     * @returns {{id: string, resId?: number, text: string, email?: string, canEdit: boolean}|undefined}
+     */
     getFirstTagToUpdate(tags) {
         for (const tag of tags) {
             if (!tag.email) {
@@ -49,6 +52,11 @@ export class RecipientsInputTagsList extends TagsList {
         }
     }
 
+    /**
+     * @param {{id: string, resId?: number, text: string, email?: string, canEdit: boolean}} tag1
+     * @param {{id: string, resId?: number, text: string, email?: string, canEdit: boolean}} tag2
+     * @returns {boolean}
+     */
     tagEquals(tag1, tag2) {
         return toRaw(tag1) === toRaw(tag2);
     }
@@ -56,6 +64,7 @@ export class RecipientsInputTagsList extends TagsList {
     updateTag() {
         this.popover.open(this.tagToUpdateRef.el, {
             tagToUpdate: this.state.tagToUpdate,
+            /** @param {string} newEmail */
             onUpdateTag: (newEmail) =>
                 this.props.updateRecipient(newEmail, this.state.tagToUpdate.resId),
         });

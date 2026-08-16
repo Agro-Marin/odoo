@@ -14,7 +14,6 @@ export class MailActivityMyKanbanController extends KanbanController {
                 false,
             )
             .then(async () => {
-                // Refresh view once new activity has been added
                 await this.model.root.load();
             });
     }

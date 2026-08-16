@@ -1,6 +1,6 @@
 .o-mail-DiscussSearch-searchBtn {
-    padding-top: map-get($spacers, 1) + calc(map-get($spacers, 2) / 2); // so that button is square like other items
-    padding-bottom: map-get($spacers, 1) + calc(map-get($spacers, 2) / 2); // so that button is square like other items
+    padding-top: map-get($spacers, 1) + calc(map-get($spacers, 2) / 2);
+    padding-bottom: map-get($spacers, 1) + calc(map-get($spacers, 2) / 2);
 }
 
 .o-mail-DiscussSearch-inputContainer {
@@ -23,12 +23,6 @@
     padding-top: var(--DiscussSearch-padding-top, #{map-get($spacers, 1)});
 }
 
-// Two things the dark scheme states that no colour function can carry: an
-// opacity, and a length. The markup carries `border border-secondary` and dark
-// hides that border rather than recolouring it; and `mail_enterprise` zeroes the
-// search padding, which dark puts back -- so this is a no-op on community and
-// only shows with the theme installed. The scope outranks the theme's plain
-// selector, so it no longer depends on a dark skin being appended last.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-DiscussSearch-inputContainer {

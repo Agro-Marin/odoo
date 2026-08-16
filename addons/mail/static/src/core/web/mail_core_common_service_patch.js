@@ -3,13 +3,14 @@ import { MailCoreCommon } from "@mail/core/common/mail_core_common_service";
 import { applyCounterDelta } from "@mail/utils/common/counters";
 import { patch } from "@web/core/utils/patch";
 patch(MailCoreCommon.prototype, {
+    /**
+     * @param {{message_ids: number[], starred: boolean}} payload
+     * @param {{id: number}} metadata
+     */
     _handleNotificationToggleStar(payload, metadata) {
         const { id: notifId } = metadata;
         const { message_ids: messageIds, starred } = payload;
         const starredBox = this.store.starred;
-        // capture pre-update state: the base handler overwrites message.starred,
-        // and only an actual transition may move the counter (an optimistic
-        // unstarAll may already have applied it). Unknown messages still count.
         const wasStarredById = new Map(
             messageIds.map((id) => [
                 id,

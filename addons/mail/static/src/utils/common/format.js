@@ -17,15 +17,12 @@ import {
 import { setAttributes } from "@web/core/utils/dom/xml";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { getOrigin } from "@web/core/utils/urls";
-// Hoisted so `prettifyMessageText` doesn't allocate a throwaway markup() on
-// every call just to read its constructor (same pattern as model/record.js).
-const Markup = markup().constructor;
+const Markup = markup("").constructor;
 const urlRegexp =
     /\b(?:https?:\/\/\d{1,3}(?:\.\d{1,3}){3}|(?:https?:\/\/|(?:www\.))[-a-z0-9@:%._+~#=\u00C0-\u024F\u1E00-\u1EFF]{1,256}(?:\.{1})?(?:[a-z]{2,13}))\b(?:[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|[.]*[-a-z0-9@:%_+~#?&[\]^|{}`\\'$//=\u00C0-\u024F\u1E00-\u1EFF]|,(?!$| )|\.(?!$| |\.)|;(?!$| ))*/gi;
-// Lazy: with native ESM this module is evaluated eagerly at bundle load,
-// before test tooling can mock the browser location, so capturing
-// ``getOrigin()`` in a module-level constant would freeze the wrong origin.
+/** @type {RegExp|undefined} */
 let messageUrlRegExp;
+/** @type {string|undefined} */
 let messageUrlRegExpOrigin;
 function getMessageUrlRegExp() {
     const origin = getOrigin();
@@ -41,11 +38,14 @@ function getMessageUrlRegExp() {
  * @param {Object} [param1]
  * @param {Object} [param1.validMentions]
  * @param {import("models").ResPartner[]} [param1.validMentions.partners]
+ * @param {import("models").ResRole[]} [param1.validMentions.roles]
+ * @param {import("models").Thread[]} [param1.validMentions.threads]
+ * @param {string[]} [param1.validMentions.specialMentions]
+ * @param {import("models").Thread} [param1.thread]
  * @returns {string|ReturnType<markup>}
  */
 export function prettifyMessageText(rawBody, { validMentions = {}, thread } = {}) {
     if (rawBody instanceof Markup) {
-        // markup is already "pretty"
         return rawBody;
     }
     let body = htmlTrim(rawBody);
@@ -53,9 +53,6 @@ export function prettifyMessageText(rawBody, { validMentions = {}, thread } = {}
     body = htmlReplace(body, /(\r|\n)/g, () => markup`<br/>`);
     body = htmlReplace(body, /&nbsp;/g, () => " ");
     body = htmlTrim(body);
-    // The mail composer sends html content whose urls are not linkified, and
-    // linkifying them there would double-linkify a bit everywhere. Ideally the
-    // content stays text internally and is enriched at display time only.
     body = generateMentionsLinks(body, { ...validMentions, thread });
     body = parseAndTransform(body, addLink);
     return body;
@@ -63,6 +60,9 @@ export function prettifyMessageText(rawBody, { validMentions = {}, thread } = {}
 
 /**
  * @param {string|ReturnType<markup>} htmlBody
+ * @param {Object} [options]
+ * @param {boolean} [options.allowEmojiLoading=true]
+ * @returns {Promise<string|ReturnType<markup>>}
  */
 export async function generateEmojisOnHtml(
     htmlBody,
@@ -80,10 +80,12 @@ export async function generateEmojisOnHtml(
  * @param {Object} [param1]
  * @param {Object} [param1.validMentions]
  * @param {import("models").ResPartner[]} [param1.validMentions.partners]
+ * @param {boolean} [param1.allowEmojiLoading=true]
+ * @returns {Promise<string|ReturnType<markup>>}
  */
 export async function prettifyMessageContent(
     rawBody,
-    { validMentions = [], allowEmojiLoading = true } = {},
+    { validMentions = {}, allowEmojiLoading = true } = {},
 ) {
     let body = prettifyMessageText(rawBody, { validMentions });
     body = await generateEmojisOnHtml(body, { allowEmojiLoading });
@@ -91,10 +93,6 @@ export async function prettifyMessageContent(
 }
 
 /**
- * WARNING: this is not enough to unescape potential XSS contained in htmlString, transformFunction
- * should handle it or it should be handled after/before calling parseAndTransform. So if the result
- * of this function is used in a t-raw, be very careful.
- *
  * @param {string|ReturnType<markup>} htmlString
  * @param {function} transformFunction
  * @returns {ReturnType<markup>}
@@ -110,11 +108,8 @@ export function parseAndTransform(htmlString, transformFunction) {
 }
 
 /**
- * @param {Node[]} nodes
- * @param {function} transformFunction with:
- *   param node
- *   param function
- *   return string
+ * @param {Node[]|NodeListOf<ChildNode>} nodes
+ * @param {function} transformFunction
  * @return {ReturnType<markup>}
  */
 function _parseAndTransform(nodes, transformFunction) {
@@ -132,10 +127,11 @@ function _parseAndTransform(nodes, transformFunction) {
 
 /**
  * @param {string} text
- * @return {ReturnType<markup>} linkified text
+ * @return {ReturnType<markup>}
  */
 function linkify(text) {
     let curIndex = 0;
+    /** @type {string|ReturnType<markup>} */
     let result = "";
     let match;
     while ((match = urlRegexp.exec(text)) !== null) {
@@ -161,7 +157,6 @@ function linkify(text) {
             });
             link.classList.add("o_message_redirect");
         }
-        // markup: outerHTML is safe when used as a node
         result = htmlJoin([result, markup(link.outerHTML)]);
         curIndex = match.index + match[0].length;
     }
@@ -171,14 +166,12 @@ function linkify(text) {
 /**
  * @param {Node} node
  * @param {function} transformChildren
- * @returns {ReturnType<markup>}
+ * @returns {string|ReturnType<markup>}
  */
 export function addLink(node, transformChildren) {
+    const element = /** @type {Element} */ (node);
     if (node.nodeType === 3) {
         const linkified = linkify(node.textContent);
-        // compare escaped-to-escaped: linkified is html-escaped markup, so
-        // matching it against the RAW text would flag every node containing
-        // &, <, >, quotes… as changed and rebuild its DOM for nothing
         if (linkified.toString() !== htmlEscape(node.textContent).toString()) {
             const div = createElementWithContent("div", linkified);
             for (const childNode of [...div.childNodes]) {
@@ -189,13 +182,21 @@ export function addLink(node, transformChildren) {
         }
         return node.textContent;
     }
-    if (node.tagName === "A") {
-        return markup(node.outerHTML);
+    if (element.tagName === "A") {
+        return markup(element.outerHTML);
     }
     transformChildren();
-    return markup(node.outerHTML);
+    return markup(element.outerHTML);
 }
 
+/**
+ * @param {Object} mention
+ * @param {string} mention.className
+ * @param {number} mention.id
+ * @param {string} mention.model
+ * @param {string} mention.text
+ * @returns {HTMLAnchorElement}
+ */
 function generateMentionElement({ className, id, model, text }) {
     const link = document.createElement("a");
     setAttributes(link, {
@@ -299,8 +300,6 @@ function generateMentionsLinks(
             link: generateRoleMentionElement(role),
         });
     }
-    // Group mentions that share the exact same text (e.g. two different people
-    // with the same display name, each mentioned once).
     const mentionsByText = new Map();
     for (const mention of mentions) {
         if (!mentionsByText.has(mention.text)) {
@@ -308,55 +307,42 @@ function generateMentionsLinks(
         }
         mentionsByText.get(mention.text).push(mention);
     }
-    // Substitute the longest mention text first so a shorter name that is a
-    // prefix of a longer one (e.g. "@Jo" vs "@John") cannot splice its
-    // placeholder into the middle of the longer mention.
     const orderedTexts = [...mentionsByText.keys()].sort((a, b) => b.length - a.length);
     for (const text of orderedTexts) {
         const group = mentionsByText.get(text);
-        // Assign the first occurrences to the first personas positionally (this
-        // is how two distinct people sharing a name are told apart)...
         for (let i = 0; i < group.length - 1; i++) {
             body = htmlReplace(body, text, group[i].placeholder);
         }
-        // ...then map every remaining occurrence to the last persona, so a
-        // single persona mentioned repeatedly is fully linkified rather than
-        // only on its first occurrence.
         body = htmlReplaceAll(body, text, group.at(-1).placeholder);
     }
     for (const mention of mentions) {
         const link = mention.link;
-        // function replacer: a plain-string replacement would interpret "$&",
-        // "$`", "$'"... inside the link HTML (e.g. from a display name) as
-        // replacement patterns, splicing chunks of the body into the link.
-        // markup: outerHTML is safe when used as a node
         body = htmlReplaceAll(body, mention.placeholder, () => markup(link.outerHTML));
     }
     return htmlEscape(body);
 }
 
 /**
- * Cache for {@link _generateEmojisOnHtml}: one precompiled alternation regex
- * over all shortcode/emoticon sources instead of ~thousands of per-source
- * regexes rescanning the whole body on every message post/edit. Keyed on the
- * emoji list identity (`loadEmoji()` caches it; tests may reset it).
- *
- * @type {{
- *  emojis: unknown[],
- *  codepointsBySource: Map<string, string>,
- *  regex: RegExp|null,
- * }|undefined}
+ * @typedef {Object} EmojiRecord
+ * @property {string[]} shortcodes
+ * @property {string[]} emoticons
+ * @property {string} codepoints
+ */
+/**
+ * @type {{ emojis: EmojiRecord[], codepointsBySource: Map<string, string>, regex: RegExp|null, }|undefined}
  */
 let emojiSourceCache;
 
+/**
+ * @param {EmojiRecord[]} emojis
+ * @returns {{emojis: EmojiRecord[], codepointsBySource: Map<string, string>, regex: RegExp|null}}
+ */
 function getEmojiSourceCache(emojis) {
     if (emojiSourceCache?.emojis !== emojis) {
         /** @type {Map<string, string>} */
         const codepointsBySource = new Map();
         for (const emoji of emojis) {
             for (const source of [...emoji.shortcodes, ...emoji.emoticons]) {
-                // Sources are matched against escaped HTML: escape them too
-                // (e.g. the "<3" emoticon appears as "&lt;3" in the body).
                 const escapedSource = htmlEscape(String(source)).toString();
                 if (!codepointsBySource.has(escapedSource)) {
                     codepointsBySource.set(escapedSource, emoji.codepoints);
@@ -364,7 +350,7 @@ function getEmojiSourceCache(emojis) {
             }
         }
         const alternation = [...codepointsBySource.keys()]
-            .sort((source1, source2) => source2.length - source1.length) // longest match first
+            .sort((source1, source2) => source2.length - source1.length)
             .map(escapeRegExp)
             .join("|");
         emojiSourceCache = {
@@ -379,7 +365,6 @@ function getEmojiSourceCache(emojis) {
 }
 
 /**
- * @private
  * @param {string|ReturnType<markup>} htmlString
  * @returns {Promise<ReturnType<markup>>}
  */
@@ -390,6 +375,11 @@ async function _generateEmojisOnHtml(htmlString) {
         htmlString = htmlReplace(
             htmlString,
             regex,
+            /**
+             * @param {string} _
+             * @param {string} whitespace
+             * @param {string} source
+             */
             (_, whitespace, source) => whitespace + codepointsBySource.get(source),
         );
     }
@@ -406,13 +396,13 @@ export function getNonEditableMentions(body) {
         block.classList.remove("o_mail_reply_hide");
     }
     for (const mention of doc.body.querySelectorAll(".o_mail_redirect")) {
-        mention.setAttribute("contenteditable", false);
+        mention.setAttribute("contenteditable", "false");
     }
     for (const mention of doc.body.querySelectorAll(".o_channel_redirect")) {
-        mention.setAttribute("contenteditable", false);
+        mention.setAttribute("contenteditable", "false");
     }
     for (const mention of doc.body.querySelectorAll(".o-discuss-mention")) {
-        mention.setAttribute("contenteditable", false);
+        mention.setAttribute("contenteditable", "false");
     }
     return markup(doc.body.innerHTML);
 }
@@ -435,6 +425,10 @@ export function htmlToTextContentInline(htmlString) {
         .replace(/\s\s+/g, " ");
 }
 
+/**
+ * @param {string|ReturnType<markup>} str
+ * @returns {string}
+ */
 export function convertBrToLineBreak(str) {
     str = htmlReplace(str, /<br\s*\/?>/gi, () => "\n");
     return createDocumentFragmentFromContent(str).body.textContent;
@@ -442,7 +436,7 @@ export function convertBrToLineBreak(str) {
 
 /**
  * @param {string|ReturnType<markup>} content
- * @returns {ReturnType<markup>}
+ * @returns {string|ReturnType<markup>}
  */
 export function trimEmptyBlocksAround(content) {
     if (isHtmlEmpty(content)) {
@@ -451,13 +445,13 @@ export function trimEmptyBlocksAround(content) {
     const body = createDocumentFragmentFromContent(content).body;
     let changed = false;
 
+    /** @param {Node} node */
     const removeNode = (node) => {
         node.remove();
         changed = true;
     };
 
     /** @typedef {"start" | "end"} BoundarySide */
-
     /**
      * @param {Element | null | undefined} element
      * @param {BoundarySide} side
@@ -482,6 +476,10 @@ export function trimEmptyBlocksAround(content) {
         return side === "start" ? element.firstElementChild : element.lastElementChild;
     };
 
+    /**
+     * @param {Element|null|undefined} element
+     * @param {BoundarySide} side
+     */
     const trimTextNodes = (element, side) => {
         let node = getBoundaryChild(element, side);
         while (node?.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
@@ -490,6 +488,7 @@ export function trimEmptyBlocksAround(content) {
         }
     };
 
+    /** @param {BoundarySide} side */
     const trimEmptyParagraphs = (side) => {
         trimTextNodes(body, side);
         let paragraph = getBoundaryElement(body, side);
@@ -503,6 +502,7 @@ export function trimEmptyBlocksAround(content) {
         }
     };
 
+    /** @param {BoundarySide} side */
     const trimBoundaryParagraph = (side) => {
         trimEmptyParagraphs(side);
         const paragraph = getBoundaryElement(body, side);
@@ -523,19 +523,18 @@ export function trimEmptyBlocksAround(content) {
     };
     trimBoundaryParagraph("start");
     trimBoundaryParagraph("end");
-    // markup: the body comes from a DocumentFragment built from a trusted
-    // source, and trimming/removing nodes keeps its innerHTML safe.
     return changed ? markup(body.innerHTML) : content;
 }
 
+/**
+ * @param {*} term
+ * @returns {string}
+ */
 export function cleanTerm(term) {
     return typeof term === "string" ? normalize(term) : "";
 }
 
 /**
- * Parses text to find an email: `Tagada <address@mail.fr>` gives
- * `["Tagada", "address@mail.fr"]`, and text without an email `[text, false]`.
- *
  * @param {string} text
  * @returns {[string, string|false]|undefined}
  */
@@ -556,42 +555,20 @@ export function parseEmail(text) {
 }
 
 const r = String.raw;
-/**
- * Match Country Subdivision Flags.
- * Black Flag emoji + tag-encoded subdivision name + cancel tag
- */
 const SUBDIVISION_FLAG = r`\uD83C\uDFF4[\u{E0020}-\u{E007E}]+\u{E007F}`;
-/**
- * Match Keycaps (e.g., 5\uFE0F\u20E3, #\uFE0F\u20E3).
- * Numpad character + Variation Selector-16 + Combining Enclosing Keycap
- */
 const KEYCAP = r`[#*\d]\uFE0F\u20E3`;
 const EMOJI_WITH_SKIN_TONE = r`\p{Emoji_Modifier_Base}\p{Emoji_Modifier}`;
-/**
- * Match "regular" emojis.
- * iOS keyboard sometimes appends an extraneous Variation Selector-16, which the
- * optional \uFE0F accounts for.
- */
 const EMOJI_PRESENTATION = r`\p{Emoji_Presentation}\uFE0F?`;
-/**
- * Match "text-default" emojis (\u2603, \u2665, \u2602) that are followed by a Variation
- * Selector-16 (U+FE0F), enabling their emoji representation (\u2603 \u2192 \u2603\uFE0F).
- * Negative lookahead prevents matching incomplete keycap sequences.
- */
 const QUALIFIED_TEXT = r`(?![#*\d])\p{Emoji}\uFE0F`;
 const EMOJI = r`(?:${SUBDIVISION_FLAG}|${KEYCAP}|${EMOJI_WITH_SKIN_TONE}|${EMOJI_PRESENTATION}|${QUALIFIED_TEXT})`;
 export const EMOJI_REGEX = new RegExp(
-    r`\p{Regional_Indicator}{2}|` + // Regional Indicator pairs (e.g., \uD83C\uDDE7\uD83C\uDDEA)
-        r`${EMOJI}(?:\u200d${EMOJI})*`, // Zero Width Joiner sequences (e.g., \uD83D\uDC68\u200d\uD83D\uDC69\u200d\uD83D\uDC67\u200d\uD83D\uDC66)
+    r`\p{Regional_Indicator}{2}|` + r`${EMOJI}(?:\u200d${EMOJI})*`,
     "gu",
 );
 
 /**
- * Wrap emojis present in the given text with a title and return a safe HTML
- * string.
- *
  * @param {string|ReturnType<markup>} content
- * @returns {ReturnType<markup>}
+ * @returns {string|ReturnType<markup>}
  */
 export function decorateEmojis(content) {
     if (!loader.loaded || !content) {
@@ -613,9 +590,8 @@ export function decorateEmojis(content) {
             htmlReplaceAll(
                 node.textContent,
                 loader.loaded.emojiRegex,
+                /** @param {string} codepoints */
                 (codepoints) =>
-                    // tagged template: interpolations are auto-escaped, which
-                    // a markup(`...`) plain-literal call would not do
                     markup`<span class="o-mail-emoji" title="${htmlFormatList(
                         loader.loaded.emojiValueToShortcodes[codepoints],
                         { style: "unit-narrow" },
@@ -628,8 +604,8 @@ export function decorateEmojis(content) {
 }
 
 /**
- * Converts an attClass object in OWL syntax to a string, keeping the keys whose
- * value is truthy (`{ a: 1, b: 0, c: 1 }` gives "a c").
+ * @param {Object<string, any>} obj
+ * @returns {string}
  */
 export function attClassObjectToString(obj) {
     return Object.entries(obj)

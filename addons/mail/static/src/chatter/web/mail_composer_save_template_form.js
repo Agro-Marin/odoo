@@ -3,13 +3,12 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form";
 export class MailComposerSaveTemplateFormController extends formView.Controller {
-    /** @override */
     setup() {
         super.setup();
         this.actionService = useService("action");
     }
 
-    /** @override */
+    /** @param {{special?: string, name?: string}} clickParams */
     async afterExecuteActionButton(clickParams) {
         if (clickParams.special !== "cancel") {
             return await super.afterExecuteActionButton(...arguments);

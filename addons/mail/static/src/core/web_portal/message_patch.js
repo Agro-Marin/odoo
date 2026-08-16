@@ -2,7 +2,12 @@
 import { Message } from "@mail/core/common/message";
 import { onWillUnmount } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
-patch(Message.prototype, {
+
+/**
+ * @typedef {Message & { state: Message["state"] & { lastReadMoreIndex: number, isReadMoreByIndex: Map<number, boolean>, }, }} MessageWithReadMore
+ */
+/** @type {Partial<MessageWithReadMore> & ThisType<MessageWithReadMore>} */
+const messagePatch = {
     setup() {
         super.setup(...arguments);
         this.state.lastReadMoreIndex = 0;
@@ -12,10 +17,7 @@ patch(Message.prototype, {
         });
     },
 
-    /**
-     * @override
-     * @param {HTMLElement} bodyEl
-     */
+    /** @param {HTMLElement} bodyEl */
     prepareMessageBody(bodyEl) {
         if (!bodyEl) {
             return;
@@ -24,46 +26,41 @@ patch(Message.prototype, {
         Array.from(bodyEl.querySelectorAll(".o-mail-ellipsis")).forEach((el) =>
             el.remove(),
         );
-        // reset before each top-level pass: the DOM is identical across
-        // re-renders, so restarting at 0 yields the same index per group and
-        // keeps isReadMoreByIndex bounded with its expanded state intact
         this.state.lastReadMoreIndex = 0;
         this.insertEllipsisbtn(bodyEl);
     },
 
-    /**
-     * Modifies the message to add the 'ellipsis button' functionality
-     * All element nodes with 'data-o-mail-quote' attribute are concerned.
-     * All text nodes after a ``#stopSpelling`` element are concerned.
-     * Those text nodes need to be wrapped in a span (toggle functionality).
-     * All consecutive elements are joined in one 'ellipsis button'.
-     *
-     * @param {HTMLElement} bodyEl
-     */
+    /** @param {HTMLElement} bodyEl */
     insertEllipsisbtn(bodyEl) {
         /**
-         * @param {HTMLElement} e
+         * @param {Element|CharacterData} e
          * @param {string} selector
+         * @returns {Element[]}
          */
         function prevAll(e, selector) {
             const res = [];
-            while ((e = e.previousElementSibling)) {
-                if (e.matches(selector)) {
-                    res.push(e);
+            let sibling = e.previousElementSibling;
+            while (sibling) {
+                if (sibling.matches(selector)) {
+                    res.push(sibling);
                 }
+                sibling = sibling.previousElementSibling;
             }
             return res;
         }
 
         /**
-         * @param {HTMLElement} e
+         * @param {Element|CharacterData} e
          * @param {string} selector
+         * @returns {Element|undefined}
          */
         function prev(e, selector) {
-            while ((e = e.previousElementSibling)) {
-                if (e.matches(selector)) {
-                    return e;
+            let sibling = e.previousElementSibling;
+            while (sibling) {
+                if (sibling.matches(selector)) {
+                    return sibling;
                 }
+                sibling = sibling.previousElementSibling;
             }
         }
 
@@ -90,21 +87,25 @@ patch(Message.prototype, {
         }
 
         const groups = [];
+        /** @type {(Element|CharacterData)[]|undefined} */
         let ellipsisNodes;
         const ELEMENT_NODE = 1;
         const TEXT_NODE = 3;
-        /** @type {ChildNode[]} childrenEl */
-        const childrenEl = Array.from(bodyEl.childNodes).filter(
-            /** @param {ChildNode} childEl */
-            function (childEl) {
-                return (
-                    childEl.nodeType === ELEMENT_NODE ||
-                    (childEl.nodeType === TEXT_NODE && childEl.nodeValue.trim())
-                );
-            },
+        /**
+         * @type {(Element|CharacterData)[]}
+         */
+        const childrenEl = /** @type {(Element|CharacterData)[]} */ (
+            Array.from(bodyEl.childNodes).filter(
+                /** @param {ChildNode} childEl */
+                function (childEl) {
+                    return (
+                        childEl.nodeType === ELEMENT_NODE ||
+                        (childEl.nodeType === TEXT_NODE && childEl.nodeValue.trim())
+                    );
+                },
+            )
         );
         for (const childEl of childrenEl) {
-            // Hide Text nodes if "stopSpelling"
             if (
                 childEl.nodeType === TEXT_NODE &&
                 prevAll(childEl, '[id*="stopSpelling"]').length > 0
@@ -114,21 +115,22 @@ patch(Message.prototype, {
                 newChildEl.dataset.oMailQuote = "1";
                 childEl.parentNode.replaceChild(newChildEl, childEl);
             }
-            // Create array for each 'read more' with nodes to toggle
             if (
                 (childEl.nodeType === ELEMENT_NODE &&
-                    childEl.getAttribute("data-o-mail-quote")) ||
+                    /** @type {Element} */ (childEl).getAttribute(
+                        "data-o-mail-quote",
+                    )) ||
                 (childEl.nodeName === "BR" && prev(childEl, '[data-o-mail-quote="1"]'))
             ) {
                 if (!ellipsisNodes) {
                     ellipsisNodes = [];
                     groups.push(ellipsisNodes);
                 }
-                hide(childEl);
+                hide(/** @type {HTMLElement} */ (childEl));
                 ellipsisNodes.push(childEl);
             } else {
                 ellipsisNodes = undefined;
-                this.insertEllipsisbtn(childEl);
+                this.insertEllipsisbtn(/** @type {HTMLElement} */ (childEl));
             }
         }
 
@@ -147,19 +149,23 @@ patch(Message.prototype, {
             const updateFromState = () => {
                 const isReadMore = this.state.isReadMoreByIndex.get(index);
                 for (const childEl of group) {
-                    hide(childEl);
-                    toggle(childEl, !isReadMore);
+                    hide(/** @type {HTMLElement} */ (childEl));
+                    toggle(/** @type {HTMLElement} */ (childEl), !isReadMore);
                 }
             };
-            ellipsisbtnEl.addEventListener("click", (e) => {
-                e.preventDefault();
-                this.state.isReadMoreByIndex.set(
-                    index,
-                    !this.state.isReadMoreByIndex.get(index),
-                );
-                updateFromState();
-            });
+            ellipsisbtnEl.addEventListener(
+                "click",
+                /** @param {MouseEvent} e */ (e) => {
+                    e.preventDefault();
+                    this.state.isReadMoreByIndex.set(
+                        index,
+                        !this.state.isReadMoreByIndex.get(index),
+                    );
+                    updateFromState();
+                },
+            );
             updateFromState();
         }
     },
-});
+};
+patch(Message.prototype, messagePatch);

@@ -16,8 +16,12 @@ export class MailFullscreen extends Component {
 }
 
 export const fullscreenService = {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     */
     start(env) {
         const state = reactive({ enter, exit, id: undefined, closeOverlay: undefined });
+        /** @param {any} [id=state.id] */
         async function exit(id = state.id) {
             if (!id || id !== state.id) {
                 return;
@@ -42,9 +46,8 @@ export const fullscreenService = {
          * @param {object} [options]
          * @param [options.props]
          * @param {any} [options.id]
-         * @param {boolean} [options.keepBrowserHeader] - Optional flag to specify whether to keep
-         * the browser's header (address bar, tabs, etc.) visible.
-         * @param {string} [options.rootId] - Optional root id to pass to the overlay.
+         * @param {boolean} [options.keepBrowserHeader]
+         * @param {string} [options.rootId]
          * @returns {Promise<void>}
          */
         async function enter(
@@ -70,9 +73,7 @@ export const fullscreenService = {
                 } else if (el.webkitRequestFullscreen) {
                     await el.webkitRequestFullscreen();
                 }
-            } catch {
-                // doing nothing, we're just in non-native fullscreen.
-            }
+            } catch {}
         }
         browser.addEventListener("fullscreenchange", () => {
             const isFullscreen = Boolean(

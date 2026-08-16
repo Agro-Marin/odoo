@@ -5,7 +5,9 @@ import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 
 import { fields } from "../common/record.js";
-/** @type {import("models").Thread} */
+/**
+ * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
+ */
 const threadPatch = {
     setup() {
         super.setup();
@@ -15,6 +17,7 @@ const threadPatch = {
         this.activities = fields.Many("mail.activity", {
             sort: (a, b) =>
                 compareDatetime(a.date_deadline, b.date_deadline) || a.id - b.id,
+            /** @this {import("models").Thread} */
             onDelete(r) {
                 r.remove();
             },
@@ -57,10 +60,8 @@ const threadPatch = {
         this.store.insert(data);
     },
     /**
-     * @override
-     * Web-client seam of `open()` (@see Thread.open): mailboxes open in the
-     * Discuss app, document threads open their record's form view. The chat
-     * seam (discuss layer) has already declined when this runs.
+     * @param {Object} [options]
+     * @returns {boolean|undefined}
      */
     openWebClientUI(options) {
         const actionService = this.store.env.services.action;

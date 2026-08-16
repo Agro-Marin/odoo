@@ -5,12 +5,6 @@ import { patch } from "@web/core/utils/patch";
 import { useDebounced } from "@web/core/utils/timing";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 import { TextField, textField } from "@web/fields/basic/text/text_field";
-/**
- * Support a key-based onchange in text fields.
- * The triggerOnChange method is debounced to run after given debounce delay
- * (or 2 seconds by default) when typing ends.
- *
- */
 const onchangeOnKeydownMixin = () => ({
     setup() {
         super.setup(...arguments);
@@ -23,6 +17,7 @@ const onchangeOnKeydownMixin = () => ({
                 this.props.keydownDebounceDelay,
             );
             useEffect(
+                /** @param {HTMLElement|null} el */
                 (el) => {
                     if (el) {
                         el.addEventListener("keydown", triggerOnChange);
@@ -57,8 +52,14 @@ TextField.props = {
     keydownDebounceDelay: { type: Number, optional: true },
 };
 
+/**
+ * @param {(fieldInfo: Object) => Object} baseExtractProps
+ * @returns {(fieldInfo: Object) => Object}
+ */
 function extendExtractProps(baseExtractProps) {
-    return (fieldInfo) =>
+    return /** @param {{attrs: Object, options: Object, viewType?: string}} fieldInfo */ (
+        fieldInfo,
+    ) =>
         Object.assign(baseExtractProps(fieldInfo), {
             onchangeOnKeydown: exprToBoolean(fieldInfo.attrs.onchange_on_keydown),
             keydownDebounceDelay: fieldInfo.attrs.keydown_debounce_delay

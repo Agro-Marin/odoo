@@ -4,10 +4,18 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 export class AttachmentUploadService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ file_upload: any, "mail.store": any, notification: any }} services
+     */
     constructor(env, services) {
         this.setup(env, services);
     }
 
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ file_upload: any, "mail.store": any, notification: any }} services
+     */
     setup(env, services) {
         this.env = env;
         this.fileUploadService = services["file_upload"];
@@ -18,10 +26,6 @@ export class AttachmentUploadService {
         this.nextId = -1;
         this.abortByAttachmentId = new Map();
         this.deferredByAttachmentId = new Map();
-        // Object URL of the local blob, kept per upload so it can be revoked
-        // even when no temp attachment record is ever created (an upload that
-        // errors before FILE_UPLOAD_ADDED). Otherwise the blob URL -- which
-        // pins the file in memory -- leaks for the tab's lifetime.
         this.tmpUrlByAttachmentId = new Map();
         this.uploadingAttachmentIds = new Set();
         this._fileUploadBus = new EventBus();
@@ -29,6 +33,7 @@ export class AttachmentUploadService {
         this.targetsByTmpId = new Map();
         this.fileUploadService.bus.addEventListener(
             "FILE_UPLOAD_ADDED",
+            /** @param {CustomEvent<{upload: {data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}}>} ev */
             ({ detail: { upload } }) => {
                 const tmpId = parseInt(upload.data.get("temporary_id"));
                 if (!this.uploadingAttachmentIds.has(tmpId)) {
@@ -50,6 +55,7 @@ export class AttachmentUploadService {
         );
         this.fileUploadService.bus.addEventListener(
             "FILE_UPLOAD_LOADED",
+            /** @param {CustomEvent<{upload: {data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}}>} ev */
             ({ detail: { upload } }) => {
                 const tmpId = parseInt(upload.data.get("temporary_id"));
                 if (!this.uploadingAttachmentIds.has(tmpId)) {
@@ -76,9 +82,6 @@ export class AttachmentUploadService {
                 try {
                     response = JSON.parse(upload.xhr.response);
                 } catch {
-                    // a 200 carrying non-JSON (proxy/login interstitial, HTML
-                    // error page) threw inside this bus listener, leaving the
-                    // deferred pending and the attachment stuck "uploading"
                     this.notificationService.add(_t("Server error"), {
                         type: "danger",
                     });
@@ -98,6 +101,7 @@ export class AttachmentUploadService {
         );
         this.fileUploadService.bus.addEventListener(
             "FILE_UPLOAD_ERROR",
+            /** @param {CustomEvent<{upload: {data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}}>} ev */
             ({ detail: { upload } }) => {
                 const tmpId = parseInt(upload.data.get("temporary_id"));
                 if (!this.uploadingAttachmentIds.has(tmpId)) {
@@ -109,6 +113,13 @@ export class AttachmentUploadService {
         );
     }
 
+    /**
+     * @param {import("models").Thread} thread
+     * @param {import("models").Composer|undefined} composer
+     * @param {{data: {store_data: Object, attachment_id: number}}} response
+     * @param {number} tmpId
+     * @param {import("@web/core/utils/concurrency").Deferred} def
+     */
     _processLoaded(thread, composer, { data }, tmpId, def) {
         const { store_data, attachment_id } = data;
         this.store.insert(store_data);
@@ -127,6 +138,7 @@ export class AttachmentUploadService {
         this._cleanupUploading(tmpId);
     }
 
+    /** @param {number} tmpId */
     _cleanupUploading(tmpId) {
         this.abortByAttachmentId.delete(tmpId);
         this.deferredByAttachmentId.delete(tmpId);
@@ -140,20 +152,20 @@ export class AttachmentUploadService {
         this.store["ir.attachment"].get(tmpId)?.remove();
     }
 
+    /**
+     * @param {import("models").Thread} thread
+     * @returns {string}
+     */
     getUploadURL(thread) {
         return "/mail/attachment/upload";
     }
 
+    /** @param {import("models").Attachment} attachment */
     async unlink(attachment) {
         if (this.uploadingAttachmentIds.has(attachment.id)) {
             const deferred = this.deferredByAttachmentId.get(attachment.id);
             const abort = this.abortByAttachmentId.get(attachment.id);
             this._cleanupUploading(attachment.id);
-            // uploadingAttachmentIds is populated synchronously in _upload,
-            // but the deferred and (especially) the abort handle are only
-            // registered once the FILE_UPLOAD_ADDED bus event fires. A cancel
-            // in that window would hit `undefined.resolve()`/`undefined()`;
-            // guard both so an early discard can't throw.
             deferred?.resolve();
             abort?.();
             return;
@@ -161,26 +173,38 @@ export class AttachmentUploadService {
         await attachment.remove();
     }
 
+    /**
+     * @param {import("models").Thread} thread
+     * @param {import("models").Composer|undefined} composer
+     * @param {File} file
+     * @param {Object} [options]
+     * @param {import("models").Activity} [options.activity]
+     * @returns {Promise<import("models").Attachment|undefined>}
+     */
     async upload(thread, composer, file, options) {
         const tmpId = this.nextId--;
         const tmpURL = URL.createObjectURL(file);
         return this._upload(thread, composer, file, options, tmpId, tmpURL);
     }
 
+    /**
+     * @param {import("models").Thread} thread
+     * @param {import("models").Composer|undefined} composer
+     * @param {File} file
+     * @param {Object} [options]
+     * @param {number} tmpId
+     * @param {string} tmpURL
+     * @returns {Promise<import("models").Attachment|undefined>}
+     */
     async _upload(thread, composer, file, options, tmpId, tmpURL) {
         this.targetsByTmpId.set(tmpId, { composer, thread });
         this.tmpUrlByAttachmentId.set(tmpId, tmpURL);
         this.uploadingAttachmentIds.add(tmpId);
-        // Register the deferred BEFORE starting the upload: the file-upload
-        // bus can emit FILE_UPLOAD_LOADED/FILE_UPLOAD_ERROR before this
-        // function's continuation resumes (a synchronous mock XHR in tests, an
-        // instant 413, or an already-buffered response), and those handlers
-        // resolve this deferred via `deferredByAttachmentId.get(tmpId)`.
-        // Registering it after the await would let them hit `undefined.resolve()`.
         const uploadDoneDeferred = new Deferred();
         this.deferredByAttachmentId.set(tmpId, uploadDoneDeferred);
         await this.fileUploadService
             .upload(this.getUploadURL(thread), [file], {
+                /** @param {FormData} formData */
                 buildFormData: (formData) => {
                     this._buildFormData(
                         formData,
@@ -205,13 +229,26 @@ export class AttachmentUploadService {
      * @param {() => void} onFileUploaded
      */
     onFileUploaded(thread, onFileUploaded) {
-        this._fileUploadBus.addEventListener("UPLOAD", ({ detail }) => {
-            if (thread.eq(detail)) {
-                onFileUploaded();
-            }
-        });
+        this._fileUploadBus.addEventListener(
+            "UPLOAD",
+            /** @param {CustomEvent<import("models").Thread>} ev */ ({ detail }) => {
+                if (thread.eq(detail)) {
+                    onFileUploaded();
+                }
+            },
+        );
     }
 
+    /**
+     * @param {FormData} formData
+     * @param {string} tmpURL
+     * @param {import("models").Thread} thread
+     * @param {import("models").Composer|undefined} composer
+     * @param {number} tmpId
+     * @param {Object} [options]
+     * @param {import("models").Activity} [options.activity]
+     * @returns {FormData}
+     */
     _buildFormData(formData, tmpURL, thread, composer, tmpId, options) {
         formData.append("thread_id", thread.id);
         formData.append("tmp_url", tmpURL);
@@ -224,6 +261,13 @@ export class AttachmentUploadService {
         return formData;
     }
 
+    /**
+     * @param {{data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}} upload
+     * @param {number} tmpId
+     * @param {import("models").Thread|undefined} thread
+     * @param {string} tmpUrl
+     * @returns {Object}
+     */
     _makeAttachmentData(upload, tmpId, thread, tmpUrl) {
         const attachmentData = {
             id: tmpId,
@@ -241,6 +285,10 @@ export class AttachmentUploadService {
 
 export const attachmentUploadService = {
     dependencies: ["file_upload", "mail.store", "notification"],
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ file_upload: any, "mail.store": any, notification: any }} services
+     */
     start(env, services) {
         return new AttachmentUploadService(env, services);
     },

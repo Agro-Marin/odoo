@@ -27,6 +27,10 @@ export class MailComposerFormRenderer extends formView.Renderer {
         this.orm = useService("orm");
         this.root = useRef("compiled_view_root");
         useEffect(
+            /**
+             * @param {boolean} isInEdition
+             * @param {HTMLElement|null} el
+             */
             (isInEdition, el) => {
                 if (
                     el &&
@@ -52,7 +56,6 @@ export class MailComposerFormRenderer extends formView.Renderer {
             if (this.props.record.resModel === "mail.scheduled.message") {
                 resIds = [this.props.record.data.res_id.resId];
             } else {
-                // composer does not store res_ids past a certain limit, assume active_ids is used
                 resIds = this.props.record.data.res_ids
                     ? JSON.parse(this.props.record.data.res_ids)
                     : this.props.record.context.active_ids;
@@ -75,17 +78,10 @@ export class MailComposerFormRenderer extends formView.Renderer {
         useCustomDropzone(this.root, MailAttachmentDropzone, {
             /** @param {Event} event */
             onDrop: async (event) => {
-                // Upload each dropped file exactly ONCE and link it to the single
-                // composer wizard: the composer is one `mail.compose.message`
-                // record regardless of how many recipients it targets, so looping
-                // over the threads would attach N copies of every file.
                 const [thread] = getActiveMailThreads();
                 if (!thread) {
                     return;
                 }
-                // Use an isolated composer object instead of thread.composer to
-                // avoid pushing into the main thread's composer.attachments list,
-                // which is observed by the chatter.
                 const composer =
                     this.props.record.resModel === "mail.scheduled.message"
                         ? { attachments: [] }

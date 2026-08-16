@@ -15,7 +15,7 @@ export const discussSidebarItemsRegistry = registry.category(
 
 /**
  * @typedef {Object} Props
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSidebar extends Component {
     static template = "mail.DiscussSidebar";
@@ -36,9 +36,10 @@ export class DiscussSidebar extends Component {
         return discussSidebarItemsRegistry.getAll();
     }
 
+    /** @param {number} width */
     onResize(width) {
         if (!this.mounted) {
-            return; // ignore resize from mount not triggered by user
+            return;
         }
         if (width <= 100) {
             browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, true);

@@ -21,16 +21,13 @@ const ALLOWED_TAGS = [
     "UL",
 ];
 
+/** @type {Set<string>} */
 const PRESERVED_CLASSNAMES = new Set([
     "o_mail_redirect",
     "o_channel_redirect",
     "o-discuss-mention",
 ]);
 
-/**
- * This plugin works with the composer used in Discuss, ChatWindow and Chatter.
- * For the full composer, it is using HtmlComposerMessageField.
- */
 export class MailComposerPlugin extends Plugin {
     static id = "mail_composer";
     static dependencies = ["clipboard", "dom", "hint", "history", "input", "selection"];
@@ -38,6 +35,7 @@ export class MailComposerPlugin extends Plugin {
         before_paste_handlers:
             this.config.composerPluginDependencies.onBeforePaste.bind(this),
         bypass_paste_image_files: () => true,
+        /** @param {HTMLAnchorElement} linkEl */
         create_link_handlers: (linkEl) => (linkEl.target = "_blank"),
         handle_paste_html_override: this.handlePasteHtmlOverride.bind(this),
         hints: [
@@ -46,6 +44,11 @@ export class MailComposerPlugin extends Plugin {
                 text: this.config.placeholder,
             }),
         ],
+        /**
+         * @param {{documentSelectionIsInEditable: boolean}} selectionData
+         * @param {HTMLElement} editable
+         * @returns {HTMLElement[]|undefined}
+         */
         hint_targets_providers: (selectionData, editable) => {
             const el = editable.firstChild;
             if (
@@ -80,10 +83,15 @@ export class MailComposerPlugin extends Plugin {
         );
     }
 
+    /**
+     * @param {DocumentFragment} sanitizedFragment
+     * @returns {boolean}
+     */
     handlePasteHtmlOverride(sanitizedFragment) {
         if (sanitizedFragment.childNodes.length === 0) {
             return false;
         }
+        /** @param {Node} node */
         const removeStyle = (node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
                 const tagName = node.nodeName.toUpperCase();

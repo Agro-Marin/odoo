@@ -29,14 +29,11 @@ export class ResUsers extends Record {
     get phone() {
         return this.partner_id?.phone;
     }
-    /** @type {boolean} false when the user is an internal user, true otherwise */
+    /** @type {boolean} */
     share;
     /** @type {ReturnType<import("@odoo/owl").markup>|string|undefined} */
     signature = fields.Html(undefined);
 
-    /**
-     * Get the signature with its typical layout when inserted in html
-     */
     getSignatureBlock() {
         if (!this.signature) {
             return "";

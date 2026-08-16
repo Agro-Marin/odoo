@@ -19,6 +19,10 @@ export class MentionPlugin extends Plugin {
         });
     }
 
+    /**
+     * @param {Event} ev
+     * @param {Object} option
+     */
     onSelect(ev, option) {
         this.dependencies.selection.focusEditable();
         const mentionBlock = makeMentionFromOption(option, {
@@ -32,6 +36,7 @@ export class MentionPlugin extends Plugin {
         this.dependencies.history.addStep();
     }
 
+    /** @param {InputEvent} ev */
     onBeforeInput(ev) {
         if (ev.data === "@" || ev.data === "#") {
             this.historySavePointRestore = this.dependencies.history.makeSavePoint();

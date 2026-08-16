@@ -7,13 +7,6 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { ScheduledDateDialog } from "./scheduled_date_dialog.js";
 
-/**
- * Widgets used to display and select the scheduled date in the composer (in monocomment mode)
- * and in the mail_scheduled_message form view.
- * There are two different widgets because the composer uses a text field to store the
- * scheduled date whereas the mail_scheduled_message model uses a datetime field.
- */
-
 class ScheduledDateFieldCommon extends Component {
     static props = standardFieldProps;
     static template = "mail.ScheduledDateField";
@@ -29,13 +22,14 @@ class ScheduledDateFieldCommon extends Component {
         };
     }
 
+    /** @param {MouseEvent} ev */
     onClick(ev) {
         this.dialog.add(ScheduledDateDialog, {
+            /** @param {luxon.DateTime|false} scheduledDate */
             save: (scheduledDate) => this.setScheduledDate(scheduledDate),
             isRemovable: this.isRemovable,
             scheduledDate: this.scheduledDate,
         });
-        // prevents the button to look focused (text-info to look darker) when closing the dialog
         ev.currentTarget.blur();
     }
 }
@@ -53,6 +47,7 @@ class TextScheduledDateField extends ScheduledDateFieldCommon {
         );
     }
 
+    /** @param {luxon.DateTime|false} scheduledDate */
     setScheduledDate(scheduledDate) {
         this.props.record.update({
             [this.props.name]: scheduledDate ? serializeDateTime(scheduledDate) : "",
@@ -75,6 +70,7 @@ class DatetimeScheduledDateField extends ScheduledDateFieldCommon {
         return this.props.record.data[this.props.name];
     }
 
+    /** @param {string|false} scheduledDate */
     setScheduledDate(scheduledDate) {
         this.props.record.update({ [this.props.name]: scheduledDate });
     }

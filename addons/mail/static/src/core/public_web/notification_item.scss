@@ -40,8 +40,7 @@
     aspect-ratio: 1;
 
     &:before {
-        // invisible character so that typing status bar has constant height, regardless of text content.
-        content: "\200b"; /* unicode zero width space character */
+        content: "\200b";
     }
 }
 
@@ -65,7 +64,9 @@
     &:hover {
         outline-color: rgba(darken($success, 10%), 1);
         color: darken($success, 10%) !important;
-        background-color: unquote("color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 75%, #{o-token(--success, $success)})");
+        background-color: unquote(
+            "color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 75%, #{o-token(--success, $success)})"
+        );
         filter: brightness(1.1);
         box-shadow: $box-shadow-sm;
     }
@@ -75,13 +76,10 @@
     opacity: 0.75;
 
     &:before {
-        // invisible character so that typing status bar has constant height, regardless of text content.
-        content: "\200b"; /* unicode zero width space character */
+        content: "\200b";
     }
 }
 
-
-// The dark half, folded in from `notification_item.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-NotificationItem {

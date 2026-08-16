@@ -26,14 +26,13 @@ class Actions extends Component {
  * @property {import("models").Attachment[]} attachments
  * @property {function} unlinkAttachment
  * @property {ReturnType<import('@mail/core/common/message_search_hook').useMessageSearch>} [messageSearch]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class AttachmentList extends Component {
     static components = { Actions, Gif };
     static props = ["attachments", "unlinkAttachment", "messageSearch?"];
     static template = "mail.AttachmentList";
 
-    // make this available for class evaluation in the template
     attClassObjectToString = attClassObjectToString;
 
     setup() {
@@ -45,9 +44,7 @@ export class AttachmentList extends Component {
         this.isMobileOS = isMobileOS();
     }
 
-    /**
-     * @param {import("models").Attachment} attachment
-     */
+    /** @param {import("models").Attachment} attachment */
     getImageUrl(attachment) {
         if (attachment.uploading && attachment.tmpUrl) {
             return attachment.tmpUrl;
@@ -57,16 +54,12 @@ export class AttachmentList extends Component {
         });
     }
 
-    /**
-     * @param {import("models").Attachment} attachment
-     */
+    /** @param {import("models").Attachment} attachment */
     canDownload(attachment) {
         return !attachment.uploading && !this.env.inComposer;
     }
 
-    /**
-     * @param {import("models").Attachment} attachment
-     */
+    /** @param {import("models").Attachment} attachment */
     onClickDownload(attachment) {
         download({
             data: {},
@@ -74,9 +67,7 @@ export class AttachmentList extends Component {
         });
     }
 
-    /**
-     * @param {import("models").Attachment} attachment
-     */
+    /** @param {import("models").Attachment} attachment */
     onClickUnlink(attachment) {
         if (this.env.inComposer) {
             return this.props.unlinkAttachment(attachment);
@@ -88,13 +79,12 @@ export class AttachmentList extends Component {
         });
     }
 
+    /** @param {import("models").Attachment} attachment */
     onClickAttachment(attachment) {
         this.fileViewer.open(attachment, this.props.attachments);
     }
 
-    /**
-     * @param {import("models").Attachment} attachment
-     */
+    /** @param {import("models").Attachment} attachment */
     onConfirmUnlink(attachment) {
         this.props.unlinkAttachment(attachment);
     }
@@ -111,6 +101,10 @@ export class AttachmentList extends Component {
         return this.env.inChatWindow && !this.env.alignedRight;
     }
 
+    /**
+     * @param {import("models").Attachment} attachment
+     * @returns {Array<{label: string, icon: string, onSelect: () => void}>}
+     */
     getActions(attachment) {
         const res = [];
         if (this.showDelete(attachment)) {
@@ -130,18 +124,14 @@ export class AttachmentList extends Component {
         return res;
     }
 
-    /**
-     * @param {import("models").Attachment} attachment
-     */
+    /** @param {import("models").Attachment} attachment */
     showDelete(attachment) {
-        // in the composer they should all be implicitly deletable
         if (this.env.inComposer) {
             return true;
         }
         if (!attachment.isDeletable) {
             return false;
         }
-        // in messages users are expected to delete the message instead of just the attachment
         return (
             !this.env.message ||
             this.env.message.hasTextContent ||
@@ -149,9 +139,7 @@ export class AttachmentList extends Component {
         );
     }
 
-    /**
-     * @param {import("models").Attachment} attachment
-     */
+    /** @param {import("models").Attachment} attachment */
     showUploaded(attachment) {
         return !attachment.isImage && !attachment.uploading && this.env.inComposer;
     }

@@ -30,9 +30,6 @@ export class Failure extends Record {
     lastMessage = fields.One("mail.message", {
         /** @this {import("models").Failure} */
         compute() {
-            // don't seed with notifications[0]'s message: when that message
-            // is not loaded, `undefined < x` is false and the seed would
-            // stick even though later notifications carry messages
             let lastMsg;
             for (const notification of this.notifications) {
                 const msg = notification.mail_message_id;

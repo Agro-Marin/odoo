@@ -29,10 +29,10 @@ export class Composer extends Record {
     }
 
     /**
-     * @param {string} text - text to insert
-     * @param {number} position - insertion position
+     * @param {string} text
+     * @param {number} position
      * @param {Object} [options]
-     * @param {boolean} [options.moveCursorToEnd=false] - If true, place cursor at end of composerText
+     * @param {boolean} [options.moveCursorToEnd=false]
      */
     insertText(text, position, { moveCursorToEnd = false } = {}) {
         const before = this.composerText.substring(0, position);
@@ -56,6 +56,7 @@ export class Composer extends Record {
     cannedResponses = fields.Many("mail.canned.response");
     isDirty = false;
     composerText = fields.Attr("", {
+        /** @this {import("models").Composer} */
         onUpdate() {
             if (this.updateFrom === "html") {
                 this.updateFrom = undefined;
@@ -78,6 +79,7 @@ export class Composer extends Record {
         },
     });
     composerHtml = fields.Html(markup("<div class='o-paragraph'><br></div>"), {
+        /** @this {import("models").Composer} */
         compute() {
             if (this.syncHtmlWithMessage) {
                 return (
@@ -87,6 +89,7 @@ export class Composer extends Record {
             }
             return this.composerHtml;
         },
+        /** @this {import("models").Composer} */
         onUpdate() {
             if (this.updateFrom === "text") {
                 this.updateFrom = undefined;
@@ -102,7 +105,7 @@ export class Composer extends Record {
         },
     });
     thread = fields.One("Thread");
-    /** @type {{ start: number, end: number, direction: "forward" | "backward" | "none"}}*/
+    /** @type {{ start: number, end: number, direction: "forward" | "backward" | "none"}} */
     selection = {
         start: 0,
         end: 0,
@@ -123,7 +126,6 @@ export class Composer extends Record {
         },
     });
     autofocus = 0;
-    /** When set, this means the composer content was restored from local storage, and content was saved from full composer */
     restoredFromFullComposer = false;
     replyToMessage = fields.One("mail.message", {
         inverse: "composerAsReplyToMessage",

@@ -5,6 +5,10 @@ import {
 } from "@mail/core/common/out_of_focus_service";
 import { patch } from "@web/core/utils/patch";
 patch(OutOfFocusService.prototype, {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {Object} services
+     */
     setup(env, services) {
         super.setup(env, services);
         this.titleService = services.title;
@@ -17,6 +21,7 @@ patch(OutOfFocusService.prototype, {
         this.contributingMessageLocalIds.clear();
         this.titleService.setCounters({ discuss: undefined });
     },
+    /** @param {import("models").Message} message */
     notify(message) {
         if (this.contributingMessageLocalIds.has(message.localId)) {
             return;

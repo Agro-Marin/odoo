@@ -30,10 +30,6 @@ export class MessageReactionMenu extends Component {
         onExternalClick("root", () => this.props.close());
         useEffect(
             () => {
-                // length check first: with no reaction left, state.reaction
-                // can be undefined (last reaction removed between the action
-                // click and the dialog mount) and reading .content would
-                // throw before the dialog closes itself
                 if (this.props.message.reactions.length === 0) {
                     this.props.close();
                     return;
@@ -45,10 +41,6 @@ export class MessageReactionMenu extends Component {
                     this.state.reaction = this.props.message.reactions[0];
                 }
             },
-            // signature over contents, not just length: a simultaneous
-            // remove-of-A + add-of-C in one bus update keeps the length but
-            // drops A's record (keyed by AND(message, content)), leaving
-            // state.reaction pointing at a detached reaction
             () => [this.props.message.reactions.map((r) => r.content).join()],
         );
         onMounted(() => {
@@ -58,6 +50,7 @@ export class MessageReactionMenu extends Component {
         });
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         switch (ev.key) {
             case "Escape":
@@ -71,6 +64,10 @@ export class MessageReactionMenu extends Component {
         }
     }
 
+    /**
+     * @param {import("models").MessageReactions} reaction
+     * @returns {string}
+     */
     getEmojiShortcode(reaction) {
         return (
             this.store.emojiLoader.loaded?.emojiValueToShortcodes?.[

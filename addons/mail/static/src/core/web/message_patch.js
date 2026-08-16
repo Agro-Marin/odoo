@@ -24,8 +24,6 @@ patch(Message.prototype, {
     setup() {
         super.setup(...arguments);
         this.action = useService("action");
-        // Registered by the discuss web layer, which is always bundled with
-        // core/web (backend assets).
         this.avatarCard = usePopover(discussComponentRegistry.get("AvatarCardPopover"));
     },
     get authorAvatarAttClass() {
@@ -52,6 +50,7 @@ patch(Message.prototype, {
     hasAuthorClickable() {
         return this.message.author_id?.main_user_id;
     },
+    /** @param {MouseEvent} ev */
     onClickAuthor(ev) {
         if (this.hasAuthorClickable()) {
             markEventHandled(ev, "Message.ClickAuthor");
@@ -64,19 +63,20 @@ patch(Message.prototype, {
         }
     },
 
-    /** @deprecated */
     async onClickMessageForward() {
         await this.messageActions.actions.find((a) => a.name === "forward")?.onClick();
     },
 
-    /** @deprecated */
     async onClickMessageReplyAll() {
         await this.messageActions.actions
             .find((a) => a.name === "reply-all")
             ?.onClick();
     },
 
-    /** @deprecated */
+    /**
+     * @param {string} name
+     * @param {Object} context
+     */
     openFullComposer(name, context) {
         messageActionOpenFullComposer(name, context, this);
     },
@@ -87,19 +87,14 @@ patch(Message.prototype, {
     },
 
     /**
+     * @param {{fieldType: string, floatPrecision?: number, currencyId?: number}} trackingFieldInfo
+     * @param {*} trackingValue
      * @returns {string}
      */
     formatTracking(trackingFieldInfo, trackingValue) {
         switch (trackingFieldInfo.fieldType) {
             case "boolean":
                 return trackingValue ? _t("Yes") : _t("No");
-            /**
-             * many2one formatter exists but is expecting id/display_name or data
-             * object but only the target record name is known in this context.
-             *
-             * Selection formatter exists but requires knowing all
-             * possibilities and they are not given in this context.
-             */
             case "char":
             case "many2one":
             case "selection":
@@ -134,6 +129,8 @@ patch(Message.prototype, {
     },
 
     /**
+     * @param {{fieldType: string, floatPrecision?: number, currencyId?: number}} trackingFieldInfo
+     * @param {*} trackingValue
      * @returns {string}
      */
     formatTrackingOrNone(trackingFieldInfo, trackingValue) {

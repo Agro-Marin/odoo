@@ -8,7 +8,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog";
 import { usePopover } from "@web/ui/popover";
-export const SCHEDULED_MESSAGE_TRUNCATE_THRESHOLD = 50; // arbitrary, ~ 1 line on large screen
+export const SCHEDULED_MESSAGE_TRUNCATE_THRESHOLD = 50;
 
 export class ScheduledMessage extends Component {
     static props = {
@@ -59,14 +59,17 @@ export class ScheduledMessage extends Component {
         this.props.onScheduledMessageChanged(thread);
     }
 
+    /** @param {MouseEvent} ev */
     onClick(ev) {
         this.linkNavigation.handleClickOnLink(ev, this.props.scheduledMessage.thread);
     }
 
+    /** @param {import("models").Attachment} attachment */
     async onClickAttachmentUnlink(attachment) {
         attachment.remove();
     }
 
+    /** @param {MouseEvent} ev */
     onClickAuthor(ev) {
         if (!this.avatarCard.isOpen) {
             this.avatarCard.open(ev.currentTarget, {

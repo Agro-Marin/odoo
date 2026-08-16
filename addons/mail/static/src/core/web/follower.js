@@ -8,7 +8,7 @@ import { useService } from "@web/core/utils/hooks";
  * @property {import("models").Follower} follower
  * @property {Function} [onFollowerChanged]
  * @property {Function} [close]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Follower extends Component {
     static template = "mail.Follower";

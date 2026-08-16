@@ -12,28 +12,13 @@ import { useDebounced } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
 
 /**
- * Draft persistence for composers.
- *
- * Drafts are stored in the browser's localStorage, keyed by the composer
- * record's `localId`. The key (and the stored payload shape) are kept
- * identical to what the Composer component historically used, so drafts
- * saved before this module existed keep being restored.
- */
-
-/**
  * @typedef {Object} ComposerDraft
  * @property {string|ReturnType<markup>|["markup", string]} composerHtml
  * @property {boolean} emailAddSignature
  * @property {number} [replyToMessageId]
- * @property {boolean} [fromFullComposer=false] whether the draft content was
- *   saved from the full composer dialog (formatting can only be recovered
- *   there)
+ * @property {boolean} [fromFullComposer=false]
  */
-
 /**
- * Persists a draft for `composer`, or removes the stored draft when
- * `composerHtml` is empty.
- *
  * @param {import("models").Composer} composer
  * @param {ComposerDraft} draft
  */
@@ -58,12 +43,7 @@ export function saveComposerDraft(
     }
 }
 
-/**
- * Restores the draft stored for `composer` (if any) onto the record. A
- * corrupted stored draft is dropped.
- *
- * @param {import("models").Composer} composer
- */
+/** @param {import("models").Composer} composer */
 export function restoreComposerDraft(composer) {
     let config;
     try {
@@ -88,11 +68,7 @@ export function restoreComposerDraft(composer) {
     }
 }
 
-/**
- * Removes the draft stored for `composer` (if any).
- *
- * @param {import("models").Composer} composer
- */
+/** @param {import("models").Composer} composer */
 export function clearComposerDraft(composer) {
     browser.localStorage.removeItem(composer.localId);
 }
@@ -112,17 +88,6 @@ export class FullComposerRecoveryPopover extends Component {
     }
 }
 
-/**
- * Wires draft persistence on a Composer component:
- *
- * - debounced save on content change and save on `beforeunload`;
- * - restore of the stored draft on mount (when the composer is empty);
- * - the "recover from full composer?" popover shown when the restored draft
- *   was saved from the full composer dialog.
- *
- * Saving/restoring goes through the component's `saveContent()` /
- * `restoreContent()` so downstream patches of those methods keep applying.
- */
 export function useComposerDraft() {
     const comp = useComponent();
     const saveContentDebounced = useDebounced(() => comp.saveContent(), 5000, {
@@ -147,6 +112,11 @@ export function useComposerDraft() {
         popoverClass: "dropdown-menu bg-view overflow-visible o-rounded-bubble mx-1",
     });
     useEffect(
+        /**
+         * @param {boolean} isFullComposerOpen
+         * @param {boolean} restoredFromFullComposer
+         * @param {HTMLElement|null} fullComposerButtonEl
+         */
         (isFullComposerOpen, restoredFromFullComposer, fullComposerButtonEl) => {
             if (
                 isFullComposerOpen ||

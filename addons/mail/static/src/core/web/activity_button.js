@@ -78,13 +78,13 @@ export class ActivityButton extends Component {
             const resId = this.props.record.resId;
             const selectedRecords = this.env?.model?.root?.selection ?? [];
             const selectedIds = selectedRecords.map((r) => r.resId);
-            // If the current record is not selected, ignore the selection
             const resIds =
                 selectedIds.includes(resId) && selectedIds.length > 1
                     ? selectedIds
                     : undefined;
             this.popover.open(this.buttonRef.el, {
                 activityIds: this.props.record.data.activity_ids.currentIds,
+                /** @param {import("models").Thread} thread */
                 onActivityChanged: (thread) => {
                     const recordToLoad = resIds ? selectedRecords : [this.props.record];
                     recordToLoad.forEach((r) => r.load());
@@ -98,6 +98,5 @@ export class ActivityButton extends Component {
         }
     }
 
-    /** Add custom behavior on activity changed */
     onActivityChanged() {}
 }

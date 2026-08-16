@@ -11,7 +11,7 @@
     }
 
     .o-mail-Composer-sidebarMain {
-        padding-top: 0.3125rem; // avatar centered with composer text input: 32px (avatar) + 2*5px (this value) = 20px + 2 * { 10px (padding) + 1px (border) }
+        padding-top: 0.3125rem;
         width: $o-mail-Message-sidebarWidth;
     }
 
@@ -101,17 +101,20 @@
 }
 
 .o-mail-Composer-bg {
-    background-color: var(--mail-Composer-bg, o-token(--o-bg-view, $o-view-background-color));
+    background-color: var(
+        --mail-Composer-bg,
+        o-token(--o-bg-view, $o-view-background-color)
+    );
 }
 
 .o-mail-Composer-inputStyle,
 .o-mail-Composer-html {
-    padding-top: 10px; // carefully crafted to have the text in the middle in chat window
+    padding-top: 10px;
     padding-bottom: 10px;
     padding-left: map-get($spacers, 1);
     padding-right: map-get($spacers, 1);
 
-    line-height: 1.42857143 !important; // so that input is rounded to 20px = 14px (base font) * 1.42857143 (line-height)
+    line-height: 1.42857143 !important;
 
     .o-mail-Composer.o-editing & {
         padding-left: map-get($spacers, 2);
@@ -218,8 +221,6 @@
     max-width: 70%;
 }
 
-
-// The dark half, folded in from `composer.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-mail-Composer {

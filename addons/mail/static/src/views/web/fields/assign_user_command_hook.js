@@ -6,9 +6,6 @@ import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { getFieldDomain } from "@web/model/relational_model";
 import { useCommand } from "@web/ui/commands";
-/**
- * Use this hook to add "Assign to.." and "Assign/Unassign me" to the command palette.
- */
 
 export function useAssignUserCommand() {
     const component = useComponent();
@@ -27,6 +24,7 @@ export function useAssignUserCommand() {
         return [];
     };
 
+    /** @param {[number, string]} record */
     const add = async (record) => {
         if (type === "many2one") {
             component.props.record.update({
@@ -42,6 +40,7 @@ export function useAssignUserCommand() {
         }
     };
 
+    /** @param {[number, string]} record */
     const remove = async (record) => {
         if (type === "many2one") {
             component.props.record.update({ [component.props.name]: false });
@@ -50,6 +49,11 @@ export function useAssignUserCommand() {
         }
     };
 
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{searchValue: string}} options
+     * @returns {Promise<Object[]>}
+     */
     const provide = async (env, options) => {
         const value = options.searchValue.trim();
         let domain = getFieldDomain(
@@ -88,7 +92,6 @@ export function useAssignUserCommand() {
         identifier: component.props.string,
     };
     if (component.props.record.id !== component.props.record.model.root.id) {
-        // Only List View
         options.isAvailable = () =>
             component.props.record.model.multiEdit && component.props.record.selected;
     } else {
@@ -128,7 +131,6 @@ export function useAssignUserCommand() {
         },
     );
     if (component.props.record.id === component.props.record.model.root.id) {
-        // Only Form View
         useCommand(
             _t("Unassign from me"),
             () => {

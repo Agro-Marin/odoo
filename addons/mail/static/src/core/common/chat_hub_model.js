@@ -7,23 +7,20 @@ export const CHAT_HUB_KEY = "mail.ChatHub";
 export const CHAT_HUB_COMPACT_LS = "mail.user_setting.chathub_compact";
 
 export class ChatHub extends Record {
-    BUBBLE = 56; // same value as $o-mail-ChatHub-bubblesWidth
-    BUBBLE_START = 15; // same value as $o-mail-ChatHub-bubblesStart
+    BUBBLE = 56;
+    BUBBLE_START = 15;
     BUBBLE_LIMIT = 7;
-    BUBBLE_OUTER = 10; // same value as $o-mail-ChatHub-bubblesMargin
-    WINDOW_GAP = 10; // for a single end, multiply by 2 for left and right together.
+    BUBBLE_OUTER = 10;
+    WINDOW_GAP = 10;
     WINDOW_INBETWEEN = 5;
-    WINDOW = 380; // same value as $o-mail-ChatWindow-width
+    WINDOW = 380;
 
     /** @returns {import("models").ChatHub} */
     static new() {
         /** @type {import("models").ChatHub} */
         const chatHub = super.new(...arguments);
-        chatHub._onStorage = (ev) => {
+        chatHub._onStorage = /** @param {StorageEvent} ev */ (ev) => {
             if (ev.key === CHAT_HUB_KEY) {
-                // catch like the boot-time load below: another tab mutating
-                // the hub while this one is offline must not surface an
-                // unhandled rejection (load() can fetch threads)
                 chatHub.load(ev.newValue || undefined).catch(() => {});
             } else if (ev.key === null) {
                 chatHub.load().catch(() => {});
@@ -35,23 +32,18 @@ export class ChatHub extends Record {
         browser.addEventListener("storage", chatHub._onStorage);
         chatHub
             .load(browser.localStorage.getItem(CHAT_HUB_KEY) ?? undefined)
-            .catch(() => {
-                // failing to restore saved chat windows (e.g. transient
-                // network error at boot) must not block the chat hub: every
-                // open/close/fold operation awaits initPromise.
-            })
+            .catch(() => {})
             .finally(() => chatHub.initPromise.resolve());
         return chatHub;
     }
 
     delete() {
-        // the storage listener holds this record in its closure: without
-        // removal it leaks across store re-creations (tests, livechat embed)
         browser.removeEventListener("storage", this._onStorage);
         super.delete(...arguments);
     }
     _recomputeCompact = 0;
     compact = fields.Attr(false, {
+        /** @this {import("models").ChatHub} */
         compute() {
             void this._recomputeCompact;
             return browser.localStorage.getItem(CHAT_HUB_COMPACT_LS) === "true";
@@ -59,7 +51,6 @@ export class ChatHub extends Record {
     });
     canShowOpened = fields.Many("ChatWindow");
     canShowFolded = fields.Many("ChatWindow");
-    /** From left to right. Right-most will actually be folded */
     opened = fields.Many("ChatWindow", {
         inverse: "hubAsOpened",
         /** @this {import("models").ChatHub} */
@@ -67,7 +58,6 @@ export class ChatHub extends Record {
             this.onRecompute();
         },
     });
-    /** From top to bottom. Bottom-most will actually be hidden */
     folded = fields.Many("ChatWindow", { inverse: "hubAsFolded" });
     initPromise = new Deferred();
     preFirstFetchPromise = new Deferred();
@@ -80,7 +70,7 @@ export class ChatHub extends Record {
             promises.push(cw.close({ notifyState: false }));
         }
         await Promise.all(promises);
-        this.save(); // sync only once at the end
+        this.save();
     }
 
     hideAll() {
@@ -98,19 +88,15 @@ export class ChatHub extends Record {
         }
     }
 
+    /** @param {string} [str="{}"] */
     async load(str = "{}") {
         await this.loadMutex.exec(() => this._load(str));
     }
 
+    /** @param {string} str */
     async _load(str) {
         /** @type {{ opened: Object[], folded: Object[] }} */
         let parsed;
-        // Defensive: callers pass either the localStorage value (which can
-        // be the literal string "undefined" from a polluted setItem) or
-        // the default "{}". A bare ``JSON.parse(str)`` crashes the entire
-        // chat-hub init on garbage, which then aborts the store insert
-        // and breaks unrelated calendar / form tests that just happen to
-        // mount the webclient after a polluted run.
         try {
             parsed = str && str !== "undefined" ? JSON.parse(str) : {};
         } catch {
@@ -125,6 +111,7 @@ export class ChatHub extends Record {
             folded.length = 0;
             browser.localStorage.removeItem(CHAT_HUB_KEY);
         }
+        /** @param {{id: number, model: string}} data */
         const getThread = (data) =>
             this.store.Thread.getOrFetch(data, ["display_name"]);
         const openPromises = opened.map(getThread);
@@ -139,13 +126,11 @@ export class ChatHub extends Record {
                 .map((thread) => this.store.ChatWindow.insert({ thread }));
         const toFold = insertChatWindows(foldThreads);
         const toOpen = insertChatWindows(openThreads);
-        // close first to make room for others
         for (const chatWindow of [...this.opened, ...this.folded]) {
             if (chatWindow.notIn(toOpen) && chatWindow.notIn(toFold)) {
                 chatWindow.close({ force: true, notifyState: false });
             }
         }
-        // folded before opened because if there are too many opened they will be added to folded
         this.folded = toFold;
         this.opened = toOpen;
     }
@@ -188,6 +173,7 @@ export class ChatHub extends Record {
     }
 
     showConversations = fields.Attr(false, {
+        /** @this {import("models").ChatHub} */
         compute() {
             return this.canShowOpened.length + this.canShowFolded.length > 0;
         },

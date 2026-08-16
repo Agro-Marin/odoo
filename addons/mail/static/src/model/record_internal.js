@@ -10,7 +10,6 @@ import { RecordUses } from "./record_uses.js";
 
 export class RecordInternal {
     [IS_RECORD_SYM] = true;
-    // Note: state of fields in Maps rather than object is intentional for improved performance.
     /** @type {Map<string, () => void>} */
     fieldsOnUpdateObserves = new Map();
     /** @type {Map<string, this>} */
@@ -18,7 +17,9 @@ export class RecordInternal {
     /** @type {Map<string, this>} */
     fieldsComputeProxy2 = new Map();
     uses = new RecordUses();
+    /** @type {Map<string, true>} */
     updatingAttrs = new Map();
+    /** @type {Map<string, true>} */
     proxyUsed = new Map();
     /** @type {string} */
     localId;
@@ -33,11 +34,6 @@ export class RecordInternal {
         const self = this;
         const Model = toRaw(record).Model;
         if (isRelation(Model, fieldName)) {
-            // Relational fields contain symbols for detection in original class.
-            // This constructor is called on genuine records:
-            // - 'one' fields => undefined
-            // - 'many' fields => RecordList
-            // record[name]?.[0] is ONE_SYM or MANY_SYM
             const recordList = new RecordList();
             Object.assign(recordList._, {
                 name: fieldName,
@@ -51,12 +47,8 @@ export class RecordInternal {
         } else {
             const def = Model._.fieldsDefault.get(fieldName);
             if (typeof def === "object" && def !== null) {
-                // mutable default (e.g. fields.Attr([])): each record must get
-                // its own instance, so read it from the per-instance definition
-                // object allocated by the class-field initializer
                 record[fieldName] = record[fieldName].default;
             } else {
-                // primitive default: read from the Model-level cache
                 record[fieldName] = def;
             }
         }
@@ -75,7 +67,7 @@ export class RecordInternal {
         }
         if (Model._.fieldsOnUpdate.get(fieldName)) {
             const store = Model.store;
-            store._onChange(recordProxy, fieldName, (obs) => {
+            store._onChange(recordProxy, fieldName, (/** @type {() => void} */ obs) => {
                 this.fieldsOnUpdateObserves.set(fieldName, obs);
                 if (store._.UPDATE !== 0) {
                     store._.ADD_QUEUE("onUpdate", record, fieldName);
@@ -86,6 +78,12 @@ export class RecordInternal {
         }
     }
 
+    /**
+     * @param {Record} record
+     * @param {string} fieldName
+     * @param {Object} [options]
+     * @param {boolean} [options.force=false]
+     */
     requestCompute(record, fieldName, { force = false } = {}) {
         if (record[IS_DELETED_SYM]) {
             return;
@@ -101,6 +99,12 @@ export class RecordInternal {
             this.compute(record, fieldName);
         }
     }
+    /**
+     * @param {Record} record
+     * @param {string} fieldName
+     * @param {Object} [options]
+     * @param {boolean} [options.force]
+     */
     requestSort(record, fieldName, { force } = {}) {
         if (record[IS_DELETED_SYM]) {
             return;
@@ -130,9 +134,6 @@ export class RecordInternal {
                 .call(this.fieldsComputeProxy2.get(fieldName));
         } catch (err) {
             store.handleError(err);
-            // keep the previous value (like sort()): writing the undefined
-            // computedValue would clear attrs and relations, firing onDelete
-            // hooks and cascading one bad compute into deletions
             return;
         }
         store._.updateFields(record, {
@@ -158,7 +159,6 @@ export class RecordInternal {
                 store.handleError(err);
             }
         } else {
-            // sort on copy of list so that reactive observers not triggered while sorting
             const copy = [...proxy2Sort[fieldName]];
             copy.sort(func);
             const hasChanged = copy.some(
@@ -169,10 +169,12 @@ export class RecordInternal {
             }
         }
     }
+    /**
+     * @param {Record} record
+     * @param {string} fieldName
+     */
     onUpdate(record, fieldName) {
         if (record[IS_DELETED_SYM]) {
-            // Consistent with requestCompute/requestSort: a late dependency
-            // change must not fire onUpdate on an already deleted record.
             return;
         }
         const store = record._rawStore;
@@ -180,10 +182,6 @@ export class RecordInternal {
         if (!Model._.fieldsOnUpdate.get(fieldName)) {
             return;
         }
-        /**
-         * Forward internal proxy for performance as onUpdate does not
-         * need reactive (observe is called separately).
-         */
         try {
             Model._.fieldsOnUpdate.get(fieldName).call(record._proxyInternal);
         } catch (err) {
@@ -192,9 +190,9 @@ export class RecordInternal {
         this.fieldsOnUpdateObserves.get(fieldName)?.();
     }
     /**
-     * The internal reactive is only necessary to trigger outer reactives when
-     * writing on it. As it has no callback, reading through it has no effect,
-     * except slowing down performance and complexifying the stack.
+     * @param {Record} record
+     * @param {Record} fullProxy
+     * @returns {Record}
      */
     downgradeProxy(record, fullProxy) {
         return record._proxy === fullProxy ? record._proxyInternal : fullProxy;

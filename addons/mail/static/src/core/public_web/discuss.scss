@@ -1,13 +1,16 @@
 .o_web_client.o_mail_discuss {
-    --ControlPanel-border-bottom: #{$border-width} solid #{o-token-alpha(--border-color, $border-color, 0)};
+    --ControlPanel-border-bottom: #{$border-width} solid
+        #{o-token-alpha(--border-color, $border-color, 0)};
 }
 
-
-// The dark half, folded in from `discuss.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o_web_client.o_mail_discuss {
-            --mail-Discuss-surface-dark: #{mix($o-dark-white, $o-dark-webclient-background-color, 15%)};
+            --mail-Discuss-surface-dark: #{mix(
+                    $o-dark-white,
+                    $o-dark-webclient-background-color,
+                    15%
+                )};
             --NavBar-entry-backgroundColor: var(--mail-Discuss-surface-dark);
 
             .o_main_navbar,

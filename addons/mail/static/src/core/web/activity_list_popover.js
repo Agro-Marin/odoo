@@ -11,7 +11,7 @@ import { useService } from "@web/core/utils/hooks";
  * @property {function} onActivityChanged
  * @property {number} resId
  * @property {string} resModel
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ActivityListPopover extends Component {
     static components = { ActivityListPopoverItem };
@@ -21,7 +21,6 @@ export class ActivityListPopover extends Component {
         "defaultActivityTypeId?",
         "onActivityChanged",
         "resId",
-        /** Ids of record selection used to schedule activities in batch; it must include resId. */
         "resIds?",
         "resModel",
     ];
@@ -31,16 +30,14 @@ export class ActivityListPopover extends Component {
         super.setup();
         this.orm = useService("orm");
         this.store = useService("mail.store");
-        // catch: updateFromProps calls activity_format (orm.silent suppresses
-        // the error dialog but the promise still rejects) — an unhandled
-        // rejection if the record vanished
         this.updateFromProps(this.props).catch(() => {});
-        onWillUpdateProps((props) => this.updateFromProps(props).catch(() => {}));
+        onWillUpdateProps(
+            /** @param {{activityIds: number[]}} props */ (props) =>
+                this.updateFromProps(props).catch(() => {}),
+        );
     }
 
     get activities() {
-        // Set membership instead of Array.includes: this getter runs once per
-        // render plus once per state bucket (done/overdue/planned/today)
         const activityIds = new Set(this.props.activityIds);
         /** @type {import("models").Activity[]} */
         const allActivities = Object.values(this.store["mail.activity"].records);
@@ -79,6 +76,7 @@ export class ActivityListPopover extends Component {
         return this.activities.filter((activity) => activity.state === "today");
     }
 
+    /** @param {{activityIds: number[]}} props */
     async updateFromProps(props) {
         const data = await this.orm.silent.call("mail.activity", "activity_format", [
             props.activityIds,

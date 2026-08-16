@@ -38,42 +38,25 @@ export class ActivityRenderer extends Component {
                 active: null,
             },
             activityTypeId: null,
-            /**
-             * Res ids matching the ACTIVE column filter — the template only
-             * ever reads it as "is this row highlighted / is this cell hidden",
-             * so with no filter the answer is "none".
-             *
-             * This used to be `new Set(Object.keys(groupedActivities))`, i.e.
-             * every row. It read as "no filter means everything matches", but
-             * behaved as an empty set purely by accident: `Object.keys` yields
-             * STRINGS while `props.activityResIds` (and so the template's
-             * `resIds.has(resId)`) are numbers, so it never matched. Making
-             * the two consistent — the obvious cleanup — would have stamped
-             * `o_activity_filter_null` onto every row and cell. Keep the
-             * intent and the behaviour in agreement instead.
-             */
             resIds: new Set(),
         });
-        onWillUpdateProps((nextProps) => {
-            // the renderer instance persists across reloads (mark-as-done from a
-            // cell popover re-renders with new groupedActivities), so an active
-            // column filter's resIds must be recomputed against the fresh data —
-            // but ONLY when a filter is active: resIds is unused otherwise, and
-            // rewriting it every update would trigger a spurious re-render.
-            if (this.activeFilter.activityTypeId !== null) {
-                const typeId = this.activeFilter.activityTypeId;
-                const name = this.activeFilter.progressValue.active;
-                this.activeFilter.resIds = new Set(
-                    Object.entries(nextProps.groupedActivities)
-                        .filter(
-                            ([, resIds]) =>
-                                typeId in resIds &&
-                                name in resIds[typeId].count_by_state,
-                        )
-                        .map(([key]) => parseInt(key)),
-                );
-            }
-        });
+        onWillUpdateProps(
+            /** @param {{groupedActivities: Object}} nextProps */ (nextProps) => {
+                if (this.activeFilter.activityTypeId !== null) {
+                    const typeId = this.activeFilter.activityTypeId;
+                    const name = this.activeFilter.progressValue.active;
+                    this.activeFilter.resIds = new Set(
+                        Object.entries(nextProps.groupedActivities)
+                            .filter(
+                                ([, resIds]) =>
+                                    typeId in resIds &&
+                                    name in resIds[typeId].count_by_state,
+                            )
+                            .map(([key]) => parseInt(key)),
+                    );
+                }
+            },
+        );
 
         this.storageKey = [
             "activity_columns",
@@ -83,12 +66,16 @@ export class ActivityRenderer extends Component {
         this.setupStorageActiveColumns();
     }
 
+    /**
+     * @param {{id: number, name: string}} activityType
+     * @returns {Object}
+     */
     getGroupInfo(activityType) {
         const types = {
             done: {
                 color: "secondary",
                 inProgressBar: false,
-                label: _t("done"), // activity_mixin.activity_state has no done state, so we add it manually here
+                label: _t("done"),
                 value: 0,
             },
             planned: {
@@ -166,6 +153,7 @@ export class ActivityRenderer extends Component {
             aggregateOn: aggregateOn,
             data: {
                 count: totalCountWithoutDone,
+                /** @param {string} name */
                 filterProgressValue: (name) => this.onSetProgressBarState(typeId, name),
                 progressBar,
                 progressValue,
@@ -173,16 +161,23 @@ export class ActivityRenderer extends Component {
         };
     }
 
+    /**
+     * @param {number} resId
+     * @returns {import("@web/model/relational_model/record").RelationalRecord|undefined}
+     */
     getRecord(resId) {
         return this.props.records.find((r) => r.resId === resId);
     }
 
+    /**
+     * @param {number} typeId
+     * @param {{value: string}|string} bar
+     */
     onSetProgressBarState(typeId, bar) {
         const name = bar.value;
         if (this.activeFilter.progressValue.active === name) {
             this.activeFilter.progressValue.active = null;
             this.activeFilter.activityTypeId = null;
-            // no filter active: nothing is highlighted (@see setup)
             this.activeFilter.resIds = new Set();
         } else {
             this.activeFilter.progressValue.active = name;
@@ -220,6 +215,7 @@ export class ActivityRenderer extends Component {
         }
     }
 
+    /** @param {number} typeId */
     toggleDisplayColumn(typeId) {
         this.storageActiveColumns[typeId] = !this.storageActiveColumns[typeId];
         browser.localStorage.setItem(

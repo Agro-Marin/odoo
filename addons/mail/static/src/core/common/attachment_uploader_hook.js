@@ -1,6 +1,11 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+/**
+ * @param {string} data
+ * @param {string} type
+ * @returns {Blob}
+ */
 export function dataUrlToBlob(data, type) {
     const binData = window.atob(data);
     const uiArr = new Uint8Array(binData.length);
@@ -9,11 +14,24 @@ export function dataUrlToBlob(data, type) {
 }
 
 export class AttachmentUploader {
+    /**
+     * @param {import("models").Thread} thread
+     * @param {Object} [options]
+     * @param {import("models").Composer} [options.composer]
+     */
     constructor(thread, { composer } = {}) {
         this.attachmentUploadService = useService("mail.attachment_upload");
         Object.assign(this, { thread, composer });
     }
 
+    /**
+     * @param {Object} file
+     * @param {string} file.data
+     * @param {string} file.name
+     * @param {string} file.type
+     * @param {Object} [options]
+     * @returns {Promise<import("models").Attachment|undefined>}
+     */
     uploadData({ data, name, type }, options) {
         const file = new File([dataUrlToBlob(data, type)], name, { type });
         return this.uploadFile(file, options);
@@ -36,6 +54,7 @@ export class AttachmentUploader {
         );
     }
 
+    /** @param {import("models").Attachment} attachment */
     async unlink(attachment) {
         await this.attachmentUploadService.unlink(attachment);
     }

@@ -7,12 +7,6 @@ import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets";
 const { DateTime } = luxon;
 
-/**
- * This widget displays a small dropdown allowing users to reschedule the
- * selected activity to certain dates in the near future.
- */
-
-// Version of the widget to use on mail.activity lists
 export class MailActivityListRescheduleDropdown extends Component {
     static components = { Dropdown, DropdownItem };
     static props = {
@@ -40,6 +34,10 @@ export class MailActivityListRescheduleDropdown extends Component {
         };
     }
 
+    /**
+     * @param {MouseEvent} click
+     * @param {string} actionName
+     */
     async rescheduleActivity(click, actionName) {
         await this.action.doActionButton({
             type: "object",
@@ -55,7 +53,6 @@ export class MailActivityListRescheduleDropdown extends Component {
     }
 }
 
-// Version of the widget to use on lists of records inheriting from mail.activity.mixin
 export class MailActivityMixinListRescheduleDropdown extends MailActivityListRescheduleDropdown {
     static template = "mail.MailActivityMixinListRescheduleDropdown";
     setup() {

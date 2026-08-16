@@ -39,7 +39,6 @@ export class Many2OneAvatarUserField extends Component {
     }
 
     get relation() {
-        // This getter is used by `useAssignUserCommand`
         return this.props.record.fields[this.props.name].relation;
     }
 
@@ -51,6 +50,11 @@ export class Many2OneAvatarUserField extends Component {
 export const many2OneAvatarUserField = {
     ...buildM2OFieldDescription(Many2OneAvatarUserField),
     additionalClasses: ["o_field_many2one_avatar"],
+    /**
+     * @param {{attrs: Object, options: Object, viewType?: string}} staticInfo
+     * @param {Object} dynamicInfo
+     * @returns {Object}
+     */
     extractProps(staticInfo, dynamicInfo) {
         return {
             ...extractM2OFieldProps(staticInfo, dynamicInfo),

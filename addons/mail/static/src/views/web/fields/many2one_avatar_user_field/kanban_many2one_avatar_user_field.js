@@ -40,6 +40,11 @@ export class KanbanMany2OneAvatarUserField extends Component {
 const fieldDescr = {
     ...buildM2OFieldDescription(KanbanMany2OneAvatarUserField),
     additionalClasses: ["o_field_many2one_avatar_kanban", "o_field_many2one_avatar"],
+    /**
+     * @param {{attrs: Object, options: Object, viewType?: string}} staticInfo
+     * @param {{readonly: boolean}} dynamicInfo
+     * @returns {Object}
+     */
     extractProps(staticInfo, dynamicInfo) {
         return {
             ...extractM2OFieldProps(staticInfo, dynamicInfo),

@@ -9,25 +9,28 @@ import { useService } from "@web/core/utils/hooks";
 export const threadActionsRegistry = registry.category("mail.thread/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */
-/** @typedef {import("@mail/core/common/action").ActionDefinition} ActionDefinition */
 /** @typedef {import("models").Thread} Thread */
-/** @typedef {import("@mail/core/common/action").ActionParams & { thread: Thread }} ActionParams */
+/**
+ * @typedef {Component & { threadActions?: UseThreadActions, isDiscussSidebarChannelActions?: boolean, isDiscussContent?: boolean, root?: {el?: HTMLElement|null}, state?: Object, thread?: Thread, close?: () => void, toggleFold?: () => void, }} ThreadActionOwner
+ */
+/**
+ * @typedef {import("@mail/core/common/action").ActionDefinition<ThreadActionOwner, ActionParams, ThreadAction>} ActionDefinition
+ */
+/** @typedef {import("@mail/core/common/action").ActionParams<ThreadActionOwner> & { action: ThreadAction, thread: Thread }} ActionParams */
 /**
  * @typedef {Object} ThreadActionSpecificDefinition
- * @property {Component} [actionPanelComponent]
- * @property {(params: ActionParams) => Object} [actionPanelComponentProps]
- * @property {(params: ActionParams & { nextActiveAction?: Object }) => void} [close]
- * @property {boolean|(params: ActionParams) => boolean} [condition=true]
- * @property {string|(params: ActionParams) => string} [nameClass]
- * @property {(params: ActionParams) => void} [open]
- * @property {(params: ActionParams) => string} [panelOuterClass]
+ * @property {import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>} [actionPanelComponent]
+ * @property {(this: ThreadAction, params: ActionParams) => Object} [actionPanelComponentProps]
+ * @property {(this: ThreadAction, params: ActionParams & { nextActiveAction?: Object }) => void} [close]
+ * @property {boolean|((this: ThreadAction, params: ActionParams) => boolean)} [condition=true]
+ * @property {string|((this: ThreadAction, params: ActionParams) => string)} [nameClass]
+ * @property {(this: ThreadAction, params: ActionParams) => void} [open]
+ * @property {string|((this: ThreadAction, params: ActionParams) => string)} [panelOuterClass]
  * @property {boolean} [toggle]
  */
-
 /**
  * @typedef {ActionDefinition & ThreadActionSpecificDefinition} ThreadActionDefinition
  */
-
 /**
  * @param {string} id
  * @param {ThreadActionDefinition} definition
@@ -37,16 +40,20 @@ export function registerThreadAction(id, definition) {
 }
 
 registerThreadAction("fold-chat-window", {
+    /** @param {ActionParams} params */
     condition: ({ owner }) =>
         owner.props.chatWindow && !owner.isDiscussSidebarChannelActions,
     icon: "oi oi-fw oi-minus",
+    /** @param {ActionParams} params */
     name: ({ owner }) => (!owner.props.chatWindow?.isOpen ? _t("Open") : _t("Fold")),
+    /** @param {ActionParams} params */
     open: ({ owner }) => owner.toggleFold(),
-    displayActive: ({ owner }) => !owner.props.chatWindow?.isOpen,
+    /** @param {ActionParams} params */
     sequence: 99,
     sequenceQuick: 20,
 });
 registerThreadAction("rename-thread", {
+    /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
         thread &&
         owner.props.chatWindow?.isOpen &&
@@ -54,21 +61,25 @@ registerThreadAction("rename-thread", {
         !owner.isDiscussSidebarChannelActions,
     icon: "fa-solid fa-pencil",
     name: _t("Rename Thread"),
+    /** @param {ActionParams} params */
     open: ({ owner }) => (owner.state.editingName = true),
     sequence: 30,
     sequenceGroup: 20,
 });
 registerThreadAction("close", {
+    /** @param {ActionParams} params */
     condition: ({ owner }) =>
         owner.props.chatWindow && !owner.isDiscussSidebarChannelActions,
     icon: "oi oi-close",
     name: _t("Close Chat Window (ESC)"),
+    /** @param {ActionParams} params */
     open: ({ owner }) => owner.close(),
     sequence: 100,
     sequenceQuick: 10,
 });
 registerThreadAction("search-messages", {
     actionPanelComponent: SearchMessagesPanel,
+    /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
         (thread?.isChannelKind || thread?.isMailbox) &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen) &&
@@ -76,10 +87,12 @@ registerThreadAction("search-messages", {
     hotkey: "f",
     panelOuterClass: "o-mail-SearchMessagesPanel bg-inherit",
     icon: "oi oi-fw oi-search",
+    /** @param {ActionParams} params */
     name: ({ action }) =>
         action.isActive ? _t("Close Search") : _t("Search Messages"),
     sequence: 20,
     sequenceGroup: 20,
+    /** @param {ActionParams} params */
     setup: ({ action }) =>
         useSubEnv({
             searchMenu: {
@@ -93,15 +106,22 @@ registerThreadAction("search-messages", {
         }),
     toggle: true,
 });
+/** @extends {Action<ThreadActionOwner, ThreadActionDefinition>} */
 export class ThreadAction extends Action {
-    /** Determines whether this is a popover linked to this action. */
+    /**
+     * @type {import("@web/ui/popover/popover_hook").PopoverHookReturnType|null}
+     */
     popover = null;
     /** @type {() => Thread} */
     threadFn;
 
     /**
      * @param {Object} param0
-     * @param {Thread|() => Thread} [param0.thread]
+     * @param {ThreadActionOwner} param0.owner
+     * @param {string} param0.id
+     * @param {ThreadActionDefinition} param0.definition
+     * @param {import("models").Store} [param0.store]
+     * @param {Thread|(() => Thread)} [param0.thread]
      */
     constructor({ thread }) {
         super(...arguments);
@@ -112,12 +132,10 @@ export class ThreadAction extends Action {
         return Object.assign(super.params, { thread: this.threadFn() });
     }
 
-    /** Optional component that is used as action panel of this component, i.e. when action is active. */
     get actionPanelComponent() {
         return this.definition.actionPanelComponent;
     }
 
-    /** Condition to display the action panel component of this action. */
     get actionPanelComponentCondition() {
         return (
             this.isActive &&
@@ -127,12 +145,14 @@ export class ThreadAction extends Action {
         );
     }
 
-    /** Props to pass to the action panel component of this action. */
     get actionPanelComponentProps() {
         return this.definition.actionPanelComponentProps?.call(this, this.params);
     }
 
-    /** Closes this action. */
+    /**
+     * @param {Object} [options]
+     * @param {ThreadAction} [options.nextActiveAction]
+     */
     close({ nextActiveAction } = {}) {
         if (this.toggle) {
             this.owner.threadActions.activeAction =
@@ -144,24 +164,19 @@ export class ThreadAction extends Action {
         );
     }
 
-    /** States whether this action is currently active. */
     get isActive() {
         return this.id === this.owner.threadActions.activeAction?.id;
     }
 
-    /** ClassName on name of this action */
     get nameClass() {
         return this._option("nameClass");
     }
 
     /**
-     * @override
      * @param {MouseEvent} [ev]
      * @param {object} [param0]
-     * @param {boolean} [param0.keepPrevious] Whether the previous action
-     * should be kept so that closing the current action goes back
-     * to the previous one.
-     * */
+     * @param {boolean} [param0.keepPrevious]
+     */
     onSelected(ev, { keepPrevious } = {}) {
         if (ev) {
             markEventHandled(ev, "ThreadAction.onSelected");
@@ -174,13 +189,9 @@ export class ThreadAction extends Action {
     }
 
     /**
-     * Opens this action.
-     *
      * @param {object} [param0]
-     * @param {boolean} [param0.keepPrevious] Whether the previous action
-     * should be kept so that closing the current action goes back
-     * to the previous one.
-     * */
+     * @param {boolean} [param0.keepPrevious]
+     */
     open({ keepPrevious } = {}) {
         if (this.toggle) {
             if (this.owner.threadActions.activeAction) {
@@ -203,21 +214,23 @@ export class ThreadAction extends Action {
         return this._option("panelOuterClass");
     }
 
-    /** Determines whether this action is a one time effect or can be toggled (on or off). */
     get toggle() {
         return this.definition.toggle;
     }
 }
 
+/** @extends {UseActions<ThreadAction>} */
 class UseThreadActions extends UseActions {
     ActionClass = ThreadAction;
+    /** @type {ThreadAction[]} */
     actionStack = [];
+    /** @type {ThreadAction|null} */
     activeAction = null;
 }
 
 /**
  * @param {Object} [params0={}]
- * @param {Thread|() => Thread} thread
+ * @param {Thread|(() => Thread)} [params0.thread]
  */
 export function useThreadActions({ thread } = {}) {
     const component = useComponent();

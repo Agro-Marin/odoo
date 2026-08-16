@@ -3,32 +3,52 @@ import { reactive } from "@odoo/owl";
 import { AssetsLoadingError, getBundle } from "@web/core/assets";
 import { memoize } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
+/**
+ * @template {Object} T
+ * @param {T} obj
+ * @param {Object<string, any>} data
+ * @param {string[]} [keys=Object.keys(data)]
+ * @returns {T}
+ */
 export function assignDefined(obj, data, keys = Object.keys(data)) {
+    const target = /** @type {Object<string, any>} */ (obj);
     for (const key of keys) {
         if (data[key] !== undefined) {
-            obj[key] = data[key];
+            target[key] = data[key];
         }
     }
     return obj;
 }
 
+/**
+ * @param {Object} obj
+ * @param {Object<string, () => any>} data
+ */
 export function assignGetter(obj, data) {
     const properties = Object.fromEntries(
         Object.entries(data).map(([getterName, getterFn]) => [
             getterName,
             {
                 get: getterFn,
-                set: () => {}, // avoids Proxy "trap returned falsish" error
+                set: () => {},
             },
         ]),
     );
     Object.defineProperties(obj, properties);
 }
 
+/**
+ * @template {Object} T
+ * @param {T} obj
+ * @param {Object<string, any>} data
+ * @param {string[]} [keys=Object.keys(data)]
+ * @returns {T}
+ */
 export function assignIn(obj, data, keys = Object.keys(data)) {
+    const target = /** @type {Object<string, any>} */ (obj);
     for (const key of keys) {
         if (key in data) {
-            obj[key] = data[key];
+            target[key] = data[key];
         }
     }
     return obj;
@@ -42,13 +62,19 @@ export function assignIn(obj, data, keys = Object.keys(data)) {
  * @returns {T|null}
  */
 export function nearestGreaterThanOrEqual(list, target, itemToCompareVal) {
+    /**
+     * @param {number} left
+     * @param {number} right
+     * @param {T|null} next
+     * @returns {T|null}
+     */
     const findNext = (left, right, next) => {
         if (left > right) {
             return next;
         }
         const index = Math.floor((left + right) / 2);
         const item = list[index];
-        const val = itemToCompareVal?.(item) ?? item;
+        const val = /** @type {number} */ (itemToCompareVal?.(item) ?? item);
         if (val === target) {
             return item;
         } else if (val > target) {
@@ -60,37 +86,33 @@ export function nearestGreaterThanOrEqual(list, target, itemToCompareVal) {
     return findNext(0, list.length - 1, null);
 }
 
+/** @type {{ isInTest: boolean }} */
 export const mailGlobal = {
     isInTest: false,
 };
 
-// todo: move this some other place in the future
+/**
+ * @param {DataTransfer} dataTransfer
+ * @returns {boolean}
+ */
 export function isDragSourceExternalFile(dataTransfer) {
     const dragDataType = dataTransfer.types;
     if (dragDataType.constructor === window.DOMStringList) {
-        return dragDataType.contains("Files");
+        return /** @type {DOMStringList} */ (
+            /** @type {unknown} */ (dragDataType)
+        ).contains("Files");
     }
     if (dragDataType.constructor === Array) {
-        return dragDataType.includes("Files");
+        return /** @type {string[]} */ (dragDataType).includes("Files");
     }
     return false;
 }
 
 /**
- * Observe one or several keys of a reactive object.
- *
- * Mirrors the contract of `Store.onChange` (@see model/store.js `_onChange`),
- * including its disposal semantics: OWL has no unsubscribe API, so the
- * registered callback stays in `targetToKeysToCallbacks` — holding a STRONG
- * reference to everything it closes over — until the observed key next
- * changes, and forever if it never does. Callers with a bounded lifetime
- * (components above all) MUST call the returned disposer, which both latches
- * the callback off and drops its captures.
- *
  * @param {Object} target
  * @param {string|string[]} key
  * @param {Function} callback
- * @returns {() => void} disposer; idempotent
+ * @returns {() => void}
  */
 export function onChange(target, key, callback) {
     if (Array.isArray(key)) {
@@ -101,10 +123,10 @@ export function onChange(target, key, callback) {
             }
         };
     }
+    /** @type {Object<string, any>} */
     let proxy;
     function _observe() {
-        // access proxy[key] only once to avoid triggering reactive get() many times
-        const val = proxy?.[key];
+        const val = proxy?.[/** @type {string} */ (key)];
         if (typeof val === "object" && val !== null) {
             void Object.keys(val);
         }
@@ -130,23 +152,18 @@ export function onChange(target, key, callback) {
     };
 }
 
-/**
- * @param {MediaStream} [stream]
- */
+/** @param {MediaStream} [stream] */
 export function closeStream(stream) {
     stream?.getTracks?.().forEach((track) => track.stop());
 }
 
 /**
- * Compare two Luxon datetime.
- *
  * @param {import("@web/core/l10n/dates").NullableDateTime} date1
  * @param {import("@web/core/l10n/dates").NullableDateTime} date2
- * @returns {number} Negative if date1 is less than date2, positive if date1 is
- *  greater than date2, and 0 if they are equal.
+ * @returns {number}
  */
 export function compareDatetime(date1, date2) {
-    if (date1?.ts === date2?.ts) {
+    if ((date1 || undefined)?.ts === (date2 || undefined)?.ts) {
         return 0;
     }
     if (!date1) {
@@ -159,11 +176,9 @@ export function compareDatetime(date1, date2) {
 }
 
 /**
- * Compares two version strings.
- *
- * @param {string} v1 - The first version string to compare.
- * @param {string} v2 - The second version string to compare.
- * @returns {number} -1 if v1 is less than v2, 1 if v1 is greater than v2, and 0 if they are equal.
+ * @param {string} v1
+ * @param {string} v2
+ * @returns {number}
  */
 function compareVersion(v1, v2) {
     const parts1 = v1.split(".");
@@ -183,12 +198,15 @@ function compareVersion(v1, v2) {
 }
 
 /**
- * Return a version object that can be compared to other version strings.
- *
- * @param {string} v The version string to evaluate.
+ * @param {string} v
+ * @returns {{isLowerThan: (other: string) => boolean}}
  */
 export function parseVersion(v) {
     return {
+        /**
+         * @param {string} other
+         * @returns {boolean}
+         */
         isLowerThan(other) {
             return compareVersion(v, other) < 0;
         },
@@ -196,15 +214,10 @@ export function parseVersion(v) {
 }
 
 /**
- * Converts a YouTube or Google Drive URL into its embed format, extracting the
- * video ID or content identifier from the input URL.
- *
  * @param {string} url
+ * @returns {{url: string|null, provider: "youtube"|"google-drive"|null}}
  */
 export function convertToEmbedURL(url) {
-    // anchor on the hostname: matching any url whose path merely contains
-    // /v/, /embed/, ?v=… renders an autoplaying YouTube embed for a
-    // non-YouTube link (content spoofing in link previews)
     let parsed;
     try {
         parsed = new URL(url);
@@ -242,26 +255,21 @@ export function convertToEmbedURL(url) {
     return { url: null, provider: null };
 }
 
-/**
- * Checks if the browser supports hardware acceleration for video processing.
- *
- * @returns {boolean} True if hardware acceleration is supported, false otherwise.
- */
+/** @returns {boolean} */
 export const hasHardwareAcceleration = memoize(() => {
     const canvas = document.createElement("canvas");
-    const gl =
+    const gl = /** @type {WebGLRenderingContext|null} */ (
         canvas.getContext("webgl2") ||
-        canvas.getContext("webgl") ||
-        canvas.getContext("experimental-webgl");
+            canvas.getContext("webgl") ||
+            canvas.getContext("experimental-webgl")
+    );
     if (!gl) {
-        // WebGL support is typically required for hardware acceleration.
         return false;
     }
     const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
     if (debugInfo) {
         const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
         if (/swiftshader|llvmpipe|software/i.test(renderer)) {
-            // These renderers indicate software-based rendering instead of hardware acceleration.
             return false;
         }
     }
@@ -269,65 +277,54 @@ export const hasHardwareAcceleration = memoize(() => {
 });
 
 /**
- * Runs a reactive effect whenever the dependencies change. The effect receives
- * the current values returned by `dependencies`. If the effect returns a
- * cleanup function, it is run before the next execution.
- *
- * @template {object[]} T
+ * @template {object} T
  * @param {Object} options
- * @param {(...dependencies: any[]) => void | (() => void)} options.effect The
- *        effect callback. May return a cleanup function.
- * @param {(...args: [...T]) => Object|Array} options.dependencies Returns the
- *        values to track, as an array or an object. The effect is called only
- *        if these values change.
- * @param {[...T]} options.reactiveTargets Objects that the effect depends on.
+ * @param {(...dependencies: any[]) => void | (() => void)} options.effect
+ * @param {(...args: T[]) => Object<string, any>|any[]} options.dependencies
+ * @param {T[]} options.reactiveTargets
  */
 export function effectWithCleanup({ effect: effectFn, dependencies, reactiveTargets }) {
+    /** @type {(() => void)|void} */
     let cleanup;
+    /** @type {Object<string, any>|any[]|undefined} */
     let prevDependencies;
-    effect((...deps) => {
-        const nextDependencies = dependencies(...deps);
-        const changed =
-            !prevDependencies ||
-            (Array.isArray(nextDependencies)
-                ? nextDependencies.some((v, i) => v !== prevDependencies[i])
-                : Object.keys(nextDependencies).some(
-                      (key) => nextDependencies[key] !== prevDependencies[key],
-                  ));
-        if (changed) {
-            prevDependencies = Array.isArray(nextDependencies)
-                ? [...nextDependencies]
-                : { ...nextDependencies };
-            cleanup?.();
-            cleanup = Array.isArray(nextDependencies)
-                ? effectFn(...nextDependencies)
-                : effectFn({ ...nextDependencies });
-        }
-    }, reactiveTargets);
+    effect(
+        /** @param {...any} deps */ (...deps) => {
+            const nextDependencies = dependencies(...deps);
+            const changed =
+                !prevDependencies ||
+                (Array.isArray(nextDependencies)
+                    ? nextDependencies.some((v, i) => v !== prevDependencies[i])
+                    : Object.keys(nextDependencies).some(
+                          (key) =>
+                              nextDependencies[key] !==
+                              /** @type {Object<string, any>} */ (prevDependencies)[
+                                  key
+                              ],
+                      ));
+            if (changed) {
+                prevDependencies = Array.isArray(nextDependencies)
+                    ? [...nextDependencies]
+                    : { ...nextDependencies };
+                cleanup?.();
+                cleanup = Array.isArray(nextDependencies)
+                    ? effectFn(...nextDependencies)
+                    : effectFn({ ...nextDependencies });
+            }
+        },
+        reactiveTargets,
+    );
 }
 
 /**
- * A thin wrapper around `effectWithCleanup` that debounces the cleanup phase:
- * setup runs immediately when activated, while cleanup is delayed until the
- * predicate remains false for `delay` ms.
- *
- * Setup is executed again only after cleanup has completed, ensuring symmetry
- * between setup and cleanup.
- *
- * @template T - type of reactive targets
- * @template D - type of dependencies
+ * @template {object} T - type of one reactive target
+ * @template {Object<string, any>} D - type of dependencies
  * @param {Object} options
- * @param {(dependencies: D) => (() => void)} options.effect Function called
- * when the predicate becomes true and the effect is not active. Receives the
- * values returned by `dependencies`.
- * @param {number} options.delay Debounce delay in milliseconds before running
- * cleanup.
- * @param {(...targets: T) => D} options.dependencies Function returning an
- * object of values tracked by the effect; passed to `effect`.
- * @param {(...targets: T) => boolean} options.predicate Function returning a
- * boolean to determine whether the effect should be activated.
- * @param {[...T]} options.reactiveTargets Array of reactive objects that the
- * effect depends on.
+ * @param {(dependencies: D) => (() => void)} options.effect
+ * @param {number} options.delay
+ * @param {(...targets: T[]) => D} options.dependencies
+ * @param {(...targets: T[]) => boolean} options.predicate
+ * @param {T[]} options.reactiveTargets
  */
 export function effectWithDebouncedCleanup({
     delay,
@@ -336,10 +333,13 @@ export function effectWithDebouncedCleanup({
     predicate,
     reactiveTargets,
 }) {
+    /** @type {ReturnType<typeof setTimeout>} */
     let timeout;
     let active = false;
+    /** @type {() => void} */
     let cleanup;
     effectWithCleanup({
+        /** @param {D & { predicate: boolean }} ctx */
         effect(ctx) {
             const { predicate, ...deps } = ctx;
             if (!predicate) {
@@ -347,7 +347,7 @@ export function effectWithDebouncedCleanup({
             }
             clearTimeout(timeout);
             if (!active) {
-                cleanup = effectFn(deps);
+                cleanup = effectFn(/** @type {D} */ (deps));
                 active = true;
             }
             return () => {
@@ -357,7 +357,7 @@ export function effectWithDebouncedCleanup({
                 }, delay);
             };
         },
-        dependencies: (...targets) => ({
+        dependencies: /** @param {...T} targets */ (...targets) => ({
             predicate: predicate(...targets),
             ...dependencies(...targets),
         }),
@@ -384,9 +384,6 @@ export async function loadCssFromBundle(targetNode, bundleName) {
         }
     } catch (e) {
         if (e instanceof AssetsLoadingError && e.cause instanceof TypeError) {
-            // an AssetsLoadingError caused by a TypeError means the browser
-            // cancelled the fetch, e.g. the user navigated away and the iframe
-            // was unloaded: a normal situation, not worth reporting.
             return new Promise(() => {});
         } else {
             throw e;
@@ -394,22 +391,14 @@ export async function loadCssFromBundle(targetNode, bundleName) {
     }
 }
 
-/**
- * Serialize calls: while one call is running, a newly submitted one waits, and
- * any call queued behind it is superseded (its promise resolves with
- * `undefined`) so only the latest queued work runs.
- *
- * Not an OWL hook despite its former `useSequential` name: it registers no
- * lifecycle hook and must be callable outside `setup()` — it is used as a
- * `Record` field initializer (@see core/common/thread_model.js
- * `_loadAroundSequential`), where a real hook would throw.
- *
- * @returns {(func: () => Promise<any>) => Promise<any>}
- */
+/** @returns {(func: () => Promise<any>) => Promise<any>} */
 export function makeSequential() {
     let inProgress = false;
+    /** @type {(() => Promise<any>)|undefined} */
     let nextFunction;
+    /** @type {((value?: any) => void)|undefined} */
     let nextResolve;
+    /** @type {((reason?: any) => void)|undefined} */
     let nextReject;
     async function call() {
         const resolve = nextResolve;
@@ -430,7 +419,7 @@ export function makeSequential() {
             call();
         }
     }
-    return (func) => {
+    return (/** @type {() => Promise<any>} */ func) => {
         nextResolve?.();
         const prom = new Promise((resolve, reject) => {
             nextResolve = resolve;

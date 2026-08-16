@@ -5,7 +5,9 @@ import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";
-/** @type {import("models").Thread} */
+/**
+ * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
+ */
 const threadPatch = {
     setup() {
         super.setup();
@@ -23,9 +25,6 @@ const threadPatch = {
         try {
             await super.fetchThreadData(requestList);
         } catch (error) {
-            // Clear the flag on rejection too (network blip, access error): it lives
-            // on the shared Thread record, so leaving it set spins the chatter
-            // forever. The sibling fetchMoreAttachments guards the same way.
             if (loadsAttachments) {
                 this.isLoadingAttachments = false;
             }

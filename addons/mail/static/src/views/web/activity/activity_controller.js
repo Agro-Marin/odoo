@@ -33,9 +33,8 @@ export class ActivityController extends Component {
                 offset: offset,
                 limit: limit,
                 total: count,
+                /** @param {{domain?: any[], offset?: number, limit?: number}} params */
                 onUpdate: async (params) => {
-                    // Ensure that only (active) records with at least one activity, "done" (archived) or not, are fetched.
-                    // We don't use active_test=false in the context because otherwise we would also get archived records.
                     params.domain = [
                         ...(this.model.originalDomain || []),
                         ["activity_ids.active", "in", [true, false]],
@@ -81,6 +80,7 @@ export class ActivityController extends Component {
             multiSelect: false,
             context: this.props.context,
             noCreate: this.props.context?.create === false,
+            /** @param {number[]} resIds */
             onSelected: async (resIds) => {
                 await this.store.scheduleActivity(this.props.resModel, resIds);
             },
@@ -93,6 +93,10 @@ export class ActivityController extends Component {
         });
     }
 
+    /**
+     * @param {number|false} resId
+     * @param {number} activityTypeId
+     */
     openActivityFormView(resId, activityTypeId) {
         this.action.doAction(
             {
@@ -116,6 +120,10 @@ export class ActivityController extends Component {
         );
     }
 
+    /**
+     * @param {number} templateID
+     * @param {number} activityTypeID
+     */
     sendMailTemplate(templateID, activityTypeID) {
         const groupedActivities = this.model.activityData.grouped_activities;
         const resIds = [];
@@ -134,6 +142,11 @@ export class ActivityController extends Component {
         );
     }
 
+    /**
+     * @param {import("@web/model/relational_model/record").RelationalRecord} record
+     * @param {Object} [options]
+     * @param {boolean} [options.newWindow]
+     */
     async openRecord(record, { newWindow } = {}) {
         const activeIds = this.model.root.records.map((datapoint) => datapoint.resId);
         this.props.selectRecord(record.resId, { activeIds, newWindow });

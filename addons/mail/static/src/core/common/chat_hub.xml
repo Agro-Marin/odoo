@@ -30,7 +30,6 @@
 </t>
 
 <t t-name="mail.ChatHub.compactButton">
-    <!-- In dropdown to keep same layout as other items-->
     <Dropdown manual="true">
         <div class="o-mail-ChatHub-bubbleBtn o-mail-ChatHub-compact o-mail-ChatBubble justify-content-center">
             <div t-if="compactCounter > 0" class="o-mail-ChatHub-hiddenBtnCounter position-absolute badge rounded-pill fw-bold o-discuss-badge shadow">

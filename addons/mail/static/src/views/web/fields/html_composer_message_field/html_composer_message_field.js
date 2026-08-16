@@ -14,28 +14,45 @@ export class HtmlComposerMessageField extends HtmlMailField {
     setup() {
         super.setup();
         if (this.env.fullComposerBus) {
-            useBus(this.env.fullComposerBus, "ACCIDENTAL_DISCARD", (ev) => {
-                const elContent = this.getNoSignatureElContent();
-                ev.detail.onAccidentalDiscard(isEmpty(elContent));
-            });
-            useBus(this.env.fullComposerBus, "SAVE_CONTENT", (ev) => {
-                const emailAddSignature = Boolean(
-                    this.editor.editable.querySelector(".o-signature-container"),
-                );
-                const composerHtml = markup(this.getNoSignatureElContent().innerHTML);
-                ev.detail.onSaveContent({ composerHtml, emailAddSignature });
-            });
-            useBus(this.env.fullComposerBus, "ATTACHMENT_REMOVED", (ev) => {
-                const attachmentElements = this.editor.editable.querySelectorAll(
-                    `[data-attachment-id="${ev.detail.id}"]`,
-                );
-                attachmentElements.forEach((element) => {
-                    const parent = element.parentElement;
-                    element.remove();
-                    fillEmpty(parent);
-                });
-                this.editor.shared.history.addStep();
-            });
+            useBus(
+                this.env.fullComposerBus,
+                "ACCIDENTAL_DISCARD",
+                /** @param {CustomEvent<{onAccidentalDiscard: (isEmpty: boolean) => void}>} ev */
+                (ev) => {
+                    const elContent = this.getNoSignatureElContent();
+                    ev.detail.onAccidentalDiscard(isEmpty(elContent));
+                },
+            );
+            useBus(
+                this.env.fullComposerBus,
+                "SAVE_CONTENT",
+                /** @param {CustomEvent<{onSaveContent: (content: Object) => void}>} ev */
+                (ev) => {
+                    const emailAddSignature = Boolean(
+                        this.editor.editable.querySelector(".o-signature-container"),
+                    );
+                    const composerHtml = markup(
+                        this.getNoSignatureElContent().innerHTML,
+                    );
+                    ev.detail.onSaveContent({ composerHtml, emailAddSignature });
+                },
+            );
+            useBus(
+                this.env.fullComposerBus,
+                "ATTACHMENT_REMOVED",
+                /** @param {CustomEvent<{id: number}>} ev */
+                (ev) => {
+                    const attachmentElements = this.editor.editable.querySelectorAll(
+                        `[data-attachment-id="${ev.detail.id}"]`,
+                    );
+                    attachmentElements.forEach((element) => {
+                        const parent = element.parentElement;
+                        element.remove();
+                        fillEmpty(parent);
+                    });
+                    this.editor.shared.history.addStep();
+                },
+            );
         }
     }
 
@@ -52,16 +69,16 @@ export class HtmlComposerMessageField extends HtmlMailField {
                 (plugin) => !DYNAMIC_PLACEHOLDER_PLUGINS.includes(plugin),
             );
         }
-        config.onAttachmentChange = (attachment) => {
-            // This only needs to happen for the composer for now
-            if (!(
-                this.props.record.fieldNames.includes("attachment_ids") &&
-                this.props.record.resModel === "mail.compose.message"
-            )) {
-                return;
-            }
-            this.props.record.data.attachment_ids.linkTo(attachment.id, attachment);
-        };
+        config.onAttachmentChange =
+            /** @param {import("models").Attachment} attachment */ (attachment) => {
+                if (!(
+                    this.props.record.fieldNames.includes("attachment_ids") &&
+                    this.props.record.resModel === "mail.compose.message"
+                )) {
+                    return;
+                }
+                this.props.record.data.attachment_ids.linkTo(attachment.id, attachment);
+            };
         config.thread = this.env.services["mail.store"]?.Thread.get({
             model: this.props.record.data.model,
             id: JSON.parse(this.props.record.data.res_ids || "[]")[0],

@@ -18,9 +18,11 @@ export class NotificationMessage extends Component {
     setup() {
         super.setup();
         this.root = useRef("root");
-        onWillUpdateProps((nextProps) => {
-            this.props.registerMessageRef?.(this.props.message, null);
-        });
+        onWillUpdateProps(
+            /** @param {Object} nextProps */ (nextProps) => {
+                this.props.registerMessageRef?.(this.props.message, null);
+            },
+        );
         onMounted(() => this.props.registerMessageRef?.(this.props.message, this.root));
         onPatched(() => this.props.registerMessageRef?.(this.props.message, this.root));
         onWillDestroy(() => this.props.registerMessageRef?.(this.props.message, null));
@@ -29,9 +31,7 @@ export class NotificationMessage extends Component {
         this.linkNavigation = useService("mail.link_navigation");
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     async onClickNotificationMessage(ev) {
         this.linkNavigation.handleClickOnLink(ev, this.props.thread);
         const { oeType, oeId } = ev.target.dataset;

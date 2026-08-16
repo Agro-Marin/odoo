@@ -1,6 +1,3 @@
-/* Loaded as a program file by the root jsconfig/tsconfig `include` glob.
-   Do NOT add a typeRoots entry for it: typeRoots resolves
-   <root>/<pkg>/index.d.ts, so a path to this flat file is inert. */
 declare module "services" {
     import { attachmentUploadService } from "@mail/core/common/attachment_upload_service";
     import { discussCoreCommon } from "@mail/discuss/core/common/discuss_core_common_service";

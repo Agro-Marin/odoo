@@ -32,8 +32,6 @@ class Action extends Component {
 
     get Dropdown() {
         if (this.env.inDiscussCallView?.isPip) {
-            // Provided by the discuss call layer ("CallDropdown"); the env flag
-            // can only be set when that layer is loaded.
             return discussComponentRegistry.get("CallDropdown", Dropdown);
         }
         return Dropdown;
@@ -63,6 +61,10 @@ class Action extends Component {
         );
     }
 
+    /**
+     * @param {import("@mail/core/common/action").Action} action
+     * @param {Event} ev
+     */
     onSelected(action, ev) {
         action.onSelected?.(ev);
         this.env.inCallDropdown?.close();
@@ -74,6 +76,15 @@ export class ActionList extends Component {
     static props = ["actions", "groupClass?", ...actionListProps];
     static template = "mail.ActionList";
 
+    /**
+     * @param {import("@mail/core/common/action").Action} action
+     * @param {import("@mail/core/common/action").Action[]} group
+     * @param {Object} [position]
+     * @param {number} [position.index]
+     * @param {boolean} [position.isFirstInGroup]
+     * @param {boolean} [position.isLastInGroup]
+     * @returns {Object}
+     */
     getActionProps(action, group, { index, isFirstInGroup, isLastInGroup } = {}) {
         return {
             action,
@@ -106,7 +117,7 @@ export class ActionList extends Component {
         } else {
             groups = [this.props.actions];
         }
-        return groups.filter((group) => group.length); // don't show empty groups
+        return groups.filter((group) => group.length);
     }
 
     get hasBtnBg() {

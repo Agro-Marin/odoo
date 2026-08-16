@@ -7,15 +7,15 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {string} [emptyText]
- * @property {import("@mail/core/common/message_model").Message[]} messages
+ * @property {import("models").Message[]} messages
  * @property {ReturnType<import('@mail/core/common/message_search_hook').useMessageSearch>} [messageSearch]
  * @property {function} [loadMore]
  * @property {string} mode
  * @property {function} [onClickJump]
  * @property {function} [onLoadMoreVisible]
  * @property {boolean} [showEmpty]
- * @property {import("@mail/core/common/thread_model").Thread} thread
- * @extends {Component<Props, Env>}
+ * @property {import("models").Thread} thread
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class MessageCardList extends Component {
     static components = { Message };
@@ -37,19 +37,17 @@ export class MessageCardList extends Component {
         this.ui = useService("ui");
         this.store = useService("mail.store");
         useSubEnv({ messageCard: true });
-        useVisible("load-more", (isVisible) => {
-            if (isVisible) {
-                this.props.onLoadMoreVisible?.();
-            }
-        });
+        useVisible(
+            "load-more",
+            /** @param {boolean} isVisible */ (isVisible) => {
+                if (isVisible) {
+                    this.props.onLoadMoreVisible?.();
+                }
+            },
+        );
     }
 
-    /**
-     * Highlight the given message and scrolls to it. In small mode, the
-     * pin/search menus are closed beforewards
-     *
-     * @param {import('@mail/core/common/message_model').Message} message
-     */
+    /** @param {import("models").Message} message */
     async onClickJump(message) {
         this.props.onClickJump?.();
         if (this.ui.isSmall || this.env.inChatWindow || this.env.inMeetingView) {
@@ -57,7 +55,6 @@ export class MessageCardList extends Component {
             this.env.searchMenu?.close();
             this.env.inMeetingView?.openChat();
         }
-        // Give the time for menus to close before scrolling to the message.
         await new Promise((resolve) =>
             setTimeout(() => requestAnimationFrame(resolve)),
         );

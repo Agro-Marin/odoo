@@ -38,27 +38,21 @@ export class NavigableList extends Component {
         this.hotkeysToRemove = [];
 
         useExternalListener(window, "keydown", this.onKeydown, true);
-        onExternalClick("root", async (ev) => {
-            // Let event be handled by bubbling handlers first. Routed through
-            // `browser` so tests can mock time.
-            await new Promise((resolve) => browser.setTimeout(resolve));
-            if (isEventHandled(ev, "composer.onClickTextarea")) {
-                return;
-            }
-            // no force: embedded closeOnSelect=false lists (e.g. livechat tag
-            // edit) sit next to their search input, and a click on it must
-            // not hide them.
-            this.close();
-        });
+        onExternalClick(
+            "root",
+            /** @param {MouseEvent} ev */ async (ev) => {
+                await new Promise((resolve) => browser.setTimeout(resolve));
+                if (isEventHandled(ev, "composer.onClickTextarea")) {
+                    return;
+                }
+                this.close();
+            },
+        );
         usePosition("root", () => this.props.anchorRef, {
             position: this.props.position,
         });
         useEffect(
             () => {
-                // Only (re)open — which resets the keyboard selection — when
-                // the displayed option set actually changes: props identity
-                // alone changes on every parent render, which would yank the
-                // arrow-key selection back and resurrect dismissed lists.
                 const optionsKey = this.props.options
                     .map((option) => this.getOptionKey(option))
                     .join("\x00");
@@ -73,9 +67,6 @@ export class NavigableList extends Component {
             () => {
                 if (!this.props.isLoading) {
                     browser.clearTimeout(this.loadingTimeoutId);
-                    // Reset the id, otherwise the `!this.loadingTimeoutId`
-                    // guard below stays false forever and the spinner never
-                    // re-arms on later loading cycles of the same instance.
                     this.loadingTimeoutId = undefined;
                     this.state.showLoading = false;
                 } else if (!this.loadingTimeoutId) {
@@ -84,10 +75,6 @@ export class NavigableList extends Component {
                         2000,
                     );
                 }
-                // cleanup covers destroy-while-loading: suggestion fetches
-                // keep isLoading true, so closing the composer / switching
-                // thread mid-fetch would otherwise leave the timer to fire
-                // `state.showLoading = true` on a torn-down component
                 return () => browser.clearTimeout(this.loadingTimeoutId);
             },
             () => [this.props.isLoading],
@@ -101,18 +88,18 @@ export class NavigableList extends Component {
     }
 
     get sortedOptions() {
-        // Copy before sorting: Array.sort mutates in place, and props.options
-        // is parent-owned (often a reactive/store array) — reordering it from a
-        // render getter corrupts the parent's order and can trigger re-renders.
         return [...this.props.options].sort(
+            /**
+             * @param {Object} o1
+             * @param {Object} o2
+             */
             (o1, o2) => (o1.group ?? 0) - (o2.group ?? 0),
         );
     }
 
     /**
-     * Identity of an option, to detect actual changes of the option set:
-     * option objects are re-created literals on every parent render, so
-     * object identity cannot be used.
+     * @param {Object} option
+     * @returns {string}
      */
     getOptionKey(option) {
         const record =
@@ -127,9 +114,7 @@ export class NavigableList extends Component {
     }
 
     /**
-     * @param {boolean} [force] close even when `closeOnSelect` is false —
-     *  for explicit dismissals (Escape), otherwise such lists are
-     *  undismissable.
+     * @param {boolean} [force]
      */
     close(force = false) {
         if (force || this.props.closeOnSelect) {
@@ -138,9 +123,12 @@ export class NavigableList extends Component {
         }
     }
 
+    /**
+     * @param {Event} ev
+     * @param {number} index
+     * @param {Object} [params={}]
+     */
     selectOption(ev, index, params = {}) {
-        // indexes handed out by the template/keyboard refer to the displayed
-        // (sorted) order, not to props.options' order.
         const option = this.sortedOptions[index];
         if (!option) {
             return;
@@ -155,6 +143,7 @@ export class NavigableList extends Component {
         this.close();
     }
 
+    /** @param {"first"|"last"|"previous"|"next"} direction */
     navigate(direction) {
         if (this.props.options.length === 0) {
             return;
@@ -189,6 +178,7 @@ export class NavigableList extends Component {
         this.state.activeIndex = targetId;
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         if (!this.show) {
             return;
@@ -225,10 +215,8 @@ export class NavigableList extends Component {
         ev.preventDefault();
     }
 
+    /** @param {number} index */
     onOptionMouseEnter(index) {
-        // keep pointer and keyboard coherent: Enter inserts the active
-        // option, so hovering must move the active index — otherwise the
-        // hover styling suggests one option while Enter inserts another
         this.state.activeIndex = index;
     }
 }

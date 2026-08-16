@@ -2,6 +2,7 @@
 import { fields, Record } from "@mail/core/common/record";
 import { convertToEmbedURL } from "@mail/utils/common/misc";
 
+/** @type {Set<string>} */
 const VIDEO_EXTENSIONS = new Set([
     "mp4",
     "mov",

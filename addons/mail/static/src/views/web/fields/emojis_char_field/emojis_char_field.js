@@ -3,9 +3,6 @@ import { EmojisFieldCommon } from "@mail/views/web/fields/emojis_field_common/em
 import { useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
-/**
- * Extension of the CharField that will add emojis support
- */
 export class EmojisCharField extends EmojisFieldCommon(CharField) {
     static template = "mail.EmojisCharField";
     static components = { ...CharField.components };

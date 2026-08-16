@@ -11,9 +11,11 @@ export const MESSAGE_SOUND = "mail.user_setting.message_sound";
 export const USE_BLUR_LS = "mail_user_setting_use_blur";
 
 export class Settings extends Record {
+    /** @type {number} */
     id;
 
     static new() {
+        /** @type {import("models").Settings} */
         const record = super.new(...arguments);
         record.onStorage = record.onStorage.bind(record);
         browser.addEventListener("storage", record.onStorage);
@@ -28,9 +30,6 @@ export class Settings extends Record {
                 this.voiceActivationThreshold.toString(),
             );
         }, 2000);
-        // getContext("2d") is null when 2D canvas is unavailable (some hardened
-        // or headless environments); guard so store bootstrap degrades instead
-        // of throwing during Settings record creation.
         const canvasContext = document.createElement("canvas").getContext("2d");
         this.hasCanvasFilterSupport =
             Boolean(canvasContext) && typeof canvasContext.filter !== "undefined";
@@ -44,16 +43,13 @@ export class Settings extends Record {
         }
         this.volumeSettingsTimeouts.clear();
         browser.clearTimeout(this.globalSettingsTimeout);
-        // same timer family as the two above: without this it can fire
-        // against a deleted record
         this.saveVoiceThresholdDebounce.cancel();
         super.delete(...arguments);
     }
 
-    /**
-     * @type {"mentions"|"all"|"no_notif"}
-     */
+    /** @type {"mentions"|"all"|"no_notif"} */
     channel_notifications = fields.Attr("mentions", {
+        /** @this {import("models").Settings} */
         compute() {
             return this.channel_notifications === false
                 ? "mentions"
@@ -62,6 +58,7 @@ export class Settings extends Record {
     });
     _recomputeMessageSound = 0;
     messageSound = fields.Attr(true, {
+        /** @this {import("models").Settings} */
         compute() {
             void this._recomputeMessageSound;
             return browser.localStorage.getItem(MESSAGE_SOUND) !== "false";
@@ -89,18 +86,17 @@ export class Settings extends Record {
         },
     });
 
-    // DeviceId of the audio input selected by the user
     audioInputDeviceId = "";
     audioOutputDeviceId = "";
     cameraInputDeviceId = "";
     use_push_to_talk = false;
     voice_active_duration = 200;
     volumes = fields.Many("Volume");
+    /** @type {Map<number, number>} */
     volumeSettingsTimeouts = new Map();
-    // Normalized [0, 1] volume at which the voice activation system must consider the user as "talking".
     voiceActivationThreshold = 0.05;
-    // true if listening to keyboard input to register the push to talk key.
     isRegisteringKey = false;
+    /** @type {string|undefined} */
     push_to_talk_key;
 
     backgroundBlurAmount = 10;
@@ -108,12 +104,14 @@ export class Settings extends Record {
     showOnlyVideo = false;
     _recomputeUseBlur = 0;
     useBlur = fields.Attr(false, {
+        /** @this {import("models").Settings} */
         compute() {
             void this._recomputeUseBlur;
             return browser.localStorage.getItem(USE_BLUR_LS) === "true";
         },
     });
     blurPerformanceWarning = fields.Attr(false, {
+        /** @this {import("models").Settings} */
         compute() {
             const rtc = this.store.rtc;
             if (!rtc || !this.useBlur) {
@@ -122,12 +120,11 @@ export class Settings extends Record {
             return this.useBlur && rtc.state?.cameraTrack && !hasHardwareAcceleration();
         },
     });
+    /** @type {"user"|"environment"|undefined} */
     cameraFacingMode = undefined;
 
     logRtc = false;
-    /**
-     * @returns {Object} MediaTrackConstraints
-     */
+    /** @returns {Object} */
     get audioConstraints() {
         const constraints = {
             echoCancellation: true,
@@ -213,6 +210,10 @@ export class Settings extends Record {
         this._recomputeUseBlur++;
     }
 
+    /**
+     * @param {luxon.DateTime|undefined} dt
+     * @returns {string|undefined}
+     */
     getMuteUntilText(dt) {
         if (dt) {
             return dt.year <= luxon.DateTime.now().year + 2
@@ -247,9 +248,7 @@ export class Settings extends Record {
         });
     }
 
-    /**
-     * @param {String} audioInputDeviceId
-     */
+    /** @param {String} audioInputDeviceId */
     async setAudioInputDevice(audioInputDeviceId) {
         this.audioInputDeviceId = audioInputDeviceId;
         browser.localStorage.setItem(
@@ -257,9 +256,7 @@ export class Settings extends Record {
             audioInputDeviceId,
         );
     }
-    /**
-     * @param {String} audioOutputDeviceId
-     */
+    /** @param {String} audioOutputDeviceId */
     async setAudioOutputDevice(audioOutputDeviceId) {
         this.audioOutputDeviceId = audioOutputDeviceId;
         browser.localStorage.setItem(
@@ -267,9 +264,7 @@ export class Settings extends Record {
             audioOutputDeviceId,
         );
     }
-    /**
-     * @param {String} cameraInputDeviceId
-     */
+    /** @param {String} cameraInputDeviceId */
     async setCameraInputDevice(cameraInputDeviceId) {
         this.cameraFacingMode = undefined;
         this.cameraInputDeviceId = cameraInputDeviceId;
@@ -278,16 +273,12 @@ export class Settings extends Record {
             cameraInputDeviceId,
         );
     }
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     setDelayValue(value) {
         this.voice_active_duration = parseInt(value, 10);
         this._saveSettings();
     }
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     async setPushToTalkKey(ev) {
         const nonElligibleKeys = new Set(["Shift", "Control", "Alt", "Meta"]);
         let pushToTalkKey = `${ev.shiftKey || ""}.${ev.ctrlKey || ev.metaKey || ""}.${
@@ -326,14 +317,20 @@ export class Settings extends Record {
             ),
         );
     }
-    /**
-     * @param {float} voiceActivationThreshold
-     */
+    /** @param {float} voiceActivationThreshold */
     setThresholdValue(voiceActivationThreshold) {
         this.voiceActivationThreshold = voiceActivationThreshold;
         this.saveVoiceThresholdDebounce();
     }
 
+    /**
+     * @param {Object} shortcut
+     * @param {boolean} [shortcut.shiftKey]
+     * @param {boolean} [shortcut.ctrlKey]
+     * @param {boolean} [shortcut.altKey]
+     * @param {string|false} [shortcut.key]
+     * @returns {Set<string>}
+     */
     buildKeySet({ shiftKey, ctrlKey, altKey, key }) {
         const keys = new Set();
         if (key) {
@@ -351,9 +348,7 @@ export class Settings extends Record {
         return keys;
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     isPushToTalkKey(ev) {
         if (!this.use_push_to_talk || !this.push_to_talk_key) {
             return false;
@@ -383,13 +378,11 @@ export class Settings extends Record {
             key: key || false,
         };
     }
+    /** @param {boolean} value */
     setPushToTalk(value) {
         this.use_push_to_talk = value;
         this._saveSettings();
     }
-    /**
-     * @private
-     */
     _loadLocalSettings() {
         const voiceActivationThresholdString = browser.localStorage.getItem(
             "mail_user_setting_voice_threshold",
@@ -397,8 +390,6 @@ export class Settings extends Record {
         this.voiceActivationThreshold = voiceActivationThresholdString
             ? parseFloat(voiceActivationThresholdString)
             : this.voiceActivationThreshold;
-        // `getItem()` returns null for absent keys: keep the "" defaults so
-        // consumers can keep relying on falsy-but-string device ids.
         this.audioInputDeviceId =
             browser.localStorage.getItem("mail_user_setting_audio_input_device_id") ??
             "";
@@ -425,9 +416,6 @@ export class Settings extends Record {
             "mail_user_setting_disable_call_auto_focus",
         );
     }
-    /**
-     * @private
-     */
     async _onSaveGlobalSettingsTimeout() {
         this.globalSettingsTimeout = undefined;
         try {
@@ -444,9 +432,6 @@ export class Settings extends Record {
                 },
             );
         } catch {
-            // timer callback: nothing awaits it, a network blip 2s after the
-            // change would surface as an unhandled rejection while the
-            // setting silently diverges from the server — tell the user
             this.store.env.services.notification.add(
                 _t("Failed to save your voice settings, please try again."),
                 { type: "warning" },
@@ -470,13 +455,13 @@ export class Settings extends Record {
                 { guest_id: guestId },
             );
         } catch {
-            // see _onSaveGlobalSettingsTimeout
             this.store.env.services.notification.add(
                 _t("Failed to save the volume setting, please try again."),
                 { type: "warning" },
             );
         }
     }
+    /** @param {StorageEvent} ev */
     onStorage(ev) {
         if (ev.key === MESSAGE_SOUND) {
             this._recomputeMessageSound++;
@@ -485,9 +470,6 @@ export class Settings extends Record {
             this._recomputeUseBlur++;
         }
     }
-    /**
-     * @private
-     */
     async _saveSettings() {
         if (!this.store.self_partner) {
             return;

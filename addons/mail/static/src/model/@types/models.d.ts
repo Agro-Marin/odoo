@@ -3,9 +3,15 @@ declare module "models" {
 
     export interface Store extends StoreClass {}
 
-    type StaticMailRecord<ClassInterface, JSClassType> = Omit<JSClassType, "get" | "insert" | "records"> & {
+    type StaticMailRecord<ClassInterface, JSClassType> = Omit<
+        JSClassType,
+        "get" | "insert" | "records"
+    > & {
         get: (data: any) => ClassInterface;
-        insert: <D extends object | object[]>(data: D, options?: object) => D extends object[] ? ClassInterface[] : ClassInterface;
+        insert: <D extends object | object[]>(
+            data: D,
+            options?: object,
+        ) => D extends object[] ? ClassInterface[] : ClassInterface;
         records: { [localId: string]: ClassInterface };
     };
 

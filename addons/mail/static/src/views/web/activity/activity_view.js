@@ -11,6 +11,11 @@ export const activityView = {
     Renderer: ActivityRenderer,
     ArchParser: ActivityArchParser,
     Model: ActivityModel,
+    /**
+     * @param {Object} genericProps
+     * @param {Object} view
+     * @returns {Object}
+     */
     props: (genericProps, view) => {
         const { arch, relatedModels, resModel } = genericProps;
         const archInfo = new view.ArchParser().parse(arch, relatedModels, resModel);

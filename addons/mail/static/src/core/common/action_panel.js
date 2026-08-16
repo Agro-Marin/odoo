@@ -7,7 +7,7 @@ import { useForwardRefToParent, useService } from "@web/core/utils/hooks";
  * @typedef {Object} Props
  * @prop {string} title
  * @prop {Object} [slots]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ActionPanel extends Component {
     static template = "mail.ActionPanel";

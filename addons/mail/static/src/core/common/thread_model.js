@@ -27,29 +27,33 @@ export class Thread extends Record {
         if (!localId) {
             return undefined;
         }
-        // Transform "Thread,<model> AND <id>" to "<model>_<id>""
         return localId.split(",").slice(1).join("_").replace(" AND ", "_");
     }
+    /**
+     * @param {{model: string, id: number}} data
+     * @param {string[]} [fieldNames=[]]
+     * @returns {Promise<import("models").Thread|undefined>}
+     */
     static async getOrFetch(data, fieldNames = []) {
-        const thread = this.get(data);
+        const thread = /** @type {import("models").Thread|undefined} */ (
+            this.get(data)
+        );
         if (!(data.id > 0)) {
             return thread;
         }
         const store = this.store;
         const baseKey = `${data.model},${data.id}`;
-        // Fields already requested once for which the server response came
-        // back without a value are not requested again: a missing field would
-        // otherwise trigger a refetch on every call, forever.
+        const threadFields = /** @type {Object<string, any>|undefined} */ (
+            /** @type {unknown} */ (thread)
+        );
         const missingFieldNames = fieldNames.filter(
             (fieldName) =>
-                thread?.[fieldName] === undefined &&
+                threadFields?.[fieldName] === undefined &&
                 !store._threadFetchAttempted.has(`${baseKey},${fieldName}`),
         );
         if (thread && missingFieldNames.length === 0) {
             return thread;
         }
-        // In-flight dedup: concurrent callers requesting the same thread and
-        // fields share a single promise (and a single RPC).
         const promiseKey = `${baseKey},${missingFieldNames.join(",")}`;
         const pending = store._threadFetchPromises.get(promiseKey);
         if (pending) {
@@ -65,12 +69,17 @@ export class Thread extends Record {
             } finally {
                 store._threadFetchPromises.delete(promiseKey);
             }
-            const fetchedThread = this.get(data);
+            const fetchedThread = /** @type {import("models").Thread|undefined} */ (
+                this.get(data)
+            );
             if (!fetchedThread?.exists()) {
                 return;
             }
+            const fetchedFields = /** @type {Object<string, any>} */ (
+                /** @type {unknown} */ (fetchedThread)
+            );
             const stillMissing = missingFieldNames.filter(
-                (fieldName) => fetchedThread[fieldName] === undefined,
+                (fieldName) => fetchedFields[fieldName] === undefined,
             );
             if (stillMissing.length > 0) {
                 for (const fieldName of stillMissing) {
@@ -98,20 +107,15 @@ export class Thread extends Record {
         inverse: "thread",
     });
     storeAsAllChannels = fields.One("Store", {
+        /** @this {import("models").Thread} */
         compute() {
             if (this.isChannelKind) {
                 return this.store;
             }
         },
     });
-    /**
-     * Membership of `MessagingMenu.threadCandidates`: whether this thread can
-     * show up in the messaging menu at all, before the menu's own search and tab
-     * filtering. Maintained per thread rather than rescanned, so that
-     * `MessagingMenu.threads` depends on the candidates alone instead of on
-     * `Thread.records` and on two fields of every thread in the store.
-     */
     menuAsThreadCandidate = fields.One("MessagingMenu", {
+        /** @this {import("models").Thread} */
         compute() {
             if (
                 this.displayToSelf ||
@@ -121,36 +125,15 @@ export class Thread extends Record {
             }
         },
     });
-    /**
-     * Whether this thread is a discuss channel (any channel_type), i.e. a
-     * conversation with members, rather than the message trail of a document.
-     * Neutral default: plain document threads are not channels. The discuss
-     * layer overrides this with the actual discriminator; base code must rely
-     * on this predicate (or the more specific hooks below) instead of
-     * comparing `this.model` to a hard-coded channel model name.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isChannelKind() {
         return false;
     }
-    /**
-     * Whether this thread is a mailbox (Inbox / Starred / History) — the
-     * pseudo-threads backing the discuss "notification" views, keyed under the
-     * `mail.box` model. Named seam so callers don't hard-code the model string.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isMailbox() {
         return this.model === "mail.box";
     }
-    /**
-     * Whether this thread is strictly a 1:1 (or self) direct chat, excluding
-     * group chats and specialized chat-like kinds (livechat, whatsapp, ...).
-     * Neutral default: false; overridden by the discuss layer.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isDirectChat() {
         return false;
     }
@@ -164,23 +147,11 @@ export class Thread extends Record {
          */
         sort: (a1, a2) => (a1.id < a2.id ? 1 : -1),
     });
-    /**
-     * Whether the current user may leave this thread (stop being a member).
-     * Neutral default: document threads have no membership to leave. The
-     * discuss layer overrides this per channel kind
-     * (@see allowedToLeaveChannelTypes there).
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get canLeave() {
         return false;
     }
-    /**
-     * Whether the current user may unpin this thread from their sidebar /
-     * messaging menu. Neutral default: document threads are never pinned.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get canUnpin() {
         return false;
     }
@@ -210,21 +181,16 @@ export class Thread extends Record {
     /** @type {string} */
     display_name;
     displayToSelf = fields.Attr(false, {
+        /** @this {import("models").Thread} */
         compute() {
             return this.computeDisplayToSelf();
         },
+        /** @this {import("models").Thread} */
         onUpdate() {
             this.onPinStateUpdated();
         },
     });
-    /**
-     * Compute of the `displayToSelf` field: whether this thread belongs in
-     * the current user's sidebar / thread lists. Neutral default: document
-     * threads are never listed; the discuss layer overrides this based on
-     * membership and pin state.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     computeDisplayToSelf() {
         return false;
     }
@@ -246,16 +212,7 @@ export class Thread extends Record {
     followersCount;
     loadOlder = false;
     loadNewer = false;
-    /**
-     * Counter shown next to this thread in navigation UIs (sidebar,
-     * messaging menu, tabs). Contract: return the number the current user
-     * should act on for this thread; 0 hides the badge. Base behavior:
-     * mailboxes expose their own counter, document threads expose the
-     * needaction counter. Layers refine this (e.g. unread messages for chat
-     * channels) and must fall back to `super.importantCounter`.
-     *
-     * @returns {number}
-     */
+    /** @returns {number} */
     get importantCounter() {
         if (this.isMailbox) {
             return this.counter;
@@ -263,9 +220,11 @@ export class Thread extends Record {
         return this.message_needaction_counter;
     }
     isDisplayed = fields.Attr(false, {
+        /** @this {import("models").Thread} */
         compute() {
             return this.computeIsDisplayed();
         },
+        /** @this {import("models").Thread} */
         onUpdate() {
             this.isDisplayedOnUpdate();
         },
@@ -280,6 +239,7 @@ export class Thread extends Record {
         return this.isFocusedCounter !== 0;
     }
     isFocusedByThread = fields.Attr(false, {
+        /** @this {import("models").Thread} */
         onUpdate() {
             if (this.isFocusedByThread) {
                 this.isFocusedCounter++;
@@ -289,6 +249,7 @@ export class Thread extends Record {
         },
     });
     isFocusedCounter = fields.Attr(0, {
+        /** @this {import("models").Thread} */
         onUpdate() {
             if (this.isFocusedCounter < 0) {
                 this.isFocusedCounter = 0;
@@ -315,53 +276,23 @@ export class Thread extends Record {
     message_needaction_counter = 0;
     message_needaction_counter_bus_id = 0;
     messageInEdition = fields.One("mail.message", { inverse: "threadAsInEdition" });
-    /**
-     * Contains continuous sequence of messages to show in message list.
-     * Messages are ordered from older to most recent.
-     * There should not be any hole in this list: there can be unknown
-     * messages before start and after end, but there should not be any
-     * unknown in-between messages.
-     *
-     * Content should be fetched and inserted in a controlled way.
-     */
     messages = fields.Many("mail.message");
-    /**
-     * Phantom messages is a snapshot of `messages` while the thread is being loaded.
-     * In other words: when thread is not loaded or loading, phantom messages are the
-     * messages before thread loading.
-     */
     phantomMessages = fields.Many("mail.message");
     /** @type {string} */
     modelName;
     /** @type {string} */
     module_icon;
-    /**
-     * Contains messages received from the bus that are not yet inserted in
-     * `messages` list. This is a temporary storage to ensure nothing is lost
-     * when fetching newer messages.
-     */
     pendingNewMessages = fields.Many("mail.message");
     needactionMessages = fields.Many("mail.message", {
         inverse: "threadAsNeedaction",
         sort: (message1, message2) => message1.id - message2.id,
     });
-    // FIXME: should be in the portal/frontend bundle but live chat can be loaded
-    // before portal resulting in the field not being properly initialized.
     portal_partner = fields.One("res.partner");
     status = "new";
-    /**
-     * Stored scoll position of thread from top in ASC order.
-     *
-     * @type {number|'bottom'}
-     */
+    /** @type {number|'bottom'} */
     scrollTop = "bottom";
     transientMessages = fields.Many("mail.message");
-    /* The additional recipients are the recipients that are manually added
-     * by the user by using the "To" field of the Chatter. */
     additionalRecipients = fields.Attr([]);
-    /* The suggested recipients are the recipients that are suggested by the
-     * current model and includes the recipients of the last message. (e.g: for
-     * a crm lead, the model will suggest the customer associated to the lead). */
     suggestedRecipients = fields.Attr([]);
     /** @type {String[]|undefined} */
     partner_fields;
@@ -370,11 +301,19 @@ export class Thread extends Record {
     hasLoadingFailed = false;
     /** @type {Error} */
     hasLoadingFailedError;
+    /** @type {boolean|undefined} */
     canPostOnReadonly;
+    /**
+     * @type {boolean|undefined}
+     */
+    hasReadAccess;
+    /** @type {boolean|undefined} */
+    hasWriteAccess;
     /** @type {Boolean} */
     is_editable;
     /** @type {Boolean} */
     isLocallyPinned = fields.Attr(false, {
+        /** @this {import("models").Thread} */
         onUpdate() {
             this.onPinStateUpdated();
         },
@@ -387,10 +326,7 @@ export class Thread extends Record {
     access_token;
     /** @type {String|undefined} */
     hash;
-    /**
-     * Partner id for non channel threads
-     *  @type {integer|undefined}
-     */
+    /** @type {integer|undefined} */
     pid;
 
     get accessRestrictedToGroupText() {
@@ -426,13 +362,7 @@ export class Thread extends Record {
         return this.needactionMessages.length > 0;
     }
 
-    /**
-     * Whether audio/video calls can be started on this thread. Neutral
-     * default: document threads have no call support; the discuss layer
-     * overrides this per channel kind (@see typesAllowingCalls there).
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get allowCalls() {
         return false;
     }
@@ -442,44 +372,26 @@ export class Thread extends Record {
     }
 
     /**
-     * Return the name of the given persona to display in the context of this
-     * thread.
-     *
      * @param {import("models").ResPartner|import("models").MailGuest} persona
      * @returns {string}
      */
     getPersonaName(persona) {
-        return persona?.displayName || persona?.name;
+        const displayName =
+            persona && "displayName" in persona ? persona.displayName : undefined;
+        return displayName || persona?.name;
     }
 
-    /**
-     * Whether the thread actions offer an attachments panel. Neutral
-     * default: false (the chatter has its own attachment box).
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get hasAttachmentPanel() {
         return false;
     }
 
-    /**
-     * Whether this thread reads as a person-to-person conversation (direct
-     * or group chat) rather than a broadcast channel or a document trail.
-     * Drives e.g. the "@" prefix and unread-oriented counters. Neutral
-     * default: false; overridden by the discuss layer.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isChatChannel() {
         return false;
     }
 
-    /**
-     * Whether the current user can give this thread a personal display name.
-     * Neutral default: false; overridden by the discuss layer.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get supportsCustomChannelName() {
         return false;
     }
@@ -496,22 +408,12 @@ export class Thread extends Record {
         return this.module_icon ?? this.store.DEFAULT_AVATAR;
     }
 
-    /**
-     * Whether this thread carries a user-editable description. Neutral
-     * default: false; overridden by the discuss layer per channel kind.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get allowDescription() {
         return false;
     }
 
-    /**
-     * Display name prefixed with the parent thread's one when this thread is
-     * nested (e.g. sub-channels). Neutral default: no nesting.
-     *
-     * @returns {string}
-     */
+    /** @returns {string} */
     get fullNameWithParent() {
         return this.displayName;
     }
@@ -536,6 +438,7 @@ export class Thread extends Record {
 
     newestMessage = fields.One("mail.message", {
         inverse: "threadAsNewest",
+        /** @this {import("models").Thread} */
         compute() {
             return this.messages.at(-1);
         },
@@ -546,9 +449,8 @@ export class Thread extends Record {
     }
 
     newestPersistentOfAllMessage = fields.One("mail.message", {
+        /** @this {import("models").Thread} */
         compute() {
-            // Single O(n) pass, no sort: this recomputes on EVERY message
-            // insert of the thread and feeds the MessagingMenu.threads ordering.
             let newest;
             for (const message of this.allMessages) {
                 if (
@@ -568,12 +470,7 @@ export class Thread extends Record {
 
     onPinStateUpdated() {}
 
-    /**
-     * Public link inviting people to this thread, if the thread kind
-     * supports invitations. Neutral default: none.
-     *
-     * @returns {string|undefined}
-     */
+    /** @returns {string|undefined} */
     get invitationLink() {
         return undefined;
     }
@@ -605,13 +502,7 @@ export class Thread extends Record {
         return this.hasReadAccess;
     }
 
-    /**
-     * Whether messages can be fetched for this thread right now. Document
-     * threads need a persistent id (drafts / unsaved records have no trail);
-     * mailboxes use string ids. Extended by the discuss layer.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get canFetchMessages() {
         return this.isMailbox || Boolean(this.id);
     }
@@ -621,10 +512,6 @@ export class Thread extends Record {
         this.status = "loading";
         if (!this.canFetchMessages) {
             this.isLoaded = true;
-            // Reset the status: leaving it "loading" here would permanently wedge
-            // fetchNewMessages/fetchMoreMessages (both early-return while
-            // status === "loading") once the thread later becomes fetchable
-            // (e.g. an optimistic thread that gets its server id).
             this.status = "ready";
             return [];
         }
@@ -649,7 +536,6 @@ export class Thread extends Record {
 
     /** @param {{after?: number, around?: number, before?: number}} [param0] */
     async fetchMessagesData({ after, around, before } = {}) {
-        // ordered messages received: newest to oldest
         return await rpc(this.getFetchRoute(), {
             ...this.getFetchParams(),
             fetch_params: {
@@ -687,8 +573,6 @@ export class Thread extends Record {
             (before !== undefined &&
                 !this.messages.some((message) => message.id === before))
         ) {
-            // there might have been a jump to message during RPC fetch.
-            // Abort feeding messages as to not put holes in message list.
             return;
         }
         const alreadyKnownMessages = new Set(this.messages.map(({ id }) => id));
@@ -705,11 +589,6 @@ export class Thread extends Record {
                 this.loadOlder = false;
             } else if (epoch === "newer") {
                 this.loadNewer = false;
-                // Filter against the CURRENT message list, not the stale
-                // `alreadyKnownMessages` snapshot taken before `messagesToAdd`
-                // was pushed above: a message present in both the fetch response
-                // and `pendingNewMessages` (posted via bus during the RPC) would
-                // otherwise be inserted twice -> duplicate t-key -> list crash.
                 const missingMessages = this.pendingNewMessages.filter((message) =>
                     message.notIn(this.messages),
                 );
@@ -723,23 +602,12 @@ export class Thread extends Record {
         this.pendingNewMessages = [];
     }
 
-    /**
-     * Get the effective persona performing actions on this thread.
-     * Priority order: logged-in user, portal partner (token-authenticated), guest.
-     *
-     * @returns {import("models").ResPartner|import("models").MailGuest}
-     */
+    /** @returns {import("models").ResPartner|import("models").MailGuest} */
     get effectiveSelf() {
         return this.store.self_partner || this.store.self_guest;
     }
 
-    /**
-     * Whether new messages reach this thread through bus pushes, so that an
-     * already-loaded thread never needs an incremental refetch. Base
-     * behavior: true for mailboxes; the discuss layer adds channels.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get busKeepsMessagesFresh() {
         return this.isMailbox;
     }
@@ -758,8 +626,6 @@ export class Thread extends Record {
         } catch {
             return;
         }
-        // could have received a new message as notification during fetch
-        // filter out already fetched (e.g. received as notification in the meantime)
         let startIndex;
         if (after === undefined) {
             startIndex = 0;
@@ -768,8 +634,6 @@ export class Thread extends Record {
                 (message) => message.id === after,
             );
             if (afterIndex === -1) {
-                // there might have been a jump to message during RPC fetch.
-                // Abort feeding messages as to not put holes in message list.
                 return;
             } else {
                 startIndex = afterIndex + 1;
@@ -789,15 +653,9 @@ export class Thread extends Record {
             filtered.length > 0 &&
             alreadyKnownMessages.size > 0
         ) {
-            // already-known messages (e.g. received from the bus before the
-            // initial fetch) may be newer than some fetched ones: restore the
-            // continuous ascending order invariant of `messages`.
             this.messages.sort((m1, m2) => m1.id - m2.id);
         }
         if (after === undefined) {
-            // Full (re)fetch: a full page means there may be older messages to
-            // load, a short page means we reached the start. An incremental
-            // fetch (after !== undefined) leaves loadOlder untouched.
             this.loadOlder = fetched.length === this.store.FETCH_LIMIT;
         }
     }
@@ -832,17 +690,7 @@ export class Thread extends Record {
 
     _loadAroundSequential = makeSequential();
 
-    /**
-     * Get ready to jump to a message in a thread. This method will fetch the
-     * messages around the message to jump to if required, and update the thread
-     * messages accordingly.
-     *
-     * Jumps are sequentialized: a jump requested while another one is loading
-     * is executed afterwards (intermediate queued jumps are superseded by the
-     * last one) instead of being silently dropped.
-     *
-     * @param {number} [messageId] if not provided, load around newest message
-     */
+    /** @param {number} [messageId] */
     async loadAround(messageId) {
         if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
             return;
@@ -853,7 +701,7 @@ export class Thread extends Record {
     /** @param {number} [messageId] */
     async _loadAround(messageId) {
         if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
-            return; // an earlier queued jump already loaded around this message
+            return;
         }
         this.isLoaded = false;
         this.scrollTop = undefined;
@@ -861,11 +709,6 @@ export class Thread extends Record {
             this.phantomMessages = this.messages;
             this.messages = await this.fetchMessages({ around: messageId });
         } catch {
-            // Not a silent swallow: fetchMessages() recorded the failure in
-            // hasLoadingFailed/hasLoadingFailedError, which drive the
-            // in-thread error banner and its retry button. Rethrowing would
-            // surface the same failure a second time as an uncaught error in
-            // the fire-and-forget component call sites.
             this.isLoaded = true;
             return;
         } finally {
@@ -896,10 +739,7 @@ export class Thread extends Record {
     }
 
     async markAllMessagesAsRead() {
-        // Optimistic UI update: immediately clear needaction messages so the
-        // notification item disappears and the systray counter decreases
-        // without waiting for the bus notification.
-        const inbox = this.store.inbox; // absent outside the web bundles
+        const inbox = this.store.inbox;
         const inboxSnapshot = inbox && snapshotCounter(inbox, "counter");
         const needactionSnapshot = snapshotCounter(this, "message_needaction_counter");
         const messages = [...this.needactionMessages];
@@ -924,13 +764,6 @@ export class Thread extends Record {
                 ],
             );
         } catch (e) {
-            // Roll back the optimistic update (see Message.setDone): no
-            // correcting bus notification arrives on failure, so the inbox and
-            // counters would otherwise stay wrong until reload. Counters are
-            // only rolled back when their bus id did not advance in the
-            // meantime: a newer absolute bus snapshot must not be overwritten
-            // by a stale local value. Fire-and-forget caller -> swallow rather
-            // than raise an unhandled rejection.
             for (const message of messages) {
                 message.needaction = true;
                 if (inbox) {
@@ -943,9 +776,7 @@ export class Thread extends Record {
         }
     }
 
-    /**
-     * @param {Object} [options] used in overrides
-     */
+    /** @param {Object} [options] */
     markAsRead(options) {
         const newestPersistentMessage = this.newestPersistentOfAllMessage;
         if (!newestPersistentMessage && !this.isLoaded) {
@@ -963,59 +794,42 @@ export class Thread extends Record {
     onNewSelfMessage(message) {}
 
     /**
-     * Open this thread in the UI.
-     *
-     * Composition contract: `open()` delegates, in order, to
-     * - `openChatUI()` — chat surfaces (Discuss app, chat windows),
-     *   implemented by the discuss layer for channel-kind threads;
-     * - `openWebClientUI()` — web-client surfaces (mailboxes, record form
-     *   views), implemented by the web layer.
-     * The chat seam therefore always wins over the web-client seam,
-     * regardless of bundle/patch load order. Patches must extend one of the
-     * two seams rather than `open()` itself, unless they only add side
-     * effects around `super.open()` or handle their own thread model.
-     *
      * @param {Object} [options]
-     * @return {boolean} true if the thread was opened, false otherwise
+     * @return {boolean}
      */
     open(options) {
         return this.openChatUI(options) || this.openWebClientUI(options);
     }
 
     /**
-     * Chat-surface seam of `open()` (@see open). Neutral default: not
-     * handled.
-     *
      * @param {Object} [options]
-     * @returns {boolean} true if the thread was opened
+     * @returns {boolean}
      */
     openChatUI(options) {
         return false;
     }
 
     /**
-     * Web-client seam of `open()` (@see open). Neutral default: not handled
-     * (e.g. on public pages without the action service).
-     *
      * @param {Object} [options]
-     * @returns {boolean} true if the thread was opened
+     * @returns {boolean}
      */
     openWebClientUI(options) {
         return false;
     }
 
-    /**
-     * Open this thread inside the Discuss application when appropriate
-     * (e.g. Discuss is active on a large screen). Returning false lets the
-     * caller fall back to a chat window (@see openChatUI in the discuss
-     * layer). Neutral default: not handled.
-     *
-     * @returns {boolean} true if the thread was opened
-     */
+    /** @returns {boolean} */
     openChannel() {
         return false;
     }
 
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.focus=false]
+     * @param {boolean} [options.fromMessagingMenu]
+     * @param {boolean} [options.bypassCompact]
+     * @param {boolean} [options.swapOpened]
+     * @returns {Promise<import("models").ChatWindow|undefined>}
+     */
     async openChatWindow({
         focus = false,
         fromMessagingMenu,
@@ -1034,24 +848,21 @@ export class Thread extends Record {
         return cw;
     }
 
+    /** @param {Object} [options={}] */
     async closeChatWindow(options = {}) {
         await this.store.chatHub.initPromise;
         const chatWindow = this.store.ChatWindow.get({ thread: this });
         await chatWindow?.close({ notifyState: false, ...options });
     }
 
-    /**
-     * Rename this thread from user input (chat window / Discuss header
-     * editing). Contract: persist the new name server-side when the thread
-     * kind supports renaming, else ignore the request. Neutral default:
-     * document threads have no rename endpoint — no-op.
-     *
-     * @param {string} name
-     */
+    /** @param {string} name */
     async rename(name) {}
 
+    /**
+     * @param {import("models").Message} message
+     * @param {import("models").Message} [tmpMsg]
+     */
     addOrReplaceMessage(message, tmpMsg) {
-        // The message from other personas (not self) should not replace the tmpMsg
         if (
             tmpMsg &&
             tmpMsg.in(this.messages) &&
@@ -1063,26 +874,13 @@ export class Thread extends Record {
         this.messages.add(message);
     }
 
-    /**
-     * Whether `post()` inserts an optimistic pending message right away, so
-     * that composers may fire-and-forget the post RPC
-     * (@see makeOptimisticPendingMessage). Neutral default: false, document
-     * threads wait for the server response.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get hasOptimisticPost() {
         return false;
     }
 
     /**
-     * Build and insert the optimistic (client-side pending) message shown
-     * while a post RPC is in flight, for thread kinds with optimistic
-     * posting (@see hasOptimisticPost). Contract: return the inserted
-     * pending message, or undefined when the thread kind does not support
-     * optimistic posting (neutral default).
-     *
-     * @param {number} tmpId temporary client-side message id
+     * @param {number} tmpId
      * @param {ReturnType<import("@odoo/owl").markup>} body
      * @param {Object} postData
      * @returns {Promise<import("models").Message|undefined>}
@@ -1092,11 +890,13 @@ export class Thread extends Record {
     }
 
     /**
-     *  @param {ReturnType<import("@odoo/owl").markup>} body
-     *  @param {Object} extraData
+     * @param {ReturnType<import("@odoo/owl").markup>} body
+     * @param {Object} [postData={}]
+     * @param {Object} [extraData={}]
+     * @returns {Promise<import("models").Message|undefined>}
      */
     async post(body, postData = {}, extraData = {}) {
-        postData.attachments = postData.attachments ? [...postData.attachments] : []; // to not lose them on composer clear
+        postData.attachments = postData.attachments ? [...postData.attachments] : [];
         const { parentId } = postData;
         const params = await getMessagePostParams(this.store, {
             body,
@@ -1122,12 +922,8 @@ export class Thread extends Record {
     }
 
     /**
-     * Handle the response of a `/mail/message/post` RPC: insert the resulting
-     * data and replace the temporary message with the persistent one. Also
-     * used when re-attempting a failed post (@see Message.postFailRedo).
-     *
-     * @param {Object} data response of `/mail/message/post`
-     * @param {import("models").Message} [tmpMsg] the associated temporary message
+     * @param {Object} data
+     * @param {import("models").Message} [tmpMsg]
      * @returns {import("models").Message}
      */
     processMessagePostResponse(data, tmpMsg) {
@@ -1136,8 +932,6 @@ export class Thread extends Record {
         const message = this.store["mail.message"].get(data.message_id);
         this.addOrReplaceMessage(message, tmpMsg);
         this.onNewSelfMessage(message);
-        // Only delete the temporary message now that seen_message_id is updated
-        // to avoid flickering.
         tmpMsg?.delete();
         if (message.hasLink && this.store.hasLinkPreviewFeature) {
             rpc("/mail/link_preview", { message_id: message.id }, { silent: true });
@@ -1155,19 +949,8 @@ export class Thread extends Record {
         );
     }
 
-    /**
-     * Following a load more or load around, listing of messages contains persistent messages.
-     * Transient messages are missing, so this function puts known transient messages at the
-     * right place in message list of thread.
-     */
     _enrichMessagesWithTransient() {
         for (const message of this.transientMessages) {
-            // RecordList.push/unshift/splice do not dedupe, while `messages`
-            // carries a uniqueness invariant (t-key=msg.id in thread.xml). A
-            // transient message already placed by a previous load must not be
-            // re-inserted, otherwise the duplicate localId yields a duplicate
-            // t-key and OWL corrupts / crashes the thread list on every further
-            // "load older".
             if (message.in(this.messages)) {
                 continue;
             }
@@ -1188,69 +971,32 @@ export class Thread extends Record {
         }
     }
 
-    /**
-     * Python model name under which this record is keyed in Store payloads
-     * (@see Record._getActualModelName). All document threads serialize as
-     * "mail.thread"; the discuss layer maps channels to their own key.
-     *
-     * @returns {string}
-     */
+    /** @returns {string} */
     _getActualModelName() {
         return "mail.thread";
     }
 
-    /**
-     * Compute of the `correspondent` field of channel-kind threads: the
-     * single "other" member this conversation is with, when that makes sense
-     * (1:1 or self chats). Contract: return a channel member (or undefined);
-     * overrides may special-case per channel kind and should fall back to
-     * `super.computeCorrespondent()`. Neutral default: document threads have
-     * no correspondent.
-     *
-     * @returns {import("models").ChannelMember|undefined}
-     */
+    /** @returns {import("models").ChannelMember|undefined} */
     computeCorrespondent() {
         return undefined;
     }
 
-    /**
-     * Members whose "seen" state may be reflected by message seen
-     * indicators. The purpose is to let layers exclude technical members
-     * (e.g. bots) to avoid "wrong" seen indicators. Neutral default:
-     * document threads have no members.
-     *
-     * @returns {import("models").ChannelMember[]}
-     */
+    /** @returns {import("models").ChannelMember[]} */
     get membersThatCanSeen() {
         return [];
     }
 
-    /**
-     * Whether UIs (chat window header, member lists) should decorate the
-     * correspondent with their country flag. Neutral default: false; kinds
-     * with anonymous visitors (livechat) turn this on.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get showCorrespondentCountry() {
         return false;
     }
 
-    /**
-     * Channel member whose online (im) status stands for this thread in
-     * chat window headers. Neutral default: none; the discuss layer returns
-     * the correspondent of 1:1 chats.
-     *
-     * @returns {import("models").ChannelMember|undefined}
-     */
+    /** @returns {import("models").ChannelMember|undefined} */
     get imStatusMember() {
         return undefined;
     }
 
     /**
-     * Whether this thread is the 1:1 chat with the given persona. Neutral
-     * default: document threads are not chats.
-     *
      * @param {import("models").ResPartner|import("models").MailGuest} persona
      * @returns {boolean}
      */
@@ -1258,30 +1004,17 @@ export class Thread extends Record {
         return false;
     }
 
-    /**
-     * Composer type forced when this thread is displayed in a chat window;
-     * undefined lets the composer use its default ("message"). Neutral
-     * default: document threads log notes from chat windows.
-     *
-     * @returns {string|undefined}
-     */
+    /** @returns {string|undefined} */
     get chatWindowComposerType() {
         return "note";
     }
 
-    /**
-     * Placeholder of the composer input for this thread.
-     *
-     * @returns {string}
-     */
+    /** @returns {string} */
     get composerPlaceholder() {
         return _t("Message %(thread name)s…", { "thread name": this.displayName });
     }
 
     /**
-     * Title of an out-of-focus OS notification for `message` posted on this
-     * thread. Neutral default: the author's name.
-     *
      * @param {import("models").Message} message
      * @returns {string}
      */
@@ -1289,44 +1022,22 @@ export class Thread extends Record {
         return message.authorName;
     }
 
-    /**
-     * Whether the message list shows a "start of conversation" banner once
-     * the oldest message is loaded. Neutral default: false; the discuss
-     * layer enables it per channel kind.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get hasStartOfConversationBanner() {
         return false;
     }
 
-    /**
-     * Title of the "start of conversation" banner
-     * (@see hasStartOfConversationBanner).
-     *
-     * @returns {string}
-     */
+    /** @returns {string} */
     get conversationStartTitle() {
         return this.displayName;
     }
 
-    /**
-     * Subtitle of the "start of conversation" banner
-     * (@see hasStartOfConversationBanner). Neutral default: none.
-     *
-     * @returns {string}
-     */
+    /** @returns {string} */
     get conversationStartSubtitle() {
         return "";
     }
 
-    /**
-     * Message id of the persisted new-message separator for the current
-     * user, when this thread tracks per-member read state. Neutral default:
-     * undefined (no separator support).
-     *
-     * @returns {number|undefined}
-     */
+    /** @returns {number|undefined} */
     get newMessageSeparatorId() {
         return undefined;
     }

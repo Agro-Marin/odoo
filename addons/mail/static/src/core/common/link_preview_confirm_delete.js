@@ -5,11 +5,11 @@ import { Dialog } from "@web/ui/dialog";
 /**
  * @typedef {Object} Props
  * @property {import("models").LinkPreview} linkPreview
- * @property {function} [delete] Function bound to the delete button
- * @property {function} [deleteAll] Function bound to the delete all button
+ * @property {function} [delete]
+ * @property {function} [deleteAll]
  * @property {function} close
  * @property {Component} LinkPreviewListComponent
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class LinkPreviewConfirmDelete extends Component {
     static components = { Dialog };

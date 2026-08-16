@@ -27,6 +27,7 @@ class AbstractAttachmentView extends Component {
             thread: undefined,
         });
         useEffect(
+            /** @param {HTMLIFrameElement|null} el */
             (el) => {
                 if (el) {
                     hidePDFJSButtons(this.iframeViewerPdfRef.el);
@@ -35,7 +36,10 @@ class AbstractAttachmentView extends Component {
             () => [this.iframeViewerPdfRef.el],
         );
         this.updateFromProps(this.props);
-        onWillUpdateProps((props) => this.updateFromProps(props));
+        onWillUpdateProps(
+            /** @param {{threadId: number, threadModel: string}} props */ (props) =>
+                this.updateFromProps(props),
+        );
     }
 
     onClickNext() {
@@ -60,6 +64,7 @@ class AbstractAttachmentView extends Component {
         );
     }
 
+    /** @param {{threadId: number, threadModel: string}} props */
     updateFromProps(props) {
         this.state.thread = this.store.Thread.insert({
             id: props.threadId,
@@ -74,10 +79,6 @@ class AbstractAttachmentView extends Component {
     onClickPopout() {}
 }
 
-/*
- * AttachmentView inside popout window.
- * Popout features disabled as this only makes sense in the non-popout AttachmentView.
- */
 export class PopoutAttachmentView extends AbstractAttachmentView {
     static template = "mail.PopoutAttachmentView";
 }
@@ -112,6 +113,10 @@ export function usePopoutAttachment() {
         }
     }
 
+    /**
+     * @param {{threadId: number, threadModel: string}} props
+     * @returns {{threadId: number, threadModel: string}}
+     */
     function extractPopoutProps(props) {
         return {
             threadId: props.threadId,
@@ -136,6 +141,7 @@ export function usePopoutAttachment() {
         );
     }
 
+    /** @param {{threadId: number, threadModel: string}} [newProps=component.props] */
     function updatePopout(newProps = component.props) {
         if (mailPopoutService.externalWindow) {
             hideAttachmentView();
@@ -151,13 +157,15 @@ export function usePopoutAttachment() {
     }
 
     onMounted(updatePopout);
-    onWillUpdateProps((props) => {
-        const oldProps = extractPopoutProps(component.props);
-        const newProps = extractPopoutProps(props);
-        if (!deepEqual(oldProps, newProps)) {
-            updatePopout(newProps);
-        }
-    });
+    onWillUpdateProps(
+        /** @param {{threadId: number, threadModel: string}} props */ (props) => {
+            const oldProps = extractPopoutProps(component.props);
+            const newProps = extractPopoutProps(props);
+            if (!deepEqual(oldProps, newProps)) {
+                updatePopout(newProps);
+            }
+        },
+    );
     onWillUnmount(resetPopout);
     return {
         popout,
@@ -170,7 +178,7 @@ export function usePopoutAttachment() {
  * @typedef {Object} Props
  * @property {number} threadId
  * @property {string} threadModel
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class AttachmentView extends AbstractAttachmentView {
     setup() {

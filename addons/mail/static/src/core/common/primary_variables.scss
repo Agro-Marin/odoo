@@ -1,13 +1,12 @@
 $o-mail-Avatar-size: 32px !default;
 $o-mail-Avatar-sizeSmall: 24px !default;
-$o-mail-ChatWindow-width: 380px !default; // same value as WINDOW
-$o-mail-ChatHub-bubblesWidth: 56px !default; // same value as BUBBLE
-$o-mail-ChatHub-bubblesMargin: 10px !default; // same value as BUBBLE_OUTER
-$o-mail-ChatHub-bubblesStart: 15px !default; // same value as BUBBLE_START
+$o-mail-ChatWindow-width: 380px !default;
+$o-mail-ChatHub-bubblesWidth: 56px !default;
+$o-mail-ChatHub-bubblesMargin: 10px !default;
+$o-mail-ChatHub-bubblesStart: 15px !default;
 $o-mail-ChatBubble-size: 45px !default;
 $o-mail-ChatBubble-sizeBig: 50px !default;
 $o-mail-ChatBubble-zindex: 1001 !default;
-// Needed because $border-radius variations are all set to 0 in enterprise.
 $o-RoundedRectangle-small: 0.2rem !default;
 $o-RoundedRectangle-large: 3 * $o-RoundedRectangle-small !default;
 
@@ -19,8 +18,8 @@ $o-mail-Message-sidebarSmallWidth: 36px !default;
 $o-mail-Message-sidebarWidth: 48px !default;
 $o-mail-NavigableList-zIndex: 21;
 $o-mail-Chatter-minWidth: 530px !default;
-$o-mail-Discuss-inspector: 300px !default; // same value as INSPECTOR_WIDTH
-$o-mail-DiscussSidebar-compactWidth: 60px !default; // same value as COMPACT_SIDEBAR_WIDTH
+$o-mail-Discuss-inspector: 300px !default;
+$o-mail-DiscussSidebar-compactWidth: 60px !default;
 
 $o-mail-CallMenu-bgColor-darker: #111827ff !default;
 $o-mail-CallMenu-bgColor: #1f2937ff !default;

@@ -8,7 +8,12 @@ import {
 } from "@web/core/utils/dom/xml";
 import { patch } from "@web/core/utils/patch";
 import { FormCompiler } from "@web/views/form";
-/** @this {FormCompiler} */
+/**
+ * @this {FormCompiler}
+ * @param {Element} node
+ * @param {Object} params
+ * @returns {Element}
+ */
 function compileChatter(node, params) {
     const chatterContainerXml = createElement("t");
     setAttributes(chatterContainerXml, {
@@ -31,8 +36,6 @@ function compileChatter(node, params) {
         threadId: "__comp__.props.record.resId or undefined",
         threadModel: "__comp__.props.record.resModel",
         record: "__comp__.props.record",
-        // saveRecord is set by the FormCompiler.compile patch below
-        // (setAttributes, unconditional) — a value here would be dead.
         highlightMessageId: "__comp__.highlightMessageId",
     });
     const chatterContainerHookXml = createElement("div");
@@ -45,6 +48,11 @@ function compileChatter(node, params) {
     return chatterContainerHookXml;
 }
 
+/**
+ * @param {Element} node
+ * @param {Object} params
+ * @returns {Element}
+ */
 function compileAttachmentPreview(node, params) {
     const webClientViewAttachmentViewContainerHookXml = createElement("div");
     webClientViewAttachmentViewContainerHookXml.classList.add("o_attachment_preview");
@@ -72,11 +80,16 @@ registry.category("form_compilers").add("attachment_preview_compiler", {
 });
 
 patch(FormCompiler.prototype, {
+    /**
+     * @param {Element} node
+     * @param {Object} params
+     * @returns {Element}
+     */
     compile(node, params) {
         const res = super.compile(node, params);
         const chatterContainerHookXml = res.querySelector(".o-mail-Form-chatter");
         if (!chatterContainerHookXml) {
-            return res; // no chatter, keep the result as it is
+            return res;
         }
         const chatterContainerXml = chatterContainerHookXml.querySelector(
             "t[t-component='__comp__.mailComponents.Chatter']",
@@ -87,12 +100,12 @@ patch(FormCompiler.prototype, {
             saveRecord: "__comp__.props.saveRecord",
         });
         if (chatterContainerHookXml.parentNode.classList.contains("o_form_sheet")) {
-            return res; // if chatter is inside sheet, keep it there
+            return res;
         }
         const formSheetBgXml = res.querySelector(".o_form_sheet_bg");
         const parentXml = formSheetBgXml && formSheetBgXml.parentNode;
         if (!parentXml) {
-            return res; // miss-config: a sheet-bg is required for the rest
+            return res;
         }
 
         const webClientViewAttachmentViewHookXml = res.querySelector(
@@ -100,7 +113,6 @@ patch(FormCompiler.prototype, {
         );
         const hasPreview = !!webClientViewAttachmentViewHookXml;
         if (webClientViewAttachmentViewHookXml) {
-            // in sheet bg (attachment viewer present)
             setAttributes(webClientViewAttachmentViewHookXml, {
                 "t-if": `__comp__.mailLayout(${hasPreview}).includes("COMBO")`,
             });
@@ -120,7 +132,6 @@ patch(FormCompiler.prototype, {
                 isChatterAside: "false",
             });
         }
-        // after sheet bg (standard position, either aside or below)
         setAttributes(chatterContainerXml, {
             isInFormSheetBg: `["COMBO", "BOTTOM_CHATTER"].includes(__comp__.mailLayout(${hasPreview}))`,
             isChatterAside: `["SIDE_CHATTER", "EXTERNAL_COMBO_XXL", "EXTERNAL_COMBO"].includes(__comp__.mailLayout(${hasPreview}))`,
@@ -129,7 +140,7 @@ patch(FormCompiler.prototype, {
         setAttributes(chatterContainerHookXml, {
             "t-if": `${
                 tIf ? tIf : "true"
-            } and (!["COMBO", "NONE"].includes(__comp__.mailLayout(${hasPreview})))`, // opposite of sheetBgChatterContainerHookXml
+            } and (!["COMBO", "NONE"].includes(__comp__.mailLayout(${hasPreview})))`,
             "t-attf-class": `{{ ["SIDE_CHATTER", "EXTERNAL_COMBO_XXL"].includes(__comp__.mailLayout(${hasPreview})) ? "o-aside w-print-100" : "mt-4 mt-md-0" }}`,
         });
         append(parentXml, chatterContainerHookXml);

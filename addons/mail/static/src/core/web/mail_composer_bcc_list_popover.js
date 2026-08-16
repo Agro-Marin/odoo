@@ -8,7 +8,7 @@ export class MailComposerBccPopover extends Component {
     /**
      * @param {Record} record
      * @returns {string}
-     **/
+     */
     getRecipientText(record) {
         return _t("%(name)s <%(email)s>", {
             name: record.data.name,

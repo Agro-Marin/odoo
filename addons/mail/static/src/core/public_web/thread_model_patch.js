@@ -5,18 +5,7 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { ConfirmationDialog } from "@web/ui/dialog";
 patch(Thread.prototype, {
-    /**
-     * Handle the notification of a new message based on the notification setting of the user.
-     * Thread on mute:
-     * 1. No longer see the unread status: the bold text disappears and the channel name fades out.
-     * 2. Without sound + need action counter.
-     * Thread Notification Type:
-     * All messages:All messages sound + need action counter
-     * Mentions:Only mention sounds + need action counter
-     * Nothing: No sound + need action counter
-     *
-     * @param {import("models").Message} message
-     */
+    /** @param {import("models").Message} message */
     async notifyMessageToUser(message) {
         const channel_notifications =
             this.self_member_id?.custom_notifications ||
@@ -50,7 +39,6 @@ patch(Thread.prototype, {
             }
         }
     },
-    /** Condition for whether the conversation should become present in chat hub on new message */
     get inChathubOnNewMessage() {
         return !this.store.discuss.isActive;
     },
@@ -69,7 +57,7 @@ patch(Thread.prototype, {
         this.store.discuss.activeTab = !this.store.env.services.ui.isSmall
             ? "notification"
             : this.isMailbox
-              ? this.store.self.main_user_id?.notification_type === "inbox"
+              ? this.store.self_partner?.main_user_id?.notification_type === "inbox"
                   ? "inbox"
                   : "starred"
               : ["chat", "group"].includes(this.channel_type)
@@ -98,7 +86,6 @@ patch(Thread.prototype, {
             this.store.env.services.action?.currentController?.action.id ===
                 this.store.action_discuss_id
         ) {
-            // Keep the action stack up to date (used by breadcrumbs).
             this.store.env.services.action.currentController.action.context.active_id =
                 activeId;
         }

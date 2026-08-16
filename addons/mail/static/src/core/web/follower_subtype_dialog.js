@@ -9,7 +9,7 @@ import { Dialog } from "@web/ui/dialog";
  * @property {function} close
  * @property {import("models").Follower} follower
  * @property {function} onFollowerChanged
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class FollowerSubtypeDialog extends Component {
     static components = { Dialog };
@@ -53,8 +53,6 @@ export class FollowerSubtypeDialog extends Component {
         const selectedSubtypes = this.state.subtypes.filter((s) =>
             s.in(this.props.follower.subtype_ids),
         );
-        // snapshot so a failed subscribe can be rolled back: onChangeCheckbox
-        // mutates the shared follower.subtype_ids live
         const previousSubtypes = [...this.props.follower.subtype_ids];
         if (selectedSubtypes.length === 0) {
             await this.props.follower.remove();

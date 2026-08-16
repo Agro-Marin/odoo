@@ -9,7 +9,7 @@ import { useService } from "@web/core/utils/hooks";
  * @property {Object} [classNames]
  * @property {import("models").Message} message
  * @property {boolean} [messageActive]
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class QuickReactionMenu extends Component {
     static template = "mail.QuickReactionMenu";
@@ -56,19 +56,24 @@ export class QuickReactionMenu extends Component {
             }),
         );
         this.frequentEmojiService = useService("web.frequent.emoji");
-        useExternalListener(window, "keydown", async (ev) => {
-            if (
-                !this.dropdown.isOpen ||
-                this.picker.isOpen ||
-                !this.toggle.el?.contains(ev.target) ||
-                ["Shift", "Control", "Meta", "Alt"].includes(ev.key)
-            ) {
-                return;
-            }
-            this.togglePicker(ev.key);
-        });
+        useExternalListener(
+            window,
+            "keydown",
+            /** @param {KeyboardEvent} ev */ async (ev) => {
+                if (
+                    !this.dropdown.isOpen ||
+                    this.picker.isOpen ||
+                    !this.toggle.el?.contains(ev.target) ||
+                    ["Shift", "Control", "Meta", "Alt"].includes(ev.key)
+                ) {
+                    return;
+                }
+                this.togglePicker(ev.key);
+            },
+        );
     }
 
+    /** @param {string} [initialSearchTerm] */
     togglePicker(initialSearchTerm) {
         if (this.picker.isOpen) {
             this.picker.close();
@@ -77,6 +82,10 @@ export class QuickReactionMenu extends Component {
         }
     }
 
+    /**
+     * @param {string} emoji
+     * @returns {string}
+     */
     getEmojiShortcode(emoji) {
         return (
             this.store.emojiLoader.loaded?.emojiValueToShortcodes?.[emoji]?.[0] ?? "?"
@@ -99,6 +108,7 @@ export class QuickReactionMenu extends Component {
         }
     }
 
+    /** @param {string} emoji */
     toggleReaction(emoji) {
         const reaction = this.props.message.reactions.find(
             (r) =>
@@ -128,6 +138,10 @@ export class QuickReactionMenu extends Component {
         };
     }
 
+    /**
+     * @param {string} emoji
+     * @returns {boolean}
+     */
     reactedBySelf(emoji) {
         return this.props.message.reactions.some(
             (r) =>
@@ -147,16 +161,17 @@ export class QuickReactionMenu extends Component {
 
     get navigationOptions() {
         return {
-            // Bypass nested dropdown behavior to allow initial focus.
+            /** @param {import("@web/core/navigation/navigation").Navigator} navigator */
             onUpdated: (navigator) => {
                 if (!navigator.activeItem) {
                     navigator.items[0]?.setActive();
                 }
             },
             hotkeys: {
+                /** @param {import("@web/core/navigation/navigation").Navigator} navigator */
                 arrowright: (navigator) => navigator.next(),
+                /** @param {import("@web/core/navigation/navigation").Navigator} navigator */
                 arrowleft: (navigator) => navigator.previous(),
-                // Disable up and down navigation as it does not make sense for horizontal menu.
                 arrowdown: null,
                 arrowup: null,
             },

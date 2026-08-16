@@ -3,16 +3,11 @@ import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { patch } from "@web/core/utils/patch";
 import { PropertyValue } from "@web/fields/specialized/properties";
-/**
- * Allow to open the chat with the user when we click on the avatar of a Many2one
- * property (like we do for many2one_avatar_user widget).
- */
 patch(PropertyValue.prototype, {
     setup() {
         super.setup();
 
         if (this.env.services["mail.store"]) {
-            // work only for the res.users model
             this.openChat = useOpenChat("res.users");
         }
     },
@@ -24,10 +19,6 @@ patch(PropertyValue.prototype, {
     },
 });
 
-/**
- * Allow to open the chat with the user when we click on the avatar of a Many2many
- * property (like we do for many2many_avatar_user widget).
- */
 export class Many2manyPropertiesTagsList extends TagsList {
     static template = "mail.Many2manyPropertiesTagsList";
 
@@ -38,6 +29,7 @@ export class Many2manyPropertiesTagsList extends TagsList {
         }
     }
 
+    /** @param {number} tagIndex */
     _onAvatarClicked(tagIndex) {
         const tag = this.props.tags[tagIndex];
         if (this.openChat && tag.comodel === "res.users") {

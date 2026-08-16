@@ -1,10 +1,4 @@
 /** @odoo-module native */
-/**
- * Registry of functions to sort threads in messaging menu.
- * The expected value is a function with the following
- * signature:
- *     (thread1: Thread, thread2: Thread) => number | undefined
- */
 import { registry } from "@web/core/registry";
 export const threadCompareRegistry = registry.category("mail.thread_compare");
 

@@ -17,14 +17,32 @@ export const IS_RECORD_SYM = Symbol("isRecord");
 export const IS_DELETED_SYM = Symbol("isDeleted");
 export const STORE_SYM = Symbol("store");
 
+/**
+ * @typedef {string|[typeof AND_SYM|typeof OR_SYM, ...IdExpression[]]} IdExpression
+ */
+
+/**
+ * @param {...IdExpression} args
+ * @returns {IdExpression}
+ */
 export function AND(...args) {
     return [AND_SYM, ...args];
 }
+/**
+ * @param {...IdExpression} args
+ * @returns {IdExpression}
+ */
 export function OR(...args) {
     return [OR_SYM, ...args];
 }
 
+/** @type {Set<string>} */
 const COMMAND_NAMES = new Set(["ADD", "DELETE", "ADD.noinv", "DELETE.noinv"]);
+/**
+ * @param {*} data
+ * @returns {boolean}
+ * @throws {Error}
+ */
 export function isCommand(data) {
     if (!Array.isArray(data) || data.length === 0) {
         return false;
@@ -48,6 +66,7 @@ export function isCommand(data) {
 /**
  * @param {typeof import("./record").Record} Model
  * @param {string} fieldName
+ * @returns {boolean}
  */
 export function isOne(Model, fieldName) {
     return Model._.fields.get(fieldName) === ONE_SYM;
@@ -55,22 +74,33 @@ export function isOne(Model, fieldName) {
 /**
  * @param {typeof import("./record").Record} Model
  * @param {string} fieldName
+ * @returns {boolean}
  */
 export function isMany(Model, fieldName) {
     return Model._.fields.get(fieldName) === MANY_SYM;
 }
-/** @param {Record} record */
+/**
+ * @param {unknown} record
+ * @returns {record is Record}
+ */
 export function isRecord(record) {
-    return Boolean(record?._?.[IS_RECORD_SYM]);
+    return Boolean(
+        /** @type {{_?: {[IS_RECORD_SYM]?: unknown}}} */ (record)?._?.[IS_RECORD_SYM],
+    );
 }
 /**
  * @param {typeof import("./record").Record} Model
  * @param {string} fieldName
+ * @returns {boolean}
  */
 export function isRelation(Model, fieldName) {
     const kind = Model._.fields.get(fieldName);
     return kind === ONE_SYM || kind === MANY_SYM;
 }
+/**
+ * @param {*} val
+ * @returns {boolean}
+ */
 export function isFieldDefinition(val) {
     return val?.[FIELD_DEFINITION_SYM];
 }
@@ -78,18 +108,14 @@ export function isFieldDefinition(val) {
 export const fields = {
     /**
      * @template {keyof import("models").Models} M
+     * @template {Record} [R=Record] the record owning this field; inferred from
      * @param {M} targetModel
      * @param {Object} [param1={}]
-     * @param {(this: Record) => any} [param1.compute] if set, the value of this relational field is declarative and
-     *   is computed automatically: it is recomputed whenever one of its dependencies changes
-     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
-     * @param {string} [param1.inverse] if set, the name of field in targetModel that acts as the inverse.
-     * @param {(this: Record, r: import("models").Models[M]) => void} [param1.onAdd] function that is called when a record is added
-     *   in the relation.
-     * @param {(this: Record, r: import("models").Models[M]) => void} [param1.onDelete] function that is called when a record is removed
-     *   from the relation.
-     * @param {(this: Record) => void} [param1.onUpdate] function that is called when the field value is updated.
-     *   This is called at least once at record creation.
+     * @param {(this: R) => any} [param1.compute]
+     * @param {string} [param1.inverse]
+     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onAdd]
+     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onDelete]
+     * @param {(this: R) => void} [param1.onUpdate]
      * @returns {import("models").Models[M]}
      */
     One(targetModel, param1) {
@@ -102,20 +128,15 @@ export const fields = {
     },
     /**
      * @template {keyof import("models").Models} M
+     * @template {Record} [R=Record] the record owning this field; inferred from
      * @param {M} targetModel
      * @param {Object} [param1={}]
-     * @param {(this: Record) => any} [param1.compute] if set, the value of this relational field is declarative and
-     *   is computed automatically: it is recomputed whenever one of its dependencies changes
-     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
-     * @param {string} [param1.inverse] if set, the name of field in targetModel that acts as the inverse.
-     * @param {(this: Record, r: import("models").Models[M]) => void} [param1.onAdd] function that is called when a record is added
-     *   in the relation.
-     * @param {(this: Record, r: import("models").Models[M]) => void} [param1.onDelete] function that is called when a record is removed
-     *   from the relation.
-     * @param {(this: Record) => void} [param1.onUpdate] function that is called when the field value is updated.
-     *   This is called at least once at record creation.
-     * @param {(this: Record, r1: import("models").Models[M], r2: import("models").Models[M]) => number} [param1.sort] if defined, this field
-     *   is automatically sorted by this function.
+     * @param {(this: R) => any} [param1.compute]
+     * @param {string} [param1.inverse]
+     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onAdd]
+     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onDelete]
+     * @param {(this: R) => void} [param1.onUpdate]
+     * @param {(this: R, r1: import("models").Models[M], r2: import("models").Models[M]) => number} [param1.sort]
      * @returns {import("models").Models[M][]}
      */
     Many(targetModel, param1) {
@@ -128,17 +149,13 @@ export const fields = {
     },
     /**
      * @template T
+     * @template {Record} [R=Record] the record owning this field; inferred from
      * @param {T} def
      * @param {Object} [param1={}]
-     * @param {(this: Record) => any} [param1.compute] if set, the value of this attr field is declarative and
-     *   is computed automatically: it is recomputed whenever one of its dependencies changes
-     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
-     * @param {(this: Record) => void} [param1.onUpdate] function that is called when the field value is updated.
-     *   This is called at least once at record creation.
-     * @param {(this: Record, Object, Object) => number} [param1.sort] if defined, this field is automatically sorted
-     *   by this function.
-     * @param {'datetime'|'date'} [param1.type] if defined, automatically transform to a
-     * specific type.
+     * @param {(this: R) => any} [param1.compute]
+     * @param {(this: R) => void} [param1.onUpdate]
+     * @param {(this: R, a: any, b: any) => number} [param1.sort]
+     * @param {'datetime'|'date'} [param1.type]
      * @returns {T}
      */
     Attr(def, param1) {
@@ -150,16 +167,11 @@ export const fields = {
         };
     },
     /**
-     * HTML fields are attr fields holding markup: a plain string is escaped,
-     * while the serialized `["markup", html]` form is kept as markup.
-     *
+     * @template {Record} [R=Record] the record owning this field; inferred from
      * @param {string} def
      * @param {Object} [param1={}]
-     * @param {(this: Record) => any} [param1.compute] if set, the value of this html field is declarative and
-     *   is computed automatically: it is recomputed whenever one of its dependencies changes
-     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
-     * @param {(this: Record) => void} [param1.onUpdate] function that is called when the field value is updated.
-     *   This is called at least once at record creation.
+     * @param {(this: R) => any} [param1.compute]
+     * @param {(this: R) => void} [param1.onUpdate]
      * @returns {string|markup }
      */
     Html(def, param1) {
@@ -173,12 +185,10 @@ export const fields = {
         return definition;
     },
     /**
+     * @template {Record} [R=Record] the record owning this field; inferred from
      * @param {Object} [param0={}]
-     * @param {(this: Record) => any} [param0.compute] if set, the value of this date field is declarative and
-     *   is computed automatically: it is recomputed whenever one of its dependencies changes
-     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
-     * @param {(this: Record) => void} [param0.onUpdate] function that is called when the field value is updated.
-     *   This is called at least once at record creation.
+     * @param {(this: R) => any} [param0.compute]
+     * @param {(this: R) => void} [param0.onUpdate]
      * @returns {luxon.DateTime}
      */
     Date(param0) {
@@ -190,12 +200,10 @@ export const fields = {
         };
     },
     /**
+     * @template {Record} [R=Record] the record owning this field; inferred from
      * @param {Object} [param0={}]
-     * @param {(this: Record) => any} [param0.compute] if set, the value of this datetime field is declarative and
-     *   is computed automatically: it is recomputed whenever one of its dependencies changes
-     *   (record insertion included). The context of the function is the record. Returned value is new value assigned to this field.
-     * @param {(this: Record) => void} [param0.onUpdate] function that is called when the field value is updated.
-     *   This is called at least once at record creation.
+     * @param {(this: R) => any} [param0.compute]
+     * @param {(this: R) => void} [param0.onUpdate]
      * @returns {luxon.DateTime}
      */
     Datetime(param0) {

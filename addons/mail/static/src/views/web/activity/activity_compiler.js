@@ -4,14 +4,15 @@ import { toInterpolatedStringExpression, ViewCompiler } from "@web/views/view_co
 import { toStringExpression } from "@web/views/view_utils";
 export class ActivityCompiler extends ViewCompiler {
     /**
-     * @override
+     * @param {Element} el
+     * @param {Object} params
+     * @returns {Element}
      */
     compileField(el, params) {
         let compiled;
         if (el.hasAttribute("widget")) {
             compiled = super.compileField(el, params);
         } else {
-            // fields without a specified widget are rendered as simple divs in activity records
             compiled = createElement("div", {
                 "t-out": `record["${el.getAttribute("name")}"].value`,
             });

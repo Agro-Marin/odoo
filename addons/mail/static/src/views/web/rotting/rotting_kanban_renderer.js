@@ -10,7 +10,9 @@ export class RottingKanbanRenderer extends KanbanRenderer {
         KanbanHeader: RottingKanbanHeader,
     };
     /**
-     * @override
+     * @param {import("@web/model/relational_model/group").Group} group
+     * @param {boolean} isGroupProcessing
+     * @returns {string}
      */
     getGroupClasses(group, isGroupProcessing) {
         let classes = super.getGroupClasses(group, isGroupProcessing);

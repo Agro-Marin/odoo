@@ -85,8 +85,6 @@ $o-mail-LinkPreviewVideo-providerBorderWidth: 4px;
         border-left-color: #ff0000;
     }
     &[data-provider="google-drive"]::before {
-        // Using before pseudo element to make border radius work with
-        // border-image.
         content: "";
         position: absolute;
         z-index: 1;

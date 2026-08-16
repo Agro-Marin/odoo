@@ -10,7 +10,7 @@ import { Thread } from "./thread_model.js";
  * @property {import("models").Thread} thread
  * @property {string} size
  * @property {string} className
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ThreadIcon extends Component {
     static template = "mail.ThreadIcon";
@@ -19,6 +19,7 @@ export class ThreadIcon extends Component {
         thread: { type: Thread },
         size: {
             optional: true,
+            /** @param {string} size */
             validate: (size) => ["small", "medium", "large"].includes(size),
         },
         className: { type: String, optional: true },

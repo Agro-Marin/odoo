@@ -6,43 +6,22 @@ import { _t } from "@web/core/translation";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 
 /**
- * Orchestrates the full-composer (`mail.compose.message`) dialog of a
- * Composer component: recipient resolution, opening the dialog action, and
- * the EventBus handshake used to save/recover the dialog's content when it
- * closes (accidental discard vs. explicit discard/save-and-close).
- *
- * Every extension point stays on the component and is called back late-bound
- * (`formatDefaultBodyForFullComposer`, `fullComposerAdditionalContext`,
- * `clear`, `saveContent`, `restoreContent`, `onCloseFullComposerCallback`),
- * so downstream patches/overrides of those members keep applying.
- *
- * @returns {{
- *  bus: EventBus,
- *  isOpen: boolean,
- *  open: () => Promise<void>,
- *  saveContent: () => void,
- * }}
+ * @returns {{ bus: EventBus, isOpen: boolean, open: () => Promise<void>, saveContent: () => void, }}
  */
 export function useFullComposer() {
     const comp = useComponent();
     const state = useState({ isOpen: false });
     let bus = new EventBus();
     return {
-        /** Bus shared with the currently opened full composer form (if any). */
         get bus() {
             return bus;
         },
-        /** Whether the full composer dialog is currently open. */
         get isOpen() {
             return state.isOpen;
         },
-        /**
-         * Asks the opened full composer form (through the bus handshake) for
-         * its current content and persists it as a draft coming from the
-         * full composer.
-         */
         saveContent() {
             bus.trigger("SAVE_CONTENT", {
+                /** @param {Object} content */
                 onSaveContent: (content) =>
                     saveComposerDraft(toRaw(comp.props.composer), {
                         ...content,
@@ -55,7 +34,6 @@ export function useFullComposer() {
             const allRecipients = [...comp.thread.suggestedRecipients];
             if (comp.props.type !== "note") {
                 allRecipients.push(...comp.thread.additionalRecipients);
-                // auto-create partners:
                 const newPartners = allRecipients.filter(
                     (recipient) => !recipient.partner_id,
                 );
@@ -71,10 +49,6 @@ export function useFullComposer() {
                     });
                     for (const partnerData of partners) {
                         const partner = comp.store["res.partner"].insert(partnerData);
-                        // Match on the input email echoed by the server
-                        // (source_email): the returned list is deduped and
-                        // reordered, so pairing by position assigned partners to
-                        // the wrong recipients (or threw on a missing index).
                         const sourceEmail =
                             partnerData.source_email ?? partnerData.email;
                         const recipient = allRecipients.find(
@@ -92,7 +66,6 @@ export function useFullComposer() {
             let default_body = comp.props.composer.composerHtml;
             if (isHtmlEmpty(default_body)) {
                 const composer = toRaw(comp.props.composer);
-                // Reset signature when recovering an empty body.
                 composer.emailAddSignature = true;
             }
             const signature =
@@ -119,7 +92,6 @@ export function useFullComposer() {
                 body_contains_signature_only:
                     !comp.props.composer.composerText ||
                     comp.props.composer.composerText.trim().length === 0,
-                // Changed in 18.2+: finally get rid of autofollow, following should be done manually
                 is_thread_composer: true,
                 ...comp.fullComposerAdditionalContext,
             };
@@ -133,13 +105,17 @@ export function useFullComposer() {
                 context: context,
             };
             const options = {
+                /**
+                 * @param {Object} [args]
+                 * @param {boolean} [args.dismiss]
+                 * @param {boolean} [args.special]
+                 */
                 onClose: (args) => {
-                    // args === { dismiss: true } : click on 'X' or press escape
-                    // args === { special: true } : click on 'discard'
                     const accidentalDiscard = args?.dismiss;
                     const isDiscard = accidentalDiscard || args?.special;
                     if (accidentalDiscard) {
                         bus.trigger("ACCIDENTAL_DISCARD", {
+                            /** @param {boolean} isEmpty */
                             onAccidentalDiscard: (isEmpty) => {
                                 if (!isEmpty) {
                                     state.isOpen = true;
@@ -155,8 +131,6 @@ export function useFullComposer() {
                     comp.props.composer.replyToMessage = undefined;
                     comp.onCloseFullComposerCallback(isDiscard);
                     state.isOpen = false;
-                    // Use another event bus so that no message is sent to the
-                    // closed composer.
                     bus = new EventBus();
                 },
                 props: {

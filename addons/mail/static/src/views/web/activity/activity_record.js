@@ -3,9 +3,9 @@ import { ActivityCompiler } from "@mail/views/web/activity/activity_compiler";
 import { Component } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
+import { user } from "@web/core/user";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 import { Field } from "@web/fields/field";
-import { user } from "@web/core/user";
 import { getFormattedRecord, getImageSrcFromRecordInfo } from "@web/views/kanban";
 import { useViewCompiler } from "@web/views/view_compiler";
 export class ActivityRecord extends Component {
@@ -35,6 +35,7 @@ export class ActivityRecord extends Component {
         const { record } = this.props;
         return {
             record: getFormattedRecord(record),
+            /** @param {...any} args */
             activity_image: (...args) => getImageSrcFromRecordInfo(record, ...args),
             user_context: user.context,
             widget: this.widget,

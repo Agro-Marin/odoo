@@ -9,6 +9,7 @@ export class RottingKanbanHeader extends KanbanHeader {
         ColumnProgress: RottingColumnProgress,
     };
 
+    /** @param {import("@web/model/relational_model/group").Group} group */
     onRotIconClicked(group) {
         this.props.progressBarState.toggleFilterRotten(group);
     }

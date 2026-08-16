@@ -67,22 +67,26 @@ export class DiscussContent extends Component {
         );
     }
 
+    /** @param {{data: string}} file */
     async onFileUploaded(file) {
         await this.thread.notifyAvatarToServer(file.data);
         this.notification.add(_t("The avatar has been updated!"), { type: "success" });
     }
 
+    /** @param {string} name */
     async renameGuest(name) {
         const newName = name.trim();
         if (this.store.self.name !== newName) {
-            await this.store.self.updateGuestName(newName);
+            await this.store.self_guest?.updateGuestName(newName);
         }
     }
 
+    /** @param {string} name */
     async renameThread(name) {
         await this.thread.rename(name);
     }
 
+    /** @param {string} description */
     async updateThreadDescription(description) {
         const newDescription = description.trim();
         if (!newDescription && !this.thread.description) {

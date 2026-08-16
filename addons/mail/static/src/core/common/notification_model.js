@@ -8,6 +8,7 @@ export class Notification extends Record {
     /** @type {number} */
     id;
     mail_message_id = fields.One("mail.message", {
+        /** @this {import("models").Notification} */
         onDelete() {
             this.delete();
         },
@@ -16,6 +17,7 @@ export class Notification extends Record {
     notification_status;
     /** @type {string} */
     notification_type;
+    /** @type {string} */
     mail_email_address;
     failure = fields.One("Failure", {
         inverse: "notifications",
@@ -25,13 +27,6 @@ export class Notification extends Record {
                 return false;
             }
             const thread = this.mail_message_id?.thread;
-            // Deterministic grouping key: one failure per (type, model) —
-            // and per record for channel kinds. The previous implementation
-            // scanned every Failure record (subscribing each notification's
-            // compute to the whole collection, O(N²) on bulk ingestion) and
-            // allocated Failure.nextId INSIDE the compute — a side effect
-            // that churned Failure identities on transient misses. The
-            // insert-or-get semantics of the record layer replace both.
             const channelPart = thread?.isChannelKind ? thread.id : "";
             return {
                 id: `${this.notification_type},${thread?.model ?? ""},${channelPart}`,
@@ -62,13 +57,7 @@ export class Notification extends Record {
     }
     res_partner_id = fields.One("res.partner");
 
-    /**
-     * Get the translate string of the failure type only
-     * when it corresponds to a failure type
-     * that is automatically cancelled before sending.
-     *
-     * @returns {string}
-     */
+    /** @returns {string} */
     get autoCanceledFailureType() {
         switch (this.failure_type) {
             case "mail_bl":

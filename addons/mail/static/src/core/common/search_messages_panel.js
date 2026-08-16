@@ -9,7 +9,7 @@ import { useService } from "@web/core/utils/hooks";
 import { useMessageSearch } from "./message_search_hook.js";
 /**
  * @typedef {Object} Props
- * @property {import("@mail/core/common/thread_model").Thread} thread
+ * @property {import("models").Thread} thread
  */
 export class SearchMessagesPanel extends Component {
     static template = "mail.SearchMessagesPanel";
@@ -21,11 +21,13 @@ export class SearchMessagesPanel extends Component {
         this.store = useService("mail.store");
         this.messageSearch =
             this.env.messageSearch ?? useMessageSearch(this.props.thread);
-        onWillUpdateProps((nextProps) => {
-            if (this.props.thread.notEq(nextProps.thread)) {
-                this.env.searchMenu?.close();
-            }
-        });
+        onWillUpdateProps(
+            /** @param {{thread: import("models").Thread}} nextProps */ (nextProps) => {
+                if (this.props.thread.notEq(nextProps.thread)) {
+                    this.env.searchMenu?.close();
+                }
+            },
+        );
     }
 
     get title() {

@@ -1,18 +1,17 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
-/*
- * Common code for EmojisTextField and EmojisCharField
+/**
+ * @param {typeof import("@odoo/owl").Component} T
+ * @returns {typeof T}
  */
 export const EmojisFieldCommon = (T) =>
     class EmojisFieldCommon extends T {
-        /**
-         * Set up the emoji picker popover opened from the field's emoji button.
-         */
         _setupOverride() {
             this.emojiPicker = useEmojiPicker(
                 useRef("emojisButton"),
                 {
+                    /** @param {string} codepoints */
                     onSelect: (codepoints) => {
                         const originalContent = this.targetEditElement.el.value;
                         const start = this.targetEditElement.el.selectionStart;
@@ -23,11 +22,9 @@ export const EmojisFieldCommon = (T) =>
                             originalContent.length,
                         );
                         this.targetEditElement.el.value = left + codepoints + right;
-                        // trigger onInput from input_field hook to set field as dirty
                         this.targetEditElement.el.dispatchEvent(
                             new InputEvent("input"),
                         );
-                        // keydown serves to both commit the changes in input_field and trigger onchange for some fields
                         this.targetEditElement.el.dispatchEvent(
                             new KeyboardEvent("keydown"),
                         );

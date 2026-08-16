@@ -58,6 +58,7 @@ export class ScheduledDateDialog extends Component {
     get dateTimePickerProps() {
         return {
             minDate: luxon.DateTime.now(),
+            /** @param {luxon.DateTime} value */
             onSelect: (value) => (this.state.customDateTime = value),
             type: "datetime",
             value: this.state.customDateTime,

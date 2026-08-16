@@ -1,17 +1,4 @@
 /** @odoo-module native */
-// Side-effect imports: the bundle graph must include every dependency
-// referenced by ``mail.store`` through a runtime string identifier so
-// that esbuild does not tree-shake them when ``store_service.js`` is
-// pulled into a satellite bundle (e.g. ``web.assets_tests``) via mail
-// tour files.
-//
-// - ``im_status_service``: declared in ``dependencies`` below; without
-//   it service startup fails with "Missing dependencies: im_status".
-// - ``./_models.js``: index of every Record subclass in ``core/common/``.
-//   ``Store`` declares fields with string ``targetModel`` (e.g.
-//   ``fields.One("res.partner")``); ``makeStore`` resolves those by
-//   iterating ``modelRegistry`` and throws "No target model X exists"
-//   if the corresponding ``*_model.js`` file was not imported.
 import "@mail/core/common/im_status_service";
 import "./_models.js";
 
@@ -33,14 +20,8 @@ import { debounce } from "@web/core/utils/timing";
 import { session } from "@web/session";
 
 /**
- * @typedef {{isSpecial: boolean, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention
+ * @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention
  */
-
-// "discuss.channel" literals: Store-payload ingestion mapping. Python keys
-// thread data under its own model names; both are funneled into the single
-// JS "Thread" model and channel payloads are tagged with their model so that
-// `Thread.isChannelKind` (discuss layer) can discriminate. This is the one
-// sanctioned place where base code spells out the channel model name.
 export const pyToJsModels = {
     "discuss.channel": "Thread",
     "mail.thread": "Thread",
@@ -51,17 +32,14 @@ export const addFieldsByPyModel = {
 };
 
 export class Store extends BaseStore {
-    /**
-     * Payload-ingestion hooks (@see model/store.js). These used to live on a
-     * module-level `storeInsertFns` singleton patched from here, which forced
-     * every function to re-check `store instanceof Store` and fall back to
-     * `super` — because a single shared object served every Store class in the
-     * page (the test-local registries above all). As real methods, the
-     * override applies to exactly the class that declares it.
-     */
     _makeInsertContext() {
         return { pyModels: Object.values(pyToJsModels) };
     }
+    /**
+     * @param {{pyModels: string[]}} ctx
+     * @param {string} pyOrJsModelName
+     * @returns {string}
+     */
     _insertModelName(ctx, pyOrJsModelName) {
         if (ctx.pyModels.includes(pyOrJsModelName)) {
             console.warn(
@@ -70,6 +48,10 @@ export class Store extends BaseStore {
         }
         return pyToJsModels[pyOrJsModelName] || pyOrJsModelName;
     }
+    /**
+     * @param {string} pyOrJsModelName
+     * @returns {Object|undefined}
+     */
     _insertExtraFields(pyOrJsModelName) {
         return addFieldsByPyModel[pyOrJsModelName];
     }
@@ -77,7 +59,6 @@ export class Store extends BaseStore {
     FETCH_LIMIT = 30;
     DEFAULT_AVATAR = "/mail/static/src/img/smiley/avatar.jpg";
     isReady = new Deferred();
-    /** This is the current logged partner / guest */
     self_partner = fields.One("res.partner");
     self_guest = fields.One("mail.guest");
     get self() {
@@ -85,6 +66,7 @@ export class Store extends BaseStore {
     }
     allChannels = fields.Many("Thread", {
         inverse: "storeAsAllChannels",
+        /** @this {import("models").Store} */
         onUpdate() {
             const busService = this.store.env.services.bus_service;
             if (!busService.isActive && this.allChannels.some((t) => !t.isTransient)) {
@@ -92,17 +74,15 @@ export class Store extends BaseStore {
             }
         },
     });
-    /**
-     * Indicates whether the current user is using the application through the
-     * public page.
-     */
     inPublicPage = false;
     odoobot = fields.One("res.partner");
     useMobileView = fields.Attr(undefined, {
+        /** @this {import("models").Store} */
         compute() {
             return this.store.env.services.ui.isSmall || isMobileOS();
         },
     });
+    /** @type {Object<number, import("models").ResUsers>} */
     users = {};
     /** @type {number} */
     internalUserGroupId;
@@ -112,7 +92,6 @@ export class Store extends BaseStore {
     hasMessageTranslationFeature;
     hasLinkPreviewFeature = true;
     chatHub = fields.One("ChatHub", { compute: () => ({}) });
-    /** Derived state of the systray messaging menu. @see MessagingMenu */
     messagingMenu = fields.One("MessagingMenu", { compute: () => ({}) });
     failures = fields.Many("Failure", {
         /**
@@ -129,29 +108,11 @@ export class Store extends BaseStore {
     fetchReadonly = true;
     fetchSilent = true;
 
-    /**
-     * In-flight `Thread.getOrFetch` requests, keyed by
-     * `model,id,missingFieldNames`, so concurrent identical calls share one
-     * promise. @see Thread.getOrFetch
-     *
-     * @type {Map<string, Promise<import("models").Thread|undefined>>}
-     */
+    /** @type {Map<string, Promise<import("models").Thread|undefined>>} */
     _threadFetchPromises = new Map();
-    /**
-     * `model,id,fieldName` keys for which a `Thread.getOrFetch` response came
-     * back without the requested field, to avoid refetching them forever.
-     *
-     * @type {Set<string>}
-     */
+    /** @type {Set<string>} */
     _threadFetchAttempted = new Set();
-    /**
-     * Tombstones of messages deleted via the bus this session. Message
-     * ingestion consults it so a stale fetch response (computed before the
-     * deletion, processed after) cannot resurrect a deleted message.
-     * Server ids are never reused, so entries stay valid for the session.
-     *
-     * @type {Set<number>}
-     */
+    /** @type {Set<number>} */
     deletedMessageIds = new Set();
 
     cannedResponses = this.makeCachedFetchData("mail.canned.response");
@@ -167,6 +128,7 @@ export class Store extends BaseStore {
     ];
 
     isNotificationPermissionDismissed = fields.Attr(false, {
+        /** @this {import("models").Store} */
         compute() {
             return (
                 browser.localStorage.getItem(
@@ -189,15 +151,13 @@ export class Store extends BaseStore {
         },
     });
 
-    /**
-     * One mutex per thread so message posts on the same thread are ordered
-     * without a slow post on one thread blocking posts on every other thread.
-     * Entries are removed as soon as their mutex is idle.
-     *
-     * @type {Map<string, Mutex>}
-     */
+    /** @type {Map<string, Mutex>} */
     messagePostMutexes = new Map();
 
+    /**
+     * @param {{env?: import("@web/env").OdooEnv}} [ctx]
+     * @returns {boolean}
+     */
     shouldSimulateDarkTheme(ctx) {
         return (
             (ctx?.env?.inDiscussCallView ||
@@ -210,6 +170,10 @@ export class Store extends BaseStore {
         );
     }
 
+    /**
+     * @param {{env?: import("@web/env").OdooEnv}} [ctx]
+     * @returns {string}
+     */
     discussDropdownMenuClass(ctx) {
         const simulateDarkTheme = this.shouldSimulateDarkTheme(ctx);
         return attClassObjectToString({
@@ -220,6 +184,7 @@ export class Store extends BaseStore {
     }
 
     standaloneInboxMessages = fields.Many("mail.message", {
+        /** @this {import("models").Store} */
         compute() {
             const messages = (this.store.inbox?.messages ?? []).filter(
                 (m) => !m.thread,
@@ -231,8 +196,8 @@ export class Store extends BaseStore {
     });
 
     /**
-     * @param {Object} params post message data
-     * @param {import("models").Message} tmpMessage the associated temporary message
+     * @param {Object} params
+     * @param {import("models").Message} tmpMessage
      */
     async doMessagePost(params, tmpMessage) {
         const mutexKey = `${params.thread_model},${params.thread_id}`;
@@ -255,10 +220,6 @@ export class Store extends BaseStore {
                         const thread = tmpMessage.thread;
                         thread.messages.delete(tmpMessage);
                         thread.messages.add(tmpMessage);
-                        // Route the redo through the regular post-response
-                        // handling: the temporary message must be replaced by
-                        // the persistent one even if the bus echo is lost
-                        // (which is likely exactly when posts fail).
                         const data = await this.doMessagePost(params, tmpMessage);
                         if (data) {
                             thread.processMessagePostResponse(data, tmpMessage);
@@ -278,13 +239,8 @@ export class Store extends BaseStore {
      * @param {string} name
      * @param {any} params
      * @param {Object} [options={}]
-     * @param {boolean} [options.requestData=false] when set to true, the return promise will
-     *  resolve only when the requested data are returned (the data might come later, from another
-     *  RPC or a bus notification for example). When set to false (the default), the return promise
-     *  will resolve as soon as the RPC is done. This is intended to be true only for requests that
-     *  will be resolved server side with `resolve_data_request`.
-     * @param {boolean} [options.readonly=true] when set to false, the server will open a read-write
-     *  cursor to process this request which is necessary if the request is expected to change data.
+     * @param {boolean} [options.requestData=false]
+     * @param {boolean} [options.readonly=true]
      * @param {boolean} [options.silent=true]
      * @returns {Deferred}
      */
@@ -302,32 +258,15 @@ export class Store extends BaseStore {
         return dataRequest._resultDef;
     }
 
-    /**
-     * Import data received from init_messaging.
-     *
-     * Idempotent: only the first call issues the RPC; subsequent calls
-     * resolve against the same ``isReady`` Deferred. Called from the mount
-     * of the backend WebClient (or the livechat embed), not from service
-     * ``start()`` (@see storeService.start).
-     */
     async initialize() {
         if (this._initializePromise) {
             return this._initializePromise;
         }
         this._initializePromise = (async () => {
-            // Web-client bootstrap fires this very early (WebClient.setup),
-            // where a transient ``ConnectionLostError`` both surfaces as an
-            // unhandled rejection (this call site is fire-and-forget) and
-            // leaves ``isReady`` unresolved forever, hanging every chat /
-            // notification / discuss component awaiting it. One retry covers
-            // the cold-boot window without masking a persistent loss.
             try {
                 await this.fetchStoreData("init_messaging");
             } catch (error) {
                 if (!(error instanceof ConnectionLostError)) {
-                    // don't cache the failure: a later initialize() call must
-                    // be able to retry instead of returning the stale
-                    // rejection forever (isReady would then never resolve).
                     this._initializePromise = undefined;
                     throw error;
                 }
@@ -344,23 +283,9 @@ export class Store extends BaseStore {
     }
 
     /**
-     * Create a cacheable version of the `fetchStoreData` method. The result of the
-     * request is cached once acquired. In case of failure, the deferred is
-     * rejected and the cache is reset allowing to retry the request when
-     * calling the function again.
-     *
-     * `invalidate()` drops the cached result so the next `fetch()` call hits
-     * the server again (useful when a bus notification makes the cached data
-     * unreliable). Invalidating while a fetch is in flight marks that result
-     * as stale once it lands, without rejecting pending callers.
-     *
      * @param {string} name
-     * @param {*} params Parameters to pass to the `fetchStoreData` method.
-     * @returns {{
-     *      fetch: () => ReturnType<Store["fetchStoreData"]>,
-     *      invalidate: () => void,
-     *      status: "not_fetched"|"fetching"|"fetched"
-     * }}
+     * @param {*} params
+     * @returns {{ fetch: () => ReturnType<Store["fetchStoreData"]>, invalidate: () => void, status: "not_fetched"|"fetching"|"fetched" }}
      */
     makeCachedFetchData(name, params) {
         let def = null;
@@ -409,15 +334,9 @@ export class Store extends BaseStore {
         this._fetchStoreDataRpc(
             fetchParams.map(([name, params, dataRequest]) => {
                 if (dataRequest._autoResolve) {
-                    /**
-                     * Auto-resolve requests don't need to pass any data request id as the server is
-                     * expected to not return anything specific for them. It would work if id are
-                     * given but it's more bytes on the network and more noise in the logs/tests.
-                     */
                     if (params !== undefined) {
                         return [name, params];
                     } else {
-                        // In a similar reasoning, also remove empty params.
                         return name;
                     }
                 } else {
@@ -434,23 +353,14 @@ export class Store extends BaseStore {
                 }
                 for (const [name, , dataRequest] of fetchParams) {
                     if (!dataRequest.exists()) {
-                        // already resolved (and self-deleted) by a `_resolve`
-                        // value in the inserted payload.
                         continue;
                     }
                     if (insertError) {
-                        // One malformed record must not leave the whole batch
-                        // pending forever: reject every request of the batch
-                        // so awaiting callers (store.isReady, getOrFetch,
-                        // joinChat, ...) fail fast instead of hanging.
                         dataRequest._resultDef.reject(insertError);
                     } else if (dataRequest._autoResolve) {
                         dataRequest._resolve = true;
-                        continue; // `_resolve` onUpdate deletes the record
+                        continue;
                     } else {
-                        // The server response came back without resolving this
-                        // request: resolve_data_request() was never called for
-                        // it. Reject instead of pending forever.
                         dataRequest._resultDef.reject(
                             new Error(
                                 `Data request "${name}" (id ${dataRequest.id}) was not resolved by the server response. The server route probably lacks a "resolve_data_request()" call.`,
@@ -477,6 +387,10 @@ export class Store extends BaseStore {
         this.fetchSilent = true;
     }
 
+    /**
+     * @param {Object} fetchParams
+     * @returns {Promise<Object>}
+     */
     _fetchStoreDataRpc(fetchParams) {
         return rpc(
             this.fetchReadonly ? "/mail/data" : "/mail/action",
@@ -491,8 +405,6 @@ export class Store extends BaseStore {
      */
     setup() {
         super.setup();
-        // Temporary-id state must stay per store: a livechat embed and the
-        // backend web client share a page, and sharing it collides temp ids.
         this._prevLastMessageId = null;
         this._temporaryIdOffset = 0.01;
         this._fetchStoreDataDebounced = debounce(
@@ -501,19 +413,9 @@ export class Store extends BaseStore {
         );
     }
 
-    /** Provides an override point for when the store service has started. */
     onStarted() {
         this.isOdooWhiteTheme = !colorScheme.isDark || this.inPublicPage;
-        // `browser.navigator`, not the raw global: it is the seam every other
-        // service-worker call site in this module uses (out_of_focus_service,
-        // notification_permission_service, webclient, rtc_service), and the one
-        // the test suite patches. Going straight to `navigator` attached this
-        // listener to the real, process-wide object, so every store created by
-        // a test stayed subscribed for the rest of the run and each push was
-        // dispatched to all of them. Neither services nor Store have a disposal
-        // path in this framework, so the listener's lifetime is the page's (in
-        // tests, that of the patched `browser.navigator`) and it is never
-        // removed — hence a local binding rather than a field.
+        /** @param {MessageEvent} ev */
         const onServiceWorkerMessage = (ev) => {
             const { data = {} } = ev;
             const { type, payload } = data;
@@ -523,23 +425,11 @@ export class Store extends BaseStore {
                 let isTabFocused;
                 try {
                     isTabFocused = parent.document.hasFocus();
-                } catch {
-                    // assumes tab not focused: parent.document from iframe triggers CORS error
-                }
-                // Prevent duplicate inbox push notifications since they're already handled by
-                // `mail.message/inbox` bus notifications, and the `modelsHandleByPush` heuristic
-                // in `out_of_focus_service.js` isn't reliable enough to detect these cases.
-                // "discuss.channel" literal: `model` comes from the service
-                // worker push payload; the corresponding Thread record may
-                // not be loaded, so no record predicate can stand in.
+                } catch {}
                 const isInbox =
-                    this.store.self.main_user_id?.notification_type === "inbox" &&
-                    model !== "discuss.channel";
+                    this.store.self_partner?.main_user_id?.notification_type ===
+                        "inbox" && model !== "discuss.channel";
                 if ((isTabFocused && thread?.isDisplayed) || isInbox) {
-                    // Reply through the worker that sent the request (ev.source)
-                    // so the response is delivered even when this page is not
-                    // yet controlled (controller is null until the worker claims
-                    // it); fall back to the controller if source is unavailable.
                     (
                         ev.source ?? browser.navigator.serviceWorker.controller
                     )?.postMessage({
@@ -558,16 +448,14 @@ export class Store extends BaseStore {
         );
     }
 
+    /** @param {{model: string, res_id: number}} payload */
     onPushNotificationDisplayed(payload) {
-        // Model names are push-payload values (@see notification-display-request
-        // handler above), not Thread-record conditionals.
         if (["mail.thread", "discuss.channel"].includes(payload.model)) {
             this.env.services["mail.out_of_focus"]._playSound();
         }
     }
 
     /**
-     * Search and fetch for a partner with a given user or partner id.
      * @param {Object} param0
      * @param {number} param0.userId
      * @param {number} param0.partnerId
@@ -592,15 +480,7 @@ export class Store extends BaseStore {
         return chat;
     }
 
-    /**
-     * Highest message id (including temporary fractional ids) ever inserted in
-     * this store. Tracked incrementally at message insert (see
-     * `Message.update()`): scanning all message records on every post does not
-     * scale. Monotonic: deleting the highest message does not lower it, which
-     * is fine for its only purpose of generating increasing temporary ids.
-     *
-     * @type {number}
-     */
+    /** @type {number} */
     lastKnownMessageId = 0;
 
     /** @returns {number} */
@@ -608,6 +488,7 @@ export class Store extends BaseStore {
         return this.lastKnownMessageId;
     }
 
+    /** @param {string} recordName */
     notifySendFromMailbox(recordName) {
         this.env.services.notification.add(_t('Message posted on "%s"', recordName), {
             type: "info",
@@ -626,7 +507,6 @@ export class Store extends BaseStore {
     }
 
     /**
-     * Search and fetch for a partner with a given user or partner id.
      * @param {Object} param0
      * @param {number} param0.userId
      * @param {number} param0.partnerId
@@ -669,9 +549,6 @@ export class Store extends BaseStore {
                     [["partner_id", "=", partnerId]],
                     {
                         context: { active_test: false },
-                        // deterministic pick for multi-user partners: prefer
-                        // active over archived, internal over portal —
-                        // unordered search chatted at an arbitrary one
                         order: "active desc, share asc, id asc",
                     },
                 );
@@ -692,6 +569,11 @@ export class Store extends BaseStore {
         }
     }
 
+    /**
+     * @param {number} id
+     * @param {boolean} [forceOpen=false]
+     * @returns {Promise<import("models").Thread>}
+     */
     async joinChat(id, forceOpen = false) {
         const { channel } = await this.fetchStoreData(
             "/discuss/get_or_create_chat",
@@ -704,11 +586,17 @@ export class Store extends BaseStore {
         return channel;
     }
 
+    /** @param {import("models").Persona|Object} person */
     async openChat(person) {
         const chat = await this.getChat(person);
         chat?.open({ focus: true });
     }
 
+    /**
+     * @param {Object} document
+     * @param {number} document.id
+     * @param {string} document.model
+     */
     openDocument({ id, model }) {
         this.env.services.action.doAction({
             type: "ir.actions.act_window",
@@ -719,8 +607,8 @@ export class Store extends BaseStore {
     }
 
     /**
-     * @param {MouseEvent} ev - Click event triggering the popover.
-     * @param {number} id - Partner Id of mentioned partner.
+     * @param {MouseEvent} ev
+     * @param {number} id
      */
     onClickPartnerMention(ev, id) {
         this.openChat({ partnerId: id });
@@ -737,7 +625,7 @@ export class Store extends BaseStore {
             ...thread.getFetchParams(),
             fetch_params: {
                 is_notification,
-                search_term: await prettifyMessageText(searchTerm), // formatted like message_post
+                search_term: await prettifyMessageText(searchTerm),
                 before,
             },
         });
@@ -761,26 +649,11 @@ export const storeService = {
     start(env, services) {
         const store = makeStore(env);
         store.insert(session.storeData);
-        // the negative fetch cache ("this thread field came back absent, do
-        // not request it again") must not survive a reconnection: the miss
-        // may have been transient (access granted since, partial serializer
-        // under load) and an unexpirable cache makes recovery impossible
-        // without a full page reload
         services.bus_service.addEventListener("BUS:RECONNECT", () => {
             store._threadFetchAttempted.clear();
         });
-        /**
-         * Add defaults for `self` and `settings` because in livechat there could be no user and no
-         * guest yet (both undefined at init), but some parts of the code that loosely depend on
-         * these values will still be executed immediately. Providing a dummy default is enough to
-         * avoid crashes, the actual values being filled at livechat init when they are necessary.
-         */
         store.self_guest ??= { id: -1 };
         store.settings ??= {};
-        // ``initialize()`` (the ``/mail/data`` init_messaging RPC) is NOT
-        // triggered here: it fires from the WebClient patch (backend) or the
-        // livechat embed service. Any component needing init_messaging data
-        // must await ``store.isReady`` or call ``store.initialize()`` itself.
         store.onStarted();
         return store;
     },

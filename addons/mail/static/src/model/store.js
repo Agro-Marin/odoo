@@ -1,58 +1,19 @@
 /** @odoo-module native */
-/**
- * Model layer overview.
- *
- * Every record and record list exists as a triad of objects:
- * - `_raw`: the plain instance. Fields hold raw values (relations hold raw
- *   `RecordList`s whose `data` is an array of localIds). Internal code works
- *   on `_raw` to avoid reactivity costs and re-entrancy.
- * - `_proxyInternal`: a `Proxy` over `_raw` implementing field semantics
- *   (relation get/set, commands). It is NOT an
- *   OWL reactive: reading through it does not subscribe an observer, but
- *   writing through it still notifies observers of `_proxy`.
- * - `_proxy`: `reactive(_proxyInternal)`, the object handed to business code
- *   and components. Reads through it (or through a `reactive()` wrapper of
- *   it) subscribe; getters "downgrade" a `_proxy` receiver to
- *   `_proxyInternal` so internal reads stay subscription-free.
- *
- * All mutations funnel through `Store.MAKE_UPDATE`, which counts nesting
- * depth (`UPDATE`) and defers side effects into queues. When the outermost
- * update ends, queues are flushed in a fixed order, repeated until all are
- * empty:
- *   FC (field computes) → FS (field sorts) → FA (field onAdd hooks)
- *   → FD (field onDelete hooks) → FU (field onUpdate hooks)
- *   → RO (record onChange observers) → RD (record deletes)
- *   → RHD (record hard-deletes).
- * Computed and sorted fields are always eager: they (re)run through the
- * FC/FS queues at record creation and whenever a dependency changes,
- * whether or not anything observes the field.
- * RD unregisters the record from `recordByLocalId` and `Model.records` and
- * detaches all relations; the record stays addressable through the local
- * `deletingRecordsByLocalId` map until RHD, so cleanups of the same flush
- * can still reference it.
- */
 import { reactive, toRaw } from "@odoo/owl";
 
 import { IS_DELETED_SYM, isRelation, modelRegistry, STORE_SYM } from "./misc.js";
 import { Record } from "./record.js";
 
 /** @typedef {import("./record_list").RecordList} RecordList */
-
+/** @typedef {import("./record").RecordFields} RecordFields */
+/** @typedef {import("./record").StoreModels} StoreModels */
 export class Store extends Record {
     /**
-     * Per-`insert()` context handed to `_insertModelName` below, computed once
-     * per call. Neutral default: none.
-     *
-     * @returns {any}
+     * @returns {any|void}
      */
     _makeInsertContext() {}
     /**
-     * Model a payload key ingests into. Store payloads are keyed by python
-     * model name, which does not always match the JS model that holds the
-     * records (`discuss.channel` and `mail.thread` both feed `Thread`).
-     * Neutral default: identity.
-     *
-     * @param {any} ctx value returned by `_makeInsertContext`
+     * @param {any} ctx
      * @param {string} pyOrJsModelName
      * @returns {string}
      */
@@ -60,17 +21,13 @@ export class Store extends Record {
         return pyOrJsModelName;
     }
     /**
-     * Field values merged into every row keyed under `pyOrJsModelName`, used to
-     * tag rows whose python model is lost by the mapping above. Neutral
-     * default: none.
-     *
      * @param {string} pyOrJsModelName
-     * @returns {Object|undefined}
+     * @returns {Object|void}
      */
     _insertExtraFields(pyOrJsModelName) {}
 
     /** @type {import("./store_internal").StoreInternal} */
-    _;
+    _ = undefined;
     [STORE_SYM] = true;
     /** @type {Map<string, Record>} */
     recordByLocalId;
@@ -83,13 +40,12 @@ export class Store extends Record {
         return this.recordByLocalId.get(localId);
     }
 
+    /**
+     * @param {Error} err
+     * @throws {Error}
+     */
     handleError(err) {
         if (this._.UPDATE === 0) {
-            // No update cycle is running to drain the queue (computes, sorts
-            // and onChange callbacks triggered by a direct assignment execute
-            // AFTER the assignment's own flush — OWL notifies observers after
-            // Reflect.set returns). Report now: a parked error would be thrown
-            // at the next, unrelated MAKE_UPDATE and mask its own failures.
             if (this.warnErrors) {
                 console.warn(err);
                 return;
@@ -110,8 +66,6 @@ export class Store extends Record {
             res = fn();
         } catch (err) {
             if (!outermost) {
-                // A nested update must not swallow: its caller would continue
-                // on half-applied state. Depth 0 collects and rethrows below.
                 throw err;
             }
             this.handleError(err);
@@ -119,17 +73,8 @@ export class Store extends Record {
             this._.UPDATE--;
         }
         if (this._.UPDATE === 0) {
-            // Only the outermost (flushing) call needs this map; MAKE_UPDATE is
-            // the hottest function in the layer and most calls are nested, so
-            // allocating it here rather than per-call avoids a throwaway Map on
-            // every field write.
             const deletingRecordsByLocalId = new Map();
-            // pretend an increased update cycle so that nothing in queue creates many small update cycles
             this._.UPDATE++;
-            // The finally below is load-bearing: if any flush step throws, the
-            // UPDATE counter must still return to 0 — otherwise every later
-            // update queues computes/hooks that are never flushed again and
-            // the whole store is silently wedged for the rest of the session.
             let flushIterations = 0;
             try {
                 while (
@@ -143,8 +88,6 @@ export class Store extends Record {
                     this._.RHD_QUEUE.size > 0
                 ) {
                     if (++flushIterations > 1000) {
-                        // mutually-retriggering computes/hooks: abort instead of
-                        // livelocking the tab.
                         this.handleError(
                             new Error("Store flush did not converge (1000 iterations)"),
                         );
@@ -167,28 +110,36 @@ export class Store extends Record {
                     this._.RD_QUEUE.clear();
                     this._.RHD_QUEUE.clear();
                     while (FC_QUEUE.size > 0) {
-                        /** @type {[Record, Map<string, true>]} */
-                        const [record, recMap] = FC_QUEUE.entries().next().value;
+                        const [record, recMap] =
+                            /** @type {[Record, Map<string, true>]} */ (
+                                FC_QUEUE.entries().next().value
+                            );
                         FC_QUEUE.delete(record);
                         for (const fieldName of recMap.keys()) {
                             record._.requestCompute(record, fieldName, { force: true });
                         }
                     }
                     while (FS_QUEUE.size > 0) {
-                        /** @type {[Record, Map<string, true>]} */
-                        const [record, recMap] = FS_QUEUE.entries().next().value;
+                        const [record, recMap] =
+                            /** @type {[Record, Map<string, true>]} */ (
+                                FS_QUEUE.entries().next().value
+                            );
                         FS_QUEUE.delete(record);
                         for (const fieldName of recMap.keys()) {
                             record._.requestSort(record, fieldName, { force: true });
                         }
                     }
                     while (FA_QUEUE.size > 0) {
-                        /** @type {[Record, Map<string, Map<Record, true>>]} */
-                        const [record, recMap] = FA_QUEUE.entries().next().value;
+                        const [record, recMap] =
+                            /** @type {[Record, Map<string, Map<Record, true>>]} */ (
+                                FA_QUEUE.entries().next().value
+                            );
                         FA_QUEUE.delete(record);
                         while (recMap.size > 0) {
-                            /** @type {[string, Map<Record, true>]} */
-                            const [fieldName, fieldMap] = recMap.entries().next().value;
+                            const [fieldName, fieldMap] =
+                                /** @type {[string, Map<Record, true>]} */ (
+                                    recMap.entries().next().value
+                                );
                             recMap.delete(fieldName);
                             const onAdd = record.Model._.fieldsOnAdd.get(fieldName);
                             for (const addedRec of fieldMap.keys()) {
@@ -201,12 +152,16 @@ export class Store extends Record {
                         }
                     }
                     while (FD_QUEUE.size > 0) {
-                        /** @type {[Record, Map<string, Map<Record, true>>]} */
-                        const [record, recMap] = FD_QUEUE.entries().next().value;
+                        const [record, recMap] =
+                            /** @type {[Record, Map<string, Map<Record, true>>]} */ (
+                                FD_QUEUE.entries().next().value
+                            );
                         FD_QUEUE.delete(record);
                         while (recMap.size > 0) {
-                            /** @type {[string, Map<Record, true>]} */
-                            const [fieldName, fieldMap] = recMap.entries().next().value;
+                            const [fieldName, fieldMap] =
+                                /** @type {[string, Map<Record, true>]} */ (
+                                    recMap.entries().next().value
+                                );
                             recMap.delete(fieldName);
                             const onDelete =
                                 record.Model._.fieldsOnDelete.get(fieldName);
@@ -220,15 +175,17 @@ export class Store extends Record {
                         }
                     }
                     while (FU_QUEUE.size > 0) {
-                        /** @type {[Record, Map<string, true>]} */
-                        const [record, map] = FU_QUEUE.entries().next().value;
+                        const [record, map] =
+                            /** @type {[Record, Map<string, true>]} */ (
+                                FU_QUEUE.entries().next().value
+                            );
                         FU_QUEUE.delete(record);
                         for (const fieldName of map.keys()) {
                             record._.onUpdate(record, fieldName);
                         }
                     }
                     while (RO_QUEUE.size > 0) {
-                        /** @type {Map<Function, true>} */
+                        /** @type {Function} */
                         const cb = RO_QUEUE.keys().next().value;
                         RO_QUEUE.delete(cb);
                         try {
@@ -241,7 +198,6 @@ export class Store extends Record {
                         /** @type {Record} */
                         const record = RD_QUEUE.keys().next().value;
                         RD_QUEUE.delete(record);
-                        // detach from every record that uses this record
                         for (const [
                             usingRecord,
                             names,
@@ -255,23 +211,24 @@ export class Store extends Record {
                                 deletingRecordsByLocalId.get(usingRecord.localId) ===
                                     usingRecord;
                             if (!alive) {
-                                // using record already hard-deleted, clean inverses
                                 record._.uses.data.delete(usingRecord);
                                 continue;
                             }
                             for (const [name2, count] of names.entries()) {
                                 for (let c = 0; c < count; c++) {
-                                    usingRecord[name2].delete(record);
+                                    /** @type {RecordFields} */ (
+                                        /** @type {unknown} */ (usingRecord)
+                                    )[name2].delete(record);
                                 }
                             }
                         }
-                        // detach outgoing relations: without an inverse, the
-                        // targets' `uses` would keep a stale entry forever
                         for (const fieldName of record.Model._.fields.keys()) {
                             if (!isRelation(record.Model, fieldName)) {
                                 continue;
                             }
-                            const reclist = record[fieldName];
+                            const reclist = /** @type {RecordFields} */ (
+                                /** @type {unknown} */ (record)
+                            )[fieldName];
                             for (const localId of reclist.data) {
                                 const targetProxy = toRaw(this.recordByLocalId).get(
                                     localId,
@@ -282,11 +239,6 @@ export class Store extends Record {
                                 target?._.uses.delete(reclist);
                             }
                         }
-                        // Two-registry invariant: recordByLocalId and
-                        // Model.records are unregistered in the same step, so
-                        // business code can no longer reach the record, while
-                        // deletingRecordsByLocalId/RHD_QUEUE keep it
-                        // addressable for the rest of this flush.
                         deletingRecordsByLocalId.set(record.localId, record);
                         this.recordByLocalId.delete(record.localId);
                         record._proxy[IS_DELETED_SYM] = true;
@@ -318,33 +270,30 @@ export class Store extends Record {
         return res;
     }
     /**
-     * @param {Object} [dataByModelName={}] data to insert, keyed by model name
+     * @param {Object} [dataByModelName={}]
      * @param {Object} [options={}]
      * @returns {void}
      */
     insert(dataByModelName = {}, options = {}) {
         const store = this;
-        // batch on this store's own update cycle, not on the last-created
-        // store (`Record.store`), so concurrent stores don't share queues
         const rawStore = toRaw(this)._raw;
         const ctx = store._makeInsertContext();
         rawStore.MAKE_UPDATE(function storeInsert() {
             const recordsDataToDelete = [];
             for (const [pyOrJsModelName, data] of Object.entries(dataByModelName)) {
                 const modelName = store._insertModelName(ctx, pyOrJsModelName);
-                if (!store[modelName]) {
+                const models = /** @type {StoreModels} */ (
+                    /** @type {unknown} */ (store)
+                );
+                if (!models[modelName]) {
                     console.warn(
                         `store.insert() received data for unknown model “${modelName}”.`,
                     );
                     continue;
                 }
-                // hoisted: the result depends only on the model name, and this
-                // ran once per row of every payload (every message of every
-                // channel load)
                 const extraFields = store._insertExtraFields(pyOrJsModelName);
                 const insertData = [];
                 for (let vals of Array.isArray(data) ? data : [data]) {
-                    // never mutate caller payloads: they may be reused
                     if (extraFields) {
                         vals = { ...vals, ...extraFields };
                     }
@@ -358,17 +307,21 @@ export class Store extends Record {
                         insertData.push(vals);
                     }
                 }
-                store[modelName].insert(insertData, options);
+                models[modelName].insert(insertData, options);
             }
-            // Delete after all inserts to make sure a relation potentially registered before the
-            // delete doesn't re-add the deleted record by mistake.
             for (const [modelName, vals] of recordsDataToDelete) {
                 store[modelName].get(vals)?.delete();
             }
         });
     }
+    /**
+     * @param {Record} record
+     * @param {string|string[]} name
+     * @param {() => void} cb
+     * @returns {() => void}
+     */
     onChange(record, name, cb) {
-        return this._onChange(record, name, (observe) => {
+        return this._onChange(record, name, (/** @type {() => void} */ observe) => {
             const fn = () => {
                 observe();
                 try {
@@ -378,8 +331,6 @@ export class Store extends Record {
                 }
             };
             if (this._.UPDATE !== 0) {
-                // `fn` is a fresh closure each call, so it is always new to the
-                // queue; enqueue it directly (dedup here would be a no-op).
                 this._.RO_QUEUE.set(fn, true);
             } else {
                 fn();
@@ -387,19 +338,15 @@ export class Store extends Record {
         });
     }
     /**
-     * Version of onChange where the callback receives observe function as param.
-     * This is useful when there's desire to postpone calling the callback function,
-     * in which the observe is also intended to have its invocation postponed.
-     *
      * @param {Record} record
      * @param {string|string[]} key
      * @param {(observe: Function) => any} callback
-     * @returns {function} function to call to stop observing changes
+     * @returns {function}
      */
     _onChange(record, key, callback) {
+        /** @type {RecordFields} */
         let proxy;
         function _observe() {
-            // access proxy[key] only once to avoid triggering reactive get() many times
             const val = proxy[key];
             if (typeof val === "object" && val !== null) {
                 void Object.keys(val);
@@ -425,18 +372,13 @@ export class Store extends Record {
         });
         _observe();
         return () => {
-            // OWL has no unsubscribe API: `targetToKeysToCallbacks` holds a
-            // STRONG ref to the callback until the observed key next changes
-            // (and forever if it never does). The `ready` latch alone would
-            // leave the closure retaining `record`/`proxy`/`callback`, i.e.
-            // whole component graphs (@see core/common/thread_scroll_hook.js),
-            // so drop the captures too. A second dispose() is a no-op.
             ready = false;
             proxy = undefined;
             record = undefined;
             callback = undefined;
         };
     }
+    /** @param {Object} data */
     _cleanupData(data) {
         super._cleanupData(data);
         if (this._getActualModelName() === "Store") {

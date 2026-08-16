@@ -26,7 +26,7 @@ class ChatBubblePreview extends Component {
 
 /**
  * @typedef {Object} Props
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ChatBubble extends Component {
     static components = { CountryFlag, ImStatus };
@@ -45,14 +45,17 @@ export class ChatBubble extends Component {
                 "dropdown-menu bg-view border-0 p-0 overflow-visible o-rounded-bubble mx-1",
             ref: popoverRef,
         });
-        // useBus: chat bubbles mount/unmount constantly; a raw addEventListener
-        // leaks a listener (holding the destroyed component) on every mount.
-        useBus(this.env.bus, "ChatBubble:preview-will-open", ({ detail }) => {
-            if (detail === this) {
-                return;
-            }
-            this.popover.close();
-        });
+        useBus(
+            this.env.bus,
+            "ChatBubble:preview-will-open",
+            /** @param {CustomEvent<ChatBubble>} ev */
+            ({ detail }) => {
+                if (detail === this) {
+                    return;
+                }
+                this.popover.close();
+            },
+        );
         this.hover = useHover(["root", popoverRef], {
             onHover: () => {
                 this.env.bus.trigger("ChatBubble:preview-will-open", this);
@@ -65,6 +68,7 @@ export class ChatBubble extends Component {
         this.rootRef = useRef("root");
         this.state = useState({ bouncing: false });
         useEffect(
+            /** @param {number|undefined} importantCounter */
             (importantCounter) => {
                 this.state.bouncing = Boolean(importantCounter);
             },

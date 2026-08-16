@@ -12,7 +12,7 @@ import { _t } from "@web/core/translation";
  * @property {function} [onActivityChanged]
  * @property {function} [onClickDoneAndScheduleNext]
  * @property {function} onClickEditActivityButton
- * @extends {Component<Props, Env>}
+ * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class ActivityListPopoverItem extends Component {
     static components = { ActivityMailTemplate, ActivityMarkAsDone, FileUploader };
@@ -87,6 +87,7 @@ export class ActivityListPopoverItem extends Component {
         this.state.hasMarkDoneView = !this.state.hasMarkDoneView;
     }
 
+    /** @param {{data: string, name: string, type: string}} data */
     async onFileUploaded(data) {
         const { id: attachmentId } = await this.attachmentUploader.uploadData(data, {
             activity: this.props.activity,
@@ -96,8 +97,6 @@ export class ActivityListPopoverItem extends Component {
     }
 
     async unlink() {
-        // server first: remove() broadcasts to every tab with no rollback
-        // (see Activity.unlink)
         await this.env.services.orm.unlink("mail.activity", [this.props.activity.id]);
         this.props.activity.remove();
         this.props.onActivityChanged?.();

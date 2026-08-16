@@ -20,6 +20,10 @@ export class Many2ManyAvatarUserTagsList extends TagsList {
     static template = "mail.Many2ManyAvatarUserTagsList";
 }
 
+/**
+ * @param {typeof import("@odoo/owl").Component} T
+ * @returns {typeof T}
+ */
 const WithUserChatter = (T) =>
     class UserChatterMixin extends T {
         setup() {
@@ -30,10 +34,18 @@ const WithUserChatter = (T) =>
             this.avatarCard = usePopover(AvatarCardPopover);
         }
 
+        /**
+         * @param {import("@web/model/relational_model/record").RelationalRecord} record
+         * @returns {boolean}
+         */
         displayAvatarCard(record) {
             return ["res.users", "res.partner"].includes(this.relation);
         }
 
+        /**
+         * @param {import("@web/model/relational_model/record").RelationalRecord} record
+         * @returns {{id: number, model: string}}
+         */
         getAvatarCardProps(record) {
             return {
                 id: record.resId,
@@ -41,9 +53,14 @@ const WithUserChatter = (T) =>
             };
         }
 
+        /**
+         * @param {import("@web/model/relational_model/record").RelationalRecord} record
+         * @returns {Object}
+         */
         getTagProps(record) {
             return {
                 ...super.getTagProps(...arguments),
+                /** @param {MouseEvent} ev */
                 onImageClicked: (ev) => {
                     if (!this.displayAvatarCard(record)) {
                         return;

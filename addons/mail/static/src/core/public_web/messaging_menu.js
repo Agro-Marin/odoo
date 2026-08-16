@@ -46,6 +46,11 @@ export class MessagingMenu extends Component {
         useExternalListener(window, "keydown", this.onKeydown, true);
     }
 
+    /**
+     * @param {boolean} isMarkAsRead
+     * @param {import("models").Thread} thread
+     * @param {import("models").Message} [message]
+     */
     onClickThread(isMarkAsRead, thread, message) {
         if (!isMarkAsRead) {
             if (message?.needaction && message.message_type === "user_notification") {
@@ -60,6 +65,10 @@ export class MessagingMenu extends Component {
         this.markAsRead(thread);
     }
 
+    /**
+     * @param {boolean} isMarkAsRead
+     * @param {import("models").Message} msg
+     */
     onClickInboxMsg(isMarkAsRead, msg) {
         if (!isMarkAsRead) {
             this.store.inbox.highlightMessage = msg;
@@ -73,12 +82,14 @@ export class MessagingMenu extends Component {
         msg.setDone();
     }
 
+    /** @param {import("models").Thread} thread */
     markAsRead(thread) {
         if (thread.needactionMessages.length > 0) {
             thread.markAllMessagesAsRead();
         }
     }
 
+    /** @param {"first"|"last"|"previous"|"next"} direction */
     navigate(direction) {
         if (this.notificationItems.length === 0) {
             return;
@@ -114,6 +125,7 @@ export class MessagingMenu extends Component {
         this.notificationItems[targetId]?.scrollIntoView({ block: "nearest" });
     }
 
+    /** @param {KeyboardEvent} ev */
     onKeydown(ev) {
         if (!this.dropdown.isOpen) {
             return;
@@ -124,8 +136,6 @@ export class MessagingMenu extends Component {
                 if (this.state.activeIndex === null) {
                     return;
                 }
-                // optional chain: the list can shrink (mark as read) while
-                // activeIndex still points past the end
                 this.notificationItems[this.state.activeIndex]?.click();
                 break;
             case "tab":
@@ -163,9 +173,7 @@ export class MessagingMenu extends Component {
         return this.store.standaloneInboxMessages;
     }
 
-    /**
-     * @type {{ id: string, icon: string, label: string }[]}
-     */
+    /** @type {{ id: string, icon: string, label: string }[]} */
     get _tabs() {
         return [
             {
@@ -187,9 +195,16 @@ export class MessagingMenu extends Component {
     }
 
     get tabs() {
-        return this._tabs.sort((t1, t2) => t1.sequence - t2.sequence);
+        return this._tabs.sort(
+            /**
+             * @param {{sequence: number}} t1
+             * @param {{sequence: number}} t2
+             */
+            (t1, t2) => t1.sequence - t2.sequence,
+        );
     }
 
+    /** @param {string} tabId */
     onClickNavTab(tabId) {
         if (this.store.discuss.activeTab === tabId) {
             return;
@@ -209,6 +224,10 @@ export class MessagingMenu extends Component {
         }
     }
 
+    /**
+     * @param {import("models").Thread} thread
+     * @returns {boolean}
+     */
     canUnpinItem(thread) {
         return thread.canUnpin && thread.self_member_id?.message_unread_counter === 0;
     }

@@ -1,28 +1,34 @@
 /** @odoo-module native */
-// Broad human voice range of frequencies in hz.
 const HUMAN_VOICE_FREQUENCY_RANGE = [80, 1000];
 
 /**
- * monitors the activity of an audio mediaStreamTrack
- *
+ * @typedef {Object} AudioMonitorOptions
+ * @property {number[]} [frequencyRange]
+ * @property {number} [minimumActiveCycles]
+ * @property {(isAboveThreshold: boolean) => void} [onThreshold]
+ * @property {(volume: number) => void} [onTic]
+ * @property {number} [processInterval]
+ * @property {number} [volumeThreshold]
+ * @property {{boost: number, shift: number}} [normalizationParameters]
+ */
+/**
+ * @typedef {Object} AudioMonitorProcessor
+ * @property {() => void} disconnect
+ */
+
+/**
  * @param {MediaStreamTrack} track
- * @param {Object} [processorOptions] options for the audio processor
- * @param {Array<number>} [processorOptions.frequencyRange] the range of frequencies to monitor in hz
- * @param {number} [processorOptions.minimumActiveCycles] how many cycles have to pass since the
- *          last time the threshold was exceeded to go back to inactive state, this prevents
- *          stuttering when the speech volume oscillates around the threshold value.
- * @param {function(boolean):void} [processorOptions.onThreshold] a function to be called when the threshold is passed
- * @param {function(number):void} [processorOptions.onTic] a function to be called at each tics
- * @param {number} [processorOptions.processInterval] how many ms between each volume computation
- * @param {number} [processorOptions.volumeThreshold] the normalized minimum value for audio detection
- * @returns {Promise<() => Promise<void>>} callback to cleanly end the monitoring
+ * @param {AudioMonitorOptions} [processorOptions]
+ * @returns {Promise<() => Promise<void>>}
  */
 export async function monitorAudio(track, processorOptions) {
-    // cloning the track so it is not affected by the enabled change of the original track.
     const monitoredTrack = track.clone();
     monitoredTrack.enabled = true;
     const stream = new window.MediaStream([monitoredTrack]);
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const AudioContext =
+        window.AudioContext ||
+        /** @type {{webkitAudioContext?: typeof globalThis.AudioContext}} */ (window)
+            .webkitAudioContext;
     if (!AudioContext) {
         throw new Error("missing audio context");
     }
@@ -37,7 +43,6 @@ export async function monitorAudio(track, processorOptions) {
             processorOptions,
         );
     } catch {
-        // In case Worklets are not supported by the browser (eg: Safari)
         processor = _loadScriptProcessor(source, audioContext, processorOptions);
     }
 
@@ -49,7 +54,7 @@ export async function monitorAudio(track, processorOptions) {
             await audioContext.close();
         } catch (e) {
             if (e.name === "InvalidStateError") {
-                return; // the audio context is already closed
+                return;
             }
             throw e;
         }
@@ -57,11 +62,10 @@ export async function monitorAudio(track, processorOptions) {
 }
 
 /**
- * @param {MediaStreamSource} source
+ * @param {MediaStreamAudioSourceNode} source
  * @param {AudioContext} audioContext
- * @param {Object} [param2] options
- * @returns {Object} returnValue
- * @returns {function} returnValue.disconnect disconnect callback
+ * @param {AudioMonitorOptions} [param2]
+ * @returns {AudioMonitorProcessor}
  */
 function _loadScriptProcessor(
     source,
@@ -71,7 +75,7 @@ function _loadScriptProcessor(
         minimumActiveCycles = 30,
         onThreshold,
         onTic,
-        processInterval = 50, // how many ms between each computation
+        processInterval = 50,
         volumeThreshold = 0.3,
     } = {},
 ) {
@@ -84,9 +88,6 @@ function _loadScriptProcessor(
     scriptProcessorNode.connect(audioContext.destination);
 
     const intervalInFrames = (processInterval / 1000) * analyser.context.sampleRate;
-    // Count down in frames (onaudioprocess decrements by bitSize per block and
-    // re-adds intervalInFrames), so seed it in frames too: seeding with the raw
-    // processInterval in ms would fire the first tic one audio block in.
     let nextUpdateFrame = intervalInFrames;
 
     let activityBuffer = 0;
@@ -94,7 +95,6 @@ function _loadScriptProcessor(
     let isAboveThreshold = false;
 
     scriptProcessorNode.onaudioprocess = () => {
-        // throttles down the processing tic rate
         nextUpdateFrame -= bitSize;
         if (nextUpdateFrame >= 0) {
             return;
@@ -129,11 +129,10 @@ function _loadScriptProcessor(
 }
 
 /**
- * @param {MediaStreamSource} source
+ * @param {MediaStreamAudioSourceNode} source
  * @param {AudioContext} audioContext
- * @param {Object} [param2] options
- * @returns {Object} returnValue
- * @returns {function} returnValue.disconnect disconnect callback
+ * @param {AudioMonitorOptions} [param2]
+ * @returns {Promise<AudioMonitorProcessor>}
  */
 async function _loadAudioWorkletProcessor(
     source,
@@ -149,7 +148,6 @@ async function _loadAudioWorkletProcessor(
     } = {},
 ) {
     await audioContext.resume();
-    // Safari does not support Worklet.addModule
     await audioContext.audioWorklet.addModule("/mail/rtc/audio_worklet_processor_v2");
     const thresholdProcessor = new window.AudioWorkletNode(
         audioContext,
@@ -166,7 +164,7 @@ async function _loadAudioWorkletProcessor(
         },
     );
     source.connect(thresholdProcessor);
-    thresholdProcessor.port.onmessage = (event) => {
+    thresholdProcessor.port.onmessage = /** @param {MessageEvent} event */ (event) => {
         const { isAboveThreshold, volume } = event.data;
         if (isAboveThreshold !== undefined) {
             onThreshold?.(isAboveThreshold);
@@ -183,15 +181,12 @@ async function _loadAudioWorkletProcessor(
 }
 
 /**
- * @param {AnalyserNode} analyser
- * @param {number} lowerFrequency lower bound for relevant frequencies to monitor
- * @param {number} higherFrequency upper bound for relevant frequencies to monitor
- * @returns {number} normalized [0...1] average quantity of the relevant frequencies
+ * @param {AnalyserNode & {_freqBuffer?: Uint8Array}} analyser
+ * @param {number} lowerFrequency
+ * @param {number} higherFrequency
+ * @returns {number}
  */
 function getFrequencyAverage(analyser, lowerFrequency, higherFrequency) {
-    // Reuse one buffer per analyser instead of allocating a fresh Uint8Array on
-    // every processing tic (~20 Hz for the lifetime of the mic monitor).
-    // frequencyBinCount is fixed once fftSize is set.
     const frequencies = (analyser._freqBuffer ??= new window.Uint8Array(
         analyser.frequencyBinCount,
     ));
@@ -219,10 +214,10 @@ function getFrequencyAverage(analyser, lowerFrequency, higherFrequency) {
 }
 
 /**
- * @param {number} targetFrequency in Hz
- * @param {number} sampleRate the sample rate of the audio
- * @param {number} binCount AnalyserNode.frequencyBinCount
- * @returns {number} the index of the targetFrequency within binCount
+ * @param {number} targetFrequency
+ * @param {number} sampleRate
+ * @param {number} binCount
+ * @returns {number}
  */
 function _getFrequencyIndex(targetFrequency, sampleRate, binCount) {
     const index = Math.round((targetFrequency / (sampleRate / 2)) * binCount);

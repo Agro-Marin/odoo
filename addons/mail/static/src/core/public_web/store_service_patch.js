@@ -15,6 +15,7 @@ patch(Store.prototype, {
         this.discuss = { activeTab: "notification" };
         this.env.bus.addEventListener(
             "discuss.channel/new_message",
+            /** @param {CustomEvent<{channel: import("models").Thread, message: import("models").Message, silent?: boolean}>} ev */
             ({ detail: { channel, message, silent } }) => {
                 if (this.env.services.ui.isSmall || message.isSelfAuthored || silent) {
                     return;
@@ -26,6 +27,10 @@ patch(Store.prototype, {
 });
 
 patch(storeService, {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {Object} services
+     */
     start(env, services) {
         const store = super.start(...arguments);
         const discussActionIds = ["mail.action_discuss", "discuss"];
