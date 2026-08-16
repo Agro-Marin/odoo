@@ -1,7 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import json
-
 from odoo import http
 from odoo.http import request
 
@@ -19,4 +17,7 @@ class ImportController(http.Controller):
             'file_type': file.content_type,
         })
 
-        return json.dumps({'result': written})
+        # make_json_response, not a bare str: a str body from an http route
+        # defaults to text/html, which the uploader (rejectHtml) reads as the
+        # login page and turns into a spurious session-expired dialog.
+        return request.make_json_response({'result': written})
