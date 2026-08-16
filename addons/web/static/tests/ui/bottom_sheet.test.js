@@ -376,7 +376,9 @@ test("snapping is really suppressed while the sheet is re-measured", async () =>
     const seen = [];
     patchWithCleanup(sheet, {
         measureDimensions() {
-            seen.push(this.scrollRailRef.el.style.getPropertyValue("scroll-snap-type"));
+            seen.push(
+                this.scrollRailRef.el?.style.getPropertyValue("scroll-snap-type"),
+            );
             return super.measureDimensions();
         },
     });

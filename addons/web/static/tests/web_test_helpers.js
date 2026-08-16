@@ -117,6 +117,10 @@ export {
     unmakeKwArgs,
 } from "./_framework/mock_server/mock_server_utils.js";
 export { serverState } from "./_framework/mock_server_state.hoot.js";
+export {
+    mockServiceWorkerContainer,
+    mockServiceWorkerRegistration,
+} from "./_framework/mock_service_worker.js";
 export { patchWithCleanup } from "./_framework/patch_test_helpers.js";
 export { preventResizeObserverError } from "./_framework/resize_observer_error_catcher.js";
 export {

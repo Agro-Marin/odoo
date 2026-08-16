@@ -396,24 +396,22 @@ export class ExportDataDialog extends Component {
                 type: "danger",
             });
         }
-        const [id] = /** @type {any} */ (
-            await this.orm.create(
-                "ir.exports",
-                [
-                    {
-                        name,
-                        export_fields: this.state.exportList.map((field) => [
-                            0,
-                            0,
-                            {
-                                name: field.id,
-                            },
-                        ]),
-                        resource: this.props.root.resModel,
-                    },
-                ],
-                { context: this.props.context },
-            )
+        const [id] = await this.orm.create(
+            "ir.exports",
+            [
+                {
+                    name,
+                    export_fields: this.state.exportList.map((field) => [
+                        0,
+                        0,
+                        {
+                            name: field.id,
+                        },
+                    ]),
+                    resource: this.props.root.resModel,
+                },
+            ],
+            { context: this.props.context },
         );
         this.state.isEditingTemplate = false;
         this.state.templateId = id;

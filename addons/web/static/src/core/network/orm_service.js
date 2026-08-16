@@ -171,10 +171,15 @@ export class ORM {
     }
 
     /**
+     * `create` takes a LIST of vals and the server answers with the list of ids
+     * it made, one per entry -- which is why every call site destructures
+     * (`const [id] = await orm.create(...)`), and why export_data_dialog had to
+     * cast the result to `any` to do so. The annotation said `number`.
+     *
      * @param {string} model
      * @param {any[]} records
      * @param {any} [kwargs=[]]
-     * @returns {Promise<number>}
+     * @returns {Promise<number[]>} the new ids, in the order of `records`
      */
     create(model, records, kwargs = {}) {
         validateArray("records", records);

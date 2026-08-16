@@ -856,7 +856,37 @@ export class MockServer {
                 }
             }
         }
-        return listeners;
+        // At most one turn per callback per request. `_handleRequest` walks
+        // this list until one entry returns a value, so the same callback
+        // registered twice for a route runs *twice* for a single request. That
+        // is invisible while it returns something -- the first run wins and the
+        // rest are never reached, which is why `stepAllNetworkCalls` documents
+        // having to be registered last -- and a duplicated side effect the
+        // moment it returns undefined.
+        //
+        // `mail`'s `registerRoute` registers each route twice by design: once
+        // eagerly at module load, for the test files that never call
+        // `defineMailModels`, and again from `registerMailMockRoutes`, because
+        // `defineParams(..., "replace")` drops what the eager pass added. Both
+        // passes are needed and both hand over the *same* function object, so
+        // the duplicate is an artefact of that lifecycle rather than anyone's
+        // intent. `/mail/link_preview` returns undefined and creates records:
+        // it built two previews for one client RPC, a state the server -- which
+        // is idempotent per (message, url) -- cannot reach, and
+        // `@mail/gif_picker` failed on the second one.
+        //
+        // Deduplicating by identity is the narrowest thing that can be true
+        // here: running one callback twice for one request is never what a
+        // registration means. The first occurrence is kept, which is the
+        // latest registration, so "later wins" is unchanged.
+        const seen = new Set();
+        return listeners.filter(([callback]) => {
+            if (seen.has(callback)) {
+                return false;
+            }
+            seen.add(callback);
+            return true;
+        });
     }
 
     /**

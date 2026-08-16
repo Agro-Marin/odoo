@@ -5,6 +5,7 @@ import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import {
     getService,
     makeMockEnv,
+    mockServiceWorkerRegistration,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
@@ -35,13 +36,7 @@ function mockServiceWorker({ controlled = true, reply } = {}) {
     const serviceWorker = {
         // `service_worker_service` boots alongside this one and registers the
         // backend worker; a stub keeps its failure path out of the log.
-        register: async () => ({
-            waiting: null,
-            installing: null,
-            active: null,
-            addEventListener() {},
-            update: async () => {},
-        }),
+        register: async () => mockServiceWorkerRegistration(),
         ready: Promise.resolve(),
         controller: controlled
             ? {

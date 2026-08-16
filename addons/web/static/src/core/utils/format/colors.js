@@ -390,7 +390,9 @@ export function rgbaToHex(rgba = "") {
 
 /**
  * @param {string} color
- * @param {HTMLElement|null} node
+ * @param {HTMLElement|null} [node] the element the colour sits on, when the
+ *   alpha channel has to be blended against what shows through it; omitted, the
+ *   backdrop is taken as white
  * @returns {string}
  */
 export function blendColors(color, node) {
