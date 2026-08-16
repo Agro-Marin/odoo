@@ -52,7 +52,7 @@ class TestDevice(TestHttpBase):
             }
         with (
             freeze_time(time),
-            patch.dict(odoo.tools.config.options, {"proxy_mode": bool(ip)}),
+            odoo.tools.config.patch(proxy_mode=bool(ip)),
         ):
             return self.url_open(url=endpoint, headers=headers)
 

@@ -13,7 +13,7 @@ from odoo.tools import mute_logger
 from odoo.addons.base.models.ir_actions_report import (
     PDF_OPTIONS_DATA_KEY,
     OdooURLFetcher,
-    _is_blocked_fetch_ip,
+    _is_blocked_fetch_host,
 )
 
 
@@ -82,7 +82,7 @@ class TestReportUrlFetcher(TransactionCase):
         with self.assertRaises(ValueError):
             self.fetcher._parse_image_url("/web/image", "model=res.partner")
 
-    def test_blocked_fetch_ip_classification(self):
+    def test_blocked_fetch_host_classification(self):
         for host in (
             "169.254.169.254",
             "127.0.0.2",
@@ -94,10 +94,28 @@ class TestReportUrlFetcher(TransactionCase):
             "fe80::1",
         ):
             with self.subTest(host=host):
-                self.assertTrue(_is_blocked_fetch_ip(host))
+                self.assertTrue(_is_blocked_fetch_host(host))
         for host in ("8.8.8.8", "93.184.216.34", "cdn.example.com", None, ""):
             with self.subTest(host=host):
-                self.assertFalse(_is_blocked_fetch_ip(host))
+                self.assertFalse(_is_blocked_fetch_host(host))
+
+    def test_loopback_names_are_blocked_without_resolving(self):
+        for host in (
+            "localhost",
+            "LOCALHOST",
+            "ip6-localhost",
+            "ip6-loopback",
+            "db.localhost",
+            "localhost.",
+            "db.localhost.",
+        ):
+            with self.subTest(host=host):
+                self.assertTrue(_is_blocked_fetch_host(host))
+
+    def test_names_needing_resolution_stay_unblocked(self):
+        for host in ("localtest.me", "internal.corp.example.com"):
+            with self.subTest(host=host):
+                self.assertFalse(_is_blocked_fetch_host(host))
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_fetch_refuses_private_ip(self):
@@ -638,7 +656,6 @@ class TestReportFetcherOrigin(TransactionCase):
         for foreign in (
             "https://erp.example.com:9999/web/content/1",
             "http://erp.example.com/web/content/1",
-            "http://localhost:8069/web/content/1",
             "https://evil.example.net/pixel.png",
         ):
             self.assertEqual(
@@ -646,6 +663,18 @@ class TestReportFetcherOrigin(TransactionCase):
                 ("parent", None),
                 f"{foreign} was treated as this database's own origin",
             )
+        fetcher.cleanup()
+
+    @mute_logger("odoo.addons.base.models.ir_actions_report")
+    def test_loopback_name_is_refused_from_a_public_origin(self):
+        fetcher = self._fetcher("https://erp.example.com")
+        for target in (
+            "http://localhost:8069/web/content/1",
+            "http://ip6-localhost:8069/web/content/1",
+            "http://db.localhost/web/content/1",
+        ):
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                self._route(fetcher, target)
         fetcher.cleanup()
 
     def test_tls_verification_is_waived_only_for_loopback(self):

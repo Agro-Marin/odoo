@@ -1,4 +1,5 @@
 import traceback
+from contextlib import contextmanager
 from unittest.mock import patch
 
 from psycopg import IntegrityError
@@ -8,7 +9,7 @@ from psycopg.types.json import Json
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import NO_ACCESS
-from odoo.models import is_model_definition, pop_field
+from odoo.models import BaseModel, is_model_definition, pop_field
 from odoo.tests import Form, HttpCase, TransactionCase, tagged
 from odoo.tests.common import new_test_user
 from odoo.tools import SQL, escape_psql, mute_logger
@@ -1166,6 +1167,29 @@ class TestIrModelRelationReflection(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestIrModelFieldsSelection(TransactionCase):
+    @contextmanager
+    def _write_raises(self, model_name, field_name, error):
+        """Make ``write`` raise `error` for one model+field, and unwind cleanly.
+
+        Patched on ``BaseModel``, never on ``type(record)``. Every operation
+        these tests wrap reloads the registry, which builds a NEW class for the
+        model and EMPTIES THE RETIRED ONE IN PLACE -- same object, cleared
+        ``__dict__``. A patch installed on that class is therefore gone before
+        mock unwinds it, and ``__exit__`` dies with ``AttributeError: type
+        object 'x_sel_...' has no attribute 'write'`` instead of reporting
+        whatever the test found. Registry classes are the registry's to recycle;
+        ``BaseModel`` is module-defined and outlives every reload.
+        """
+        original_write = BaseModel.write
+
+        def guarded_write(records, vals):
+            if records._name == model_name and field_name in vals:
+                raise error
+            return original_write(records, vals)
+
+        with patch.object(BaseModel, "write", guarded_write):
+            yield
+
     def _make_selection_field(self, stem, *, company_dependent=False, values=None):
         values = values or [("draft", "Draft"), ("done", "Done")]
         model = self.env["ir.model"].create(
@@ -1289,14 +1313,8 @@ class TestIrModelFieldsSelection(TransactionCase):
         record.flush_recordset()
         draft = field.selection_ids.filtered(lambda s: s.value == "draft")
 
-        original_write = type(record).write
-
-        def refusing_write(self, vals):
-            if "x_ondok" in vals:
-                raise ValidationError("ondelete write refused by a constraint")
-            return original_write(self, vals)
-
-        with patch.object(type(record), "write", refusing_write):
+        refusal = ValidationError("ondelete write refused by a constraint")
+        with self._write_raises(Model._name, "x_ondok", refusal):
             draft.unlink()
 
         record.invalidate_recordset(["x_ondok"])
@@ -1308,14 +1326,8 @@ class TestIrModelFieldsSelection(TransactionCase):
         record.flush_recordset()
         draft = field.selection_ids.filtered(lambda s: s.value == "draft")
 
-        original_write = type(record).write
-
-        def buggy_write(self, vals):
-            if "x_ondbug" in vals:
-                raise TypeError("programming error in an override")
-            return original_write(self, vals)
-
-        with patch.object(type(record), "write", buggy_write):
+        bug = TypeError("programming error in an override")
+        with self._write_raises(Model._name, "x_ondbug", bug):
             with self.assertRaises(TypeError):
                 draft.unlink()
 
@@ -1457,14 +1469,8 @@ class TestIrModelFieldsSelection(TransactionCase):
             Model, field, record, {self.env.company.id: "draft", other.id: "done"}
         )
 
-        original_write = type(Model).write
-
-        def failing_write(records, vals):
-            if field.name in vals:
-                raise UserError("forced ORM failure")
-            return original_write(records, vals)
-
-        with patch.object(type(Model), "write", failing_write):
+        failure = UserError("forced ORM failure")
+        with self._write_raises(Model._name, field.name, failure):
             field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
         self.env.flush_all()
 

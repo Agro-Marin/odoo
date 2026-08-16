@@ -696,13 +696,9 @@ class TestCommand(BaseCase):
             self.assertEqual(db_filter(dbs, host="localhost"), ["test_db"])
         with config.patch(dbfilter="^al", db_name=[]):
             self.assertEqual(db_filter(dbs, host="localhost"), ["alpha"])
-        with mock.patch.dict(
-            config.options, {"dbfilter": "", "db_name": ["beta", "alpha"]}
-        ):
+        with config.patch(dbfilter="", db_name=["beta", "alpha"]):
             self.assertEqual(db_filter(dbs, host="localhost"), ["alpha", "beta"])
-        with mock.patch.dict(
-            config.options, {"dbfilter": "^(alpha|prod)$", "db_name": ["prod", "beta"]}
-        ):
+        with config.patch(dbfilter="^(alpha|prod)$", db_name=["prod", "beta"]):
             self.assertEqual(db_filter(dbs, host="localhost"), ["prod"])
 
     def test_db_filter_strips_system_databases(self):

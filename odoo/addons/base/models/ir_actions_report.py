@@ -48,7 +48,18 @@ from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.base.models.report_paperformat import PAPER_SIZE_BY_KEY
 
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
+_LOOPBACK_HOSTS = frozenset(
+    {
+        "localhost",
+        "ip6-localhost",
+        "ip6-loopback",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+    }
+)
+
+_LOOPBACK_SUFFIX = ".localhost"
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
@@ -61,11 +72,14 @@ def _verifies_tls(url: str) -> bool:
     return urlparse(url).hostname not in _LOOPBACK_HOSTS
 
 
-def _is_blocked_fetch_ip(hostname: str | None) -> bool:
+def _is_blocked_fetch_host(hostname: str | None) -> bool:
     if not hostname:
         return False
+    host = hostname.strip("[]").lower().rstrip(".")
+    if host in _LOOPBACK_HOSTS or host.endswith(_LOOPBACK_SUFFIX):
+        return True
     try:
-        ip = ipaddress.ip_address(hostname.strip("[]"))
+        ip = ipaddress.ip_address(host)
     except ValueError:
         return False
     return (
@@ -394,10 +408,10 @@ class OdooURLFetcher(URLFetcher):
 
         is_local = not parsed.hostname or self._is_same_origin(parsed)
         if not is_local:
-            if _is_blocked_fetch_ip(parsed.hostname):
+            if _is_blocked_fetch_host(parsed.hostname):
                 _logger.warning(
                     "WeasyPrint refused a report resource pointing at a "
-                    "private/reserved address (possible SSRF): %s",
+                    "private/reserved host (possible SSRF): %s",
                     url,
                 )
                 raise ValueError(f"Blocked fetch to private address: {url}")

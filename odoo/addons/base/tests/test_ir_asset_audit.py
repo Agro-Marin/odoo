@@ -1025,9 +1025,7 @@ class TestInstalledAddonGate(TransactionCase):
 
     def test_server_wide_modules_are_treated_as_installed(self):
         IrAsset = self.env["ir.asset"]
-        with patch.dict(
-            tools.config.options, {"server_wide_modules": ["__probe_addon__"]}
-        ):
+        with tools.config.patch(server_wide_modules=["__probe_addon__"]):
             installed = IrAsset._get_installed_addons_list()
 
         self.assertIn("__probe_addon__", installed)

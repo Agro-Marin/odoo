@@ -1,7 +1,7 @@
 import functools
 import hashlib
 import logging
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
@@ -10,23 +10,22 @@ from odoo.api import Environment
 from odoo.libs.asset_log import log_event
 from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools.assets.constants import (
-    ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
     TEMPLATE_EXTENSIONS,
 )
-from odoo.tools.assets.esbuild import (
-    EXTERNAL_BARE_SPECIFIERS,
-    EsbuildCompiler,
-    EsbuildResult,
-)
+from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_bridges import BridgeShimManager
 from odoo.tools.assets.esm_graph import (
     _bridge_shim_source,
     _cached_module_classification,
     is_odoo_module,
 )
-from odoo.tools.assets.esm_registry import esm_registry, invalidate_esm_registry
+from odoo.tools.assets.esm_registry import (
+    esm_registry,
+    external_libs,
+    invalidate_esm_registry,
+)
 from odoo.tools.misc import file_path
 
 if TYPE_CHECKING:
@@ -54,7 +53,7 @@ from .xml_pipeline import XmlTemplatePipeline
 
 @functools.cache
 def _check_external_libs_once() -> None:
-    AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
+    AssetsBundle._validate_external_libs(external_libs())
 
 
 class AssetsBundle:
@@ -76,7 +75,6 @@ class AssetsBundle:
     def _validate_external_libs(
         cls,
         import_map: Mapping[str, str],
-        bare_specifiers: Collection[str] = EXTERNAL_BARE_SPECIFIERS,
         lib_candidates: Mapping[str, tuple[str, ...]] = EsbuildCompiler._LIB_CANDIDATES,
     ) -> None:
         missing_alias = [
@@ -84,18 +82,10 @@ class AssetsBundle:
         ]
         if missing_alias:
             raise ValueError(
-                f"ODOO_EXTERNAL_LIBS declares {sorted(missing_alias)} "
+                f"esm.external_libs declares {sorted(missing_alias)} "
                 f"but esbuild has no resolution for them (no per-lib alias, "
                 f"no pattern-level external coverage). Production builds "
                 f"will fail to resolve these specifiers.",
-            )
-        missing_url = sorted(set(bare_specifiers) - set(import_map))
-        if missing_url:
-            raise ValueError(
-                f"EXTERNAL_BARE_SPECIFIERS declares {missing_url} but "
-                f"ODOO_EXTERNAL_LIBS has no import-map URL for them. "
-                f"esbuild leaves these imports verbatim, so the browser "
-                f"cannot resolve them without a map entry.",
             )
         missing_files = []
         for spec, url in import_map.items():
@@ -103,7 +93,7 @@ class AssetsBundle:
                 missing_files.append(f"{spec} -> {url}")
         if missing_files:
             raise ValueError(
-                f"ODOO_EXTERNAL_LIBS URLs point at files that do not exist "
+                f"esm.external_libs URLs point at files that do not exist "
                 f"on disk: {missing_files}. Browsers would 404 on the "
                 f"import-map fetch.",
             )
@@ -333,6 +323,7 @@ class AssetsBundle:
     def invalidate_addon_scan_cache(cls) -> None:
         EsbuildCompiler.invalidate_addon_scan_cache()
         invalidate_esm_registry()
+        _check_external_libs_once.cache_clear()
 
     @classmethod
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list, list]:

@@ -9,10 +9,13 @@ from unittest.mock import patch
 
 from odoo import tools
 from odoo.tests.common import BaseCase, TransactionCase
-from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
 from odoo.tools.assets.esbuild import EsbuildCompiler, _find_esbuild
 from odoo.tools.assets.esm_bridges import BridgeShimManager
-from odoo.tools.assets.esm_registry import esm_registry, validate_esm_config
+from odoo.tools.assets.esm_registry import (
+    esm_registry,
+    external_libs,
+    validate_esm_config,
+)
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
 
@@ -334,12 +337,10 @@ class TestEsmConfigValidation(TransactionCase):
                 "@odoo/owl": "/web/static/lib/owl/owl.es.js",
                 "@odoo/not-listed": "/web/static/lib/owl/owl.es.js",
             },
-            bare_specifiers=set(),
         )
         with self.assertRaises(ValueError):
             AssetsBundle._validate_external_libs(
                 {"left-pad": "/web/static/lib/owl/owl.es.js"},
-                bare_specifiers=set(),
             )
 
 
@@ -506,8 +507,10 @@ class TestBridgeShimLiterals(TransactionCase):
         )
         self.assertIn('odoo.loader.modules.get("@web/core/x");', shim)
         self.assertNotIn("get('@web/core/x')", shim)
-        self.assertIn("const _e0 = _m?.alpha;", shim)
-        self.assertIn("export { _e0 as alpha };", shim)
+        self.assertIn("_e0 = _m.alpha;", shim)
+        self.assertIn("_e0 as alpha", shim)
+        # `export default <expr>` snapshots; `export { _d as default }` is live.
+        self.assertNotIn("export default", shim)
         self.assertFalse(is_fallback)
 
     def test_a_reserved_word_survives_as_an_alias(self):
@@ -515,10 +518,11 @@ class TestBridgeShimLiterals(TransactionCase):
             "@web/core/x", set(), self.NAMES, False
         )
 
-        self.assertIn(" as class }", shim)
+        self.assertIn(" as class", shim)
         self.assertNotIn("const class", shim)
         self.assertNotIn("a-b", shim)
-        self.assertNotIn("_m?.default;", shim)
+        # `default` is published from `_d`, never re-read as a named member.
+        self.assertNotIn("= _m.default;", shim)
 
     @unittest.skipUnless(shutil.which("node"), "node binary not available")
     def test_the_two_generators_agree(self):
@@ -1277,7 +1281,7 @@ class TestBridgeShimSources(TransactionCase):
         self.assertIn('odoo.loader.modules.get("@web/core/registry")', shim)
         self.assertRegex(
             shim,
-            r"const (_e\d+) = _m\?\.registry;",
+            r"(_e\d+) = _m\.registry;",
             "the shim must bind each name to a local before re-exporting it",
         )
         self.assertRegex(shim, r"_e\d+ as registry\b")
@@ -1848,20 +1852,18 @@ class TestExternalLibsValidator(BaseCase):
     def test_a_specifier_esbuild_cannot_resolve_is_refused(self):
         with self.assertRaisesRegex(ValueError, "no resolution for them"):
             AssetsBundle._validate_external_libs(
-                {"left-pad": self.REAL_URL}, bare_specifiers=set(), lib_candidates={}
+                {"left-pad": self.REAL_URL}, lib_candidates={}
             )
 
-    def test_a_bare_specifier_with_no_import_map_url_is_refused(self):
-        with self.assertRaisesRegex(ValueError, "no import-map URL"):
-            AssetsBundle._validate_external_libs(
-                {}, bare_specifiers={"@odoo/owl"}, lib_candidates={}
-            )
+    def test_bare_externals_are_a_subset_of_the_declared_libs(self):
+        from odoo.tools.assets.esm_registry import external_bare_specifiers
+
+        self.assertLessEqual(set(external_bare_specifiers()), set(external_libs()))
 
     def test_an_import_map_url_pointing_nowhere_is_refused(self):
         with self.assertRaisesRegex(ValueError, "do not exist"):
             AssetsBundle._validate_external_libs(
                 {"@odoo/owl": "/web/static/lib/owl/does_not_exist.js"},
-                bare_specifiers=set(),
                 lib_candidates={},
             )
 
@@ -1869,19 +1871,17 @@ class TestExternalLibsValidator(BaseCase):
         with self.assertRaisesRegex(ValueError, "_LIB_CANDIDATES aliases"):
             AssetsBundle._validate_external_libs(
                 {},
-                bare_specifiers=set(),
                 lib_candidates={"@odoo/nope": ("web", "static", "lib", "nope.js")},
             )
 
     def test_an_unknown_addon_in_the_url_is_not_mistaken_for_a_missing_file(self):
         AssetsBundle._validate_external_libs(
             {"@odoo/owl": "/no_such_addon_here/static/lib/x.js"},
-            bare_specifiers=set(),
             lib_candidates={},
         )
 
     def test_the_live_tables_satisfy_all_four(self):
-        AssetsBundle._validate_external_libs(ODOO_EXTERNAL_LIBS)
+        AssetsBundle._validate_external_libs(external_libs())
 
 
 class TestEsmManifestShapeGuards(BaseCase):
@@ -1923,6 +1923,34 @@ class TestEsmManifestShapeGuards(BaseCase):
         registry = self._build_with({"bundles": ["a.b"], "standalone_bundles": ["a.b"]})
         self.assertIn("a.b", registry.bundles)
         self.assertIn("a.b", registry.standalone_bundles)
+
+    def test_runtime_bundles_as_a_bare_string_is_refused(self):
+        with self.assertRaisesRegex(TypeError, "must be\\s+a list"):
+            self._build_with({"bundles": ["a.b"], "runtime_bundles": "a.b"})
+
+    def test_a_runtime_bundle_must_be_a_registered_bundle(self):
+        with self.assertRaisesRegex(ValueError, "runtime_bundles entry 'a.c'"):
+            self._build_with({"bundles": ["a.b"], "runtime_bundles": ["a.c"]})
+
+    def test_runtime_bundles_needs_no_parent(self):
+        """The point of the key: `/web/bundle` asks about the bundle, not a page.
+
+        Gating the route on `dynamic_children` forced every author to name a
+        parent page for a fact that is not about any page, and a missed parent
+        fell through to the legacy branch silently.
+        """
+        registry = self._build_with({"bundles": ["a.b"], "runtime_bundles": ["a.b"]})
+        self.assertIn("a.b", registry.runtime_bundle_names)
+        self.assertEqual(registry.dynamic_children, {})
+        self.assertEqual(registry.dynamic_bundle_names, frozenset())
+
+    def test_a_dynamic_child_is_a_runtime_bundle_without_saying_so(self):
+        """Back-compat: a lazy child is fetched at runtime by definition."""
+        registry = self._build_with(
+            {"bundles": ["a.b", "a.c"], "dynamic_children": {"a.b": ["a.c"]}}
+        )
+        self.assertIn("a.c", registry.runtime_bundle_names)
+        self.assertNotIn("a.b", registry.runtime_bundle_names)
 
     def test_a_standalone_bundle_may_not_be_in_a_relationship(self):
         with self.assertRaisesRegex(ValueError, "cannot participate"):

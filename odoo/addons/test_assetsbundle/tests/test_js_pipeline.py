@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tools import config
 from odoo.tools.assets.esbuild import _find_esbuild, has_nested_template_literal
 from odoo.tools.assets.esm_graph import _MODULE_SYNTAX_RE
 from odoo.tools.assets.esm_registry import esm_registry
@@ -14,6 +15,10 @@ from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     JavascriptAsset,
     is_odoo_module,
+)
+from odoo.addons.base.models.assetsbundle.js_pipeline import (
+    JsPipeline,
+    ModuleSyntaxInLegacyBundleError,
 )
 
 MODULE_JS = 'import { x } from "@web/core/registry";\nexport const y = x;\n'
@@ -54,19 +59,41 @@ def _vlq_decode_mappings(mappings):
 class TestModuleSyntaxGuard(TransactionCase):
     BUNDLE = "test_assetsbundle.legacy_guard"
 
-    def test_module_file_is_stubbed_and_excluded(self):
-        bundle = AssetsBundle(
-            self.BUNDLE,
+    def _legacy_bundle(self, name=None):
+        return AssetsBundle(
+            name or self.BUNDLE,
             [
                 asset_file("/test_assetsbundle/static/src/mod.js", MODULE_JS),
                 asset_file("/test_assetsbundle/static/src/plain.js", PLAIN_JS),
             ],
             env=self.env,
         )
+
+    def test_module_file_stops_the_build_when_someone_can_read_it(self):
+        """Under `--test-enable` / `--dev=assets` the loss is an exception.
+
+        Degrading silently is what let this defect be rediscovered six times: the
+        bundle builds, the route returns 200, and `loadBundle` resolves carrying
+        a `console.error` instead of the module.
+        """
+        bundle = self._legacy_bundle()
         self.assertNotIn(self.BUNDLE, esm_registry().bundles)
         self.assertEqual(len(bundle.javascripts), 2)
-        with self.assertLogs("odoo.assets.bundle", level="ERROR") as cm:
-            attachment = bundle.js()
+        with (
+            self.assertLogs("odoo.assets.bundle", level="ERROR") as cm,
+            self.assertRaises(ModuleSyntaxInLegacyBundleError) as raised,
+        ):
+            bundle.js()
+        self.assertIn("module_syntax_in_legacy_bundle", "\n".join(cm.output))
+        self.assertIn("declare the bundle under the 'esm' key", str(raised.exception))
+
+    def test_module_file_is_stubbed_and_excluded_in_production(self):
+        """Production still degrades: a page missing one file beats a 500."""
+        with config.patch(test_enable=False, dev_mode=[]):
+            self.assertFalse(JsPipeline._fails_closed())
+            bundle = self._legacy_bundle(f"{self.BUNDLE}_prod")
+            with self.assertLogs("odoo.assets.bundle", level="ERROR") as cm:
+                attachment = bundle.js()
         self.assertIn("module_syntax_in_legacy_bundle", "\n".join(cm.output))
         content = attachment.raw.decode()
         self.assertIn("console.error(", content)
@@ -137,13 +164,14 @@ class TestModuleSyntaxGuard(TransactionCase):
 
     def test_module_syntax_outside_comment_still_stubbed(self):
         mixed = "/*\nexport const decoy = 1;\n*/\n" + MODULE_JS
-        bundle = AssetsBundle(
-            f"{self.BUNDLE}_mixed",
-            [asset_file("/test_assetsbundle/static/src/mixed.js", mixed)],
-            env=self.env,
-        )
-        with self.assertLogs("odoo.assets.bundle", level="ERROR"):
-            content = bundle.js().raw.decode()
+        with config.patch(test_enable=False, dev_mode=[]):
+            bundle = AssetsBundle(
+                f"{self.BUNDLE}_mixed",
+                [asset_file("/test_assetsbundle/static/src/mixed.js", mixed)],
+                env=self.env,
+            )
+            with self.assertLogs("odoo.assets.bundle", level="ERROR"):
+                content = bundle.js().raw.decode()
         self.assertIn("console.error(", content)
 
 

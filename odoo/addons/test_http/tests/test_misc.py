@@ -210,7 +210,7 @@ class TestHttpMisc(TestHttpBase):
             "X-Forwarded-Host": "odoo.com",
             "X-Forwarded-Proto": "https",
         }
-        with patch.dict(odoo.tools.config.options, {"proxy_mode": True}):
+        with odoo.tools.config.patch(proxy_mode=True):
             res = self.nodb_url_open("/test_http/geoip", headers=headers)
             res.raise_for_status()
             self.assertEqual(

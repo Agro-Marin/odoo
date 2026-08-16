@@ -565,12 +565,9 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         )
 
     @mute_logger("odoo.models.unlink", "odoo.addons.base.models.ir_mail_server")
-    @patch.dict(
-        config.options,
-        {
-            "from_filter": "dummy@example.com, test.mycompany.com, dummy2@example.com",
-            "smtp_server": "example.com",
-        },
+    @config.patch(
+        from_filter="dummy@example.com, test.mycompany.com, dummy2@example.com",
+        smtp_server="example.com",
     )
     def test_mail_server_config_bin(self):
         IrMailServer = self.env["ir.mail_server"]
@@ -649,10 +646,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         )
 
     @mute_logger("odoo.models.unlink")
-    @patch.dict(
-        config.options,
-        {"from_filter": "fake.com", "smtp_server": "cli_example.com"},
-    )
+    @config.patch(from_filter="fake.com", smtp_server="cli_example.com")
     def test_mail_server_config_cli(self):
         IrMailServer = self.env["ir.mail_server"]
         self.env["ir.config_parameter"].sudo().set_param(

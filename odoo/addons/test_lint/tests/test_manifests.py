@@ -160,4 +160,4 @@ class ManifestLinter(LintCase):
                 )
 
 
-MANIFEST_FLOOR = 626
+MANIFEST_FLOOR = 623

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import (
     _checker_batch,
+    _checker_config_patch,
     _checker_gettext,
     _checker_noqa_rationale,
     _checker_onchange,
@@ -80,6 +81,7 @@ RULES = frozenset(
         "orm-import",
         "onchange-domain",
         "noqa-rationale",
+        "config-chainmap-patch",
     }
 )
 
@@ -121,6 +123,13 @@ _CHECKERS: list[
         "onchange-domain",
         lambda u: _checker_onchange.check(u.tree, u.nodes),
         lambda u: u.in_module,
+    ),
+    (
+        # Not restricted to tests: the corruption is process-wide, so it is the
+        # same defect wherever it is written.
+        "config-chainmap-patch",
+        lambda u: _checker_config_patch.check(u.tree, u.nodes),
+        lambda u: True,
     ),
 ]
 

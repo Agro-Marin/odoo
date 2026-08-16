@@ -16,7 +16,6 @@ from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
 from odoo.tools.assets.constants import (
-    ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
     TEMPLATE_EXTENSIONS,
@@ -26,7 +25,7 @@ from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,
     find_escaping_relative_imports,
 )
-from odoo.tools.assets.esm_registry import esm_registry
+from odoo.tools.assets.esm_registry import esm_registry, external_libs
 from odoo.tools.misc import file_path, str2bool
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec
@@ -312,7 +311,7 @@ class IrQweb(models.AbstractModel):
         return asset_bundle.get_links()
 
     _OWL_ESM_URL = "/web/static/lib/owl/owl.es.js"
-    _ODOO_EXTERNAL_LIBS = ODOO_EXTERNAL_LIBS
+    _external_libs = staticmethod(external_libs)
 
     @staticmethod
     def _specifier_to_static_url(spec: str) -> str | None:
@@ -684,11 +683,28 @@ class IrQweb(models.AbstractModel):
         )
         return minified
 
+    @staticmethod
+    def _esm_test_satellites_rendered(debug: str | bool | None) -> bool:
+        """Whether this page also renders its ``secondary_import_map_includes``.
+
+        The satellites those declare are test bundles, and ``web.conditional_assets_tests``
+        renders them under ``'tests' in debug or test_mode_enabled``.  The merge that
+        puts their specifiers in the page's import map has to answer the same question,
+        or a production page advertises the URL of every test file that would have been
+        rendered -- and, worse, bridges every specifier those files reach for
+        (``_build_native_to_legacy_bridge``) to a shim whose producer no page ever loads.
+        A dead bridge is not inert: an import map entry cannot be re-mapped once the
+        document has it, so the specifier is spent and the bundle that really owns it
+        loads against ``undefined``.
+        """
+        return "tests" in (debug or "") or bool(tools.config["test_enable"])
+
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
         tools.ormcache(
             "bundle",
             "tuple(sorted(assets_params.items()))",
+            "with_test_satellites",
             cache="assets",
         ),
     )
@@ -696,12 +712,14 @@ class IrQweb(models.AbstractModel):
         self,
         bundle: str,
         assets_params: dict[str, Any] | None = None,
+        with_test_satellites: bool = False,
     ) -> EsmNodePair:
         return self._get_native_module_nodes_impl(
             bundle,
             debug=False,
             assets_params=assets_params,
             _raise_on_decline=True,
+            with_test_satellites=with_test_satellites,
         )
 
     def _get_native_module_nodes(
@@ -713,18 +731,30 @@ class IrQweb(models.AbstractModel):
         debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
             assets_params = self.env["ir.asset"]._get_asset_params()
+        # Part of the ormcache key below: `debug=tests` takes the *prod* branch
+        # (`_is_debug_assets` only looks for "assets"), so one cached entry would
+        # otherwise serve both a page that renders the test satellites and one that does not.
+        satellites = self._esm_test_satellites_rendered(debug)
         if not debug_assets and bundle not in self._esbuild_forced_fallback_bundles():
             try:
                 pre, post = self._get_native_module_nodes_cached(
-                    bundle, assets_params=assets_params
+                    bundle,
+                    assets_params=assets_params,
+                    with_test_satellites=satellites,
                 )
             except _EsmFallbackError:
                 pre, post = self._get_native_module_nodes_impl(
-                    bundle, debug=debug, assets_params=assets_params
+                    bundle,
+                    debug=debug,
+                    assets_params=assets_params,
+                    with_test_satellites=satellites,
                 )
         else:
             pre, post = self._get_native_module_nodes_impl(
-                bundle, debug=debug, assets_params=assets_params
+                bundle,
+                debug=debug,
+                assets_params=assets_params,
+                with_test_satellites=satellites,
             )
         return self._dedup_request_import_map(bundle, pre), post
 
@@ -759,6 +789,7 @@ class IrQweb(models.AbstractModel):
         debug: str = "",
         assets_params: dict[str, Any] | None = None,
         _raise_on_decline: bool = False,
+        with_test_satellites: bool = False,
     ) -> EsmNodePair:
         debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
@@ -807,11 +838,17 @@ class IrQweb(models.AbstractModel):
                     assets_params,
                     child_bundles,
                     raise_on_decline=_raise_on_decline,
+                    with_test_satellites=with_test_satellites,
                 )
             if _raise_on_decline:
                 raise _EsmFallbackError
         return self._esm_debug_nodes(
-            bundle, asset_bundle, native_data, debug_assets, assets_params
+            bundle,
+            asset_bundle,
+            native_data,
+            debug_assets,
+            assets_params,
+            with_test_satellites=with_test_satellites,
         )
 
     def _esm_run_esbuild(
@@ -955,7 +992,7 @@ class IrQweb(models.AbstractModel):
                 js=True,
                 css=False,
                 debug_assets=debug_assets
-                or child_name in registry.dynamic_bundle_names,
+                or child_name in registry.runtime_bundle_names,
                 assets_params=assets_params,
             )
             for child_name in child_names
@@ -965,15 +1002,40 @@ class IrQweb(models.AbstractModel):
     def _merge_child_import_maps(
         import_map: dict[str, str],
         child_bundles: list[AssetsBundle],
-    ) -> list[AssetsBundle]:
+        *,
+        map_specifiers: bool = True,
+    ) -> tuple[list[AssetsBundle], set[str]]:
+        """Collect the dynamic children's specifiers; optionally map them here.
+
+        Two different questions have to be answered with this set, and only one
+        of them wants the entries on the page:
+
+        - *Which specifiers must NOT be bridged* — always. A bridge resolves
+          ``odoo.loader.modules.get(spec)`` at evaluation time, so bridging a
+          specifier whose owner is a bundle this page has not loaded yields
+          ``undefined`` for every export, permanently: an import-map entry cannot
+          be re-mapped once the document holds it. Bridging a child is therefore
+          never right, whether or not the child is mapped.
+        - *Which specifiers the page must resolve itself* — only where the page
+          has no other way to get them. A dynamic child is fetched through
+          ``/web/bundle``, whose payload carries the child's own import map, and
+          ``assets.loadESMBundle`` injects it before importing anything from it.
+
+        So production collects without mapping (``map_specifiers=False``) and the
+        debug per-file branch, which serves the children inline and has no
+        ``/web/bundle`` round trip to carry their map, still maps them.
+        """
         dynamic_names = esm_registry().dynamic_bundle_names
         dynamic_bundles = []
+        child_specifiers: set[str] = set()
         for child_ab in child_bundles:
             child_data = child_ab.get_native_module_data(with_bridges=False)
-            import_map.update(child_data["import_map"])
+            child_specifiers.update(child_data["import_map"])
+            if map_specifiers:
+                import_map.update(child_data["import_map"])
             if child_ab.name in dynamic_names:
                 dynamic_bundles.append(child_ab)
-        return dynamic_bundles
+        return dynamic_bundles, child_specifiers
 
     def _merge_include_import_maps(
         self,
@@ -1006,7 +1068,7 @@ class IrQweb(models.AbstractModel):
             import_map.update(include_data["import_map"])
             discovered, _ext_seen = include_ab._bridges._discover_bridge_specifiers(
                 set(include_data["import_map"]),
-                set(self._ODOO_EXTERNAL_LIBS),
+                set(self._external_libs()),
             )
             self._resolve_bridge_specifiers_to_urls(
                 import_map,
@@ -1051,7 +1113,7 @@ class IrQweb(models.AbstractModel):
         own_specs = set(sec_ab.get_native_module_data(with_bridges=False)["import_map"])
         discovered, _ext = sec_ab._bridges._discover_bridge_specifiers(
             own_specs,
-            set(self._ODOO_EXTERNAL_LIBS),
+            set(self._external_libs()),
         )
         return frozenset(set(discovered) & shared)
 
@@ -1107,9 +1169,9 @@ class IrQweb(models.AbstractModel):
                 ("/web/assets/esm/bridges/", "data:")
             ):
                 continue
-            resolved = self._ODOO_EXTERNAL_LIBS.get(
+            resolved = self._external_libs().get(spec) or self._specifier_to_static_url(
                 spec
-            ) or self._specifier_to_static_url(spec)
+            )
             if resolved:
                 import_map[spec] = resolved
                 resolved_map[spec] = resolved
@@ -1119,12 +1181,12 @@ class IrQweb(models.AbstractModel):
             extra = discover_transitive_import_specifiers(
                 resolved_map,
                 known_specifiers=set(import_map),
-                ext_libs=self._ODOO_EXTERNAL_LIBS,
+                ext_libs=self._external_libs(),
                 lib_candidates=EsbuildCompiler._LIB_CANDIDATES,
                 bundle_name=bundle,
             )
             for spec in sorted(extra):
-                resolved = self._ODOO_EXTERNAL_LIBS.get(
+                resolved = self._external_libs().get(
                     spec
                 ) or self._specifier_to_static_url(spec)
                 if resolved:
@@ -1141,24 +1203,31 @@ class IrQweb(models.AbstractModel):
         child_bundles: list[AssetsBundle] | None = None,
         *,
         raise_on_decline: bool = False,
+        with_test_satellites: bool = False,
     ) -> EsmNodePair:
         esbuild_code = esbuild_result.code
         pre = []
         post = []
-        prod_import_map = dict(self._ODOO_EXTERNAL_LIBS)
+        prod_import_map = dict(self._external_libs())
 
         if child_bundles is None:
             child_bundles = self._get_dynamic_child_bundles(
                 bundle, assets_params, debug_assets=False
             )
-        dynamic_bundles = self._merge_child_import_maps(prod_import_map, child_bundles)
+        dynamic_bundles, child_specifiers = self._merge_child_import_maps(
+            prod_import_map, child_bundles, map_specifiers=False
+        )
 
         if dynamic_bundles:
             combined_modules = []
             for dyn_ab in dynamic_bundles:
                 combined_modules.extend(dyn_ab.native_modules)
             bridge_map = dynamic_bundles[0]._bridges._build_native_to_legacy_bridge(
-                set(prod_import_map),
+                # `child_specifiers` are excluded from bridging without being
+                # mapped: see `_merge_child_import_maps`. The child brings its own
+                # map through `/web/bundle`; a bridge here would claim the
+                # specifier first and resolve to `undefined` forever.
+                set(prod_import_map) | child_specifiers,
                 modules=combined_modules,
             )
             prod_import_map.update(bridge_map)
@@ -1171,12 +1240,13 @@ class IrQweb(models.AbstractModel):
             resolve_bridges=False,
         )
 
-        self._merge_secondary_import_maps(
-            bundle,
-            prod_import_map,
-            assets_params,
-            debug_assets=False,
-        )
+        if with_test_satellites:
+            self._merge_secondary_import_maps(
+                bundle,
+                prod_import_map,
+                assets_params,
+                debug_assets=False,
+            )
 
         if include_names:
             self_bridges = asset_bundle._bridges._build_parent_self_bridge()
@@ -1322,12 +1392,14 @@ class IrQweb(models.AbstractModel):
         native_data: dict[str, Any],
         debug_assets: bool,
         assets_params: dict[str, Any] | None,
+        *,
+        with_test_satellites: bool = False,
     ) -> EsmNodePair:
         pre_nodes = []
         post_nodes = []
-        import_map = dict(native_data["import_map"])
+        import_map = dict(self._external_libs())
 
-        import_map.update(self._ODOO_EXTERNAL_LIBS)
+        import_map.update(native_data["import_map"])
 
         lazy_bundles = self._get_dynamic_child_bundles(
             bundle, assets_params, debug_assets=True
@@ -1342,12 +1414,13 @@ class IrQweb(models.AbstractModel):
             resolve_bridges=True,
         )
 
-        self._merge_secondary_import_maps(
-            bundle,
-            import_map,
-            assets_params,
-            debug_assets=debug_assets,
-        )
+        if with_test_satellites:
+            self._merge_secondary_import_maps(
+                bundle,
+                import_map,
+                assets_params,
+                debug_assets=debug_assets,
+            )
 
         all_native_specifiers = set(native_data["import_map"])
         combined_native_modules = list(asset_bundle.native_modules)
@@ -1357,7 +1430,7 @@ class IrQweb(models.AbstractModel):
 
         discovered, _ext_seen = asset_bundle._bridges._discover_bridge_specifiers(
             all_native_specifiers,
-            set(self._ODOO_EXTERNAL_LIBS),
+            set(self._external_libs()),
             modules=combined_native_modules,
         )
         resolved_bridges = self._resolve_bridge_specifiers_to_urls(
@@ -1400,7 +1473,7 @@ class IrQweb(models.AbstractModel):
             )
 
         bridge_specifiers = sorted(
-            set(native_data["import_map"]) | set(self._ODOO_EXTERNAL_LIBS)
+            set(native_data["import_map"]) | set(self._external_libs())
         )
         if bridge_specifiers and not _already_has_esm:
             shim_js = self._build_loader_shim_js()

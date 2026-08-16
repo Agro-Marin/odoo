@@ -9,6 +9,7 @@ import docutils.parsers.rst.directives  # noqa: F401  registers rst directives
 import docutils.parsers.rst.directives.admonitions  # noqa: F401  registers admonitions
 import docutils.parsers.rst.roles  # noqa: F401  registers rst roles
 
+from odoo.libs.docstring import RST_INFO_FIELDS
 from odoo.tests.common import tagged
 
 from .lint_case import LintCase, iter_registry_methods
@@ -31,27 +32,10 @@ RST_INFO_FIELDS_DOC = (
     "https://www.sphinx-doc.org/en/master/usage/domains/python.html#info-field-lists"
 )
 
-RST_INFO_FIELDS = {
-    "param": "param",
-    "parameter": "param",
-    "arg": "param",
-    "argument": "param",
-    "key": "param",
-    "keyword": "param",
-    "type": "type",
-    "raises": "raises",
-    "raise": "raises",
-    "except": "raises",
-    "exception": "raises",
-    "var": "var",
-    "ivar": "var",
-    "cvar": "var",
-    "vartype": "vartype",
-    "returns": "returns",
-    "return": "returns",
-    "rtype": "rtype",
-    "meta": "meta",
-}
+# Shared with addons/api_doc, which renders the fields this gate lints. Two
+# copies of the vocabulary drift, and a field this linter accepts while the
+# renderer drops it (or the reverse) is exactly the kind of disagreement
+# neither side would notice.
 
 
 ABUSE_KWARGS = """\

@@ -883,9 +883,17 @@ ZeroDivisionError: division by zero"""
                 "odoo.addons.base.models.ir_actions_server", level="WARNING"
             ) as log_catcher:
                 self.env.cr.postcommit.run()
-        self.assertTrue(
-            any("Webhook call failed" in line for line in log_catcher.output),
-            "the connection error should be logged as a warning",
+        # Asserted on what the line has to TELL an operator rather than on its
+        # exact wording: it names the action, and says the delivery will not be
+        # retried. The message used to be "Webhook call failed: <err>", which
+        # identified neither the action nor the receiver.
+        output = "\n".join(log_catcher.output)
+        self.assertIn(self.action.name, output, "the action must be identifiable")
+        self.assertIn(
+            "NOT be retried",
+            output,
+            "a connection error is not ambiguous: nothing arrived, and nothing "
+            "will try again",
         )
 
     def test_95_code_sandbox_blocked(self):

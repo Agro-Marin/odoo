@@ -1,8 +1,13 @@
-from . import _py_scan
+import tomllib
+from pathlib import Path
+
+import odoo
+
+from . import _py_scan, _suppression
 from .lint_case import LintCase
 
 FLOORS = {
-    "sql-injection": 41,
+    "sql-injection": 38,
     "gettext-variable": 1,
     "gettext-placeholders": 5,
     "gettext-repr": 8,
@@ -11,7 +16,8 @@ FLOORS = {
     "orm-import": 0,
     "noqa-rationale": 77,
     "onchange-domain": 0,
-    "n-plus-one-query": 417,
+    "n-plus-one-query": 416,
+    "config-chainmap-patch": 0,
 }
 
 
@@ -39,6 +45,11 @@ _ADVICE = {
         "write the reason after the codes: `# noqa: F401  re-exported by __init__`"
     ),
     "n-plus-one-query": "hoist the query out of the loop and index the result in memory",
+    "config-chainmap-patch": (
+        "use config.patch(**values); patch.dict on the options ChainMap "
+        "flattens every lower layer into _override_options and the damage "
+        "lands on the next test"
+    ),
 }
 
 
@@ -91,6 +102,9 @@ class TestPythonLint(LintCase):
     def test_batch_queries(self):
         self._assert_ratchet("n-plus-one-query")
 
+    def test_config_chainmap_patch(self):
+        self._assert_ratchet("config-chainmap-patch")
+
     def test_every_rule_has_a_floor(self):
         self.assertEqual(
             sorted(_py_scan.findings().keys() - FLOORS.keys()),
@@ -132,6 +146,41 @@ class TestPythonLint(LintCase):
         serial = sorted(_py_scan.scan_many(sample))
         parallel = sorted(_py_scan._run_parallel(sample, 4))
         self.assertEqual(parallel, serial)
+
+    def test_every_rule_code_is_declared_external_to_ruff(self):
+        """`# noqa: E85xx` must not itself become a lint finding.
+
+        Ruff owns the `# noqa` syntax and reports RUF102 for any code it does not
+        recognise, so a checker whose alias is missing from `lint.external` cannot
+        be suppressed at all: the suppression comment is the violation. Two codes
+        (E8508, E8509) were already missing when this test was written, which is
+        why it exists rather than a comment asking people to remember.
+        """
+        ruff_toml = Path(odoo.__path__[0]).parent / "ruff.toml"
+        declared = set(tomllib.loads(ruff_toml.read_text())["lint"]["external"])
+        codes = {
+            alias
+            for aliases in _suppression.RULE_ALIASES.values()
+            for alias in aliases
+            if alias.startswith("E85")
+        }
+        self.assertEqual(
+            sorted(codes - declared),
+            [],
+            f"these checker codes are not in {ruff_toml.name}'s lint.external, "
+            "so ruff reports RUF102 on any noqa that uses them",
+        )
+
+    def test_every_rule_has_a_suppression_alias(self):
+        """A finding nobody can suppress is a finding people delete the check for."""
+        self.assertEqual(
+            sorted(
+                _py_scan.RULES - set(_suppression.RULE_ALIASES) - {"noqa-rationale"}
+            ),
+            [],
+            "these rules have no entry in RULE_ALIASES, so they carry no short "
+            "code and cannot be named in a `# noqa:`",
+        )
 
     def test_the_corpus_is_not_empty(self):
         corpus = _py_scan.corpus()

@@ -24,6 +24,7 @@ RULE_ALIASES: dict[str, frozenset[str]] = {
     "n-plus-one-query": frozenset({"n-plus-one-query", "E8507"}),
     "orm-import": frozenset({"orm-import", "E8508"}),
     "onchange-domain": frozenset({"onchange-domain", "E8509"}),
+    "config-chainmap-patch": frozenset({"config-chainmap-patch", "E8510"}),
 }
 
 

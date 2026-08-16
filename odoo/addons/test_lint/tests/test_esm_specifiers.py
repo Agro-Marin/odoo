@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 from odoo.modules import Manifest
-from odoo.tools.assets.constants import ODOO_EXTERNAL_LIBS
+from odoo.tools.assets.esm_registry import external_libs
 
 from . import lint_case
 from odoo.addons.base.models.ir_qweb_assets import IrQweb
@@ -80,7 +80,7 @@ class TestEsmSpecifiers(lint_case.LintCase):
             specs = set(STATIC_IMPORT_RE.findall(source))
             specs |= set(DYNAMIC_IMPORT_RE.findall(source))
             for spec in specs:
-                if spec in ODOO_EXTERNAL_LIBS:
+                if spec in external_libs():
                     continue
                 url = IrQweb._specifier_to_static_url(spec)
                 if url is None:

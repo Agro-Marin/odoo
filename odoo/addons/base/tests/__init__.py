@@ -133,3 +133,5 @@ from . import test_backend_integration
 from . import test_res_config_install
 from . import test_default_group
 from . import test_server
+from . import test_ir_actions_webhook_logging
+from . import test_ir_actions_webhook_timeout

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from odoo.libs.asset_log import log_event
 from odoo.libs.profiling import SourceMapGenerator
+from odoo.tools import config
 from odoo.tools.assets.esm_graph import (
     has_module_syntax,
 )
@@ -14,9 +15,35 @@ from .assets import JavascriptAsset
 from .common import _bundle_log
 
 
+class ModuleSyntaxInLegacyBundleError(RuntimeError):
+    """A module-syntax file reached a bundle that cannot serve it.
+
+    Raised only where a failure can still be acted on — see
+    ``JsPipeline._fails_closed``.
+    """
+
+
 class JsPipeline:
     def __init__(self, bundle: AssetsBundle) -> None:
         self._bundle = bundle
+
+    @staticmethod
+    def _fails_closed() -> bool:
+        """Whether losing a file to the stub should stop the build.
+
+        The stub is loud (an ERROR event server-side, a ``console.error`` in the
+        page) and completely non-fatal: the bundle still builds, the route still
+        returns 200, and ``loadBundle`` still *resolves* — carrying nothing. The
+        consequence surfaces much later and somewhere else, as a registry lookup
+        or a destructure against ``undefined``, which is how the same defect got
+        rediscovered and written up six times in manifest comments.
+
+        So in the two situations where a person is present to read a traceback —
+        a test run, or ``--dev=assets`` — the build stops instead. Production
+        keeps degrading rather than serving a 500. Same condition and same
+        argument as ``IrQweb._esbuild_fail_closed``.
+        """
+        return bool(config["test_enable"] or "assets" in config["dev_mode"])
 
     def _module_syntax_error_stub(self, asset: JavascriptAsset) -> str | None:
         bundle = self._bundle
@@ -40,6 +67,8 @@ class JsPipeline:
             bundle=bundle.name,
             url=asset.url or "<inline>",
         )
+        if self._fails_closed():
+            raise ModuleSyntaxInLegacyBundleError(msg)
         return f"console.error({json.dumps(msg)});"
 
     def minified_bundle(self, template_bundle: str) -> str:

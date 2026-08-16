@@ -7,6 +7,7 @@ from odoo.tests.common import BaseCase, no_retry
 
 from . import (
     _checker_batch,
+    _checker_config_patch,
     _checker_gettext,
     _checker_noqa_rationale,
     _checker_onchange,
@@ -292,6 +293,50 @@ class TestOrmImportLint(BaseCase):
 
     def test_string_mentioning_odoo_orm_is_not_an_import(self):
         self.assertFalse(self._check("DOC = 'see odoo.orm.fields for details'"))
+
+
+@no_retry
+class TestConfigChainmapPatchLint(BaseCase):
+    """`patch.dict` on `config.options` corrupts the ChainMap for the process.
+
+    The restore is `clear()` + `update()`; on a ChainMap that empties only
+    `maps[0]` and writes the flattened mapping back into it, pinning every lower
+    layer in `_override_options`. `config.patch(**values)` exists for this.
+    """
+
+    def _check(self, snippet):
+        return list(_checker_config_patch.check(ast.parse(dedent(snippet).strip())))
+
+    def test_the_attribute_chain_does_not_matter(self):
+        for target in (
+            "config.options",
+            "tools.config.options",
+            "odoo.tools.config.options",
+            "db_mod.lifecycle.odoo.tools.config.options",
+        ):
+            self.assertTrue(
+                self._check(f'patch.dict({target}, {{"list_db": True}})'),
+                target,
+            )
+
+    def test_qualified_patch_is_flagged_too(self):
+        self.assertTrue(self._check('mock.patch.dict(config.options, {"a": 1})'))
+        self.assertTrue(
+            self._check('unittest.mock.patch.dict(config.options, {"a": 1})')
+        )
+
+    def test_the_replacement_is_not_flagged(self):
+        self.assertFalse(self._check("config.patch(list_db=True)"))
+        self.assertFalse(self._check("odoo.tools.config.patch(test_tags=tags)"))
+
+    def test_a_plain_dict_is_not_flagged(self):
+        """Only the ChainMap is the hazard — `_runtime_options` is a real dict."""
+        self.assertFalse(self._check('patch.dict(config._runtime_options, {"a": 1})'))
+        self.assertFalse(self._check('patch.dict(os.environ, {"A": "1"})'))
+        self.assertFalse(self._check('patch.dict(self.registry.options, {"a": 1})'))
+
+    def test_patch_object_is_a_different_thing(self):
+        self.assertFalse(self._check('patch.object(config, "options", {})'))
 
 
 @no_retry

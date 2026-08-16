@@ -3,7 +3,7 @@ import ipaddress
 import json
 import logging
 import socket
-from functools import reduce
+from functools import partial, reduce
 from operator import getitem
 from typing import Any, Self
 from urllib.parse import urlparse
@@ -64,6 +64,66 @@ def _webhook_url_blocked_reason(url: str) -> str | None:
         ):
             return f"blocked address {ip} (not a globally routable range)"
     return None
+
+
+def _webhook_log_target(url: str) -> str:
+    """Name a webhook's receiver for a log line, without quoting its secret.
+
+    :param str url: the configured webhook URL
+    :return: something an operator can act on
+    :rtype: str
+
+    The host alone, because a webhook URL routinely IS the credential. Slack,
+    Discord and Teams all put the token in the path
+    (`hooks.slack.com/services/T…/B…/<token>`), others put it in the query, and
+    this action used to log the whole thing five times per call at INFO — so
+    every log file, every log aggregator and every pasted traceback carried a
+    live secret that grants posting rights to the channel.
+
+    Dropping the path costs the one thing it was good for: telling two webhooks
+    on the same host apart. The action name is a better answer to that anyway
+    and now travels with every line, and the full URL is a field on the action
+    for anyone who needs it. Masking selectively was the alternative and was
+    rejected: it means a list of which vendors hide secrets where, which is a
+    list that is wrong the first time a vendor is added to it.
+    """
+    try:
+        return urlparse(url).hostname or "<unknown host>"
+    except ValueError:
+        return "<malformed URL>"
+
+
+def _webhook_scrub(message: str, url: str, target: str) -> str:
+    """Take the webhook URL back out of somebody else's error text.
+
+    :param str message: the exception's own words
+    :param str url: the configured webhook URL
+    :param str target: what `_webhook_log_target` called the receiver
+    :return: the message with the URL replaced
+    :rtype: str
+
+    Not keeping the URL out of our own log lines is only half of it, because
+    the libraries quote it back at us. Measured:
+
+        HTTPError    404 Client Error: … for url: https://hooks.slack.com/services/T…/B…/<token>
+        ConnError    HTTPSConnectionPool(host='…', port=443): Max retries exceeded
+                     with url: /services/T…/B…/<token> (Caused by …)
+
+    So the full URL comes back from `raise_for_status`, and urllib3 quotes the
+    path on its own. Both are replaced, longest first so the full URL wins over
+    its own path. Exact substrings of a string we already hold — no pattern
+    matching, nothing to be wrong about — and a path of "/" or shorter is left
+    alone rather than substituted into every separator in the sentence.
+    """
+    parsed = urlparse(url)
+    needles = [url]
+    if parsed.query:
+        needles.append(f"{parsed.path}?{parsed.query}")
+    if len(parsed.path) > 1:
+        needles.append(parsed.path)
+    for needle in needles:
+        message = message.replace(needle, f"<{target} webhook URL>")
+    return message
 
 
 class LoggerProxy:
@@ -366,7 +426,34 @@ class IrActionsServer(models.Model):
         compute="_compute_value_field_to_show",
     )
     webhook_url = fields.Char(
-        string="Webhook URL", help="URL to send the POST request to."
+        string="Webhook URL",
+        help="URL to send the POST request to.\n\n"
+        "The request is UNAUTHENTICATED: no credential, no signature, no "
+        "retry, and no record of the exchange beyond the server log. That is "
+        "the right shape for notifying a receiver that accepts an open URL.\n\n"
+        "For anything that needs a credential, a retry policy, a rate limit, "
+        "secret redaction or an auditable record of what was sent, use an "
+        "'Execute Code' action against a configured outbound endpoint "
+        "instead. With the API Transport application installed:\n"
+        "    endpoint = env['api.endpoint.outbound'].search(\n"
+        "        [('code', '=', 'my_service')], limit=1)\n"
+        "    endpoint._get_api_client().post('/path', json={'id': record.id})\n"
+        "That endpoint owns the credential, the retry policy and the "
+        "api.event.log row.",
+    )
+    webhook_timeout = fields.Integer(
+        string="Webhook Timeout (s)",
+        default=1,
+        help="Seconds to wait for the receiver before giving up.\n\n"
+        "The default of 1 second is deliberately short, and the cost of "
+        "raising it is paid by a worker: the call is made after the "
+        "transaction commits, so the request thread is held for however long "
+        "this allows.\n\n"
+        "It is also short enough that a receiver which merely thinks for a "
+        "moment times out, and a timeout here is genuinely ambiguous — the "
+        "receiver may well have processed the payload. Raise it for a slow "
+        "but trusted receiver; if delivery has to be certain, this action is "
+        "the wrong tool (see Webhook URL).",
     )
     webhook_field_ids = fields.Many2many(
         "ir.model.fields",
@@ -381,6 +468,29 @@ class IrActionsServer(models.Model):
     webhook_sample_payload = fields.Text(
         string="Sample Payload", compute="_compute_webhook_sample_payload"
     )
+
+    #: Ceiling on `webhook_timeout`. The call runs in `cr.postcommit`, so the
+    #: request worker is held for its duration; a value in minutes turns one
+    #: unreachable receiver into exhausted workers. Generous enough for any
+    #: receiver worth waiting for synchronously, and a refusal that says why.
+    _WEBHOOK_TIMEOUT_CEILING = 60
+
+    @api.constrains("webhook_timeout")
+    def _check_webhook_timeout(self) -> None:
+        for action in self:
+            if action.state != "webhook":
+                continue
+            if not 1 <= action.webhook_timeout <= self._WEBHOOK_TIMEOUT_CEILING:
+                raise ValidationError(
+                    _(
+                        "Webhook timeout must be between 1 and %(ceiling)s "
+                        "seconds. The call is made after the transaction "
+                        "commits, so this is time a worker spends waiting; a "
+                        "receiver that needs longer should be given a queue "
+                        "rather than a synchronous webhook.",
+                        ceiling=self._WEBHOOK_TIMEOUT_CEILING,
+                    )
+                )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -890,35 +1000,92 @@ class IrActionsServer(models.Model):
                 record.read(self.webhook_field_ids.mapped("name"), load=None)[0]
             )
         json_values = json_dumps(vals, default=str, option=OPT_SORT_KEYS)
-        _logger.info("Webhook call to %s", url)
+
+        # Captured as plain values, not read off `self` inside the closures:
+        # they run after the transaction ends, when reading a field would query
+        # a cursor that is no longer the one this action was loaded on.
+        action_label = vals["_action"]
+        timeout = self.webhook_timeout or 1
+        # The URL itself never reaches the log -- see `_webhook_log_target`. It
+        # still reaches `requests`, which is the only place it belongs.
+        target = _webhook_log_target(url)
+
+        _logger.info("Webhook %s to %s", action_label, target)
         _logger.debug("POST JSON data for webhook call: %s", json_values)
+        deliver = self._webhook_delivery(url, timeout, action_label, target)
 
         @self.env.cr.postrollback.add
         def _add_post_rollback():
-            _logger.warning("Webhook call to %s - cancelled due to a rollback", url)
+            _logger.warning(
+                "Webhook %s to %s cancelled: the transaction rolled back",
+                action_label,
+                target,
+            )
 
         @self.env.cr.postcommit.add
         def _add_post_commit():
-            _logger.debug("Webhook call to %s - start", url)
-            import requests
+            deliver(json_values)
 
-            try:
-                response = requests.post(
-                    url,
-                    data=json_values,
-                    headers={"Content-Type": "application/json"},
-                    timeout=1,
-                )
-                response.raise_for_status()
-                _logger.info("Webhook call to %s - succeeded", url)
-            except requests.exceptions.ReadTimeout:
-                _logger.warning(
-                    "Webhook call timed out after 1s - it may or may not have failed. "
-                    "If this happens often, it may be a sign that the system you're "
-                    "trying to reach is slow or non-functional."
-                )
-            except requests.exceptions.RequestException as e:
-                _logger.warning("Webhook call failed: %s", e)
+    def _webhook_delivery(self, url, timeout, action_label, target):
+        """Return the callable that actually sends the webhook.
+
+        :param str url: where to POST
+        :param int timeout: seconds
+        :param str action_label: `name(#id)`, for the log
+        :param str target: the receiver's host — see `_webhook_log_target`
+        :return: a callable taking the JSON body
+        :rtype: collections.abc.Callable[[str], None]
+
+        A **plain closure over plain values**, deliberately, rather than a bound
+        method. What it returns runs from a `postcommit` hook, after the
+        transaction has ended and the cursor it was built on is gone, so
+        anything that reads a field there queries a dead cursor. Returning a
+        closure makes the boundary explicit and puts every ORM read on this side
+        of it: an override decides how to send *while it still can*, and hands
+        back something that no longer needs the ORM.
+
+        The delivery is unauthenticated by design at this layer. `base` has no
+        credential store and cannot depend on one; a module that does —
+        `api_transport` — overrides this to send through a configured endpoint.
+        """
+        return partial(
+            self._webhook_deliver_unauthenticated, url, timeout, action_label, target
+        )
+
+    @staticmethod
+    def _webhook_deliver_unauthenticated(
+        url, timeout, action_label, target, json_values
+    ):
+        """POST the payload with no credential, which is all `base` can do."""
+        _logger.debug("Webhook %s to %s - start", action_label, target)
+        import requests
+
+        try:
+            response = requests.post(
+                url,
+                data=json_values,
+                headers={"Content-Type": "application/json"},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            _logger.info("Webhook %s to %s - succeeded", action_label, target)
+        except requests.exceptions.ReadTimeout:
+            _logger.warning(
+                "Webhook %s to %s timed out after %ss. The receiver may or "
+                "may not have processed it. Raise 'Webhook Timeout (s)' on "
+                "the action if the receiver is simply slow; if delivery has "
+                "to be certain, this action cannot give you that.",
+                action_label,
+                target,
+                timeout,
+            )
+        except requests.exceptions.RequestException as e:
+            _logger.error(
+                "Webhook %s to %s failed and will NOT be retried: %s",
+                action_label,
+                target,
+                _webhook_scrub(str(e), url, target),
+            )
 
     def _link_to_active_record(self, new_id: int) -> None:
         if not self.link_field_id:
