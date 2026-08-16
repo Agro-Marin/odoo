@@ -12,27 +12,16 @@ _logger = logging.getLogger(__name__)
 
 
 class ResponseCache(models.Model):
-    """Cache for API responses to reduce redundant calls.
-
-    Strategy:
-    - Only GET requests are cached
-    - Cache key is hash of (service + endpoint + params)
-    - TTL configurable per service
-    - Automatic cleanup of expired entries
-    """
-
-    _name = "comm.response.cache"
+    _name = "api.response.cache"
     _description = "Response Cache"
     _order = "last_accessed desc"
     _rec_name = "cache_key"
-
-    # ==================== Core Fields ====================
 
     cache_key = fields.Char(
         required=True,
         index=True,
     )
-    service_id = fields.Many2one(
+    endpoint_id = fields.Many2one(
         comodel_name="api.endpoint.outbound",
         required=True,
         ondelete="cascade",
@@ -44,14 +33,10 @@ class ResponseCache(models.Model):
         index=True,
     )
 
-    # ==================== Request Identification ====================
-
     request_url = fields.Char(
         required=True,
     )
     request_params_hash = fields.Char()
-
-    # ==================== Cached Response ====================
 
     response_body = fields.Json(
         required=True,
@@ -60,8 +45,6 @@ class ResponseCache(models.Model):
     status_code = fields.Integer(
         default=200,
     )
-
-    # ==================== Cache Management ====================
 
     date_created = fields.Datetime(
         required=True,
@@ -78,16 +61,12 @@ class ResponseCache(models.Model):
     )
     ttl_seconds = fields.Integer()
 
-    # ==================== Usage Statistics ====================
-
     hit_count = fields.Integer(
         default=0,
     )
     last_accessed = fields.Datetime(
         default=fields.Datetime.now,
     )
-
-    # ==================== Indexes ====================
 
     _cache_lookup_idx = models.Index(
         "(cache_key, company_id, date_expiration)",
@@ -101,41 +80,30 @@ class ResponseCache(models.Model):
         "Cache key must be unique per company!",
     )
 
-    # -------------------------------------------------------------------------
-    # COMPUTE METHODS
-    # -------------------------------------------------------------------------
-
     @api.depends("date_expiration")
     def _compute_is_expired(self):
-        """Determine if cache entry has expired."""
         now = fields.Datetime.now()
         for cache in self:
             cache.is_expired = cache.date_expiration < now
 
     def _search_is_expired(self, operator: str, value: Any):
-        """Search method for is_expired."""
         now = fields.Datetime.now()
         if (operator == "=" and value) or (operator == "!=" and not value):
             return [("date_expiration", "<", now)]
         return [("date_expiration", ">=", now)]
 
-    # -------------------------------------------------------------------------
-    # CACHE OPERATIONS
-    # -------------------------------------------------------------------------
-
     @api.model
     def get_cached_response(
         self,
-        service_code: str,
+        endpoint_code: str,
         url: str,
         params: dict[str, Any] | None = None,
         company_id: int | None = None,
     ) -> dict[str, Any] | None:
-        """Retrieve cached response if available and not expired."""
         if company_id is None:
             company_id = self.env.company.id
 
-        cache_key = self._generate_cache_key(service_code, url, params)
+        cache_key = self._generate_cache_key(endpoint_code, url, params)
         cache_entry = self.search(
             [
                 ("cache_key", "=", cache_key),
@@ -168,20 +136,19 @@ class ResponseCache(models.Model):
     @api.model
     def set_cached_response(
         self,
-        service_code: str,
+        endpoint_code: str,
         url: str,
         response: dict[str, Any],
         ttl: int | None = None,
         params: dict[str, Any] | None = None,
         company_id: int | None = None,
     ):
-        """Save response to cache using atomic UPSERT."""
         if company_id is None:
             company_id = self.env.company.id
 
         service = self.env["api.endpoint.outbound"].search(
             [
-                ("code", "=", service_code),
+                ("code", "=", endpoint_code),
             ],
             limit=1,
         )
@@ -191,7 +158,7 @@ class ResponseCache(models.Model):
         if ttl is None:
             ttl = service.cache_ttl or 300
 
-        cache_key = self._generate_cache_key(service_code, url, params)
+        cache_key = self._generate_cache_key(endpoint_code, url, params)
         params_hash = self._generate_params_hash(params)
         now = fields.Datetime.now()
         date_expiration = now + timedelta(seconds=ttl)
@@ -200,8 +167,8 @@ class ResponseCache(models.Model):
             with self.env.cr.savepoint():
                 self.env.cr.execute(
                     """
-                    INSERT INTO comm_response_cache (
-                        cache_key, service_id, company_id, request_url,
+                    INSERT INTO api_response_cache (
+                        cache_key, endpoint_id, company_id, request_url,
                         request_params_hash, response_body, response_headers,
                         status_code, date_created, date_expiration, ttl_seconds,
                         hit_count, last_accessed, create_uid, create_date,
@@ -211,7 +178,7 @@ class ResponseCache(models.Model):
                     )
                     ON CONFLICT (cache_key, company_id)
                     DO UPDATE SET
-                        service_id = EXCLUDED.service_id,
+                        endpoint_id = EXCLUDED.endpoint_id,
                         request_url = EXCLUDED.request_url,
                         request_params_hash = EXCLUDED.request_params_hash,
                         response_body = EXCLUDED.response_body,
@@ -255,22 +222,21 @@ class ResponseCache(models.Model):
     @api.model
     def invalidate_cache(
         self,
-        service_code: str | None = None,
+        endpoint_code: str | None = None,
         url_pattern: str | None = None,
         company_id: int | None = None,
     ) -> int:
-        """Invalidate cache entries matching filters."""
         domain = []
 
-        if service_code:
+        if endpoint_code:
             service = self.env["api.endpoint.outbound"].search(
                 [
-                    ("code", "=", service_code),
+                    ("code", "=", endpoint_code),
                 ],
                 limit=1,
             )
             if service:
-                domain.append(("service_id", "=", service.id))
+                domain.append(("endpoint_id", "=", service.id))
 
         if url_pattern:
             domain.append(("request_url", "ilike", url_pattern))
@@ -287,12 +253,11 @@ class ResponseCache(models.Model):
     @api.model
     def _generate_cache_key(
         self,
-        service_code: str,
+        endpoint_code: str,
         url: str,
         params: dict[str, Any] | None = None,
     ) -> str:
-        """Generate unique cache key."""
-        content = f"{service_code}:{url}"
+        content = f"{endpoint_code}:{url}"
 
         if params:
             params_str = (
@@ -306,7 +271,6 @@ class ResponseCache(models.Model):
 
     @api.model
     def _generate_params_hash(self, params: dict[str, Any] | None) -> str | bool:
-        """Generate short hash of parameters."""
         if not params:
             return False
 
@@ -317,16 +281,12 @@ class ResponseCache(models.Model):
         )
         return hashlib.md5(params_str.encode()).hexdigest()[:16]
 
-    # -------------------------------------------------------------------------
-    # GARBAGE COLLECTION
-    # -------------------------------------------------------------------------
-
     @api.autovacuum
     def _gc_expired_cache(self):
-        """Delete expired cache entries."""
+        self.flush_model()
         now = fields.Datetime.now()
         self.env.cr.execute(
-            "DELETE FROM comm_response_cache WHERE date_expiration < %s",
+            "DELETE FROM api_response_cache WHERE date_expiration < %s",
             (now,),
         )
 
@@ -336,14 +296,15 @@ class ResponseCache(models.Model):
 
     @api.autovacuum
     def _gc_least_used_cache(self):
-        """Evict least-used entries when limit exceeded."""
+        self.flush_model()
+
         max_entries = int(
             self.env["ir.config_parameter"]
             .sudo()
             .get_param("api_transport.max_cache_entries", "10000"),
         )
 
-        self.env.cr.execute("SELECT COUNT(*) FROM comm_response_cache")
+        self.env.cr.execute("SELECT COUNT(*) FROM api_response_cache")
         total_count = self.env.cr.fetchone()[0]
 
         if total_count > max_entries:
@@ -351,15 +312,17 @@ class ResponseCache(models.Model):
 
             self.env.cr.execute(
                 """
-                DELETE FROM comm_response_cache
+                DELETE FROM api_response_cache
                 WHERE id IN (
-                    SELECT id FROM comm_response_cache
-                    ORDER BY hit_count ASC, last_accessed ASC
+                    SELECT id FROM api_response_cache
+                    ORDER BY hit_count ASC, last_accessed ASC, id ASC
                     LIMIT %s
                 )
                 """,
                 (to_delete,),
             )
+
+            self.invalidate_model()
 
             count = self.env.cr.rowcount
             _logger.info(

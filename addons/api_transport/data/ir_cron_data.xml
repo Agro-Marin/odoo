@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- Retry Failed Events Cron -->
     <record id="ir_cron_retry_failed_events" model="ir.cron">
         <field name="name">API Communications: Retry Failed Events</field>
         <field name="model_id" ref="model_api_event_log" />
@@ -12,7 +11,6 @@
         <field name="active" eval="True" />
     </record>
 
-    <!-- Health Check Cron -->
     <record id="ir_cron_health_check" model="ir.cron">
         <field name="name">API Communications: Service Health Check</field>
         <field name="model_id" ref="model_api_endpoint_outbound" />
@@ -23,7 +21,6 @@
         <field name="active" eval="True" />
     </record>
 
-    <!-- Reset Cache Errors Cron -->
     <record id="ir_cron_reset_cache_errors" model="ir.cron">
         <field name="name">API Communications: Reset Cache Errors</field>
         <field name="model_id" ref="model_api_endpoint_outbound" />

@@ -12,23 +12,10 @@ _logger = logging.getLogger(__name__)
 
 
 class ApiEventLog(models.Model):
-    """Unified event log for all API communications.
-
-    Stores events from both inbound (webhooks, IoT) and outbound (API calls)
-    communications. Provides processing state tracking, retry logic, and audit trail.
-
-    The 'direction' field distinguishes between:
-    - inbound: Events received from external systems (webhooks, IoT devices)
-    - outbound: Requests sent to external APIs
-    """
-
     _name = "api.event.log"
     _description = "Communication Event Log"
-    _inherit = ["mail.thread"]
     _order = "timestamp desc, id desc"
     _rec_name = "display_name"
-
-    # ==================== Core Fields ====================
 
     direction = fields.Selection(
         selection=[
@@ -78,8 +65,6 @@ class ApiEventLog(models.Model):
         help="Cached channel name for faster searches",
     )
 
-    # ==================== Timing ====================
-
     timestamp = fields.Datetime(
         default=fields.Datetime.now,
         required=True,
@@ -106,10 +91,6 @@ class ApiEventLog(models.Model):
         store=True,
     )
 
-    # ==================== Request/Payload Data ====================
-
-    # For inbound: the received payload
-    # For outbound: the request body
     request_payload = fields.Text(
         help="Request body (inbound: received payload, outbound: sent body)",
     )
@@ -124,7 +105,6 @@ class ApiEventLog(models.Model):
         store=True,
     )
 
-    # For outbound only
     request_method = fields.Selection(
         selection=[
             ("GET", "GET"),
@@ -147,8 +127,6 @@ class ApiEventLog(models.Model):
     )
     request_headers = fields.Json()
 
-    # ==================== Response Data ====================
-
     response_payload = fields.Text(
         help="Response body (inbound: our response, outbound: received response)",
     )
@@ -158,7 +136,6 @@ class ApiEventLog(models.Model):
     )
     response_headers = fields.Json()
 
-    # For outbound only
     status_code = fields.Integer(
         index=True,
     )
@@ -175,13 +152,10 @@ class ApiEventLog(models.Model):
         index=True,
     )
 
-    # For inbound only
     source_ip = fields.Char(
         index=True,
         help="IP address of the client that sent the event",
     )
-
-    # ==================== Webhook/Inbound Event Fields ====================
 
     event_type = fields.Char(
         index=True,
@@ -205,8 +179,6 @@ class ApiEventLog(models.Model):
         help="Full stack trace for debugging failed events",
     )
 
-    # ==================== Processing State ====================
-
     state = fields.Selection(
         selection=[
             ("pending", "Pending"),
@@ -219,7 +191,6 @@ class ApiEventLog(models.Model):
         required=True,
         default="pending",
         index=True,
-        tracking=True,
         help="Current processing state",
     )
     is_success = fields.Boolean(
@@ -227,8 +198,6 @@ class ApiEventLog(models.Model):
         store=True,
         index=True,
     )
-
-    # ==================== Error Handling ====================
 
     error_message = fields.Text(
         readonly=True,
@@ -246,8 +215,6 @@ class ApiEventLog(models.Model):
         ],
     )
 
-    # ==================== Retry ====================
-
     retry_count = fields.Integer(
         default=0,
         readonly=True,
@@ -257,8 +224,6 @@ class ApiEventLog(models.Model):
         index=True,
     )
 
-    # ==================== Caching (Outbound) ====================
-
     cache_hit = fields.Boolean(
         default=False,
         index=True,
@@ -266,8 +231,6 @@ class ApiEventLog(models.Model):
     cache_key = fields.Char(
         index=True,
     )
-
-    # ==================== Tracing ====================
 
     trace_id = fields.Char(
         index=True,
@@ -281,44 +244,25 @@ class ApiEventLog(models.Model):
         help="Comma-separated tags for categorization",
     )
 
-    # ==================== Indexes & Constraints ====================
-
-    # Composite index for duplicate detection (inbound)
     _duplicate_detection_idx = models.Index(
         "(channel_id, request_payload_hash, timestamp)",
     )
 
-    # Index for retry queue queries
     _retry_queue_idx = models.Index(
         "(state, date_next_retry)",
     )
 
-    # Index for rate limiting lookups
     _rate_limit_idx = models.Index(
         "(channel_id, timestamp, company_id)",
     )
 
-    # Unique constraint for external ID deduplication (inbound webhooks)
-    # Prevents processing the same external event twice per channel
     _event_external_unique = models.UniqueIndex(
         "(channel_id, event_id_external) WHERE event_id_external IS NOT NULL",
         "External event ID must be unique per channel!",
     )
 
-    # -------------------------------------------------------------------------
-    # SELECTION METHODS
-    # -------------------------------------------------------------------------
-
     @api.model
     def _selection_channel_models(self):
-        """Return the (model_name, display_name) list of channel models.
-
-        :return: (model_name, display_name) tuples
-        :rtype: list
-        """
-        # Walk the full inheritance tree rooted at api.channel.mixin to find all
-        # concrete models (incl. grandchildren like remote.device); a BFS is
-        # needed because _inherit_children tracks only direct parents.
         mixin_cls = self.env.registry.get("api.channel.mixin")
         if not mixin_cls:
             return [("api.endpoint.outbound", "Outbound Service")]
@@ -337,7 +281,6 @@ class ApiEventLog(models.Model):
             if not child_cls:
                 continue
 
-            # Enqueue grandchildren for traversal
             queue.extend(child_cls._inherit_children)
 
             if not getattr(child_cls, "_abstract", False):
@@ -346,24 +289,10 @@ class ApiEventLog(models.Model):
 
         return channels or [("api.endpoint.outbound", "Outbound Service")]
 
-    # -------------------------------------------------------------------------
-    # COMPUTE METHODS
-    # -------------------------------------------------------------------------
-
     @api.depends("channel_id")
     def _compute_company_id(self):
-        """Default ``company_id`` to the channel's company.
-
-        The field is ``readonly=False`` so callers (api_gateway's
-        outbound client, inbound webhook handlers) can pass an explicit
-        ``company_id`` reflecting the EFFECTIVE request tenant — for
-        outbound calls that's the credential's ``company_id``, not the
-        endpoint owner's.  Only fall back to the channel's company when
-        the caller did not provide one.
-        """
         for record in self:
             if record.company_id:
-                # Honour caller-provided value (e.g. from the credential).
                 continue
             if record.channel_id and hasattr(record.channel_id, "company_id"):
                 record.company_id = record.channel_id.company_id
@@ -372,7 +301,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("channel_id")
     def _compute_channel_name(self):
-        """Cache channel name for faster searches."""
         for record in self:
             if record.channel_id:
                 record.channel_name = record.channel_id.display_name
@@ -381,7 +309,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("direction", "channel_name", "timestamp", "request_method")
     def _compute_display_name(self):
-        """Compute display name."""
         for record in self:
             parts = []
             if record.direction:
@@ -397,7 +324,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("request_payload")
     def _compute_payload_hash(self):
-        """Compute SHA256 hash of payload for duplicate detection."""
         for record in self:
             if record.request_payload:
                 try:
@@ -417,7 +343,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("request_payload", "response_payload")
     def _compute_payload_sizes(self):
-        """Compute payload sizes in bytes."""
         for record in self:
             record.request_payload_size = (
                 len(record.request_payload.encode("utf-8"))
@@ -432,7 +357,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("request_url", "channel_id")
     def _compute_request_endpoint(self):
-        """Extract endpoint path from full URL."""
         for record in self:
             if record.request_url and record.channel_id:
                 base_url = getattr(record.channel_id, "endpoint_url", "") or ""
@@ -446,7 +370,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("status_code")
     def _compute_status_category(self):
-        """Categorize HTTP status code."""
         for record in self:
             if not record.status_code:
                 record.status_category = "unknown"
@@ -463,7 +386,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("state", "status_category")
     def _compute_is_success(self):
-        """Determine if event was successful."""
         for record in self:
             if record.direction == "inbound":
                 record.is_success = record.state == "success"
@@ -475,7 +397,6 @@ class ApiEventLog(models.Model):
 
     @api.depends("duration_ms")
     def _compute_performance_rating(self):
-        """Rate performance based on duration."""
         for record in self:
             if not record.duration_ms:
                 record.performance_rating = False
@@ -490,16 +411,10 @@ class ApiEventLog(models.Model):
             else:
                 record.performance_rating = "very_slow"
 
-    # -------------------------------------------------------------------------
-    # STATE MANAGEMENT
-    # -------------------------------------------------------------------------
-
     def mark_processing(self):
-        """Mark event as currently being processed."""
         self.write({"state": "processing"})
 
     def mark_success(self):
-        """Mark event as successfully processed."""
         self.write(
             {
                 "state": "success",
@@ -510,12 +425,6 @@ class ApiEventLog(models.Model):
         )
 
     def mark_failed(self, error_message, error_type="other", schedule_retry=True):
-        """Mark the event as failed and optionally schedule a retry.
-
-        :param error_message: error description
-        :param error_type: type of error
-        :param schedule_retry: whether to schedule a retry
-        """
         self.ensure_one()
 
         values = {
@@ -560,7 +469,6 @@ class ApiEventLog(models.Model):
         self.write(values)
 
     def mark_duplicate(self):
-        """Mark event as duplicate."""
         self.write(
             {
                 "state": "duplicate",
@@ -569,12 +477,7 @@ class ApiEventLog(models.Model):
             },
         )
 
-    # -------------------------------------------------------------------------
-    # ACTIONS
-    # -------------------------------------------------------------------------
-
     def action_retry_now(self) -> dict[str, Any]:
-        """Manually retry failed or scheduled event immediately."""
         self.ensure_one()
 
         if self.state not in ["failed", "pending", "retry"]:
@@ -596,9 +499,6 @@ class ApiEventLog(models.Model):
         if self.direction == "inbound":
             channel = self.channel_id
             if hasattr(channel, "_run_queued_event"):
-                # ir.job runs after this transaction commits, so the
-                # pending-state write above is visible to the job by
-                # construction — no postcommit hook or db_name routing needed.
                 channel.delayed()._run_queued_event(self.id)
             else:
                 raise ValidationError(
@@ -617,7 +517,6 @@ class ApiEventLog(models.Model):
         }
 
     def action_view_channel(self) -> dict[str, Any]:
-        """View the channel for this event."""
         self.ensure_one()
 
         if not self.channel_id:
@@ -633,7 +532,6 @@ class ApiEventLog(models.Model):
         }
 
     def action_view_related_events(self) -> dict[str, Any] | None:
-        """View events with same trace ID."""
         self.ensure_one()
 
         if not self.trace_id:
@@ -647,13 +545,8 @@ class ApiEventLog(models.Model):
             "domain": [("trace_id", "=", self.trace_id)],
         }
 
-    # -------------------------------------------------------------------------
-    # CRON / AUTOVACUUM
-    # -------------------------------------------------------------------------
-
     @api.model
     def _cron_retry_failed_events(self):
-        """Scheduled action to retry failed inbound events."""
         now = fields.Datetime.now()
 
         batch_size = int(
@@ -662,10 +555,6 @@ class ApiEventLog(models.Model):
             .get_param("api_transport.retry_batch_size", default="100"),
         )
 
-        # Reclaim window: events created by the inbound pipeline have
-        # date_next_retry = NULL (they were queued directly, not scheduled), so a
-        # "<= now" filter alone would never pick up an event stranded by a full
-        # queue or a recycled worker process. Match NULL as well.
         processing_timeout = int(
             self.env["ir.config_parameter"]
             .sudo()
@@ -692,13 +581,6 @@ class ApiEventLog(models.Model):
             try:
                 channel = event.channel_id
                 if hasattr(channel, "_run_queued_event"):
-                    # Push date_next_retry forward before enqueuing so the next
-                    # cron tick (every minute) does not re-enqueue an event that
-                    # is still being processed — that would double-dispatch the
-                    # handler (e.g. post a webhook payment twice). If the worker
-                    # silently drops the event, the timeout lets a later tick
-                    # reclaim it. The worker's own mark_success/mark_failed sets
-                    # the terminal state well before this window elapses.
                     event.date_next_retry = now + timedelta(seconds=processing_timeout)
                     channel.delayed()._run_queued_event(event.id)
                 else:
@@ -716,12 +598,6 @@ class ApiEventLog(models.Model):
 
     @api.autovacuum
     def _gc_old_logs(self):
-        """Automatic garbage collection of old event logs.
-
-        Uses direct SQL for bulk deletes (much faster than ORM).
-        Respects retention settings from system parameters.
-        """
-        # Get default retention from config
         default_retention = int(
             self.env["ir.config_parameter"]
             .sudo()
@@ -736,12 +612,6 @@ class ApiEventLog(models.Model):
 
         cutoff = fields.Datetime.now() - timedelta(days=default_retention)
 
-        # Delete terminal events (success/failed/duplicate) past retention, plus
-        # events stranded in pending/retry that never reached a terminal state
-        # (a full queue or a recycled worker can leave these forever). `duplicate`
-        # rows in particular are a hostile-input growth vector and were never
-        # collected before. Capture the ids so the mail.thread side-tables this
-        # model carries (this is a mail.thread model) don't accumulate orphans.
         self.env.cr.execute(
             """
             DELETE FROM api_event_log
@@ -753,36 +623,18 @@ class ApiEventLog(models.Model):
                     state IN ('pending', 'retry')
                     AND create_date < %(cutoff)s
                 )
-            RETURNING id
             """,
             {"cutoff": cutoff},
         )
-        deleted_ids = [row[0] for row in self.env.cr.fetchall()]
 
-        if deleted_ids:
-            # Reap orphaned chatter for the deleted logs.
-            self.env.cr.execute(
-                "DELETE FROM mail_message WHERE model = 'api.event.log' "
-                "AND res_id = ANY(%s)",
-                (deleted_ids,),
-            )
-            self.env.cr.execute(
-                "DELETE FROM mail_followers WHERE res_model = 'api.event.log' "
-                "AND res_id = ANY(%s)",
-                (deleted_ids,),
-            )
+        if self.env.cr.rowcount:
             _logger.info(
                 "Garbage collected %d event logs older than %d days",
-                len(deleted_ids),
+                self.env.cr.rowcount,
                 default_retention,
             )
 
-    # -------------------------------------------------------------------------
-    # HELPER METHODS
-    # -------------------------------------------------------------------------
-
     def get_payload_dict(self) -> dict[str, Any]:
-        """Parse request payload as JSON dict."""
         self.ensure_one()
         try:
             return json.loads(self.request_payload) if self.request_payload else {}
@@ -798,20 +650,6 @@ class ApiEventLog(models.Model):
         event_id_external: str | None = None,
         dedup_window_hours: int = 1,
     ) -> dict[str, Any]:
-        """Check for a duplicate event BEFORE creating a record.
-
-        Centralized dedup (external ID + payload hash); controllers call this
-        before creating event logs.
-
-        :param channel_ref: channel reference string (e.g. "remote.device,123")
-        :param payload_json: JSON string of the payload
-        :param event_id_external: optional external event ID for deduplication
-        :param dedup_window_hours: window for payload-hash duplicates (default 1)
-        :return: {'is_duplicate': bool, 'duplicate_event_id': int|None,
-            'reason': 'external_id'|'payload_hash'}
-        :rtype: dict
-        """
-        # Check 1: Duplicate by external ID (if provided)
         if event_id_external:
             existing_by_external_id = self.search(
                 [
@@ -832,14 +670,11 @@ class ApiEventLog(models.Model):
                     "reason": "external_id",
                 }
 
-        # Check 2: Duplicate by payload hash (content-based deduplication)
         try:
-            # Compute hash
             parsed = json.loads(payload_json)
             normalized = json.dumps(parsed, sort_keys=True, separators=(",", ":"))
             payload_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
-            # Check for recent duplicates
             cutoff = fields.Datetime.now() - timedelta(hours=dedup_window_hours)
             existing_by_hash = self.search(
                 [
@@ -863,7 +698,6 @@ class ApiEventLog(models.Model):
         except Exception as e:
             _logger.warning("Failed to compute payload hash for deduplication: %s", e)
 
-        # Not a duplicate
         return {
             "is_duplicate": False,
             "duplicate_event_id": None,

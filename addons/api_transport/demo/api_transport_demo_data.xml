@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Demo data for development and testing -->
-    <!-- Example Outbound Service: JSONPlaceholder (public test API) -->
     <record id="demo_service_jsonplaceholder" model="api.endpoint.outbound">
         <field name="name">JSONPlaceholder</field>
         <field name="code">jsonplaceholder</field>

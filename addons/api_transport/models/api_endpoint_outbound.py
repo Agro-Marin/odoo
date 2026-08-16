@@ -12,23 +12,22 @@ _logger = logging.getLogger(__name__)
 
 
 class ApiEndpointOutbound(models.Model):
-    """Central registry for external API services.
-
-    Extends api.channel.mixin with outbound-specific features: test/production
-    endpoint URLs, OAuth 2.0, health monitoring, response caching,
-    request/response logging and statistics.
-    """
-
     _name = "api.endpoint.outbound"
-    _inherit = [
-        "api.channel.mixin",
-        "mail.thread",
-    ]
+    _inherit = ["api.channel.mixin"]
     _description = "Outbound Endpoint"
     _order = "sequence, name"
     _rec_name = "name"
 
-    # ==================== Basic Information ====================
+    rate_limit_period = fields.Selection(
+        selection=[
+            ("second", "Per Second"),
+            ("minute", "Per Minute"),
+            ("hour", "Per Hour"),
+            ("day", "Per Day"),
+        ],
+        default="minute",
+        help="Time period for rate limiting",
+    )
 
     category = fields.Selection(
         selection=[
@@ -42,7 +41,6 @@ class ApiEndpointOutbound(models.Model):
             ("ai", "Artificial Intelligence"),
             ("geocoding", "Geocoding & Maps"),
             ("analytics", "Analytics"),
-            ("odoo_database", "Odoo Database"),
             ("other", "Other"),
         ],
         required=True,
@@ -64,8 +62,6 @@ class ApiEndpointOutbound(models.Model):
         index=True,
     )
 
-    # ==================== API Configuration ====================
-
     endpoint_url = fields.Char(
         required=True,
         help="Base URL for production environment",
@@ -74,6 +70,14 @@ class ApiEndpointOutbound(models.Model):
         help="Base URL for test environment",
     )
     api_version = fields.Char()
+    send_version_headers = fields.Boolean(
+        string="Send Generic Version Headers",
+        default=True,
+        help="Send API-Version and X-API-Version built from the API Version "
+        "field. Turn this off for a vendor that carries its version its own "
+        "way — in the URL path, or in a header of its own name — where the "
+        "generic pair is at best ignored and at worst rejected.",
+    )
     request_format = fields.Selection(
         selection=[
             ("json", "JSON"),
@@ -83,10 +87,6 @@ class ApiEndpointOutbound(models.Model):
         ],
         default="json",
     )
-    # Outbound endpoints can additionally authenticate with methods that only
-    # make sense when WE are the client: HTTP Basic auth and the OAuth2 client
-    # flow. These are intentionally absent from the api.channel.mixin base
-    # selection (which is shared with inbound endpoints and devices).
     auth_type = fields.Selection(
         selection_add=[
             ("basic", "Basic Authentication"),
@@ -99,6 +99,39 @@ class ApiEndpointOutbound(models.Model):
             "oauth2": "set default",
         },
     )
+    allow_user_credentials = fields.Boolean(
+        string="Allow Personal Credentials",
+        default=False,
+        help="Let a user hold their own credential for this endpoint, so calls "
+        "they trigger are attributed to them rather than to the company. When "
+        "a user has no personal credential the company one is used, so turning "
+        "this on changes nothing until someone creates one.",
+    )
+    api_key_header = fields.Char(
+        string="API Key Header",
+        help="Header carrying the API key for this vendor, when it wants one "
+        "of its own — 'x-api-key' for Anthropic, 'x-goog-api-key' for Google. "
+        "Leave empty for the generic 'Authorization: Bearer' and 'X-API-Key' "
+        "pair, which most vendors accept.",
+    )
+    api_version_header = fields.Char(
+        string="API Version Header",
+        help="Header carrying the API Version for a vendor that names its own "
+        "— 'anthropic-version' for Anthropic. Leave empty when the version "
+        "travels the generic way (see Send Generic Version Headers) or not in "
+        "a header at all, as Google's does in the URL path.",
+    )
+
+    def _api_key_headers(self, api_key):
+        self.ensure_one()
+        if not api_key:
+            return {}
+        if self.api_key_header:
+            return {self.api_key_header: api_key}
+        if self.auth_type == "bearer":
+            return {"Authorization": f"Bearer {api_key}"}
+        return {"Authorization": f"Bearer {api_key}", "X-API-Key": api_key}
+
     verify_tls = fields.Boolean(
         string="Verify TLS certificate",
         default=True,
@@ -113,18 +146,6 @@ class ApiEndpointOutbound(models.Model):
 
     @api.constrains("verify_tls", "endpoint_url")
     def _check_tls_disabled_only_off_public_internet(self):
-        """Refuse to disable verification for a public endpoint.
-
-        The legitimate case is a LAN device whose certificate is self-signed
-        and unverifiable by construction. Turning it off for a name that
-        resolves on the public internet does not fix a certificate problem, it
-        removes the only defence against someone answering in its place -- and
-        the credential is sent to whoever does.
-
-        Deliberately checked against the *hostname* rather than trusting the
-        operator's intent: this is the setting most likely to be flipped once
-        during a debugging session and never flipped back.
-        """
         for endpoint in self:
             if endpoint.verify_tls or not endpoint.endpoint_url:
                 continue
@@ -141,39 +162,6 @@ class ApiEndpointOutbound(models.Model):
                 )
             )
 
-    # ==================== Odoo Database Configuration ====================
-
-    is_odoo_database = fields.Boolean(
-        compute="_compute_is_odoo_database",
-        store=True,
-    )
-    odoo_database_name = fields.Char()
-    odoo_hosting_type = fields.Selection(
-        selection=[
-            ("saas", "Odoo Online (SaaS)"),
-            ("paas", "Odoo.sh (PaaS)"),
-            ("onpremise", "On-Premise"),
-            ("other", "Other"),
-        ],
-    )
-    odoo_version = fields.Char(
-        readonly=True,
-    )
-    odoo_protocol = fields.Selection(
-        selection=[
-            ("json2", "JSON/2 (Modern)"),
-            ("xmlrpc", "XML-RPC (Legacy)"),
-            ("auto", "Auto-detect"),
-        ],
-        default="auto",
-    )
-
-    # ==================== OAuth 2.0 Configuration ====================
-
-    # Non-secret OAuth client configuration only. The client SECRET lives in
-    # the linked credential.credential record (oauth_client_secret JSON
-    # accessor) so every secret read goes through the vault's rate-limited,
-    # audited decrypt path — see t23878.
     oauth_client_id = fields.Char()
     oauth_auth_endpoint = fields.Char()
     oauth_token_endpoint = fields.Char()
@@ -181,16 +169,12 @@ class ApiEndpointOutbound(models.Model):
         default="read write",
     )
 
-    # ==================== Timeouts ====================
-
     timeout_connect = fields.Integer(
         default=10,
     )
     timeout_read = fields.Integer(
         default=30,
     )
-
-    # ==================== Health Monitoring ====================
 
     health_check_enabled = fields.Boolean(
         default=True,
@@ -219,8 +203,6 @@ class ApiEndpointOutbound(models.Model):
         readonly=True,
     )
 
-    # ==================== Response Caching ====================
-
     cache_enabled = fields.Boolean(
         default=False,
     )
@@ -244,8 +226,6 @@ class ApiEndpointOutbound(models.Model):
         store=True,
     )
 
-    # ==================== Log Retention ====================
-
     log_retention_days = fields.Integer(
         default=90,
         help="Delete logs older than this. 0 = keep forever.",
@@ -257,7 +237,7 @@ class ApiEndpointOutbound(models.Model):
         "rather than by field name — signing and cancellation calls that carry "
         "a private key, for instance. Redaction matches key names, so it cannot "
         "protect a payload whose names it does not know, and these rows are "
-        "readable by everyone with API Gateway access. The exchange is still "
+        "readable by everyone with API Transport access. The exchange is still "
         "recorded: URL, status, timing, error and trace id are unaffected.",
     )
     allow_multiple_credentials = fields.Boolean(
@@ -266,12 +246,19 @@ class ApiEndpointOutbound(models.Model):
         "Useful for services like Telegram that support multiple bots.",
     )
 
-    # ==================== Relationships ====================
-
     credential_ids = fields.One2many(
         comodel_name="credential.credential",
-        inverse_name="service_id",
+        inverse_name="endpoint_id",
+        string="Credentials",
     )
+
+    def unlink(self) -> bool:
+        credentials = self.sudo().credential_ids
+        if credentials:
+            self.sudo().credential_id = False
+            credentials.unlink()
+        return super().unlink()
+
     credential_count = fields.Integer(
         compute="_compute_credential_count",
         store=True,
@@ -280,8 +267,6 @@ class ApiEndpointOutbound(models.Model):
         comodel_name="api.event.log",
         compute="_compute_event_log_ids",
     )
-
-    # ==================== Statistics ====================
 
     total_requests = fields.Integer(
         compute="_compute_statistics",
@@ -293,10 +278,6 @@ class ApiEndpointOutbound(models.Model):
         compute="_compute_statistics",
     )
 
-    # -------------------------------------------------------------------------
-    # CONSTRAINTS
-    # -------------------------------------------------------------------------
-
     _code_unique = models.Constraint(
         "UNIQUE(code)",
         "Service code must be unique!",
@@ -304,7 +285,6 @@ class ApiEndpointOutbound(models.Model):
 
     @api.constrains("code")
     def _check_code_format(self):
-        """Validate service code format."""
         for service in self:
             if service.code and not re.match(r"^[a-z0-9_]+$", service.code):
                 raise ValidationError(
@@ -313,18 +293,8 @@ class ApiEndpointOutbound(models.Model):
                     ),
                 )
 
-    @api.constrains("is_odoo_database", "odoo_database_name")
-    def _check_odoo_database_name(self):
-        """Ensure database name is set for Odoo services."""
-        for record in self:
-            if record.is_odoo_database and not record.odoo_database_name:
-                raise ValidationError(
-                    self.env._("Database Name is required for Odoo Database services"),
-                )
-
     @api.constrains("endpoint_url", "endpoint_url_test")
     def _check_endpoint_https(self):
-        """Enforce HTTPS for production endpoints."""
         for record in self:
             if record.endpoint_url:
                 if record.endpoint_url.startswith(
@@ -342,28 +312,12 @@ class ApiEndpointOutbound(models.Model):
                             % record.endpoint_url,
                         )
 
-    # -------------------------------------------------------------------------
-    # COMPUTE METHODS
-    # -------------------------------------------------------------------------
-
-    @api.depends("category")
-    def _compute_is_odoo_database(self):
-        """Set flag based on category."""
-        for service in self:
-            service.is_odoo_database = service.category == "odoo_database"
-
     @api.depends("credential_ids", "credential_ids.active")
     def _compute_credential_count(self):
-        """Count active credentials."""
         for service in self:
             service.credential_count = len(service.credential_ids.filtered("active"))
 
     def _compute_event_log_ids(self):
-        """Get event logs for this service.
-
-        One _read_group per compute instead of one search per record —
-        avoids N+1 when the list view renders many services.
-        """
         logs_by_ref: dict[str, list[int]] = {}
         if self.ids:
             channel_refs = [f"{record._name},{record.id}" for record in self]
@@ -383,7 +337,6 @@ class ApiEndpointOutbound(models.Model):
 
     @api.depends("cache_error_count", "cache_last_error", "cache_enabled")
     def _compute_cache_health(self):
-        """Compute cache health status."""
         for service in self:
             if not service.cache_enabled:
                 service.cache_health = False
@@ -395,7 +348,6 @@ class ApiEndpointOutbound(models.Model):
                 service.cache_health = "failed"
 
     def _compute_statistics(self):
-        """Compute request statistics for current month."""
         if not self.ids:
             for service in self:
                 service.total_requests = 0
@@ -411,7 +363,6 @@ class ApiEndpointOutbound(models.Model):
             microsecond=0,
         )
 
-        # Build channel references for all services
         channel_refs = [f"api.endpoint.outbound,{sid}" for sid in self.ids]
 
         self.env.cr.execute(
@@ -449,12 +400,7 @@ class ApiEndpointOutbound(models.Model):
                 service.success_rate = 0.0
                 service.avg_response_time = 0.0
 
-    # -------------------------------------------------------------------------
-    # ACTION METHODS
-    # -------------------------------------------------------------------------
-
     def action_test_connection(self) -> dict[str, Any]:
-        """Test connection to the external service with a live request."""
         self.ensure_one()
         credential = self.credential_ids.filtered("active")[:1]
         if not credential:
@@ -490,19 +436,17 @@ class ApiEndpointOutbound(models.Model):
         }
 
     def action_view_credentials(self) -> dict[str, Any]:
-        """Open credentials view."""
         self.ensure_one()
         return {
             "name": self.env._("Credentials"),
             "type": "ir.actions.act_window",
             "res_model": "credential.credential",
             "view_mode": "list,form",
-            "domain": [("service_id", "=", self.id)],
+            "domain": [("endpoint_id", "=", self.id)],
             "context": {"default_service_id": self.id},
         }
 
     def action_view_logs(self) -> dict[str, Any]:
-        """Open request logs view."""
         self.ensure_one()
         channel_ref = f"{self._name},{self.id}"
         return {
@@ -517,21 +461,10 @@ class ApiEndpointOutbound(models.Model):
         }
 
     def action_check_health(self) -> dict[str, Any]:
-        """Run an on-demand health check for the selected services.
-
-        Public wrapper around ``_perform_health_check``. Iterates over
-        every record in ``self`` and persists ``last_health_check`` /
-        ``is_healthy`` / ``health_message``. Submodules override
-        ``_perform_health_check`` to make a real HTTP call (api_gateway
-        does this via ``get_api_client``).
-        """
         for record in self:
             try:
                 record._perform_health_check()
             except Exception as e:
-                # Capture and persist the failure rather than letting it
-                # bubble up — the caller (button or test) wants the row
-                # state updated, not a traceback.
                 _logger.exception("Health check failed for service %s", record.code)
                 record.write(
                     {
@@ -552,13 +485,8 @@ class ApiEndpointOutbound(models.Model):
             },
         }
 
-    # -------------------------------------------------------------------------
-    # CRON METHODS
-    # -------------------------------------------------------------------------
-
     @api.model
     def cron_reset_cache_errors(self):
-        """Reset cache error counters daily."""
         services = self.search([("cache_error_count", ">", 0)])
         if services:
             services.write(
@@ -569,13 +497,8 @@ class ApiEndpointOutbound(models.Model):
             )
             _logger.info("Reset cache errors for %d services", len(services))
 
-    # -------------------------------------------------------------------------
-    # HELPER METHODS
-    # -------------------------------------------------------------------------
-
     @api.model
     def cron_health_check_all(self):
-        """Scheduled health check for all active services."""
         services = self.search(
             [
                 ("active", "=", True),
@@ -590,7 +513,6 @@ class ApiEndpointOutbound(models.Model):
                 _logger.error("Health check failed for %s: %s", service.code, e)
 
     def _perform_health_check(self):
-        """Perform health check on this service."""
         self.ensure_one()
         if self.health_check_environment == "any":
             credential = self.credential_ids.filtered("active").sorted(
@@ -616,10 +538,6 @@ class ApiEndpointOutbound(models.Model):
             )
             return
 
-        # Issue a real request against the service and record the outcome. The
-        # client comes from _get_api_client so downstream transports (e.g.
-        # api_gateway's Odoo-database client) are honoured. The probe is logged
-        # to api.event.log like any other outbound call.
         endpoint = self.health_check_endpoint or "/"
         try:
             client = self._get_api_client(credential)
@@ -650,16 +568,7 @@ class ApiEndpointOutbound(models.Model):
         )
 
     def _get_api_client(self, credential=None):
-        """Return an HTTP client for this service.
-
-        Hook for downstream modules that add non-HTTP transports: the base
-        returns the generic ``APIGatewayClient`` via the transport factory;
-        ``api_gateway`` overrides this to dispatch ``is_odoo_database`` services
-        to its Odoo-to-Odoo client.
-        """
         self.ensure_one()
-        # Local import: tools imports the models package at load time, so a
-        # top-level import here would be circular.
         from odoo.addons.api_transport.tools import (  # pylint: disable=import-outside-toplevel
             get_api_client,
         )

@@ -1,5 +1,3 @@
-"""Tests for API Event Log model."""
-
 import hashlib
 import json
 from datetime import timedelta
@@ -11,15 +9,11 @@ from odoo.tests.common import TransactionCase
 
 
 class TestApiEventLog(TransactionCase):
-    """Test cases for api.event.log model."""
-
     @classmethod
     def setUpClass(cls):
-        """Set up test data for API Event Log tests."""
         super().setUpClass()
         cls.company = cls.env.ref("base.main_company")
 
-        # Create an outbound service for testing
         cls.service = (
             cls.env["api.endpoint.outbound"]
             .with_context(allow_http_production=True)
@@ -36,7 +30,6 @@ class TestApiEventLog(TransactionCase):
         cls.channel_ref = f"api.endpoint.outbound,{cls.service.id}"
 
     def _create_event_log(self, **kwargs):
-        """Helper to create event log records."""
         default_vals = {
             "direction": "outbound",
             "channel_id": self.channel_ref,
@@ -46,7 +39,6 @@ class TestApiEventLog(TransactionCase):
         return self.env["api.event.log"].create(default_vals)
 
     def test_create_outbound_event(self):
-        """Test creating an outbound event log."""
         event = self._create_event_log(
             request_method="POST",
             request_url="https://api.test.com/v1/endpoint",
@@ -59,7 +51,6 @@ class TestApiEventLog(TransactionCase):
         self.assertIsNotNone(event.timestamp)
 
     def test_create_inbound_event(self):
-        """Test creating an inbound event log."""
         event = self._create_event_log(
             direction="inbound",
             request_payload='{"event": "test"}',
@@ -70,11 +61,9 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(event.source_ip, "192.168.1.100")
 
     def test_payload_hash_computation(self):
-        """Test SHA256 hash computation for duplicate detection."""
         payload = '{"key": "value", "number": 123}'
         event = self._create_event_log(request_payload=payload)
 
-        # Compute expected hash
         parsed = json.loads(payload)
         normalized = json.dumps(parsed, sort_keys=True, separators=(",", ":"))
         expected_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
@@ -82,7 +71,6 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(event.request_payload_hash, expected_hash)
 
     def test_payload_hash_normalization(self):
-        """Test that equivalent JSON payloads produce same hash."""
         payload1 = '{"b": 2, "a": 1}'
         payload2 = '{"a": 1, "b": 2}'
 
@@ -92,7 +80,6 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(event1.request_payload_hash, event2.request_payload_hash)
 
     def test_payload_sizes_computation(self):
-        """Test payload size computations."""
         request_payload = '{"key": "value"}'
         response_payload = '{"status": "ok"}'
 
@@ -109,7 +96,6 @@ class TestApiEventLog(TransactionCase):
         )
 
     def test_status_category_computation(self):
-        """Test HTTP status code categorization."""
         test_cases = [
             (200, "success"),
             (201, "success"),
@@ -133,7 +119,6 @@ class TestApiEventLog(TransactionCase):
             )
 
     def test_is_success_computation_outbound(self):
-        """Test success determination for outbound events."""
         success_event = self._create_event_log(status_code=200)
         self.assertTrue(success_event.is_success)
 
@@ -144,7 +129,6 @@ class TestApiEventLog(TransactionCase):
         self.assertFalse(failed_event.is_success)
 
     def test_is_success_computation_inbound(self):
-        """Test success determination for inbound events."""
         success_event = self._create_event_log(direction="inbound", state="success")
         self.assertTrue(success_event.is_success)
 
@@ -152,7 +136,6 @@ class TestApiEventLog(TransactionCase):
         self.assertFalse(failed_event.is_success)
 
     def test_performance_rating_computation(self):
-        """Test performance rating based on duration."""
         test_cases = [
             (50, "excellent"),
             (100, "good"),
@@ -174,14 +157,12 @@ class TestApiEventLog(TransactionCase):
             )
 
     def test_mark_processing(self):
-        """Test marking event as processing."""
         event = self._create_event_log()
         event.mark_processing()
 
         self.assertEqual(event.state, "processing")
 
     def test_mark_success(self):
-        """Test marking event as success."""
         event = self._create_event_log()
         event.mark_success()
 
@@ -190,7 +171,6 @@ class TestApiEventLog(TransactionCase):
         self.assertFalse(event.error_message)
 
     def test_mark_failed(self):
-        """Test marking event as failed."""
         event = self._create_event_log()
         event.mark_failed("Network timeout", error_type="timeout", schedule_retry=False)
 
@@ -200,7 +180,6 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(event.retry_count, 1)
 
     def test_mark_duplicate(self):
-        """Test marking event as duplicate."""
         event = self._create_event_log()
         event.mark_duplicate()
 
@@ -209,7 +188,6 @@ class TestApiEventLog(TransactionCase):
         self.assertIsNotNone(event.date_completed)
 
     def test_action_retry_now(self):
-        """Test manual retry action."""
         event = self._create_event_log(state="failed")
 
         result = event.action_retry_now()
@@ -219,14 +197,12 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(result["type"], "ir.actions.client")
 
     def test_action_retry_now_invalid_state(self):
-        """Test retry action fails for non-retryable states."""
         event = self._create_event_log(state="success")
 
         with self.assertRaises(ValidationError):
             event.action_retry_now()
 
     def test_action_view_channel(self):
-        """Test view channel action."""
         event = self._create_event_log()
 
         result = event.action_view_channel()
@@ -236,7 +212,6 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(result["res_id"], self.service.id)
 
     def test_action_view_related_events(self):
-        """Test view related events by trace ID."""
         trace_id = "trace-12345"
         event = self._create_event_log(trace_id=trace_id)
 
@@ -246,7 +221,6 @@ class TestApiEventLog(TransactionCase):
         self.assertIn(trace_id, str(result["domain"]))
 
     def test_action_view_related_events_no_trace(self):
-        """Test view related events returns None without trace ID."""
         event = self._create_event_log()
 
         result = event.action_view_related_events()
@@ -254,7 +228,6 @@ class TestApiEventLog(TransactionCase):
         self.assertIsNone(result)
 
     def test_get_payload_dict(self):
-        """Test parsing payload as dictionary."""
         payload = '{"key": "value", "number": 123}'
         event = self._create_event_log(request_payload=payload)
 
@@ -265,7 +238,6 @@ class TestApiEventLog(TransactionCase):
 
     @mute_logger("odoo.addons.api_transport.models.api_event_log")
     def test_get_payload_dict_invalid_json(self):
-        """Test parsing invalid JSON payload."""
         event = self._create_event_log(request_payload="not valid json")
 
         result = event.get_payload_dict()
@@ -273,7 +245,6 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(result, {})
 
     def test_check_duplicate_before_create_by_external_id(self):
-        """Test duplicate detection by external event ID."""
         external_id = "ext-event-123"
         self._create_event_log(event_id_external=external_id)
 
@@ -287,7 +258,6 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(result["reason"], "external_id")
 
     def test_check_duplicate_before_create_by_hash(self):
-        """Test duplicate detection by payload hash."""
         payload = '{"key": "value"}'
         self._create_event_log(request_payload=payload)
 
@@ -301,7 +271,6 @@ class TestApiEventLog(TransactionCase):
         self.assertEqual(result["reason"], "payload_hash")
 
     def test_check_duplicate_before_create_no_duplicate(self):
-        """Test duplicate detection returns false for unique events."""
         result = self.env["api.event.log"].check_duplicate_before_create(
             channel_ref=self.channel_ref,
             payload_json='{"unique": "payload"}',
@@ -311,16 +280,14 @@ class TestApiEventLog(TransactionCase):
         self.assertIsNone(result["reason"])
 
     def test_display_name_computation(self):
-        """Test display name includes direction, method, and timestamp."""
         event = self._create_event_log(
             request_method="POST",
         )
 
-        self.assertIn("OU", event.display_name)  # Outbound
+        self.assertIn("OU", event.display_name)
         self.assertIn("POST", event.display_name)
 
     def test_request_endpoint_extraction(self):
-        """Test endpoint extraction from full URL."""
         event = self._create_event_log(
             request_url="https://api.test.com/v1/endpoint/action",
         )
@@ -329,11 +296,8 @@ class TestApiEventLog(TransactionCase):
 
 
 class TestApiEventLogRetention(TransactionCase):
-    """Test cases for event log retention and garbage collection."""
-
     @classmethod
     def setUpClass(cls):
-        """Set up test data."""
         super().setUpClass()
         cls.company = cls.env.ref("base.main_company")
 
@@ -352,14 +316,11 @@ class TestApiEventLogRetention(TransactionCase):
         cls.channel_ref = f"api.endpoint.outbound,{cls.service.id}"
 
     def test_gc_respects_retention_setting(self):
-        """Test garbage collection respects retention days setting."""
-        # Set short retention for test
         self.env["ir.config_parameter"].sudo().set_param(
             "api_transport.log_retention_days",
             "30",
         )
 
-        # Create old completed event
         old_event = self.env["api.event.log"].create(
             {
                 "direction": "outbound",
@@ -369,7 +330,6 @@ class TestApiEventLogRetention(TransactionCase):
             },
         )
 
-        # Create recent event
         recent_event = self.env["api.event.log"].create(
             {
                 "direction": "outbound",
@@ -379,9 +339,7 @@ class TestApiEventLogRetention(TransactionCase):
             },
         )
 
-        # Run garbage collection
         self.env["api.event.log"]._gc_old_logs()
 
-        # Old event should be deleted, recent should remain
         self.assertFalse(old_event.exists())
         self.assertTrue(recent_event.exists())

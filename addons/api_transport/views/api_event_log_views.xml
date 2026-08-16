@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Event Log Search View -->
     <record id="view_api_event_log_search" model="ir.ui.view">
         <field name="name">api.event.log.search</field>
         <field name="model">api.event.log</field>
@@ -69,7 +68,6 @@
         </field>
     </record>
 
-    <!-- Event Log List View -->
     <record id="view_api_event_log_list" model="ir.ui.view">
         <field name="name">api.event.log.list</field>
         <field name="model">api.event.log</field>
@@ -93,7 +91,6 @@
         </field>
     </record>
 
-    <!-- Event Log Form View -->
     <record id="view_api_event_log_form" model="ir.ui.view">
         <field name="name">api.event.log.form</field>
         <field name="model">api.event.log</field>
@@ -241,12 +238,10 @@
                         </page>
                     </notebook>
                 </sheet>
-                <chatter />
             </form>
         </field>
     </record>
 
-    <!-- Event Log Action -->
     <record id="action_api_event_log" model="ir.actions.act_window">
         <field name="name">Event Logs</field>
         <field name="res_model">api.event.log</field>

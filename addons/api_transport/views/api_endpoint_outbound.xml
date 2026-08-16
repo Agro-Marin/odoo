@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Outbound Service Search View -->
     <record id="view_api_endpoint_outbound_search" model="ir.ui.view">
         <field name="name">api.endpoint.outbound.search</field>
         <field name="model">api.endpoint.outbound</field>
@@ -45,7 +44,6 @@
         </field>
     </record>
 
-    <!-- Outbound Service List View -->
     <record id="view_api_endpoint_outbound_list" model="ir.ui.view">
         <field name="name">api.endpoint.outbound.list</field>
         <field name="model">api.endpoint.outbound</field>
@@ -63,7 +61,6 @@
         </field>
     </record>
 
-    <!-- Outbound Service Form View -->
     <record id="view_api_endpoint_outbound_form" model="ir.ui.view">
         <field name="name">api.endpoint.outbound.form</field>
         <field name="model">api.endpoint.outbound</field>
@@ -124,6 +121,9 @@
                             <field name="environment" />
                             <field name="auth_type" />
                             <field name="allow_multiple_credentials" />
+                            <field
+                                name="allow_user_credentials"
+                                invisible="auth_type == 'none'" />
                             <field name="is_healthy" readonly="1" />
                             <field name="health_message" readonly="1" />
                         </group>
@@ -136,6 +136,15 @@
                                     <field name="endpoint_url" />
                                     <field name="endpoint_url_test" />
                                     <field name="api_version" />
+                                    <field
+                                        name="api_version_header"
+                                        invisible="not api_version" />
+                                    <field
+                                        name="send_version_headers"
+                                        invisible="not api_version" />
+                                    <field
+                                        name="api_key_header"
+                                        invisible="auth_type != 'api_key'" />
                                     <field name="request_format" />
                                 </group>
                                 <group string="Timeouts">
@@ -144,19 +153,7 @@
                                 </group>
                             </group>
 
-                            <group invisible="category != 'odoo_database'">
-                                <group string="Odoo Database">
-                                    <field name="odoo_database_name" />
-                                    <field name="odoo_hosting_type" />
-                                    <field name="odoo_protocol" />
-                                    <field name="odoo_version" readonly="1" />
-                                </group>
-                            </group>
-
                             <group invisible="auth_type != 'oauth2'">
-                                <!-- Non-secret client configuration only: the
-                                    client secret is captured on the linked
-                                    vault credential (t23878). -->
                                 <group string="OAuth 2.0">
                                     <field name="oauth_client_id" />
                                     <field name="oauth_auth_endpoint" />
@@ -259,12 +256,10 @@
                         </page>
                     </notebook>
                 </sheet>
-                <chatter />
             </form>
         </field>
     </record>
 
-    <!-- Outbound Service Action -->
     <record id="action_api_endpoint_outbound" model="ir.actions.act_window">
         <field name="name">API Services</field>
         <field name="res_model">api.endpoint.outbound</field>

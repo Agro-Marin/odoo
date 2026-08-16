@@ -1,64 +1,54 @@
 {
     "name": "API Transport",
-    "version": "19.0.1.3.0",
+    "version": "19.0.1.18.0",
     "category": "Technical",
     "sequence": 5,
-    "summary": "Unified bidirectional API communication framework for inbound and outbound integrations",
+    "summary": "Inbound and outbound API transport with auth, rate limiting, retry and logging",
     "description": """
 API Transport
 =============
 
-Unified transport for all API communication - both inbound (receiving webhooks, IoT
-data) and outbound (calling external APIs, external services).
+Transport layer for inbound and outbound API traffic.
 
-Promoted from ``agromarin/api_communication`` into the core fork so that modules
-in odoo/ and enterprise/ can depend on it; renamed to say what it is.
+Models
+------
+* ``api.endpoint.inbound`` -- webhook and IoT receivers
+* ``api.endpoint.outbound`` -- REST and external service callers
+* ``api.event.log`` -- event log for both directions
+* ``api.response.cache`` -- outbound response cache
+* ``api.channel.mixin`` -- behaviour shared by both endpoint models
 
-Key Features
-------------
+Authentication
+--------------
+* Bearer token
+* HMAC signature, SHA-256 and SHA-512, constant-time comparison
+* OAuth 2.0, outbound
+* IP whitelist, inbound
+* Timestamp verification against replay
 
-**Bidirectional Communication:**
-* Inbound endpoints: Receive webhooks, IoT device data, external notifications
-* Outbound services: Call REST APIs, payment gateways, external systems
-* Unified event logging with direction tracking
+Traffic control
+---------------
+* Token-bucket rate limiting, database-backed, per endpoint
+* Retry with exponential backoff
+* Response caching
+* Session pooling
+* Async queue for inbound events
+* Health checks for outbound services
 
-**Security & Authentication:**
-* Bearer Token authentication
-* HMAC signature verification (SHA-256/SHA-512)
-* OAuth 2.0 support for outbound services
-* IP whitelisting for inbound endpoints
-* Timestamp verification (replay attack prevention)
+Logging
+-------
+* Direction, timing and error category per event
+* Secret redaction
+* Configurable retention
 
-**Rate Limiting:**
-* Token bucket algorithm (database-backed)
-* Configurable per endpoint/service
-* Multi-company isolation
-
-**Resilience:**
-* Automatic retry with exponential backoff
-* Health monitoring for outbound services
-* Async processing queue for inbound events
-* Response caching for outbound calls
-
-**Logging & Monitoring:**
-* Unified event log with direction (inbound/outbound)
-* Performance metrics and timing
-* Error tracking and categorization
-* Configurable retention policies
-
-Technical
----------
-* Session pooling for outbound connections
-* Constant-time signature comparison (timing attack prevention)
-* Field-level encryption for secrets (via base_credential_manager)
-* Multi-company support with record rules
+Secrets are encrypted by ``credential``. Record rules scope every
+model by company.
     """,
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",
     "license": "LGPL-3",
     "depends": [
-        "mail",
-        "base_credential_manager",
+        "credential",
     ],
     "data": [
         "security/security.xml",
@@ -66,13 +56,19 @@ Technical
         "security/ir_rule.xml",
         "data/ir_config_parameter_data.xml",
         "data/ir_cron_data.xml",
+        "data/api_service_data.xml",
         "views/api_event_log_views.xml",
         "views/api_endpoint_outbound.xml",
+        "views/ir_actions_server_views.xml",
         "views/response_cache_views.xml",
+        "views/api_credential_views.xml",
+        "views/api_credential_access_log_views.xml",
+        "wizard/res_config_settings_views.xml",
         "views/api_transport_menu.xml",
     ],
     "demo": [
-        "demo/comm_demo_data.xml",
+        "demo/api_transport_demo_data.xml",
+        "demo/api_demo_data.xml",
     ],
     "application": True,
     "pre_init_hook": "pre_init_hook",
