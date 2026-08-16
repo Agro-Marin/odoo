@@ -12,7 +12,6 @@
             <p>Kind Regards</p>
         </template>
 
-        <!-- Out-Of-Office content layout -->
         <template id="message_notification_out_of_office">
             <div t-out="out_of_office_message"/>
             <div class="o_mail_reply_container">
@@ -34,7 +33,6 @@
 <blockquote><t t-esc="message['body']"/></blockquote>
         </template>
 
-        <!-- Mail bounce alias mail template -->
         <template id="mail_bounce_alias_security">
 <div><t t-out="body"/></div>
 <blockquote><t t-out="message['body']"/></blockquote>

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-    <!-- Template for security update notification (password/login/mail changed, ...) -->
     <template id="account_security_alert" name="Alert Security Update">
         <div>
             Dear <t t-out="user.name or ''">Marc Demo</t>,<br/><br/>

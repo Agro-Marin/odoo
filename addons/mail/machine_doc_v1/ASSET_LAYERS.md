@@ -50,15 +50,15 @@ Layers load in a strict order via two glob families:
 
 ```python
 # explicit core layers first…
-"mail/static/src/core/common/**/*",
-"mail/static/src/core/public_web/**/*",
-"mail/static/src/core/web_portal/**/*",
-"mail/static/src/core/web/**/*",
+("mail/static/src/core/common/**/*",)
+("mail/static/src/core/public_web/**/*",)
+("mail/static/src/core/web_portal/**/*",)
+("mail/static/src/core/web/**/*",)
 # …then wildcard layer globs across every feature
-"mail/static/src/**/common/**/*",
-"mail/static/src/**/public_web/**/*",
-"mail/static/src/**/web_portal/**/*",
-"mail/static/src/**/web/**/*",
+("mail/static/src/**/common/**/*",)
+("mail/static/src/**/public_web/**/*",)
+("mail/static/src/**/web_portal/**/*",)
+("mail/static/src/**/web/**/*",)
 ```
 
 ### The discuss remove-then-re-add
@@ -67,11 +67,11 @@ Those `**/common/**` etc. wildcards also match `discuss/**`, so discuss is **str
 re-added** as one deterministic block:
 
 ```python
-("remove", "mail/static/src/discuss/**/*"),
-"mail/static/src/discuss/core/common/**/*",
-"mail/static/src/discuss/core/public_web/**/*",
-"mail/static/src/discuss/core/web/**/*",
-"mail/static/src/discuss/**/common/**/*",   # + public_web, web
+(("remove", "mail/static/src/discuss/**/*"),)
+("mail/static/src/discuss/core/common/**/*",)
+("mail/static/src/discuss/core/public_web/**/*",)
+("mail/static/src/discuss/core/web/**/*",)
+("mail/static/src/discuss/**/common/**/*",)  # + public_web, web
 ```
 
 **Why (per the manifest comment):** the historical core → discuss import inversion has been

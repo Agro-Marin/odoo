@@ -2,7 +2,6 @@
 <odoo>
     <data noupdate="1">
 
-        <!-- Discussion groups, done in 2 steps to remove creator from followers -->
         <record model="discuss.channel" id="mail.channel_1">
             <field name="name">sales</field>
             <field name="description">Discussion about best sales practices and deals.</field>
@@ -16,7 +15,6 @@
             <field name="description">Research and development discussion group</field>
         </record>
 
-        <!-- Best sales practices messages -->
         <record id="mail_message_channel_1_1" model="mail.message">
             <field name="model">discuss.channel</field>
             <field name="res_id" ref="mail.channel_1"/>
@@ -46,7 +44,6 @@
             <field name="date" eval="(DateTime.today() - timedelta(days=3)).strftime('%Y-%m-%d %H:%M')"/>
         </record>
 
-        <!-- Pushed to all employees -->
         <record id="mail_message_channel_whole_1" model="mail.message">
             <field name="model">discuss.channel</field>
             <field name="res_id" ref="mail.channel_all_employees"/>
@@ -94,7 +91,6 @@
             <field name="subtype_id" ref="mail.mt_comment"/>
         </record>
 
-        <!-- Board messages -->
         <record id="mail_message_channel_2_1" model="mail.message">
             <field name="model">discuss.channel</field>
             <field name="res_id" ref="mail.channel_2"/>
@@ -155,7 +151,6 @@
             <field name="date" eval="(DateTime.today() - timedelta(days=3)).strftime('%Y-%m-%d %H:%M')"/>
         </record>
 
-        <!-- sub-threads setup -->
         <record model="discuss.channel" id="mail.from_notification_message">
             <field name="parent_channel_id" ref="mail.channel_all_employees"/>
             <field name="from_message_id" ref="mail.module_install_notification"/>

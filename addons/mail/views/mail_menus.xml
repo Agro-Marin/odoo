@@ -71,7 +71,6 @@
         <field name="sequence">3</field>
     </record>
 
-    <!-- Under Technical/Email -->
     <menuitem name="Emails"
         id="menu_mail_mail"
         parent="base.menu_email"
@@ -115,7 +114,6 @@
         sequence="22"
         groups="base.group_no_one"/>
 
-    <!-- Under Technical/Discuss -->
     <menuitem name="Discuss"
         id="menu_mail_discuss_technical"
         parent="base.menu_custom"
@@ -216,7 +214,6 @@
         parent="mail.menu_mail_activities_section"
         sequence="30"/>
 
-    <!-- Inactive hook: integration modules activate this menu to plug into Discuss -->
     <record id="mail.menu_mail_integrations" model="ir.ui.menu">
         <field name="name">Integrations</field>
         <field name="parent_id" ref="mail.menu_mail_root"></field>

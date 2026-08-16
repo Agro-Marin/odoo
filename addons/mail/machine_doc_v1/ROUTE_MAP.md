@@ -56,7 +56,6 @@ Base class for several controllers below (`AttachmentController`, `MessageReacti
 | `/mail/message/update_content` | jsonrpc | public +guest | `mail_message_update_content` | Edit message body / attachments |
 | `/mail/thread/messages` | jsonrpc | user | `mail_thread_messages` | Fetch a thread's messages |
 | `/mail/thread/recipients` | jsonrpc | user | `mail_thread_recipients` | Suggested recipients for a thread |
-| `/mail/thread/recipients/fields` | jsonrpc | user | `mail_thread_recipients_fields` | Partner / primary-email field metadata for a model |
 | `/mail/thread/recipients/get_suggested_recipients` | jsonrpc | user | `mail_thread_recipients_get_suggested_recipients` | Recompute suggested recipients with frontend edits |
 | `/mail/thread/subscribe` | jsonrpc | user | `mail_thread_subscribe` | Subscribe partners to a record |
 | `/mail/thread/unsubscribe` | jsonrpc | user | `mail_thread_unsubscribe` | Unsubscribe partners from a record |

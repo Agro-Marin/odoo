@@ -148,7 +148,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/primary_variables.scss",
         ],
         "web.assets_backend": [
-            # depends on BS variables, can't be loaded in assets_primary or assets_secondary
             "mail/static/src/scss/variables/derived_variables.scss",
             "mail/static/src/scss/*.scss",
             "mail/static/lib/idb-keyval/idb-keyval.js",
@@ -162,15 +161,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/public_web/**/*",
             "mail/static/src/**/web_portal/**/*",
             "mail/static/src/**/web/**/*",
-            # Discuss feature layer, grouped after the layers above. The
-            # layer globs (mail/static/src/**/common/**, ...) also match
-            # discuss files, so discuss is removed and re-added to keep it in
-            # one deterministic block. Since the core -> discuss import
-            # inversion was fixed, no JS import requires this ordering
-            # anymore; it is kept for the SCSS cascade (discuss styles
-            # override core styles) and for the relative execution order of
-            # side-effect modules (patches, registry additions) that have no
-            # import edge between them.
             ("remove", "mail/static/src/discuss/**/*"),
             "mail/static/src/discuss/core/common/**/*",
             "mail/static/src/discuss/core/public_web/**/*",
@@ -200,9 +190,6 @@ For more specific needs, you may also assign custom-defined actions
         "web.assets_unit_tests": [
             "mail/static/tests/**/*",
             ("remove", "mail/static/tests/tours/**/*"),
-            # Pure service-worker helpers: not shipped in an app bundle (the
-            # worker is served as raw text), but exposed to hoot so their logic
-            # is unit-tested. See service_worker_utils.js.
             "mail/static/src/service_worker_utils.js",
         ],
         "web.assets_tests": [
@@ -217,11 +204,6 @@ For more specific needs, you may also assign custom-defined actions
         "mail.assets_message_email": [
             "web/static/lib/odoo_ui_icons/style.css",
         ],
-        # Named sub-bundles: the supported way for downstream modules
-        # (portal, im_livechat, ...) to embed mail's frontend layers without
-        # coupling to mail's internal file layout. ('include', ...) these
-        # instead of globbing mail/static/src/** paths. They deliberately
-        # keep *.dark.scss files: consumers decide whether to strip them.
         "mail.assets_core_common": [
             "mail/static/src/model/**/*",
             "mail/static/src/utils/common/**/*",
@@ -252,9 +234,6 @@ For more specific needs, you may also assign custom-defined actions
             "web/static/lib/bootstrap/scss/_maps.scss",
             ("include", "web._assets_bootstrap_backend"),
             "web/static/src/scss/bootstrap_overridden.scss",
-            # This bundle carries webclient.scss and mail's component styling,
-            # which read the palette as `--o-*`. Without this the declarations
-            # name tokens nothing defines.
             "web/static/src/scss/tokens.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
@@ -278,8 +257,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail/static/src/**/public_web/**/*",
             "mail/static/src/**/public/**/*",
             "mail/static/lib/selfie_segmentation/selfie_segmentation.js",
-            # Discuss feature layer grouped last; see the comment in
-            # web.assets_backend above.
             ("remove", "mail/static/src/discuss/**/*"),
             "mail/static/src/discuss/core/common/**/*",
             "mail/static/src/discuss/core/public_web/**/*",
@@ -297,13 +274,6 @@ For more specific needs, you may also assign custom-defined actions
             "mail.assets_lamejs",
             "mail.assets_odoo_sfu",
             "mail.assets_public",
-            # The discuss public-page test-tours overlay contains ES-module
-            # files (hoot-dom, tour helpers) and imports native core modules
-            # (e.g. @web/core/templates). It must be esbuild-compiled as ESM;
-            # otherwise it builds as a non-ESM bundle whose legacy-loader bridge
-            # for those native modules resolves to `undefined` at pre_boot
-            # (Cannot destructure ... checkPrimaryTemplateParents ...), breaking
-            # every discuss public-page browser test.
             "mail.assets_discuss_public_test_tours",
         ],
         "dynamic_children": {
@@ -312,9 +282,6 @@ For more specific needs, you may also assign custom-defined actions
                 "mail.assets_odoo_sfu",
             ],
         },
-        # Loaded as a separate <script type="module"> after its parent on the
-        # discuss public page; piggyback on the parent's import map so its native
-        # imports resolve (mirrors web.assets_web -> web.assets_tests).
         "secondary_import_map_includes": {
             "mail.assets_public": [
                 "mail.assets_discuss_public_test_tours",

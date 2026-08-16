@@ -2,7 +2,6 @@
 <odoo>
     <data>
 
-        <!-- mail.followers -->
         <record model="ir.ui.view" id="view_followers_tree">
             <field name="name">mail.followers.list</field>
             <field name="model">mail.followers</field>

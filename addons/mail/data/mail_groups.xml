@@ -20,7 +20,6 @@
         <field name="implied_ids" eval="[(4, ref('mail.group_mail_template_editor')), (4, ref('mail.group_mail_canned_response_admin'))]"/>
     </record>
 
-    <!-- Group used for the notification_type field of res.users -->
     <record id="group_mail_notification_type_inbox" model="res.groups">
         <field name="name">Receive notifications in Odoo</field>
     </record>

@@ -2,7 +2,6 @@
 <odoo>
     <data>
 
-        <!-- Alias Form View -->
         <record  model="ir.ui.view" id="mail_alias_view_form">
             <field name="name">mail.alias.view.form</field>
             <field name="model">mail.alias</field>
@@ -53,7 +52,6 @@
             </field>
         </record>
 
-        <!-- Alias List View -->
         <record  model="ir.ui.view" id="mail_alias_view_tree">
             <field name="name">mail.alias.view.list</field>
             <field name="model">mail.alias</field>
@@ -82,7 +80,6 @@
             </field>
         </record>
 
-        <!-- Alias Search View -->
         <record  model="ir.ui.view" id="mail_alias_view_search">
             <field name="name">mail.alias.view.search</field>
             <field name="model">mail.alias</field>

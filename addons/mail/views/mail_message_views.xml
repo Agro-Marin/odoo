@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <odoo>
     <data>
-        <!-- mail.message list: short view -->
         <record model="ir.ui.view" id="view_message_tree">
             <field name="name">mail.message.list</field>
             <field name="model">mail.message</field>
@@ -17,7 +16,6 @@
             </field>
         </record>
 
-        <!-- mail.message form -->
         <record id="mail_message_view_form" model="ir.ui.view">
             <field name="name">mail.message.view.form</field>
             <field name="model">mail.message</field>
@@ -99,7 +97,6 @@
             </field>
         </record>
 
-        <!-- mail.message search -->
         <record model="ir.ui.view" id="view_message_search">
             <field name="name">mail.message.search</field>
             <field name="model">mail.message</field>

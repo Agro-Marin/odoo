@@ -44,7 +44,6 @@
             <field name="code">model._fetch_mails()</field>
             <field name="interval_number">5</field>
             <field name="interval_type">minutes</field>
-            <!-- Active flag is toggled by fetchmail.server create/write/unlink -->
             <field name="active" eval="False"/>
         </record>
 
