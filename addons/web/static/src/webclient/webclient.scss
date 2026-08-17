@@ -179,8 +179,18 @@ select {
     min-width: 50px;
 
     appearance: none;
-    background-color: var(--o-text, #{o-token(--o-text, $o-main-text-color)});
-    mask: $o-caret-down no-repeat right center;
+    // Not `$o-caret-down` as a mask, the technique the other carets use:
+    // `mask` clips the whole element, so a masked <select> paints its caret
+    // and nothing else -- the selected option's label disappears. An icon
+    // carrying its own colour cannot be answered by a token, so the dark half
+    // is restated in `scheme_rules.scss`.
+    // Carried as a token, not stated inline, so the dark half can be restated
+    // by setting the token rather than `background-image`: a scoped
+    // `background-image` would outscore `.form-select` and hand Bootstrap's
+    // own selects this triangle instead of their chevron.
+    --o-select-caret-img: #{escape-svg(o-caret-down-icon($o-main-text-color))};
+
+    background: transparent var(--o-select-caret-img) no-repeat right center;
 
     color: var(--o-text);
 

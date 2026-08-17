@@ -452,6 +452,16 @@
                 )};
         }
 
+        // A bare <select> paints its caret as a background image rather than a
+        // mask, so the colour rides inside the SVG. Restate the token, not
+        // `background-image`: this selector outscores `.form-select`, which
+        // would then lose Bootstrap's chevron to this triangle.
+        select {
+            --o-select-caret-img: #{escape-svg(
+                    o-caret-down-icon($o-dark-main-text-color)
+                )};
+        }
+
         .was-validated .form-control:valid,
         .form-control.is-valid {
             background-image: escape-svg(o-valid-icon($o-dark-bs-success));

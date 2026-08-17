@@ -170,6 +170,16 @@ $o-navbar-toggler-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/20
 }
 
 
+/// The bare `<select>` caret. `$o-caret-down` is the same triangle for the
+/// rules that paint it as a mask, where the fill is inert; a `<select>` cannot
+/// use that technique, because `mask` clips the whole element and takes the
+/// selected option's label with it. So this one carries its colour and is
+/// restated for dark in `scheme_rules.scss`.
+@function o-caret-down-icon($-color) {
+    @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><polygon fill='#{$-color}' points='3.5 4 7 0 0 0'/></svg>");
+}
+
+
 @function o-valid-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><path fill='#{$-color}' d='M2.3 6.73.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1'/></svg>");
 }
