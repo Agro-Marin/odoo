@@ -8,6 +8,16 @@ _NEW = "api_transport"
 _RENAMED_XMLIDS = {
     "module_category_api_communication": "module_category_api_transport",
     "res_groups_privilege_api_communication": "res_groups_privilege_api_transport",
+    # The three groups are renamed too, and they must be. Re-tagging them to
+    # this module while keeping the old *name* leaves them as
+    # api_transport.group_comm_user and friends, so security.xml no longer
+    # recognises them and creates a second "User" under the same privilege --
+    # which res_groups_name_uniq (privilege_id, name) rejects outright. Mapping
+    # the names here makes the data load update the existing rows instead, so
+    # their memberships and ACLs survive the rename.
+    "group_comm_user": "group_api_transport_user",
+    "group_comm_manager": "group_api_transport_manager",
+    "group_comm_admin": "group_api_transport_admin",
 }
 
 _PARAM_SUFFIXES = [
@@ -110,11 +120,73 @@ def _rename_config_parameters(env) -> None:
         )
 
 
+_GATEWAY = "api_gateway"
+
+# api_gateway was split three ways: the AI services went to api_ai, and these
+# stayed with the transport layer. api_ai's own hook adopts its share, so this
+# claims only the non-AI endpoints by name and leaves the rest alone -- a
+# blanket re-tag here would run first and swallow api_ai's records.
+# api_gateway's endpoints did not all land in one place -- each one follows the
+# feature it belongs to. Resolved by matching the `code` column against the
+# api.endpoint.outbound records the new tree ships, module by module. api_ai's
+# five are handled by api_ai's own hook and must not be claimed here.
+# Re-tagging to a module that has not loaded yet is fine: ir_model_data is just
+# a label until that module's data load looks it up.
+_GATEWAY_ENDPOINT_OWNERS = {
+    # redefined downstream -- without the re-tag the data load inserts a second
+    # row and hits api_endpoint_outbound_code_unique
+    "service_custom_api": _NEW,
+    "service_stripe": _NEW,
+    "service_twilio": _NEW,
+    "service_github": "api_github",
+    "service_telegram": "telegram_bot",
+    # redefined by nobody: adopted only so it stops being owned by a retired
+    # module, where a later uninstall of api_gateway would delete the row
+    "service_odoo_database_template": _NEW,
+}
+
+
+def _adopt_gateway_endpoints(env) -> int:
+    adopted = 0
+    for name, owner in _GATEWAY_ENDPOINT_OWNERS.items():
+        env.cr.execute(
+            """
+            UPDATE ir_model_data d
+               SET module = %(owner)s
+             WHERE d.module = %(old)s
+               AND d.model = 'api.endpoint.outbound'
+               AND d.name = %(name)s
+               AND NOT EXISTS (
+                     SELECT 1 FROM ir_model_data e
+                      WHERE e.module = %(owner)s
+                        AND e.model = d.model
+                        AND e.name = d.name
+                   )
+            """,
+            {"owner": owner, "old": _GATEWAY, "name": name},
+        )
+        if env.cr.rowcount:
+            adopted += env.cr.rowcount
+            _logger.info(
+                "api_transport: %s.%s -> %s.%s", _GATEWAY, name, owner, name
+            )
+    if adopted:
+        _logger.info(
+            "api_transport: routed %s outbound endpoint(s) out of %s to their "
+            "new owners",
+            adopted,
+            _GATEWAY,
+        )
+    return adopted
+
+
 def pre_init_hook(env):
-    if not _takeover_module_row(env):
-        return
-    _retag_model_data(env)
-    _rename_config_parameters(env)
+    if _takeover_module_row(env):
+        _retag_model_data(env)
+        _rename_config_parameters(env)
+    # Runs unconditionally: this database may carry api_gateway without ever
+    # having had api_communication, and the early return above would skip it.
+    _adopt_gateway_endpoints(env)
 
 
 def post_init_hook(env):
