@@ -21,10 +21,11 @@ export class StockReportSearchModel extends SearchModel {
             this.warehouses = await this.orm.call(
                 "stock.warehouse",
                 "get_current_warehouses",
-                [[]],
+                [],
                 { context: this.context },
             );
-        } catch {
+        } catch (error) {
+            console.warn("Could not load the warehouses of the search panel", error);
             this.warehouses = [];
         }
     }

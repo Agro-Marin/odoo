@@ -2338,8 +2338,8 @@ class StockWarehouse(models.Model):
 
     @api.model
     def get_current_warehouses(self):
-        """Called over RPC by the stock search panels, which pass an empty
-        recordset: this reads ``env.companies``, never ``self``.
+        """Called over RPC by the stock search panels, which pass no arguments:
+        this reads ``env.companies``, never ``self``.
         """
         return self.env["stock.warehouse"].search_read(
             [("company_id", "in", self.env.companies.ids)],
