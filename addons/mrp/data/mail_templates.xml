@@ -7,8 +7,8 @@
             Manual actions may be needed.
             <div class="mt16">
                 <p>Exception(s):</p>
-                <ul t-foreach="order_exceptions.items()" t-as="order_exception">
-                    <li>
+                <ul>
+                    <li t-foreach="order_exceptions.items()" t-as="order_exception">
                         <t t-set="move_raw_id" t-value="order_exception[0]"/>
                         <t t-set="exception" t-value="order_exception[1]"/>
                         <t t-set="order" t-value="exception[0]"/>
@@ -28,8 +28,8 @@
             </div>
             <div class="mt16" t-if="not cancel and impacted_pickings">
                 <p>Impacted Transfer(s):</p>
-                <ul t-foreach="impacted_pickings" t-as="picking">
-                    <li><a href="#" data-oe-model="stock.picking" t-att-data-oe-id="picking.id"><t t-esc="picking.name"/></a></li>
+                <ul>
+                    <li t-foreach="impacted_pickings" t-as="picking"><a href="#" data-oe-model="stock.picking" t-att-data-oe-id="picking.id"><t t-esc="picking.name"/></a></li>
                 </ul>
             </div>
         </div>

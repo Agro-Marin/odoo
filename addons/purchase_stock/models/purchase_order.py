@@ -544,21 +544,28 @@ class PurchaseOrder(models.Model):
             return (move.picking_id, move.product_id.responsible_id)
 
         def _render_note_exception_quantity_po(order_exceptions):
+            # `order_exceptions` is keyed by stock move, so a line reached by
+            # several moves shows up once per move and the note would repeat it
+            # verbatim. The change is recorded per line, so collapsing on the
+            # line loses nothing.
+            line_exceptions = {}
+            for order_line, changes in order_exceptions.values():
+                line_exceptions.setdefault(order_line, changes)
             order_line_ids = self.env["purchase.order.line"].browse(
-                [
-                    order_line.id
-                    for order in order_exceptions.values()
-                    for order_line in order[0]
-                ],
+                [order_line.id for order_line in line_exceptions],
             )
             purchase_order_ids = order_line_ids.mapped("order_id")
-            move_ids = self.env["stock.move"].concat(*rendering_context.keys())
+            # This document's own moves: `order_exceptions` is the rendering
+            # context `_log_activity` hands over. Reading the caller's loop
+            # variable instead worked only by closure, and with more than one
+            # document it described the last one for every note.
+            move_ids = self.env["stock.move"].concat(*order_exceptions)
             impacted_pickings = move_ids.mapped("picking_id")._get_impacted_pickings(
                 move_ids,
             ) - move_ids.mapped("picking_id")
             values = {
                 "purchase_order_ids": purchase_order_ids,
-                "order_exceptions": order_exceptions.values(),
+                "order_exceptions": list(line_exceptions.items()),
                 "impacted_pickings": impacted_pickings,
             }
             return self.env["ir.qweb"]._render("purchase_stock.exception_on_po", values)

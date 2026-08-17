@@ -12,8 +12,8 @@
         </p>
         <div class="mt16">
             <p>Exception(s):</p>
-            <ul t-foreach="sale_lines" t-as="sale_line">
-                <li>
+            <ul>
+                <li t-foreach="sale_lines" t-as="sale_line">
                     <t t-set="new_qty" t-value="sale_line.product_uom_qty"/>
                     <t t-set="old_qty" t-value="origin_values.get(sale_line.id, 0.0)"/>
 
@@ -36,8 +36,8 @@
         </p>
         <div class="mt16">
             <p>Exception(s):</p>
-            <ul t-foreach="sale_order_lines" t-as="sale_line">
-                <li>
+            <ul>
+                <li t-foreach="sale_order_lines" t-as="sale_line">
                     <a href="#" data-oe-model="sale.order" t-att-data-oe-id="sale_line.order_id.id"><t t-esc="sale_line.order_id.name"/></a>: <t t-esc="sale_line.product_uom_qty"/> <t t-esc="sale_line.product_uom_id.name"/> of <t t-esc="sale_line.product_id.name"/> cancelled
                 </li>
             </ul>
@@ -56,8 +56,8 @@
         </p>
         <div class="mt16">
             <p>Exception(s):</p>
-            <ul t-foreach="purchase_order_lines" t-as="purchase_line">
-                <li>
+            <ul>
+                <li t-foreach="purchase_order_lines" t-as="purchase_line">
                     <a href="#" data-oe-model="purchase.order" t-att-data-oe-id="purchase_line.order_id.id"><t t-esc="purchase_line.order_id.name"/></a>: <t t-esc="purchase_line.product_qty"/> <t t-esc="purchase_line.product_uom_id.name"/> of <t t-esc="purchase_line.product_id.name"/> cancelled
                 </li>
             </ul>
