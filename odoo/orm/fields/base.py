@@ -20,7 +20,14 @@ from odoo.db import schema as sql
 from odoo.exceptions import AccessError, MissingError
 from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
 from odoo.tools import SQL, reset_cached_properties
-from odoo.tools.misc import PENDING, SENTINEL, ReadonlyDict, Sentinel, unique
+from odoo.tools.misc import (
+    PENDING,
+    SENTINEL,
+    ReadonlyDict,
+    Sentinel,
+    frozendict,
+    unique,
+)
 
 from .._recordset import base_model, is_model_class, is_recordset
 from ..domain import Domain
@@ -228,14 +235,30 @@ class Field[T](
     inherited_field: Field | None = None
 
     comodel_name: str | None = None
-    context: ContextType = ReadonlyDict({})
+    context: ContextType = frozendict({})
     """Extra context a relational field applies to its comodel.
 
-    ``ReadonlyDict`` rather than ``{}``: this default is shared by every ``Field``
-    instance in the process, so one in-place mutation would rewrite the context
-    of every field at once. ``ContextType`` is a ``Mapping``, which promises
-    exactly that and cannot enforce it; the same file already wraps ``_args__``
-    for this reason.
+    Not a plain ``{}``: this default is shared by every ``Field`` instance in the
+    process, so one in-place mutation would rewrite the context of every field at
+    once. ``ContextType`` is a ``Mapping``, which promises exactly that and cannot
+    enforce it; the same file wraps ``_args__`` for this reason.
+
+    ``frozendict`` rather than ``ReadonlyDict``, because it must also stay a
+    ``dict``. ``_description_context`` hands this default to ``fields_get``
+    verbatim, so it is wire-facing; as a ``ReadonlyDict`` -- a bare ``Mapping`` --
+    it was refused by everything that tests ``isinstance(..., dict)``, stdlib
+    ``json.dumps`` included, and it took out 2963 XML-RPC ``fields_get`` calls on
+    one database in a day. ``frozendict`` refuses all eight mutation entry points
+    exactly as ``ReadonlyDict`` does, so nothing above is given up for it.
+
+    This does not make the default universally serialisable: ``xmlrpc.client``
+    dispatches on *exact* type and so misses a ``dict`` subclass too, which is why
+    ``OdooMarshaller`` has carried an explicit ``frozendict`` entry since long
+    before this. Being a ``dict`` is simply the property serialisers test for, so
+    the exception is one registration in one exact-type dispatcher rather than a
+    type each of them has to learn. What it does give up is
+    ``dict.__setitem__(field.context, ...)``, which bypasses the override --
+    sabotage, not the accident this default guards against.
 
     Declared on the base class, with an inert default, for the same reason as
     ``comodel_name``: consumers key on it without first proving the field is
