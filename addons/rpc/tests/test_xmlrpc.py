@@ -10,8 +10,13 @@ from odoo.service import common as auth
 from odoo.service import model
 from odoo.tests import common
 from odoo.tools import DotDict, mute_logger
+from odoo.tools.misc import ReadonlyDict
 
 from odoo.addons.base.tests.common import SavepointCaseWithUserDemo
+
+
+class ReadonlyDictSubclass(ReadonlyDict):
+    """Stand-in for res.lang's LangData, which reaches the wire the same way."""
 
 
 class TestExternalAPI(SavepointCaseWithUserDemo):
@@ -115,6 +120,20 @@ class TestXMLRPC(common.HttpCase):
         )
         self.assertEqual(ctx['lang'], 'en_US')
         self.assertEqual(ctx['tz'], 'Europe/Brussels')
+
+    def test_xmlrpc_fields_get_marshalling(self):
+        """ A relational field's `context` defaults to a ReadonlyDict, which is
+        not a dict and so has no marshaller of its own.
+        """
+        fields = self.xmlrpc('res.partner', 'fields_get', ['parent_id'], ['type', 'context'])
+        self.assertEqual(fields['parent_id']['type'], 'many2one')
+        self.assertEqual(fields['parent_id']['context'], {})
+
+    def test_xmlrpc_readonly_dict_subclass_marshalling(self):
+        """ Dispatch is by exact type, so a ReadonlyDict subclass is a miss too. """
+        self.patch(self.registry['res.users'], 'context_get',
+                   odoo.api.model(lambda *_: ReadonlyDictSubclass({'lang': 'en_US'})))
+        self.assertEqual(self.xmlrpc('res.users', 'context_get'), {'lang': 'en_US'})
 
     def test_xmlrpc_defaultdict_marshalling(self):
         """

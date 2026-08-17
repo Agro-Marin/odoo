@@ -11,7 +11,7 @@ import odoo.exceptions
 from odoo.fields import Command, Date, Datetime
 from odoo.http import Controller, Response, dispatch_rpc, request, route
 from odoo.tools import lazy
-from odoo.tools.misc import frozendict
+from odoo.tools.misc import ReadonlyDict, frozendict
 
 from . import RPC_DEPRECATION_NOTICE, _check_request
 
@@ -68,8 +68,26 @@ def xmlrpc_handle_exception_string(e):
     return dumps(fault)
 
 
+class _MarshallerDispatch(dict):
+    """Marshaller dispatch table that also answers for ``ReadonlyDict`` subclasses.
+
+    ``xmlrpc.client.Marshaller`` looks handlers up by exact ``type(value)``, so a
+    subclass of a registered type is a miss, and its own fallback for a miss needs
+    a ``__dict__`` that ``ReadonlyDict.__slots__`` denies. Widening the lookup for
+    this one hierarchy keeps ``LangData`` & co. marshallable without extending the
+    same courtesy to subclasses of ``str`` or ``int``, which the interpreter
+    refuses on purpose because their instances do not round-trip.
+    """
+
+    def __missing__(self, cls):
+        if issubclass(cls, ReadonlyDict):
+            handler = self[cls] = self[ReadonlyDict]
+            return handler
+        raise KeyError(cls)
+
+
 class OdooMarshaller(xmlrpc.client.Marshaller):
-    dispatch = dict(xmlrpc.client.Marshaller.dispatch)
+    dispatch = _MarshallerDispatch(xmlrpc.client.Marshaller.dispatch)
 
     def dump_frozen_dict(self, value, write):
         value = dict(value)
@@ -100,6 +118,9 @@ class OdooMarshaller(xmlrpc.client.Marshaller):
         return super().dump_unicode(value.translate(CONTROL_CHARACTERS), write)
 
     dispatch[frozendict] = dump_frozen_dict
+    # A relational field's `context` defaults to a ReadonlyDict, so every
+    # fields_get payload carries one; unlike frozendict it is not a dict.
+    dispatch[ReadonlyDict] = dump_frozen_dict
     dispatch[bytes] = dump_bytes
     dispatch[datetime] = dump_datetime
     dispatch[date] = dump_date
