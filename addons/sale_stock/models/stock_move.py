@@ -165,39 +165,6 @@ class StockMove(models.Model):
             lambda m: m.sale_line_id.product_id == product,
         )
 
-    def _get_delivery_direction(self):
-        """Whether this move carries the goods away from the warehouse or back.
-
-        :returns: 1 when the move ends further out along a delivery route than
-            it started, -1 when it ends further in, and 0 when both ends sit at
-            the same depth -- a transit leg closed back against its own stock
-            location, which only a returned move can be.
-
-        Depth is customer/supplier first, then transit, then everything else.
-        """
-        self.ensure_one()
-
-        def depth(location):
-            if not location:
-                return 0
-            if location._is_outgoing() or location.usage in ("customer", "supplier"):
-                return 2
-            if location.usage == "transit":
-                return 1
-            return 0
-
-        source = depth(self.location_id)
-        destination = depth(self.location_dest_id)
-        if not self.origin_returned_move_id:
-            # The first leg a multi-step route pushes only knows that it
-            # delivers through its final destination -- its own destination is
-            # an internal step. The return wizard copies that field from the
-            # move it reverses, so on a returned move it describes the journey
-            # being undone rather than this one, and reading it there would
-            # make every return look like a delivery.
-            destination = max(destination, depth(self.location_final_id))
-        return (destination > source) - (source > destination)
-
     def _get_related_invoices(self):
         """Overridden from stock_account to return the customer invoices
         related to this stock move.

@@ -568,57 +568,106 @@ class SaleOrderLine(models.Model):
         return self.order_id.partner_shipping_id.property_stock_customer
 
     def _get_procurement_moves(self):
-        # Deliveries procure a sale line, customer returns hand the goods back.
-        # strict=False so the moves the delivery route's initial rule pushed
-        # count as procurement too. Overrides order.line.stock.mixin
-        # (base_order_stock), which owns the arithmetic.
-        return self._get_stock_moves_outgoing_incoming(strict=False)
+        # Deliveries procure a sale line and customer returns hand the goods
+        # back. Overrides order.line.stock.mixin (base_order_stock); its generic
+        # difference of the two is not the whole answer here, because goods
+        # standing in the delivery pipeline procure the line as well and that
+        # quantity is a balance rather than a set of moves -- see
+        # _get_procurement_qty() below, which owns the arithmetic.
+        return self._get_stock_moves_outgoing_incoming()
+
+    def _get_procurement_qty(self, previous_product_qty=False):
+        """Quantity of this line that stock moves already cover.
+
+        Two terms, and nothing else:
+
+        - what crossed to the customer and stayed there, which is the delivery
+          ledger (:meth:`_get_stock_moves_outgoing_incoming`);
+        - what this line's moves leave standing in the delivery pipeline, for
+          the window in which a multi-step route has staged the goods but the
+          customer-facing leg does not exist yet (:meth:`_get_pipeline_qty`).
+
+        Which moves count is decided by the boundary they cross and by where
+        they leave the goods -- never by the rule or the warehouse they carry.
+        Those identify a route, not a shipment: a migrated database carries no
+        rule at all on historical moves, a pushed leg regularly carries no
+        warehouse, and a delivery entered by hand carries neither, nor a chain
+        link to the leg it fulfils.
+
+        ``previous_product_qty`` is unused, as in the mixin: the moves already
+        reflect any quantity change. Deliberately nothing here reads
+        ``product_qty`` -- bounding the pipeline term by the ordered quantity
+        hides what is already committed the moment that quantity is lowered,
+        and the delivery then never shrinks.
+        """
+        self.ensure_one()
+        moves = self._get_transferable_moves()
+        delivered, returned = self._get_stock_moves_outgoing_incoming()
+        return (
+            self._sum_moves_qty(delivered)
+            - self._sum_moves_qty(returned)
+            + self._get_pipeline_qty(moves - returned)
+        )
+
+    def _get_pipeline_qty(self, moves):
+        """Quantity of goods ``moves`` leave standing in the delivery pipeline.
+
+        Balances the moves per location -- a done move counts what it moved, an
+        open one what it intends to move -- and adds up what is left over
+        wherever goods can wait on their way out. A leg that staged goods and a
+        leg that carried them onwards cancel out, so a route counts its
+        shipment once however many legs it has, whether or not they are chained
+        and whichever order they were recorded in.
+
+        The caller passes the moves to balance and is expected to leave out the
+        returns that have already crossed back: those goods are home rather
+        than in the pipeline, and they land in an internal location, so
+        counting them would read as goods still on their way.
+
+        Only locations goods can *wait* in count. A customer or supplier
+        location is the far side of the boundary, and an inter-company transit
+        is one too -- a move that ends there has been delivered and the ledger
+        has already counted it.
+        """
+        self.ensure_one()
+        balance = defaultdict(float)
+        for move in moves:
+            quantity = move.product_uom_id._compute_quantity(
+                move.quantity if move.state == "done" else move.product_uom_qty,
+                self.product_uom_id,
+                rounding_method="HALF-UP",
+            )
+            balance[move.location_dest_id] += quantity
+            balance[move.location_id] -= quantity
+
+        rounding = self.product_uom_id.rounding
+        return sum(
+            quantity
+            for location, quantity in balance.items()
+            if quantity > 0
+            and not float_is_zero(quantity, precision_rounding=rounding)
+            and location.usage in ("internal", "transit")
+            and not location._is_outgoing()
+        )
 
     def _get_stock_moves_outgoing_incoming(self, strict=True):
         """Return the outgoing and incoming moves of the sale order line.
 
-        :param strict: If True, only consider the moves that are strictly
-            delivered to the customer (old behavior) -- the delivery ledger
-            behind ``qty_transferred``.
-            If False, consider the legs the initial rule of the delivery route
-            pushed, to support the new push mechanism, classifying each by the
-            direction it moves the goods (:meth:`stock.move
-            ._get_delivery_direction`). This is the procurement view: it has to
-            answer "did a move already cover this line" before the
-            customer-facing leg of a multi-step route exists at all.
+        A move that ends in a customer location delivered the goods; a refunded
+        move that starts in one handed them back.
+
+        :param strict: accepted for the callers that still pass it. The
+            classification does not vary: the boundary test needs no relaxing,
+            and the quantity a multi-step route has staged short of that
+            boundary is not a set of moves but a balance, which
+            :meth:`_get_pipeline_qty` reports.
         """
         outgoing_moves = self.env["stock.move"]
         incoming_moves = self.env["stock.move"]
         moves = self._get_transferable_moves()
 
         if not moves:
-            return self.env["stock.move"], self.env["stock.move"]
-
-        if not strict:
-            # The first move created per warehouse is the one the delivery
-            # route's initial rule pushed, so collecting that rule and reading
-            # only the legs that carry it is what keeps a multi-step route from
-            # counting its pick and its ship as two separate deliveries.
-            #
-            # Record that move's rule even when it has none.  A move with an
-            # empty rule_id is still the triggering move: single-step routes,
-            # moves that predate the warehouse's current route, and moves added
-            # by hand all carry no rule, and a database migrated from an older
-            # version carries none on any historical move.  The empty id then
-            # matches those same moves in the classification below.  Skipping
-            # them instead leaves the line reading as never procured, so
-            # _get_procurement_qty() returns the *negative* of whatever was
-            # refunded and the next write to the line re-procures the entire
-            # delivered quantity -- see
-            # test_procurement_qty_legacy_moves_without_rule.
-            sorted_moves = moves.sorted("id")
-            seen_wh_ids = set()
-            triggering_rule_ids = []
-
-            for move in sorted_moves:
-                if move.warehouse_id.id not in seen_wh_ids:
-                    triggering_rule_ids.append(move.rule_id.id)
-                    seen_wh_ids.add(move.warehouse_id.id)
+            return outgoing_moves, incoming_moves
 
         if self.env.context.get("accrual_entry_date"):
             accrual_date = fields.Date.from_string(
@@ -629,57 +678,16 @@ class SaleOrderLine(models.Model):
             )
 
         for move in moves:
-            if strict:
-                if (
-                    not move._is_dropshipped_returned()
-                    and move.location_dest_id._is_outgoing()
-                ):
-                    if not move.origin_returned_move_id or move.to_refund:
-                        outgoing_moves |= move
-                elif move.to_refund and (
-                    move._is_incoming() or move.location_id._is_outgoing()
-                ):
-                    incoming_moves |= move
-                continue
-
-            # Only the triggering rule's own legs are read, so a multi-step
-            # route does not count its pick and its ship as two deliveries, and
-            # each of those legs counts by the direction it actually moves the
-            # goods.  Reading the direction rather than testing the destination
-            # for being a customer location is what keeps a re-ship visible: the
-            # return wizard leaves it aimed at transit with a final destination
-            # pointing back at stock, so it looks like anything but a delivery.
             if (
-                move._is_dropshipped_returned()
-                or move.rule_id.id not in triggering_rule_ids
+                not move._is_dropshipped_returned()
+                and move.location_dest_id._is_outgoing()
             ):
-                continue
-
-            direction = move._get_delivery_direction()
-            if direction > 0:
                 if not move.origin_returned_move_id or move.to_refund:
                     outgoing_moves |= move
             elif move.to_refund and (
-                direction < 0
-                # Both ends of a reversal can sit at the same depth -- a leg
-                # given back between two internal locations, which a lowered
-                # ordered quantity produces just as much as the return wizard
-                # does. It is a reversal either way: it ends inside.
-                or (move.location_final_id or move.location_dest_id).usage == "internal"
-                or move.origin_returned_move_id
+                move._is_incoming() or move.location_id._is_outgoing()
             ):
                 incoming_moves |= move
-
-        if not strict and not incoming_moves:
-            # A single-step route has no leg of its own to reverse, so the
-            # customer-side receipt is the only record of the return -- and on a
-            # migrated database it is also the only move whose rule the
-            # triggering set does not hold.  A multi-step route does record the
-            # reversal of its own leg, and counting the customer side as well
-            # would count one physical return twice.
-            for move in moves - outgoing_moves:
-                if move.to_refund and move.location_id._is_outgoing():
-                    incoming_moves |= move
 
         return outgoing_moves, incoming_moves
 
