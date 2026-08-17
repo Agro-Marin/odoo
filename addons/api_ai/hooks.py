@@ -55,6 +55,63 @@ _MOVED_RECORDS = {
 }
 
 
+# Two records were renamed by the split, not just moved: api_gateway named them
+# after the model ("claude", "gemini"), api_ai names them after the vendor
+# ("anthropic", "google"). _retag_moved_records matches on name and only changes
+# the module, so without this pass it silently skips both -- and the data load
+# then inserts a second row, which api_endpoint_outbound_code_unique rejects
+# because the code ("claude", "gemini") did not change.
+_RENAMED_RECORDS = {
+    "api.endpoint.outbound": {
+        "service_claude": "service_anthropic",
+        "service_gemini": "service_google",
+    },
+    "ai.provider": {
+        "ai_provider_claude": "ai_provider_anthropic",
+        "ai_provider_gemini": "ai_provider_google",
+    },
+}
+
+
+def _rename_moved_records(env):
+    renamed = 0
+    for model, mapping in _RENAMED_RECORDS.items():
+        for old_name, new_name in mapping.items():
+            env.cr.execute(
+                """
+                UPDATE ir_model_data d
+                   SET module = %(new_mod)s, name = %(new_name)s
+                 WHERE d.module = %(old_mod)s
+                   AND d.model = %(model)s
+                   AND d.name = %(old_name)s
+                   AND NOT EXISTS (
+                         SELECT 1 FROM ir_model_data e
+                          WHERE e.module = %(new_mod)s
+                            AND e.model = %(model)s
+                            AND e.name = %(new_name)s
+                       )
+                """,
+                {
+                    "new_mod": _NEW_MODULE,
+                    "old_mod": _OLD_MODULE,
+                    "model": model,
+                    "old_name": old_name,
+                    "new_name": new_name,
+                },
+            )
+            if env.cr.rowcount:
+                renamed += env.cr.rowcount
+                _logger.info(
+                    "api_ai: %s.%s -> %s.%s (%s)",
+                    _OLD_MODULE,
+                    old_name,
+                    _NEW_MODULE,
+                    new_name,
+                    model,
+                )
+    return renamed
+
+
 def _retag_moved_records(env):
     retagged = 0
     for model, names in _MOVED_RECORDS.items():
@@ -98,4 +155,6 @@ def _retag_moved_records(env):
 
 
 def pre_init_hook(env):
+    # Rename first: _retag_moved_records looks the records up by their new name.
+    _rename_moved_records(env)
     _retag_moved_records(env)
