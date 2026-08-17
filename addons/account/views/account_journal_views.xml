@@ -228,6 +228,13 @@
                     <filter name="miscellaneous" string="Miscellaneous" domain="[('type', 'not in', ['sale', 'purchase', 'cash', 'bank', 'credit'])]"/>
                     <separator/>
                     <filter name="inactive" string="Archived" domain="[('active', '=', False)]"/>
+                    <separator/>
+                    <group name="group_by">
+                        <filter name="group_by_type" string="Type" context="{'group_by': 'type'}"/>
+                        <filter name="group_by_journal_group" string="Ledger Group" context="{'group_by': 'journal_group_ids'}"/>
+                        <filter name="group_by_currency" string="Currency" context="{'group_by': 'currency_id'}" groups="base.group_multi_currency"/>
+                        <filter name="group_by_company" string="Company" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                    </group>
                 </search>
             </field>
         </record>
