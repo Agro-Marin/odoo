@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 from odoo.tests.common import BaseCase
 
+from odoo.addons.credential.tools import connection_manager
 from odoo.addons.credential.tools.connection_manager import (
     ConnectionManager,
     get_connection_manager,
@@ -225,6 +226,22 @@ class TestConnectionManager(BaseCase):
         meta = self.manager.get_metadata("nonexistent")
         self.assertIsNone(meta)
 
+    def test_cleanup_stops_background_loop(self):
+        class PahoLikeClient:
+            def __init__(self):
+                self.calls = []
+
+            def loop_stop(self):
+                self.calls.append("loop_stop")
+
+            def disconnect(self):
+                self.calls.append("disconnect")
+
+        conn = PahoLikeClient()
+        self.manager._cleanup_connection(conn)
+
+        self.assertEqual(conn.calls, ["loop_stop", "disconnect"])
+
     def test_cleanup_none_connection(self):
         self.manager._cleanup_connection(None)
 
@@ -238,22 +255,24 @@ class TestConnectionManager(BaseCase):
 
 
 class TestConnectionManagerRegistry(BaseCase):
+    def setUp(self):
+        super().setUp()
+        # get_connection_manager keys managers by database in a module-level
+        # dict, so tests would otherwise leak managers into one another.
+        connection_manager._managers.clear()
+        self.addCleanup(connection_manager._managers.clear)
+
     def test_get_connection_manager_creates_new(self):
         env = Mock()
-        env.registry = Mock()
         env.cr.dbname = "test_db"
-
-        del env.registry._connection_manager
 
         manager = get_connection_manager(env)
 
         self.assertIsNotNone(manager)
         self.assertIsInstance(manager, ConnectionManager)
-        self.assertTrue(hasattr(env.registry, "_connection_manager"))
 
     def test_get_connection_manager_returns_existing(self):
         env = Mock()
-        env.registry = Mock()
         env.cr.dbname = "test_db"
 
         manager1 = get_connection_manager(env)
@@ -262,11 +281,34 @@ class TestConnectionManagerRegistry(BaseCase):
 
         self.assertIs(manager1, manager2)
 
+    def test_manager_is_isolated_per_database(self):
+        env_a, env_b = Mock(), Mock()
+        env_a.cr.dbname = "db_a"
+        env_b.cr.dbname = "db_b"
+
+        self.assertIsNot(get_connection_manager(env_a), get_connection_manager(env_b))
+
+    def test_manager_survives_registry_rebuild(self):
+        # Connections here are backed by real OS threads that outlive the
+        # registry. When the manager hung off env.registry, every rebuild handed
+        # out a fresh empty manager while the previous clients kept running
+        # unreachable -- one leaked MQTT client per rebuild, reconnecting forever
+        # under a duplicate client_id.
+        env = Mock()
+        env.cr.dbname = "test_db"
+        manager = get_connection_manager(env)
+        conn = MockConnection("device:1")
+        manager.set("device:1", conn)
+
+        env.registry = Mock()
+
+        self.assertIs(get_connection_manager(env), manager)
+        self.assertIs(get_connection_manager(env).get("device:1"), conn)
+        self.assertFalse(conn.disconnected)
+
     def test_different_max_connections(self):
         env = Mock()
-        env.registry = Mock()
         env.cr.dbname = "test_db"
-        del env.registry._connection_manager
 
         manager = get_connection_manager(env, max_connections=500)
 
