@@ -40,6 +40,22 @@ test("reportJsError: an empty message is dropped without touching sendBeacon", (
     expect(calls).toHaveLength(0);
 });
 
+test("reportJsError: browser ResizeObserver noise is dropped, real errors are not", () => {
+    const { calls } = spyBeacon();
+    expect(
+        reportJsError({
+            message: "ResizeObserver loop completed with undelivered notifications.",
+        }),
+    ).toBe(false);
+    expect(reportJsError({ message: "ResizeObserver loop limit exceeded" })).toBe(
+        false,
+    );
+    // Only the browser's own wording is noise; an app error naming the same
+    // API must still be reported.
+    expect(reportJsError({ message: "ResizeObserver is not defined" })).toBe(true);
+    expect(calls).toHaveLength(1);
+});
+
 test("reportJsError: a fresh error queues a beacon to the endpoint", async () => {
     const { calls } = spyBeacon();
     const ok = reportJsError({
