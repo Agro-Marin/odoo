@@ -1240,6 +1240,102 @@ class TestSaleToInvoice(TestSaleCommon):
             'Over-invoiced ordered-policy line should be "over done"',
         )
 
+    def test_invoice_state_zero_qty_line_does_not_hold_order_partial(self):
+        """A zero-quantity line must not keep a fully-invoiced order "partial".
+
+        Regression: the line reports invoice_state "no" (nothing to invoice,
+        ever), so the order's line states are exactly {done, no} — which used
+        to be mapped to "partial" unconditionally. That reading is only correct
+        when the "no" line is still pending (transferred policy, nothing
+        received yet), which a zero-quantity line never is.
+        """
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "partner_invoice_id": self.partner_a.id,
+                "partner_shipping_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_order_no"].id,
+                            "product_qty": 5,
+                            "tax_ids": False,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_order_no"].id,
+                            "product_qty": 0,
+                            "tax_ids": False,
+                        }
+                    ),
+                ],
+            }
+        )
+        invoiced_line, zero_qty_line = sale_order.line_ids
+
+        sale_order.action_confirm()
+        invoice = sale_order._create_invoices()
+        invoice.action_post()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertEqual(invoiced_line.invoice_state, "done")
+        self.assertEqual(zero_qty_line.invoice_state, "no")
+        self.assertEqual(
+            sale_order.invoice_state,
+            "done",
+            "SO fully invoiced apart from a zero-quantity line should be "
+            '"done", not "partial"',
+        )
+
+    def test_invoice_state_pending_transferred_line_keeps_order_partial(self):
+        """The {done, no} → "partial" reading must survive for pending lines.
+
+        Counterpart to the zero-quantity test above: a transferred-policy line
+        with nothing received yet is also "no", but it *is* still pending, so
+        the order must stay "partial".
+        """
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "partner_invoice_id": self.partner_a.id,
+                "partner_shipping_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_order_no"].id,
+                            "product_qty": 5,
+                            "tax_ids": False,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_delivery_no"].id,
+                            "product_qty": 5,
+                            "tax_ids": False,
+                        }
+                    ),
+                ],
+            }
+        )
+        ordered_line, delivered_line = sale_order.line_ids
+        self.assertEqual(delivered_line.product_id.invoice_policy, "transferred")
+
+        sale_order.action_confirm()
+        invoice = sale_order._create_invoices()
+        invoice.action_post()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertEqual(ordered_line.invoice_state, "done")
+        self.assertEqual(delivered_line.invoice_state, "no")
+        self.assertEqual(
+            sale_order.invoice_state,
+            "partial",
+            'SO with an undelivered transferred-policy line should stay "partial"',
+        )
+
     def test_multi_company_invoice(self):
         """Checks that the company of the invoices generated in a multi company environment using the
         'sale.advance.payment.inv' wizard fit with the company of the SO and not with the current company.

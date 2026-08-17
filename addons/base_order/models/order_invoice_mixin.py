@@ -204,7 +204,8 @@ class OrderInvoiceMixin(models.AbstractModel):
         Priority: ``over done`` > ``to do`` > ``partial`` > ``done`` > ``no``.
         The ``to do`` resolution is delegated to
         ``_resolve_invoice_state_to_do()`` (sale downgrades to ``no`` when only
-        auxiliary lines remain).
+        auxiliary lines remain); ``{done, no}`` is resolved against the
+        quantities, since a zero-quantity line is ``no`` forever.
         """
         confirmed_orders = self.filtered(lambda o: o.state == "done")
         (self - confirmed_orders).invoice_state = "no"
@@ -223,6 +224,32 @@ class OrderInvoiceMixin(models.AbstractModel):
         ):
             line_invoice_state_all.setdefault(order.id, set()).add(invoice_state)
 
+        # A line-level ``no`` carries two meanings: "nothing will ever be
+        # invoiced" (zero-quantity line) and "nothing to invoice yet"
+        # (transferred policy, nothing received). Only the second one keeps an
+        # otherwise fully-invoiced order from being ``done``, so orders whose
+        # states are exactly {done, no} need one extra lookup to tell the two
+        # apart. Kept lazy: it costs nothing on the common cases.
+        ambiguous_ids = [
+            order._origin.id
+            for order in confirmed_orders
+            if line_invoice_state_all.get(order._origin.id, set()) == {"done", "no"}
+        ]
+        pending_no_ids = set()
+        if ambiguous_ids:
+            pending_no_ids = {
+                order.id
+                for (order,) in self.env[self._get_line_model()]._read_group(
+                    lines_domain
+                    + [
+                        ("order_id", "in", ambiguous_ids),
+                        ("invoice_state", "=", "no"),
+                        ("product_qty", "!=", 0),
+                    ],
+                    ["order_id"],
+                )
+            }
+
         for order in confirmed_orders:
             states = line_invoice_state_all.get(order._origin.id, set())
             if not states:
@@ -240,8 +267,14 @@ class OrderInvoiceMixin(models.AbstractModel):
                     states,
                     lines_domain,
                 )
-            elif "partial" in states or states == {"done", "no"}:
+            elif "partial" in states:
                 order.invoice_state = "partial"
+            elif states == {"done", "no"}:
+                # Only pending ``no`` lines (see above) hold the order back;
+                # zero-quantity ones never will, so the order is fully invoiced.
+                order.invoice_state = (
+                    "partial" if order._origin.id in pending_no_ids else "done"
+                )
             else:
                 order.invoice_state = "no"
 
