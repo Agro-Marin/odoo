@@ -22,13 +22,13 @@ fiscal rules and posts a `mail.activity` is trivial here.
 
 ### Decision 1: Visual Layer
 
-`web_flow` (`addons_custom/web_flow/`) provides the visual editor today:
+`web_flow` (`agromarin/web_flow/`) provides the visual editor today:
 - BPMN-js modeler (536KB, interactive) + viewer (180KB, read-only)
 - Mermaid widget (alternative for simpler diagrams)
 - OWL `flow` view type registerable in XML
 
 Both visual systems coexist. `web_flow` is a candidate for promotion to
-`core/addons/` when the workflow engine stabilizes. Business case determines
+`odoo/addons/` when the workflow engine stabilizes. Business case determines
 timing — do not force the move prematurely.
 
 The `flow.diagram` model (BPMN XML + element_mappings JSON) becomes the visual
@@ -75,7 +75,7 @@ first. The doc is the design contract; the code implements it.
 | Edge model | Many2many (`predecessor_ids`) — untyped | `workflow.edge` with `condition` field |
 | Node types | Only `ir.actions.server` existing states | + wait, branch, parallel, join, approval, subflow |
 | `automation.runtime` scope | Meta-workflows only (domain restriction) | All workflows |
-| Visual layer | `web_flow` in `addons_custom/` (standalone) | Integrated with `base.automation` form |
+| Visual layer | `web_flow` in `agromarin/` (standalone) | Integrated with `base.automation` form |
 | `use_workflow_dag` flag | Required to enable DAG | Removed — all automations are DAG-capable |
 | Execution history | Only `last_run` timestamp | Full `automation.runtime` history per trigger |
 
@@ -139,7 +139,7 @@ requires `automation.runtime.state` to have `waiting_resume` as a new value.
 
 Goal: `base.automation` form view shows the workflow as an interactive DAG.
 
-1. Promote `web_flow` to `core/addons/web_flow/` (or integrate directly into
+1. Promote `web_flow` to `odoo/addons/web_flow/` (or integrate directly into
    `base_automation`'s static assets).
 2. Replace the `action_server_ids` list view in the automation form with the
    BPMN-js modeler embedded in an OWL component.

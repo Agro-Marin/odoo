@@ -122,7 +122,7 @@ The correct spelling is `_prepare_logging_values`. Upstream's misspelling
 
 ## web_flow Integration — Current State
 
-`web_flow` is in `addons_custom/` and has no dependency on `base_automation`.
+`web_flow` is in `agromarin/` and has no dependency on `base_automation`.
 It is a standalone visual framework that can render any DAG-shaped data.
 
 The integration between `web_flow` and `base_automation` does not yet exist as
@@ -154,7 +154,7 @@ Do not add `@tagged("post_install")` to `test_triggers.py` or
 All test output goes to `./odoo.log` (set in `conf/odoo.conf`). Always:
 
 ```bash
-> ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
+> ./odoo.log && ./odoo/odoo-bin -c ./conf/odoo.conf -d test_db \
     --test-tags '/base_automation' -u base_automation --stop-after-init --workers=0
 grep "tests when loading" ./odoo.log
 ```

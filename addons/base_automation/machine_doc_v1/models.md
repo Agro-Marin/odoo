@@ -188,7 +188,7 @@ still referenced it.)
 
 ## flow.diagram (in web_flow)
 
-Lives in `addons_custom/web_flow/models/flow_diagram.py`.
+Lives in `agromarin/web_flow/models/flow_diagram.py`.
 Stores BPMN 2.0 XML diagrams associated with any model/record.
 
 | Field | Type | Purpose |

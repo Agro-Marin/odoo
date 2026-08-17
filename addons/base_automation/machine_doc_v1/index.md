@@ -8,7 +8,7 @@ isolated, with typed nodes and full execution history.
 
 This is a **strategic core module**. It sits at the intersection of the ORM
 trigger system, async infrastructure, and the visual flow editor (`web_flow`
-in `addons_custom/`). Upstream Odoo removed their workflow engine in v11;
+in `agromarin/`). Upstream Odoo removed their workflow engine in v11;
 this module fills that gap with a modern design.
 
 ## Files at a Glance
@@ -30,7 +30,7 @@ this module fills that gap with a modern design.
 
 | Module | Location | Role |
 |--------|----------|------|
-| `web_flow` | `addons_custom/web_flow/` | Visual DAG editor (BPMN-js + Mermaid + OWL flow view). Candidate for promotion to `core/`. |
+| `web_flow` | `agromarin/web_flow/` | Visual DAG editor (BPMN-js + Mermaid + OWL flow view). Candidate for promotion to `odoo/`. |
 
 ## Read Next
 
