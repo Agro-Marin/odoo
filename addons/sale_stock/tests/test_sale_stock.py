@@ -1819,6 +1819,184 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ],
         )
 
+    def test_procurement_qty_legacy_moves_without_rule(self):
+        """
+        SO, deliver 12, return 2 to refund, then align the SOL qty to 10.
+
+        The delivery carries no rule_id -- the state every move has in a
+        database migrated from a version that did not store it, and the state a
+        single-step route leaves behind.  Such a move still procured the line,
+        so lowering the ordered quantity must not launch a new procurement.
+        """
+        so = self._get_new_sale_order(amount=12.0)
+        so.action_confirm()
+
+        delivery = so.picking_ids
+        # Simulate the legacy/migrated move: procured by this line, no rule.
+        delivery.move_ids.rule_id = False
+        delivery.move_ids.write({"quantity": 12, "picked": True})
+        delivery.button_validate()
+
+        return_picking_form = Form(
+            self.env["stock.return.picking"].with_context(
+                active_id=delivery.id, active_model="stock.picking"
+            )
+        )
+        with return_picking_form.product_return_moves.edit(0) as line:
+            line.quantity = 2
+        return_wizard = return_picking_form.save()
+        return_wizard.product_return_moves.to_refund = True
+        return_picking = self.env["stock.picking"].browse(
+            return_wizard.action_create_returns()["res_id"]
+        )
+        return_picking.move_ids.write({"quantity": 2, "picked": True})
+        return_picking.button_validate()
+
+        sol = so.line_ids
+        self.assertEqual(sol.qty_transferred, 10.0)
+        # 12 delivered - 2 refunded: the line has already procured 10.
+        self.assertEqual(sol._get_procurement_qty(), 10.0)
+
+        pickings_before = so.picking_ids
+        sol.product_qty = 10.0
+
+        # Nothing left to procure, so no third picking -- before the fix the
+        # delivery went uncounted, _get_procurement_qty() returned -2, and the
+        # line re-procured 10 - (-2) = 12 units into a phantom delivery.
+        self.assertEqual(so.picking_ids, pickings_before)
+        self.assertEqual(sol._get_procurement_qty(), 10.0)
+        self.assertEqual(sol.qty_to_transfer, 0.0)
+
+    def _transit_route_setup(self):
+        """A two-step delivery through a company transit location.
+
+        Returns the sale order line and the pieces its legs are built from. The
+        moves are written directly rather than pushed through the pickings: what
+        is under test is how _get_stock_moves_outgoing_incoming() reads a leg,
+        and the shapes below are the ones a return followed by a re-ship leaves
+        behind in production -- which the wizards only produce after a chain of
+        six pickings.
+        """
+        warehouse = self.company_data["default_warehouse"]
+        warehouse.delivery_steps = "pick_ship"
+        ship_rule, out_rule = warehouse.delivery_route_id.rule_ids[:2]
+        transit = self.env["stock.location"].create(
+            {
+                "name": "Shipping transit",
+                "usage": "transit",
+                "company_id": self.env.company.id,
+                "location_id": warehouse.view_location_id.id,
+            }
+        )
+        so = self._get_new_sale_order(amount=10.0)
+        so.action_confirm()
+        sol = so.line_ids
+        sol.move_ids.unlink()
+        return {
+            "sol": sol,
+            "stock": warehouse.lot_stock_id,
+            "transit": transit,
+            "customers": self.env.ref("stock.stock_location_customers"),
+            "ship_rule": ship_rule,
+            "out_rule": out_rule,
+            "warehouse": warehouse,
+        }
+
+    def _transit_leg(
+        self,
+        setup,
+        source,
+        destination,
+        rule,
+        *,
+        final=False,
+        refund=False,
+        origin=False,
+    ):
+        sol = setup["sol"]
+        move = self.env["stock.move"].create(
+            {
+                "product_id": sol.product_id.id,
+                "product_uom_qty": 10.0,
+                "location_id": source.id,
+                "location_dest_id": destination.id,
+                "location_final_id": final and final.id,
+                "rule_id": rule.id,
+                "warehouse_id": setup["warehouse"].id,
+                "sale_line_id": sol.id,
+                "to_refund": refund,
+                "origin_returned_move_id": origin and origin.id,
+            }
+        )
+        move.write({"quantity": 10.0, "state": "done"})
+        return move
+
+    def test_procurement_qty_transit_reship_counted_once(self):
+        """Ship through transit, take the goods back, ship them again.
+
+        The return records itself twice -- once as the customer-side receipt and
+        once as the reversal of the transit leg -- while the re-ship carries a
+        final location pointing back at stock. Counting both returns and neither
+        re-ship left _get_procurement_qty() at -10 on a line that had 10 sitting
+        with the customer, so the next write to it procured 20 more.
+        """
+        setup = self._transit_route_setup()
+        sol, stock = setup["sol"], setup["stock"]
+        transit, customers = setup["transit"], setup["customers"]
+        ship_rule, out_rule = setup["ship_rule"], setup["out_rule"]
+
+        ship = self._transit_leg(setup, stock, transit, ship_rule, final=customers)
+        out = self._transit_leg(setup, transit, customers, out_rule, final=customers)
+        # The customer hands the goods back: a receipt from the customer, plus
+        # the reversal of the transit leg, which lands stock-side of the route.
+        self._transit_leg(setup, customers, stock, out_rule, refund=True, origin=out)
+        reversal = self._transit_leg(
+            setup, stock, stock, ship_rule, refund=True, origin=ship
+        )
+        # ... and they are shipped out again.
+        reship = self._transit_leg(
+            setup, stock, transit, ship_rule, final=stock, refund=True, origin=reversal
+        )
+        self._transit_leg(setup, transit, customers, out_rule, refund=True)
+
+        outgoing, incoming = sol._get_stock_moves_outgoing_incoming(strict=False)
+        self.assertEqual(outgoing, ship | reship, "both shipments of the leg count")
+        self.assertEqual(incoming, reversal, "one physical return, counted once")
+        self.assertEqual(sol._get_procurement_qty(), 10.0)
+        self.assertEqual(sol.qty_transferred, 10.0)
+
+        pickings_before = sol.order_id.picking_ids
+        sol.product_qty = 10.0
+        self.assertEqual(sol.order_id.picking_ids, pickings_before)
+
+    def test_procurement_qty_transit_reversal_without_customer_leg(self):
+        """A transit leg reversed and re-shipped before it ever left the site.
+
+        Nothing came back from the customer here: the reversal and the re-ship
+        cancel out, so the line has procured its 10. Only the reversal used to
+        be counted, which read as a 10-unit return against a 10-unit delivery
+        and armed the line to ship the whole quantity a second time.
+        """
+        setup = self._transit_route_setup()
+        sol, stock = setup["sol"], setup["stock"]
+        transit, customers = setup["transit"], setup["customers"]
+        ship_rule, out_rule = setup["ship_rule"], setup["out_rule"]
+
+        ship = self._transit_leg(setup, stock, transit, ship_rule, final=customers)
+        reversal = self._transit_leg(
+            setup, transit, stock, ship_rule, refund=True, origin=ship
+        )
+        reship = self._transit_leg(
+            setup, stock, transit, ship_rule, refund=True, origin=reversal
+        )
+        self._transit_leg(setup, transit, customers, out_rule, final=customers)
+
+        outgoing, incoming = sol._get_stock_moves_outgoing_incoming(strict=False)
+        self.assertEqual(outgoing, ship | reship)
+        self.assertEqual(incoming, reversal)
+        self.assertEqual(sol._get_procurement_qty(), 10.0)
+        self.assertEqual(sol.qty_to_transfer, 0.0)
+
     def test_return_multisteps_receipt(self):
         """test extra product returned are added to the sale order only once in 3 steps receipt"""
 
