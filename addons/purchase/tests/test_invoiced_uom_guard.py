@@ -76,6 +76,55 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
         )
         self.env.invalidate_all()
 
+    def _draft_bill(self, uom, qty=4):
+        """A standalone draft bill line, not yet linked to any order line.
+
+        ``_where_am_line`` only surfaces bill lines with no row in
+        ``account_move_line_purchase_order_line_rel``, so this is what the
+        matching screen offers for pairing.
+        """
+        return self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2026-01-01",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product.id,
+                            "quantity": qty,
+                            "price_unit": 100,
+                            "product_uom_id": uom.id,
+                            "tax_ids": [Command.clear()],
+                        },
+                    ),
+                ],
+            },
+        )
+
+    def _match_rows(self):
+        """The matching-screen rows for the fixture partner and product.
+
+        ``purchase.bill.line.match`` is an SQL view (``_auto=False``) over
+        ``purchase_order_line`` and ``account_move_line``, so records still held
+        in the ORM cache are invisible to it — flush before querying, or the
+        search comes back empty and ``action_match_lines`` raises on its own
+        "select at least one Purchase Order line" guard instead of ours.
+        """
+        self.env.flush_all()
+        rows = self.env["purchase.bill.line.match"].search(
+            [
+                ("partner_id", "=", self.partner_a.id),
+                ("product_id", "=", self.product.id),
+            ],
+        )
+        # Precondition, not a behaviour assertion: without both sides the
+        # action short-circuits before reaching the UoM guard, which would make
+        # an `assertRaises(UserError)` pass for the wrong reason.
+        self.assertTrue(rows.pol_id, "The order line must be offered for matching")
+        self.assertTrue(rows.aml_id, "The bill line must be offered for matching")
+        return rows
+
     def test_fixture_uoms_share_no_reference(self):
         """Sanity: the pair really is inconvertible, so the rest is meaningful."""
         self.assertFalse(self.uom_unit._has_common_reference(self.uom_incompatible))
@@ -122,3 +171,44 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
         bill = po.create_invoice()
         self.assertTrue(bill)
         self.assertEqual(bill.invoice_line_ids.quantity, 6)
+
+    def test_incompatible_uom_blocks_line_matching(self):
+        """The Match button pairs an *existing* bill line with an *existing*
+        order line through a bare ``Command.link``, so it never reaches the
+        posting-boundary guard and validates the pair itself."""
+        self._confirmed_po()
+        bill = self._draft_bill(self.uom_incompatible)
+        self.assertEqual(
+            bill.invoice_line_ids.product_uom_id,
+            self.uom_incompatible,
+            "Fixture precondition: the draft line must carry the odd UoM",
+        )
+
+        with self.assertRaises(UserError) as caught:
+            self._match_rows().action_match_lines()
+
+        # Assert *which* error: `action_match_lines` raises for several
+        # unrelated reasons, so a bare `assertRaises(UserError)` goes green
+        # even when the guard never runs.  Both unit names appear only in the
+        # guard's own message.
+        message = caught.exception.args[0]
+        self.assertIn(self.uom_incompatible.display_name, message)
+        self.assertIn(self.uom_unit.display_name, message)
+
+        self.assertFalse(
+            bill.invoice_line_ids.purchase_line_ids,
+            "The guard runs before the link, so no pairing may survive the raise",
+        )
+
+    def test_compatible_uom_matches_normally(self):
+        """Negative control: the matching guard is inert on convertible units."""
+        po = self._confirmed_po()
+        bill = self._draft_bill(self.uom_unit)
+
+        self._match_rows().action_match_lines()
+
+        self.assertEqual(
+            bill.invoice_line_ids.purchase_line_ids,
+            po.line_ids,
+            "A compatible pair must still be matched",
+        )
