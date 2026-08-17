@@ -49,6 +49,7 @@ def make_config(**overrides):
     base = {
         "db_maxconn": 64,
         "db_maxconn_gevent": None,
+        "db_port": 5432,
         "workers": 0,
         "max_cron_threads": 2,
         "job_workers": 2,
@@ -58,9 +59,19 @@ def make_config(**overrides):
     return base
 
 
-def limits_cursor(max_connections=100, reserved=3):
+def limits_cursor(max_connections=100, reserved=3, server_port=5432):
+    """Answer the three reads ``_warn_on_connection_budget`` makes, in order.
+
+    ``server_port`` is what ``inet_server_port()`` reports: equal to
+    ``db_port`` for a direct connection, different behind a pooler, and None
+    over a Unix-domain socket, which is what PostgreSQL returns there.
+    """
     cr = MagicMock()
-    cr.fetchone.side_effect = [(str(max_connections),), (str(reserved),)]
+    cr.fetchone.side_effect = [
+        (str(max_connections),),
+        (str(reserved),),
+        (server_port,),
+    ]
     return cr
 
 
@@ -166,6 +177,34 @@ class TestWarnOnConnectionBudget:
             mod, make_config(workers=200, max_cron_threads=0, job_workers=0)
         )
         assert logger.warning.call_args[0][-1] >= 1
+
+    def test_no_advice_behind_a_pooler(self, mod):
+        """A proxied connection reports the backend's port, not the dialled one.
+
+        The comparison is meaningless there -- the workers contend for the
+        pooler's client slots, not for ``max_connections`` -- and its advice is
+        actively wrong, so it must be replaced by an INFO saying so.
+        """
+        logger = self._run(
+            mod,
+            make_config(workers=4, max_cron_threads=2, job_workers=2),
+            cursor=limits_cursor(server_port=5433),
+        )
+        logger.warning.assert_not_called()
+        logger.info.assert_called_once()
+
+    def test_a_unix_socket_does_not_read_as_a_pooler(self, mod):
+        """``inet_server_port()`` is NULL over a Unix-domain socket.
+
+        Treating that as a port mismatch would silently disable the check on
+        every socket-connected deployment, which is the common local one.
+        """
+        logger = self._run(
+            mod,
+            make_config(workers=4, max_cron_threads=2, job_workers=2),
+            cursor=limits_cursor(server_port=None),
+        )
+        logger.warning.assert_called_once()
 
     def test_an_incomplete_config_cannot_break_the_boot(self, mod):
         """The guard must cover the config read, not only the SHOW queries.
