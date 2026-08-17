@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.19
-:Date: 2026-08-15
+:Version: 5.20
+:Date: 2026-08-17
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -394,8 +394,10 @@ The one-screen version. Each entry links to the rule that explains it.
 
 **Process**
 
-* Commit ``[TAG] module: summary`` (≤ 50 chars) + ``Solution:`` + ``Task ID`` (§7.1).
-* Branch ``19.0-t<task>-<user>``; every commit references a Task ID (§7.2, §7.3).
+* Commit ``[TAG] module: summary`` (≤ 50 chars) + ``Solution:`` (§7.1); the
+  ``Task ID`` line is optional.
+* Branch ``19.0-t<task>-<user>`` when there is a task; a PR is the default route
+  but is not required (§7.2, §7.3).
 * Raw SQL in a PR ships ``EXPLAIN ANALYZE`` output (§11.6).
 
 Scope and precedence
@@ -2737,7 +2739,12 @@ tag is ``REF``.
 
    Task ID: 17012
 
-The ``Solution:`` block and the ``Task ID`` line are mandatory.
+The ``Solution:`` block is mandatory. The ``Task ID`` line is **optional**: carry
+it whenever the change traces to a task, and leave it out when there is none — a
+production hotfix, a chore, an edit to this guide. Traceability is the whole
+reason the line exists, so a commit that *has* a task to name should still name
+it; what is no longer required is inventing one, or writing ``Task ID: N/A`` to
+satisfy a rule.
 
 **Name files in a pathspec, never a directory** ``[review]``. ``git commit --
 <path>`` records the *working tree* at that path, deletions included, and a
@@ -2758,14 +2765,26 @@ for ``D`` lines before committing is the check that catches the rest.
 -------------------------
 
 Feature branches are ``<odoo_version>-t<task_id>-<github_username>``, e.g.
-``19.0-t17352-suniagajose``. Every commit references a task ID and every branch
-carries it, so a code change traces to a task and a task to a business requirement.
+``19.0-t17352-suniagajose``, whenever the work has a task behind it. A task ID on
+the branch and on its commits is what lets a code change trace to a task and a
+task to a business requirement, so use one wherever one exists.
+
+Neither is required. Work that has no task — a hotfix going straight to
+production, a chore, a guideline edit — may be committed directly to the
+integration branch under a descriptive subject, and that is a normal outcome
+rather than an exception to argue for afterwards.
 
 7.3 Pull requests
 -----------------
 
-Every change in scope goes through a PR, except in ``agromarin-knowledge``, which
-works directly on ``main``.
+A PR is the default route for a change in scope, and the only route that gets
+review — but it is **not required**. Committing straight to a shared branch is
+allowed where the situation calls for it: a production hotfix, a small
+correction, work its author owns end to end. ``agromarin-knowledge`` works
+directly on ``main`` in every case.
+
+The rest of this section describes a PR when you open one; none of it applies to
+a direct commit.
 
 **Title**: ``[TAG] module: short description``, under 70 characters. For a
 single-commit PR it mirrors the commit subject; for a change spanning modules, use
@@ -2790,12 +2809,17 @@ the dominant functional scope rather than a module list.
 
 Required:
 
-* The task ID in the title line as a **hyperlink**, not plain text.
 * At least one commit per logical unit — do not squash unrelated changes.
 * No merge commits from the base branch in the PR history; rebase instead.
 * No force-push to a **shared** branch (``main``, ``19.0``, ``19.0-marin``,
   ``19.0-dev``). Force-push is expected on your own feature branch — rebasing
   requires it.
+
+Optional:
+
+* The task ID heading shown above. Include it when the change has a task, as a
+  **hyperlink** rather than plain text; drop the heading entirely when it does
+  not. Do not leave the ``XXXXX`` placeholder standing, and do not write ``N/A``.
 
 PRs land by **rebase merge**, which rewrites every SHA. Afterwards a local branch
 reads "N ahead, N behind"; that is cosmetic, not a conflict. Confirm with
@@ -3603,6 +3627,24 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.20
+     - 2026-08-17
+     - **The task ID and the PR stop being mandatory.** §7.1's ``Task ID`` line,
+       §7.2's "every commit references a task ID", §7.3's "every change in scope
+       goes through a PR" and the task-ID hyperlink in §7.3's *Required* list
+       are all now optional, along with the two Process bullets in the quick
+       reference that restated them. The ``Solution:`` block stays mandatory,
+       and so does everything in §7.3 that protects shared history — one commit
+       per logical unit, no merge commits from the base branch, no force-push to
+       a shared branch. Nothing is retired to Appendix C: the practices are
+       unchanged and still recommended wherever a task or a review exists, so
+       what moved is the obligation, not the guidance. Stating that beats letting
+       it lapse informally — the rules were being broken routinely for hotfixes
+       and chores, and a rule broken that often teaches that any rule here might
+       be decorative. An accurate "optional" is worth more than an ignored
+       "mandatory". §7.3 now says outright that a direct commit to a shared
+       branch is a normal outcome, and ``Task ID: N/A`` is called out as missing
+       the point rather than satisfying it.
    * - 5.19
      - 2026-08-15
      - **A removed Many2many keeps its relation table forever.** §12.2 gains the
