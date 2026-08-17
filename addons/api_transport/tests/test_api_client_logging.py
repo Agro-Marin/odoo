@@ -1,5 +1,6 @@
 import json
 import re
+import traceback
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -664,3 +665,71 @@ class TestCallerSuppliedAuth(ClientLoggingCommon):
 
         self.assertIn("auth", mock_request.call_args.kwargs)
         self.assertIsNone(mock_request.call_args.kwargs["auth"])
+
+
+@tagged("post_install", "-at_install")
+class TestChainedCauseCarriesNoSecret(ClientLoggingCommon):
+    """The message this module raises is masked; the cause it chains was not.
+
+    ``raise ... from e`` keeps the original requests exception reachable, and
+    any caller logging with ``exc_info`` re-emits its text verbatim -- which is
+    how a bot token reached /var/log/odoo/odoo.log while every line this module
+    logged itself was correctly starred out.
+    """
+
+    LEAKY_URL = "https://example.invalid/live/stamp?access_token=" + SECRET_VALUE
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_an_http_error_cause_is_masked(self, mock_request):
+        response = _error_response(400, SW_ALREADY_STAMPED)
+        response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            f"400 Client Error: Bad Request for url: {self.LEAKY_URL}",
+            response=response,
+        )
+        mock_request.return_value = response
+
+        with self.assertRaises(ClientError) as caught:
+            self._client().post("/stamp", json={})
+
+        self.assertNotIn(SECRET_VALUE, str(caught.exception.__cause__))
+        self.assertIn("400 Client Error", str(caught.exception.__cause__))
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_network_error_cause_is_masked(self, mock_request):
+        mock_request.side_effect = requests.exceptions.ConnectionError(
+            f"HTTPSConnectionPool: failed for url {self.LEAKY_URL}"
+        )
+
+        with self.assertRaises(CommError) as caught:
+            self._client().post("/stamp", json={})
+
+        self.assertNotIn(SECRET_VALUE, str(caught.exception.__cause__))
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_a_timeout_cause_is_masked(self, mock_request):
+        mock_request.side_effect = requests.exceptions.Timeout(
+            f"Read timed out for url {self.LEAKY_URL}"
+        )
+
+        with self.assertRaises(CommError) as caught:
+            self._client().post("/stamp", json={})
+
+        self.assertNotIn(SECRET_VALUE, str(caught.exception.__cause__))
+
+    @mute_logger("odoo.addons.api_transport.tools.api_client")
+    @patch("requests.Session.request")
+    def test_the_whole_rendered_traceback_is_clean(self, mock_request):
+        mock_request.side_effect = requests.exceptions.ConnectionError(
+            f"HTTPSConnectionPool: failed for url {self.LEAKY_URL}"
+        )
+
+        try:
+            self._client().post("/stamp", json={})
+        except CommError as e:
+            rendered = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+
+        self.assertIn("ConnectionError", rendered, "the cause must still be reported")
+        self.assertNotIn(SECRET_VALUE, rendered)

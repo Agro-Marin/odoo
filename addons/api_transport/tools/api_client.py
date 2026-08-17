@@ -155,6 +155,15 @@ def _mask_sensitive_url(url: str) -> str:
     )
 
 
+def _masked_cause(exc: BaseException) -> BaseException:
+    masked = tuple(
+        _mask_sensitive_text(arg) if isinstance(arg, str) else arg for arg in exc.args
+    )
+    if masked != exc.args:
+        exc.args = masked
+    return exc
+
+
 class OutboundAPIClient:
     def __init__(self, env, endpoint_code, company_id=None, credential_id=None):
         self.env = env
@@ -325,7 +334,7 @@ class OutboundAPIClient:
             )
             raise CommTimeoutError(
                 _("Request timed out: %s") % _mask_sensitive_url(url)
-            ) from e
+            ) from _masked_cause(e)
 
         except requests.exceptions.HTTPError as e:
             error = _mask_sensitive_text(self._extract_error(e.response))
@@ -345,7 +354,7 @@ class OutboundAPIClient:
                     "body": None,
                 },
             )
-            raise self._http_error_for(status_code, error) from e
+            raise self._http_error_for(status_code, error) from _masked_cause(e)
 
         except requests.exceptions.RequestException as e:
             error = _mask_sensitive_text(str(e))
@@ -353,7 +362,7 @@ class OutboundAPIClient:
             self._record_failure(
                 method, url, kwargs, trace_id, skip_logging, error, "network"
             )
-            raise CommError(_("Request failed: %s") % error) from e
+            raise CommError(_("Request failed: %s") % error) from _masked_cause(e)
 
         except Exception as e:
             error = _mask_sensitive_text(str(e))
@@ -361,7 +370,7 @@ class OutboundAPIClient:
             self._record_failure(
                 method, url, kwargs, trace_id, skip_logging, error, "other"
             )
-            raise CommError(_("Unexpected error: %s") % error) from e
+            raise CommError(_("Unexpected error: %s") % error) from _masked_cause(e)
 
     def _prepare_request(self, url, kwargs):
         headers = self._build_headers(kwargs.pop("headers", {}))
