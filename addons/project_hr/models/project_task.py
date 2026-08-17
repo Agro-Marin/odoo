@@ -40,6 +40,13 @@ class ProjectTask(models.Model):
         compute="_compute_user_ids",
         store=True,
         readonly=True,
+        # Distinct from employee_ids' "Assignees": inheriting the parent's label
+        # left two fields on project.task sharing it, which the ORM warns about
+        # at every registry load and which makes the pair indistinguishable in
+        # filter/group-by/export field pickers. employee_ids keeps the plain
+        # label because it is the field users act on; this one is the derived
+        # mirror, and its label now says so.
+        string="Assignees (Users)",
         # Override parent's tracking=True and default=_default_user_ids.
         tracking=False,
         default=None,

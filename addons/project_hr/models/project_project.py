@@ -36,6 +36,10 @@ class ProjectProject(models.Model):
         compute="_compute_user_id",
         store=True,
         readonly=True,
+        # See the matching note on project.task.user_ids: distinct from
+        # employee_id's "Project Manager" so the two stop colliding in the ORM
+        # warning and in field pickers. employee_id is the field users act on.
+        string="Project Manager (User)",
         # Override parent's tracking=True and default=lambda self: self.env.user.
         tracking=False,
         default=None,

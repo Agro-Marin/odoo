@@ -1038,3 +1038,37 @@ class TestProjectSubtasks(TestProjectCommon):
             task.tag_ids,
             "Subtask should inherit tags from parent task",
         )
+
+    def test_subtask_default_tags_are_commands(self) -> None:
+        """default_get must return tag_ids in write format, not as a recordset.
+
+        create() accepts a recordset for an x2many, so the inheritance above
+        passes either way. The onchange RPC path does not: web_onchange reads
+        this value as command triples, so a recordset silently dropped the
+        parent's tags from its sub-field prefetch.
+        """
+        task = self.env["project.task"].create(
+            {
+                "name": "Parent task",
+                "project_id": self.project_goats.id,
+                "tag_ids": [
+                    Command.create({"name": "tag1", "color": 0}),
+                    Command.create({"name": "tag2", "color": 1}),
+                ],
+            }
+        )
+
+        defaults = (
+            self.env["project.task"]
+            .with_context({"default_parent_id": task.id})
+            .default_get(["tag_ids"])
+        )
+
+        self.assertEqual(defaults["tag_ids"], [Command.set(task.tag_ids.ids)])
+        for command in defaults["tag_ids"]:
+            self.assertIsInstance(
+                command[0],
+                int,
+                "each command must start with an int code, so that "
+                "`command[0] == Command.SET` is a valid comparison",
+            )

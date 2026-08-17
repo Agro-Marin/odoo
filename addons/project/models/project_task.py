@@ -2415,7 +2415,15 @@ class ProjectTask(models.Model):
         if parent_id:
             parent = self.env["project.task"].browse(parent_id)
             if not vals.get("tag_ids"):
-                vals["tag_ids"] = parent.tag_ids
+                # Commands, not the recordset: default_get returns write-format
+                # values. create() happens to accept a recordset for an x2many,
+                # which is why this read as working, but the onchange RPC path
+                # does not -- web_onchange iterates this value expecting command
+                # triples, so a recordset made every `cmd[0] == Command.*` test
+                # compare a project.tags record against an enum. Those tags were
+                # then missing from the sub-field prefetch, and the new-subtask
+                # form got them back without the sub-fields it asked for.
+                vals["tag_ids"] = [Command.set(parent.tag_ids.ids)]
 
         return vals
 
