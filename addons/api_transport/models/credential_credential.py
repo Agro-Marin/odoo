@@ -23,6 +23,11 @@ class CredentialCredential(models.Model):
         ondelete="cascade",
         help="The outbound API endpoint this credential is associated with.",
     )
+    endpoint_auth_type = fields.Selection(
+        related="endpoint_id.auth_type",
+        readonly=True,
+        help="Authentication scheme declared by the outbound endpoint.",
+    )
     custom_headers = fields.Text(
         groups="base.group_system",
         help="Additional HTTP headers in JSON format: {'X-Custom-Header': 'value'}",
