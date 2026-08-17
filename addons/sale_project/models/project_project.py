@@ -113,7 +113,8 @@ class ProjectProject(models.Model):
             self.has_any_so_to_invoice = False
             return
 
-        project_to_invoice = self._get_projects_for_invoice_state('to invoice')
+        # 'to do' is this fork's spelling; upstream called the state 'to invoice'.
+        project_to_invoice = self._get_projects_for_invoice_state('to do')
         project_to_invoice.has_any_so_to_invoice = True
         (self - project_to_invoice).has_any_so_to_invoice = False
 

@@ -94,3 +94,40 @@ class TestSaleProjectServices(TestSaleProjectCommon):
         )
         step_billable._onchange_project_ids()
         self.assertTrue(step_billable.rating_active)
+
+    def test_has_any_so_to_invoice_uses_fork_state_spelling(self):
+        """The flag must match this fork's ``to do`` invoice state.
+
+        Regression: the lookup passed upstream's ``to invoice`` spelling,
+        which is not in this fork's selection (no / to do / partial / done /
+        over done), so ``has_any_so_to_invoice`` was always False and
+        ``action_create_invoice`` always defaulted the wizard to a percentage
+        down payment.
+        """
+        order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_order_no"].id,
+                            "product_qty": 5,
+                            "tax_ids": False,
+                        }
+                    ),
+                ],
+            }
+        )
+        order.action_confirm()
+        self.project_global.sale_line_id = order.line_ids[0]
+        self.env.invalidate_all()
+
+        self.assertEqual(order.invoice_state, "to do")
+        self.assertTrue(self.project_global.has_any_so_to_invoice)
+
+        invoice = order._create_invoices()
+        invoice.action_post()
+        self.env.invalidate_all()
+
+        self.assertEqual(order.invoice_state, "done")
+        self.assertFalse(self.project_global.has_any_so_to_invoice)
