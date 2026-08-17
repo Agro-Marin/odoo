@@ -5,8 +5,8 @@
         <div class="form-text">
             <p>The image could not be deleted because it is used in the
                 following pages or views:</p>
-            <ul t-foreach="props.views" t-as="view" t-key="view.id">
-                <li>
+            <ul>
+                <li t-foreach="props.views" t-as="view" t-key="view.id">
                     <a t-att-href="'/odoo/ir.ui.view/' + window.encodeURIComponent(view.id)">
                         <t t-esc="view.name"/>
                     </a>
