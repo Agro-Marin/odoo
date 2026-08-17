@@ -21,3 +21,20 @@ test("showCreateProductButtonWithNonAdmin", async () => {
     const comp = await mountWithCleanup(Navbar, {});
     expect(comp.showCreateProductButton).toBe(false);
 });
+
+test("showBackend compares the cashier's user id with the connected user", async () => {
+    const store = await setupPosEnv();
+    store.config.module_pos_hr = true;
+    const comp = await mountWithCleanup(Navbar, {});
+
+    const ownEmployee = store.models["hr.employee"].get(2);
+    store.cashier = ownEmployee;
+    expect(ownEmployee.user_id.id).toBe(store.user?.id);
+    expect(comp.showBackend).toBe(true);
+
+    store.cashier = store.models["hr.employee"].get(3);
+    expect(comp.showBackend).toBe(false);
+
+    store.cashier = false;
+    expect(comp.showBackend).toBe(false);
+});

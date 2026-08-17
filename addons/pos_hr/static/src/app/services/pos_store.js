@@ -107,7 +107,13 @@ patch(PosStore.prototype, {
     },
     getCashierUserId() {
         if (this.config.module_pos_hr) {
-            return this.cashier.user_id ? this.cashier.user_id : null;
+            // Must return the *id*, like the base implementation
+            // (`utils/cashier.js`: `pos.user?.id`): `cashier.user_id` is a
+            // res.users record here, and every consumer compares it against a
+            // plain id. Optional chaining for the same reason as
+            // `employeeIsAdmin` above: the Navbar evaluates this on mount,
+            // before LoginScreen has set a cashier.
+            return this.cashier?.user_id?.id ?? null;
         }
         return super.getCashierUserId(...arguments);
     },

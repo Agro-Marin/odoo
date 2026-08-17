@@ -17,6 +17,37 @@ test("employeeIsAdmin", async () => {
     store.setCashier(emp);
     expect(store.employeeIsAdmin).toBe(true);
 });
+// The three below state `module_pos_hr` and assign `cashier` explicitly instead
+// of relying on the fixture and on `setCashier()`. Both leak across suites: run
+// after the navbar suite, `config.module_pos_hr` arrives false and the override
+// under test is never reached. `handleUrlParams` below sets the flag for the
+// same reason.
+test("getCashierUserId returns the user id, not the res.users record", async () => {
+    const store = await setupPosEnv();
+    store.config.module_pos_hr = true;
+    store.cashier = store.models["hr.employee"].get(3);
+    expect(store.getCashierUserId()).toBe(3);
+});
+test("getCashierUserId returns null when no cashier is logged in", async () => {
+    const store = await setupPosEnv();
+    store.config.module_pos_hr = true;
+    // The Navbar evaluates this on mount, before LoginScreen has picked a
+    // cashier, so `cashier` is still undefined -- the state the guard on
+    // `employeeIsAdmin` was added for. `resetCashier()` leaves false instead.
+    store.cashier = undefined;
+    expect(store.getCashierUserId()).toBe(null);
+    store.cashier = false;
+    expect(store.getCashierUserId()).toBe(null);
+});
+test("the employee who opened the session can close the register", async () => {
+    const store = await setupPosEnv();
+    store.config.module_pos_hr = true;
+    store.cashier = store.models["hr.employee"].get(3);
+    store.session.user_id = store.models["res.users"].get(3);
+    expect(store.employeeIsAdmin).toBe(false);
+    // Third clause of the "Close Register" t-if in pos_hr's Navbar template.
+    expect(store.getCashierUserId()).toBe(store.session.user_id?.id);
+});
 test("_getConnectedCashier", async () => {
     const store = await setupPosEnv();
     expect(store._getConnectedCashier().id).toBe(2);

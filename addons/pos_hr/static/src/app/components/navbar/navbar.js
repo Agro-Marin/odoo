@@ -10,10 +10,10 @@ patch(Navbar.prototype, {
         }
     },
     get showBackend() {
-        const cashier = this.pos.getCashierUserId();
+        const cashierUserId = this.pos.getCashierUserId();
         return (
             !this.pos.config.module_pos_hr ||
-            (cashier && cashier.id === this.pos.user?.id)
+            (Boolean(cashierUserId) && cashierUserId === this.pos.user?.id)
         );
     },
 });
