@@ -627,4 +627,17 @@
             action="hr_resume_lines_training_action"
             parent="hr_skill_learning_menu"
             sequence="95"/>
+
+        <!-- Declared here, in the module that owns the xml_id, and not in
+             hr_skills_slides / hr_skills_event which only fill it: an xml_id
+             recorded under a module that never loads it is garbage-collected by
+             ir.model.data._process_end() the next time that module alone is
+             upgraded, and ir.ui.menu.unlink() then promotes the orphaned
+             children to top level, where they show up as icon-less apps.
+             Carries no action, so it stays invisible until a child adds one. -->
+        <menuitem
+            id="menu_learnings_training_attendances_courses"
+            name="Courses"
+            parent="hr_skill_learning_menu"
+            sequence="96"/>
 </odoo>
