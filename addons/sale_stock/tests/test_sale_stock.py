@@ -4119,3 +4119,54 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         invoice.action_post()
 
         self.assertEqual(invoice.state, "posted")
+
+    def test_decrease_qty_logs_one_exception_per_line(self):
+        """The quantity-decrease warning names a line once, not once per move.
+
+        `_log_activity_get_documents` keys its rendering context by stock move, so
+        a line reached by several moves -- here a delivery plus the return of part
+        of it -- used to repeat itself verbatim once per move.
+        """
+        so = self._get_new_sale_order(amount=12.0)
+        so.action_confirm()
+
+        delivery = so.picking_ids
+        delivery.move_ids.write({"quantity": 12, "picked": True})
+        delivery.button_validate()
+
+        return_picking_form = Form(
+            self.env["stock.return.picking"].with_context(
+                active_id=delivery.id, active_model="stock.picking"
+            )
+        )
+        with return_picking_form.product_return_moves.edit(0) as line:
+            line.quantity = 2
+        return_wizard = return_picking_form.save()
+        return_wizard.product_return_moves.to_refund = True
+        return_picking = self.env["stock.picking"].browse(
+            return_wizard.action_create_returns()["res_id"]
+        )
+        return_picking.move_ids.write({"quantity": 2, "picked": True})
+        return_picking.button_validate()
+
+        sol = so.line_ids
+        self.assertEqual(len(sol.move_ids), 2)
+
+        documents = (
+            self.env["stock.activity.mixin"]
+            .sudo()
+            ._log_activity_get_documents({sol: (10.0, 12.0)}, "move_ids", "UP")
+        )
+        # Both moves reach the same document, so its context holds the line twice.
+        self.assertEqual(
+            sum(len(rendering_context[0]) for rendering_context in documents.values()),
+            2,
+        )
+
+        activities_before = self.env["mail.activity"].search([])
+        so._log_decrease_ordered_quantity(documents)
+        activity = self.env["mail.activity"].search([]) - activities_before
+
+        self.assertEqual(len(activity), 1)
+        self.assertEqual(activity.note.count("ordered instead of"), 1)
+        self.assertEqual(activity.note.count("<li"), 1)

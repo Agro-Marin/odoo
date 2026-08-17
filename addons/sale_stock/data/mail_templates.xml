@@ -10,26 +10,26 @@
             Manual actions may be needed.
             <div class="mt16">
                 <p>Exception(s):</p>
-                <ul t-foreach="order_exceptions" t-as="exception">
-                    <li>
+                <ul>
+                    <li t-foreach="order_exceptions" t-as="exception">
                         <t t-set="line_ids" t-value="exception[0]"/>
                         <t t-set="new_qty" t-value="exception[1][0]"/>
                         <t t-set="old_qty" t-value="exception[1][1]"/>
-                            <a href="#" data-oe-model="sale.order" t-att-data-oe-id="line_ids.order_id.id"><t t-esc="line_ids.order_id.name"/></a>:
-                            <t t-esc="new_qty"/> <t t-esc="line_ids.product_uom_id.name"/> of <t t-esc="line_ids.product_id.name"/>
-                            <t t-if="cancel">
-                                cancelled
-                            </t>
-                            <t t-if="not cancel">
-                                ordered instead of <t t-esc="old_qty"/> <t t-esc="line_ids.product_uom_id.name"/>
-                            </t>
-                        </li>
+                        <a href="#" data-oe-model="sale.order" t-att-data-oe-id="line_ids.order_id.id"><t t-esc="line_ids.order_id.name"/></a>:
+                        <t t-esc="new_qty"/> <t t-esc="line_ids.product_uom_id.name"/> of <t t-esc="line_ids.product_id.name"/>
+                        <t t-if="cancel">
+                            cancelled
+                        </t>
+                        <t t-if="not cancel">
+                            ordered instead of <t t-esc="old_qty"/> <t t-esc="line_ids.product_uom_id.name"/>
+                        </t>
+                    </li>
                 </ul>
             </div>
             <div class="mt16" t-if="not cancel and impacted_pickings">
                 <p>Impacted Transfer(s):</p>
-                <ul t-foreach="impacted_pickings" t-as="picking">
-                    <li><a href="#" data-oe-model="stock.picking" t-att-data-oe-id="picking.id"><t t-esc="picking.name"/></a></li>
+                <ul>
+                    <li t-foreach="impacted_pickings" t-as="picking"><a href="#" data-oe-model="stock.picking" t-att-data-oe-id="picking.id"><t t-esc="picking.name"/></a></li>
                 </ul>
             </div>
         </div>
@@ -42,13 +42,14 @@
             Manual actions may be needed.
             <div class="mt16">
                 <p>Exception(s):</p>
-                <ul t-foreach="moves_information" t-as="exception">
-                    <t t-set="move" t-value="exception[0]"/>
-                    <t t-set="new_qty" t-value="exception[1][0]"/>
-                    <t t-set="old_qty" t-value="exception[1][1]"/>
-                    <li>
-                    <t t-esc="new_qty"/> <t t-esc="move.product_uom_id.name"/>
-                    of <t t-esc="move.product_id.display_name"/> processed instead of <t t-esc="old_qty"/> <t t-esc="move.product_uom_id.name"/></li>
+                <ul>
+                    <li t-foreach="moves_information" t-as="exception">
+                        <t t-set="move" t-value="exception[0]"/>
+                        <t t-set="new_qty" t-value="exception[1][0]"/>
+                        <t t-set="old_qty" t-value="exception[1][1]"/>
+                        <t t-esc="new_qty"/> <t t-esc="move.product_uom_id.name"/>
+                        of <t t-esc="move.product_id.display_name"/> processed instead of <t t-esc="old_qty"/> <t t-esc="move.product_uom_id.name"/>
+                    </li>
                 </ul>
             </div>
         </div>

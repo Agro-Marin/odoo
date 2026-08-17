@@ -456,12 +456,15 @@ class SaleOrder(models.Model):
             order_exceptions, visited_moves = rendering_context
             visited_moves = list(visited_moves)
             visited_moves = self.env[visited_moves[0]._name].concat(*visited_moves)
+            # `order_exceptions` is keyed by stock move, so a line reached by
+            # several moves (an extra delivery, a return, a cancelled one) shows
+            # up once per move and the note would repeat it verbatim. The change
+            # is recorded per line, so collapsing on the line loses nothing.
+            line_exceptions = {}
+            for order_line, changes in order_exceptions.values():
+                line_exceptions.setdefault(order_line, changes)
             order_line_ids = self.env["sale.order.line"].browse(
-                [
-                    order_line.id
-                    for order in order_exceptions.values()
-                    for order_line in order[0]
-                ],
+                [order_line.id for order_line in line_exceptions],
             )
             sale_order_ids = order_line_ids.mapped("order_id")
             impacted_pickings = visited_moves.filtered(
@@ -469,7 +472,7 @@ class SaleOrder(models.Model):
             ).mapped("picking_id")
             values = {
                 "sale_order_ids": sale_order_ids,
-                "order_exceptions": order_exceptions.values(),
+                "order_exceptions": list(line_exceptions.items()),
                 "impacted_pickings": impacted_pickings,
                 "cancel": cancel,
             }
