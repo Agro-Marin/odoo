@@ -80,8 +80,14 @@ class _MarshallerDispatch(dict):
     """
 
     def __missing__(self, cls):
-        if issubclass(cls, ReadonlyDict):
-            handler = self[cls] = self[ReadonlyDict]
+        # Not every lookup is by type: the interpreter's own fallback reaches for
+        # the "_arbitrary_instance" key, and issubclass() raises TypeError rather
+        # than returning False when handed a non-class.
+        if isinstance(cls, type) and issubclass(cls, ReadonlyDict):
+            # dict.__getitem__, not self[...]: were the ReadonlyDict entry below
+            # ever dropped, a plain lookup would re-enter this method and recurse
+            # until the stack ran out instead of raising KeyError.
+            handler = self[cls] = dict.__getitem__(self, ReadonlyDict)
             return handler
         raise KeyError(cls)
 
@@ -118,8 +124,10 @@ class OdooMarshaller(xmlrpc.client.Marshaller):
         return super().dump_unicode(value.translate(CONTROL_CHARACTERS), write)
 
     dispatch[frozendict] = dump_frozen_dict
-    # A relational field's `context` defaults to a ReadonlyDict, so every
-    # fields_get payload carries one; unlike frozendict it is not a dict.
+    # Unlike frozendict, a ReadonlyDict is not a dict, so dispatch-by-exact-type
+    # misses it and xmlrpc.client's own fallback cannot take it either.
+    # `Environment.context` and the translation caches are ReadonlyDicts that can
+    # reach a response; `Field.context` was one too until it moved to frozendict.
     dispatch[ReadonlyDict] = dump_frozen_dict
     dispatch[bytes] = dump_bytes
     dispatch[datetime] = dump_datetime
