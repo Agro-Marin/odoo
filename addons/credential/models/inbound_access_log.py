@@ -17,19 +17,6 @@ class InboundAccessLog(models.Model):
 
     _COLLAPSE_FIELDS = frozenset({"attempt_count", "last_seen_at"})
 
-    # The collapse lookup runs on the gate's hot path -- once per inbound
-    # request for every coalesced outcome -- so it needs one index it can
-    # walk, not a bitmap AND over the five single-column ones.
-    #
-    # `timestamp DESC` sits ahead of `source_ip` because it is the only
-    # column both forms of the lookup use: the gate-keyed one (audit-mode
-    # admissions) does not mention the source at all, and would have to sort
-    # if the source came first. The caller-keyed one filters on the source
-    # as a trailing column while still walking the window in order.
-    _collapse_lookup_idx = models.Index(
-        "(gate_model, gate_id, outcome, timestamp DESC, source_ip)"
-    )
-
     company_id = fields.Many2one(
         comodel_name="res.company",
         ondelete="cascade",
