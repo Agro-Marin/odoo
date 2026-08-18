@@ -319,13 +319,6 @@ class InboundGateMixin(models.AbstractModel):
                 remote_addr,
                 reason,
             )
-        elif outcome == "unauthenticated":
-            _logger.warning(
-                "Cannot authenticate for %s from %s: %s",
-                self.display_name,
-                remote_addr,
-                reason,
-            )
 
     # Outcomes whose repeat rate is set by the fleet or by the caller rather
     # than by anything the gate can tell apart. Each folds onto one standing
@@ -334,6 +327,20 @@ class InboundGateMixin(models.AbstractModel):
     # `unauthenticated` is deliberately absent: two bad tokens are two facts,
     # and an operator reading the trail needs to see both attempts.
     _COALESCED_OUTCOMES = ("caller_limited", "audit_accepted")
+
+    # Of those, the ones whose standing row is *counted*. Counting means an
+    # UPDATE of a row shared by concurrent requests, and this deployment has
+    # already measured what that costs on an ingest path: every Odoo cursor
+    # runs REPEATABLE READ, under which two transactions updating one row
+    # conflict whatever columns they touch, and serialising the writers does
+    # not help -- the waiter wakes holding a snapshot older than the winner's
+    # commit and conflicts anyway. Only not writing the row works.
+    #
+    # A caller-rate-limit refusal is rare and its count is the whole signal,
+    # so it keeps the counter. An audit-mode admission arrives once per
+    # position fix per device: its row is opened when the window opens and
+    # never written again, so the hot path only ever reads and inserts.
+    _COUNTED_OUTCOMES = ("caller_limited",)
 
     # Of those, the ones the caller's address is part of the identity of.
     # Which address is being rate-limited *is* the fact, so two addresses
@@ -397,12 +404,13 @@ class InboundGateMixin(models.AbstractModel):
                 domain.append(("source_ip", "=", remote_addr or False))
             standing = logs.search(domain, order="timestamp desc", limit=1)
             if standing:
-                standing.write(
-                    {
-                        "attempt_count": standing.attempt_count + 1,
-                        "last_seen_at": now,
-                    }
-                )
+                if outcome in self._COUNTED_OUTCOMES:
+                    standing.write(
+                        {
+                            "attempt_count": standing.attempt_count + 1,
+                            "last_seen_at": now,
+                        }
+                    )
                 return False
 
         logs.create(

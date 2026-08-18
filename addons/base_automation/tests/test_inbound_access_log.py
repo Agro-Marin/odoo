@@ -216,8 +216,6 @@ class TestInboundAccessLog(TransactionCase):
 
         rows = self._rows(endpoint)
         self.assertEqual(len(rows), 1, "40 fixes past one unprovisioned gate")
-        self.assertEqual(rows.attempt_count, 40)
-        self.assertGreaterEqual(rows.last_seen_at, rows.timestamp)
 
     @mute_logger(_GATE)
     def test_the_audit_collapse_is_per_gate_not_per_caller(self):
@@ -234,7 +232,6 @@ class TestInboundAccessLog(TransactionCase):
 
         rows = self._rows(endpoint)
         self.assertEqual(len(rows), 1, "three addresses, one unprovisioned gate")
-        self.assertEqual(rows.attempt_count, 3)
         self.assertEqual(rows.source_ip, "198.51.100.9", "the first one seen")
 
     @mute_logger(_GATE)
@@ -247,8 +244,46 @@ class TestInboundAccessLog(TransactionCase):
                 {}, remote_addr="198.51.100.12", mode=endpoint.AUTH_MODE_AUDIT
             )
 
-        self.assertEqual(self._rows(one).attempt_count, 2)
-        self.assertEqual(self._rows(two).attempt_count, 1)
+        self.assertEqual(len(self._rows(one)), 1)
+        self.assertEqual(len(self._rows(two)), 1)
+
+    @mute_logger(_GATE)
+    def test_the_audit_collapse_never_writes_the_standing_row(self):
+        """The guard on the whole design, and the reason the row is not
+        counted. Counting means an UPDATE of a row every concurrent request
+        shares; under the REPEATABLE READ every Odoo cursor runs at, two
+        requests updating one row conflict whatever columns they touch, and
+        serialising them does not help. Counting the audit row put a
+        serialisation failure back on this deployment's GPS ingest within
+        seconds of deploying it."""
+        endpoint = self._endpoint("gate_audit_no_write")
+        endpoint._check_inbound_request(
+            {}, remote_addr="198.51.100.20", mode=endpoint.AUTH_MODE_AUDIT
+        )
+        row = self._rows(endpoint)
+        self.assertEqual(len(row), 1)
+
+        with patch.object(type(row), "write", autospec=True) as write:
+            for _ in range(20):
+                endpoint._check_inbound_request(
+                    {}, remote_addr="198.51.100.20", mode=endpoint.AUTH_MODE_AUDIT
+                )
+
+        write.assert_not_called()
+        self.assertEqual(len(self._rows(endpoint)), 1)
+
+    def test_a_bad_token_refusal_is_recorded_but_not_logged(self):
+        """It is recorded because that is the gap ADR-0037 closed, and not
+        logged because the caller chooses how many to send: a line per
+        refused token is a flood an attacker controls."""
+        endpoint = self._endpoint("gate_quiet_refusal")
+
+        with self.assertNoLogs(_GATE, "WARNING"):
+            endpoint._check_inbound_request(
+                {"Authorization": "Bearer nope"}, remote_addr="198.51.100.21"
+            )
+
+        self.assertEqual(self._rows(endpoint).outcome, "unauthenticated")
 
     @mute_logger(_GATE)
     def test_the_audit_row_records_why_it_was_unauthenticated(self):
@@ -284,16 +319,17 @@ class TestInboundAccessLog(TransactionCase):
         )
         self.assertIn("UNAUTHENTICATED request accepted", logs.output[0])
 
-    def test_a_refusal_is_reported_once_not_twice(self):
-        """The reason used to be logged where it was raised *and* again where
-        the verdict was taken, so every refusal printed twice."""
+    def test_an_enforced_refusal_is_recorded_not_logged(self):
+        """The reason used to be logged where it was raised, per request, and
+        in audit mode re-stated by the caller that received it -- so a fleet
+        past an unprovisioned gate printed it twice per position fix. The row
+        is where a refusal belongs."""
         endpoint = self._endpoint("gate_single_line")
 
-        with self.assertLogs(_GATE, "WARNING") as logs:
+        with self.assertNoLogs(_GATE, "WARNING"):
             endpoint._check_inbound_request({}, remote_addr="198.51.100.13")
 
-        self.assertEqual(len(logs.output), 1)
-        self.assertIn("Cannot authenticate", logs.output[0])
+        self.assertTrue(self._rows(endpoint).reason)
 
     # ------------------------------------------------------------------
     # The record must not be able to break the request

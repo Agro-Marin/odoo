@@ -42,7 +42,9 @@ class InboundAccessLog(models.Model):
         index=True,
     )
     last_seen_at = fields.Datetime(
-        help="Same as First Seen unless this row collapses repeated refusals.",
+        help="Same as First Seen unless this row collapses repeated refusals "
+        "AND those refusals are counted. Audit-mode admissions are collapsed "
+        "but not counted, so on those rows it stays equal to First Seen.",
     )
 
     gate_model = fields.Char(required=True, index=True)
@@ -72,7 +74,11 @@ class InboundAccessLog(models.Model):
     attempt_count = fields.Integer(
         default=1,
         help="Requests this row stands for. Above 1 only where repeated "
-        "refusals from one caller were collapsed into a single row.",
+        "refusals from one caller were collapsed into a single row. It stays "
+        "at 1 on an audit-mode row, which stands for a whole window of "
+        "admissions but does not count them: counting is an UPDATE of a row "
+        "every concurrent request shares, and on an ingest path that is a "
+        "serialisation failure per burst.",
     )
 
     source_ip = fields.Char(
