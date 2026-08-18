@@ -1,3 +1,4 @@
+import os
 from unittest.mock import MagicMock, patch
 
 import psycopg
@@ -9,6 +10,7 @@ from odoo.tests.common import BaseCase
 from ..models import bus as bus_module
 from ..models.bus import (
     ImDispatch,
+    _keep_session_alive_while_idle,
     _send_pg_notify,
     channel_with_db,
     get_notify_payloads,
@@ -526,3 +528,51 @@ class TestNotifyPostcommit(TransactionCase):
             with self.assertLogs("odoo.addons.bus.models.bus", "ERROR") as logs:
                 self.env.cr.postcommit.run()  # must not raise
         self.assertTrue(any("imbus NOTIFY" in line for line in logs.output))
+
+
+@tagged("-at_install", "post_install")
+class TestKeepSessionAliveWhileIdle(BaseCase):
+    """The dispatcher's LISTEN connection issues no statement between two
+    NOTIFYs, so a server-side ``idle_session_timeout`` reaps it on a timer.
+    It has to opt itself out."""
+
+    def test_clears_idle_session_timeout(self):
+        conn = MagicMock()
+        _keep_session_alive_while_idle(conn)
+        conn.execute.assert_called_once_with("SET idle_session_timeout = 0")
+
+    def test_unsupported_parameter_does_not_break_the_loop(self):
+        """PostgreSQL below 14 has no such parameter, and a
+        transaction-pooling pooler drops the SET. Neither may take the
+        dispatcher down: without the opt-out it still works, it just
+        reconnects on a timer."""
+        conn = MagicMock()
+        conn.execute.side_effect = psycopg.errors.UndefinedObject("nope")
+        with self.assertLogs("odoo.addons.bus.models.bus", "INFO") as logs:
+            _keep_session_alive_while_idle(conn)  # must not raise
+        self.assertTrue(any("idle_session_timeout" in line for line in logs.output))
+
+    def test_opt_out_precedes_the_listen(self):
+        """Ordering matters: a SET issued after the LISTEN would leave the
+        connection reapable during exactly the window it is meant to protect.
+        """
+        dispatch = ImDispatch()
+        statements = []
+        read_fd, write_fd = os.pipe()
+        self.addCleanup(os.close, read_fd)
+        self.addCleanup(os.close, write_fd)
+        conn = MagicMock()
+        conn.execute.side_effect = lambda sql, *a, **kw: statements.append(sql)
+        conn.__enter__.return_value = conn
+        conn.fileno.return_value = read_fd
+        with (
+            patch.object(bus_module.psycopg, "connect", return_value=conn),
+            patch.object(
+                bus_module.odoo.db,
+                "connection_info_for",
+                return_value=("postgres", {}),
+            ),
+            patch.object(bus_module.stop_event, "is_set", return_value=True),
+        ):
+            dispatch.loop()
+        self.assertEqual(statements, ["SET idle_session_timeout = 0", "LISTEN imbus"])

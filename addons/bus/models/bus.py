@@ -566,6 +566,39 @@ class BusBus(models.Model):
 # ---------------------------------------------------------
 
 
+def _keep_session_alive_while_idle(conn):
+    """Opt ``conn`` out of PostgreSQL's ``idle_session_timeout``.
+
+    The dispatcher connection exists in order to sit idle: between two
+    NOTIFYs it issues no statement at all, which is precisely the shape that
+    ``idle_session_timeout`` reaps.  On a server that sets it, the LISTEN is
+    therefore torn down once per window no matter how healthy everything is,
+    and the reconnect is not free: ``loop`` cannot know which NOTIFYs were
+    lost while it was down, so it falls back on ``_dispatch_to_all`` and
+    wakes *every* subscribed websocket.
+
+    The opt-out belongs on this session rather than on the server or the
+    role: that timeout is there to reap genuinely leaked connections, and a
+    deliberately idle listener is the one connection that must be exempt
+    from it. `service/_cron.arm_cron_listen` already does this for the cron
+    channel; this was the remaining LISTEN in the tree without it.
+
+    Best effort by design.  The parameter only exists from PostgreSQL 14, and
+    a transaction-pooling connection pooler discards the ``SET`` when it
+    hands the backend on -- but such a pooler breaks ``LISTEN`` outright, so
+    there is nothing further to lose.  Either way the loop still works; it
+    just goes back to reconnecting on a timer.
+    """
+    try:
+        conn.execute("SET idle_session_timeout = 0")
+    except psycopg.Error as exc:
+        _logger.info(
+            "Bus.loop could not clear idle_session_timeout, the LISTEN "
+            "connection may be reaped while idle: %s",
+            exc,
+        )
+
+
 class ImDispatch(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True, name=f"{__name__}.Bus")
@@ -648,6 +681,7 @@ class ImDispatch(threading.Thread):
             psycopg.connect(autocommit=True, **params) as conn,
             selectors.DefaultSelector() as sel,
         ):
+            _keep_session_alive_while_idle(conn)
             conn.execute("LISTEN imbus")
             sel.register(conn, selectors.EVENT_READ)
             if self._first_listen:
