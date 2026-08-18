@@ -1,6 +1,6 @@
 {
     "name": "Credential Vault",
-    "version": "19.0.1.9.0",
+    "version": "19.0.1.10.0",
     "category": "Technical",
     "sequence": 5,
     "summary": "Foundation module for secure credential management across all external integrations",

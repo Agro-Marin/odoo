@@ -159,14 +159,17 @@ class InboundGateMixin(models.AbstractModel):
             return True, 200, "", "allowed"
 
         if mode == self.AUTH_MODE_AUDIT:
-            _logger.warning(
-                "UNAUTHENTICATED request accepted for %s from %s (audit mode): "
-                "%s. Provision the credential, then switch to 'enforce'.",
-                self.display_name,
-                remote_addr,
+            # Carried, not logged here: `_note_inbound_verdict` owns the
+            # reporting, and it is the only side that knows whether this
+            # admission is news or the same standing condition as the last
+            # one. The reason lands on the audit row, which is what makes it
+            # answer *why* the request was unauthenticated.
+            return (
+                True,
+                200,
                 refusal or "no valid credential presented",
+                "audit_accepted",
             )
-            return True, 200, "", "audit_accepted"
 
         return (
             False,
@@ -192,7 +195,8 @@ class InboundGateMixin(models.AbstractModel):
         try:
             return bool(self._authenticate_by_scheme(headers, body)), ""
         except ValidationError as e:
-            _logger.warning("Cannot authenticate for %s: %s", self.display_name, e)
+            # Returned, not logged: the caller already reports every verdict,
+            # and logging here as well printed each refusal twice.
             return False, f"{self.display_name}: {e}"
 
     def _authenticate_by_scheme(
@@ -283,7 +287,7 @@ class InboundGateMixin(models.AbstractModel):
             return
 
         try:
-            self._store_inbound_verdict(
+            is_news = self._store_inbound_verdict(
                 outcome,
                 allowed=allowed,
                 status=status,
@@ -299,6 +303,68 @@ class InboundGateMixin(models.AbstractModel):
                 self.display_name,
                 "allow" if allowed else "refuse",
             )
+            return
+
+        if not is_news:
+            # The same standing condition as the row already on file. It was
+            # counted; saying so again per request is what turned one fleet
+            # into five figures of identical log lines a day.
+            return
+
+        if outcome == "audit_accepted":
+            _logger.warning(
+                "UNAUTHENTICATED request accepted for %s from %s (audit mode): "
+                "%s. Provision the credential, then switch to 'enforce'.",
+                self.display_name,
+                remote_addr,
+                reason,
+            )
+        elif outcome == "unauthenticated":
+            _logger.warning(
+                "Cannot authenticate for %s from %s: %s",
+                self.display_name,
+                remote_addr,
+                reason,
+            )
+
+    # Outcomes whose repeat rate is set by the fleet or by the caller rather
+    # than by anything the gate can tell apart. Each folds onto one standing
+    # row within its window, carrying `attempt_count` and `last_seen_at`.
+    #
+    # `unauthenticated` is deliberately absent: two bad tokens are two facts,
+    # and an operator reading the trail needs to see both attempts.
+    _COALESCED_OUTCOMES = ("caller_limited", "audit_accepted")
+
+    # Of those, the ones the caller's address is part of the identity of.
+    # Which address is being rate-limited *is* the fact, so two addresses
+    # hitting the limit are two rows. An audit-mode admission is the
+    # opposite: the fact is that this gate has no credential, and whichever
+    # address happened to arrive first is incidental. Keying it by address
+    # defeats the collapse outright against a sender behind a rotating
+    # egress pool -- measured on the GPS fleet, five consecutive fixes
+    # produced five rows from five addresses across two gates.
+    _COALESCED_PER_CALLER = ("caller_limited",)
+
+    AUDIT_WINDOW_PARAM = "credential.inbound_audit_window_seconds"
+    AUDIT_WINDOW_DEFAULT = 3600
+
+    def _inbound_coalesce_window(self, outcome: str) -> int:
+        """Seconds over which repeats of `outcome` fold onto one row.
+
+        A caller-rate-limit refusal is *about* the limiter's window, so it
+        uses that one. An audit-mode admission is not about any window: it
+        reports a standing configuration state -- the credential is not
+        provisioned yet -- so its window is an operator granularity. An hour
+        by default; a fleet reporting once per position fix would otherwise
+        write a row, and print a warning, per fix.
+        """
+        if outcome == "caller_limited":
+            return self.rate_limit_window_seconds or 60
+        return int(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(self.AUDIT_WINDOW_PARAM, default=self.AUDIT_WINDOW_DEFAULT)
+        )
 
     def _store_inbound_verdict(
         self,
@@ -309,23 +375,27 @@ class InboundGateMixin(models.AbstractModel):
         headers: Any,
         remote_addr: str | None,
         mode: str,
-    ) -> None:
+    ) -> bool:
+        """Record the verdict. True when this opened a new row.
+
+        False means an identical standing condition was already on record and
+        only its counter moved -- which is also the signal the caller uses to
+        decide whether the verdict is worth a log line.
+        """
         logs = self.env["inbound.access.log"].sudo()
         now = fields.Datetime.now()
 
-        if outcome == "caller_limited" and remote_addr:
-            window = self.rate_limit_window_seconds or 60
-            standing = logs.search(
-                [
-                    ("gate_model", "=", self._name),
-                    ("gate_id", "=", self.id),
-                    ("source_ip", "=", remote_addr),
-                    ("outcome", "=", "caller_limited"),
-                    ("timestamp", ">=", fields.Datetime.subtract(now, seconds=window)),
-                ],
-                order="timestamp desc",
-                limit=1,
-            )
+        if outcome in self._COALESCED_OUTCOMES:
+            window = self._inbound_coalesce_window(outcome)
+            domain = [
+                ("gate_model", "=", self._name),
+                ("gate_id", "=", self.id),
+                ("outcome", "=", outcome),
+                ("timestamp", ">=", fields.Datetime.subtract(now, seconds=window)),
+            ]
+            if outcome in self._COALESCED_PER_CALLER:
+                domain.append(("source_ip", "=", remote_addr or False))
+            standing = logs.search(domain, order="timestamp desc", limit=1)
             if standing:
                 standing.write(
                     {
@@ -333,7 +403,7 @@ class InboundGateMixin(models.AbstractModel):
                         "last_seen_at": now,
                     }
                 )
-                return
+                return False
 
         logs.create(
             {
@@ -353,6 +423,7 @@ class InboundGateMixin(models.AbstractModel):
                 "mode": mode,
             }
         )
+        return True
 
     def _inbound_company_id(self):
         company = self._fields.get("company_id") and self.company_id

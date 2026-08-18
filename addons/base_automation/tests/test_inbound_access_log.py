@@ -190,7 +190,8 @@ class TestInboundAccessLog(TransactionCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(sorted(rows.mapped("attempt_count")), [1, 2])
 
-    def test_only_the_caller_limit_collapses(self):
+    @mute_logger(_GATE)
+    def test_a_distinguishable_refusal_does_not_collapse(self):
         """Two bad tokens from one address are two events, not one repeated."""
         endpoint = self._endpoint("gate_no_collapse")
 
@@ -200,6 +201,99 @@ class TestInboundAccessLog(TransactionCase):
             )
 
         self.assertEqual(len(self._rows(endpoint)), 3)
+
+    @mute_logger(_GATE)
+    def test_repeated_audit_admissions_collapse(self):
+        """Audit mode reports a standing configuration state -- the credential
+        is not provisioned -- not a per-request event. A fleet reporting once
+        per position fix wrote one row and two warnings per fix for it."""
+        endpoint = self._endpoint("gate_audit_flood")
+
+        for _ in range(40):
+            endpoint._check_inbound_request(
+                {}, remote_addr="198.51.100.8", mode=endpoint.AUTH_MODE_AUDIT
+            )
+
+        rows = self._rows(endpoint)
+        self.assertEqual(len(rows), 1, "40 fixes past one unprovisioned gate")
+        self.assertEqual(rows.attempt_count, 40)
+        self.assertGreaterEqual(rows.last_seen_at, rows.timestamp)
+
+    @mute_logger(_GATE)
+    def test_the_audit_collapse_is_per_gate_not_per_caller(self):
+        """The caller-rate-limit collapse is keyed by address because which
+        address is being refused is the fact. This one is not: the fact is
+        that the gate has no credential, and a sender behind a rotating
+        egress pool would otherwise open a row per request."""
+        endpoint = self._endpoint("gate_audit_rotating_pool")
+
+        for address in ("198.51.100.9", "198.51.100.10", "198.51.100.11"):
+            endpoint._check_inbound_request(
+                {}, remote_addr=address, mode=endpoint.AUTH_MODE_AUDIT
+            )
+
+        rows = self._rows(endpoint)
+        self.assertEqual(len(rows), 1, "three addresses, one unprovisioned gate")
+        self.assertEqual(rows.attempt_count, 3)
+        self.assertEqual(rows.source_ip, "198.51.100.9", "the first one seen")
+
+    @mute_logger(_GATE)
+    def test_two_gates_in_audit_mode_are_two_conditions(self):
+        one = self._endpoint("gate_audit_one")
+        two = self._endpoint("gate_audit_two")
+
+        for endpoint in (one, two, one):
+            endpoint._check_inbound_request(
+                {}, remote_addr="198.51.100.12", mode=endpoint.AUTH_MODE_AUDIT
+            )
+
+        self.assertEqual(self._rows(one).attempt_count, 2)
+        self.assertEqual(self._rows(two).attempt_count, 1)
+
+    @mute_logger(_GATE)
+    def test_the_audit_row_records_why_it_was_unauthenticated(self):
+        """A trail of admissions that does not say what was missing cannot be
+        acted on: every one of them reads the same."""
+        endpoint = self._endpoint("gate_audit_reason")
+
+        endpoint._check_inbound_request(
+            {}, remote_addr="198.51.100.11", mode=endpoint.AUTH_MODE_AUDIT
+        )
+
+        row = self._rows(endpoint)
+        self.assertTrue(row.reason)
+        self.assertIn("No credential configured", row.reason)
+
+    # ------------------------------------------------------------------
+    # The log line follows the record — one condition, one report
+    # ------------------------------------------------------------------
+
+    def test_a_standing_audit_condition_is_reported_once(self):
+        endpoint = self._endpoint("gate_audit_quiet")
+
+        with self.assertLogs(_GATE, "WARNING") as logs:
+            for n in range(30):
+                endpoint._check_inbound_request(
+                    {},
+                    remote_addr=f"198.51.100.{n + 100}",
+                    mode=endpoint.AUTH_MODE_AUDIT,
+                )
+
+        self.assertEqual(
+            len(logs.output), 1, "one unprovisioned gate is one thing to say"
+        )
+        self.assertIn("UNAUTHENTICATED request accepted", logs.output[0])
+
+    def test_a_refusal_is_reported_once_not_twice(self):
+        """The reason used to be logged where it was raised *and* again where
+        the verdict was taken, so every refusal printed twice."""
+        endpoint = self._endpoint("gate_single_line")
+
+        with self.assertLogs(_GATE, "WARNING") as logs:
+            endpoint._check_inbound_request({}, remote_addr="198.51.100.13")
+
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn("Cannot authenticate", logs.output[0])
 
     # ------------------------------------------------------------------
     # The record must not be able to break the request
