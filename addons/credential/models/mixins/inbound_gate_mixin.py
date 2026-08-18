@@ -367,11 +367,16 @@ class InboundGateMixin(models.AbstractModel):
         """
         if outcome == "caller_limited":
             return self.rate_limit_window_seconds or 60
-        return int(
+        window = (
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param(self.AUDIT_WINDOW_PARAM, default=self.AUDIT_WINDOW_DEFAULT)
+            .get_param_int(self.AUDIT_WINDOW_PARAM, self.AUDIT_WINDOW_DEFAULT)
         )
+        # The parameter tunes how often the condition is reported, not
+        # whether it is collapsed at all: a window of zero would put a row
+        # and a warning back on every position fix, which is the thing this
+        # exists to prevent.
+        return max(60, window)
 
     def _store_inbound_verdict(
         self,

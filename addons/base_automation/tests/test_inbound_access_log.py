@@ -331,6 +331,36 @@ class TestInboundAccessLog(TransactionCase):
 
         self.assertTrue(self._rows(endpoint).reason)
 
+    @mute_logger(_GATE)
+    def test_a_garbage_window_parameter_still_collapses(self):
+        """The parameter tunes how often the condition is reported, not
+        whether it is collapsed: neither a bad value nor a zero may put a
+        row back on every request."""
+        endpoint = self._endpoint("gate_audit_bad_param")
+        params = self.env["ir.config_parameter"].sudo()
+
+        for value in ("not-a-number", "0", "-1"):
+            params.set_param(endpoint.AUDIT_WINDOW_PARAM, value)
+            self.assertGreaterEqual(
+                endpoint._inbound_coalesce_window("audit_accepted"), 60
+            )
+
+        for _ in range(5):
+            endpoint._check_inbound_request(
+                {}, remote_addr="198.51.100.30", mode=endpoint.AUTH_MODE_AUDIT
+            )
+        self.assertEqual(len(self._rows(endpoint)), 1)
+
+    def test_the_caller_limit_window_is_the_limiter_s_own(self):
+        """It is not the audit one, and the parameter must not move it."""
+        endpoint = self._endpoint("gate_window_split", rate_limit_window_seconds=45)
+        self.env["ir.config_parameter"].sudo().set_param(
+            endpoint.AUDIT_WINDOW_PARAM, "7200"
+        )
+
+        self.assertEqual(endpoint._inbound_coalesce_window("caller_limited"), 45)
+        self.assertEqual(endpoint._inbound_coalesce_window("audit_accepted"), 7200)
+
     # ------------------------------------------------------------------
     # The record must not be able to break the request
     # ------------------------------------------------------------------
