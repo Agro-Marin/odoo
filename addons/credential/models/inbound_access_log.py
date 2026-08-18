@@ -43,6 +43,7 @@ class InboundAccessLog(models.Model):
         selection=[
             ("allowed", "Allowed"),
             ("audit_accepted", "Accepted unauthenticated (audit mode)"),
+            ("misconfigured", "Refused: gate cannot authenticate anything"),
             ("caller_limited", "Refused: caller rate limit"),
             ("address_refused", "Refused: address not allowed"),
             ("payload_too_large", "Refused: payload too large"),
@@ -52,7 +53,11 @@ class InboundAccessLog(models.Model):
         required=True,
         index=True,
         help="The verdict, categorised so it can be grouped and alerted on "
-        "without parsing the reason text.",
+        "without parsing the reason text. `misconfigured` and "
+        "`unauthenticated` are both 401s and were once the same value: the "
+        "first is the gate refusing everything because its own configuration "
+        "is incomplete, the second is a caller presenting bad credentials. "
+        "They are separated because only the first is a standing condition.",
     )
     status_code = fields.Integer()
     reason = fields.Char(

@@ -171,11 +171,21 @@ class InboundGateMixin(models.AbstractModel):
                 "audit_accepted",
             )
 
+        if refusal:
+            # A non-empty refusal means the gate answered about *itself*: it
+            # has no credential to check against, or it authenticates over a
+            # body its caller never passed. That is one standing condition
+            # repeated per request, not one fact per request, and it needs
+            # the opposite handling from a caller who guessed wrong -- so it
+            # is a distinct outcome rather than a shade of `unauthenticated`.
+            # The status stays 401: changing what a refused caller sees is a
+            # wire-contract change and does not belong in the taxonomy.
+            return False, 401, refusal, "misconfigured"
+
         return (
             False,
             401,
-            refusal
-            or f"unauthenticated request for {self.display_name} from {remote_addr}",
+            f"unauthenticated request for {self.display_name} from {remote_addr}",
             "unauthenticated",
         )
 
@@ -215,7 +225,12 @@ class InboundGateMixin(models.AbstractModel):
         if self.timestamp_verification_enabled:
             timestamp_value = headers.get(self.timestamp_header)
             if not timestamp_value:
-                _logger.warning(
+                # Debug, not warning: which of the caller-side ways a request
+                # failed is a detail you raise the level to get, and the
+                # refusal itself is already on the record. At warning level
+                # these three are a per-request line whose volume the caller
+                # chooses -- the same flood the audit path was fixed for.
+                _logger.debug(
                     "Missing timestamp header '%s' for %s",
                     self.timestamp_header,
                     self.display_name,
@@ -226,7 +241,7 @@ class InboundGateMixin(models.AbstractModel):
                 max_age_seconds=self.timestamp_max_age_seconds,
                 env=self.env,
             ):
-                _logger.warning(
+                _logger.debug(
                     "Timestamp verification failed for %s", self.display_name
                 )
                 return False
@@ -237,7 +252,7 @@ class InboundGateMixin(models.AbstractModel):
         if self.auth_type in ("bearer", "api_key"):
             token = self._presented_token(headers)
             if not token:
-                _logger.warning("No bearer token presented for %s", self.display_name)
+                _logger.debug("No bearer token presented for %s", self.display_name)
                 return False
             return self.is_valid_token(token)
 
@@ -319,14 +334,24 @@ class InboundGateMixin(models.AbstractModel):
                 remote_addr,
                 reason,
             )
+        elif outcome == "misconfigured":
+            _logger.error(
+                "%s is refusing EVERY request and will keep doing so until it "
+                "is fixed: %s. Callers see a 401, so this reads to them as "
+                "their credentials being wrong.",
+                self.display_name,
+                reason,
+            )
 
     # Outcomes whose repeat rate is set by the fleet or by the caller rather
     # than by anything the gate can tell apart. Each folds onto one standing
     # row within its window, carrying `attempt_count` and `last_seen_at`.
     #
     # `unauthenticated` is deliberately absent: two bad tokens are two facts,
-    # and an operator reading the trail needs to see both attempts.
-    _COALESCED_OUTCOMES = ("caller_limited", "audit_accepted")
+    # and an operator reading the trail needs to see both attempts. Its
+    # sibling `misconfigured` is present for the mirror-image reason -- the
+    # gate answers identically to every caller until somebody fixes it.
+    _COALESCED_OUTCOMES = ("caller_limited", "audit_accepted", "misconfigured")
 
     # Of those, the ones whose standing row is *counted*. Counting means an
     # UPDATE of a row shared by concurrent requests, and this deployment has
@@ -352,25 +377,27 @@ class InboundGateMixin(models.AbstractModel):
     # produced five rows from five addresses across two gates.
     _COALESCED_PER_CALLER = ("caller_limited",)
 
-    AUDIT_WINDOW_PARAM = "credential.inbound_audit_window_seconds"
-    AUDIT_WINDOW_DEFAULT = 3600
+    STANDING_WINDOW_PARAM = "credential.inbound_standing_window_seconds"
+    STANDING_WINDOW_DEFAULT = 3600
 
     def _inbound_coalesce_window(self, outcome: str) -> int:
         """Seconds over which repeats of `outcome` fold onto one row.
 
         A caller-rate-limit refusal is *about* the limiter's window, so it
-        uses that one. An audit-mode admission is not about any window: it
-        reports a standing configuration state -- the credential is not
-        provisioned yet -- so its window is an operator granularity. An hour
-        by default; a fleet reporting once per position fix would otherwise
-        write a row, and print a warning, per fix.
+        uses that one. The other two are not about any window at all: an
+        audit-mode admission and a misconfigured gate each report a standing
+        state that will read identically on every request until somebody
+        changes the configuration. Their window is therefore an operator
+        granularity -- how often you want to be told -- and an hour by
+        default. A fleet reporting once per position fix would otherwise
+        write a row, and print a line, per fix.
         """
         if outcome == "caller_limited":
             return self.rate_limit_window_seconds or 60
         window = (
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param_int(self.AUDIT_WINDOW_PARAM, self.AUDIT_WINDOW_DEFAULT)
+            .get_param_int(self.STANDING_WINDOW_PARAM, self.STANDING_WINDOW_DEFAULT)
         )
         # The parameter tunes how often the condition is reported, not
         # whether it is collapsed at all: a window of zero would put a row
