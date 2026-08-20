@@ -1633,51 +1633,69 @@ class WebsocketConnectionHandler:
             if message == b"\x00":
                 # Ignore internal sentinel message used to detect dead/idle connections.
                 continue
-            with WebsocketRequest(db, httprequest, websocket) as req:
-                try:
-                    req.serve_websocket_message(message)
-                except SessionExpiredException:
-                    websocket.close(CloseCode.SESSION_EXPIRED)
-                except PoolError:
-                    websocket.close(CloseCode.TRY_LATER)
-                except InvalidDatabaseError:
-                    # The database is gone, corrupted, or its version no longer
-                    # matches this server (mid-migration, restore in progress).
-                    # Nothing this connection does can ever succeed again, yet
-                    # without closing it the client keeps sending and the
-                    # server keeps logging a full traceback per message,
-                    # forever. TRY_LATER rather than a clean close so the
-                    # worker reconnects with its exponential backoff once the
-                    # database is serviceable again.
-                    _logger.warning(
-                        "Closing websocket: database %r is unavailable or "
-                        "incompatible with this server",
-                        db,
-                    )
-                    websocket.close(CloseCode.TRY_LATER)
-                except (
-                    InvalidWebsocketRequestError,
-                    ValueError,
-                    AccessDenied,
-                ) as exc:
-                    # Client-controlled input (malformed JSON, bad subscribe
-                    # payload shape, non-string channels, ...): reject the
-                    # message without the log noise of a full traceback --
-                    # any anonymous peer can send garbage at will.
-                    #
-                    # AccessDenied belongs here for the same reason: the channel
-                    # list is client-supplied, and a public visitor subscribing
-                    # to an ``editor_collaboration:*`` channel raises it from
-                    # ``html_editor``'s guard. (An *authenticated* user failing
-                    # the read/write check never reaches us -- that guard
-                    # catches AccessError and drops the channel silently.) So
-                    # the only way to produce this is an anonymous peer, which
-                    # was logging a full ERROR traceback per attempt.
-                    _logger.warning("Invalid websocket request: %s", exc)
-                except Exception:
-                    _logger.exception(
-                        "Exception occurred during websocket request handling"
-                    )
+            # One frame per message, on purpose. ``get_messages`` blocks between
+            # messages, and an idle websocket can sit there for hours; a request
+            # bound in *this* frame would stay reachable for all of it, and with
+            # it the environment and the registry it holds. Once that registry
+            # leaves ``Registry.registries`` -- LRU eviction, or a drop -- this
+            # would be the reference keeping it alive, so the memory the drop was
+            # meant to reclaim is never returned. Serving from a callee makes the
+            # release structural rather than a ``del`` a later edit can lose.
+            cls._serve_message(db, httprequest, websocket, message)
+
+    @classmethod
+    def _serve_message(cls, db, httprequest, websocket, message):
+        """Serve one websocket message, releasing its request on return.
+
+        Split out of ``_serve_forever`` so the request -- and the environment and
+        registry it references -- cannot outlive the message it served. See the
+        comment at the call site.
+        """
+        with WebsocketRequest(db, httprequest, websocket) as req:
+            try:
+                req.serve_websocket_message(message)
+            except SessionExpiredException:
+                websocket.close(CloseCode.SESSION_EXPIRED)
+            except PoolError:
+                websocket.close(CloseCode.TRY_LATER)
+            except InvalidDatabaseError:
+                # The database is gone, corrupted, or its version no longer
+                # matches this server (mid-migration, restore in progress).
+                # Nothing this connection does can ever succeed again, yet
+                # without closing it the client keeps sending and the
+                # server keeps logging a full traceback per message,
+                # forever. TRY_LATER rather than a clean close so the
+                # worker reconnects with its exponential backoff once the
+                # database is serviceable again.
+                _logger.warning(
+                    "Closing websocket: database %r is unavailable or "
+                    "incompatible with this server",
+                    db,
+                )
+                websocket.close(CloseCode.TRY_LATER)
+            except (
+                InvalidWebsocketRequestError,
+                ValueError,
+                AccessDenied,
+            ) as exc:
+                # Client-controlled input (malformed JSON, bad subscribe
+                # payload shape, non-string channels, ...): reject the
+                # message without the log noise of a full traceback --
+                # any anonymous peer can send garbage at will.
+                #
+                # AccessDenied belongs here for the same reason: the channel
+                # list is client-supplied, and a public visitor subscribing
+                # to an ``editor_collaboration:*`` channel raises it from
+                # ``html_editor``'s guard. (An *authenticated* user failing
+                # the read/write check never reaches us -- that guard
+                # catches AccessError and drops the channel silently.) So
+                # the only way to produce this is an anonymous peer, which
+                # was logging a full ERROR traceback per attempt.
+                _logger.warning("Invalid websocket request: %s", exc)
+            except Exception:
+                _logger.exception(
+                    "Exception occurred during websocket request handling"
+                )
 
 
 def _kick_all(code=CloseCode.GOING_AWAY):

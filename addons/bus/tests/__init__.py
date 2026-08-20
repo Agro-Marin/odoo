@@ -18,3 +18,4 @@ from . import test_websocket_protocol
 from . import test_websocket_rate_limiting
 from . import test_probe_teardown
 from . import test_transport_error_teardown
+from . import test_serve_message_lifetime
