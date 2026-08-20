@@ -1,23 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo><data noupdate="1">
+<odoo>
 
-    <record id="mt_comment" model="mail.message.subtype">
-        <field name="name">Discussions</field>
-        <field name="sequence" eval="0"/>
-        <field name="track_recipients" eval="True"/>
-    </record>
-    <record id="mt_note" model="mail.message.subtype">
-        <field name="name">Note</field>
-        <field name="default" eval="False"/>
-        <field name="internal" eval="True"/>
-        <field name="sequence" eval="100"/>
-        <field name="track_recipients" eval="True"/>
-    </record>
-    <record id="mt_activities" model="mail.message.subtype">
-        <field name="name">Activities</field>
-        <field name="default" eval="False"/>
-        <field name="internal" eval="True"/>
-        <field name="sequence" eval="90"/>
-    </record>
+    <data noupdate="1">
+        <record id="mt_comment" model="mail.message.subtype">
+            <field name="name">Discussions</field>
+            <field name="sequence" eval="0" />
+            <field name="track_recipients" eval="True" />
+        </record>
+        <record id="mt_note" model="mail.message.subtype">
+            <field name="name">Note</field>
+            <field name="default" eval="False" />
+            <field name="internal" eval="True" />
+            <field name="sequence" eval="100" />
+            <field name="track_recipients" eval="True" />
+        </record>
+        <record id="mt_activities" model="mail.message.subtype">
+            <field name="name">Activities</field>
+            <field name="default" eval="False" />
+            <field name="internal" eval="True" />
+            <field name="sequence" eval="90" />
+        </record>
+    </data>
 
-</data></odoo>
+</odoo>

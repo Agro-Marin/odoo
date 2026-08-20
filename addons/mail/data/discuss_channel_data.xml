@@ -19,11 +19,14 @@
         <field name="message_type">email</field>
         <field name="subtype_id" ref="mail.mt_comment" />
         <field name="subject">Welcome to Odoo!</field>
-        <field name="body"><![CDATA[<p>Welcome to the #general channel.</p>
-            <p>This channel is accessible to all users to <b>easily share company information</b>.</p>]]></field>
+        <field
+            name="body">&lt;p&gt;Welcome to the #general channel.&lt;/p&gt;
+            &lt;p&gt;This channel is accessible to all users to &lt;b&gt;easily share company information&lt;/b&gt;.&lt;/p&gt;</field>
     </record>
 
-    <record model="discuss.channel.member" id="channel_member_general_channel_for_admin">
+    <record
+        model="discuss.channel.member"
+        id="channel_member_general_channel_for_admin">
         <field name="partner_id" ref="base.partner_admin" />
         <field name="channel_id" ref="mail.channel_all_employees" />
         <field name="fetched_message_id" ref="mail.module_install_notification" />

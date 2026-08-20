@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record model="ir.ui.view" id="view_message_subtype_tree">
@@ -22,7 +22,7 @@
             <form string="Email message">
                 <sheet>
                     <group>
-                        <group string='Description'>
+                        <group string="Description">
                             <field name="name" />
                             <field name="sequence" />
                             <field name="res_model" />
@@ -32,7 +32,7 @@
                             <field name="hidden" />
                             <field name="track_recipients" />
                         </group>
-                        <group string='Auto subscription'>
+                        <group string="Auto subscription">
                             <field name="parent_id" />
                             <field name="relation_field" />
                         </group>
@@ -50,7 +50,10 @@
                 <field name="name" />
                 <field name="res_model" />
                 <field name="description" />
-                <filter string="Default" name="filter_default" domain="[('default', '=', True)]" />
+                <filter
+                    string="Default"
+                    name="filter_default"
+                    domain="[('default', '=', True)]" />
             </search>
         </field>
     </record>

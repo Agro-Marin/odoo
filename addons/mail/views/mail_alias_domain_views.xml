@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="mail_alias_domain_view_form" model="ir.ui.view">
@@ -12,23 +12,33 @@
                             <label for="name" />
                             <div>
                                 <span class="me-1 oe_inline">@</span>
-                                <field name="name" string="Domain"
+                                <field
+                                    name="name"
+                                    string="Domain"
                                     class="oe_inline"
-                                    placeholder='e.g. "mycompany.com"' />
+                                    placeholder="e.g. &quot;mycompany.com&quot;" />
                             </div>
-                            <field name="company_ids" widget="many2many_tags"
+                            <field
+                                name="company_ids"
+                                widget="many2many_tags"
                                 string="Used In"
                                 readonly="True"
                                 groups="base.group_multi_company"
                                 placeholder="Visible to all" />
                         </group>
                         <group>
-                            <field name="bounce_alias" groups="base.group_no_one"
-                                placeholder='e.g. "bounce"' />
-                            <field name="catchall_alias" groups="base.group_no_one"
-                                placeholder='e.g. "catchall"' />
-                            <field name="default_from" groups="base.group_no_one"
-                                placeholder='e.g. "notifications"' />
+                            <field
+                                name="bounce_alias"
+                                groups="base.group_no_one"
+                                placeholder="e.g. &quot;bounce&quot;" />
+                            <field
+                                name="catchall_alias"
+                                groups="base.group_no_one"
+                                placeholder="e.g. &quot;catchall&quot;" />
+                            <field
+                                name="default_from"
+                                groups="base.group_no_one"
+                                placeholder="e.g. &quot;notifications&quot;" />
                         </group>
                     </group>
                 </sheet>
@@ -46,7 +56,9 @@
                 <field name="bounce_alias" />
                 <field name="catchall_alias" />
                 <field name="default_from" />
-                <field name="company_ids" optional="hide"
+                <field
+                    name="company_ids"
+                    optional="hide"
                     widget="many2many_tags"
                     groups="base.group_multi_company" />
             </list>
@@ -63,8 +75,11 @@
                 <field name="catchall_alias" />
                 <field name="company_ids" groups="base.group_multi_company" />
                 <group>
-                    <filter string="Company" name="group_by_company_ids"
-                        domain="[]" context="{'group_by': 'company_ids'}"
+                    <filter
+                        string="Company"
+                        name="group_by_company_ids"
+                        domain="[]"
+                        context="{'group_by': 'company_ids'}"
                         groups="base.group_multi_company" />
                 </group>
             </search>

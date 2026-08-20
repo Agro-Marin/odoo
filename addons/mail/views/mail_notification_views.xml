@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="mail_notification_view_tree" model="ir.ui.view">
@@ -21,7 +21,9 @@
         <field name="arch" type="xml">
             <form string="Notification" duplicate="0">
                 <header>
-                    <field name="notification_status" widget="statusbar"
+                    <field
+                        name="notification_status"
+                        widget="statusbar"
                         statusbar_visible="ready,sent" />
                 </header>
                 <sheet>

@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="mail_scheduled_message_view_form" model="ir.ui.view">
@@ -13,7 +13,9 @@
                         <div invisible="is_note" class="d-flex gap-3">
                             <field name="res_id" invisible="1" />
                             <field name="model" invisible="1" />
-                            <field name="partner_ids" widget="many2many_tags_email"
+                            <field
+                                name="partner_ids"
+                                widget="many2many_tags_email"
                                 class="w-auto flex-grow-1"
                                 placeholder="Add contacts to notify..."
                                 options="{'edit_tags': True}"
@@ -22,22 +24,45 @@
                         <field name="subject" required="True" />
                     </group>
                     <div>
-                        <field name="body" widget="html_composer_message"
-                            force_save="1" nolabel="1"
+                        <field
+                            name="body"
+                            widget="html_composer_message"
+                            force_save="1"
+                            nolabel="1"
                             placeholder="Write your message here..." />
-                        <field name="attachment_ids" widget="mail_composer_attachment_list"
+                        <field
+                            name="attachment_ids"
+                            widget="mail_composer_attachment_list"
                             nolabel="1" />
                     </div>
                 </sheet>
                 <footer>
-                    <button string="Save" class="btn-primary" special="save"
-                        invisible="not scheduled_date" data-hotkey="S" />
-                    <button string="Send Now" invisible="is_note" type="object" name="post_message"
+                    <button
+                        string="Save"
+                        class="btn-primary"
+                        special="save"
+                        invisible="not scheduled_date"
+                        data-hotkey="S" />
+                    <button
+                        string="Send Now"
+                        invisible="is_note"
+                        type="object"
+                        name="post_message"
                         data-hotkey="q" />
-                    <button string="Log Now" invisible="not is_note" type="object"
-                        name="post_message" data-hotkey="q" />
-                    <button string="Discard" class="btn-secondary" special="cancel" data-hotkey="x" />
-                    <field name="attachment_ids" widget="mail_composer_attachment_selector" />
+                    <button
+                        string="Log Now"
+                        invisible="not is_note"
+                        type="object"
+                        name="post_message"
+                        data-hotkey="q" />
+                    <button
+                        string="Discard"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
+                    <field
+                        name="attachment_ids"
+                        widget="mail_composer_attachment_selector" />
                     <field name="scheduled_date" widget="datetime_scheduled_date" />
                 </footer>
             </form>

@@ -12,9 +12,17 @@
                     configuration? Changes and translations will be lost.
                 </div>
                 <footer>
-                    <button string="Reset Template" class="btn btn-primary" type="object"
-                        name="reset_template" data-hotkey="q" />
-                    <button string="Discard" class="btn-secondary" special="cancel" data-hotkey="x" />
+                    <button
+                        string="Reset Template"
+                        class="btn btn-primary"
+                        type="object"
+                        name="reset_template"
+                        data-hotkey="q" />
+                    <button
+                        string="Discard"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -27,7 +35,8 @@
         <field name="binding_view_types">list,kanban</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
-        <field name="context">{
+        <field
+            name="context">{
             'default_template_ids': active_ids
             }</field>
         <field name="view_id" ref="mail_template_reset_view_form" />

@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="action_res_users_my_fullpage" model="ir.actions.act_window">
@@ -22,13 +22,16 @@
         <field name="arch" type="xml">
             <data>
                 <xpath expr="//group[@name='other_preferences']" position="inside">
-                    <field name="notification_type" widget="radio" readonly="0"
+                    <field
+                        name="notification_type"
+                        widget="radio"
+                        readonly="0"
                         options="{'horizontal': true}" />
                     <field name="outgoing_mail_server_id" invisible="1" />
-                    <span class="o_form_label fw-bold" groups="base.group_user"
-                        invisible="not has_external_mail_server">Outgoing
+                    <span class="o_form_label fw-bold" groups="base.group_user" invisible="not has_external_mail_server">Outgoing
                         Mail Server</span>
-                    <field name="outgoing_mail_server_type"
+                    <field
+                        name="outgoing_mail_server_type"
                         nolabel="1"
                         string="Outgoing Mail Server"
                         widget="mail_server_configurator_selection"
@@ -40,12 +43,17 @@
                 <group name="calendar_preferences" position="inside">
                     <label for="out_of_office_from" string="Out-of-office" />
                     <div class="o_row">
-                        <field name="out_of_office_from" widget="daterange"
+                        <field
+                            name="out_of_office_from"
+                            widget="daterange"
                             options="{'end_date_field': 'out_of_office_to', 'show_time': False}"
                             placeholder="None planned" />
                         <field name="out_of_office_to" invisible="1" />
                     </div>
-                    <field name="out_of_office_message" string="" options="{'height': 112}"
+                    <field
+                        name="out_of_office_message"
+                        string=""
+                        options="{'height': 112}"
                         class="border border-secondary w-100"
                         placeholder="Your out-of-office message..." />
                 </group>
@@ -60,13 +68,16 @@
         <field name="arch" type="xml">
             <data>
                 <xpath expr="//group[@name='other_preferences']" position="inside">
-                    <field name="notification_type" widget="radio" invisible="share"
+                    <field
+                        name="notification_type"
+                        widget="radio"
+                        invisible="share"
                         options="{'horizontal': true}" />
                     <field name="outgoing_mail_server_id" invisible="1" />
-                    <span class="o_form_label fw-bold" groups="base.group_user"
-                        invisible="not has_external_mail_server">Outgoing
+                    <span class="o_form_label fw-bold" groups="base.group_user" invisible="not has_external_mail_server">Outgoing
                         Mail Server</span>
-                    <field name="outgoing_mail_server_type"
+                    <field
+                        name="outgoing_mail_server_type"
                         nolabel="1"
                         string="Outgoing Mail Server"
                         widget="mail_server_configurator_selection"
@@ -78,12 +89,17 @@
                 <group name="calendar_preferences" position="inside">
                     <label for="out_of_office_from" string="Out-of-office" />
                     <div class="o_row">
-                        <field name="out_of_office_from" widget="daterange"
+                        <field
+                            name="out_of_office_from"
+                            widget="daterange"
                             options="{'end_date_field': 'out_of_office_to', 'show_time': False}"
                             placeholder="None planned" />
                         <field name="out_of_office_to" invisible="1" />
                     </div>
-                    <field name="out_of_office_message" string="" options="{'height': 112}"
+                    <field
+                        name="out_of_office_message"
+                        string=""
+                        options="{'height': 112}"
                         class="border border-secondary w-100"
                         placeholder="Your out-of-office message..." />
                 </group>

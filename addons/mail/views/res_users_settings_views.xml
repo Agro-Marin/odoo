@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="res_users_settings_view_tree" model="ir.ui.view">
@@ -32,13 +32,19 @@
                         </group>
                         <group string="Voice">
                             <field name="use_push_to_talk" />
-                            <field name="push_to_talk_key" placeholder="e.g. true.true..f"
+                            <field
+                                name="push_to_talk_key"
+                                placeholder="e.g. true.true..f"
                                 invisible="not use_push_to_talk" />
-                            <field name="voice_active_duration" invisible="use_push_to_talk" />
+                            <field
+                                name="voice_active_duration"
+                                invisible="use_push_to_talk" />
                         </group>
                     </group>
                     <notebook colspan="4">
-                        <page string="Volume per partner" name="page_volume_per_partner">
+                        <page
+                            string="Volume per partner"
+                            name="page_volume_per_partner">
                             <field name="volume_settings_ids">
                                 <list editable="bottom">
                                     <field name="partner_id" />

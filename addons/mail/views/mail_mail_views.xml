@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record model="ir.ui.view" id="view_mail_form">
@@ -8,22 +8,36 @@
             <form string="Email message" duplicate="0">
                 <header>
                     <field name="message_type" invisible="1" />
-                    <button name="action_send_and_close" string="Send &amp; Close" type="object"
+                    <button
+                        name="action_send_and_close"
+                        string="Send &amp; Close"
+                        type="object"
                         class="oe_highlight"
                         invisible="state != 'outgoing' or message_type == 'user_notification'" />
-                    <button name="mark_outgoing" string="Retry" type="object"
+                    <button
+                        name="mark_outgoing"
+                        string="Retry"
+                        type="object"
                         invisible="state not in ('exception', 'cancel')" />
-                    <button name="cancel" string="Cancel" type="object"
+                    <button
+                        name="cancel"
+                        string="Cancel"
+                        type="object"
                         invisible="state != 'outgoing'" />
-                    <field name="state" widget="statusbar"
+                    <field
+                        name="state"
+                        widget="statusbar"
                         statusbar_visible="outgoing,sent,exception,cancel" />
                 </header>
                 <sheet>
                     <field name="model" invisible="1" />
                     <field name="res_id" invisible="1" />
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_open_document"
-                            type="object" class="oe_link" icon="fa-regular fa-file-lines"
+                        <button
+                            name="action_open_document"
+                            type="object"
+                            class="oe_link"
+                            icon="fa-regular fa-file-lines"
                             invisible="not model or res_id == 0">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Open Document</span>
@@ -37,31 +51,40 @@
                             <field name="subject" />
                         </h2>
                     </div>
-                    <div style="vertical-align: top;"> by <field name="author_id" class="oe_inline"
-                            string="User" /> on <field name="date" readonly="1" class="oe_inline" />
-                            <button
-                            name="%(action_email_compose_message_wizard)d" string="Reply"
-                            type="action" icon="fa-reply text-warning"
+                    <div style="vertical-align: top;"> by <field name="author_id" class="oe_inline" string="User" /> on <field name="date" readonly="1" class="oe_inline" />
+                        <button
+                            name="%(action_email_compose_message_wizard)d"
+                            string="Reply"
+                            type="action"
+                            icon="fa-reply text-warning"
                             context="{'default_composition_mode':'comment', 'default_parent_id': mail_message_id_int}"
                             invisible="state not in ('sent', 'exception', 'cancel')" />
                     </div>
                     <group>
                         <field name="email_from" />
                         <field name="email_to" />
-                        <field name="recipient_ids" widget="many2many_tags"
+                        <field
+                            name="recipient_ids"
+                            widget="many2many_tags"
                             domain="[('active', '=', True)]" />
                         <field name="email_cc" />
                         <field name="reply_to" />
-                        <field name="scheduled_date" placeholder="YYYY-MM-DD HH:MM:SS" />
+                        <field
+                            name="scheduled_date"
+                            placeholder="YYYY-MM-DD HH:MM:SS" />
                     </group>
                     <notebook>
                         <page string="Body" name="body">
                             <field name="body_content" />
                         </page>
-                        <page string="Advanced" name="advanced" groups="base.group_no_one">
+                        <page
+                            string="Advanced"
+                            name="advanced"
+                            groups="base.group_no_one">
                             <group>
                                 <group string="Status">
-                                    <field name="auto_delete"
+                                    <field
+                                        name="auto_delete"
                                         invisible="state != 'outgoing' and state != 'exception'" />
                                     <field name="is_notification" />
                                     <field name="message_type" />
@@ -78,14 +101,16 @@
                             </group>
                         </page>
                         <page string="Attachments" name="attachments">
-                            <div class="alert alert-warning" role="alert"
-                                invisible="restricted_attachment_count == 0"> You do not have access
+                            <div class="alert alert-warning" role="alert" invisible="restricted_attachment_count == 0"> You do not have access
                                 to <field name="restricted_attachment_count" /> attachment(s) of
                                 this email. </div>
-                            <field name="unrestricted_attachment_ids"
+                            <field
+                                name="unrestricted_attachment_ids"
                                 domain="[('res_field','=', False)]" />
                         </page>
-                        <page string="Failure Reason" name="failure_reason"
+                        <page
+                            string="Failure Reason"
+                            name="failure_reason"
                             invisible="state != 'exception'">
                             <field name="failure_reason" />
                         </page>
@@ -112,13 +137,29 @@
                 <field name="res_id" column_invisible="True" />
                 <field name="email_from" column_invisible="True" />
                 <field name="message_type" column_invisible="True" />
-                <field name="state" widget="badge" decoration-muted="state in ('sent', 'cancel')"
-                    decoration-info="state=='outgoing'" decoration-danger="state=='exception'" />
-                <button name="send" string="Send Now" type="object" icon="fa-paper-plane"
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-muted="state in ('sent', 'cancel')"
+                    decoration-info="state=='outgoing'"
+                    decoration-danger="state=='exception'" />
+                <button
+                    name="send"
+                    string="Send Now"
+                    type="object"
+                    icon="fa-paper-plane"
                     invisible="state != 'outgoing' or message_type == 'user_notification'" />
-                <button name="mark_outgoing" string="Retry" type="object" icon="fa-repeat"
+                <button
+                    name="mark_outgoing"
+                    string="Retry"
+                    type="object"
+                    icon="fa-repeat"
                     invisible="state not in ('exception', 'cancel')" />
-                <button name="cancel" string="Cancel Email" type="object" icon="fa-times-circle"
+                <button
+                    name="cancel"
+                    string="Cancel Email"
+                    type="object"
+                    icon="fa-times-circle"
                     invisible="state != 'outgoing'" />
             </list>
         </field>
@@ -129,21 +170,36 @@
         <field name="model">mail.mail</field>
         <field name="arch" type="xml">
             <search string="Email Search">
-                <field name="email_from"
+                <field
+                    name="email_from"
                     filter_domain="['|', '|',('email_from','ilike',self), ('email_to','ilike',self), ('subject','ilike',self)]"
                     string="Email" />
                 <field name="date" />
-                <filter name="outgoing" string="Outgoing" domain="[('state','=','outgoing')]" />
+                <filter
+                    name="outgoing"
+                    string="Outgoing"
+                    domain="[('state','=','outgoing')]" />
                 <filter name="sent" string="Sent" domain="[('state','=','sent')]" />
-                <filter name="exception" string="Failed" domain="[('state','=','exception')]" />
+                <filter
+                    name="exception"
+                    string="Failed"
+                    domain="[('state','=','exception')]" />
                 <separator />
-                <filter name="filter_type_email_outgoing" string="Outgoing Email"
+                <filter
+                    name="filter_type_email_outgoing"
+                    string="Outgoing Email"
                     domain="[('message_type','=','email_outgoing')]" />
-                <filter name="filter_type_email" string="Incoming Email"
+                <filter
+                    name="filter_type_email"
+                    string="Incoming Email"
                     domain="[('message_type','=','email')]" />
-                <filter name="filter_type_comment" string="Comment"
+                <filter
+                    name="filter_type_comment"
+                    string="Comment"
                     domain="[('message_type','=','comment')]" />
-                <filter name="filter_type_notification" string="Notification"
+                <filter
+                    name="filter_type_notification"
+                    string="Notification"
                     domain="[('message_type','=','notification')]" />
                 <group>
                     <field name="author_id" />
@@ -152,11 +208,25 @@
                     <field name="res_id" />
                 </group>
                 <group>
-                    <filter string="Status" name="status" domain="[]" context="{'group_by':'state'}" />
-                    <filter string="Author" name="author" context="{'group_by':'author_id'}" />
-                    <filter string="Thread" name="thread" domain="[]"
+                    <filter
+                        string="Status"
+                        name="status"
+                        domain="[]"
+                        context="{'group_by':'state'}" />
+                    <filter
+                        string="Author"
+                        name="author"
+                        context="{'group_by':'author_id'}" />
+                    <filter
+                        string="Thread"
+                        name="thread"
+                        domain="[]"
                         context="{'group_by':'message_id'}" />
-                    <filter string="Date" name="month" help="Creation Date" domain="[]"
+                    <filter
+                        string="Date"
+                        name="month"
+                        help="Creation Date"
+                        domain="[]"
                         context="{'group_by':'date'}" />
                 </group>
             </search>
@@ -174,8 +244,10 @@
     <record id="act_server_history" model="ir.actions.act_window">
         <field name="name">Messages</field>
         <field name="res_model">mail.mail</field>
-        <field name="domain">[('email_from', '!=', False), ('fetchmail_server_id', '=', active_id)]</field>
-        <field name="context">{'search_default_server_id': active_id, 'default_fetchmail_server_id':
+        <field
+            name="domain">[('email_from', '!=', False), ('fetchmail_server_id', '=', active_id)]</field>
+        <field
+            name="context">{'search_default_server_id': active_id, 'default_fetchmail_server_id':
             active_id}</field>
         <field name="binding_model_id" ref="model_fetchmail_server" />
         <field name="binding_view_types">form</field>

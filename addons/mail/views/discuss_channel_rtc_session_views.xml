@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="discuss_channel_rtc_session_view_search" model="ir.ui.view">
@@ -7,7 +7,10 @@
         <field name="arch" type="xml">
             <search string="Search RTC session">
                 <field name="channel_member_id" />
-                <filter name="group_by_channel" string="Channel" domain="[]"
+                <filter
+                    name="group_by_channel"
+                    string="Channel"
+                    domain="[]"
                     context="{'group_by':'channel_id'}" />
             </search>
         </field>
@@ -19,7 +22,10 @@
         <field name="arch" type="xml">
             <list string="RTC Session">
                 <header>
-                    <button name="action_disconnect" type="object" string="Disconnect" />
+                    <button
+                        name="action_disconnect"
+                        type="object"
+                        string="Disconnect" />
                 </header>
                 <field name="id" />
                 <field name="channel_member_id" />

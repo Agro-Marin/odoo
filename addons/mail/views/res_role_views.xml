@@ -8,14 +8,21 @@
             <search string="Roles Search">
                 <field name="name" string="Role" />
                 <field name="user_ids" />
-                <filter string="My Roles" name="my_role_ids" domain="[('user_ids', '=', uid)]" />
+                <filter
+                    string="My Roles"
+                    name="my_role_ids"
+                    domain="[('user_ids', '=', uid)]" />
                 <group>
-                    <filter string="Users" name="filter_user_ids" domain="[]"
+                    <filter
+                        string="Users"
+                        name="filter_user_ids"
+                        domain="[]"
                         context="{'group_by': 'user_ids'}" />
                 </group>
             </search>
         </field>
     </record>
+
     <record id="res_role_view_tree" model="ir.ui.view">
         <field name="name">res.role.list</field>
         <field name="model">res.role</field>
@@ -26,6 +33,7 @@
             </list>
         </field>
     </record>
+
     <record id="res_role_view_form" model="ir.ui.view">
         <field name="name">res.role.form</field>
         <field name="model">res.role</field>
@@ -34,13 +42,16 @@
                 <sheet>
                     <group>
                         <field name="name" string="Role" />
-                        <field name="user_ids" widget="many2many_avatar_user"
+                        <field
+                            name="user_ids"
+                            widget="many2many_avatar_user"
                             options="{'no_create': True}" />
                     </group>
                 </sheet>
             </form>
         </field>
     </record>
+
     <record id="res_role_action" model="ir.actions.act_window">
         <field name="name">Roles</field>
         <field name="res_model">res.role</field>

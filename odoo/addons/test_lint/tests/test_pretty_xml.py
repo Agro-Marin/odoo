@@ -28,4 +28,8 @@ class PrettyXmlLinter(LintCase):
         )
 
 
-UNFORMATTED_FLOOR = 3811
+# 3811 -> 3744: `addons/mail` canonicalised, all 68 of its offenders.
+# The tree held 3812 against the committed 3811 and had since before this
+# branch -- a clean worktree of 3921edc2844 measures 3812 too -- so this
+# gate was red for every commit in between.
+UNFORMATTED_FLOOR = 3744

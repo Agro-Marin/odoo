@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="action_ice_servers" model="ir.actions.act_window">
@@ -33,7 +33,8 @@
                 <sheet>
                     <group>
                         <field name="server_type" class="oe_inline" />
-                        <field name="uri"
+                        <field
+                            name="uri"
                             placeholder="stun:stun.google.com:19302 or turn:turn.example.com:3478" />
                     </group>
                     <group string="Authentication">
@@ -94,10 +95,18 @@
                 <field name="uri" />
                 <field name="username" />
                 <field name="credential" />
-                <filter string="STUN" name="stun" domain="[('server_type','=','stun')]" />
-                <filter string="TURN" name="turn" domain="[('server_type','=','turn')]" />
+                <filter
+                    string="STUN"
+                    name="stun"
+                    domain="[('server_type','=','stun')]" />
+                <filter
+                    string="TURN"
+                    name="turn"
+                    domain="[('server_type','=','turn')]" />
                 <group>
-                    <filter string="Server Type" name="group_by_server_type"
+                    <filter
+                        string="Server Type"
+                        name="group_by_server_type"
                         context="{'group_by': 'server_type'}" />
                 </group>
             </search>

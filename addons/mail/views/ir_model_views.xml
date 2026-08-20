@@ -6,13 +6,22 @@
         <field name="inherit_id" ref="base.view_model_form" />
         <field name="arch" type="xml">
             <field name="transient" position="after">
-                <field name="is_mail_thread" readonly="state != 'manual'" groups="base.group_no_one" />
-                <field name="is_mail_activity" readonly="state != 'manual'"
+                <field
+                    name="is_mail_thread"
+                    readonly="state != 'manual'"
                     groups="base.group_no_one" />
-                <field name="is_mail_blacklist" readonly="state != 'manual'"
+                <field
+                    name="is_mail_activity"
+                    readonly="state != 'manual'"
+                    groups="base.group_no_one" />
+                <field
+                    name="is_mail_blacklist"
+                    readonly="state != 'manual'"
                     groups="base.group_no_one" />
             </field>
-            <xpath expr="//field[@name='field_id']//field[@name='copied']" position="after">
+            <xpath
+                expr="//field[@name='field_id']//field[@name='copied']"
+                position="after">
                 <field name="state" invisible="1" />
                 <field name="tracking" readonly="state != 'manual'" />
             </xpath>
@@ -24,11 +33,17 @@
         <field name="inherit_id" ref="base.view_model_search" />
         <field name="arch" type="xml">
             <field name="model" position="after">
-                <filter string="Mail Thread" name="is_mail_thread"
+                <filter
+                    string="Mail Thread"
+                    name="is_mail_thread"
                     domain="[('is_mail_thread', '=', True)]" />
-                <filter string="Mail Activity" name="is_mail_activity"
+                <filter
+                    string="Mail Activity"
+                    name="is_mail_activity"
                     domain="[('is_mail_activity', '=', True)]" />
-                <filter string="Mail Blacklist" name="is_mail_blacklist"
+                <filter
+                    string="Mail Blacklist"
+                    name="is_mail_blacklist"
                     domain="[('is_mail_blacklist', '=', True)]" />
             </field>
         </field>
@@ -40,7 +55,9 @@
         <field name="arch" type="xml">
             <field name="copied" position="after">
                 <field name="state" invisible="1" />
-                <field name="tracking" invisible="ttype in ['binary', 'html']"
+                <field
+                    name="tracking"
+                    invisible="ttype in ['binary', 'html']"
                     readonly="state != 'manual'" />
             </field>
         </field>

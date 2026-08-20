@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record model="ir.ui.view" id="view_mail_tracking_value_tree">
@@ -48,7 +48,7 @@
                             <field name="new_value_datetime" />
                         </group>
                     </group>
-                    <group string='Related Message'>
+                    <group string="Related Message">
                         <field name="mail_message_id" />
                     </group>
                 </sheet>

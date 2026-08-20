@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="discuss_channel_member_view_tree" model="ir.ui.view">
@@ -25,8 +25,14 @@
                 <sheet>
                     <group>
                         <field name="channel_id" readonly="id" />
-                        <field name="partner_id" readonly="id or guest_id" required="not guest_id" />
-                        <field name="guest_id" readonly="id or partner_id" required="not partner_id" />
+                        <field
+                            name="partner_id"
+                            readonly="id or guest_id"
+                            required="not guest_id" />
+                        <field
+                            name="guest_id"
+                            readonly="id or partner_id"
+                            required="not partner_id" />
                         <field name="custom_channel_name" />
                         <field name="fetched_message_id" />
                         <field name="seen_message_id" />

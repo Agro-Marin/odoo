@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="res_partner_view_form_inherit_mail" model="ir.ui.view">
@@ -8,9 +8,13 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='email']" position="before">
                 <field name="is_blacklisted" invisible="1" />
-                <button name="mail_action_blacklist_remove" class="fa-solid fa-ban text-danger"
+                <button
+                    name="mail_action_blacklist_remove"
+                    class="fa-solid fa-ban text-danger"
                     title="This email is blacklisted for mass mailings. Click to unblacklist."
-                    type="object" context="{'default_email': email}" groups="base.group_user"
+                    type="object"
+                    context="{'default_email': email}"
+                    groups="base.group_user"
                     invisible="not is_blacklisted" />
             </xpath>
             <xpath expr="//sheet" position="after">
@@ -25,7 +29,10 @@
         <field name="inherit_id" ref="base.res_partner_kanban_view" />
         <field name="arch" type="xml">
             <xpath expr="//footer" position="inside">
-                <field name="activity_ids" widget="kanban_activity" class="ms-auto mt-auto" />
+                <field
+                    name="activity_ids"
+                    widget="kanban_activity"
+                    class="ms-auto mt-auto" />
             </xpath>
         </field>
     </record>
@@ -36,15 +43,27 @@
         <field name="inherit_id" ref="base.view_res_partner_filter" />
         <field name="arch" type="xml">
             <filter name="inactive" position="after">
-                <filter invisible="1" string="My Activities" name="filter_activities_my"
+                <filter
+                    invisible="1"
+                    string="My Activities"
+                    name="filter_activities_my"
                     domain="[('activity_user_id', '=', uid)]" />
                 <separator invisible="1" />
-                <filter invisible="1" string="Late Activities" name="activities_overdue"
+                <filter
+                    invisible="1"
+                    string="Late Activities"
+                    name="activities_overdue"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
                     help="Show all records whose next activity date is past" />
-                <filter invisible="1" string="Today Activities" name="activities_today"
+                <filter
+                    invisible="1"
+                    string="Today Activities"
+                    name="activities_today"
                     domain="[('my_activity_date_deadline', '=', 'today')]" />
-                <filter invisible="1" string="Future Activities" name="activities_upcoming_all"
+                <filter
+                    invisible="1"
+                    string="Future Activities"
+                    name="activities_upcoming_all"
                     domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
                 <separator />
             </filter>
@@ -72,10 +91,16 @@
                     <div t-name="activity-box">
                         <img
                             t-att-src="activity_image('res.partner', 'avatar_128', record.id.raw_value)"
-                            role="img" t-att-title="record.name.value" t-att-alt="record.name.value" />
+                            role="img"
+                            t-att-title="record.name.value"
+                            t-att-alt="record.name.value" />
                         <div class="ms-2">
                             <field name="name" display="full" class="o_text_block" />
-                            <field name="parent_id" muted="1" display="full" class="o_text_block" />
+                            <field
+                                name="parent_id"
+                                muted="1"
+                                display="full"
+                                class="o_text_block" />
                         </div>
                     </div>
                 </templates>
@@ -86,9 +111,11 @@
     <record id="base.action_partner_form" model="ir.actions.act_window">
         <field name="view_mode">list,kanban,form,activity</field>
     </record>
+
     <record id="base.action_partner_customer_form" model="ir.actions.act_window">
         <field name="view_mode">list,kanban,form,activity</field>
     </record>
+
     <record id="base.action_partner_supplier_form" model="ir.actions.act_window">
         <field name="view_mode">list,kanban,form,activity</field>
     </record>
@@ -98,7 +125,8 @@
         <field name="res_model">mail.compose.message</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
-        <field name="context">{
+        <field
+            name="context">{
             'default_composition_mode': 'mass_mail',
             'default_partner_to': '{{ object.id or \'\' }}',
             'default_subtype_xmlid': 'mail.mt_comment',

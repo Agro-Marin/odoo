@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="view_email_server_tree" model="ir.ui.view">
@@ -10,7 +10,9 @@
                 <field name="server_type" />
                 <field name="user" readonly="state != 'draft'" />
                 <field name="date" />
-                <field name="state" widget="badge"
+                <field
+                    name="state"
+                    widget="badge"
                     decoration-info="state == 'draft'"
                     decoration-success="state == 'done'" />
             </list>
@@ -23,28 +25,46 @@
         <field name="arch" type="xml">
             <form string="Incoming Mail Server">
                 <header invisible="server_type == 'local'">
-                    <button string="Test &amp; Confirm" type="object" name="button_confirm_login"
+                    <button
+                        string="Test &amp; Confirm"
+                        type="object"
+                        name="button_confirm_login"
                         invisible="state != 'draft'" />
-                    <button string="Fetch Now" type="object" name="fetch_mail"
+                    <button
+                        string="Fetch Now"
+                        type="object"
+                        name="fetch_mail"
                         invisible="state != 'done'" />
-                    <button string="Reset Confirmation" type="object" name="set_draft"
+                    <button
+                        string="Reset Confirmation"
+                        type="object"
+                        name="set_draft"
                         invisible="state != 'done'" />
                     <field name="state" widget="statusbar" />
                 </header>
                 <sheet>
                     <field name="active" invisible="1" />
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
                         invisible="active" />
                     <group>
                         <group>
                             <field name="name" />
-                            <field name="server_type" widget="radio" readonly="state == 'done'" />
+                            <field
+                                name="server_type"
+                                widget="radio"
+                                readonly="state == 'done'" />
                         </group>
                         <group>
                             <field name="date" invisible="not date" />
                             <field name="error_since" invisible="not error_since" />
                             <field name="error_message" invisible="not error_message" />
-                            <div class="text-muted fst-italic" colspan="8" role="alert"
+                            <div
+                                class="text-muted fst-italic"
+                                colspan="8"
+                                role="alert"
                                 invisible="not server_type_info">
                                 <field name="server_type_info" />
                             </div>
@@ -53,20 +73,30 @@
                     <notebook>
                         <page string="Server &amp; Login" name="server_login_details">
                             <group>
-                                <group invisible="server_type == 'local'"
+                                <group
+                                    invisible="server_type == 'local'"
                                     string="Server Information">
-                                    <field name="server" readonly="state != 'draft'"
+                                    <field
+                                        name="server"
+                                        readonly="state != 'draft'"
                                         required="server_type != 'local'" />
-                                    <field name="port"
+                                    <field
+                                        name="port"
                                         required="1"
                                         readonly="state != 'draft'"
                                         options="{'enable_formatting': false}" />
                                     <field name="encryption" />
                                 </group>
-                                <group invisible="server_type == 'local'" string="Login Information">
-                                    <field name="user" readonly="state != 'draft'"
+                                <group
+                                    invisible="server_type == 'local'"
+                                    string="Login Information">
+                                    <field
+                                        name="user"
+                                        readonly="state != 'draft'"
                                         required="server_type != 'local'" />
-                                    <field name="password" password="True"
+                                    <field
+                                        name="password"
+                                        password="True"
                                         invisible="server_type not in ('imap', 'pop')"
                                         readonly="state != 'draft'"
                                         required="server_type in ('imap', 'pop')" />
@@ -74,16 +104,23 @@
                                 <group string="Actions to Perform on Incoming Mails">
                                     <field name="object_id" />
                                 </group>
-                                <group invisible="server_type != 'local'" string="Configuration">
+                                <group
+                                    invisible="server_type != 'local'"
+                                    string="Configuration">
                                     <field name="configuration" />
                                     <field name="script" widget="url" />
                                 </group>
                             </group>
                         </page>
-                        <page string="Advanced" name="advanced_options" groups="base.group_no_one">
+                        <page
+                            string="Advanced"
+                            name="advanced_options"
+                            groups="base.group_no_one">
                             <group>
                                 <group string="Advanced Options">
-                                    <field name="priority" readonly="state != 'draft'" />
+                                    <field
+                                        name="priority"
+                                        readonly="state != 'draft'" />
                                     <field name="attach" />
                                     <field name="original" />
                                 </group>
@@ -102,17 +139,32 @@
             <search string="Search Incoming Mail Servers">
                 <field name="name" string="Incoming Mail Server" />
                 <field name="user" />
-                <filter string="IMAP" name="imap" domain="[('server_type', '=', 'imap')]"
+                <filter
+                    string="IMAP"
+                    name="imap"
+                    domain="[('server_type', '=', 'imap')]"
                     help="Server type IMAP." />
-                <filter string="POP" name="pop" domain="[('server_type', '=', 'pop')]"
+                <filter
+                    string="POP"
+                    name="pop"
+                    domain="[('server_type', '=', 'pop')]"
                     help="Server type POP." />
                 <separator />
-                <filter string="Encrypted" name="encrypted" domain="[('encryption', '!=', 'none')]"
+                <filter
+                    string="Encrypted"
+                    name="encrypted"
+                    domain="[('encryption', '!=', 'none')]"
                     help="Connection is encrypted." />
-                <filter string="Unencrypted" name="unencrypted"
-                    domain="[('encryption', '=', 'none')]" help="Credentials travel in cleartext." />
+                <filter
+                    string="Unencrypted"
+                    name="unencrypted"
+                    domain="[('encryption', '=', 'none')]"
+                    help="Credentials travel in cleartext." />
                 <separator />
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
             </search>
         </field>
     </record>
