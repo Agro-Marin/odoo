@@ -25,9 +25,9 @@ class WebsitePage(models.Model):
     _name = "website.page"
     _inherits = {"ir.ui.view": "view_id"}
     _inherit = [
-        "website.published.multi.mixin",
-        "website.searchable.mixin",
-        "website.page_options.mixin",
+        "mixin.website.published.multi",
+        "mixin.website.searchable",
+        "mixin.website.page_options",
     ]
     _description = "Page"
     _order = "website_id"

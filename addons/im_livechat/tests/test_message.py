@@ -189,7 +189,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                 "mail.message.subtype": [
                     {"description": False, "id": self.env.ref("mail.mt_note").id}
                 ],
-                "mail.thread": self._filter_threads_fields(
+                "mixin.mail.thread": self._filter_threads_fields(
                     {
                         "display_name": "test1 Ernest Employee",
                         "id": channel_livechat_1.id,
@@ -296,7 +296,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                                 "mail.message.subtype": [
                                     {"description": False, "id": self.env.ref("mail.mt_comment").id}
                                 ],
-                                "mail.thread": self._filter_threads_fields(
+                                "mixin.mail.thread": self._filter_threads_fields(
                                     {
                                         "display_name": "Chell Gladys Ernest Employee",
                                         "has_mail_thread": True,

@@ -1656,7 +1656,7 @@ class CustomerPortal(Controller):
         4d942852c82 (odoo/odoo#35030), accidentally reverted here.
 
         ``"access_token" in _fields`` is checked before the token comparison:
-        the field only exists on models inheriting ``portal.mixin``, and
+        the field only exists on models inheriting ``mixin.portal``, and
         ``model_name`` is chosen by the caller. Reaching this helper with a
         token and a plain model (this module's own ``/portal/attachment/remove``
         passes ``ir.attachment``; downstream controllers pass whatever they

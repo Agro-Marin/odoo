@@ -5,7 +5,7 @@ from odoo.tools import html_escape
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.translate import html_translate
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 from odoo.addons.website.tools import text_from_html
 
 
@@ -13,11 +13,11 @@ class BlogBlog(models.Model):
     _name = 'blog.blog'
     _description = 'Blog'
     _inherit = [
-        'mail.thread',
-        'website.seo.metadata',
-        'website.multi.mixin',
-        'website.cover_properties.mixin',
-        'website.searchable.mixin',
+        'mixin.mail.thread',
+        'mixin.website.seo.metadata',
+        'mixin.website.multi',
+        'mixin.website.cover_properties',
+        'mixin.website.searchable',
     ]
     _order = 'name'
 
@@ -141,7 +141,7 @@ class BlogTagCategory(models.Model):
 class BlogTag(models.Model):
     _name = 'blog.tag'
     _description = 'Blog Tag'
-    _inherit = ['website.seo.metadata']
+    _inherit = ['mixin.website.seo.metadata']
     _order = 'name'
 
     name = fields.Char('Name', required=True, translate=True)
@@ -157,9 +157,9 @@ class BlogTag(models.Model):
 class BlogPost(models.Model):
     _name = 'blog.post'
     _description = "Blog Post"
-    _inherit = ['mail.thread', 'website.seo.metadata', 'website.published.multi.mixin',
-        'website.page_visibility_options.mixin',
-        'website.cover_properties.mixin', 'website.searchable.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.website.seo.metadata', 'mixin.website.published.multi',
+        'mixin.website.page_visibility_options',
+        'mixin.website.cover_properties', 'mixin.website.searchable']
     _order = 'id DESC'
     _mail_post_access = 'read'
 

@@ -16,7 +16,7 @@ _logger = logging.getLogger(__name__)
 class IrUiView(models.Model):
     _name = "ir.ui.view"
 
-    _inherit = ["ir.ui.view", "website.seo.metadata"]
+    _inherit = ["ir.ui.view", "mixin.website.seo.metadata"]
 
     website_id = fields.Many2one("website", ondelete="cascade", string="Website")
     page_ids = fields.One2many("website.page", "view_id")
@@ -397,15 +397,20 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_filter_xmlid_query(self):
-        """This method add some specific view that do not have XML ID"""
+        """This method add some specific view that do not have XML ID
+
+        ``= ANY`` over a list, matching the base query it overrides: the tuple
+        expansion ``SQL()`` performs for ``IN`` builds a different statement per
+        cardinality, and the clause would be invalid if ever run as plain SQL.
+        """
         if not self.env.context.get("website_id"):
             return super()._get_filter_xmlid_query()
         else:
             return """SELECT res_id
                     FROM   ir_model_data
-                    WHERE  res_id IN %(res_ids)s
+                    WHERE  res_id = ANY(%(res_ids)s)
                         AND model = 'ir.ui.view'
-                        AND module  IN %(modules)s
+                        AND module = ANY(%(modules)s)
                     UNION
                     SELECT sview.id
                     FROM   ir_ui_view sview
@@ -413,8 +418,8 @@ class IrUiView(models.Model):
                         INNER JOIN ir_model_data d
                                 ON oview.id = d.res_id
                                     AND d.model = 'ir.ui.view'
-                                    AND d.module  IN %(modules)s
-                    WHERE  sview.id IN %(res_ids)s
+                                    AND d.module = ANY(%(modules)s)
+                    WHERE  sview.id = ANY(%(res_ids)s)
                         AND sview.website_id IS NOT NULL
                         AND oview.website_id IS NULL;
                     """

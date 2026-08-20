@@ -38,7 +38,7 @@ class Base(models.AbstractModel):
 
     def get_website_meta(self):
         # dummy version of 'get_website_meta' above; this is a graceful fallback
-        # for models that don't inherit from 'website.seo.metadata'
+        # for models that don't inherit from 'mixin.website.seo.metadata'
         return {}
 
     def _get_base_lang(self):

@@ -13,7 +13,14 @@ from . import ir_model_data
 from . import ir_module_module
 from . import ir_qweb
 from . import ir_qweb_fields
-from . import mixins
+from . import mixin_website_seo_metadata
+from . import mixin_website_cover_properties
+from . import mixin_website_page_visibility_options
+from . import mixin_website_page_options
+from . import mixin_website_multi
+from . import mixin_website_published
+from . import mixin_website_published_multi
+from . import mixin_website_searchable
 from . import models
 from . import website
 from . import website_menu

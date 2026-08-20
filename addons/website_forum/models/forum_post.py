@@ -18,9 +18,9 @@ class ForumPost(models.Model):
     _name = "forum.post"
     _description = "Forum Post"
     _inherit = [
-        "mail.thread",
-        "website.seo.metadata",
-        "website.searchable.mixin",
+        "mixin.mail.thread",
+        "mixin.website.seo.metadata",
+        "mixin.website.searchable",
     ]
     _order = "is_correct DESC, vote_count DESC, last_activity_date DESC"
 

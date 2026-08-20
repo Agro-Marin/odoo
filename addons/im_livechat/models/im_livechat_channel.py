@@ -23,7 +23,7 @@ class Im_LivechatChannel(models.Model):
     """
 
     _name = 'im_livechat.channel'
-    _inherit = ['rating.parent.mixin']
+    _inherit = ['mixin.rating.parent']
     _description = 'Livechat Channel'
     _rating_satisfaction_days = 14  # include only last 14 days to compute satisfaction
 

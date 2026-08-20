@@ -183,7 +183,7 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                     "record_name": "Testing Bot",
                 }
             )
-            transfer_message_data["mail.thread"][0]["display_name"] = "Testing Bot"
+            transfer_message_data["mixin.mail.thread"][0]["display_name"] = "Testing Bot"
             joined_message_data = Store(bus_channel=discuss_channel).add(messages[0]).get_result()
             joined_message_data["mail.message"][0].update(
                 {
@@ -200,7 +200,7 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                     "record_name": "Testing Bot",
                 }
             )
-            joined_message_data["mail.thread"][0]["display_name"] = "Testing Bot"
+            joined_message_data["mixin.mail.thread"][0]["display_name"] = "Testing Bot"
             member_emp = discuss_channel.channel_member_ids.filtered(
                 lambda m: m.partner_id == self.partner_employee
             )

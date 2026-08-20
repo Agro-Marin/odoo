@@ -172,8 +172,8 @@ class WebsiteVisitor(models.Model):
                 guest_livechats.country_id = visitor_sudo.country_id
         return visitor_id, upsert
 
-    def _field_store_repr(self, field_name):
-        if field_name == "page_visit_history":
+    def _field_store_repr(self, field_spec):
+        if field_spec == "page_visit_history":
             # sudo: website.track - reading the history of accessible visitor is acceptable
             return [
                 Store.Attr(
@@ -181,7 +181,7 @@ class WebsiteVisitor(models.Model):
                     lambda visitor: visitor.sudo()._get_visitor_history(),
                 ),
             ]
-        return [field_name]
+        return [field_spec]
 
     def _get_visitor_history(self):
         self.ensure_one()

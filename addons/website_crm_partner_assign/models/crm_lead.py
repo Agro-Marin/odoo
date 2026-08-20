@@ -320,7 +320,7 @@ class CrmLead(models.Model):
 
     #
     #   DO NOT FORWARD PORT IN MASTER
-    #   instead, crm.lead should implement portal.mixin
+    #   instead, crm.lead should implement mixin.portal
     #
     def _get_access_action(self, access_uid=None, force_website=False):
         """ Instead of the classic form view, redirect to the online document for

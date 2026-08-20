@@ -28,6 +28,26 @@ from ..models.bus import channel_with_db, dispatch, hashable
 from ..websocket import CloseCode, Websocket, WebsocketConnectionHandler
 
 
+def channel_key(env, channel):
+    """The key ``dispatch`` matches subscriptions on, for one raw channel.
+
+    A raw channel list is heterogeneous by design -- plain strings, recordsets,
+    ``(recordset, subchannel)`` pairs and pre-qualified tuples all travel in the
+    same list -- so asserting over it element-wise compares a recordset against
+    a string, which answers False only by way of the ORM's "unsupported operand"
+    warning. ``Bus.subscribe`` puts every form through ``channel_with_db``
+    before it reaches ``_channels_to_ws``, so it is these keys, not the raw
+    objects, that decide whether a notification is delivered: a test asserting
+    on them asserts on the thing that actually carries the message.
+    """
+    return hashable(channel_with_db(env.cr.dbname, channel))
+
+
+def channel_keys(env, channels):
+    """:func:`channel_key` over a whole raw channel list."""
+    return [channel_key(env, channel) for channel in channels]
+
+
 class WebsocketCase(HttpCase):
     @classmethod
     def setUpClass(cls):

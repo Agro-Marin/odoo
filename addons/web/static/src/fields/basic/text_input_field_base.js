@@ -34,10 +34,19 @@ export class TextInputFieldBase extends TrimmingInputFieldBase {
         if (this.props.dynamicPlaceholder) {
             this.dynamicPlaceholder = useDynamicPlaceholder(ref);
             useExternalListener(document, "keydown", this.dynamicPlaceholder.onKeydown);
-            useEffect(() =>
-                this.dynamicPlaceholder.updateModel(
+            useEffect(
+                () =>
+                    this.dynamicPlaceholder.updateModel(
+                        this.props.dynamicPlaceholderModelReferenceField,
+                    ),
+                () => [
                     this.props.dynamicPlaceholderModelReferenceField,
-                ),
+                    this.props.record.data[
+                        this.props.dynamicPlaceholderModelReferenceField
+                    ],
+                    this.props.record.data.render_model,
+                    this.props.record.data.model,
+                ],
             );
         }
         this.selectionStart = this.props.record.data[this.props.name]?.length || 0;
@@ -49,18 +58,23 @@ export class TextInputFieldBase extends TrimmingInputFieldBase {
         ).selectionStart;
     }
 
-    async onDynamicPlaceholderOpen() {
-        await /** @type {any} */ (this).dynamicPlaceholder.open({
+    onDynamicPlaceholderOpen() {
+        /** @type {any} */ (this).dynamicPlaceholder.open({
             validateCallback: this.onDynamicPlaceholderValidate.bind(this),
+            // Without this the popover closes leaving the focus on the button
+            // that opened it, where the `#` trigger returns it to the input.
+            closeCallback: () => this.inputEl?.focus(),
         });
     }
 
     /**
      * @param {string} chain
      * @param {string} [defaultValue]
+     * @param {string} [fieldType]
      */
-    async onDynamicPlaceholderValidate(chain, defaultValue) {
-        this.dynamicPlaceholder.insert(chain, defaultValue, {
+    async onDynamicPlaceholderValidate(chain, defaultValue, fieldType) {
+        await this.dynamicPlaceholder.insert(chain, defaultValue, {
+            fieldType,
             rangeIndex: /** @type {any} */ (this).selectionStart,
         });
     }

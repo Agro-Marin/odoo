@@ -1,13 +1,13 @@
 from odoo import models
 
 
-class BusListenerMixin(models.AbstractModel):
+class MixinBusListener(models.AbstractModel):
     """Allow sending messages related to the current model via as a bus.bus channel.
 
     The model needs to be allowed as a valid channel for the bus in `_build_bus_channel_list`.
     """
 
-    _name = "bus.listener.mixin"
+    _name = "mixin.bus.listener"
     _description = "Can send messages via bus.bus"
 
     _MAX_CHANNEL_HOPS = 10

@@ -6,10 +6,10 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError
 
 
-class PortalMixin(models.AbstractModel):
+class MixinPortal(models.AbstractModel):
     """Mixin exposing a record to portal users via a tokenised access URL."""
 
-    _name = "portal.mixin"
+    _name = "mixin.portal"
     _description = "Portal Mixin"
 
     access_url = fields.Char(
@@ -59,7 +59,7 @@ class PortalMixin(models.AbstractModel):
                                     can create an account with pre-filled fields.
         :param pid: ``res.partner`` id to be authenticated against the portal
                     chatter (paired with a generated HMAC ``hash``). Requires a
-                    record that also inherits ``mail.thread`` (provides
+                    record that also inherits ``mixin.mail.thread`` (provides
                     ``_sign_token``).
         :param bool share_token: include the record's ``access_token`` in the URL
         :return: URL ready to be sent by mail

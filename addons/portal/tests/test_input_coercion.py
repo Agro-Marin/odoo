@@ -26,9 +26,9 @@ from odoo.addons.portal.utils import (
 
 
 class _FakeTokenThread:
-    """Minimal stand-in for a ``portal.mixin`` thread carrying a live token.
+    """Minimal stand-in for a ``mixin.portal`` thread carrying a live token.
 
-    Portal itself declares no concrete ``portal.mixin`` model, so the guards
+    Portal itself declares no concrete ``mixin.portal`` model, so the guards
     below cannot be reached through a real recordset without depending on
     ``sale`` / ``project`` / ``account``. The stub exposes exactly the surface
     the validators touch.
@@ -210,7 +210,7 @@ class TestShareRecipientSplit(TransactionCase):
 
     def _wizard(self):
         # res_model/res_id are irrelevant to the split; portal declares no
-        # concrete portal.mixin model, so any model keeps this test in-module.
+        # concrete mixin.portal model, so any model keeps this test in-module.
         return self.env["portal.share"].create(
             {
                 "res_model": "res.partner",
@@ -264,7 +264,7 @@ class TestPortalMessageFormatScaling(TransactionCase):
     """
 
     def _make_messages(self, count):
-        # res.partner is a mail.thread, which is all the formatter needs.
+        # res.partner is a mixin.mail.thread, which is all the formatter needs.
         thread = self.env["res.partner"].create({"name": "Chatter Scaling"})
         return self.env["mail.message"].concat(
             *[

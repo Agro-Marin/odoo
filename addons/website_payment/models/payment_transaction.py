@@ -33,7 +33,7 @@ class PaymentTransaction(models.Model):
                 'tx': self,
                 'comment': comment,
             }, minimal_qcontext=True)
-            body = self.env['mail.render.mixin'].with_context(lang=self.partner_id.lang)._render_encapsulate(
+            body = self.env['mixin.mail.render'].with_context(lang=self.partner_id.lang)._render_encapsulate(
                 'mail.mail_notification_light',
                 body,
                 context_record=self,

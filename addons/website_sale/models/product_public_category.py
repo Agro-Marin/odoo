@@ -8,10 +8,10 @@ from odoo.tools.translate import html_translate
 class ProductPublicCategory(models.Model):
     _name = 'product.public.category'
     _inherit = [
-        'website.seo.metadata',
-        'website.multi.mixin',
-        'website.searchable.mixin',
-        'image.mixin',
+        'mixin.website.seo.metadata',
+        'mixin.website.multi',
+        'mixin.website.searchable',
+        'mixin.image',
     ]
     _description = "Website Product Category"
     _parent_store = True

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from odoo.tests import TransactionCase, new_test_user, tagged
 
 from ..models.ir_websocket import MAX_CHANNEL_LENGTH, MAX_SUBSCRIBED_CHANNELS
-from .common import WebsocketCase
+from .common import WebsocketCase, channel_key, channel_keys
 
 
 @tagged("-at_install", "post_install")
@@ -45,13 +45,23 @@ class TestIrWebsocket(WebsocketCase):
         mock_wsrequest.session.uid = test_user.id
         with patch("odoo.addons.bus.models.ir_websocket.wsrequest", new=mock_wsrequest):
             ir_websocket_model = self.env["ir.websocket"].with_user(test_user)
-            channels = set(ir_websocket_model._build_bus_channel_list(["test_channel"]))
-        expected_channels = {
-            "test_channel",
-            test_user.partner_id,
-            self.env.ref("base.group_system"),
-            self.env.ref("base.group_user"),
-        }
+            channels = set(
+                channel_keys(
+                    self.env,
+                    ir_websocket_model._build_bus_channel_list(["test_channel"]),
+                )
+            )
+        expected_channels = set(
+            channel_keys(
+                self.env,
+                [
+                    "test_channel",
+                    test_user.partner_id,
+                    self.env.ref("base.group_system"),
+                    self.env.ref("base.group_user"),
+                ],
+            )
+        )
         self.assertTrue(
             expected_channels.issubset(channels),
             f"The channels list is missing some expected values: {expected_channels - channels}.",
@@ -70,21 +80,27 @@ class TestBuildBusChannelList(TransactionCase):
     """
 
     def test_callable_without_any_request_bound(self):
-        channels = self.env["ir.websocket"]._build_bus_channel_list(["custom"])
-        self.assertIn("custom", channels)
-        self.assertIn("broadcast", channels)
+        keys = channel_keys(
+            self.env, self.env["ir.websocket"]._build_bus_channel_list(["custom"])
+        )
+        self.assertIn(channel_key(self.env, "custom"), keys)
+        self.assertIn(channel_key(self.env, "broadcast"), keys)
 
     def test_logged_in_user_gets_their_partner_channel(self):
         user = new_test_user(self.env, login="bus_chan_user")
-        channels = self.env["ir.websocket"].with_user(user)._build_bus_channel_list([])
-        self.assertIn(user.partner_id, channels)
+        keys = channel_keys(
+            self.env,
+            self.env["ir.websocket"].with_user(user)._build_bus_channel_list([]),
+        )
+        self.assertIn(channel_key(self.env, user.partner_id), keys)
 
     def test_public_user_gets_no_partner_channel(self):
         public = self.env.ref("base.public_user")
-        channels = (
-            self.env["ir.websocket"].with_user(public)._build_bus_channel_list([])
+        keys = channel_keys(
+            self.env,
+            self.env["ir.websocket"].with_user(public)._build_bus_channel_list([]),
         )
-        self.assertNotIn(public.partner_id, channels)
+        self.assertNotIn(channel_key(self.env, public.partner_id), keys)
 
 
 @tagged("-at_install", "post_install")

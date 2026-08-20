@@ -9,9 +9,9 @@ class ForumTag(models.Model):
     _name = 'forum.tag'
     _description = "Forum Tag"
     _inherit = [
-        'mail.thread',
-        'website.searchable.mixin',
-        'website.seo.metadata',
+        'mixin.mail.thread',
+        'mixin.website.searchable',
+        'mixin.website.seo.metadata',
     ]
 
     name = fields.Char('Name', required=True)

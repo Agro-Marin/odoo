@@ -22,14 +22,14 @@ class PortalShare(models.TransientModel):
 
     @api.model
     def _selection_target_model(self):
-        """Selection limited to concrete models that inherit ``portal.mixin``.
+        """Selection limited to concrete models that inherit ``mixin.portal``.
 
         Models outside that hierarchy have no ``access_url`` / ``access_token``,
         so the wizard's ``share_link`` would always come back empty for them.
         """
-        portal_mixin_cls = self.pool["portal.mixin"]
+        portal_mixin_cls = self.pool["mixin.portal"]
         # Walk the registry, not ir.model: the predicate is purely a registry
-        # question ("does this model inherit portal.mixin, and is it concrete"),
+        # question ("does this model inherit mixin.portal, and is it concrete"),
         # and reading every ir.model row to answer it meant a full-table search
         # plus a registry lookup per row on each call. ir.model is still needed
         # for the human-readable label, so fetch just the rows that survive.
@@ -65,7 +65,7 @@ class PortalShare(models.TransientModel):
         Goes through :meth:`_get_portal_record` like its two sibling computes,
         rather than testing ``res_model in self.env``. "Is a model" is the wrong
         question here: this field's selection is ``_selection_target_model``,
-        i.e. *concrete portal.mixin models only*, and ``Reference.convert_to_cache``
+        i.e. *concrete mixin.portal models only*, and ``Reference.convert_to_cache``
         rejects anything outside it with ``ValueError``. ``res_model`` is a plain
         ``Char`` seeded straight from the ``active_model`` context (see
         :meth:`default_get`) and writable by anyone holding the wizard's ACL, so
@@ -84,24 +84,24 @@ class PortalShare(models.TransientModel):
             wizard.resource_ref = f"{record._name},{record.id}" if record else False
 
     def _get_portal_record(self):
-        """Return the active record when it is a shareable ``portal.mixin`` one.
+        """Return the active record when it is a shareable ``mixin.portal`` one.
 
         Shared helper for ``_compute_share_link`` and ``_compute_access_warning``.
 
-        :return: the record, or an empty ``portal.mixin`` recordset when there
+        :return: the record, or an empty ``mixin.portal`` recordset when there
                  is none to share. Returning an empty recordset rather than
                  ``None`` keeps the result usable with the ORM idioms callers
                  expect (``record.access_warning`` on the empty set yields
                  ``False`` instead of raising ``AttributeError``), while still
                  being falsy for the ``if record`` checks already in place.
-        :rtype: portal.mixin
+        :rtype: mixin.portal
         """
         self.ensure_one()
-        empty = self.env["portal.mixin"]
+        empty = self.env["mixin.portal"]
         if not self.res_model or self.res_model not in self.env:
             return empty
         res_model = self.env[self.res_model]
-        if isinstance(res_model, self.pool["portal.mixin"]) and self.res_id:
+        if isinstance(res_model, self.pool["mixin.portal"]) and self.res_id:
             return res_model.browse(self.res_id)
         return empty
 
@@ -125,12 +125,12 @@ class PortalShare(models.TransientModel):
         """Return the record to share, refusing a target that cannot carry a link.
 
         Sharing needs ``access_url`` / ``access_token``, which only
-        ``portal.mixin`` provides. ``_get_portal_record`` already answers
+        ``mixin.portal`` provides. ``_get_portal_record`` already answers
         "is this shareable"; this wraps it for the *acting* paths, which must
         stop with a message the user can act on instead of building a mail
         around a record that has no portal URL.
 
-        :rtype: portal.mixin
+        :rtype: mixin.portal
         :raise UserError: when ``res_model`` / ``res_id`` name nothing shareable
         """
         self.ensure_one()
@@ -213,7 +213,7 @@ class PortalShare(models.TransientModel):
         share and every later one on the same record. The signup path was
         therefore dead code, and recipients without an account silently stopped
         being invited to create one. Token presence is in any case not a
-        property of the recipient: every ``portal.mixin`` record can mint one on
+        property of the recipient: every ``mixin.portal`` record can mint one on
         demand, so it says nothing about who needs signup.
 
         :return: the subset of ``partner_ids`` to send the public link to

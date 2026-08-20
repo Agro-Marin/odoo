@@ -19,6 +19,7 @@ export class FieldSelectorField extends Component {
         resModel: { type: String, optional: true },
         onlySearchable: { type: Boolean, optional: true },
         allowProperties: { type: Boolean, optional: true },
+        comodel: { type: String, optional: true },
         followRelations: { type: Boolean, optional: true },
         required: { type: Boolean, optional: true },
     };
@@ -30,6 +31,15 @@ export class FieldSelectorField extends Component {
         }
         if (!this.props.allowProperties && fieldDef.type === "properties") {
             return false;
+        }
+        if (this.props.comodel && fieldDef.relation !== this.props.comodel) {
+            // Relations stay: the wanted model may be several hops away, and
+            // the chevron is the only way to get there. Everything else can
+            // never be the field being asked for, so offering it is offering a
+            // choice whose only outcome is a validation error later.
+            if (!fieldDef.relation || !this.props.followRelations) {
+                return false;
+            }
         }
         return !this.props.onlySearchable || fieldDef.searchable;
     }
@@ -84,6 +94,14 @@ export const fieldSelectorField = {
             type: "string",
         },
         {
+            label: _t("Comodel"),
+            name: "comodel",
+            type: "string",
+            help: _t(
+                "Only offer fields pointing at this model, and the relations reaching one.",
+            ),
+        },
+        {
             label: _t("Only searchable"),
             name: "only_searchable",
             type: "string",
@@ -99,6 +117,7 @@ export const fieldSelectorField = {
     extractProps({ options }, dynamicInfo) {
         return {
             allowProperties: options.allow_properties ?? true,
+            comodel: options.comodel,
             followRelations: options.follow_relations ?? true,
             onlySearchable: exprToBoolean(options.only_searchable),
             resModel: options.model,

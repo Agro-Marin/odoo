@@ -230,7 +230,7 @@ class ThemeWebsitePage(models.Model):
     _name = "theme.website.page"
     _description = "Website Theme Page"
     _inherit = [
-        "website.page_options.mixin",
+        "mixin.website.page_options",
     ]
 
     url = fields.Char()

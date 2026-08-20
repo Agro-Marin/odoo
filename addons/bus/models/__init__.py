@@ -1,5 +1,5 @@
 from . import bus
-from . import bus_listener_mixin
+from . import mixin_bus_listener
 from . import ir_attachment
 from . import ir_http
 from . import ir_model

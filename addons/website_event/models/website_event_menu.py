@@ -7,7 +7,7 @@ from odoo import api, fields, models
 
 class WebsiteEventMenu(models.Model):
     _name = 'website.event.menu'
-    _inherit = 'website.seo.metadata'
+    _inherit = 'mixin.website.seo.metadata'
     _description = "Website Event Menu"
     _rec_name = "menu_id"
 

@@ -78,14 +78,14 @@ SEO-aware. All ABSTRACT.
 
 | Mixin (`_name`) | Adds | Notes |
 |---|---|---|
-| `website.seo.metadata` | `is_seo_optimized`, `website_meta_title/description/keywords/og_img`, `seo_name` | Override `_default_website_meta()` to change defaults; call `get_website_meta()` (do NOT override it). Inherited notably by `ir.ui.view`. |
-| `website.cover_properties.mixin` | `cover_properties` (Text/JSON) | `_get_background(h,w)`; malformed JSON → `ValidationError`, not 500. |
-| `website.page_visibility_options.mixin` | `header_visible`, `footer_visible` | |
-| `website.page_options.mixin` | `header_overlay`, `header_color`, `header_text_color` | `_inherit`s the visibility mixin. |
-| `website.multi.mixin` | `website_id` (M2O, ondelete restrict) | `can_access_from_current_website()` — checked by `ir_http._pre_dispatch` → 404/403. |
-| `website.published.mixin` | `is_published`/`website_published`, `can_publish`, `website_url`, `website_absolute_url` | `website_publish_button()` (RPC toggle); `create`/`write` raise `AccessError` if publishing without `can_publish`. Override `website_url` per model. |
-| `website.published.multi.mixin` | (composes published + multi) | Makes publish state context-`website_id` aware: a record bound to another website reads unpublished. `_search_website_published` supports only `in (True,)`. |
-| `website.searchable.mixin` | frontend-search contract | Override `_search_get_detail()` (raises `NotImplementedError`): returns model/base_domain/search_fields/fetch_fields/mapping/icon. |
+| `mixin.website.seo.metadata` | `is_seo_optimized`, `website_meta_title/description/keywords/og_img`, `seo_name` | Override `_default_website_meta()` to change defaults; call `get_website_meta()` (do NOT override it). Inherited notably by `ir.ui.view`. |
+| `mixin.website.cover_properties` | `cover_properties` (Text/JSON) | `_get_background(h,w)`; malformed JSON → `ValidationError`, not 500. |
+| `mixin.website.page_visibility_options` | `header_visible`, `footer_visible` | |
+| `mixin.website.page_options` | `header_overlay`, `header_color`, `header_text_color` | `_inherit`s the visibility mixin. |
+| `mixin.website.multi` | `website_id` (M2O, ondelete restrict) | `can_access_from_current_website()` — checked by `ir_http._pre_dispatch` → 404/403. |
+| `mixin.website.published` | `is_published`/`website_published`, `can_publish`, `website_url`, `website_absolute_url` | `website_publish_button()` (RPC toggle); `create`/`write` raise `AccessError` if publishing without `can_publish`. Override `website_url` per model. |
+| `mixin.website.published.multi` | (composes published + multi) | Makes publish state context-`website_id` aware: a record bound to another website reads unpublished. `_search_website_published` supports only `in (True,)`. |
+| `mixin.website.searchable` | frontend-search contract | Override `_search_get_detail()` (raises `NotImplementedError`): returns model/base_domain/search_fields/fetch_fields/mapping/icon. |
 
 ## Content: Pages, Menus, Routing
 
@@ -172,7 +172,7 @@ cookie barrier** — rewriting iframe/script `src` to `about:blank` +
 `data-nocookie-src` when consent isn't granted (`data-no-post-process` skips it;
 static nodes never honor the per-request debug bypass — GDPR safety).
 
-### models/ir_ui_view.py — IrUiView (`_inherit = ["ir.ui.view", "website.seo.metadata"]`) — EXT
+### models/ir_ui_view.py — IrUiView (`_inherit = ["ir.ui.view", "mixin.website.seo.metadata"]`) — EXT
 
 **The COW/COU engine** + view visibility. Fields: `website_id` (cascade),
 `page_ids`/`controller_page_ids`, `track` (per-page visitor tracking),
@@ -279,14 +279,14 @@ Quick lookup — file → model → role.
 | File | Model (`_name` / `_inherit`) | Kind | Role |
 |------|------|------|------|
 | website.py | `website` | NEW | Central multi-website config; frontend resolution, search, configurator, caching hub |
-| mixins.py | `website.seo.metadata` | ABSTRACT | SEO/OpenGraph/Twitter metadata |
-| mixins.py | `website.cover_properties.mixin` | ABSTRACT | Cover image JSON properties |
-| mixins.py | `website.page_visibility_options.mixin` | ABSTRACT | header/footer visible flags |
-| mixins.py | `website.page_options.mixin` | ABSTRACT | header overlay/color options |
-| mixins.py | `website.multi.mixin` | ABSTRACT | `website_id` + current-website access check |
-| mixins.py | `website.published.mixin` | ABSTRACT | publish state + can_publish + website_url |
-| mixins.py | `website.published.multi.mixin` | ABSTRACT | published + multi-website aware |
-| mixins.py | `website.searchable.mixin` | ABSTRACT | frontend fuzzy-search contract |
+| mixins.py | `mixin.website.seo.metadata` | ABSTRACT | SEO/OpenGraph/Twitter metadata |
+| mixins.py | `mixin.website.cover_properties` | ABSTRACT | Cover image JSON properties |
+| mixins.py | `mixin.website.page_visibility_options` | ABSTRACT | header/footer visible flags |
+| mixins.py | `mixin.website.page_options` | ABSTRACT | header overlay/color options |
+| mixins.py | `mixin.website.multi` | ABSTRACT | `website_id` + current-website access check |
+| mixins.py | `mixin.website.published` | ABSTRACT | publish state + can_publish + website_url |
+| mixins.py | `mixin.website.published.multi` | ABSTRACT | published + multi-website aware |
+| mixins.py | `mixin.website.searchable` | ABSTRACT | frontend fuzzy-search contract |
 | website_menu.py | `website.menu` | NEW | Site navigation tree (mega menus, per-website fan-out) |
 | website_page.py | `website.page` | NEW | CMS page (delegates ir.ui.view) + full-page response cache |
 | website_controller_page.py | `website.controller.page` | NEW | Model-listing page at `/model/<slug>` |

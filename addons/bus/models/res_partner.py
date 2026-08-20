@@ -3,4 +3,4 @@ from odoo import models
 
 class ResPartner(models.Model):
     _name = "res.partner"
-    _inherit = ["res.partner", "bus.listener.mixin"]
+    _inherit = ["res.partner", "mixin.bus.listener"]

@@ -17,11 +17,11 @@ class ForumForum(models.Model):
     _name = 'forum.forum'
     _description = 'Forum'
     _inherit = [
-        'mail.thread',
-        'image.mixin',
-        'website.seo.metadata',
-        'website.multi.mixin',
-        'website.searchable.mixin',
+        'mixin.mail.thread',
+        'mixin.image',
+        'mixin.website.seo.metadata',
+        'mixin.website.multi',
+        'mixin.website.searchable',
     ]
     _order = "sequence, id"
 

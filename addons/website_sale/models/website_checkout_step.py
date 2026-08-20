@@ -7,7 +7,7 @@ from odoo.fields import Domain
 class WebsiteCheckoutStep(models.Model):
     _name = 'website.checkout.step'
     _description = 'Website Checkout Step'
-    _inherit = ['website.published.multi.mixin']
+    _inherit = ['mixin.website.published.multi']
 
     name = fields.Char(required=True, translate=True)
     sequence = fields.Integer()

@@ -22,15 +22,16 @@ class SlideChannel(models.Model):
     _name = "slide.channel"
     _description = "Course"
     _inherit = [
-        "rating.mixin",
-        "mail.activity.mixin",
-        "image.mixin",
-        "website.cover_properties.mixin",
-        "website.seo.metadata",
-        "website.published.multi.mixin",
-        "website.searchable.mixin",
+        "mixin.rating",
+        "mixin.mail.activity",
+        "mixin.image",
+        "mixin.website.cover_properties",
+        "mixin.website.seo.metadata",
+        "mixin.website.published.multi",
+        "mixin.website.searchable",
     ]
     _order = "sequence, id"
+    _mail_partner_fields = ()
     _partner_unfollow_enabled = True
 
     _CUSTOMER_HEADERS_LIMIT_COUNT = 0  # never use X-Msg-To headers
@@ -983,8 +984,6 @@ class SlideChannel(models.Model):
             )
         return message
 
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return []
 
     # ---------------------------------------------------------
     # Business / Actions

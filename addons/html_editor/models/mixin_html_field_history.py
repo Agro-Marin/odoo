@@ -11,8 +11,8 @@ from .diff_utils import (
 )
 
 
-class HtmlFieldHistoryMixin(models.AbstractModel):
-    _name = 'html.field.history.mixin'
+class MixinHtmlFieldHistory(models.AbstractModel):
+    _name = 'mixin.html.field.history'
     _description = "Field html History"
     _html_field_history_size_limit = 300
 
@@ -125,7 +125,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
             # Call super().write again to include the new revision
             if new_revisions:
                 extra_vals = {"html_field_history": history_revs}
-                write_result = super(HtmlFieldHistoryMixin, rec).write(extra_vals) and write_result
+                write_result = super(MixinHtmlFieldHistory, rec).write(extra_vals) and write_result
 
         return write_result
 

@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import Command, _, api, models
+from odoo import _, api, models
 
 
 class ResUsers(models.Model):
@@ -10,34 +10,39 @@ class ResUsers(models.Model):
     def create(self, vals_list):
         """Trigger automatic subscription based on user groups"""
         users = super().create(vals_list)
-        for user in users:
-            self.env["slide.channel"].sudo().search(
-                [("enroll_group_ids", "in", user.all_group_ids.ids)]
-            )._action_add_members(user.partner_id)
+        users._enroll_in_group_channels()
         return users
 
     def write(self, vals):
         """Trigger automatic subscription based on updated user groups"""
         res = super().write(vals)
         if "group_ids" in vals:
-            group_ids = [
-                command[1]
-                for command in vals["group_ids"]
-                if command[0] == Command.LINK
-            ]
-            group_ids += [
-                id_
-                for command in vals["group_ids"]
-                if command[0] == Command.SET
-                for id_ in command[2]
-            ]
-            added_group_ids = (
-                self.env["res.groups"].browse(group_ids).all_implied_ids.ids
-            )
-            self.env["slide.channel"].sudo().search(
-                [("enroll_group_ids", "in", added_group_ids)]
-            )._action_add_members(self.mapped("partner_id"))
+            self._enroll_in_group_channels()
         return res
+
+    def _enroll_in_group_channels(self):
+        """Enroll each user in the channels their own groups grant them.
+
+        Read from ``all_group_ids`` after the write rather than from the write's
+        commands: hand-parsing them covered ``Command.LINK`` and ``Command.SET``
+        only, so a plain list of ids -- which the ORM accepts for any x2many --
+        raised ``TypeError: 'int' object is not subscriptable``, a group held by
+        implication was invisible, and a multi-user write enrolled every user
+        written into the channels matching the *union* of their groups.
+        """
+        if not self.all_group_ids:
+            return
+        channels = (
+            self.env["slide.channel"]
+            .sudo()
+            .search([("enroll_group_ids", "in", self.all_group_ids.ids)])
+        )
+        for user in self:
+            matching = channels.filtered(
+                lambda channel, user=user: channel.enroll_group_ids & user.all_group_ids
+            )
+            if matching:
+                matching._action_add_members(user.partner_id)
 
     def get_gamification_redirection_data(self):
         res = super().get_gamification_redirection_data()

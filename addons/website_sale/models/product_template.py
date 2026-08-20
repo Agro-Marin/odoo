@@ -33,11 +33,11 @@ def get_translated_field_gist_index(registry, column_name):
 class ProductTemplate(models.Model):
     _name = "product.template"
     _inherit = [
-        "rating.mixin",
+        "mixin.rating",
         "product.template",
-        "website.seo.metadata",
-        "website.published.multi.mixin",
-        "website.searchable.mixin",
+        "mixin.website.seo.metadata",
+        "mixin.website.published.multi",
+        "mixin.website.searchable",
     ]
     _mail_post_access = "read"
     _check_company_auto = True
@@ -997,7 +997,7 @@ class ProductTemplate(models.Model):
         return super()._rating_domain() & Domain("is_internal", "=", False)
 
     def _get_images(self):
-        """Return a list of records implementing `image.mixin` to
+        """Return a list of records implementing `mixin.image` to
         display on the carousel on the website for this template.
 
         This returns a list and not a recordset because the records might be

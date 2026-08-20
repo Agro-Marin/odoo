@@ -28,7 +28,7 @@ class DiscussChannel(models.Model):
     """
 
     _name = 'discuss.channel'
-    _inherit = ['rating.mixin', 'discuss.channel']
+    _inherit = ['mixin.rating', 'discuss.channel']
 
     channel_type = fields.Selection(selection_add=[('livechat', 'Livechat Conversation')], ondelete={'livechat': 'cascade'})
     duration = fields.Float('Duration', compute='_compute_duration', help='Duration of the session in hours')
@@ -589,7 +589,7 @@ class DiscussChannel(models.Model):
             "tz": timezone(tz),
         }
         mail_body = self.env['ir.qweb']._render('im_livechat.livechat_email_template', render_context, minimal_qcontext=True)
-        mail_body = self.env['mail.render.mixin']._replace_local_links(mail_body)
+        mail_body = self.env['mixin.mail.render']._replace_local_links(mail_body)
         mail = self.env['mail.mail'].sudo().create({
             'subject': _('Conversation with %s', self.livechat_operator_id.user_livechat_username or self.livechat_operator_id.name),
             'email_from': company.catchall_formatted or company.email_formatted,

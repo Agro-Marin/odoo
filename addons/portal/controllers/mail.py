@@ -39,7 +39,7 @@ class MailController(mail.MailController):
                 model, res_id, access_token=access_token, **kwargs
             )
 
-        if isinstance(request.env[model], request.env.registry["portal.mixin"]):
+        if isinstance(request.env[model], request.env.registry["mixin.portal"]):
             uid = request.session.uid or request.env.ref("base.public_user").id
             record_sudo = request.env[model].sudo().browse(res_id).exists()
             try:

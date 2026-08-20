@@ -5,7 +5,7 @@ from odoo.tools.translate import html_translate
 
 class ResPartner(models.Model):
     _name = 'res.partner'
-    _inherit = ['res.partner', 'website.seo.metadata']
+    _inherit = ['res.partner', 'mixin.website.seo.metadata']
 
     website_description = fields.Html('Website Partner Full Description', strip_style=True, sanitize_overridable=True, translate=html_translate)
     website_short_description = fields.Text('Website Partner Short Description', translate=True)

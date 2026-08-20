@@ -43,7 +43,7 @@ export class WebsiteLinksTagsWrapper extends Component {
     }
 
     async onCreateOption(string, closeFn) {
-        const record = await this.orm.call("utm.mixin", "find_or_create_record", [
+        const record = await this.orm.call("mixin.utm", "find_or_create_record", [
             this.props.model,
             string,
         ]);

@@ -7,7 +7,7 @@ from odoo import api, fields, models
 
 class ResPartner(models.Model):
     _name = "res.partner"
-    _inherit = ["res.partner", "website.published.multi.mixin"]
+    _inherit = ["res.partner", "mixin.website.published.multi"]
 
     visitor_ids = fields.One2many("website.visitor", "partner_id", string="Visitors")
 

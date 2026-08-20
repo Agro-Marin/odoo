@@ -58,7 +58,7 @@ class ProductProduct(models.Model):
                     'website_sale_stock.availability_email_body',
                     {'product': product_ctxt},
                 )
-                full_mail = product_ctxt.env['mail.render.mixin']._render_encapsulate(
+                full_mail = product_ctxt.env['mixin.mail.render']._render_encapsulate(
                     'mail.mail_notification_light',
                     body_html,
                     add_context={'model_description': _("Product")},

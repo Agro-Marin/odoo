@@ -29,7 +29,7 @@ class MailMessage(models.Model):
             not portal_partner
             or not portal_thread
             or not isinstance(portal_partner, self.pool["res.partner"])
-            or not isinstance(portal_thread, self.pool["mail.thread"])
+            or not isinstance(portal_thread, self.pool["mixin.mail.thread"])
         ):
             return
         for message in self:
@@ -246,7 +246,8 @@ class MailMessage(models.Model):
         # Linked messages (e.g. a message link posted in the chatter) carry the
         # referenced thread's display_name so the frontend can rebuild the
         # prettified link after a refresh.
-        linked_messages = self.linked_message_ids - self
+        _by_message, readable_links = self._get_linked_messages()
+        linked_messages = readable_links - self
         linked_messages_vals_list = linked_messages._read_format(
             {"id", "model", "res_id"}
         )
@@ -255,7 +256,7 @@ class MailMessage(models.Model):
             linked_messages, linked_messages_vals_list, strict=True
         ):
             record = record_by_linked_message.get(message)
-            # sudo: mail.thread - reading display_name of accessed thread is acceptable
+            # sudo: mixin.mail.thread - reading display_name of accessed thread is acceptable
             values["thread"] = {
                 "display_name": record.sudo().display_name if record else False
             }

@@ -17,7 +17,7 @@ class PortalMessageReactionController(MessageReactionController):
 
         ``resolve_message_thread`` rather than ``request.env[message.model]``:
         the model name is free-form (a stale name after an uninstall, or a model
-        that never inherited ``mail.thread``) and this route is ``auth="public"``.
+        that never inherited ``mixin.mail.thread``) and this route is ``auth="public"``.
         See :meth:`mail.message._is_thread_model`.
         """
         partner, guest = super()._get_reaction_author(message, **kwargs)

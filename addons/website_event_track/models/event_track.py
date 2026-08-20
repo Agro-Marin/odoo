@@ -31,11 +31,11 @@ class EventTrack(models.Model):
     _description = 'Event Track'
     _order = 'priority desc, date'
     _inherit = [
-        'mail.thread',
-        'mail.activity.mixin',
-        'website.seo.metadata',
-        'website.published.mixin',
-        'website.searchable.mixin'
+        'mixin.mail.thread',
+        'mixin.mail.activity',
+        'mixin.website.seo.metadata',
+        'mixin.website.published',
+        'mixin.website.searchable'
     ]
     _primary_email = 'contact_email'
 

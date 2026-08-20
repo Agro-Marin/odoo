@@ -9,7 +9,7 @@ Covers four bugs discovered during the controller audit:
 * Non-numeric ``pid`` used to raise ``ValueError`` from ``int(pid)`` inside
   the credentialed branch — but only when ``res_id`` resolved to an existing
   message, producing a 500 vs 200 differential that leaked existence.
-* Bearer ``access_token`` validation against a ``mail.thread`` model that
+* Bearer ``access_token`` validation against a ``mixin.mail.thread`` model that
   lacked the configured token field (default ``access_token``) used to
   raise ``KeyError`` from ``portal.utils.validate_thread_with_token`` and
   surface as HTTP 500 — same existence-leak shape as above.
@@ -121,8 +121,8 @@ class TestPortalAvatarFallback(HttpCase):
         """``access_token`` must not crash on a thread missing the token field.
 
         ``mail.thread._mail_post_token_field`` defaults to ``"access_token"``
-        but the field itself is declared on ``portal.mixin``. Reaching a
-        bare ``mail.thread`` (here ``res.partner``) through a public route
+        but the field itself is declared on ``mixin.portal``. Reaching a
+        bare ``mixin.mail.thread`` (here ``res.partner``) through a public route
         used to raise ``KeyError: 'access_token'`` from
         :func:`portal.utils.validate_thread_with_token`, producing a 500
         that leaked message existence to unauthenticated callers.

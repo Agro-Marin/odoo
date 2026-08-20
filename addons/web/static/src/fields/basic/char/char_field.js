@@ -105,11 +105,19 @@ export const charField = {
             ),
         },
     ],
-    // `useDynamicPlaceholder.updateModel` reads this out of `record.data` to
-    // decide which model's fields the picker offers, so a view that names the
-    // option but not the field silently fell back to `record.data.model`.
-    fieldDependencies: ({ options }) =>
-        options.dynamic_placeholder_model_reference_field
+    // `useDynamicPlaceholder.updateModel` reads these out of `record.data` to
+    // decide which model's fields the picker offers. `render_model` is the
+    // server's own answer (`mixin.mail.render._compute_render_model`) and needs
+    // no declaration in the view; a view may still name a field, which wins.
+    // Each is `optional`, so a model that has neither simply drops it.
+    fieldDependencies: ({ options }) => [
+        ...(options?.dynamic_placeholder
+            ? [
+                  { name: "render_model", optional: true, readonly: true },
+                  { name: "model", optional: true, readonly: true },
+              ]
+            : []),
+        ...(options?.dynamic_placeholder_model_reference_field
             ? [
                   {
                       name: options.dynamic_placeholder_model_reference_field,
@@ -117,7 +125,8 @@ export const charField = {
                       readonly: true,
                   },
               ]
-            : [],
+            : []),
+    ],
     extractProps: ({ attrs, options, placeholder }) => ({
         isPassword: exprToBoolean(attrs.password),
         dynamicPlaceholder: options.dynamic_placeholder || false,

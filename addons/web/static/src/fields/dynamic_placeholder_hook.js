@@ -9,40 +9,55 @@ import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { DynamicPlaceholderPopover } from "./dynamic_placeholder_popover.js";
+import {
+    buildInlinePlaceholder,
+    placeholderExpression,
+    resolveTzPath,
+} from "./dynamic_placeholder_syntax.js";
 
 export function useDynamicPlaceholder(elementRef) {
     const TRIGGER_KEY = "#";
     const ownerField = useComponent();
     let closeCallback;
-    let positionCallback;
     const popover = usePopover(DynamicPlaceholderPopover, {
         onClose: () => closeCallback?.(),
-        onPositioned: (popper, position) => positionCallback?.(popper, position),
     });
     const notification = useService("notification");
+    const orm = useService("orm");
 
     let model = null;
+    // Where the placeholder goes once the popover comes back. Kept here rather
+    // than on the input: the two closures that need it are both in this hook,
+    // and a DOM attribute is not a variable.
+    let pendingRangeIndex = null;
 
     /**
      * @param {string} path
      * @param {string} [defaultValue]
      * @param {Object} [options]
+     * @param {string} [options.fieldType]
      * @param {number} [options.rangeIndex]
      * @param {boolean} [options.removeTriggerKey]
      */
-    const insert = function (
+    const insert = async function (
         path,
         defaultValue,
-        { rangeIndex = 0, removeTriggerKey = false } = {},
+        { fieldType, rangeIndex = 0, removeTriggerKey = false } = {},
     ) {
         const element = elementRef?.el;
         if (!element || !path) {
             return;
         }
-        defaultValue = (defaultValue || "").replace("|||", "");
-        const dynamicPlaceholder = ` {{object.${path}${
-            defaultValue.length ? ` ||| ${defaultValue}` : ""
-        }}}`;
+        // The type table lives in the syntax module so that a subject and a
+        // body format the same field the same way.
+        const tzPath =
+            fieldType === "datetime" ? await resolveTzPath(orm, model) : undefined;
+        const dynamicPlaceholder = ` ${buildInlinePlaceholder({
+            path,
+            fieldType,
+            defaultValue,
+            tzPath,
+        })}`;
         element.focus();
         let start = rangeIndex;
         if (removeTriggerKey && element.value[rangeIndex - 1] === TRIGGER_KEY) {
@@ -55,18 +70,15 @@ export function useDynamicPlaceholder(elementRef) {
         element.dispatchEvent(new InputEvent("input"));
     };
 
-    const onDynamicPlaceholderValidate = function (path, defaultValue) {
-        const element = elementRef?.el;
-        if (!element) {
-            return;
-        }
-        const rangeIndex = Number.parseInt(
-            element.getAttribute("data-oe-dynamic-placeholder-range-index"),
-            10,
-        );
-        element.removeAttribute("data-oe-dynamic-placeholder-range-index");
-        if (path) {
-            insert(path, defaultValue, { rangeIndex, removeTriggerKey: true });
+    const onDynamicPlaceholderValidate = function (path, defaultValue, fieldType) {
+        const rangeIndex = pendingRangeIndex;
+        pendingRangeIndex = null;
+        if (path && rangeIndex !== null) {
+            return insert(path, defaultValue, {
+                fieldType,
+                rangeIndex,
+                removeTriggerKey: true,
+            });
         }
     };
     const onDynamicPlaceholderClose = function () {
@@ -77,10 +89,9 @@ export function useDynamicPlaceholder(elementRef) {
      * @public
      * @param {Object} opts
      * @param {function} opts.validateCallback
-     * @param {function} opts.closeCallback
-     * @param {function} [opts.positionCallback]
+     * @param {function} [opts.closeCallback]
      */
-    async function open(opts) {
+    function open(opts) {
         if (!model) {
             return notification.add(
                 _t(
@@ -90,36 +101,43 @@ export function useDynamicPlaceholder(elementRef) {
             );
         }
         closeCallback = opts.closeCallback;
-        positionCallback = opts.positionCallback;
         popover.open(elementRef?.el, {
             resModel: model,
             validate: opts.validateCallback,
+            // A char or text field shows markup as tags, and the server judges
+            // the expression this hook will write, not the bare path.
+            plainText: true,
+            expressionFor: (path, fieldDef) =>
+                placeholderExpression(path, { fieldType: fieldDef?.type }),
         });
     }
-    async function onKeydown(ev) {
+    function onKeydown(ev) {
         const element = elementRef?.el;
         if (ev.target === element && ev.key === TRIGGER_KEY) {
-            const currentRangeIndex = element.selectionStart;
-            element.setAttribute(
-                "data-oe-dynamic-placeholder-range-index",
-                currentRangeIndex + 1,
-            );
-            await open({
+            pendingRangeIndex = element.selectionStart + 1;
+            open({
                 validateCallback: onDynamicPlaceholderValidate,
                 closeCallback: onDynamicPlaceholderClose,
             });
         }
     }
-    function updateModel(model_name_location) {
+    function updateModel(modelNameLocation) {
         const recordData = ownerField.props.record.data;
-        model = recordData[model_name_location] || recordData.model;
+        // `render_model` is the server's own answer to "which model do these
+        // placeholders resolve against", computed per model by
+        // `mixin.mail.render._compute_render_model`. A view may still name a
+        // field explicitly -- `sms.composer` is not a render mixin and has no
+        // `render_model` -- and that declaration wins.
+        model =
+            (modelNameLocation && recordData[modelNameLocation]) ||
+            recordData.render_model ||
+            recordData.model;
     }
 
     return {
         updateModel: updateModel,
         onKeydown: onKeydown,
         insert: insert,
-        setElementRef: (er) => (elementRef = er),
         open: open,
     };
 }

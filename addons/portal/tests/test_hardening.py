@@ -55,7 +55,7 @@ class TestDeletedThreadCredentials(PortalHardeningCommon):
     row raises ``MissingError`` — which surfaced as an error response naming the
     model and the id the caller guessed.
 
-    Portal declares no concrete ``portal.mixin`` model of its own, so these
+    Portal declares no concrete ``mixin.portal`` model of its own, so these
     tests retarget ``_mail_post_token_field`` at ``res.partner.signup_type``
     (``auth_signup`` is a hard dependency). That is enough to make the
     validators actually *read* a field, which is the step that raises on a
@@ -251,7 +251,7 @@ class TestPagerEmptyResultSet(TransactionCase):
 class TestMailRenderSlugWithoutRequest(TransactionCase):
     """``slug()`` must resolve from the env, with no HTTP request bound.
 
-    Portal used to overwrite ``MailRenderMixin``'s env-derived ``slug`` with a
+    Portal used to overwrite ``MixinMailRender``'s env-derived ``slug`` with a
     ``request``-bound lambda via ``template_env_globals``, so every render
     without a request (the mail schedulers' ``ir.cron``, queued mail, a server
     action) raised ``RuntimeError: object is not bound`` inside ``safe_eval`` —

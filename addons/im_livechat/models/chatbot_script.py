@@ -11,11 +11,11 @@ from odoo.exceptions import ValidationError
 class ChatbotScript(models.Model):
     _name = 'chatbot.script'
     _description = 'Chatbot Script'
-    _inherit = ['image.mixin', 'utm.source.mixin']
+    _inherit = ['mixin.image', 'mixin.utm.source']
     _rec_name = 'title'
     _order = 'title, id'
 
-    # we keep a separate field for UI since name is manipulated by 'utm.source.mixin'
+    # we keep a separate field for UI since name is manipulated by 'mixin.utm.source'
     title = fields.Char('Title', required=True, translate=True, default="Chatbot")
     active = fields.Boolean(default=True)
     image_1920 = fields.Image(related='operator_partner_id.image_1920', readonly=False)

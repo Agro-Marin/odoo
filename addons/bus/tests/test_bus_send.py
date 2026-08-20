@@ -8,7 +8,7 @@ from ..models.bus import NOTIFICATION_HOLD_BACK_SECONDS
 
 @tagged("-at_install", "post_install")
 class TestBusSend(TransactionCase):
-    """Tests for ``BusListenerMixin._bus_send()`` and channel resolution."""
+    """Tests for ``MixinBusListener._bus_send()`` and channel resolution."""
 
     def test_send_single_record(self):
         """Sending on a single partner record creates one bus notification."""

@@ -2562,7 +2562,7 @@ class Website(models.Model):
         :param order: order in which the results are to be returned
         :param options: search options
 
-        :return: list of search details obtained from the `website.searchable.mixin`'s `_search_get_detail()`
+        :return: list of search details obtained from the `mixin.website.searchable`'s `_search_get_detail()`
         """
         result = []
         if search_type in ["pages", "all"]:

@@ -397,7 +397,7 @@ class BusBus(models.Model):
     def _sendone(self, target, notification_type, message):
         """Low-level method to send ``notification_type`` and ``message`` to ``target``.
 
-        Using ``_bus_send()`` from ``bus.listener.mixin`` is recommended for simplicity and
+        Using ``_bus_send()`` from ``mixin.bus.listener`` is recommended for simplicity and
         security.
 
         When using ``_sendone`` directly, ``target`` (if str) should not be guessable by an

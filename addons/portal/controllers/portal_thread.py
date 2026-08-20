@@ -4,7 +4,8 @@ from odoo import http
 from odoo.fields import Domain
 from odoo.http import request
 
-from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
+from odoo.addons.mail.controllers.thread import ThreadController
+from odoo.addons.mail.controllers.utils import to_record_id
 from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.portal.utils import get_portal_partner
 
@@ -14,7 +15,7 @@ class PortalChatter(ThreadController):
 
     Anonymous and portal-authenticated callers reach these routes; access is
     gated by HMAC token (``_hash`` + ``pid``) or per-thread ``access_token``,
-    validated in :func:`portal.utils.get_portal_partner` / :mod:`mail.thread`.
+    validated in :func:`portal.utils.get_portal_partner` / :mod:`mixin.mail.thread`.
     """
 
     @http.route(
@@ -158,7 +159,7 @@ class PortalChatter(ThreadController):
         # Coerce here too: the non-token path never calls _get_thread_with_access,
         # so a non-numeric thread_id would otherwise reach the ORM as
         # Domain("res_id", "=", "abc") and 500 with a ValueError.
-        thread_id = _to_record_id(thread_id)
+        thread_id = to_record_id(thread_id)
         # Delegated to the model rather than re-derived here: the same four
         # clauses also answer the counters that must agree with this list
         # (``website_slides.comments_count``), and two copies of that rule are
@@ -200,7 +201,7 @@ class PortalChatter(ThreadController):
         # client dict, so any key ``_message_fetch`` does not declare arrived as
         # an unexpected keyword argument and surfaced as a bare TypeError -- an
         # anonymous server-error primitive, since this route is auth="public".
-        # ``MESSAGE_FETCH_PARAMS`` exists for exactly this and five of the six
+        # ``paging.FETCH_PARAMS`` exists for exactly this and five of the six
         # call sites already used it.
         res = Message._message_fetch(
             domain, **Message._sanitize_fetch_params(fetch_params)
@@ -220,7 +221,7 @@ class PortalChatter(ThreadController):
         body-less ratings visible), which is why the model takes it as a
         parameter rather than the two agreeing by coincidence.
         """
-        return request.env["mail.thread"]._get_portal_message_non_empty_domain()
+        return request.env["mixin.mail.thread"]._get_portal_message_non_empty_domain()
 
     def _setup_portal_message_fetch_extra_domain(self, data) -> Domain:
         """Hook for downstream modules to add domain leaves to the portal message fetch."""
@@ -240,6 +241,6 @@ class PortalChatter(ThreadController):
         ``"false"`` (a non-empty string) reading as "internal" is not a contract
         anyone intended; the route takes a flag, so it coerces to one.
         """
-        message = request.env["mail.message"].browse(_to_record_id(message_id))
+        message = request.env["mail.message"].browse(to_record_id(message_id))
         message.write({"is_internal": bool(is_internal)})
         return message.is_internal

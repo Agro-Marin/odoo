@@ -13,17 +13,17 @@ def resolve_message_thread(message: BaseModel) -> BaseModel:
     mail's own access path has to ask exactly the same thing one step earlier.
     Portal defers to it rather than keeping a second copy of the rule.
 
-    Returns an empty ``mail.thread`` recordset -- not ``None`` -- when the
+    Returns an empty ``mixin.mail.thread`` recordset -- not ``None`` -- when the
     message names no usable thread. That keeps the result usable with the ORM
     idioms the callers already use: it is falsy, and :func:`get_portal_partner`
     short-circuits on it through :func:`resolve_thread_for_credentials` without
     ever touching a token field.
 
     :param message: single ``mail.message`` record
-    :return: the thread record, or an empty ``mail.thread`` recordset
+    :return: the thread record, or an empty ``mixin.mail.thread`` recordset
     """
     if not message.res_id or not message._is_thread_model():
-        return message.env["mail.thread"]
+        return message.env["mixin.mail.thread"]
     return message._get_thread_model().browse(message.res_id)
 
 
@@ -70,11 +70,11 @@ def validate_thread_with_hash_pid(
     Uses :func:`consteq` (constant-time compare) on every branch to avoid
     leaking token bytes via timing.
 
-    A ``mail.thread`` that does not declare the configured token field cannot
+    A ``mixin.mail.thread`` that does not declare the configured token field cannot
     produce a signature (``_sign_token`` raises ``NotImplementedError``), so no
     ``_hash`` can ever validate against it. Short-circuit to ``False`` instead
     of letting that exception surface as HTTP 500 on the public chatter routes
-    (reachable via e.g. ``res.partner``, a ``mail.thread`` without
+    (reachable via e.g. ``res.partner``, a ``mixin.mail.thread`` without
     ``access_token``). Mirrors the guard in :func:`validate_thread_with_token`.
 
     Both credentials are type-checked before use. These routes are ``jsonrpc``,
@@ -120,12 +120,12 @@ def validate_thread_with_token(thread: BaseModel, token: str | None) -> bool:
     :rtype: bool
 
     The field-presence check is required because ``_mail_post_token_field``
-    defaults to ``"access_token"`` on the base ``mail.thread`` model, but the
-    matching field only exists on models that inherit ``portal.mixin``. A
-    bare ``mail.thread`` (e.g. ``res.partner``) reached through a public
+    defaults to ``"access_token"`` on the base ``mixin.mail.thread`` model, but the
+    matching field only exists on models that inherit ``mixin.portal``. A
+    bare ``mixin.mail.thread`` (e.g. ``res.partner``) reached through a public
     controller would otherwise raise ``KeyError`` from ``self._fields[name]``
     and surface as HTTP 500. Mirrors the guard already present in
-    :meth:`portal.mail_thread.MailThread._sign_token`.
+    :meth:`portal.mail_thread.MixinMailThread._sign_token`.
 
     ``bool(stored_token)`` guards the ``consteq`` call: an unshared record has
     ``access_token == False``, and ``consteq(str, False)`` raises ``TypeError``

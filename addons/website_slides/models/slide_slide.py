@@ -24,11 +24,11 @@ _logger = logging.getLogger(__name__)
 class SlideSlide(models.Model):
     _name = "slide.slide"
     _inherit = [
-        "mail.thread",
-        "image.mixin",
-        "website.seo.metadata",
-        "website.published.mixin",
-        "website.searchable.mixin",
+        "mixin.mail.thread",
+        "mixin.image",
+        "mixin.website.seo.metadata",
+        "mixin.website.published",
+        "mixin.website.searchable",
     ]
     _description = "Slides"
     _mail_post_access = "read"
@@ -39,6 +39,7 @@ class SlideSlide(models.Model):
         "latest": "date_published desc",
     }
     _order = "sequence asc, is_category asc, id asc"
+    _mail_partner_fields = ()
     _partner_unfollow_enabled = True
 
     YOUTUBE_VIDEO_ID_REGEX = r"^(?:(?:https?:)?//)?(?:www\.|m\.)?(?:youtu\.be/|youtube(-nocookie)?\.com/(?:embed/|v/|shorts/|live/|watch\?v=|watch\?.+&v=))((?:\w|-){11})\S*$"
@@ -53,7 +54,7 @@ class SlideSlide(models.Model):
     name = fields.Char("Title", required=True, translate=True)
     image_1920 = fields.Image(
         compute="_compute_image_1920", store=True, readonly=False
-    )  # image.mixin override
+    )  # mixin.image override
     active = fields.Boolean(default=True, tracking=100)
     sequence = fields.Integer("Sequence", default=0)
     user_id = fields.Many2one(
@@ -1971,5 +1972,3 @@ class SlideSlide(models.Model):
         """As website_id is not defined on this record, we rely on channel website_id for base URL."""
         return self.channel_id.get_base_url()
 
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return []

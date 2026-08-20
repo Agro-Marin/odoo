@@ -10,9 +10,9 @@ class HrJob(models.Model):
     _name = 'hr.job'
     _inherit = [
         'hr.job',
-        'website.seo.metadata',
-        'website.published.multi.mixin',
-        'website.searchable.mixin',
+        'mixin.website.seo.metadata',
+        'mixin.website.published.multi',
+        'mixin.website.searchable',
     ]
 
     @mute_logger('odoo.addons.base.models.ir_qweb')

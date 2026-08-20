@@ -6,7 +6,7 @@
 # * Redundant — every renderer that can evaluate ``slug(...)`` already binds it
 #   from the env, with no request needed: ``http_routing``'s ``ir.qweb``
 #   ``_prepare_environment`` for view rendering, and ``mail``'s
-#   ``MailRenderMixin._render_eval_context`` for mail templates.
+#   ``MixinMailRender._render_eval_context`` for mail templates.
 # * A bug — ``template_env_globals`` has exactly one consumer,
 #   ``_render_eval_context``, and it merges the dict *after* setting its own
 #   ``slug``, so the request-bound lambda silently won. Any render with no HTTP

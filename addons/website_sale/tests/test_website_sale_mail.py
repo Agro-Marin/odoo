@@ -86,13 +86,13 @@ class TestWebsiteSaleMails(MailCommon, WebsiteSaleCommon):
 
     def test_salesman_assignation(self):
         self.website.salesperson_id = self.user_admin
-        MailThread = odoo.addons.mail.models.mail_thread.MailThread
-        base_method = MailThread._message_create
+        MixinMailThread = odoo.addons.mail.models.mixin_mail_thread.MixinMailThread
+        base_method = MixinMailThread._message_create
         superuser = self.env['res.users'].browse(SUPERUSER_ID)
 
         # Public user
         with patch.object(
-            MailThread, '_message_create', autospec=True, side_effect=base_method
+            MixinMailThread, '_message_create', autospec=True, side_effect=base_method
         ) as patcher:
             self.cart.with_user(self.public_user).with_context(tracking_disable=False, mail_no_track=False).sudo().action_confirm()
             patcher.assert_called()
@@ -114,7 +114,7 @@ class TestWebsiteSaleMails(MailCommon, WebsiteSaleCommon):
         portal_partner = user_portal.partner_id
         portal_user_cart = self.cart.copy({'partner_id': portal_partner.id, 'user_id': False})
         with patch.object(
-            MailThread, '_message_create', autospec=True, side_effect=base_method
+            MixinMailThread, '_message_create', autospec=True, side_effect=base_method
         ) as patcher:
             portal_user_cart.with_user(user_portal).with_context(tracking_disable=False, mail_no_track=False).sudo().action_confirm()
             patcher.assert_called()

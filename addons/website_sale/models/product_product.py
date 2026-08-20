@@ -104,7 +104,7 @@ class ProductProduct(models.Model):
         return res
 
     def _get_images(self):
-        """Return a list of records implementing `image.mixin` to
+        """Return a list of records implementing `mixin.image` to
         display on the carousel on the website for this variant.
 
         This returns a list and not a recordset because the records might be

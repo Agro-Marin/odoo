@@ -178,6 +178,62 @@ test("model option as a literal model name", async () => {
     );
 });
 
+test("comodel option", async () => {
+    await mountView({
+        type: "form",
+        resModel: "update.record.action",
+        arch: `
+            <form>
+                <field name="model"/>
+                <field name="update_path" widget="field_selector" options="{
+                    'model': 'model',
+                    'comodel': 'contact',
+                }"/>
+            </form>
+        `,
+    });
+    await contains(".o_field_widget[name='model'] .o_input").edit("lead");
+    await contains(".o_field_widget[name='update_path'] .o_input").click();
+    expect(queryAllTexts(".o_model_field_selector_popover_item")).toEqual(
+        ["Contact", "Salesperson"],
+        {
+            message:
+                "only the fields pointing at the comodel are offered; the rest can " +
+                "never be the answer",
+        },
+    );
+    // a match may still be several hops away, so its relations stay traversable
+    await followRelation();
+    await animationFrame();
+    expect(queryAllTexts(".o_model_field_selector_popover_item")).toEqual(["Childs"], {
+        message: "and inside a relation, the same rule applies",
+    });
+});
+
+test("comodel option without follow_relations offers only direct matches", async () => {
+    await mountView({
+        type: "form",
+        resModel: "update.record.action",
+        arch: `
+            <form>
+                <field name="model"/>
+                <field name="update_path" widget="field_selector" options="{
+                    'model': 'model',
+                    'comodel': 'contact',
+                    'follow_relations': false,
+                }"/>
+            </form>
+        `,
+    });
+    await contains(".o_field_widget[name='model'] .o_input").edit("lead");
+    await contains(".o_field_widget[name='update_path'] .o_input").click();
+    expect(queryAllTexts(".o_model_field_selector_popover_item")).toEqual([
+        "Contact",
+        "Salesperson",
+    ]);
+    expect(".o_model_field_selector_popover_item_relation").toHaveCount(0);
+});
+
 test("follow_relations option", async () => {
     await mountView({
         type: "form",

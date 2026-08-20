@@ -12,10 +12,10 @@ from odoo.addons.portal.utils import (
 )
 
 
-class MailThread(models.AbstractModel):
-    _inherit = "mail.thread"
+class MixinMailThread(models.AbstractModel):
+    _inherit = "mixin.mail.thread"
 
-    # Token field used to authenticate external posts (defaults to portal.mixin's
+    # Token field used to authenticate external posts (defaults to mixin.portal's
     # ``access_token``). Subclasses with a different token field override this.
     _mail_post_token_field = "access_token"
 
@@ -93,20 +93,20 @@ class MailThread(models.AbstractModel):
         if not self:
             return groups
 
-        portal_enabled = isinstance(self, self.env.registry["portal.mixin"])
+        portal_enabled = isinstance(self, self.env.registry["mixin.portal"])
         if not portal_enabled:
             return groups
 
         customer = self._mail_get_partners(introspect_fields=False)[self.id]
         if customer:
-            # sudo: mail.thread - user posting with read access should be able to create token when
+            # sudo: mixin.mail.thread - user posting with read access should be able to create token when
             # notifying other customers that need it
             access_token = self.sudo()._portal_ensure_token()
             local_msg_vals = dict(msg_vals or {})
             local_msg_vals["access_token"] = access_token
             local_msg_vals["pid"] = customer.id
             local_msg_vals["hash"] = self._sign_token(customer.id)
-            # sudo: mail.thread - user posting with read access should be able to get/create signup
+            # sudo: mixin.mail.thread - user posting with read access should be able to get/create signup
             # token when notifying other customers that need it
             local_msg_vals.update(customer.sudo().signup_get_auth_param()[customer.id])
             access_link = self._notify_get_action_link("view", **local_msg_vals)

@@ -18,6 +18,9 @@ import { DynamicPlaceholderPopover } from "@web/fields/dynamic_placeholder_popov
 class Partner extends models.Model {
     char = fields.Char();
     placeholder = fields.Char({ default: "partner" });
+    date_end = fields.Datetime({ string: "Deadline" });
+    image = fields.Binary({ string: "Image" });
+    note = fields.Html({ string: "Note" });
     product_id = fields.Many2one({ relation: "product" });
     properties = fields.Properties({
         string: "Properties",
@@ -168,6 +171,9 @@ test("dynamic placeholder properties", async () => {
 });
 
 test("correctly cache model qweb variables and don't prevent opening of other popovers", async () => {
+    // Asserted as a non-editor: the allow-list only constrains those, and the
+    // popover no longer spends the RPC on a user it cannot constrain.
+    onRpc("has_group", () => false);
     const def = new Deferred();
     let willStarts = 0;
     patchWithCleanup(DynamicPlaceholderPopover.prototype, {
@@ -197,6 +203,17 @@ test("correctly cache model qweb variables and don't prevent opening of other po
     expect.verifySteps(["mail_allowed_qweb_expressions"]);
 });
 
+test("a template editor does not pay for an allow-list that cannot constrain them", async () => {
+    onRpc("partner", "mail_allowed_qweb_expressions", () => {
+        expect.step("mail_allowed_qweb_expressions");
+        return [];
+    });
+    await mountView({ type: "form", resModel: "partner", resId: 1 });
+    await contains(".o_field_char input").edit("#", { confirm: false });
+    expect(".o_model_field_selector_popover").toHaveCount(1);
+    expect.verifySteps([]);
+});
+
 test("the model reference field is loaded without the view naming it", async () => {
     // `useDynamicPlaceholder.updateModel` reads the option's field out of
     // `record.data`. Without a declared dependency it was absent from the read
@@ -221,4 +238,69 @@ test("the model reference field is loaded without the view naming it", async () 
 
     await contains(".o_field_char input").edit("#", { confirm: false });
     expect(".o_model_field_selector_popover").toHaveCount(1);
+});
+
+test("a datetime is localised in a subject, as it already was in a body", async () => {
+    // The popover has always sent the field type as a third argument; the
+    // char/text path declared two parameters and dropped it, so the same field
+    // rendered as `08/17/2026 09:43 PM` in a body and as
+    // `2026-08-18 03:43:39.788945` in a subject.
+    onRpc("mail_get_partner_fields", () => ["product_id"]);
+    await mountView({ type: "form", resModel: "partner", resId: 1 });
+    await contains(".o_field_char input").edit("#", { confirm: false });
+    await contains(
+        ".o_model_field_selector_popover_item_name:contains('Deadline')",
+    ).click();
+    await contains(".o_model_field_selector_popover button:contains('Insert')").click();
+    await animationFrame();
+    expect(".o_field_char input").toHaveValue(
+        " {{format_datetime(object.date_end, tz=object.product_id.tz)}}",
+    );
+});
+
+test("a default value carrying the placeholder terminator survives", async () => {
+    await mountView({ type: "form", resModel: "partner", resId: 1 });
+    await contains(".o_field_char input").edit("#", { confirm: false });
+    await contains(
+        ".o_model_field_selector_popover_item_name:contains('Char')",
+    ).click();
+    await contains(".o_model_field_selector_default_value_input input").edit(
+        "see }} here",
+        { confirm: false },
+    );
+    await contains(".o_model_field_selector_popover button:contains('Insert')").click();
+    expect(".o_field_char input").toHaveValue(" {{object.char ||| see \\}\\} here}}");
+});
+
+test("fields no placeholder can render are not offered", async () => {
+    await mountView({ type: "form", resModel: "partner", resId: 1 });
+    await contains(".o_field_char input").edit("#", { confirm: false });
+    const names = [
+        ...document.querySelectorAll(".o_model_field_selector_popover_item_name"),
+    ].map((el) => el.textContent.trim());
+    expect(names).not.toInclude("Image", {
+        message: "a binary renders as the repr of its bytes",
+    });
+    expect(names).not.toInclude("Note", {
+        message: "an html field reaches a subject as literal tags",
+    });
+    expect(names).toInclude("Deadline");
+});
+
+test("a non-editor is offered only what the server will accept", async () => {
+    // The allow-list holds paths; the picker used to test the path and the
+    // server the expression, so a datetime could be offered and then refused
+    // on save. Both sides now judge the expression.
+    onRpc("has_group", () => false);
+    onRpc("mail_allowed_qweb_expressions", () => ["object.char", "object.date_end"]);
+    await mountView({ type: "form", resModel: "partner", resId: 1 });
+    await contains(".o_field_char input").edit("#", { confirm: false });
+    const names = [
+        ...document.querySelectorAll(".o_model_field_selector_popover_item_name"),
+    ].map((el) => el.textContent.trim());
+    expect(names).toEqual(["Char"], {
+        message:
+            "`object.date_end` is allow-listed but the placeholder would be " +
+            "`format_datetime(...)`, which is not",
+    });
 });

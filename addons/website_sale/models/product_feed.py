@@ -19,7 +19,7 @@ from odoo.addons.website_sale import const, utils
 
 class ProductFeed(models.Model):
     _name = 'product.feed'
-    _inherit = ['mail.thread']
+    _inherit = ['mixin.mail.thread']
     _description = "Product Feed"
 
     name = fields.Char(required=True)

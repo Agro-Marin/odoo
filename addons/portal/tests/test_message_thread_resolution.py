@@ -1,7 +1,7 @@
 """``mail.message.model`` is free-form; the portal chatter must survive that.
 
 Nothing constrains that column to a model that is still installed, nor to one
-that inherits ``mail.thread``. Portal has three places that dereference it — one
+that inherits ``mixin.mail.thread``. Portal has three places that dereference it — one
 formatter and two controller overrides that resolve the thread purely to check a
 portal credential against it — and only the formatter used to guard.
 
@@ -70,8 +70,8 @@ class TestMessageThreadResolution(TransactionCase):
         ):
             with self.subTest(model=model):
                 fallback = self._message(model, res_id)._get_thread_model()
-                self.assertEqual(fallback._name, "mail.thread")
-                # The whole point: mail.thread class methods are now reachable.
+                self.assertEqual(fallback._name, "mixin.mail.thread")
+                # The whole point: mixin.mail.thread class methods are now reachable.
                 self.assertTrue(fallback._get_allowed_access_params())
         live = self._message("res.partner", self.partner.id)._get_thread_model()
         self.assertEqual(live._name, "res.partner")
@@ -88,7 +88,7 @@ class TestMessageThreadResolution(TransactionCase):
                 thread = resolve_message_thread(self._message(model, res_id))
 
                 self.assertFalse(thread)
-                self.assertEqual(thread._name, "mail.thread")
+                self.assertEqual(thread._name, "mixin.mail.thread")
 
     def test_resolve_message_thread_returns_the_record(self):
         thread = resolve_message_thread(self._message("res.partner", self.partner.id))

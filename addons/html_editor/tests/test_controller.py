@@ -278,7 +278,7 @@ class TestController(HttpCase):
             '/html_editor/link_preview_internal',
             data=json_safe.dumps({
                 "params": {
-                    "preview_url": _get_full_url("/odoo/mail.thread/1"),
+                    "preview_url": _get_full_url("/odoo/mixin.mail.thread/1"),
                 }
             }),
             headers=self.headers

@@ -16,10 +16,10 @@ class EventSponsor(models.Model):
     # _order = 'sponsor_type_id, sequence' TDE FIXME
     _rec_name = 'name'
     _inherit = [
-        'mail.thread',
-        'mail.activity.mixin',
-        'website.published.mixin',
-        'website.searchable.mixin',
+        'mixin.mail.thread',
+        'mixin.mail.activity',
+        'mixin.website.published',
+        'mixin.website.searchable',
     ]
 
     def _default_sponsor_type_id(self):

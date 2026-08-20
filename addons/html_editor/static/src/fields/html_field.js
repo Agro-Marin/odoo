@@ -132,15 +132,33 @@ export class HtmlField extends Component {
             }
         });
         useRecordObserver((record) => {
-            const value =
-                record.data[
-                    this.props.dynamicPlaceholderModelReferenceField || "model"
-                ];
             // update Dynamic Placeholder reference model
             if (this.props.dynamicPlaceholder && this.editor) {
-                this.editor.shared.dynamicPlaceholder?.updateDphDefaultModel(value);
+                this.editor.shared.dynamicPlaceholder?.updateDphDefaultModel(
+                    this.dynamicPlaceholderResModel(record),
+                );
             }
         });
+    }
+
+    /**
+     * Which model the placeholders in this field resolve against.
+     *
+     * `render_model` is the server's own answer, computed per model by
+     * `mixin.mail.render._compute_render_model`; a view that names a field
+     * explicitly still wins, because `sms.composer` is not a render mixin and
+     * has no `render_model` to read.
+     *
+     * @param {Object} record
+     * @returns {string | undefined}
+     */
+    dynamicPlaceholderResModel(record) {
+        const named = this.props.dynamicPlaceholderModelReferenceField;
+        return (
+            (named && record.data[named]) ||
+            record.data.render_model ||
+            record.data.model
+        );
     }
 
     get value() {
@@ -319,10 +337,9 @@ export class HtmlField extends Component {
             },
             dropImageAsAttachment: true, // @todo @phoenix always true ?
             dynamicPlaceholder: this.props.dynamicPlaceholder,
-            dynamicPlaceholderResModel:
-                this.props.record.data[
-                    this.props.dynamicPlaceholderModelReferenceField || "model"
-                ],
+            dynamicPlaceholderResModel: this.dynamicPlaceholderResModel(
+                this.props.record,
+            ),
             direction: localization.direction || "ltr",
             getRecordInfo: () => {
                 const { resModel, resId, data, fields, id } = this.props.record;
@@ -516,6 +533,18 @@ export const htmlField = {
             help: _t("Offer a raw-HTML editing toggle. Debug mode only."),
         },
     ],
+    // See `HtmlField.dynamicPlaceholderResModel`: the picker reads the model out
+    // of `record.data`, and `render_model` is the server's own answer, so no
+    // view needs to name it. Both are `optional` -- a model with neither simply
+    // drops them from the read.
+    fieldDependencies({ options }) {
+        return options?.dynamic_placeholder
+            ? [
+                  { name: "render_model", optional: true, readonly: true },
+                  { name: "model", optional: true, readonly: true },
+              ]
+            : [];
+    },
     extractProps({ attrs, options }, dynamicInfo) {
         const editorConfig = {
             mediaModalParams: {

@@ -21,11 +21,11 @@ class EventEvent(models.Model):
     _name = 'event.event'
     _inherit = [
         'event.event',
-        'website.seo.metadata',
-        'website.published.multi.mixin',
-        'website.cover_properties.mixin',
-        'website.searchable.mixin',
-        'website.page_visibility_options.mixin',
+        'mixin.website.seo.metadata',
+        'mixin.website.published.multi',
+        'mixin.website.cover_properties',
+        'mixin.website.searchable',
+        'mixin.website.page_visibility_options',
     ]
 
     def _default_cover_properties(self):

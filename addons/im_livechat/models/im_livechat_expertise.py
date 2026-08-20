@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from odoo import Command, fields, models
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class Im_LivechatExpertise(models.Model):

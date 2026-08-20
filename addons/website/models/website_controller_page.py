@@ -7,8 +7,8 @@ class WebsiteControllerPage(models.Model):
     _name = "website.controller.page"
     _inherits = {"ir.ui.view": "view_id"}
     _inherit = [
-        "website.published.multi.mixin",
-        "website.searchable.mixin",
+        "mixin.website.published.multi",
+        "mixin.website.searchable",
     ]
     _description = "Model Page"
     _order = "website_id, id DESC"

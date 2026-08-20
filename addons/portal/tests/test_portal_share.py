@@ -4,8 +4,8 @@ The wizard is opened with ``res_model`` / ``res_id`` taken straight from the
 ``active_model`` / ``active_id`` context (see :meth:`PortalShare.default_get`),
 and ``res_model`` is a plain ``Char`` the wizard's own ACL lets a partner
 manager write. Nothing in that path guarantees the target inherits
-``portal.mixin`` -- but ``resource_ref`` is a ``Reference`` whose selection is
-restricted to concrete ``portal.mixin`` models, so assigning anything else to it
+``mixin.portal`` -- but ``resource_ref`` is a ``Reference`` whose selection is
+restricted to concrete ``mixin.portal`` models, so assigning anything else to it
 raises ``ValueError`` from the field itself.
 
 ``_compute_share_link`` and ``_compute_access_warning`` already route through
@@ -30,7 +30,7 @@ class TestPortalShareTarget(TransactionCase):
         cls.recipient = cls.env["res.partner"].create(
             {"name": "Share Recipient", "email": "share.recipient@example.com"}
         )
-        # res.partner is a mail.thread but NOT a portal.mixin: it has no
+        # res.partner is a mixin.mail.thread but NOT a mixin.portal: it has no
         # access_url / access_token, so it can never be shared this way.
         cls.non_portal_record = cls.env["res.partner"].create({"name": "Share Target"})
 
@@ -54,7 +54,7 @@ class TestPortalShareTarget(TransactionCase):
         values = wizard.read(["resource_ref", "share_link", "access_warning"])[0]
         self.assertFalse(
             values["resource_ref"],
-            "a model outside the portal.mixin hierarchy has no shareable "
+            "a model outside the mixin.portal hierarchy has no shareable "
             "reference, so the field must come back empty rather than raise",
         )
         self.assertFalse(values["share_link"])

@@ -2,7 +2,7 @@
 
 Both validators are reached from public (``auth="public"``) chatter routes with
 fully attacker-controlled ``thread_model`` / ``token`` / ``hash`` / ``pid``.
-A ``mail.thread`` that does not carry a usable access token must make them
+A ``mixin.mail.thread`` that does not carry a usable access token must make them
 return ``False`` — never raise, which on a public route surfaces as HTTP 500
 and leaks a stack trace / model internals.
 """
@@ -22,7 +22,7 @@ from odoo.addons.portal.utils import (
 
 class TestTokenValidatorUnit(TransactionCase):
     def test_hash_pid_on_tokenless_thread_returns_false(self):
-        """``res.partner`` is a ``mail.thread`` with no ``access_token`` field, so
+        """``res.partner`` is a ``mixin.mail.thread`` with no ``access_token`` field, so
         ``_sign_token`` raises ``NotImplementedError``. The validator must
         short-circuit to False instead of propagating it."""
         partner = self.env.ref("base.partner_root")
@@ -82,7 +82,7 @@ class TestDocumentCheckAccess(TransactionCase):
 class TestTokenValidatorHttp(HttpCase):
     @mute_logger("odoo.http")
     def test_chatter_init_hash_pid_tokenless_model_no_500(self):
-        """``/portal/chatter_init`` with hash+pid on a tokenless ``mail.thread``
+        """``/portal/chatter_init`` with hash+pid on a tokenless ``mixin.mail.thread``
         used to raise ``NotImplementedError`` (HTTP 500 on a public route)."""
         result = self.make_jsonrpc_request(
             "/portal/chatter_init",

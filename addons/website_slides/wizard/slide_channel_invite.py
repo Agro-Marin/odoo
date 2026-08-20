@@ -13,7 +13,7 @@ emails_split = re.compile(r"[;,\n\r]+")
 
 class SlideChannelInvite(models.TransientModel):
     _name = "slide.channel.invite"
-    _inherit = ["mail.composer.mixin"]
+    _inherit = ["mixin.mail.composer"]
     _description = "Channel Invitation Wizard"
 
     # composer content
@@ -45,7 +45,7 @@ class SlideChannelInvite(models.TransientModel):
             channel = invite.channel_id
             invite.channel_invite_url = f"{channel.get_base_url()}/slides/{channel.id}"
 
-    # Overrides of mail.composer.mixin
+    # Overrides of mixin.mail.composer
     @api.depends("channel_id")  # fake trigger otherwise not computed in new mode
     def _compute_render_model(self):
         self.render_model = "slide.channel.partner"

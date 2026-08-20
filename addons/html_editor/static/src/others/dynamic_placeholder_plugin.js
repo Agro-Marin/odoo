@@ -4,6 +4,11 @@ import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/translation";
 import { DynamicPlaceholderPopover } from "@web/fields/dynamic_placeholder_popover";
+import {
+    buildQwebPlaceholder,
+    placeholderExpression,
+    resolveTzPath,
+} from "@web/fields/dynamic_placeholder_syntax";
 
 /**
  * @typedef {Object} DynamicPlaceholderShared
@@ -69,11 +74,17 @@ export class DynamicPlaceholderPlugin extends Plugin {
                 { type: "danger" },
             );
         }
+        // Remembered so that `onValidate` resolves the timezone against the
+        // model the picker actually offered, not against whatever the editor
+        // was last configured with.
+        this.openedResModel = resModel;
         this.overlay.open({
             props: {
                 close: this.onClose.bind(this),
                 validate: this.onValidate.bind(this),
                 resModel: resModel,
+                expressionFor: (path, fieldDef) =>
+                    placeholderExpression(path, { fieldType: fieldDef?.type }),
             },
         });
     }
@@ -87,39 +98,29 @@ export class DynamicPlaceholderPlugin extends Plugin {
         if (!chain) {
             return;
         }
-
-        const dynamicPlaceholder =
+        const resModel = this.openedResModel || this.defaultResModel;
+        const tzPath =
             fieldType === "datetime"
-                ? await this._onValidateDatetime(chain, defaultValue)
-                : `object.${chain}`;
+                ? await resolveTzPath(this.services.orm, resModel)
+                : undefined;
+        // The default is the element body, which QWeb emits when the value is
+        // falsy. Folding it into the expression as `or '...'` said the same
+        // thing in a second grammar, and needed its own quote escaping.
+        const { expression, body } = buildQwebPlaceholder({
+            path: chain,
+            fieldType,
+            defaultValue,
+            tzPath,
+        });
 
         const t = document.createElement("T");
-        t.setAttribute("t-out", dynamicPlaceholder);
-        if (defaultValue?.length) {
-            t.innerText = defaultValue;
+        t.setAttribute("t-out", expression);
+        if (body) {
+            t.innerText = body;
         }
 
         this.dependencies.dom.insert(t);
         this.dependencies.history.addStep();
-    }
-
-    async _onValidateDatetime(chain, defaultValue) {
-        const partnerFields = await this.services.orm.call(
-            `${this.defaultResModel}`,
-            "mail_get_partner_fields",
-            [[]],
-        );
-
-        let dynamicPlaceholder = partnerFields.length
-            ? `format_datetime(object.${chain}, tz=object.${partnerFields[0]}.tz)`
-            : `format_datetime(object.${chain})`;
-
-        if (defaultValue) {
-            const safeDefaultValue = defaultValue.replace(/'/g, "\\'");
-            dynamicPlaceholder += ` or '${safeDefaultValue}'`;
-        }
-
-        return dynamicPlaceholder;
     }
 
     onClose() {
