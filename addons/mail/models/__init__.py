@@ -2,19 +2,22 @@ from . import mail_alias
 from . import mail_alias_domain
 from . import base
 
-from . import mail_activity_mixin
-from . import mail_alias_mixin_optional
-from . import mail_alias_mixin
-from . import mail_render_mixin
-from . import mail_composer_mixin
-from . import mail_thread
-from . import mail_thread_blacklist
-from . import mail_thread_cc
-from . import mail_thread_main_attachment
-from . import mail_tracking_duration_mixin
-from . import template_reset_mixin
+from . import mixin_mail_activity
+from . import mixin_mail_alias_optional
+from . import mixin_mail_alias
+from . import mixin_mail_render
+from . import mixin_mail_composer
+from . import mixin_mail_gateway
+from . import mixin_mail_thread
+from . import mixin_mail_thread_blacklist
+from . import mixin_mail_thread_cc
+from . import mixin_mail_thread_main_attachment
+from . import mixin_mail_tracking_duration
+from . import mixin_store_sync
+from . import mixin_template_reset
 
-from . import fetchmail
+from . import fetchmail_server
+from . import mixin_mail_attachment_owner
 from . import mail_notification
 from . import mail_activity_type
 from . import mail_activity
@@ -22,6 +25,7 @@ from . import mail_activity_plan
 from . import mail_activity_plan_template
 from . import mail_blacklist
 from . import mail_followers
+from . import mail_followers_access
 from . import mail_gateway_allowed
 from . import mail_link_preview
 from . import mail_message_link_preview
@@ -31,6 +35,8 @@ from . import mail_message_subtype
 from . import mail_message_translation
 from . import mail_message
 from . import mail_message_access
+from . import mail_message_store
+from . import mail_message_fetch
 from . import mail_mail
 from . import mail_presence
 from . import mail_push

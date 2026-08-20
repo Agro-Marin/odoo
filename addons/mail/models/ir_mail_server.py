@@ -111,9 +111,11 @@ class IrMail_Server(models.Model):
                 )
 
     def _get_personal_mail_servers_limit(self) -> int:
-        return (
-            self.env["ir.config_parameter"]._get_int_param(
-                "mail.server.personal.limit.minutes", 30
-            )
-            or 30
+        return self.env["ir.config_parameter"]._get_positive_int_param(
+            "mail.server.personal.limit.minutes", 30
+        )
+
+    def _get_personal_mail_server_grace(self) -> int:
+        return self.env["ir.config_parameter"]._get_positive_int_param(
+            "mail.server.personal.setup.grace.minutes", 1440
         )

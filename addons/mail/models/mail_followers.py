@@ -1,18 +1,36 @@
-import itertools
 import typing
 from collections import defaultdict
-from typing import Literal, Self
-
-from psycopg.errors import UniqueViolation
+from collections.abc import Collection
+from typing import Literal, NamedTuple, Self
 
 from odoo import Command, api, fields, models
 from odoo.api import ValuesType
+from odoo.tools import SQL
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+from odoo.addons.mail.tools.recipients import (
+    RecipientData,
+    RecipientRow,
+    build_recipient_data,
+)
 
 if typing.TYPE_CHECKING:
     from .mail_message_subtype import MailMessageSubtype
     from .res_partner import ResPartner
+
+
+ExistingPolicy = Literal["skip", "replace", "update"]
+
+
+class SubscriptionRow(NamedTuple):
+    id: int
+    res_model: str
+    res_id: int
+    partner_id: int
+    subtype_ids: list[int]
+    partner_share: bool
+    partner_active: bool
+
 
 _RECIPIENT_USER_LATERAL = """
  LEFT JOIN LATERAL (
@@ -77,9 +95,10 @@ _RECIPIENT_FOLLOWERS_QUERY = f"""
            sub_followers.is_follower AS is_follower
       FROM res_partner partner
       JOIN sub_followers ON sub_followers.pid = partner.id
-                        AND (sub_followers.internal IS NOT TRUE OR partner.partner_share IS NOT TRUE)
 {_RECIPIENT_USER_LATERAL}
-     WHERE sub_followers.subtype_follower OR partner.id = ANY(%(pids)s)
+     WHERE (sub_followers.subtype_follower
+            AND (sub_followers.internal IS NOT TRUE OR partner.partner_share IS NOT TRUE))
+        OR partner.id = ANY(%(pids)s)
 """
 
 _RECIPIENT_PARTNERS_QUERY = f"""
@@ -105,22 +124,40 @@ _SUBSCRIPTION_DATA_QUERY = """
            fol.partner_id,
            COALESCE(
                ARRAY_AGG(subtype.id ORDER BY subtype.id)
-               FILTER (WHERE subtype.id IS NOT NULL), '{}')
-           %s
+               FILTER (WHERE subtype.id IS NOT NULL), '{}'),
+           partner.partner_share,
+           partner.active
       FROM mail_followers fol
  LEFT JOIN mail_followers_mail_message_subtype_rel fol_rel
         ON fol_rel.mail_followers_id = fol.id
  LEFT JOIN mail_message_subtype subtype ON subtype.id = fol_rel.mail_message_subtype_id
-           %s
-     WHERE %s
-  GROUP BY fol.id %s
+ LEFT JOIN res_partner partner ON partner.id = fol.partner_id
+     WHERE %(where)s
+  GROUP BY fol.id, partner.partner_share, partner.active
 """
-_SUBSCRIPTION_PARTNER_COLUMNS = ", partner.partner_share, partner.active"
-_SUBSCRIPTION_PARTNER_JOIN = (
-    " LEFT JOIN res_partner partner ON partner.id = fol.partner_id"
-)
-_SUBSCRIPTION_PARTNER_GROUP = ", partner.partner_share, partner.active"
-_SUBSCRIPTION_NO_PARTNER_COLUMNS = ", NULL AS partner_share, NULL AS partner_active"
+
+_RECIPIENT_READS = {
+    "mail.followers": ("partner_id", "res_id", "res_model", "subtype_ids"),
+    "mail.message.subtype": ("internal",),
+    "res.groups": ("user_ids",),
+    "res.partner": ("active", "email_normalized", "lang", "name", "partner_share"),
+    "res.users": ("active", "group_ids", "notification_type", "partner_id", "share"),
+}
+
+_SUBSCRIPTION_READS = {
+    "mail.followers": ("partner_id", "res_id", "res_model", "subtype_ids"),
+    "res.partner": ("active", "partner_share"),
+}
+
+_FOLLOWER_WRITES = {
+    "mail.followers": ("partner_id", "res_id", "res_model", "subtype_ids"),
+}
+
+_MAIL_DOC_READS = {
+    "mail.followers": ("partner_id", "res_id", "res_model"),
+    "mail.mail": ("mail_message_id", "recipient_ids"),
+    "mail.message": ("model", "res_id"),
+}
 
 
 class MailFollowers(models.Model):
@@ -128,7 +165,7 @@ class MailFollowers(models.Model):
     _log_access = False
     _description = "Document Followers"
 
-    res_model = fields.Char("Related Document Model Name", required=True, index=True)
+    res_model = fields.Char("Related Document Model Name", required=True)
     res_id = fields.Many2oneReference(
         "Related Document ID",
         index=True,
@@ -150,20 +187,40 @@ class MailFollowers(models.Model):
     is_active = fields.Boolean("Is Active", related="partner_id.active")
 
     _mail_followers_res_partner_res_model_id_uniq = models.Constraint(
-        "unique(res_model,res_id,partner_id)",
+        "unique nulls not distinct (res_model,res_id,partner_id)",
         "Error, a partner cannot follow twice the same object.",
     )
 
-    def _invalidate_documents(self, vals_list: list[ValuesType] | None = None) -> None:
+    _FOLLOWED_FNAMES = ("message_follower_ids",)
+
+    def _fields_read_by(self, reads: dict[str, tuple[str, ...]]) -> list[fields.Field]:
+        return [
+            self.env[model]._fields[fname]
+            for model, fnames in reads.items()
+            for fname in fnames
+        ]
+
+    def _invalidate_documents(
+        self, documents: list[tuple[str, int]] | None = None
+    ) -> None:
         to_invalidate = defaultdict(list)
-        for record in vals_list or [
-            {"res_model": rec.res_model, "res_id": rec.res_id} for rec in self
-        ]:
-            if res_id := record.get("res_id"):
-                to_invalidate[record.get("res_model")].append(res_id)
+        for res_model, res_id in (
+            documents
+            if documents is not None
+            else [(record.res_model, record.res_id) for record in self]
+        ):
+            if res_id:
+                to_invalidate[res_model].append(res_id)
         for res_model, res_ids in to_invalidate.items():
-            if res_model in self.env:
-                self.env[res_model].browse(res_ids).invalidate_recordset()
+            if res_model not in self.env:
+                continue
+            records = self.env[res_model].browse(res_ids)
+            fnames = [
+                fname for fname in self._FOLLOWED_FNAMES if fname in records._fields
+            ]
+            if fnames:
+                records.invalidate_recordset(fnames)
+                records.modified(fnames)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -172,15 +229,16 @@ class MailFollowers(models.Model):
         return res
 
     def write(self, vals: ValuesType) -> Literal[True]:
-        if "res_model" in vals or "res_id" in vals:
+        moved = {"res_model", "res_id"} & vals.keys()
+        if moved:
             self._invalidate_documents()
         res = super().write(vals)
-        if any(fname in vals for fname in ("res_model", "res_id", "partner_id")):
+        if moved or "partner_id" in vals:
             self._invalidate_documents()
         return res
 
     def unlink(self) -> Literal[True]:
-        documents = [{"res_model": rec.res_model, "res_id": rec.res_id} for rec in self]
+        documents = [(record.res_model, record.res_id) for record in self]
         res = super().unlink()
         self._invalidate_documents(documents)
         return res
@@ -191,14 +249,14 @@ class MailFollowers(models.Model):
             follower.display_name = follower.partner_id.sudo().display_name
 
     @api.model
-    def _get_mail_doc_to_followers(self, mail_ids: list[int]) -> dict:
+    def _get_mail_doc_to_followers(
+        self, mail_ids: list[int]
+    ) -> dict[tuple[str, int], set[int]]:
         if not mail_ids:
             return {}
-        self.env["mail.mail"].flush_model(["mail_message_id", "recipient_ids"])
-        self.env["mail.followers"].flush_model(["partner_id", "res_model", "res_id"])
-        self.env["mail.message"].flush_model(["model", "res_id"])
-        self.env.cr.execute(
-            """
+        rows = self.env.execute_query(
+            SQL(
+                """
             SELECT message.model, message.res_id, mail_partner.res_partner_id
               FROM mail_mail mail
               JOIN mail_mail_res_partner_rel mail_partner ON mail_partner.mail_mail_id = mail.id
@@ -208,10 +266,12 @@ class MailFollowers(models.Model):
                AND mail_partner.res_partner_id = follower.partner_id
              WHERE mail.id = ANY(%(mail_ids)s)
         """,
-            {"mail_ids": list(mail_ids)},
+                mail_ids=list(mail_ids),
+                to_flush=self._fields_read_by(_MAIL_DOC_READS),
+            )
         )
         res = defaultdict(set)
-        for model, doc_id, partner_id in self.env.cr.fetchall():
+        for model, doc_id, partner_id in rows:
             res[(model, doc_id)].add(partner_id)
         return dict(res)
 
@@ -220,21 +280,11 @@ class MailFollowers(models.Model):
         records: models.BaseModel | None,
         message_type: str,
         subtype_id: int,
-        pids: list[int] | None = None,
-    ) -> dict:
-        self.env["mail.followers"].flush_model(
-            ["partner_id", "res_id", "res_model", "subtype_ids"]
-        )
-        self.env["mail.message.subtype"].flush_model(["internal"])
-        self.env["res.users"].flush_model(
-            ["active", "group_ids", "notification_type", "partner_id", "share"]
-        )
-        self.env["res.partner"].flush_model(
-            ["active", "email_normalized", "lang", "name", "partner_share"]
-        )
-        self.env["res.groups"].flush_model(["user_ids"])
-
-        pids = list(pids or [])
+        pids: Collection[int] = (),
+        *,
+        include_followers: bool = True,
+    ) -> dict[int, dict[int, RecipientData]]:
+        pids = list(pids or ())
         res_ids = records.ids if records else [0]
         params = {
             "subtype_id": subtype_id or 0,
@@ -242,124 +292,105 @@ class MailFollowers(models.Model):
             "res_ids": records.ids if records else [],
             "pids": pids,
         }
-        if message_type != "user_notification" and records and subtype_id:
-            self.env.cr.execute(_RECIPIENT_FOLLOWERS_QUERY, params)
-            res = self.env.cr.fetchall()
+        to_flush = self._fields_read_by(_RECIPIENT_READS)
+        if (
+            include_followers
+            and message_type != "user_notification"
+            and records
+            and subtype_id
+        ):
+            res = [
+                RecipientRow._make(row)
+                for row in self.env.execute_query(
+                    SQL(_RECIPIENT_FOLLOWERS_QUERY, to_flush=to_flush, **params)
+                )
+            ]
         elif pids:
-            self.env.cr.execute(_RECIPIENT_PARTNERS_QUERY, params)
             res = []
-            for row in self.env.cr.fetchall():
+            for row in self.env.execute_query(
+                SQL(_RECIPIENT_PARTNERS_QUERY, to_flush=to_flush, **params)
+            ):
                 followed = frozenset(row[-1] or ())
-                res += [(*row[:-1], res_id, res_id in followed) for res_id in res_ids]
+                res += [
+                    RecipientRow._make((*row[:-1], res_id, res_id in followed))
+                    for res_id in res_ids
+                ]
         else:
             res = []
 
-        doc_infos = {res_id: {} for res_id in res_ids}
-        group_closure_cache = {}
-        for (
-            partner_id,
-            is_active,
-            email_normalized,
-            lang,
-            name,
-            pshare,
-            uid,
-            ushare,
-            notif,
-            groups,
-            res_id,
-            is_follower,
-        ) in res:
-            to_update = [res_id] if res_id else res_ids
-            group_key = frozenset(groups or ())
+        doc_infos: dict[int, dict[int, RecipientData]] = {
+            res_id: {} for res_id in res_ids
+        }
+        group_definitions = None
+        group_closure_cache: dict[frozenset[int], frozenset[int]] = {
+            frozenset(): frozenset()
+        }
+        for row in res:
+            to_update = [row.res_id] if row.res_id else res_ids
+            group_key = frozenset(row.group_ids or ())
             group_ids = group_closure_cache.get(group_key)
             if group_ids is None:
-                group_ids = frozenset(
-                    self.env["res.groups"].browse(group_key).all_implied_ids.ids
+                if group_definitions is None:
+                    group_definitions = self.env["res.groups"]._get_group_definitions()
+                group_ids = group_key | frozenset(
+                    group_definitions.get_superset_ids(group_key)
                 )
                 group_closure_cache[group_key] = group_ids
-            if ushare:
-                partner_type = "portal"
-            elif pshare:
-                partner_type = "customer"
-            else:
-                partner_type = "user"
             for res_id_to_update in to_update:
-                if not res_id and partner_id in doc_infos[res_id_to_update]:
+                if not row.res_id and row.partner_id in doc_infos[res_id_to_update]:
                     continue
-                doc_infos[res_id_to_update][partner_id] = {
-                    "active": is_active,
-                    "email_normalized": email_normalized,
-                    "groups": group_ids,
-                    "id": partner_id,
-                    "is_follower": is_follower,
-                    "lang": lang,
-                    "name": name,
-                    "notif": notif,
-                    "share": pshare,
-                    "type": partner_type,
-                    "uid": uid,
-                    "ushare": ushare,
-                }
+                doc_infos[res_id_to_update][row.partner_id] = build_recipient_data(
+                    partner_id=row.partner_id,
+                    active=row.active,
+                    email_normalized=row.email_normalized,
+                    groups=group_ids,
+                    is_follower=row.is_follower,
+                    lang=row.lang,
+                    name=row.name,
+                    notif=row.notif,
+                    partner_share=row.partner_share,
+                    uid=row.uid,
+                    user_share=row.user_share,
+                )
 
         return doc_infos
 
     def _get_subscription_data(
         self,
         doc_data: list[tuple[str, list[int]]],
-        pids: list[int] | None,
-        include_partner: bool = False,
-    ) -> list:
+        partner_ids: Collection[int] | None,
+    ) -> list[SubscriptionRow]:
         if not doc_data:
             return []
-        if pids is not None and not pids:
+        if partner_ids is not None and not partner_ids:
             return []
-        self.env["mail.followers"].flush_model(
-            ["partner_id", "res_id", "res_model", "subtype_ids"]
+        where = SQL(" OR ").join(
+            SQL("fol.res_model = %s AND fol.res_id = ANY(%s)", res_model, list(res_ids))
+            for res_model, res_ids in doc_data
         )
-        if include_partner:
-            self.env["res.partner"].flush_model(["active", "partner_share"])
-        where_clause = " OR ".join(
-            ["fol.res_model = %s AND fol.res_id = ANY(%s)"] * len(doc_data)
+        if partner_ids is not None:
+            where = SQL("(%s) AND fol.partner_id = ANY(%s)", where, list(partner_ids))
+        rows = self.env.execute_query(
+            SQL(
+                _SUBSCRIPTION_DATA_QUERY,
+                where=where,
+                to_flush=self._fields_read_by(_SUBSCRIPTION_READS),
+            )
         )
-        where_params = list(
-            itertools.chain.from_iterable((rm, list(rids)) for rm, rids in doc_data)
-        )
-        if pids is not None:
-            where_clause = "(%s) AND %s" % (where_clause, "fol.partner_id = ANY(%s)")
-            where_params.append(list(pids))
-
-        self.env.cr.execute(
-            _SUBSCRIPTION_DATA_QUERY
-            % (
-                _SUBSCRIPTION_PARTNER_COLUMNS
-                if include_partner
-                else _SUBSCRIPTION_NO_PARTNER_COLUMNS,
-                _SUBSCRIPTION_PARTNER_JOIN if include_partner else "",
-                where_clause,
-                _SUBSCRIPTION_PARTNER_GROUP if include_partner else "",
-            ),
-            tuple(where_params),
-        )
-        return self.env.cr.fetchall()
+        return [SubscriptionRow._make(row) for row in rows]
 
     def _add_followers(
         self,
         res_model: str,
-        res_ids: list[int],
-        partner_ids: list[int],
-        subtypes: dict[int, list[int]] | None = None,
-        customer_ids: list[int] | None = None,
+        res_ids: Collection[int],
+        partner_ids: Collection[int],
+        customer_ids: Collection[int] | None = None,
         check_existing: bool = True,
-        existing_policy: str = "skip",
+        existing_policy: ExistingPolicy = "skip",
     ) -> None:
         if not res_ids or not partner_ids:
             return
-        if subtypes is None:
-            subtypes = self._get_default_subtypes(res_model, partner_ids, customer_ids)
-        else:
-            wanted = set(partner_ids)
-            subtypes = {pid: sids for pid, sids in subtypes.items() if pid in wanted}
+        subtypes = self._get_default_subtypes(res_model, partner_ids, customer_ids)
         self._add_followers_multi(
             res_model,
             dict.fromkeys(res_ids, subtypes),
@@ -372,7 +403,7 @@ class MailFollowers(models.Model):
         res_model: str,
         subtypes_per_record: dict[int, dict[int, list[int]]],
         check_existing: bool = True,
-        existing_policy: str = "skip",
+        existing_policy: ExistingPolicy = "skip",
     ) -> None:
         new_vals, updates = self._prepare_followers_vals(
             res_model,
@@ -380,19 +411,22 @@ class MailFollowers(models.Model):
             check_existing=check_existing,
             existing_policy=existing_policy,
         )
-        sudo_self = self.sudo().with_context(default_partner_id=False)
+        sudo_self = self.sudo()
         if new_vals:
-            try:
-                with self.env.cr.savepoint(flush=False):
-                    sudo_self.create(new_vals).flush_recordset()
-            except UniqueViolation:
-                self.env["mail.followers"].invalidate_model()
-                for vals in new_vals:
-                    try:
-                        with self.env.cr.savepoint(flush=False):
-                            sudo_self.create(vals).flush_recordset()
-                    except UniqueViolation:
-                        self.env["mail.followers"].invalidate_model()
+            raced = self._create_followers(sudo_self, new_vals)
+            if raced and existing_policy != "skip":
+                raced_per_record = defaultdict(dict)
+                for res_id, partner_id in raced:
+                    raced_per_record[res_id][partner_id] = subtypes_per_record[res_id][
+                        partner_id
+                    ]
+                _new, raced_updates = self._prepare_followers_vals(
+                    res_model,
+                    dict(raced_per_record),
+                    check_existing=True,
+                    existing_policy=existing_policy,
+                )
+                updates.update(raced_updates)
         by_payload = defaultdict(list)
         for fol_id, (add_sids, remove_sids) in updates.items():
             by_payload[(add_sids, remove_sids)].append(fol_id)
@@ -404,12 +438,63 @@ class MailFollowers(models.Model):
                 }
             )
 
+    def _create_followers(
+        self, sudo_self: Self, new_vals: list[ValuesType]
+    ) -> list[tuple[int, int]]:
+        subtype_ids_by_key: dict[tuple[int, int], list[int]] = {}
+        res_models, res_ids, partner_ids = [], [], []
+        for vals in new_vals:
+            res_models.append(vals["res_model"])
+            res_ids.append(vals["res_id"])
+            partner_ids.append(vals["partner_id"])
+            subtype_ids_by_key[(vals["res_id"], vals["partner_id"])] = [
+                sid for command in vals.get("subtype_ids") or () for sid in command[2]
+            ]
+        rows = self.env.execute_query(
+            SQL(
+                """
+            INSERT INTO mail_followers (res_model, res_id, partner_id)
+                 SELECT * FROM unnest(%(res_models)s::varchar[],
+                                      %(res_ids)s::int[],
+                                      %(partner_ids)s::int[])
+            ON CONFLICT DO NOTHING
+              RETURNING id, res_id, partner_id
+        """,
+                res_models=res_models,
+                res_ids=res_ids,
+                partner_ids=partner_ids,
+                to_flush=self._fields_read_by(_FOLLOWER_WRITES),
+            )
+        )
+        created = {(res_id, partner_id): fol_id for fol_id, res_id, partner_id in rows}
+        subtype_rows = [
+            (fol_id, subtype_id)
+            for key, fol_id in created.items()
+            for subtype_id in subtype_ids_by_key[key]
+        ]
+        if subtype_rows:
+            self.env.execute_query(
+                SQL(
+                    """
+                INSERT INTO mail_followers_mail_message_subtype_rel
+                            (mail_followers_id, mail_message_subtype_id)
+                     SELECT * FROM unnest(%(fol_ids)s::int[], %(subtype_ids)s::int[])
+                ON CONFLICT DO NOTHING
+            """,
+                    fol_ids=[row[0] for row in subtype_rows],
+                    subtype_ids=[row[1] for row in subtype_rows],
+                )
+            )
+        self.env["mail.followers"].invalidate_model()
+        self._invalidate_documents(list(zip(res_models, res_ids, strict=True)))
+        return [key for key in subtype_ids_by_key if key not in created]
+
     def _get_default_subtypes(
         self,
         res_model: str,
-        partner_ids: list[int],
-        customer_ids: list[int] | None = None,
-    ) -> dict:
+        partner_ids: Collection[int],
+        customer_ids: Collection[int] | None = None,
+    ) -> dict[int, list[int]]:
         if not partner_ids:
             return {}
 
@@ -420,7 +505,11 @@ class MailFollowers(models.Model):
             customer_ids = (
                 self.env["res.partner"]
                 .sudo()
-                .search([("id", "in", partner_ids), ("partner_share", "=", True)])
+                .with_context(active_test=False)
+                .search(
+                    [("id", "in", partner_ids), ("partner_share", "=", True)],
+                    order="id",
+                )
                 .ids
             )
         customer_ids = set(customer_ids)
@@ -433,10 +522,10 @@ class MailFollowers(models.Model):
     def _prepare_followers_vals(
         self,
         res_model: str,
-        subtypes_per_record: dict[int, dict[int, list[int]]],
-        check_existing: bool = False,
-        existing_policy: str = "skip",
-    ) -> tuple:
+        subtypes_per_record: dict[int, dict[int, Collection[int]]],
+        check_existing: bool = True,
+        existing_policy: ExistingPolicy = "skip",
+    ) -> tuple[list[ValuesType], dict[int, tuple[frozenset, frozenset]]]:
         res_ids = list(subtypes_per_record)
         partner_ids = {
             pid for subtypes in subtypes_per_record.values() for pid in subtypes
@@ -444,16 +533,12 @@ class MailFollowers(models.Model):
         existing = {}
 
         if check_existing and res_ids and partner_ids:
-            rows = self._get_subscription_data(
-                [(res_model, res_ids)], list(partner_ids)
-            )
-            if existing_policy == "force":
-                self.sudo().browse([row[0] for row in rows]).unlink()
-            else:
-                existing = {
-                    (res_id, partner_id): (fol_id, subtype_ids)
-                    for fol_id, _res_model, res_id, partner_id, subtype_ids, _pshare, _active in rows
-                }
+            existing = {
+                (row.res_id, row.partner_id): (row.id, row.subtype_ids)
+                for row in self._get_subscription_data(
+                    [(res_model, res_ids)], partner_ids
+                )
+            }
 
         new_vals, updates = [], {}
         for res_id, subtypes in subtypes_per_record.items():

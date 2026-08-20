@@ -18,7 +18,7 @@ PRESENCE_OUTDATED_TIMER = 12 * 60 * 60
 
 class MailPresence(models.Model):
     _name = "mail.presence"
-    _inherit = "bus.listener.mixin"
+    _inherit = "mixin.bus.listener"
     _description = "User/Guest Presence"
     _log_access = False
 
@@ -63,6 +63,12 @@ class MailPresence(models.Model):
                 guest_or_user=guest_or_user, status="offline"
             )
         return res
+
+    def _get_im_status(self, manual_im_status: str | Literal[False]) -> str:
+        self.ensure_one()
+        if self.status == "offline" or not self.status:
+            return "offline"
+        return manual_im_status or self.status
 
     @api.model
     def _try_update_presence(

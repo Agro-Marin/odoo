@@ -1,9 +1,21 @@
 import typing
-from typing import Self
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Literal, Self
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
+
+FOLLOWER_STATES = frozenset({"followers", "remove_followers"})
+MAIL_STATES = frozenset({"mail_post", "next_activity"}) | FOLLOWER_STATES
+
+STATE_MODEL_FLAG = {
+    "next_activity": "is_mail_activity",
+    "followers": "is_mail_thread",
+    "remove_followers": "is_mail_thread",
+}
+POST_SUBTYPE_XMLIDS = {"comment": "mail.mt_comment", "note": "mail.mt_note"}
 
 if typing.TYPE_CHECKING:
     from .mail_activity_type import MailActivityType
@@ -17,7 +29,7 @@ if typing.TYPE_CHECKING:
 class IrActionsServer(models.Model):
     _name = "ir.actions.server"
     _description = "Server Action"
-    _inherit = ["ir.actions.server", "mail.thread", "mail.activity.mixin"]
+    _inherit = ["ir.actions.server", "mixin.mail.thread", "mixin.mail.activity"]
 
     name = fields.Char(tracking=True)
     model_id: IrModel = fields.Many2one(tracking=True)
@@ -77,12 +89,7 @@ class IrActionsServer(models.Model):
         readonly=False,
         store=True,
     )
-    mail_post_autofollow = fields.Boolean(
-        "Subscribe Recipients",
-        compute="_compute_mail_post_autofollow",
-        readonly=False,
-        store=True,
-    )
+    mail_post_autofollow = fields.Boolean("Subscribe Recipients", default=True)
     mail_post_method = fields.Selection(
         selection=[("email", "Email"), ("comment", "Message"), ("note", "Note")],
         string="Send Email As",
@@ -101,7 +108,10 @@ class IrActionsServer(models.Model):
         ondelete="restrict",
     )
     activity_summary = fields.Char(
-        "Title", compute="_compute_activity_info", readonly=False, store=True
+        "Title", compute="_compute_activity_summary", readonly=False, store=True
+    )
+    automated_activity_summary = fields.Char(
+        compute="_compute_activity_summary", store=True
     )
     activity_note = fields.Html(
         "Note", compute="_compute_activity_info", readonly=False, store=True
@@ -138,8 +148,8 @@ class IrActionsServer(models.Model):
         "User Field", compute="_compute_activity_user_info", readonly=False, store=True
     )
 
-    def _name_depends(self) -> list:
-        return [*super()._name_depends(), "template_id", "activity_type_id"]
+    def _name_depends(self) -> list[str]:
+        return [*super()._name_depends(), "template_id.name", "activity_type_id.name"]
 
     def _generate_action_name(self) -> str:
         self.ensure_one()
@@ -151,21 +161,62 @@ class IrActionsServer(models.Model):
             )
         return super()._generate_action_name()
 
-    @api.depends("state")
+    @api.model
+    def _get_states_needing_a_live_record(self) -> frozenset[str]:
+        return super()._get_states_needing_a_live_record() | MAIL_STATES
+
+    def _is_batchable(self) -> bool:
+        self.ensure_one()
+        return self.state in MAIL_STATES or super()._is_batchable()
+
+    def _get_mail_model_flag(self) -> str | Literal[False]:
+        self.ensure_one()
+        if self.state == "mail_post":
+            return "is_mail_thread" if self.mail_post_method != "email" else False
+        return STATE_MODEL_FLAG.get(self.state, False)
+
+    @api.depends("state", "mail_post_method")
     def _compute_available_model_ids(self) -> None:
-        mail_thread_based = self.filtered(
-            lambda action: (
-                action.state
-                in {"mail_post", "followers", "remove_followers", "next_activity"}
+        super()._compute_available_model_ids()
+        mail_based = self.filtered(lambda action: action.state in MAIL_STATES)
+        if not mail_based:
+            return
+        supported = {}
+
+        def supported_ids(flag):
+            if flag not in supported:
+                domain = [("transient", "=", False)]
+                if flag:
+                    domain.append((flag, "=", True))
+                supported[flag] = set(self.env["ir.model"].search(domain)._ids)
+            return supported[flag]
+
+        for action in mail_based:
+            allowed = supported_ids(action._get_mail_model_flag())
+            action.available_model_ids = [
+                model_id
+                for model_id in action.available_model_ids._ids
+                if model_id in allowed
+            ]
+
+    @api.depends(
+        "model_id.is_mail_activity", "model_id.is_mail_thread", "model_id.transient"
+    )
+    def _compute_allowed_states(self) -> None:
+        super()._compute_allowed_states()
+        for action in self:
+            model = action.model_id
+            unsupported = (
+                MAIL_STATES
+                if model.transient
+                else {
+                    state for state, flag in STATE_MODEL_FLAG.items() if not model[flag]
+                }
             )
-        )
-        if mail_thread_based:
-            mail_models = self.env["ir.model"].search(
-                [("is_mail_thread", "=", True), ("transient", "=", False)]
-            )
-            for action in mail_thread_based:
-                action.available_model_ids = mail_models.ids
-        super(IrActionsServer, self - mail_thread_based)._compute_available_model_ids()
+            if unsupported:
+                action.allowed_states = [
+                    state for state in action.allowed_states if state not in unsupported
+                ]
 
     @api.depends("model_id", "state")
     def _compute_template_id(self) -> None:
@@ -177,58 +228,44 @@ class IrActionsServer(models.Model):
         if to_reset:
             to_reset.template_id = False
 
-    @api.depends("state", "mail_post_method")
-    def _compute_mail_post_autofollow(self) -> None:
-        to_reset = self.filtered(
-            lambda act: act.state != "mail_post" or act.mail_post_method == "email"
-        )
-        if to_reset:
-            to_reset.mail_post_autofollow = False
-        other = self - to_reset
-        if other:
-            other.mail_post_autofollow = True
-
     @api.depends("state")
     def _compute_mail_post_method(self) -> None:
-        to_reset = self.filtered(lambda act: act.state != "mail_post")
-        if to_reset:
-            to_reset.mail_post_method = False
-        other = self - to_reset
-        if other:
-            other.mail_post_method = "comment"
+        for action in self:
+            if action.state != "mail_post":
+                action.mail_post_method = False
+            elif not action.mail_post_method:
+                action.mail_post_method = "comment"
 
     @api.depends("model_id", "state")
     def _compute_followers_type(self) -> None:
         to_reset = self.filtered(
-            lambda act: (
-                not act.model_id or act.state not in ["followers", "remove_followers"]
-            )
+            lambda act: not act.model_id or act.state not in FOLLOWER_STATES
         )
         to_reset.followers_type = False
         to_default = (self - to_reset).filtered(lambda act: not act.followers_type)
         to_default.followers_type = "specific"
 
-    @api.depends("followers_type")
+    @api.depends("model_id", "followers_type")
     def _compute_followers_info(self) -> None:
         for action in self:
-            if action.followers_type == "specific":
-                action.followers_partner_field_name = False
-            elif action.followers_type == "generic":
+            if action.followers_type != "specific":
                 action.partner_ids = False
-                IrModelFields = self.env["ir.model.fields"]
-                domain = [
-                    ("model", "=", action.model_id.model),
-                    ("relation", "=", "res.partner"),
-                ]
+            if action.followers_type != "generic":
+                action.followers_partner_field_name = False
+            elif not action._path_leads_to(
+                "followers_partner_field_name", "res.partner"
+            ):
                 action.followers_partner_field_name = (
-                    IrModelFields.search(
-                        [*domain, ("name", "=", "partner_id")], limit=1
-                    )
-                    or IrModelFields.search(domain, limit=1)
-                ).name
-            else:
-                action.partner_ids = False
-                action.followers_partner_field_name = False
+                    action._default_partner_field_name()
+                )
+
+    def _default_partner_field_name(self) -> str | Literal[False]:
+        self.ensure_one()
+        model = self._get_target_model()
+        if model is None:
+            return False
+        fnames = model._mail_get_partner_fields()
+        return fnames[0] if fnames else False
 
     @api.depends("model_id", "state")
     def _compute_activity_info(self) -> None:
@@ -237,7 +274,6 @@ class IrActionsServer(models.Model):
         )
         if to_reset:
             to_reset.activity_type_id = False
-            to_reset.activity_summary = False
             to_reset.activity_note = False
             to_reset.activity_date_deadline_range = False
             to_reset.activity_date_deadline_range_type = False
@@ -248,48 +284,84 @@ class IrActionsServer(models.Model):
                 and action.model_id.model != action.activity_type_id.res_model
             ):
                 action.activity_type_id = False
-            if not action.activity_summary:
-                action.activity_summary = action.activity_type_id.summary
             if not action.activity_date_deadline_range_type:
                 action.activity_date_deadline_range_type = "days"
             if not action.activity_user_type:
                 action.activity_user_type = "specific"
 
+    @api.depends("model_id", "state", "activity_type_id")
+    def _compute_activity_summary(self) -> None:
+        for action in self:
+            if not action.model_id or action.state != "next_activity":
+                action.automated_activity_summary = False
+                action.activity_summary = False
+                continue
+            was_automated = action.activity_summary == action.automated_activity_summary
+            action.automated_activity_summary = action.activity_type_id.summary
+            if was_automated or not action.activity_summary:
+                action.activity_summary = action.automated_activity_summary
+
     @api.depends("model_id", "activity_user_type")
     def _compute_activity_user_info(self) -> None:
-        to_compute = self.filtered("activity_user_type")
-        (self - to_compute).activity_user_id = False
-        (self - to_compute).activity_user_field_name = False
-        for action in to_compute:
-            if action.activity_user_type == "specific":
-                action.activity_user_field_name = False
-            else:
+        for action in self:
+            if action.activity_user_type != "specific":
                 action.activity_user_id = False
-                IrModelFields = self.env["ir.model.fields"]
-                domain = [
-                    ("model", "=", action.model_id.model),
-                    ("relation", "=", "res.users"),
-                ]
-                action.activity_user_field_name = (
-                    IrModelFields.search([*domain, ("name", "=", "user_id")], limit=1)
-                    or IrModelFields.search(domain, limit=1)
-                ).name
+            if action.activity_user_type != "generic":
+                action.activity_user_field_name = False
+            elif not action._path_leads_to("activity_user_field_name", "res.users"):
+                action.activity_user_field_name = action._default_user_field_name()
+
+    def _default_user_field_name(self) -> str | Literal[False]:
+        self.ensure_one()
+        model = self._get_target_model()
+        if model is None:
+            return False
+        field = model._fields.get("user_id")
+        if field and field.type == "many2one" and field.comodel_name == "res.users":
+            return "user_id"
+        return False
+
+    def _get_target_model(self) -> models.BaseModel | None:
+        self.ensure_one()
+        model_name = self.model_id.model
+        if not model_name or model_name not in self.env.registry:
+            return None
+        return self.env[model_name]
+
+    def _path_leads_to(self, field_name: str, comodel: str) -> bool:
+        self.ensure_one()
+        if self._get_target_model() is None:
+            return False
+        field_chain, _field_chain_str = self._get_relation_chain(field_name)
+        return bool(field_chain) and field_chain[-1].comodel_name == comodel
 
     @api.model
     def _warning_depends(self) -> list[str]:
         return super()._warning_depends() + [
             "activity_date_deadline_range",
-            "model_id",
-            "template_id",
-            "state",
-            "followers_type",
-            "followers_partner_field_name",
-            "activity_user_type",
+            "activity_type_id",
             "activity_user_field_name",
+            "activity_user_type",
+            "followers_partner_field_name",
+            "followers_type",
+            "partner_ids",
+            "mail_post_method",
+            "model_id.is_mail_activity",
+            "model_id.is_mail_thread",
+            "model_id.transient",
+            "template_id",
+            "template_id.model_id",
         ]
 
-    def _get_warning_messages(self) -> list:
+    def _get_warning_messages(self) -> list[str]:
+        self.ensure_one()
         warnings = super()._get_warning_messages()
+
+        if self.state == "mail_post" and not self.template_id:
+            warnings.append(_("Select the email template to send."))
+
+        if self.state == "next_activity" and not self.activity_type_id:
+            warnings.append(_("Select the type of activity to schedule."))
 
         if self.activity_date_deadline_range < 0:
             warnings.append(_("The 'Due Date In' value can't be negative."))
@@ -306,191 +378,252 @@ class IrActionsServer(models.Model):
                 )
             )
 
-        if (
-            self.state
-            in {"mail_post", "followers", "remove_followers", "next_activity"}
-            and self.model_id.transient
-        ):
+        if self.state in MAIL_STATES and self.model_id.transient:
             warnings.append(_("This action cannot be done on transient models."))
 
-        if (
-            self.state in {"followers", "remove_followers"}
-            or (self.state == "mail_post" and self.mail_post_method != "email")
-        ) and not self.model_id.is_mail_thread:
-            warnings.append(_("This action can only be done on a mail thread models"))
-
-        if self.state == "next_activity" and not self.model_id.is_mail_activity:
-            warnings.append(
-                _("A next activity can only be planned on models that use activities.")
-            )
-
-        if (
-            self.state in ("followers", "remove_followers")
-            and self.followers_type == "generic"
-            and self.followers_partner_field_name
-        ):
-            fields, field_chain_str = self._get_relation_chain(
-                "followers_partner_field_name"
-            )
-            if fields and fields[-1].comodel_name != "res.partner":
+        flag = self._get_mail_model_flag()
+        if flag and not self.model_id[flag]:
+            if flag == "is_mail_activity":
                 warnings.append(
                     _(
-                        "The field '%(field_chain_str)s' is not a partner field.",
-                        field_chain_str=field_chain_str,
+                        "A next activity can only be planned on models that use activities."
                     )
+                )
+            else:
+                warnings.append(
+                    _("This action can only be done on a mail thread models")
                 )
 
         if (
-            self.state == "next_activity"
-            and self.activity_user_type == "generic"
-            and self.activity_user_field_name
+            self.state in FOLLOWER_STATES
+            and self.followers_type == "specific"
+            and not self.partner_ids
         ):
-            fields, field_chain_str = self._get_relation_chain(
-                "activity_user_field_name"
+            warnings.append(_("Select the contacts to add or remove."))
+
+        if self.state in FOLLOWER_STATES and self.followers_type == "generic":
+            warnings += self._get_path_warnings(
+                "followers_partner_field_name",
+                "res.partner",
+                lambda: _("Select the field holding the contacts to follow."),
+                lambda path: _(
+                    "The field '%(field_chain_str)s' is not a partner field.",
+                    field_chain_str=path,
+                ),
             )
-            if fields and fields[-1].comodel_name != "res.users":
-                warnings.append(
-                    _(
-                        "The field '%(field_chain_str)s' is not a user field.",
-                        field_chain_str=field_chain_str,
-                    )
-                )
+
+        if self.state == "next_activity" and self.activity_user_type == "generic":
+            warnings += self._get_path_warnings(
+                "activity_user_field_name",
+                "res.users",
+                lambda: _("Select the field holding the user to assign."),
+                lambda path: _(
+                    "The field '%(field_chain_str)s' is not a user field.",
+                    field_chain_str=path,
+                ),
+            )
 
         return warnings
 
+    def _get_path_warnings(
+        self,
+        field_name: str,
+        comodel: str,
+        unset_message: Callable[[], str],
+        wrong_comodel_message: Callable[[str], str],
+    ) -> list[str]:
+        self.ensure_one()
+        if not self[field_name]:
+            return [unset_message()]
+        field_chain, field_chain_str = self._get_relation_chain(field_name)
+        if not field_chain:
+            return [
+                _(
+                    "The field '%(path)s' does not exist on %(model)s.",
+                    path=self[field_name],
+                    model=self.model_id.display_name,
+                )
+            ]
+        if field_chain[-1].comodel_name != comodel:
+            return [wrong_comodel_message(field_chain_str)]
+        return []
+
+    @api.constrains(
+        "model_id",
+        "state",
+        "followers_type",
+        "followers_partner_field_name",
+        "activity_user_type",
+        "activity_user_field_name",
+    )
+    def _check_relation_paths(self) -> None:
+        for action in self:
+            if action.state in FOLLOWER_STATES and action.followers_type == "generic":
+                action._get_relation_chain(
+                    "followers_partner_field_name", raise_on_error=True
+                )
+            if (
+                action.state == "next_activity"
+                and action.activity_user_type == "generic"
+            ):
+                action._get_relation_chain(
+                    "activity_user_field_name", raise_on_error=True
+                )
+
     def _run_action_followers_multi(self, eval_context: dict | None = None) -> bool:
-        Model = self.env[self.model_name]
-        if hasattr(Model, "message_subscribe"):
-            records = Model.browse(
-                self.env.context.get("active_ids", self.env.context.get("active_id"))
-            )
-            if self.followers_type == "specific":
-                partner_ids = self.partner_ids
-            else:
-                followers_field = self.followers_partner_field_name
-                partner_ids = records.mapped(followers_field)
-            records.message_subscribe(partner_ids=partner_ids.ids)
+        self._subscribe_followers(subscribe=True)
         return False
 
     def _run_action_remove_followers_multi(
         self, eval_context: dict | None = None
     ) -> bool:
-        Model = self.env[self.model_name]
-        if hasattr(Model, "message_unsubscribe"):
-            records = Model.browse(
-                self.env.context.get("active_ids", self.env.context.get("active_id"))
-            )
-            if self.followers_type == "specific":
-                partner_ids = self.partner_ids
-            else:
-                followers_field = self.followers_partner_field_name
-                partner_ids = records.mapped(followers_field)
-            records.message_unsubscribe(partner_ids=partner_ids.ids)
+        self._subscribe_followers(subscribe=False)
         return False
+
+    def _subscribe_followers(self, subscribe: bool) -> None:
+        records = self._get_target_records().with_context(self._get_run_context())
+        if not records:
+            return
+        for partner_ids, batch in self._get_follower_batches(records).items():
+            if subscribe:
+                batch.message_subscribe(partner_ids=list(partner_ids))
+            else:
+                batch.message_unsubscribe(partner_ids=list(partner_ids))
+
+    def _get_follower_batches(
+        self, records: models.BaseModel
+    ) -> dict[tuple[int, ...], models.BaseModel]:
+        if self.followers_type == "specific":
+            return {tuple(self.partner_ids.ids): records} if self.partner_ids else {}
+        path = self.followers_partner_field_name
+        if not path:
+            return {}
+        prefetched = records
+        for segment in path.split("."):
+            prefetched = prefetched.mapped(segment)
+        per_partners = defaultdict(records.browse)
+        for record in records:
+            partners = record.mapped(path)
+            if partners:
+                per_partners[tuple(sorted(partners.ids))] |= record
+        return per_partners
+
+    def _get_recompute_pending(self, records: models.BaseModel) -> models.BaseModel:
+        old_values = self.env.context.get("old_values")
+        if not old_values or not records:
+            return records.browse()
+        domain_post = self.env.context.get("domain_post") or []
+        post_filtered = {
+            leaf[0] for leaf in domain_post if isinstance(leaf, (tuple, list))
+        }
+        field_names = {
+            field_name
+            for values in old_values.values()
+            for field_name in values
+            if field_name not in post_filtered and field_name in records._fields
+        }
+        pending = records.browse()
+        for field_name in field_names:
+            pending |= records & self.env.records_to_compute(
+                records._fields[field_name]
+            )
+        return pending
 
     def _is_recompute(self) -> bool:
-        records = self.env[self.model_name].browse(
-            self.env.context.get("active_ids", self.env.context.get("active_id"))
-        )
-        old_values = self.env.context.get("old_values")
-        if old_values:
-            domain_post = self.env.context.get("domain_post")
-            tracked_fields = []
-            if domain_post:
-                tracked_fields.extend(
-                    leaf[0] for leaf in domain_post if isinstance(leaf, (tuple, list))
-                )
-            fields_to_check = [
-                field
-                for field_names in old_values.values()
-                for field in field_names
-                if field not in tracked_fields
-            ]
-            if fields_to_check:
-                field = records._fields[fields_to_check[0]]
-                if records & self.env.records_to_compute(field):
-                    return True
-        return False
+        return bool(self._get_recompute_pending(self._get_target_records()))
+
+    def _get_run_context(self) -> dict:
+        return {
+            key: value
+            for key, value in self.env.context.items()
+            if not key.startswith("default_")
+        }
+
+    def _get_mail_post_context(self) -> dict:
+        context = self._get_run_context()
+        context["mail_post_autofollow_author_skip"] = True
+        context["mail_post_autofollow"] = self.mail_post_autofollow
+        return context
 
     def _run_action_mail_post_multi(self, eval_context: dict | None = None) -> bool:
-        if (
-            not self.template_id
-            or (
-                not self.env.context.get("active_ids")
-                and not self.env.context.get("active_id")
-            )
-            or self._is_recompute()
-        ):
+        records = self._get_target_records()
+        records -= self._get_recompute_pending(records)
+        if not self.template_id or not records:
             return False
-        res_ids = self.env.context.get(
-            "active_ids", [self.env.context.get("active_id")]
-        )
 
-        cleaned_ctx = dict(self.env.context)
-        cleaned_ctx.pop("default_type", None)
-        cleaned_ctx.pop("default_parent_id", None)
-        cleaned_ctx["mail_post_autofollow_author_skip"] = True
-        cleaned_ctx["mail_post_autofollow"] = self.mail_post_autofollow
-
-        if self.mail_post_method in ("comment", "note"):
-            records = (
-                self.env[self.model_name].with_context(cleaned_ctx).browse(res_ids)
-            )
-            message_type = (
-                "auto_comment" if self.state == "mail_post" else "notification"
-            )
-            if self.mail_post_method == "comment":
-                subtype_id = self.env["ir.model.data"]._xmlid_to_res_id(
-                    "mail.mt_comment"
-                )
-            else:
-                subtype_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_note")
-            records.message_post_with_source(
-                self.template_id,
-                message_type=message_type,
-                subtype_id=subtype_id,
+        context = self._get_mail_post_context()
+        if subtype_xmlid := POST_SUBTYPE_XMLIDS.get(self.mail_post_method):
+            self._post_template_on(
+                records.with_context(context),
+                self.env["ir.model.data"]._xmlid_to_res_id(subtype_xmlid),
             )
         else:
-            template = self.template_id.with_context(cleaned_ctx)
-            for res_id in res_ids:
-                template.send_mail(res_id, force_send=False, raise_exception=False)
+            self.template_id.with_context(context).send_mail_batch(
+                records.ids, force_send=False
+            )
         return False
 
-    def _run_action_next_activity(self, eval_context: dict | None = None) -> bool:
-        if (
-            not self.activity_type_id
-            or not self.env.context.get("active_id")
-            or self._is_recompute()
-        ):
-            return False
+    def _post_template_on(self, records, subtype_id: int) -> None:
+        if len(records) == 1:
+            records.message_post_with_source(
+                self.template_id,
+                message_type="auto_comment",
+                subtype_id=subtype_id,
+            )
+            return
+        records.env["mail.compose.message"].with_context(
+            default_composition_mode="comment",
+            default_model=records._name,
+            default_res_ids=records.ids,
+            default_template_id=self.template_id.id,
+        ).create(
+            {"message_type": "auto_comment", "subtype_id": subtype_id}
+        )._action_send_mail()
 
-        records = self.env[self.model_name].browse(
-            self.env.context.get("active_ids", self.env.context.get("active_id"))
-        )
+    def _run_action_next_activity_multi(self, eval_context: dict | None = None) -> bool:
+        records = self._get_target_records()
+        records -= self._get_recompute_pending(records)
+        if not self.activity_type_id or not records:
+            return False
+        records = records.with_context(self._get_run_context())
 
         vals = {
+            "activity_type_id": self.activity_type_id.id,
             "summary": self.activity_summary or "",
             "note": self.activity_note or "",
-            "activity_type_id": self.activity_type_id.id,
         }
-        if self.activity_date_deadline_range > 0:
-            vals["date_deadline"] = fields.Date.context_today(self) + relativedelta(
-                **{
-                    self.activity_date_deadline_range_type
-                    or "days": self.activity_date_deadline_range
-                }
-            )
-        for record in records:
-            user = False
-            if self.activity_user_type == "specific":
-                user = self.activity_user_id
-            elif self.activity_user_type == "generic" and self.activity_user_field_name:
-                user = record.mapped(self.activity_user_field_name)
-            record_vals = dict(vals)
+        for user, batch in self._get_activity_assignees(records):
+            batch_vals = dict(vals)
             if user:
-                record_vals["user_id"] = user.ids[0]
-            record.activity_schedule(**record_vals)
+                batch_vals["user_id"] = user.id
+            if self.activity_date_deadline_range > 0:
+                assignee = user or self.activity_type_id.default_user_id
+                batch_vals["date_deadline"] = self.env["mail.activity"]._today_for(
+                    assignee
+                ) + relativedelta(
+                    **{
+                        self.activity_date_deadline_range_type
+                        or "days": self.activity_date_deadline_range
+                    }
+                )
+            batch.activity_schedule(**batch_vals)
         return False
+
+    def _get_activity_assignees(
+        self, records: models.BaseModel
+    ) -> list[tuple[ResUsers, models.BaseModel]]:
+        if self.activity_user_type == "specific":
+            return [(self.activity_user_id, records)]
+        if self.activity_user_type != "generic" or not self.activity_user_field_name:
+            return [(self.env["res.users"], records)]
+        by_user_id = defaultdict(records.browse)
+        for record in records:
+            users = record.mapped(self.activity_user_field_name)
+            by_user_id[users.ids[0] if users else False] |= record
+        return [
+            (self.env["res.users"].browse(user_id or ()), batch)
+            for user_id, batch in by_user_id.items()
+        ]
 
     @api.model
     def _get_eval_context(self, action: Self | None = None) -> dict:

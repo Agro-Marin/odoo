@@ -8,7 +8,7 @@ if typing.TYPE_CHECKING:
 
 class IrCron(models.AbstractModel):
     _name = "ir.cron"
-    _inherit = ["ir.cron", "mail.thread", "mail.activity.mixin"]
+    _inherit = ["ir.cron", "mixin.mail.thread", "mixin.mail.activity"]
 
     user_id: ResUsers = fields.Many2one(tracking=True)
     interval_number = fields.Integer(tracking=True)

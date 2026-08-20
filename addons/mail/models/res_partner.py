@@ -17,7 +17,7 @@ if typing.TYPE_CHECKING:
 
 class ResPartner(models.Model):
     _name = "res.partner"
-    _inherit = ["res.partner", "mail.activity.mixin", "mail.thread.blacklist"]
+    _inherit = ["res.partner", "mixin.mail.activity", "mixin.mail.thread.blacklist"]
     _mail_flat_thread = False
 
     name = fields.Char(tracking=1)
@@ -32,10 +32,14 @@ class ResPartner(models.Model):
         tracking=True,
     )
     im_status = fields.Char(
-        "IM Status", compute="_compute_im_status", compute_sudo=True
+        "IM Status",
+        compute="_compute_im_status",
+        compute_sudo=True,
     )
     offline_since = fields.Datetime(
-        "Offline since", compute="_compute_im_status", compute_sudo=True
+        "Offline since",
+        compute="_compute_im_status",
+        compute_sudo=True,
     )
 
     @api.depends("contact_address")
@@ -48,13 +52,10 @@ class ResPartner(models.Model):
     @api.depends("user_ids.manual_im_status", "user_ids.presence_ids.status")
     def _compute_im_status(self) -> None:
         for partner in self:
-            all_status = partner.user_ids.presence_ids.mapped(
-                lambda p: (
-                    "offline"
-                    if p.status == "offline"
-                    else p.user_id.manual_im_status or p.status
-                )
-            )
+            all_status = [
+                presence._get_im_status(presence.user_id.manual_im_status)
+                for presence in partner.user_ids.presence_ids
+            ]
             partner.im_status = (
                 "online"
                 if "online" in all_status
@@ -104,6 +105,7 @@ class ResPartner(models.Model):
             raise ValueError(_("An email is required for find_or_create to work"))
 
         parsed_name, parsed_email_normalized = tools.parse_contact_from_email(email)
+        parsed_name = parsed_name.strip()
         if not parsed_email_normalized and assert_valid_email:
             raise ValueError(
                 _(
@@ -134,20 +136,24 @@ class ResPartner(models.Model):
         sort_reverse: bool = True,
     ) -> list:
         additional_values = additional_values or {}
+        ban_emails = ban_emails or []
         partners, tocreate_vals_list = self.env["res.partner"], []
-        name_emails = [tools.parse_contact_from_email(email) for email in emails]
+        name_emails = [
+            (name.strip(), email_normalized)
+            for name, email_normalized in (
+                tools.parse_contact_from_email(email) for email in emails
+            )
+        ]
 
         emails_normalized = {
             email_normalized
             for _name, email_normalized in name_emails
-            if email_normalized and email_normalized not in (ban_emails or [])
+            if email_normalized and email_normalized not in ban_emails
         }
         names = {
-            name.strip()
+            name
             for name, email_normalized in name_emails
-            if not email_normalized
-            and name.strip()
-            and name.strip() not in (ban_emails or [])
+            if not email_normalized and name and name not in ban_emails
         }
         if emails_normalized or names:
             domains = []
@@ -160,26 +166,22 @@ class ResPartner(models.Model):
                 partners = partners.filtered(filter_found)
 
         if not no_create:
-            seen = set()
             notfound_emails = emails_normalized - set(
                 partners.mapped("email_normalized")
             )
-            notfound_name_emails = [
-                name_email
-                for name_email in name_emails
-                if name_email[1] in notfound_emails
-                and name_email[1] not in seen
-                and not seen.add(name_email[1])
-            ]
+            name_by_notfound_email = {}
+            for name, email_normalized in name_emails:
+                if email_normalized in notfound_emails:
+                    name_by_notfound_email.setdefault(email_normalized, name)
             tocreate_vals_list += [
                 {
                     self._rec_name: name or email_normalized,
                     "email": email_normalized,
                     **additional_values.get(email_normalized, {}),
                 }
-                for name, email_normalized in notfound_name_emails
-                if email_normalized not in (ban_emails or [])
+                for email_normalized, name in name_by_notfound_email.items()
             ]
+            found_emails = set(partners.mapped("email"))
             tocreate_vals_list += [
                 {
                     self._rec_name: name,
@@ -187,8 +189,7 @@ class ResPartner(models.Model):
                     **additional_values.get(name, {}),
                 }
                 for name in names
-                if name not in partners.mapped("email")
-                and name not in (ban_emails or [])
+                if name not in found_emails
             ]
             if tocreate_vals_list:
                 partners += self.with_context(mail_create_nosubscribe=True).create(
@@ -198,23 +199,19 @@ class ResPartner(models.Model):
         if sort_key:
             partners = partners.sorted(key=sort_key, reverse=sort_reverse)
 
+        empty = self.env["res.partner"]
+        by_email_normalized, by_email, by_name = {}, {}, {}
+        for partner in partners:
+            by_email_normalized.setdefault(partner.email_normalized, partner)
+            by_email.setdefault(partner.email, partner)
+            by_name.setdefault(partner.name, partner)
         return [
-            next(
-                (
-                    partner
-                    for partner in partners
-                    if (
-                        email_normalized
-                        and partner.email_normalized == email_normalized
-                    )
-                    or (not email_normalized and email and partner.email == email)
-                    or (not email_normalized and name and partner.name == name)
-                ),
-                self.env["res.partner"],
+            by_email_normalized.get(email_normalized, empty)
+            if email_normalized
+            else (
+                (email and by_email.get(email)) or (name and by_name.get(name)) or empty
             )
-            for (name, email_normalized), email in zip(
-                name_emails, emails, strict=False
-            )
+            for (name, email_normalized), email in zip(name_emails, emails, strict=True)
         ]
 
     def _get_im_status_access_token(self) -> str:
@@ -240,8 +237,8 @@ class ResPartner(models.Model):
             fields.extend(["email", "phone"])
         return fields
 
-    def _field_store_repr(self, field_name: str) -> list:
-        if field_name == "avatar_128":
+    def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:
+        if field_spec == "avatar_128":
             return [
                 Store.Attr(
                     "avatar_128_access_token",
@@ -249,14 +246,14 @@ class ResPartner(models.Model):
                 ),
                 "write_date",
             ]
-        if field_name == "im_status":
+        if field_spec == "im_status":
             return [
                 "im_status",
                 Store.Attr(
                     "im_status_access_token", lambda p: p._get_im_status_access_token()
                 ),
             ]
-        return [field_name]
+        return [field_spec]
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         res = [

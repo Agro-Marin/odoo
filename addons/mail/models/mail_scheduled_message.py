@@ -12,6 +12,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
+from odoo.addons.mail.tools.access_scan import scan_accessible_query
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
@@ -27,6 +28,9 @@ class MailScheduledMessage(models.Model):
     _description = "Scheduled Message"
 
     _mail_partner_fields = ()
+
+    _SEARCH_ACCESS_CHUNK_MIN = 30
+    _SEARCH_ACCESS_CHUNK_MAX = 8192
 
     subject = fields.Char("Subject")
     body = fields.Html("Contents", sanitize_style=True)
@@ -58,7 +62,7 @@ class MailScheduledMessage(models.Model):
     def _check_model(self) -> None:
         if not all(
             model in self.pool
-            and issubclass(self.pool[model], self.pool["mail.thread"])
+            and issubclass(self.pool[model], self.pool["mixin.mail.thread"])
             for model in self.mapped("model")
         ):
             raise ValidationError(
@@ -120,35 +124,44 @@ class MailScheduledMessage(models.Model):
                 domain, offset, limit, order, bypass_access=True, **kwargs
             )
 
-        query = super()._search(domain, order=order, **kwargs)
-        fnames_to_read = ["id", "model", "res_id"]
-        rows = self.env.execute_query(
-            query.select(
-                *[self._field_to_sql(self._table, fname) for fname in fnames_to_read],
+        fnames = ("id", "model", "res_id")
+
+        def fetch(query: Query) -> list[tuple]:
+            return self.env.execute_query(
+                query.select(
+                    *[self._field_to_sql(self._table, fname) for fname in fnames]
+                )
             )
+
+        def allowed(rows: list[tuple]) -> list[int]:
+            model_ids = defaultdict(set)
+            for __, model, res_id in rows:
+                if model in self.env:
+                    model_ids[model].add(res_id)
+            allowed_ids = {}
+            for model, res_ids in model_ids.items():
+                records = self.env[model].browse(res_ids)
+                operation = getattr(records, "_mail_post_access", "write")
+                allowed_ids[model] = set(records._filtered_access(operation)._ids)
+            return [
+                msg_id
+                for msg_id, res_model, res_id in rows
+                if res_id in allowed_ids.get(res_model, ())
+            ]
+
+        return scan_accessible_query(
+            self,
+            domain,
+            offset,
+            limit,
+            order,
+            super()._search,
+            fetch=fetch,
+            allowed=allowed,
+            chunk_min=self._SEARCH_ACCESS_CHUNK_MIN,
+            chunk_max=self._SEARCH_ACCESS_CHUNK_MAX,
+            **kwargs,
         )
-
-        model_ids = defaultdict(set)
-        for __, model, res_id in rows:
-            model_ids[model].add(res_id)
-
-        allowed_ids = defaultdict(set)
-        for model, res_ids in model_ids.items():
-            records = self.env[model].browse(res_ids)
-            operation = getattr(records, "_mail_post_access", "write")
-            allowed_ids[model] = set(records._filtered_access(operation)._ids)
-
-        scheduled_messages = self.browse(
-            msg_id
-            for msg_id, res_model, res_id in rows
-            if res_id in allowed_ids[res_model]
-        )
-        if offset:
-            scheduled_messages = scheduled_messages[offset:]
-        if limit is not None:
-            scheduled_messages = scheduled_messages[:limit]
-
-        return scheduled_messages._as_query(order)
 
     def unlink(self) -> Literal[True]:
         self._check()
@@ -241,7 +254,7 @@ class MailScheduledMessage(models.Model):
                 if auto_commit:
                     self.env.cr.rollback()
                 try:
-                    self.env["mail.thread"].message_notify(
+                    self.env["mixin.mail.thread"].message_notify(
                         partner_ids=[message_creator.partner_id.id],
                         subject=_("A scheduled message could not be sent"),
                         body=_(
@@ -271,9 +284,22 @@ class MailScheduledMessage(models.Model):
         for scheduled_message in self.sudo():
             model_ids[scheduled_message.model].add(scheduled_message.res_id)
         if values:
+            missing = {"model", "res_id"} - values.keys()
+            if missing:
+                raise ValidationError(
+                    self.env._(
+                        "A scheduled message needs %(field_names)s to know what it "
+                        "is scheduled on.",
+                        field_names=", ".join(sorted(missing)),
+                    )
+                )
             model_ids[values["model"]].add(values["res_id"])
 
         for model, res_ids in model_ids.items():
+            if model not in self.env:
+                raise ValidationError(
+                    self.env._("Unknown model %(model_name)s", model_name=model)
+                )
             records = self.env[model].browse(res_ids)
             operation = getattr(records, "_mail_post_access", "write")
             records.check_access(operation)

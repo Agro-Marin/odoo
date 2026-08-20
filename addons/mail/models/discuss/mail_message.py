@@ -13,10 +13,12 @@ class MailMessage(models.Model):
     _inherit = "mail.message"
 
     call_history_ids: DiscussCallHistory = fields.One2many(
-        "discuss.call.history", "start_call_message_id"
+        "discuss.call.history",
+        "start_call_message_id",
     )
     channel_id: DiscussChannel = fields.Many2one(
-        "discuss.channel", compute="_compute_channel_id"
+        "discuss.channel",
+        compute="_compute_channel_id",
     )
 
     @api.depends("model", "res_id")

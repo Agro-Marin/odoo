@@ -1,7 +1,7 @@
 import logging
 import typing
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Collection, Iterable
 from email.message import EmailMessage
 from typing import Any, Literal, Self, TypedDict
 
@@ -11,19 +11,28 @@ from markupsafe import Markup
 
 from odoo import _, api, exceptions, fields, models, tools
 from odoo.db.schema import column_exists
-from odoo.tools import parse_contact_from_email
-from odoo.tools.mail import email_normalize, email_split_and_format
+from odoo.tools import SQL, parse_contact_from_email
+from odoo.tools.mail import (
+    email_split_and_format,
+    email_split_and_format_normalize,
+)
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 from odoo.addons.mail.tools.alias_error import AliasError
+from odoo.addons.mail.tools.default_recipients import choose_default_recipients
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
+from odoo.addons.mail.tools.email_keys import (
+    dedupe_emails_by_key,
+    email_comparison_key,
+)
 
 if typing.TYPE_CHECKING:
-    from odoo.addons.base.models.res_company import ResCompany
     from odoo.addons.base.models.res_users import ResUsers
     from odoo.addons.mail.models.mail_alias import MailAlias
     from odoo.addons.mail.models.mail_alias_domain import MailAliasDomain
     from odoo.addons.mail.models.mail_message import MailMessage
     from odoo.addons.mail.models.mail_message_subtype import MailMessageSubtype
+    from odoo.addons.mail.models.res_company import ResCompany
     from odoo.addons.mail.models.res_partner import ResPartner
 
 _logger = logging.getLogger(__name__)
@@ -58,17 +67,15 @@ _MAIL_EMAIL_FIELD_TYPES = ("char", "text")
 
 _MAIL_TIMEZONE_FIELD_TYPES = ("selection", "char")
 
-
-def _email_comparison_key(email: str) -> str:
-    return email_normalize(email, strict=False) or email.strip()
+_MAIL_REPLY_TO_LENGTH_LIMIT = 68
 
 
 class Base(models.AbstractModel):
     _inherit = "base"
-
     _mail_defaults_to_email = False
     _mail_post_access = "write"
     _primary_email = None
+    _partner_unfollow_enabled = False
     _mail_partner_fields = None
     _mail_default_email_fields = (
         "email_from",
@@ -79,11 +86,36 @@ class Base(models.AbstractModel):
         "email_normalized",
     )
     _mail_default_email_cc_fields = ("email_cc", "partner_email_cc", "x_email_cc")
+    _mail_default_timezone_fields = ("date_tz", "tz", "timezone")
 
     def _valid_field_parameter(self, field: fields.Field, name: str) -> bool:
         return (
             name == "tracking" and self._abstract
         ) or super()._valid_field_parameter(field, name)
+
+    @api.model
+    @tools.ormcache()
+    def _display_name_field_names(self) -> frozenset[str]:
+        field_depends = self.env.registry.field_depends
+        roots: set[str] = set()
+        expanded: set[fields.Field] = set()
+        todo = [self._fields["display_name"]]
+        while todo:
+            field = todo.pop()
+            if field in expanded:
+                continue
+            expanded.add(field)
+            for dependency in field_depends[field]:
+                root, _sep, path = dependency.partition(".")
+                roots.add(root)
+                dependency_field = self._fields.get(root)
+                if (
+                    dependency_field is not None
+                    and dependency_field.compute
+                    and not path
+                ):
+                    todo.append(dependency_field)
+        return frozenset(roots)
 
     def with_user(self, user: ResUsers | int) -> Self:
         return super().with_user(user).with_context(guest=None)
@@ -98,10 +130,61 @@ class Base(models.AbstractModel):
                 and column_exists(self.env.cr, "mail_activity", "res_id")
             )
         ):
-            self.env["mail.activity"].with_context(active_test=False).sudo().search(
-                [("res_model", "=", self._name), ("res_id", "in", record_ids)]
-            ).unlink()
+            self._mail_unlink_activities(record_ids)
         return result
+
+    def _mail_unlink_activities(self, record_ids: list[int]) -> None:
+        Activity = self.env["mail.activity"]
+        Activity.flush_model(["res_model", "res_id"])
+        self.env.cr.execute(
+            SQL(
+                "SELECT EXISTS (SELECT 1 FROM mail_activity "
+                "WHERE res_model = %s AND res_id = ANY(%s))",
+                self._name,
+                record_ids,
+            )
+        )
+        if not self.env.cr.fetchone()[0]:
+            return
+        Activity.with_context(active_test=False).sudo().search(
+            [("res_model", "=", self._name), ("res_id", "in", record_ids)]
+        ).unlink()
+
+    def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
+        return []
+
+    def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:
+        return [field_spec]
+
+    def _to_store(
+        self, store: Store, field_specs: list[StoreFieldSpec], **kwargs
+    ) -> None:
+        if kwargs:
+            raise TypeError(
+                f"unexpected _to_store parameters for {self._name}: {kwargs}"
+            )
+        store.add_records_fields(self, field_specs)
+
+    def _thread_to_store(
+        self, store: Store, field_specs: list[StoreFieldSpec], **kwargs
+    ) -> None:
+        if kwargs:
+            raise TypeError(
+                f"unexpected _thread_to_store parameters for {self._name}: {kwargs}"
+            )
+        store.add_records_fields(self, field_specs, as_thread=True)
+
+    def _mail_get_followers(self) -> dict[int, ResPartner]:
+        return dict.fromkeys(self._ids, self.env["res.partner"])
+
+    def _mail_get_thread_messages(self) -> dict[int, MailMessage]:
+        return dict.fromkeys(self._ids, self.env["mail.message"])
+
+    def _creation_subtype(self) -> MailMessageSubtype:
+        return self.env["mail.message.subtype"]
+
+    def _mail_get_customer_information(self) -> dict[str, dict]:
+        return {}
 
     def _mail_get_operation_for_mail_message_operation(
         self, message_operation: str
@@ -185,10 +268,21 @@ class Base(models.AbstractModel):
         return customers[0] if customers else self.env["res.partner"]
 
     @api.model
+    @api.model
+    def _mail_is_partner_field(self, fname: str) -> bool:
+        field = self._fields.get(fname)
+        return bool(
+            field
+            and field.type in ("many2one", "many2many", "one2many")
+            and field.comodel_name == "res.partner"
+        )
+
     def _mail_get_partner_fields(self, introspect_fields: bool = False) -> list[str]:
         if self._mail_partner_fields is not None:
             return [
-                fname for fname in self._mail_partner_fields if fname in self._fields
+                fname
+                for fname in self._mail_partner_fields
+                if self._mail_is_partner_field(fname)
             ]
         partner_fnames = [
             fname
@@ -205,29 +299,40 @@ class Base(models.AbstractModel):
             ]
         return partner_fnames
 
+    @api.model
+    @api.readonly
     def mail_get_partner_fields(self) -> list[str]:
         return [
             fname
             for fname in self._mail_get_partner_fields()
-            if self._fields[fname].type == "many2one"
+            if (field := self._fields.get(fname)) and field.type == "many2one"
         ]
 
     def _mail_get_partners(
         self, introspect_fields: bool = False
     ) -> dict[int, ResPartner]:
-        partner_fields = self._mail_get_partner_fields(
-            introspect_fields=introspect_fields
-        )
-        all_pids = {
-            pid for record in self for fn in partner_fields for pid in record[fn].ids
-        }
-        records_partners = {}
-        for record in self:
-            pids = tools.unique(pid for fn in partner_fields for pid in record[fn].ids)
-            records_partners[record.id] = (
-                self.env["res.partner"].browse(pids).with_prefetch(all_pids)
+        partner_fields = []
+        for fname in self._mail_get_partner_fields(introspect_fields=introspect_fields):
+            if self._mail_is_partner_field(fname):
+                partner_fields.append(fname)
+            else:
+                _logger.warning(
+                    "%s._mail_get_partner_fields names %r, which is not a "
+                    "relation to res.partner; ignored.",
+                    self._name,
+                    fname,
+                )
+        pids_per_record = {
+            record.id: list(
+                tools.unique(pid for fn in partner_fields for pid in record[fn].ids)
             )
-        return records_partners
+            for record in self
+        }
+        all_pids = {pid for pids in pids_per_record.values() for pid in pids}
+        return {
+            res_id: self.env["res.partner"].browse(pids).with_prefetch(all_pids)
+            for res_id, pids in pids_per_record.items()
+        }
 
     @api.model
     def _mail_get_primary_email_field(self) -> str | None:
@@ -243,6 +348,7 @@ class Base(models.AbstractModel):
         return {record.id: record[fname] if fname else False for record in self}
 
     @api.model
+    @api.readonly
     def mail_allowed_qweb_expressions(self) -> tuple[str, ...]:
         return (
             "object.name",
@@ -255,8 +361,8 @@ class Base(models.AbstractModel):
         )
 
     def _mail_track(
-        self, tracked_fields: dict, initial_values: dict
-    ) -> tuple[set[str], list]:
+        self, tracked_fields: dict[str, dict], initial_values: dict[str, Any]
+    ) -> tuple[set[str], list[list]]:
         self.ensure_one()
         updated = set()
         tracking_value_ids = []
@@ -274,8 +380,8 @@ class Base(models.AbstractModel):
             if new_value == initial_value or (not new_value and not initial_value):
                 continue
 
-            if self._fields[col_name].type == "properties":
-                definition_record_field = self._fields[col_name].definition_record
+            if field.type == "properties":
+                definition_record_field = field.definition_record
                 if self[definition_record_field] == initial_values.get(
                     definition_record_field, self[definition_record_field]
                 ):
@@ -293,9 +399,12 @@ class Base(models.AbstractModel):
                             col_name,
                             tracked_fields[col_name],
                             self,
+                            definition_index=definition_index,
                         ),
                     ]
-                    for property_ in initial_value[::-1]
+                    for definition_index, property_ in reversed(
+                        list(enumerate(initial_value))
+                    )
                     if property_["type"] not in ("separator", "html")
                     and property_.get("value")
                 )
@@ -318,15 +427,24 @@ class Base(models.AbstractModel):
 
         return updated, tracking_value_ids
 
-    def _mail_track_order_fields(self, tracked_fields: dict) -> list[tuple[str, int]]:
-        fields_track_info = [
-            (col_name, self._mail_track_get_field_sequence(col_name))
+    def _mail_track_field_sequences(
+        self, tracked_fields: dict[str, dict]
+    ) -> dict[str, int]:
+        return {
+            col_name: self._mail_track_get_field_sequence(col_name)
             for col_name in tracked_fields
-        ]
+        }
+
+    def _mail_track_order_fields(
+        self, tracked_fields: dict[str, dict]
+    ) -> list[tuple[str, int]]:
+        fields_track_info = list(
+            self._mail_track_field_sequences(tracked_fields).items()
+        )
         fields_track_info.sort(
             key=lambda item: (
                 item[1],
-                tracked_fields[item[0]]["type"] != "properties",
+                tracked_fields[item[0]]["type"] == "properties",
                 item[0],
             ),
             reverse=True,
@@ -353,18 +471,14 @@ class Base(models.AbstractModel):
         for record in self:
             email_cc_lst, email_to_lst = [], []
             recipients_all = customers[record.id]
-            email_to = primary_emails[record.id] or record._mail_find_email_value(
+            email_to = primary_emails[record.id] or record._mail_get_email_value(
                 self._mail_default_email_fields
             )
             if email_to:
-                email_to_lst = tools.mail.email_split_and_format_normalize(
-                    email_to
-                ) or [email_to]
-            email_cc = record._mail_find_email_value(self._mail_default_email_cc_fields)
+                email_to_lst = email_split_and_format_normalize(email_to) or [email_to]
+            email_cc = record._mail_get_email_value(self._mail_default_email_cc_fields)
             if email_cc:
-                email_cc_lst = tools.mail.email_split_and_format_normalize(
-                    email_cc
-                ) or [email_cc]
+                email_cc_lst = email_split_and_format_normalize(email_cc) or [email_cc]
 
             res[record.id] = {
                 "email_cc_lst": email_cc_lst,
@@ -373,29 +487,32 @@ class Base(models.AbstractModel):
             }
         return res
 
-    def _mail_find_email_value(self, fnames: Iterable[str]) -> str | Literal[False]:
+    def _mail_first_field_value(
+        self, fnames: Iterable[str], field_types: Collection[str]
+    ) -> Any:
         self.ensure_one()
         return next(
             (
                 self[fname]
                 for fname in fnames
                 if (field := self._fields.get(fname))
-                and field.type in _MAIL_EMAIL_FIELD_TYPES
+                and field.type in field_types
                 and self[fname]
             ),
-            False,
+            None,
         )
 
-    def _mail_get_banned_emails(self, emails: Iterable[str]) -> set:
-        root_email = self.env.ref("base.partner_root").email_normalized
+    def _mail_get_email_value(self, fnames: Iterable[str]) -> str | Literal[False]:
+        return self._mail_first_field_value(fnames, _MAIL_EMAIL_FIELD_TYPES) or False
+
+    def _mail_get_banned_emails(self, emails: Iterable[str]) -> set[str]:
+        root_email = self.env.ref("base.partner_root").sudo().email_normalized
         banned = {root_email} if root_email else set()
         banned.update(
             alias
             for alias in self.env["mail.alias.domain"]
             .sudo()
-            ._find_aliases(
-                [_email_comparison_key(e) for e in emails if e and e.strip()]
-            )
+            ._find_aliases([email_comparison_key(e) for e in emails if e and e.strip()])
             if alias
         )
         return banned
@@ -420,53 +537,33 @@ class Base(models.AbstractModel):
             customers = defaults["partners"]
             email_cc_lst = defaults["email_cc_lst"] if with_cc else []
             email_to_lst = defaults["email_to_lst"]
-
-            recipients_all = customers.filtered(
-                lambda p: (
-                    not p.is_public
-                    and (not p.email_normalized or p.email_normalized not in ban_emails)
-                )
-            )
-            recipients = customers.filtered(
-                lambda p: (
-                    not p.is_public
-                    and p.email_normalized
-                    and p.email_normalized not in ban_emails
-                )
-            )
+            keep_ids, mailable_ids = [], []
+            for partner in customers:
+                if partner.is_public:
+                    continue
+                email_normalized = partner.email_normalized
+                if not email_normalized:
+                    keep_ids.append(partner.id)
+                elif email_normalized not in ban_emails:
+                    keep_ids.append(partner.id)
+                    mailable_ids.append(partner.id)
+            recipients_all = customers.browse(keep_ids).with_prefetch(customers._ids)
+            recipients = customers.browse(mailable_ids).with_prefetch(customers._ids)
             email_cc_lst = [
-                e for e in email_cc_lst if _email_comparison_key(e) not in ban_emails
+                e for e in email_cc_lst if email_comparison_key(e) not in ban_emails
             ]
             email_to_lst = [
-                e for e in email_to_lst if _email_comparison_key(e) not in ban_emails
+                e for e in email_to_lst if email_comparison_key(e) not in ban_emails
             ]
-
-            if not prioritize_email or not email_to_lst:
-                if recipients:
-                    partner_ids = recipients.ids
-                    email_to = ""
-                elif (
-                    recipients_all
-                    and len(recipients_all) == len(email_to_lst)
-                    and all(
-                        email in recipients_all.mapped("email")
-                        for email in email_to_lst
-                    )
-                ):
-                    partner_ids = recipients_all.ids
-                    email_to = ""
-                else:
-                    partner_ids = [] if email_to_lst else recipients_all.ids
-                    email_to = ",".join(email_to_lst)
-            elif len(email_to_lst) == len(recipients) and all(
-                tools.email_normalize(email) in recipients.mapped("email_normalized")
-                for email in email_to_lst
-            ):
-                partner_ids = recipients.ids
-                email_to = ""
-            else:
-                partner_ids = []
-                email_to = ",".join(email_to_lst)
+            partner_ids, email_to = choose_default_recipients(
+                prioritize_email=prioritize_email,
+                email_to_lst=email_to_lst,
+                to_keys=[email_comparison_key(email) for email in email_to_lst],
+                mailable_ids=recipients.ids,
+                mailable_keys=set(recipients.mapped("email_normalized")),
+                kept_ids=recipients_all.ids,
+                kept_emails=set(recipients_all.mapped("email")),
+            )
             res[record.id] = {
                 "email_cc": ",".join(email_cc_lst),
                 "email_to": email_to,
@@ -482,7 +579,6 @@ class Base(models.AbstractModel):
             for record in self
         }
         defaults = self._message_get_default_recipients_sources()
-
         user_field = self._fields.get("user_id")
         if (
             user_field
@@ -493,14 +589,13 @@ class Base(models.AbstractModel):
                 if record_su.user_id.partner_id == self.env.user.partner_id:
                     continue
                 suggested[record_su.id]["partners"] += record_su.user_id.partner_id
-
         for record_id, values in defaults.items():
             suggested[record_id]["partners"] |= values["partners"]
 
         for record in self:
             if force_primary_email:
                 suggested[record.id]["email_to_lst"] += (
-                    tools.mail.email_split_and_format_normalize(force_primary_email)
+                    email_split_and_format_normalize(force_primary_email)
                 )
             else:
                 suggested[record.id]["email_to_lst"] += defaults[record.id][
@@ -517,146 +612,351 @@ class Base(models.AbstractModel):
         primary_email: str | Literal[False] = False,
         additional_partners: ResPartner | None = None,
     ) -> dict[int, list[SuggestedRecipient]]:
-
-        is_mail_thread = self.env["mail.thread"]._mail_is_thread(self)
-        suggested_record = self._message_get_suggested_recipients_sources(
+        sources = self._message_get_suggested_recipients_sources(
             force_primary_email=primary_email
         )
-
-        suggested = {
-            record.id: {
-                "email_to_lst": suggested_record[record.id]["email_to_lst"].copy(),
-                "partners": suggested_record[record.id]["partners"]
-                + (additional_partners or self.env["res.partner"]),
-            }
-            for record in self
-        }
-        self._message_add_suggested_recipients_from_replies(
-            suggested, reply_discussion=reply_discussion, reply_message=reply_message
+        suggested = self._message_add_suggested_recipients_from_replies(
+            self._message_suggested_recipients_candidates(sources, additional_partners),
+            reply_discussion=reply_discussion,
+            reply_message=reply_message,
         )
+        suggested = self._message_suggested_recipients_readable(suggested)
 
-        followers_by_record = {
-            record.id: record.sudo().message_partner_ids
-            if is_mail_thread
-            else self.env["res.partner"]
-            for record in self
-        }
-        follower_ids = {
-            pid for recs in followers_by_record.values() for pid in recs._ids
-        }
-        followers_by_record = {
-            res_id: recs.with_prefetch(follower_ids)
-            for res_id, recs in followers_by_record.items()
-        }
-        customer_ids = {
+        followers_by_record = self._mail_get_followers()
+        customer_information = self._mail_get_customer_information_batch()
+
+        partner_ids = {
             pid for vals in suggested.values() for pid in vals["partners"]._ids
-        }
-        suggested = {
-            res_id: {**vals, "partners": vals["partners"].with_prefetch(customer_ids)}
-            for res_id, vals in suggested.items()
-        }
+        } | {pid for recs in followers_by_record.values() for pid in recs._ids}
 
-        records_emails = {}
-        all_emails = set()
-        for record in self:
-            partners = suggested[record.id]["partners"]
-            followers = followers_by_record[record.id]
-            skip_emails = (
-                set(followers.mapped("email_normalized"))
-                | set(followers.mapped("email"))
-                | set(partners.mapped("email_normalized"))
-                | set(partners.mapped("email"))
-            )
-            records_emails[record] = [
-                e
-                for email_input in suggested[record.id]["email_to_lst"]
-                for e in email_split_and_format(email_input)
-                if e and e.strip() and _email_comparison_key(e) not in skip_emails
-            ]
-            all_emails |= set(records_emails[record]) | set(
-                partners.mapped("email_normalized")
-            )
-        ban_emails = self._mail_get_banned_emails(all_emails)
-
-        additional_values = (
-            None
-            if is_mail_thread
-            else self._message_suggested_recipients_company_values(records_emails)
+        records_emails, all_emails = self._message_suggested_recipients_emails(
+            suggested, followers_by_record, partner_ids
         )
-        thread_recs = self if is_mail_thread else self.env["mail.thread"]
-        records_partners = thread_recs._partner_find_from_emails(
+        ban_emails = self._mail_get_banned_emails(all_emails)
+        records_partners = self._partner_find_from_emails(
             records_emails,
             avoid_alias=False,
             ban_emails=list(ban_emails),
             no_create=no_create,
-            additional_values=additional_values,
+            customer_information=customer_information,
         )
-
-        customer_ids |= {pid for recs in records_partners.values() for pid in recs._ids}
+        partner_ids |= {pid for recs in records_partners.values() for pid in recs._ids}
 
         suggested_recipients = {}
         for record in self:
-            emails_normalized_info = (
-                record._get_customer_information() if is_mail_thread else {}
-            )
             followers = followers_by_record[record.id]
-            partners = (
-                self.env["res.partner"]
-                .browse(
-                    tools.misc.unique(
-                        p.id
-                        for p in (
-                            suggested[record.id]["partners"]
-                            + records_partners[record.id]
-                        ).with_prefetch(customer_ids)
-                        if (
-                            (
-                                p not in followers
-                                or (
-                                    p in suggested_record[record.id]["partners"]
-                                    and p.partner_share
-                                )
-                            )
-                            and p.email_normalized not in ban_emails
-                            and not p.is_public
-                        )
-                    )
-                )
-                .with_prefetch(customer_ids)
+            partners = self._message_suggested_recipients_partners(
+                suggested[record.id]["partners"] + records_partners[record.id],
+                followers=followers,
+                keep_followers=sources[record.id]["partners"],
+                ban_emails=ban_emails,
+                prefetch_ids=partner_ids,
             )
-            existing_mails = {
-                _email_comparison_key(e)
-                for rec in (followers | partners)
-                for e in ([rec.email_normalized] if rec.email_normalized else [])
-                + email_split_and_format(rec.email or "")
-            }
             suggested_recipients[record.id] = self._message_suggested_recipients_values(
                 partners,
                 self._message_suggested_emails(
                     suggested[record.id]["email_to_lst"],
-                    skip_keys=ban_emails | existing_mails,
+                    skip_keys=ban_emails
+                    | self._mail_get_email_keys(
+                        (followers | partners).with_prefetch(partner_ids)
+                    ),
                 ),
-                emails_normalized_info,
+                customer_information,
             )
         return suggested_recipients
 
+    def _message_suggested_recipients_candidates(
+        self, sources: dict[int, SuggestionSources], additional_partners: ResPartner
+    ) -> dict[int, SuggestionSources]:
+        additional_partners = additional_partners or self.env["res.partner"]
+        candidates = {
+            record.id: {
+                "email_to_lst": sources[record.id]["email_to_lst"].copy(),
+                "partners": sources[record.id]["partners"] + additional_partners,
+            }
+            for record in self
+        }
+        return self._message_suggested_recipients_prefetch(candidates)
+
+    def _message_suggested_recipients_prefetch(
+        self, suggested: dict[int, SuggestionSources]
+    ) -> dict[int, SuggestionSources]:
+        prefetch_ids = {
+            pid for vals in suggested.values() for pid in vals["partners"]._ids
+        }
+        return {
+            res_id: {**vals, "partners": vals["partners"].with_prefetch(prefetch_ids)}
+            for res_id, vals in suggested.items()
+        }
+
+    def _message_suggested_recipients_readable(
+        self, suggested: dict[int, SuggestionSources]
+    ) -> dict[int, SuggestionSources]:
+        candidates = self.env["res.partner"].browse(
+            {pid for vals in suggested.values() for pid in vals["partners"]._ids}
+        )
+        readable = set(candidates._filtered_access("read")._ids)
+        if len(readable) == len(candidates):
+            return suggested
+        return self._message_suggested_recipients_prefetch(
+            {
+                res_id: {
+                    **vals,
+                    "partners": vals["partners"].filtered(
+                        lambda partner: partner.id in readable
+                    ),
+                }
+                for res_id, vals in suggested.items()
+            }
+        )
+
+    def _message_suggested_recipients_emails(
+        self,
+        suggested: dict[int, SuggestionSources],
+        followers_by_record: dict[int, ResPartner],
+        prefetch_ids: set,
+    ) -> tuple[dict[models.BaseModel, list[str]], set[str]]:
+        records_emails, all_emails = {}, set()
+        for record in self:
+            partners = suggested[record.id]["partners"]
+            skip_keys = self._mail_get_email_keys(
+                (followers_by_record[record.id] | partners).with_prefetch(prefetch_ids)
+            )
+            records_emails[record] = [
+                email
+                for email_input in suggested[record.id]["email_to_lst"]
+                for email in email_split_and_format(email_input)
+                if email
+                and email.strip()
+                and email_comparison_key(email) not in skip_keys
+            ]
+            all_emails |= set(records_emails[record]) | set(
+                partners.mapped("email_normalized")
+            )
+        return records_emails, all_emails
+
+    def _message_suggested_recipients_partners(
+        self,
+        partners: ResPartner,
+        followers: ResPartner,
+        keep_followers: ResPartner,
+        ban_emails: set,
+        prefetch_ids: set,
+    ) -> ResPartner:
+        return (
+            self.env["res.partner"]
+            .browse(
+                tools.unique(
+                    partner.id
+                    for partner in partners.with_prefetch(prefetch_ids)
+                    if (
+                        partner not in followers
+                        or (partner in keep_followers and partner.partner_share)
+                    )
+                    and partner.email_normalized not in ban_emails
+                    and not partner.is_public
+                )
+            )
+            .with_prefetch(prefetch_ids)
+        )
+
+    @api.model
+    def _mail_get_email_keys(self, partners: ResPartner) -> set[str]:
+        keys = set()
+        for partner in partners:
+            if partner.email_normalized:
+                keys.add(partner.email_normalized)
+            keys.update(
+                email_comparison_key(email)
+                for email in email_split_and_format(partner.email or "")
+            )
+        return keys
+
+    def _partner_find_from_emails_single(
+        self,
+        emails: list[str],
+        avoid_alias: bool = True,
+        ban_emails: list[str] | None = None,
+        filter_found: Callable[[ResPartner], Any] | None = None,
+        additional_values: dict[str, dict] | None = None,
+        customer_information: dict[str, dict] | None = None,
+        no_create: bool = False,
+    ) -> ResPartner:
+        if self:
+            self.ensure_one()
+        return self._partner_find_from_emails(
+            {self: emails},
+            avoid_alias=avoid_alias,
+            ban_emails=ban_emails,
+            filter_found=filter_found,
+            additional_values=additional_values,
+            customer_information=customer_information,
+            no_create=no_create,
+        )[self.id]
+
+    def _partner_find_from_emails_records(
+        self, records_emails: dict[models.BaseModel, list[str]]
+    ) -> models.BaseModel:
+        keys = list(records_emails)
+        record_models = {record._name for record in keys}
+        if len(record_models) > 1:
+            raise ValueError(
+                f"_partner_find_from_emails takes records of a single model, "
+                f"got {sorted(record_models)}"
+            )
+        records = keys[0].union(*keys[1:]) if keys else self.browse()
+        if self and set(self._ids) != set(records._ids):
+            raise ValueError(
+                f"_partner_find_from_emails: self must be empty or exactly the "
+                f"records of records_emails, got {self} against {records}"
+            )
+        return records
+
+    def _partner_find_from_emails_values(
+        self,
+        additional_values: dict[str, dict] | None = None,
+        customer_information: dict[str, dict] | None = None,
+    ) -> dict[str, dict]:
+        values = (
+            self._mail_get_customer_information_batch()
+            if customer_information is None
+            else {
+                email_comparison_key(key): dict(vals)
+                for key, vals in customer_information.items()
+            }
+        )
+        for key, update in (additional_values or {}).items():
+            values.setdefault(email_comparison_key(key), {}).update(update)
+        return values
+
+    def _partner_find_from_emails_sort_key(
+        self, emails_key_company_id: dict[str, int | Literal[False]]
+    ) -> Callable[[ResPartner], tuple[bool, ...]]:
+        follower_ids = {
+            partner.id
+            for partners in self._mail_get_followers().values()
+            for partner in partners
+        }
+        current_partner_id = self.env.user.partner_id.id
+
+        def sort_key(p: ResPartner) -> tuple[bool, ...]:
+            return (
+                p.id == current_partner_id,
+                p.id in follower_ids,
+                not p.partner_share,
+                bool(p.user_ids),
+                p.company_id.id == emails_key_company_id.get(p.email_normalized, False),
+                not p.company_id,
+            )
+
+        return sort_key
+
+    def _partner_find_from_emails(
+        self,
+        records_emails: dict[models.BaseModel, list[str]],
+        avoid_alias: bool = True,
+        ban_emails: list[str] | None = None,
+        filter_found: Callable[[ResPartner], Any] | None = None,
+        additional_values: dict[str, dict] | None = None,
+        customer_information: dict[str, dict] | None = None,
+        no_create: bool = False,
+    ) -> dict[int | Literal[False], ResPartner]:
+        records = self._partner_find_from_emails_records(records_emails)
+        res_ids = records.ids or [record.id for record in records_emails]
+        found_results = dict.fromkeys(res_ids, self.env["res.partner"])
+        emails_all = []
+        emails_key_all = []
+        emails_key_company_id = {}
+        emails_key_res_ids = defaultdict(list)
+
+        records_company = records.sudo()._mail_get_companies()
+        emails_normalized_info = records._partner_find_from_emails_values(
+            additional_values=additional_values,
+            customer_information=customer_information,
+        )
+
+        for record, mails in records_emails.items():
+            record_company = records_company.get(record.id, self.env["res.company"])
+            for mail in mails:
+                email_key = email_comparison_key(mail)
+                emails_key_res_ids[email_key].append(record.id)
+                if record_company and email_key:
+                    known_company_id = emails_key_company_id.get(
+                        email_key, record_company.id
+                    )
+                    emails_key_company_id[email_key] = (
+                        record_company.id
+                        if known_company_id == record_company.id
+                        else False
+                    )
+                emails_all.append(mail)
+                emails_key_all.append(email_key)
+        if not emails_all:
+            return found_results
+
+        alias_emails = (
+            self.env["mail.alias.domain"].sudo()._find_aliases(emails_key_all)
+            if avoid_alias
+            else []
+        )
+        ban_emails = (ban_emails or []) + alias_emails
+        sort_key = records._partner_find_from_emails_sort_key(emails_key_company_id)
+
+        partners = self.env["res.partner"]._find_or_create_from_emails(
+            emails_all,
+            additional_values={
+                mail_key: {
+                    "company_id": emails_key_company_id.get(mail_key, False),
+                    **emails_normalized_info.get(mail_key, {}),
+                }
+                for mail_key in emails_key_all
+            },
+            ban_emails=ban_emails,
+            filter_found=filter_found,
+            no_create=no_create,
+            sort_key=sort_key,
+            sort_reverse=True,
+        )
+
+        for mail_key, partner in zip(emails_key_all, partners, strict=True):
+            for res_id in emails_key_res_ids[mail_key]:
+                found_results[res_id] |= partner
+        return found_results
+
+    def _mail_get_customer_information_batch(self) -> dict[str, dict]:
+        values = {}
+        for record in self:
+            for (
+                email_key,
+                record_values,
+            ) in record._mail_get_customer_information().items():
+                merged = values.setdefault(email_comparison_key(email_key), {})
+                for key, value in record_values.items():
+                    merged.setdefault(key, value)
+        return values
+
     def _message_add_suggested_recipients_from_replies(
         self,
-        suggested: dict,
+        suggested: dict[int, SuggestionSources],
         reply_discussion: bool = False,
         reply_message: MailMessage | None = None,
-    ) -> None:
+    ) -> dict[int, SuggestionSources]:
         sorted_messages = {}
-        if reply_discussion and self.env["mail.thread"]._mail_is_thread(self):
-            messages_by_res_id = self.message_ids.grouped("res_id")
+        if reply_discussion:
+            messages_by_record = self._mail_get_thread_messages()
+            subtype_ids = self._mail_suggested_message_subtype_ids()
             sorted_messages = {
                 record.id: record._sort_suggested_messages(
-                    messages_by_res_id.get(record.id, self.env["mail.message"])
+                    messages_by_record[record.id], subtype_ids
                 )
                 for record in self
             }
         if not reply_message and not any(sorted_messages.values()):
-            return
+            return suggested
+        suggested = {
+            res_id: {**vals, "email_to_lst": list(vals["email_to_lst"])}
+            for res_id, vals in suggested.items()
+        }
         for record in self:
             record_msg = reply_message or next(
                 iter(sorted_messages.get(record.id, self.env["mail.message"])),
@@ -666,52 +966,24 @@ class Base(models.AbstractModel):
                 continue
             suggested[record.id]["partners"] += (
                 record_msg.partner_ids | record_msg.author_id
-            ).filtered(lambda p: p.active)
+            ).filtered(lambda partner: partner.active)
             suggested[record.id]["email_to_lst"] += [
                 record_msg.incoming_email_to or "",
                 record_msg.incoming_email_cc or "",
                 record_msg.email_from or "",
             ]
-
-    def _message_suggested_recipients_company_values(
-        self, records_emails: dict[models.BaseModel, list[str]]
-    ) -> dict[str, dict]:
-        record_companies = self._mail_get_companies()
-        values = {}
-        for record, emails in records_emails.items():
-            company = record_companies.get(record.id)
-            if not company:
-                continue
-            for email in emails:
-                values.setdefault(_email_comparison_key(email), {}).setdefault(
-                    "company_id", company.id
-                )
-        return values
+        return self._message_suggested_recipients_prefetch(suggested)
 
     def _message_suggested_emails(
         self, email_to_lst: list[str], skip_keys: set[str]
     ) -> list[str]:
-        by_key = {}
-        for email_input in email_to_lst:
-            for email in email_split_and_format(email_input):
-                if not (email and email.strip()):
-                    continue
-                key = _email_comparison_key(email)
-                if key in skip_keys:
-                    continue
-                current = by_key.get(key)
-                if current is None or (
-                    not parse_contact_from_email(current)[0]
-                    and parse_contact_from_email(email)[0]
-                ):
-                    by_key[key] = email
-        return list(by_key.values())
+        return dedupe_emails_by_key(email_to_lst, skip_keys)
 
     def _message_suggested_recipients_values(
         self,
         partners: ResPartner,
         email_to_lst: list[str],
-        emails_normalized_info: dict,
+        emails_normalized_info: dict[str, dict],
     ) -> list[SuggestedRecipient]:
         recipients = [
             {
@@ -736,21 +1008,28 @@ class Base(models.AbstractModel):
             )
         return recipients
 
-    def _sort_suggested_messages(self, messages: MailMessage) -> MailMessage:
-        subtype_ids = (
-            self._creation_subtype().ids
-            if self.env["mail.thread"]._mail_is_thread(self)
-            else []
+    def _sort_suggested_messages(
+        self, messages: MailMessage, subtype_ids: Collection[int] | None = None
+    ) -> MailMessage:
+        if subtype_ids is None:
+            subtype_ids = self._mail_suggested_message_subtype_ids()
+        return (
+            messages.filtered(
+                lambda msg: (
+                    msg.message_type in ("email", "comment")
+                    and msg.subtype_id.id in subtype_ids
+                )
+            )
+            .with_prefetch(messages._prefetch_ids)
+            .sorted(lambda msg: (msg.date, msg.id), reverse=True)
         )
+
+    def _mail_suggested_message_subtype_ids(self) -> list[int]:
+        subtype_ids = self._creation_subtype().ids
         subtype_ids.append(
             self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment")
         )
-        return messages.filtered(
-            lambda msg: (
-                msg.message_type in ("email", "comment")
-                and msg.subtype_id.id in subtype_ids
-            )
-        ).sorted(lambda msg: (msg.date, msg.id), reverse=True)
+        return subtype_ids
 
     def _message_get_suggested_recipients(
         self,
@@ -773,18 +1052,21 @@ class Base(models.AbstractModel):
         self,
         default: str | Literal[False] | None = None,
         author_id: int | Literal[False] = False,
-    ) -> dict[int | Literal[False], str | Literal[False]]:
+    ) -> dict[int | Literal[False], str | Literal[False] | None]:
         return self._notify_get_reply_to_batch(
             defaults=dict.fromkeys(self.ids or [False], default),
             author_ids=dict.fromkeys(self.ids or [False], author_id),
         )
 
+    def _notify_reply_to_scope(self) -> tuple[str | Literal[False], list, list]:
+        model = self._name if self and self._name != "mixin.mail.thread" else False
+        res_ids = self.ids if model else []
+        return model, res_ids, res_ids or [False]
+
     def _notify_get_reply_to_addresses(
         self,
     ) -> dict[int | Literal[False], str]:
-        model = self._name if self and self._name != "mail.thread" else False
-        res_ids = self.ids if model else []
-        _res_ids = res_ids or [False]
+        model, res_ids, _res_ids = self._notify_reply_to_scope()
 
         if res_ids:
             company_to_res_ids = defaultdict(list)
@@ -826,11 +1108,11 @@ class Base(models.AbstractModel):
         return reply_to_email
 
     def _notify_get_reply_to_batch(
-        self, defaults: dict | None = None, author_ids: dict | None = None
-    ) -> dict[int | Literal[False], str | Literal[False]]:
-        model = self._name if self and self._name != "mail.thread" else False
-        res_ids = self.ids if model else []
-        _res_ids = res_ids or [False]
+        self,
+        defaults: dict[int | Literal[False], str | Literal[False] | None] | None = None,
+        author_ids: dict[int | Literal[False], int | Literal[False]] | None = None,
+    ) -> dict[int | Literal[False], str | Literal[False] | None]:
+        _res_ids = self._notify_reply_to_scope()[2]
         if defaults is None:
             defaults = dict.fromkeys(_res_ids, False)
         if author_ids is None:
@@ -847,9 +1129,6 @@ class Base(models.AbstractModel):
 
         reply_to_email = self._notify_get_reply_to_addresses()
 
-        self.env["res.partner"].browse(
-            {author_ids[res_id] for res_id in reply_to_email if author_ids.get(res_id)}
-        ).mapped("name")
         reply_to_formatted = dict(defaults)
         for res_id, record_reply_to in reply_to_email.items():
             reply_to_formatted[res_id] = self._notify_get_reply_to_formatted_email(
@@ -859,16 +1138,31 @@ class Base(models.AbstractModel):
 
         return reply_to_formatted
 
+    def _notify_get_reply_to_per_author(
+        self, author_pairs: Collection[tuple[int | Literal[False], str | None]]
+    ) -> dict[tuple, dict]:
+        keys = self._notify_reply_to_scope()[2]
+        reply_to_email = self._notify_get_reply_to_addresses()
+        result = {}
+        for author_id, author_email in author_pairs:
+            formatted = dict.fromkeys(keys, author_email)
+            for res_id, record_reply_to in reply_to_email.items():
+                formatted[res_id] = self._notify_get_reply_to_formatted_email(
+                    record_reply_to, author_id=author_id
+                )
+            result[(author_id, author_email)] = formatted
+        return result
+
     def _notify_get_reply_to_formatted_email(
         self, record_email: str, author_id: int | Literal[False] = False
     ) -> str:
-        length_limit = 68
-        if len(record_email) >= length_limit:
+        if len(record_email) >= _MAIL_REPLY_TO_LENGTH_LIMIT:
             _logger.warning(
-                "Notification email address for reply-to is longer than 68 characters. "
+                "Notification email address for reply-to is longer than %s characters. "
                 "This might create non-compliant folding in the email header in certain DKIM "
                 "verification tech stacks. It is advised to shorten it if possible. "
                 "Reply-To: %s ",
+                _MAIL_REPLY_TO_LENGTH_LIMIT,
                 record_email,
             )
             return record_email
@@ -879,14 +1173,14 @@ class Base(models.AbstractModel):
             author_name = self.env.user.name
 
         formatted_email = tools.formataddr((author_name, record_email))
-        if len(formatted_email) > length_limit:
+        if len(formatted_email) >= _MAIL_REPLY_TO_LENGTH_LIMIT:
             formatted_email = tools.formataddr((self.env.user.name, record_email))
-        if len(formatted_email) > length_limit:
+        if len(formatted_email) >= _MAIL_REPLY_TO_LENGTH_LIMIT:
             formatted_email = record_email
         return formatted_email
 
     def _alias_get_error(
-        self, message: EmailMessage, message_dict: dict, alias: MailAlias
+        self, message: EmailMessage, message_dict: dict[str, Any], alias: MailAlias
     ) -> AliasError | Literal[False]:
         author = self.env["res.partner"].browse(message_dict.get("author_id", False))
         if alias.alias_contact == "followers":
@@ -956,16 +1250,19 @@ class Base(models.AbstractModel):
     def _get_backend_root_menu_ids(self) -> list[int]:
         return []
 
-    def _find_value_from_field_path(self, field_path: str) -> str:
+    def _mail_get_field_path_value(self, field_path: str) -> str:
         if self:
             self.ensure_one()
-
         if not field_path:
             return ""
 
+        last_model_path, _dot, last_fname = field_path.rpartition(".")
         try:
-            field_value = self.mapped(field_path)
-        except KeyError as err:
+            last_model = self.mapped(last_model_path) if last_model_path else self
+            last_field = last_model._fields[last_fname]
+        except exceptions.UserError:
+            raise
+        except (KeyError, AttributeError) as err:
             raise exceptions.UserError(
                 _(
                     "%(model_name)s.%(field_path)s does not seem to be a valid field path",
@@ -983,16 +1280,12 @@ class Base(models.AbstractModel):
                     field=field_path,
                 )
             ) from err
-        if isinstance(field_value, models.Model):
-            return " ".join((value.display_name or "") for value in field_value)
 
-        field_path_models = field_path.rsplit(".", 1)
-        if len(field_path_models) > 1:
-            last_model_path, last_fname = field_path_models
-            last_model = self.mapped(last_model_path)
-        else:
-            last_model, last_fname = self, field_path
-        last_field = last_model._fields[last_fname]
+        if last_field.relational:
+            return " ".join(
+                (value.display_name or "") for value in last_model.mapped(last_fname)
+            )
+
         keep_falsy = last_field.type == "boolean"
         return " ".join(
             self._mail_format_field_value(value, last_field, record)
@@ -1022,14 +1315,6 @@ class Base(models.AbstractModel):
         return str(value)
 
     def _mail_get_timezone(self) -> str | None:
-        self.ensure_one()
-        return next(
-            (
-                self[tz_field]
-                for tz_field in ("date_tz", "tz", "timezone")
-                if (field := self._fields.get(tz_field))
-                and field.type in _MAIL_TIMEZONE_FIELD_TYPES
-                and self[tz_field]
-            ),
-            None,
+        return self._mail_first_field_value(
+            self._mail_default_timezone_fields, _MAIL_TIMEZONE_FIELD_TYPES
         )

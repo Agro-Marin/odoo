@@ -1,9 +1,8 @@
 import ast
-import contextlib
 import re
 import typing
 from collections import defaultdict
-from email.message import EmailMessage
+from collections.abc import Iterable
 from typing import Literal, Self
 
 from markupsafe import Markup
@@ -17,9 +16,18 @@ from odoo.tools import is_html_empty, remove_accents
 if typing.TYPE_CHECKING:
     from .mail_alias_domain import MailAliasDomain
     from odoo.addons.base.models.ir_model import IrModel
+    from odoo.addons.base.models.res_company import ResCompany
 
 atext = r"[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]"
 dot_atom_text = re.compile(r"^%s+(\.%s+)*$" % (atext, atext))
+alias_invalid_chars = re.compile(r"[^\w!#$%&'*+\-/=?^_`{|}~.]+")
+alias_dot_runs = re.compile(r"^\.+|\.+$|\.+(?=\.)")
+dns_name = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$")
+DNS_NAME_MAX = 253
+alias_document_fields = {
+    "owner": ("alias_parent_model_id", "alias_parent_thread_id"),
+    "target": ("alias_model_id", "alias_force_thread_id"),
+}
 
 
 class MailAlias(models.Model):
@@ -27,7 +35,7 @@ class MailAlias(models.Model):
     _description = "Email Aliases"
     _order = "alias_model_id, alias_name"
     _rec_name = "alias_name"
-    _rec_names_search = ["alias_name", "alias_domain"]
+    _rec_names_search = ["alias_full_name"]
 
     alias_name = fields.Char(
         "Alias Name",
@@ -109,13 +117,22 @@ class MailAlias(models.Model):
             ("valid", "Valid"),
             ("invalid", "Invalid"),
         ],
-        compute="_compute_alias_status",
-        store=True,
+        default="not_tested",
         help="Alias status assessed on the last message received.",
     )
 
+    ALIAS_STATUS_NEUTRAL = frozenset(
+        {
+            "alias_status",
+            "alias_bounced_content",
+            "alias_name",
+            "alias_domain_id",
+        }
+    )
+
     _name_domain_unique = models.UniqueIndex(
-        "(alias_name, COALESCE(alias_domain_id, 0))"
+        "(alias_name, COALESCE(alias_domain_id, 0))",
+        "This email alias is already used on another record.",
     )
 
     @api.constrains(
@@ -126,138 +143,169 @@ class MailAlias(models.Model):
         "alias_model_id",
     )
     def _check_alias_domain_id_mc(self) -> None:
-        tocheck = self.sudo().filtered(lambda alias: alias.alias_domain_id.company_ids)
-        tocheck = tocheck.filtered(
+        tocheck = self.filtered(
             lambda alias: (
-                (
-                    not alias.alias_model_id.model
-                    or alias.alias_model_id.model in self.env
-                )
-                and (
-                    not alias.alias_parent_model_id.model
-                    or alias.alias_parent_model_id.model in self.env
+                alias.alias_domain_id.company_ids
+                and all(
+                    not alias[model_fname].model or alias[model_fname].model in self.env
+                    for model_fname, _thread_fname in alias_document_fields.values()
                 )
             )
         )
         if not tocheck:
             return
 
-        def _owner_model(alias: MailAlias) -> str:
-            return alias.alias_parent_model_id.model
-
-        def _owner_env(alias: MailAlias) -> models.Model:
-            return self.env[_owner_model(alias)]
-
-        def _target_model(alias: MailAlias) -> str:
-            return alias.alias_model_id.model
-
-        def _target_env(alias: MailAlias) -> models.Model:
-            return self.env[_target_model(alias)]
-
-        recs_by_model = defaultdict(list)
+        ids_by_model = defaultdict(set)
         for alias in tocheck:
-            if alias.alias_parent_model_id and alias.alias_parent_thread_id:
-                if _owner_env(alias)._mail_get_company_field():
-                    recs_by_model[_owner_model(alias)].append(
-                        alias.alias_parent_thread_id
-                    )
-            if alias.alias_model_id and alias.alias_force_thread_id:
-                if _target_env(alias)._mail_get_company_field():
-                    recs_by_model[_target_model(alias)].append(
-                        alias.alias_force_thread_id
-                    )
+            for model_fname, thread_fname in alias_document_fields.values():
+                model = alias[model_fname].model
+                thread_id = alias[thread_fname]
+                if model and thread_id and self.env[model]._mail_get_company_field():
+                    ids_by_model[model].add(thread_id)
 
-        def _fetch_owner(alias: MailAlias) -> models.Model | None:
-            if (
-                alias.alias_parent_thread_id
-                in recs_by_model[alias.alias_parent_model_id.model]
-            ):
-                return (
-                    _owner_env(alias)
-                    .with_prefetch(recs_by_model[_owner_model(alias)])
-                    .browse(alias.alias_parent_thread_id)
-                )
-            return None
-
-        def _fetch_target(alias: MailAlias) -> models.Model | None:
-            if alias.alias_force_thread_id in recs_by_model[alias.alias_model_id.model]:
-                return (
-                    _target_env(alias)
-                    .with_prefetch(recs_by_model[_target_model(alias)])
-                    .browse(alias.alias_force_thread_id)
-                )
-            return None
+        ids_by_model = {
+            model: set(self.env[model].browse(thread_ids).exists().ids)
+            for model, thread_ids in ids_by_model.items()
+        }
 
         for alias in tocheck:
-            if owner := _fetch_owner(alias):
-                company = owner[owner._mail_get_company_field()]
-                if (
-                    company
-                    and company.alias_domain_id != alias.alias_domain_id
-                    and alias.alias_domain_id.company_ids
-                ):
-                    raise ValidationError(
-                        _(
-                            "We could not create alias %(alias_name)s because domain "
-                            "%(alias_domain_name)s belongs to company %(alias_company_names)s "
-                            "while the owner document belongs to company %(company_name)s.",
-                            alias_company_names=",".join(
-                                alias.alias_domain_id.company_ids.mapped("name")
-                            ),
-                            alias_domain_name=alias.alias_domain_id.name,
-                            alias_name=alias.display_name,
-                            company_name=company.name,
-                        )
-                    )
-            if target := _fetch_target(alias):
-                company = target[target._mail_get_company_field()]
-                if (
-                    company
-                    and company.alias_domain_id != alias.alias_domain_id
-                    and alias.alias_domain_id.company_ids
-                ):
-                    raise ValidationError(
-                        _(
-                            "We could not create alias %(alias_name)s because domain "
-                            "%(alias_domain_name)s belongs to company %(alias_company_names)s "
-                            "while the target document belongs to company %(company_name)s.",
-                            alias_company_names=",".join(
-                                alias.alias_domain_id.company_ids.mapped("name")
-                            ),
-                            alias_domain_name=alias.alias_domain_id.name,
-                            alias_name=alias.display_name,
-                            company_name=company.name,
-                        )
-                    )
+            for kind, (model_fname, thread_fname) in alias_document_fields.items():
+                model = alias[model_fname].model
+                if alias[thread_fname] not in ids_by_model.get(model, ()):
+                    continue
+                document = (
+                    self.env[model]
+                    .with_prefetch(tuple(ids_by_model[model]))
+                    .browse(alias[thread_fname])
+                )
+                company = document[document._mail_get_company_field()]
+                if not company or company.alias_domain_id == alias.alias_domain_id:
+                    continue
+                raise ValidationError(self._alias_domain_mc_error(alias, company, kind))
+
+    @api.model
+    def _alias_domain_mc_error(
+        self, alias: MailAlias, company: models.Model, kind: Literal["owner", "target"]
+    ) -> str:
+        values = {
+            "alias_company_names": ",".join(
+                alias.alias_domain_id.company_ids.mapped("name")
+            ),
+            "alias_domain_name": alias.alias_domain_id.name,
+            "alias_name": alias.display_name,
+            "company_name": company.name,
+        }
+        if kind == "owner":
+            return _(
+                "We could not create alias %(alias_name)s because domain "
+                "%(alias_domain_name)s belongs to company %(alias_company_names)s "
+                "while the owner document belongs to company %(company_name)s.",
+                **values,
+            )
+        return _(
+            "We could not create alias %(alias_name)s because domain "
+            "%(alias_domain_name)s belongs to company %(alias_company_names)s "
+            "while the target document belongs to company %(company_name)s.",
+            **values,
+        )
+
+    @api.model
+    def _alias_name_is_valid(self, name: str) -> bool:
+        return bool(name) and self._sanitize_alias_name(name) == name
 
     @api.constrains("alias_name")
-    def _check_alias_is_ascii(self) -> None:
+    def _check_alias_name_is_sanitized(self) -> None:
         for alias in self.filtered("alias_name"):
-            if not dot_atom_text.match(alias.alias_name):
+            if not self._alias_name_is_valid(alias.alias_name):
                 raise ValidationError(
                     _(
-                        "You cannot use anything else than unaccented latin characters in the alias address %(alias_name)s.",
+                        "You cannot use anything else than unaccented lowercase latin characters in the alias address %(alias_name)s.",
                         alias_name=alias.alias_name,
                     )
                 )
 
-    @api.constrains("alias_defaults")
+    @api.model
+    def _alias_model_accepts_mail(self, model: models.BaseModel) -> bool:
+        return (
+            not model._abstract
+            and not model._transient
+            and hasattr(model, "message_new")
+        )
+
+    @api.constrains("alias_model_id")
+    def _check_alias_model_accepts_mail(self) -> None:
+        for alias in self:
+            model = alias.alias_model_id.model
+            if not model or model not in self.env:
+                continue
+            if not self._alias_model_accepts_mail(self.env[model]):
+                raise ValidationError(
+                    _(
+                        "An alias can only target a model that accepts incoming "
+                        "mail, and %(model_name)s does not.",
+                        model_name=alias.alias_model_id.display_name or model,
+                    )
+                )
+
+    @api.constrains("alias_defaults", "alias_model_id")
     def _check_alias_defaults(self) -> None:
         for alias in self:
             try:
-                dict(ast.literal_eval(alias.alias_defaults))
+                defaults = alias._get_alias_defaults()
             except Exception as e:
                 raise ValidationError(
                     _(
                         "Invalid expression, it must be a literal python dictionary definition e.g. \"{'field': 'value'}\""
                     )
                 ) from e
+            model = alias.alias_model_id.model
+            if not model or model not in self.env:
+                continue
+            fields_ = self.env[model]._fields
+            unknown = sorted(set(defaults) - set(fields_))
+            if unknown:
+                raise ValidationError(
+                    _(
+                        "Default values %(field_names)s are not fields of %(model_name)s.",
+                        field_names=", ".join(unknown),
+                        model_name=alias.alias_model_id.display_name,
+                    )
+                )
+            dropped = sorted(
+                fname
+                for fname in defaults
+                if fields_[fname].compute
+                and fields_[fname].readonly
+                and not fields_[fname].inverse
+                and not fields_[fname].inherited
+            )
+            if dropped:
+                raise ValidationError(
+                    _(
+                        "Default values %(field_names)s cannot be set on "
+                        "%(model_name)s: they are computed fields.",
+                        field_names=", ".join(dropped),
+                        model_name=alias.alias_model_id.display_name,
+                    )
+                )
 
-    @api.constrains("alias_name", "alias_domain_id")
+    def _get_alias_defaults(self) -> dict:
+        self.ensure_one()
+        defaults = ast.literal_eval(self.alias_defaults or "{}")
+        if not isinstance(defaults, dict):
+            msg = f"alias_defaults must be a dict, got {type(defaults).__name__}"
+            raise ValueError(msg)
+        if unnamed := [key for key in defaults if not isinstance(key, str)]:
+            msg = f"alias_defaults keys must be field names, got {unnamed!r}"
+            raise ValueError(msg)
+        return defaults
+
+    @api.constrains("alias_name", "alias_domain_id", "alias_incoming_local")
     def _check_alias_domain_clash(self) -> None:
-        failing = self.filtered(
+        named = self.filtered("alias_name")
+        failing = named.filtered(
             lambda alias: (
-                alias.alias_name
+                not alias.alias_incoming_local
                 and alias.alias_name
                 in [
                     alias.alias_domain_id.bounce_alias,
@@ -265,10 +313,13 @@ class MailAlias(models.Model):
                 ]
             )
         )
+        if local := named.filtered("alias_incoming_local"):
+            reserved = self.env["mail.alias.domain"]._get_reserved_local_parts()
+            failing |= local.filtered(lambda alias: alias.alias_name in reserved)
         if failing:
             raise ValidationError(
                 _(
-                    "Aliases %(alias_names)s is already used as bounce or catchall address. Please choose another alias.",
+                    "Aliases %(alias_names)s are already used as bounce or catchall address. Please choose another alias.",
                     alias_names=", ".join(failing.mapped("display_name")),
                 )
             )
@@ -285,227 +336,253 @@ class MailAlias(models.Model):
             else:
                 record.alias_full_name = False
 
-    @api.depends("alias_domain", "alias_name")
+    @api.depends("alias_full_name")
     def _compute_display_name(self) -> None:
         for record in self:
-            if record.alias_name and record.alias_domain:
-                record.display_name = f"{record.alias_name}@{record.alias_domain}"
-            elif record.alias_name:
-                record.display_name = record.alias_name
-            else:
-                record.display_name = _("Inactive Alias")
-
-    @api.depends("alias_contact", "alias_defaults", "alias_model_id")
-    def _compute_alias_status(self) -> None:
-        self.alias_status = "not_tested"
+            record.display_name = record.alias_full_name or _("Inactive Alias")
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        alias_names, alias_domains = [], []
+        defaults = None
+        prepared = []
         for vals in vals_list:
-            vals["alias_name"] = self._sanitize_alias_name(vals.get("alias_name"))
-            alias_names.append(vals["alias_name"])
-            vals["alias_domain_id"] = vals.get(
-                "alias_domain_id", self.env.company.alias_domain_id.id
-            )
-            alias_domains.append(
-                self.env["mail.alias.domain"].browse(vals["alias_domain_id"])
-            )
+            vals = dict(vals)
+            if "alias_name" not in vals or "alias_domain_id" not in vals:
+                if defaults is None:
+                    defaults = self.default_get(["alias_name", "alias_domain_id"])
+                vals.setdefault("alias_name", defaults.get("alias_name", False))
+                vals.setdefault(
+                    "alias_domain_id", defaults.get("alias_domain_id", False)
+                )
+            prepared.append(vals)
 
-        self._check_unique(alias_names, alias_domains)
-        return super().create(vals_list)
+        self._apply_alias_name_vals(prepared)
+        AliasDomain = self.env["mail.alias.domain"]
+        self._check_alias_address_available(
+            [
+                (vals["alias_name"], AliasDomain.browse(vals["alias_domain_id"]))
+                for vals in prepared
+            ]
+        )
+        return super().create(prepared)
 
     def write(self, vals: ValuesType) -> Literal[True]:
-        alias_names, alias_domains = [], []
-        if "alias_name" in vals:
-            vals["alias_name"] = self._sanitize_alias_name(vals["alias_name"])
-        if vals.get("alias_name") and self.ids:
-            alias_names = [vals["alias_name"]] * len(self)
-        elif "alias_name" not in vals and "alias_domain_id" in vals:
-            if [vals["alias_domain_id"]] != self.alias_domain_id.ids:
-                alias_names = self.filtered("alias_name").mapped("alias_name")
+        if "alias_status" not in vals and not self.ALIAS_STATUS_NEUTRAL.issuperset(
+            vals
+        ):
+            vals = {**vals, "alias_status": "not_tested"}
 
-        if alias_names:
-            tocheck_records = (
-                self if vals.get("alias_name") else self.filtered("alias_name")
-            )
-            if "alias_domain_id" in vals:
-                alias_domains = [
-                    self.env["mail.alias.domain"].browse(vals["alias_domain_id"])
-                ] * len(tocheck_records)
-            else:
-                alias_domains = [record.alias_domain_id for record in tocheck_records]
-            self._check_unique(alias_names, alias_domains)
+        if "alias_name" in vals or "alias_domain_id" in vals:
+            vals = dict(vals)
+            self._apply_alias_name_vals([vals])
+            AliasDomain = self.env["mail.alias.domain"]
+            addresses = [
+                (
+                    vals.get("alias_name", record.alias_name),
+                    AliasDomain.browse(vals["alias_domain_id"])
+                    if "alias_domain_id" in vals
+                    else record.alias_domain_id,
+                )
+                for record in self
+            ]
+            if any(
+                address != (record.alias_name, record.alias_domain_id)
+                for address, record in zip(addresses, self, strict=True)
+            ):
+                self._check_alias_address_available(addresses)
 
         return super().write(vals)
 
-    def _check_unique(
-        self, alias_names: list[str], alias_domains: MailAliasDomain
-    ) -> None:
-        if len(alias_names) != len(alias_domains):
-            names_repr = ", ".join(str(name) for name in alias_names)
-            domains_repr = ", ".join(domain.display_name for domain in alias_domains)
-            msg = (
-                f"Invalid call to '_check_unique': names and domains should make coherent lists, "
-                f"received {names_repr} and {domains_repr}"
-            )
-            raise ValueError(msg)
+    @api.model
+    def _apply_alias_name_vals(self, vals_list: list[ValuesType]) -> None:
+        pending = []
+        for vals in vals_list:
+            if "alias_name" not in vals:
+                continue
+            raw = vals["alias_name"]
+            domain_part = raw.partition("@")[2].strip() if isinstance(raw, str) else ""
+            vals["alias_name"] = self._sanitize_alias_name(raw)
+            if domain_part and vals["alias_name"]:
+                pending.append((vals, domain_part))
+        if not pending:
+            return
 
+        sanitized = {
+            domain_part: self._sanitize_alias_domain_name(domain_part)
+            for _vals, domain_part in pending
+        }
+        wanted = {name for name in sanitized.values() if name}
+        found = (
+            {
+                domain.name: domain.id
+                for domain in self.env["mail.alias.domain"].search(
+                    [("name", "in", list(wanted))]
+                )
+            }
+            if wanted
+            else {}
+        )
+        for vals, domain_part in pending:
+            domain_name = sanitized[domain_part]
+            if not domain_name:
+                continue
+            if domain_name in found:
+                vals["alias_domain_id"] = found[domain_name]
+            elif "." in domain_name:
+                raise ValidationError(
+                    _(
+                        "There is no alias domain %(domain_name)s. Create it first, or "
+                        "enter %(alias_name)s alone and pick a domain.",
+                        alias_name=vals["alias_name"],
+                        domain_name=domain_part,
+                    )
+                )
+
+    def _check_alias_address_available(
+        self, addresses: Iterable[tuple[str, MailAliasDomain]]
+    ) -> None:
         domain_to_names = defaultdict(list)
-        for alias_name, alias_domain in zip(alias_names, alias_domains, strict=False):
-            if alias_name and alias_name in domain_to_names[alias_domain]:
+        for alias_name, alias_domain in addresses:
+            if not alias_name:
+                continue
+            if alias_name in domain_to_names[alias_domain]:
                 raise UserError(
                     _(
                         "Email aliases %(alias_name)s cannot be used on several records at the same time. Please update records one by one.",
                         alias_name=alias_name,
                     )
                 )
-            if alias_name:
-                domain_to_names[alias_domain].append(alias_name)
+            domain_to_names[alias_domain].append(alias_name)
 
-        domain = Domain.OR(
-            Domain("alias_name", "in", alias_names)
-            & Domain("alias_domain_id", "=", alias_domain.id)
-            for alias_domain, alias_names in domain_to_names.items()
-        )
-        if domain and self:
-            domain &= Domain("id", "not in", self.ids)
-        existing = self.search(domain, limit=1) if domain else self.env["mail.alias"]
-        if not existing:
+        if not domain_to_names:
             return
-        if existing.alias_parent_model_id and existing.alias_parent_thread_id:
-            parent_name = (
-                self.env[existing.alias_parent_model_id.model]
-                .sudo()
-                .browse(existing.alias_parent_thread_id)
-                .display_name
-            )
-            msg_begin = _(
-                "Alias %(matching_name)s (%(current_id)s) is already linked with %(alias_model_name)s (%(matching_id)s) and used by the %(parent_name)s %(parent_model_name)s.",
-                alias_model_name=existing.alias_model_id.name,
-                current_id=self.ids if self else _("your alias"),
-                matching_id=existing.id,
-                matching_name=existing.display_name,
-                parent_name=parent_name,
-                parent_model_name=existing.alias_parent_model_id.name,
-            )
-        else:
-            msg_begin = _(
-                "Alias %(matching_name)s (%(current_id)s) is already linked with %(alias_model_name)s (%(matching_id)s).",
-                alias_model_name=existing.alias_model_id.name,
-                current_id=self.ids if self else _("new"),
-                matching_id=existing.id,
-                matching_name=existing.display_name,
-            )
-        msg_end = _("Choose another value or change it on the other document.")
-        raise UserError(f"{msg_begin} {msg_end}")  # pylint: disable=missing-gettext
+        domain = Domain.OR(
+            Domain("alias_name", "in", names)
+            & Domain("alias_domain_id", "=", alias_domain.id)
+            for alias_domain, names in domain_to_names.items()
+        )
+        if self:
+            domain &= Domain("id", "not in", self.ids)
+        if existing := self.sudo().search(domain, limit=1):
+            self._alias_raise_address_taken(existing)
 
-    @api.model
-    def _sanitize_allowed_domains(self, allowed_domains: str) -> str:
-        value = [
-            domain.strip().lower()
-            for domain in allowed_domains.split(",")
-            if domain.strip()
-        ]
-        if not value:
-            raise ValidationError(
+    def _alias_raise_address_taken(self, existing: Self) -> typing.NoReturn:
+        values = {
+            "address": existing.display_name,
+            "alias_model_name": existing.alias_model_id.name,
+            "matching_id": existing.id,
+        }
+        if parent := existing._alias_get_document("owner"):
+            raise UserError(
                 _(
-                    "Value %(allowed_domains)s for `mail.catchall.domain.allowed` cannot be validated.\n"
-                    "It should be a comma separated list of domains e.g. example.com,example.org.",
-                    allowed_domains=allowed_domains,
+                    "The address %(address)s is already taken by alias %(matching_id)s, "
+                    "which targets %(alias_model_name)s and belongs to the "
+                    "%(parent_model_name)s %(parent_name)s. Choose another address, or "
+                    "change it on that document.",
+                    parent_model_name=existing.alias_parent_model_id.name,
+                    parent_name=parent.display_name,
+                    **values,
                 )
             )
-        return ",".join(value)
+        raise UserError(
+            _(
+                "The address %(address)s is already taken by alias %(matching_id)s, "
+                "which targets %(alias_model_name)s. Choose another address, or change "
+                "it on that document.",
+                **values,
+            )
+        )
 
     @api.model
     def _sanitize_alias_name(
         self, name: str, is_email: bool = False
     ) -> str | Literal[False]:
-        sanitized_name = name.strip() if name else ""
-        if is_email:
-            right_part = sanitized_name.lower().partition("@")[2]
-        else:
-            right_part = False
-        if sanitized_name:
-            sanitized_name = remove_accents(sanitized_name).lower().split("@")[0]
-            sanitized_name = re.sub(r"^\.+|\.+$|\.+(?=\.)", "", sanitized_name)
-            sanitized_name = re.sub(
-                r"[^\w!#$%&\'*+\-/=?^_`{|}~.]+", "-", sanitized_name
-            )
-            sanitized_name = sanitized_name.encode("ascii", errors="ignore").decode()
-        if not sanitized_name.strip():
+        if not name:
             return False
-        return (
-            f"{sanitized_name}@{right_part}"
-            if is_email and right_part
-            else sanitized_name
+        local_part, _sep, domain_part = name.strip().partition("@")
+        local_part = (
+            remove_accents(local_part).encode("ascii", errors="ignore").decode().lower()
         )
+        local_part = alias_invalid_chars.sub("-", local_part)
+        local_part = alias_dot_runs.sub("", local_part)
+        if not local_part:
+            return False
+        if not is_email or not domain_part:
+            return local_part
+        domain_part = self._sanitize_alias_domain_name(domain_part)
+        return f"{local_part}@{domain_part}" if domain_part else False
 
     @api.model
-    def _is_encodable(self, alias_name: str, charset: str = "ascii") -> bool:
-        try:
-            remove_accents(alias_name).encode(charset)
-        except UnicodeEncodeError:
+    def _sanitize_alias_domain_name(self, domain_name: str) -> str | Literal[False]:
+        domain_name = domain_name.strip().lower()
+        if not domain_name:
             return False
-        return True
+        if not domain_name.isascii():
+            try:
+                domain_name = domain_name.encode("idna").decode("ascii")
+            except UnicodeError:
+                return False
+        if len(domain_name) > DNS_NAME_MAX or not dns_name.match(domain_name):
+            return False
+        return domain_name
 
     def open_document(self) -> dict | Literal[False]:
-        if not self.alias_model_id or not self.alias_force_thread_id:
-            return False
-        return {
-            "view_mode": "form",
-            "res_model": self.alias_model_id.model,
-            "res_id": self.alias_force_thread_id,
-            "type": "ir.actions.act_window",
-        }
+        return self._alias_open_document("target")
 
     def open_parent_document(self) -> dict | Literal[False]:
-        if not self.alias_parent_model_id or not self.alias_parent_thread_id:
+        return self._alias_open_document("owner")
+
+    def _alias_open_document(
+        self, kind: Literal["owner", "target"]
+    ) -> dict | Literal[False]:
+        self.ensure_one()
+        model_fname, thread_fname = alias_document_fields[kind]
+        if not self[model_fname] or not self[thread_fname]:
             return False
         return {
             "view_mode": "form",
-            "res_model": self.alias_parent_model_id.model,
-            "res_id": self.alias_parent_thread_id,
+            "res_model": self[model_fname].model,
+            "res_id": self[thread_fname],
             "type": "ir.actions.act_window",
         }
 
-    def _get_alias_bounced_body(self, message_dict: dict) -> Markup:
-        lang_author = False
-        if message_dict.get("author_id"):
-            with contextlib.suppress(Exception):
-                lang_author = (
-                    self.env["res.partner"].browse(message_dict["author_id"]).lang
-                )
+    def _alias_get_document(
+        self, kind: Literal["owner", "target"]
+    ) -> models.Model | None:
+        self.ensure_one()
+        model_fname, thread_fname = alias_document_fields[kind]
+        model = self[model_fname].model
+        thread_id = self[thread_fname]
+        if not model or not thread_id or model not in self.env:
+            return None
+        return self.env[model].browse(thread_id).exists() or None
 
-        if lang_author:
-            self = self.with_context(lang=lang_author)
+    def _alias_get_company(self) -> ResCompany:
+        self.ensure_one()
+        for kind in alias_document_fields:
+            document = self._alias_get_document(kind)
+            if document is None:
+                continue
+            company_fname = document._mail_get_company_field()
+            if company_fname and document[company_fname]:
+                return document[company_fname]
+        return self.alias_domain_id.company_ids[:1] or self.env.company
 
-        if not is_html_empty(self.alias_bounced_content):
-            body = self.alias_bounced_content
-        else:
-            body = self._get_alias_bounced_body_fallback(message_dict)
-        return self.env["ir.qweb"]._render(
-            "mail.mail_bounce_alias_security",
-            {"body": body, "message": message_dict},
-            minimal_qcontext=True,
-        )
+    def _alias_mark_valid(self) -> None:
+        for alias in self:
+            if alias.alias_status != "valid":
+                alias.sudo().alias_status = "valid"
 
-    def _get_alias_bounced_body_fallback(self, message_dict: dict) -> Markup:
-        contact_description = self._get_alias_contact_description()
-        default_email = (
-            self.env.company.partner_id.email_formatted
-            if self.env.company.partner_id.email
-            else self.env.company.name
-        )
-        content = Markup(
-            _("""The message below could not be accepted by the address %(alias_display_name)s.
-                 Only %(contact_description)s are allowed to contact it.<br /><br />
-                 Please make sure you are using the correct address or contact us at %(default_email)s instead.""")
-        ) % {
-            "alias_display_name": self.display_name,
-            "contact_description": contact_description,
-            "default_email": default_email,
-        }
+    def _alias_mark_invalid(self) -> None:
+        self.sudo().alias_status = "invalid"
+
+    def _alias_with_author_lang(self, message_dict: dict) -> Self:
+        self.ensure_one()
+        partner = self.env["res.partner"].sudo().browse(message_dict.get("author_id"))
+        lang = partner.exists().lang
+        return self.with_context(lang=lang) if lang else self
+
+    def _alias_bounce_wrap(self, content: Markup) -> Markup:
         return Markup(
             "<p>%(header)s,<br /><br />%(content)s<br /><br />%(regards)s</p>"
         ) % {
@@ -514,47 +591,73 @@ class MailAlias(models.Model):
             "regards": _("Kind Regards"),
         }
 
-    def _get_alias_contact_description(self) -> str:
-        if self.alias_contact == "partners":
-            return _("addresses linked to registered partners")
-        return _("some specific addresses")
-
-    def _get_alias_invalid_body(self, message_dict: dict) -> Markup:
-        content = Markup(
-            _("""The message below could not be accepted by the address %(alias_display_name)s.
-Please try again later or contact %(company_name)s instead.""")
-        ) % {
-            "alias_display_name": self.display_name,
-            "company_name": self.env.company.name,
-        }
+    def _alias_bounce_render(self, body: Markup, message_dict: dict) -> Markup:
         return self.env["ir.qweb"]._render(
             "mail.mail_bounce_alias_security",
             {
-                "body": Markup(
-                    "<p>%(header)s,<br /><br />%(content)s<br /><br />%(regards)s</p>"
-                )
-                % {
-                    "content": content,
-                    "header": _("Dear Sender"),
-                    "regards": _("Kind Regards"),
-                },
-                "message": message_dict,
+                "body": body,
+                "message": {**message_dict, "body": message_dict.get("body") or ""},
             },
             minimal_qcontext=True,
         )
 
-    def _alias_bounce_incoming_email(
-        self, message: EmailMessage, message_dict: dict, set_invalid: bool = True
-    ) -> None:
+    def _get_alias_bounced_body(self, message_dict: dict) -> Markup:
         self.ensure_one()
-        if set_invalid:
-            self.alias_status = "invalid"
-            body = self._get_alias_invalid_body(message_dict)
+        self = self._alias_with_author_lang(message_dict)
+        if is_html_empty(self.alias_bounced_content):
+            body = self._alias_bounce_wrap(
+                self._get_alias_bounced_body_fallback(message_dict)
+            )
         else:
-            body = self._get_alias_bounced_body(message_dict)
-        self.env["mail.thread"]._routing_create_bounce_email(
-            message_dict["email_from"],
-            body,
-            message,
-            references=self.env["mail.thread"]._routing_bounce_references(message_dict),
+            body = self.alias_bounced_content
+        return self._alias_bounce_render(body, message_dict)
+
+    def _get_alias_bounced_body_fallback(self, message_dict: dict) -> Markup:
+        company = self._alias_get_company()
+        default_email = (
+            company.partner_id.email_formatted
+            if company.partner_id.email
+            else company.name
         )
+        return Markup(
+            _(
+                "The message below could not be accepted by the address "
+                "%(alias_display_name)s. Only %(contact_description)s are allowed to "
+                "contact it.<br /><br />Please make sure you are using the correct "
+                "address or contact us at %(default_email)s instead."
+            )
+        ) % {
+            "alias_display_name": self.display_name,
+            "contact_description": self._get_alias_contact_description(),
+            "default_email": default_email,
+        }
+
+    def _get_alias_contact_description(self) -> str:
+        if self.alias_contact == "partners":
+            return _("addresses linked to registered partners")
+        if self.alias_contact == "followers":
+            return _("followers of the related document")
+        return _("some specific addresses")
+
+    def _get_alias_invalid_body(self, message_dict: dict) -> Markup:
+        self.ensure_one()
+        self = self._alias_with_author_lang(message_dict)
+        content = Markup(
+            _(
+                "The message below could not be accepted by the address "
+                "%(alias_display_name)s. Please try again later or contact "
+                "%(company_name)s instead."
+            )
+        ) % {
+            "alias_display_name": self.display_name,
+            "company_name": self._alias_get_company().name,
+        }
+        return self._alias_bounce_render(self._alias_bounce_wrap(content), message_dict)
+
+    def _alias_get_bounce_body(
+        self, message_dict: dict, is_config_error: bool = True
+    ) -> Markup:
+        self.ensure_one()
+        if is_config_error:
+            return self._get_alias_invalid_body(message_dict)
+        return self._get_alias_bounced_body(message_dict)

@@ -9,9 +9,9 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.ir_attachment import IrAttachment
 
 
-class MailThreadMainAttachment(models.AbstractModel):
-    _name = "mail.thread.main.attachment"
-    _inherit = ["mail.thread"]
+class MixinMailThreadMainAttachment(models.AbstractModel):
+    _name = "mixin.mail.thread.main.attachment"
+    _inherit = ["mixin.mail.thread"]
     _description = "Mail Main Attachment management"
 
     message_main_attachment_id: IrAttachment = fields.Many2one(
@@ -27,7 +27,7 @@ class MailThreadMainAttachment(models.AbstractModel):
             self.env["ir.attachment"].browse(
                 [
                     attachment_command[1]
-                    for attachment_command in (msg_values["attachment_ids"] or [])
+                    for attachment_command in (msg_values.get("attachment_ids") or [])
                 ]
             )
         )

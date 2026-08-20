@@ -10,9 +10,9 @@ if typing.TYPE_CHECKING:
     from .res_partner import ResPartner
 
 
-class MailThreadBlacklist(models.AbstractModel):
-    _name = "mail.thread.blacklist"
-    _inherit = ["mail.thread"]
+class MixinMailThreadBlacklist(models.AbstractModel):
+    _name = "mixin.mail.thread.blacklist"
+    _inherit = ["mixin.mail.thread"]
     _description = "Mail Blacklist mixin"
     _primary_email = "email"
 

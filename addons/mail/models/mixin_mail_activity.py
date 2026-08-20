@@ -1,12 +1,12 @@
 import logging
 import typing
-from collections.abc import Sequence
-from datetime import date, datetime
+from collections.abc import Collection, Mapping, Sequence
+from datetime import UTC, date, datetime
 from types import NotImplementedType
 from typing import Any, Literal
 
 from odoo import api, fields, models
-from odoo.api import DomainType
+from odoo.api import DomainType, ValuesType
 from odoo.fields import Domain
 from odoo.tools import SQL, Query, partition
 
@@ -17,9 +17,11 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+_DEADLINE_LAST = date.max
 
-class MailActivityMixin(models.AbstractModel):
-    _name = "mail.activity.mixin"
+
+class MixinMailActivity(models.AbstractModel):
+    _name = "mixin.mail.activity"
     _description = "Activity Mixin"
 
     def _default_activity_type(self) -> MailActivityType:
@@ -67,16 +69,13 @@ class MailActivityMixin(models.AbstractModel):
         "Next Activity Deadline",
         compute="_compute_activity_date_deadline",
         search="_search_activity_date_deadline",
-        compute_sudo=False,
         readonly=True,
-        store=False,
         groups="base.group_user",
     )
     my_activity_date_deadline = fields.Date(
         "My Activity Deadline",
         compute="_compute_my_activity_date_deadline",
         search="_search_my_activity_date_deadline",
-        compute_sudo=False,
         readonly=True,
         groups="base.group_user",
     )
@@ -102,71 +101,78 @@ class MailActivityMixin(models.AbstractModel):
         groups="base.group_user",
     )
 
+    def _open_activities(self) -> MailActivity:
+        activities = self.activity_ids
+        return (
+            activities.filtered("active")
+            .with_prefetch(activities._prefetch_ids)
+            .sorted(
+                lambda activity: (
+                    activity.date_deadline or _DEADLINE_LAST,
+                    activity.id,
+                )
+            )
+        )
+
+    def _next_activity(self, user_id: int | None = None) -> MailActivity:
+        self.ensure_one()
+        activities = self._open_activities()
+        if user_id is not None:
+            activities = (
+                activity for activity in activities if activity.user_id.id == user_id
+            )
+        return next(iter(activities), self.env["mail.activity"])
+
     @api.depends(
         "activity_ids.active",
         "activity_ids.activity_type_id.decoration_type",
         "activity_ids.activity_type_id.icon",
     )
     def _compute_activity_exception_type(self) -> None:
-        self.mapped("activity_ids.activity_type_id.decoration_type")
-
+        ActivityType = self.env["mail.activity.type"]
         for record in self:
-            activity_types = record.activity_ids.activity_type_id
-            exception_activity_type = next(
-                (
-                    activity_type
-                    for activity_type in activity_types
-                    if activity_type.decoration_type == "danger"
-                ),
-                None,
-            ) or next(
-                (
-                    activity_type
-                    for activity_type in activity_types
-                    if activity_type.decoration_type == "warning"
-                ),
-                None,
+            by_decoration = record._open_activities().activity_type_id.grouped(
+                "decoration_type"
             )
-            record.activity_exception_decoration = (
-                exception_activity_type and exception_activity_type.decoration_type
-            )
-            record.activity_exception_icon = (
-                exception_activity_type and exception_activity_type.icon
-            )
+            exception_type = (
+                by_decoration.get("danger", ActivityType)
+                or by_decoration.get("warning", ActivityType)
+            )[:1]
+            record.activity_exception_decoration = exception_type.decoration_type
+            record.activity_exception_icon = exception_type.icon
 
-    @api.depends("activity_ids.active", "activity_ids.user_id")
+    @api.depends(
+        "activity_ids.active", "activity_ids.date_deadline", "activity_ids.user_id"
+    )
     def _compute_activity_user_id(self) -> None:
-        self.mapped("activity_ids.user_id")
         for record in self:
-            record.activity_user_id = record.activity_ids[:1].user_id
+            record.activity_user_id = record._next_activity().user_id
 
     @api.depends(
         "activity_ids.active",
+        "activity_ids.date_deadline",
         "activity_ids.summary",
-        "activity_ids.activity_type_id",
         "activity_ids.activity_type_id.icon",
     )
     def _compute_activity_next(self) -> None:
-        self.mapped("activity_ids.summary")
-        self.mapped("activity_ids.activity_type_id.icon")
         for record in self:
-            activity = record.activity_ids[:1]
+            activity = record._next_activity()
             record.activity_summary = activity.summary
             record.activity_type_id = activity.activity_type_id
             record.activity_type_icon = activity.activity_type_id.icon
 
     def _inverse_activity_summary(self) -> None:
         for record in self:
-            record.activity_ids[:1].summary = record.activity_summary
+            record._next_activity().summary = record.activity_summary
 
     def _inverse_activity_type_id(self) -> None:
         for record in self:
-            record.activity_ids[:1].activity_type_id = record.activity_type_id
+            record._next_activity().activity_type_id = record.activity_type_id
 
     @api.depends("activity_ids.active", "activity_ids.state")
     def _compute_activity_state(self) -> None:
         for record in self:
-            states = record.activity_ids.mapped("state")
+            states = record._open_activities().mapped("state")
             if "overdue" in states:
                 record.activity_state = "overdue"
             elif "today" in states:
@@ -176,18 +182,26 @@ class MailActivityMixin(models.AbstractModel):
             else:
                 record.activity_state = False
 
-    def _open_activity_domain(self, subdomain: Sequence[tuple] = ()) -> Domain:
-        return Domain(
-            "activity_ids", "any", Domain([("active", "=", True), *subdomain])
-        )
+    def _open_activity_domain(
+        self,
+        subdomain: Domain | Sequence[tuple] = (),
+        user_id: int | None = None,
+    ) -> Domain:
+        domain = Domain("active", "=", True) & Domain(subdomain)
+        if user_id is not None:
+            domain &= Domain("user_id", "=", user_id)
+        return Domain("activity_ids", "any", domain)
 
     def _next_activity_domain(
         self, subdomain: Sequence[tuple], user_id: int | None = None
     ) -> Domain:
-        first_ids = self.env["mail.activity"]._sql_first_activity_ids(
-            self._name, user_id=user_id
+        return Domain(
+            "activity_ids",
+            "any",
+            self.env["mail.activity"]._next_activity_query(
+                self._name, subdomain, user_id=user_id
+            ),
         )
-        return self._open_activity_domain([("id", "in", first_ids), *subdomain])
 
     def _search_next_activity_field(
         self,
@@ -202,17 +216,40 @@ class MailActivityMixin(models.AbstractModel):
             [(fname, operator, operand)], user_id=user_id
         )
         if operator == "in" and False in operand:
-            domain |= ~self._open_activity_domain(
-                [("user_id", "=", user_id)] if user_id is not None else ()
-            )
+            domain |= ~self._open_activity_domain(user_id=user_id)
         return domain
+
+    def _activity_state_domains(self, states: Collection[str]) -> list[Domain]:
+        Activity = self.env["mail.activity"]
+        moment = datetime.now(UTC)
+        overdue = (
+            self._open_activity_domain(Activity._domain_deadline_today("<", moment))
+            if not states.isdisjoint(("overdue", "today"))
+            else Domain.FALSE
+        )
+        domains = []
+        if "overdue" in states:
+            domains.append(overdue)
+        if "today" in states:
+            domains.append(
+                self._open_activity_domain(Activity._domain_deadline_today("=", moment))
+                & ~overdue
+            )
+        if "planned" in states:
+            domains.append(
+                self._open_activity_domain()
+                & ~self._open_activity_domain(
+                    Activity._domain_deadline_today("<=", moment)
+                )
+            )
+        return domains
 
     def _search_activity_state(
         self, operator: str, value: Any
     ) -> Domain | NotImplementedType:
         all_states = {"overdue", "today", "planned", False}
         if operator == "in":
-            search_states = set(value)
+            search_states = set(value) & all_states
         elif operator == "not in":
             search_states = all_states - set(value)
         else:
@@ -228,44 +265,48 @@ class MailActivityMixin(models.AbstractModel):
         elif search_states == all_states - {False}:
             matching = self._open_activity_domain()
         else:
-            Activity = self.env["mail.activity"]
-            Activity.flush_model(
-                ["active", "date_deadline", "res_id", "res_model", "user_id", "user_tz"]
-            )
-            integer_state_value = {"overdue": -1, "today": 0, "planned": 1}
-            query = SQL(
-                """(
-                SELECT res_id
-                    FROM (
-                        SELECT res_id, MIN(%(activity_state)s) AS activity_state
-                        FROM mail_activity
-                        WHERE mail_activity.res_model = %(res_model_table)s
-                          AND mail_activity.active = true
-                    GROUP BY res_id
-                    ) AS res_record
-                -- Cast the parameter to integer[]: psycopg adapts the small-int
-                -- list (-1/0/1) as smallint[], but activity_state is SIGN(...)::INT
-                -- (integer[]), and PG18 has no `smallint[] @> integer[]` operator.
-                WHERE %(search_states_int)s::integer[] @> ARRAY[activity_state]
-                )""",
-                activity_state=Activity._sql_state(),
-                res_model_table=self._name,
-                search_states_int=[integer_state_value[s] for s in search_states],
-            )
-            matching = Domain("id", "in", query)
+            matching = Domain.OR(self._activity_state_domains(search_states))
 
         return ~matching if reverse_search else matching
 
     @api.depends("activity_ids.active", "activity_ids.date_deadline")
     def _compute_activity_date_deadline(self) -> None:
-        self.mapped("activity_ids.date_deadline")
         for record in self:
-            record.activity_date_deadline = record.activity_ids[:1].date_deadline
+            record.activity_date_deadline = record._next_activity().date_deadline
+
+    def _first_deadline_domain(
+        self, operator: str, operand: Any, user_id: int | None = None
+    ) -> Domain | NotImplementedType:
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
+
+        def open_activities(subdomain: Domain | Sequence[tuple] = ()) -> Domain:
+            return self._open_activity_domain(subdomain, user_id=user_id)
+
+        if operator in ("<", "<="):
+            return open_activities([("date_deadline", operator, operand)])
+        if operator in (">", ">="):
+            earlier = "<=" if operator == ">" else "<"
+            return open_activities() & ~open_activities(
+                [("date_deadline", earlier, operand)]
+            )
+        if operator != "in":
+            return NotImplemented
+
+        domain = Domain.FALSE
+        for value in operand:
+            if value is False:
+                domain |= ~open_activities()
+            else:
+                domain |= open_activities(
+                    [("date_deadline", "=", value)]
+                ) & ~open_activities([("date_deadline", "<", value)])
+        return domain
 
     def _search_activity_date_deadline(
         self, operator: str, operand: Any
     ) -> Domain | NotImplementedType:
-        return self._search_next_activity_field("date_deadline", operator, operand)
+        return self._first_deadline_domain(operator, operand)
 
     def _search_activity_user_id(
         self, operator: str, operand: Any
@@ -324,101 +365,146 @@ class MailActivityMixin(models.AbstractModel):
     @api.depends_context("uid")
     def _compute_my_activity_date_deadline(self) -> None:
         for record in self:
-            record.my_activity_date_deadline = next(
-                (
-                    activity.date_deadline
-                    for activity in record.activity_ids
-                    if activity.user_id.id == record.env.uid
-                ),
-                False,
-            )
+            record.my_activity_date_deadline = record._my_next_activity().date_deadline
 
     def _search_my_activity_date_deadline(
         self, operator: str, operand: Any
     ) -> Domain | NotImplementedType:
-        return self._search_next_activity_field(
-            "date_deadline", operator, operand, user_id=self.env.uid
+        return self._first_deadline_domain(operator, operand, user_id=self.env.uid)
+
+    def write(self, vals: ValuesType) -> Literal[True]:
+        result = super().write(vals)
+        if not self._display_name_field_names().isdisjoint(vals):
+            activities = self.sudo().with_context(active_test=False).activity_ids
+            if activities:
+                self.env.add_to_compute(
+                    self.env["mail.activity"]._fields["res_name"], activities
+                )
+        return result
+
+    def _activity_aggregate_join(
+        self,
+        alias: str,
+        query: Query,
+        value: SQL,
+        link: str,
+        user_id: int | None = None,
+    ) -> str:
+        join_alias = Query.make_alias(alias, link)
+        if join_alias in query._joins:
+            return join_alias
+        Activity = self.env["mail.activity"]
+        Activity.flush_model(
+            ["active", "date_deadline", "res_id", "res_model", "user_id", "user_tz"]
         )
+        condition = SQL("res_model = %s AND active = true", self._name)
+        if user_id is not None:
+            condition = SQL("%s AND user_id = %s", condition, user_id)
+        sql_join = SQL(
+            "(SELECT res_id, %s AS value FROM mail_activity WHERE %s GROUP BY res_id)",
+            value,
+            condition,
+        )
+        return query.left_join(alias, "id", sql_join, "res_id", link)
+
+    def _activity_state_join(self, alias: str, query: Query) -> SQL:
+        join_alias = self._activity_aggregate_join(
+            alias,
+            query,
+            SQL("MIN(%s)", self.env["mail.activity"]._sql_state()),
+            "next_activity_state",
+        )
+        return SQL.identifier(join_alias, "value")
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
         if groupby_spec != "activity_state":
             return super()._read_group_groupby(alias, groupby_spec, query)
         self._check_field_access(self._fields["activity_state"], "read")
 
-        Activity = self.env["mail.activity"]
-        Activity.flush_model(
-            ["active", "date_deadline", "res_model", "res_id", "user_id", "user_tz"]
-        )
-
-        sql_join = SQL(
-            """
-            (SELECT res_id,
-                CASE MIN(%(activity_state)s)
+        return SQL(
+            """CASE %s
                     WHEN -1 THEN 'overdue'
                     WHEN 0 THEN 'today'
                     WHEN 1 THEN 'planned'
-                END AS activity_state
-            FROM mail_activity
-            WHERE res_model = %(res_model)s AND mail_activity.active = true
-            GROUP BY res_id)
-            """,
-            activity_state=Activity._sql_state(),
-            res_model=self._name,
-        )
-        alias = query.left_join(
-            self._table, "id", sql_join, "res_id", "last_activity_state"
+               END""",
+            self._activity_state_join(alias, query),
         )
 
-        return SQL.identifier(alias, "activity_state")
-
-    def _reschedule_my_next_activity(self, action: str) -> dict | Literal[False]:
-        my_next_activities = self.env["mail.activity"]
-        for record in self:
-            my_next_activities += record.activity_ids.filtered(
-                lambda activity: activity.user_id == self.env.user
-            )[:1]
-        return getattr(my_next_activities, action)()
-
-    def action_reschedule_my_next_today(self) -> dict | Literal[False]:
-        return self._reschedule_my_next_activity("action_reschedule_today")
-
-    def action_reschedule_my_next_tomorrow(self) -> dict | Literal[False]:
-        return self._reschedule_my_next_activity("action_reschedule_tomorrow")
-
-    def action_reschedule_my_next_nextweek(self) -> dict | Literal[False]:
-        return self._reschedule_my_next_activity("action_reschedule_nextweek")
-
-    def activity_send_mail(self, template_id: int) -> bool:
-        template = self.env["mail.template"].browse(template_id).exists()
-        if not template or template.model != self._name:
-            if template:
-                _logger.warning(
-                    "Refused to send template %s (model %s) on %s",
-                    template.id,
-                    template.model,
-                    self._name,
-                )
-            return False
-        self.message_post_with_source(
-            template,
-            subtype_xmlid="mail.mt_comment",
-        )
-        return True
-
-    def _activity_type_ids(self, act_type_xmlids: list[str]) -> list:
-        Data = self.env["ir.model.data"].sudo()
-        return [
-            type_id
-            for type_id in (
-                Data._xmlid_to_res_id(xmlid, raise_if_not_found=False)
-                for xmlid in act_type_xmlids
+    def _order_field_to_sql(
+        self, alias: str, field_name: str, direction: SQL, nulls: SQL, query: Query
+    ) -> SQL:
+        if field_name not in (
+            "activity_date_deadline",
+            "my_activity_date_deadline",
+            "activity_state",
+        ):
+            return super()._order_field_to_sql(
+                alias, field_name, direction, nulls, query
             )
-            if type_id
+        if not self._has_field_access(self._fields[field_name], "read"):
+            return SQL.EMPTY
+
+        if field_name == "activity_state":
+            sql_value = self._activity_state_join(alias, query)
+        else:
+            join_alias = self._activity_aggregate_join(
+                alias,
+                query,
+                SQL("MIN(date_deadline)"),
+                f"{field_name}_order",
+                user_id=self.env.uid if field_name.startswith("my_") else None,
+            )
+            sql_value = SQL.identifier(join_alias, "value")
+
+        if query._any_value_orderby:
+            sql_value = SQL("ANY_VALUE(%s)", sql_value)
+        elif query._collect_order_groupby:
+            query._order_groupby.append(sql_value)
+
+        return SQL(
+            "%s %s %s",
+            sql_value,
+            direction,
+            nulls if nulls.code else SQL("NULLS LAST"),
+        )
+
+    def _my_next_activity(self) -> MailActivity:
+        return self._next_activity(self.env.uid)
+
+    def _my_next_activities(self) -> MailActivity:
+        return self.env["mail.activity"].browse(
+            activity_id
+            for record in self
+            if (activity_id := record._my_next_activity().id)
+        )
+
+    def action_reschedule_my_next_today(self) -> None:
+        self._my_next_activities().action_reschedule_today()
+
+    def action_reschedule_my_next_tomorrow(self) -> None:
+        self._my_next_activities().action_reschedule_tomorrow()
+
+    def action_reschedule_my_next_nextweek(self) -> None:
+        self._my_next_activities().action_reschedule_nextweek()
+
+    def _activity_type_from_xmlid(self, xmlid: str) -> MailActivityType:
+        ModelData = self.env["ir.model.data"].sudo()
+        model, res_id = ModelData._xmlid_to_res_model_res_id(xmlid)
+        if model and model != "mail.activity.type":
+            _logger.warning("Xml id %s names a %s, not an activity type", xmlid, model)
+            return self.env["mail.activity.type"]
+        return self.env["mail.activity.type"].browse(res_id or ())
+
+    def _get_activity_type_ids(self, act_type_xmlids: Sequence[str]) -> list[int]:
+        return [
+            activity_type.id
+            for xmlid in act_type_xmlids
+            if (activity_type := self._activity_type_from_xmlid(xmlid))
         ]
 
     def activity_search(
         self,
-        act_type_xmlids: tuple[str, ...] = (),
+        act_type_xmlids: Sequence[str] = (),
         user_id: int | None = None,
         additional_domain: DomainType | None = None,
         only_automated: bool = True,
@@ -426,7 +512,7 @@ class MailActivityMixin(models.AbstractModel):
         if self.env.context.get("mail_activity_automation_skip"):
             return self.env["mail.activity"]
 
-        activity_types_ids = self._activity_type_ids(act_type_xmlids)
+        activity_types_ids = self._get_activity_type_ids(act_type_xmlids)
         if not activity_types_ids:
             return self.env["mail.activity"]
 
@@ -440,7 +526,7 @@ class MailActivityMixin(models.AbstractModel):
 
         if only_automated:
             domain &= Domain("automated", "=", True)
-        if user_id:
+        if user_id is not None:
             domain &= Domain("user_id", "=", user_id)
         if additional_domain:
             domain &= Domain(additional_domain)
@@ -470,10 +556,8 @@ class MailActivityMixin(models.AbstractModel):
         self, act_type_xmlid: str, act_values: dict
     ) -> MailActivityType:
         if act_type_xmlid:
-            activity_type_id = self.env["ir.model.data"]._xmlid_to_res_id(
-                act_type_xmlid, raise_if_not_found=False
-            )
-            if not activity_type_id:
+            activity_type = self._activity_type_from_xmlid(act_type_xmlid)
+            if not activity_type:
                 _logger.warning(
                     "Unknown activity type xml id %s on %s, falling back on the "
                     "model's default type",
@@ -481,15 +565,18 @@ class MailActivityMixin(models.AbstractModel):
                     self._name,
                 )
         else:
-            activity_type_id = act_values.get("activity_type_id", False)
-        activity_type = self.env["mail.activity.type"].browse(activity_type_id)
+            activity_type = self.env["mail.activity.type"].browse(
+                act_values.get("activity_type_id") or ()
+            )
         if activity_type.res_model and activity_type.res_model != self._name:
             _logger.warning(
-                "Invalid activity type model %s used on %s (tried with xml id %s)",
+                "Invalid activity type model %s used on %s (tried with xml id "
+                "%s), falling back on the model's default type",
                 activity_type.res_model,
                 self._name,
                 act_type_xmlid or "",
             )
+            activity_type = self.env["mail.activity.type"]
         return activity_type or self._default_activity_type()
 
     def _activity_create(
@@ -497,32 +584,40 @@ class MailActivityMixin(models.AbstractModel):
         activity_type: MailActivityType,
         date_deadline: date | None,
         summary: str,
-        notes: dict[int, str],
+        notes: Mapping[int, str],
         act_values: dict,
     ) -> MailActivity:
+        assignee = (
+            self.env["res.users"].browse(act_values.get("user_id") or ())
+            or activity_type.default_user_id
+        )
         if not date_deadline:
-            date_deadline = fields.Date.context_today(self)
+            date_deadline = self.env["mail.activity"]._today_for(assignee)
         if isinstance(date_deadline, datetime):
             _logger.warning(
                 "Scheduled deadline should be a date (got %s)", date_deadline
             )
-        model_id = self.env["ir.model"]._get(self._name).id
-        create_vals_list = []
-        for record in self:
-            create_vals = {
-                "activity_type_id": activity_type.id,
-                "summary": summary or activity_type.summary,
-                "automated": True,
-                "note": notes.get(record.id) or activity_type.default_note,
-                "date_deadline": date_deadline,
-                "res_model_id": model_id,
-                "res_id": record.id,
-            }
-            create_vals.update(act_values)
-            if not create_vals.get("user_id") and activity_type.default_user_id:
-                create_vals["user_id"] = activity_type.default_user_id.id
-            create_vals_list.append(create_vals)
-        return self.env["mail.activity"].create(create_vals_list)
+        shared = {
+            "summary": summary or activity_type.summary,
+            "automated": True,
+            "date_deadline": date_deadline,
+            "res_model_id": self.env["ir.model"]._get(self._name).id,
+            **act_values,
+            "activity_type_id": activity_type.id,
+        }
+        if assignee and not shared.get("user_id"):
+            shared["user_id"] = assignee.id
+        default_note = activity_type.default_note
+        return self.env["mail.activity"].create(
+            [
+                {
+                    **shared,
+                    "note": notes.get(record.id) or default_note,
+                    "res_id": record.id,
+                }
+                for record in self
+            ]
+        )
 
     def _activity_schedule_with_view(
         self,
@@ -561,7 +656,7 @@ class MailActivityMixin(models.AbstractModel):
 
     def activity_reschedule(
         self,
-        act_type_xmlids: list[str],
+        act_type_xmlids: Sequence[str],
         user_id: int | None = None,
         date_deadline: date | None = None,
         new_user_id: int | None = None,
@@ -570,18 +665,18 @@ class MailActivityMixin(models.AbstractModel):
         activities = self.activity_search(
             act_type_xmlids, user_id=user_id, only_automated=only_automated
         )
-        if activities:
-            write_vals = {}
-            if date_deadline:
-                write_vals["date_deadline"] = date_deadline
-            if new_user_id:
-                write_vals["user_id"] = new_user_id
+        write_vals = {}
+        if date_deadline:
+            write_vals["date_deadline"] = date_deadline
+        if new_user_id:
+            write_vals["user_id"] = new_user_id
+        if activities and write_vals:
             activities.write(write_vals)
         return activities
 
     def activity_feedback(
         self,
-        act_type_xmlids: list[str],
+        act_type_xmlids: Sequence[str],
         user_id: int | None = None,
         feedback: str | None = None,
         attachment_ids: list[int] | None = None,
@@ -596,7 +691,7 @@ class MailActivityMixin(models.AbstractModel):
 
     def activity_unlink(
         self,
-        act_type_xmlids: list[str],
+        act_type_xmlids: Sequence[str],
         user_id: int | None = None,
         only_automated: bool = True,
     ) -> MailActivity:

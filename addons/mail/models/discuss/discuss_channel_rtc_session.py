@@ -10,6 +10,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.api import ValuesType
 
+from odoo.addons.mail.models.discuss.discuss_channel_member import AVATAR_CARD_FIELDS
 from odoo.addons.mail.tools import discuss, jwt
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
 
@@ -24,12 +25,14 @@ _logger = logging.getLogger(__name__)
 
 class DiscussChannelRtcSession(models.Model):
     _name = "discuss.channel.rtc.session"
-    _inherit = ["bus.listener.mixin"]
+    _inherit = ["mixin.bus.listener"]
     _description = "Mail RTC session"
     _rec_name = "channel_member_id"
 
     channel_member_id: DiscussChannelMember = fields.Many2one(
-        "discuss.channel.member", required=True, ondelete="cascade"
+        "discuss.channel.member",
+        required=True,
+        ondelete="cascade",
     )
     channel_id: DiscussChannel = fields.Many2one(
         "discuss.channel",
@@ -46,7 +49,8 @@ class DiscussChannelRtcSession(models.Model):
         index=True,
     )
     guest_id: MailGuest = fields.Many2one(
-        "mail.guest", related="channel_member_id.guest_id"
+        "mail.guest",
+        related="channel_member_id.guest_id",
     )
 
     write_date = fields.Datetime("Last Updated On", index=True)
@@ -207,7 +211,9 @@ class DiscussChannelRtcSession(models.Model):
             "channel_member_id",
             [
                 Store.One("channel_id", [], as_thread=True),
-                *self.env["discuss.channel.member"]._to_store_persona("avatar_card"),
+                *self.env["discuss.channel.member"]._to_store_persona(
+                    AVATAR_CARD_FIELDS
+                ),
             ],
         )
 

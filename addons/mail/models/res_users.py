@@ -1,6 +1,7 @@
 import logging
 import typing
 from collections import defaultdict
+from datetime import timedelta
 from typing import Literal, Self
 
 from odoo import Command, _, api, fields, models, modules, tools
@@ -9,15 +10,23 @@ from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.tools import email_normalize, str2bool
 
+from odoo.addons.mail.models.mail_activity import ORPHAN_BUCKET
 from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Collection
+
+    from .mail_activity import MailActivity
     from .mail_mail import MailMail
     from .mail_presence import MailPresence
     from .res_role import ResRole
     from odoo.addons.base.models.ir_mail_server import IrMail_Server
 
 _logger = logging.getLogger(__name__)
+
+PERSONAL_MAIL_SERVER_SMTP_PORT = 587
+PERSONAL_MAIL_SERVER_SMTP_ENCRYPTION = "starttls"
+"""Submission over STARTTLS -- what every provider offering a personal server takes."""
 
 
 class ResUsers(models.Model):
@@ -74,108 +83,13 @@ class ResUsers(models.Model):
         groups="base.group_user",
     )
     has_external_mail_server = fields.Boolean(
-        compute="_compute_has_external_mail_server"
+        compute="_compute_has_external_mail_server", groups="base.group_user"
     )
-
-    def _compute_has_external_mail_server(self) -> None:
-        self.has_external_mail_server = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("base_setup.default_external_email_server")
-        )
 
     _notification_type = models.Constraint(
         "CHECK (notification_type = 'email' OR NOT share)",
         "Only internal user can receive notifications in Odoo",
     )
-
-    @api.depends("share", "all_group_ids")
-    def _compute_notification_type(self) -> None:
-        inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
-            "mail.group_mail_notification_type_inbox"
-        )
-
-        self.filtered_domain(
-            [("group_ids", "in", inbox_group_id), ("notification_type", "!=", "inbox")]
-        ).notification_type = "inbox"
-        self.filtered_domain(
-            [
-                ("group_ids", "not in", inbox_group_id),
-                ("notification_type", "=", "inbox"),
-            ]
-        ).notification_type = "email"
-
-        new_portal_users = self.filtered_domain(
-            [("share", "=", True), ("notification_type", "=", "inbox")]
-        )
-        new_portal_users.notification_type = "email"
-        new_portal_users.write({"group_ids": [Command.unlink(inbox_group_id)]})
-
-    @api.depends("out_of_office_from", "out_of_office_to")
-    def _compute_is_out_of_office(self) -> None:
-        now = self.env.cr.now()
-        todo = self.filtered(lambda u: u.out_of_office_from and u._is_internal())
-        for user in todo:
-            if user.out_of_office_to:
-                user.is_out_of_office = (
-                    user.out_of_office_from <= now <= user.out_of_office_to
-                )
-            else:
-                user.is_out_of_office = user.out_of_office_from <= now
-        (self - todo).is_out_of_office = False
-
-    @api.depends("manual_im_status", "presence_ids.status")
-    def _compute_im_status(self) -> None:
-        for user in self:
-            user.im_status = (
-                "offline"
-                if user.presence_ids.status in ["offline", False]
-                else user.manual_im_status or user.presence_ids.status
-            )
-
-    def _inverse_notification_type(self) -> None:
-        inbox_group = self.env.ref("mail.group_mail_notification_type_inbox")
-        inbox_users = self.filtered(lambda user: user.notification_type == "inbox")
-        inbox_users.write({"group_ids": [Command.link(inbox_group.id)]})
-        (self - inbox_users).write({"group_ids": [Command.unlink(inbox_group.id)]})
-
-    @api.depends_context("uid")
-    def _compute_can_edit_role(self) -> None:
-        self.can_edit_role = self.env["res.role"].sudo(False).has_access("write")
-
-    @api.depends("email")
-    def _compute_outgoing_mail_server_id(self) -> None:
-        mail_servers = (
-            self.env["ir.mail_server"]
-            .sudo()
-            .search(
-                fields.Domain.AND(
-                    [
-                        [("from_filter", "ilike", "_@_")],
-                        fields.Domain.OR(
-                            [
-                                [
-                                    ("from_filter", "=", user.email_normalized),
-                                    ("smtp_user", "=", user.email),
-                                    ("owner_user_id", "=", user._origin.id),
-                                ]
-                                for user in self
-                            ]
-                        ),
-                    ]
-                )
-            )
-        )
-        mail_servers = {m.owner_user_id: m for m in mail_servers}
-        for user in self:
-            server = mail_servers.get(user) or self.env["ir.mail_server"]
-            user.outgoing_mail_server_id = server.id
-            type_options = self._fields["outgoing_mail_server_type"]._selection
-            user.outgoing_mail_server_type = (
-                server.smtp_authentication
-                if server.smtp_authentication in type_options
-                else "default"
-            )
 
     @property
     def SELF_READABLE_FIELDS(self) -> list[str]:
@@ -204,6 +118,9 @@ class ResUsers(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         users = super().create(vals_list)
+        if any(vals.get("out_of_office_from") for vals in vals_list):
+            self.env.registry.clear_cache("stable")
+        users._remove_inbox_group_from_shared_users()
 
         log_portal_access = not self.env.context.get(
             "mail_create_nolog"
@@ -230,11 +147,12 @@ class ResUsers(models.Model):
         )
 
         previous_email_by_user = {}
-        if vals.get("email"):
+        if "email" in vals:
+            new_email_normalized = email_normalize(vals["email"] or "")
             previous_email_by_user = {
                 user: user.email
                 for user in self.filtered(lambda user: bool(user.email_normalized))
-                if user.email_normalized != email_normalize(vals["email"])
+                if user.email_normalized != new_email_normalized
             }
         if "notification_type" in vals:
             user_notification_type_modified = self.filtered(
@@ -242,6 +160,8 @@ class ResUsers(models.Model):
             )
 
         write_res = super().write(vals)
+        if "out_of_office_from" in vals:
+            self.env.registry.clear_cache("stable")
 
         if log_portal_access:
             for user in self:
@@ -257,155 +177,23 @@ class ResUsers(models.Model):
                         subtype_xmlid="mail.mt_note",
                     )
 
-        if "login" in vals:
-            self._notify_security_setting_update(
-                _("Security Update: Login Changed"),
-                _("Your account login has been updated"),
-            )
-        if "password" in vals:
-            self._notify_security_setting_update(
-                _("Security Update: Password Changed"),
-                _("Your account password has been updated"),
-            )
-        if "email" in vals:
-            for user, previous_email in previous_email_by_user.items():
-                self._notify_security_setting_update(
-                    _("Security Update: Email Changed"),
-                    _(
-                        "Your account email has been changed from %(old_email)s to %(new_email)s.",
-                        old_email=previous_email,
-                        new_email=user.email,
-                    ),
-                    mail_values={"email_to": previous_email},
-                    suggest_password_reset=False,
-                )
+        self._notify_security_settings_updated(vals, previous_email_by_user)
         if "notification_type" in vals:
             for user in user_notification_type_modified:
                 Store(bus_channel=user).add(user, "notification_type").bus_send()
+        if "active" in vals and not vals["active"]:
+            self._remove_assigned_activities()
+        if "group_ids" in vals:
+            self._remove_inbox_group_from_shared_users()
 
         return write_res
 
-    def action_archive(self) -> bool:
-        activities_to_delete = (
-            self.env["mail.activity"].sudo().search([("user_id", "in", self.ids)])
-        )
-        activities_to_delete.unlink()
-        return super().action_archive()
-
-    def _notify_security_setting_update(
-        self,
-        subject: str,
-        content: str,
-        mail_values: dict | None = None,
-        **kwargs,
-    ) -> MailMail:
-
-        mail_create_values = []
-        for user in self:
-            body_html = self.env["mail.render.mixin"]._render_template(
-                "mail.account_security_alert",
-                model="res.users",
-                res_ids=user.ids,
-                engine="qweb_view",
-                options={"post_process": True},
-                add_context=user._notify_security_setting_update_prepare_values(
-                    content, **kwargs
-                ),
-            )[user.id]
-
-            body_html = self.env["mail.render.mixin"]._render_encapsulate(
-                "mail.mail_notification_light",
-                body_html,
-                add_context={
-                    "model_description": _("Account"),
-                },
-                context_record=user,
-            )
-
-            vals = {
-                "auto_delete": True,
-                "body_html": body_html,
-                "author_id": self.env.user.partner_id.id,
-                "email_from": (
-                    user.company_id.partner_id.email_formatted
-                    or self.env.user.email_formatted
-                    or self.env.ref("base.user_root").email_formatted
-                ),
-                "email_to": kwargs.get("force_email") or user.email_formatted,
-                "subject": subject,
-            }
-
-            if mail_values:
-                vals.update(mail_values)
-
-            mail_create_values.append(vals)
-
-        mails = self.env["mail.mail"].sudo().create(mail_create_values)
-        try:
-            mails.send()
-        except Exception:
-            _logger.warning(
-                "Could not send security notification email(s) %s",
-                mails.ids,
-                exc_info=True,
-            )
-        return mails
-
-    def _notify_security_setting_update_prepare_values(
-        self, content: str, **kwargs
-    ) -> dict:
-        reset_password_enabled = str2bool(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("auth_signup.reset_password", True)
-        )
-
-        values = {
-            "browser": False,
-            "content": content,
-            "event_datetime": fields.Datetime.now(),
-            "ip_address": False,
-            "location_address": False,
-            "suggest_password_reset": kwargs.get("suggest_password_reset", True)
-            and reset_password_enabled,
-            "user": self,
-            "useros": False,
-        }
-        if not request:
-            return values
-
-        city = request.geoip.get("city") or False
-        region = request.geoip.get("region_name") or False
-        country = request.geoip.get("country") or False
-        if country:
-            if region and city:
-                values["location_address"] = _(
-                    "Near %(city)s, %(region)s, %(country)s",
-                    city=city,
-                    region=region,
-                    country=country,
-                )
-            elif region:
-                values["location_address"] = _(
-                    "Near %(region)s, %(country)s", region=region, country=country
-                )
-            else:
-                values["location_address"] = _("In %(country)s", country=country)
-        values["ip_address"] = request.httprequest.environ["REMOTE_ADDR"]
-        if request.httprequest.user_agent:
-            if request.httprequest.user_agent.browser:
-                values["browser"] = request.httprequest.user_agent.browser.capitalize()
-            if request.httprequest.user_agent.platform:
-                values["useros"] = request.httprequest.user_agent.platform.capitalize()
-        return values
-
-    def _get_portal_access_update_body(self, access_granted: bool) -> str:
-        body = (
-            _("Portal Access Granted") if access_granted else _("Portal Access Revoked")
-        )
-        if self.partner_id.email:
-            return "%s (%s)" % (body, self.partner_id.email)
-        return body
+    def unlink(self) -> Literal[True]:
+        had_out_of_office = any(user.out_of_office_from for user in self)
+        result = super().unlink()
+        if had_out_of_office:
+            self.env.registry.clear_cache("stable")
+        return result
 
     def _deactivate_portal_user(self, **post) -> None:
         current_user = self.env.user
@@ -421,14 +209,14 @@ class ResUsers(models.Model):
         if post.get("request_blacklist"):
             users_to_blacklist = [
                 (user, user.email)
-                for user in self.filtered(
-                    lambda user: tools.email_normalize(user.email)
-                )
+                for user in self.filtered(lambda user: email_normalize(user.email))
             ]
         else:
             users_to_blacklist = []
 
-        super()._deactivate_portal_user(**post)
+        super(
+            ResUsers, self.with_context(mail_notify_security_skip=True)
+        )._deactivate_portal_user(**post)
 
         for user, user_email in users_to_blacklist:
             self.env["mail.blacklist"]._add(
@@ -441,12 +229,302 @@ class ResUsers(models.Model):
                 ),
             )
 
+    @api.depends_context("uid")
+    def _compute_can_edit_role(self) -> None:
+        self.can_edit_role = self.env["res.role"].sudo(False).has_access("write")
+
+    def _compute_has_external_mail_server(self) -> None:
+        self.has_external_mail_server = str2bool(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("base_setup.default_external_email_server"),
+            False,
+        )
+
+    @api.depends("manual_im_status", "presence_ids.status")
+    def _compute_im_status(self) -> None:
+        for user in self:
+            user.im_status = (
+                user.presence_ids._get_im_status(user.manual_im_status)
+                if user.presence_ids
+                else "offline"
+            )
+
+    @api.depends("out_of_office_from", "out_of_office_to")
+    def _compute_is_out_of_office(self) -> None:
+        now = self.env.cr.now()
+        todo = self.filtered(lambda u: u.out_of_office_from and u._is_internal())
+        for user in todo:
+            if user.out_of_office_to:
+                user.is_out_of_office = (
+                    user.out_of_office_from <= now <= user.out_of_office_to
+                )
+            else:
+                user.is_out_of_office = user.out_of_office_from <= now
+        (self - todo).is_out_of_office = False
+
+    @api.depends("share", "all_group_ids")
+    def _compute_notification_type(self) -> None:
+        inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
+            "mail.group_mail_notification_type_inbox"
+        )
+
+        for user in self:
+            user.notification_type = (
+                "inbox"
+                if inbox_group_id in user.all_group_ids.ids and not user.share
+                else "email"
+            )
+
+    @api.depends("email")
+    def _compute_outgoing_mail_server_id(self) -> None:
+        IrMailServer = self.env["ir.mail_server"].sudo()
+        owner_ids = [user._origin.id for user in self if user._origin.id]
+        servers_by_owner_id = (
+            {
+                server.owner_user_id.id: server
+                for server in IrMailServer.search([("owner_user_id", "in", owner_ids)])
+            }
+            if owner_ids
+            else {}
+        )
+        type_options = self._fields["outgoing_mail_server_type"]._selection
+        for user in self:
+            server = servers_by_owner_id.get(user._origin.id) or IrMailServer.browse()
+            if (
+                server
+                and user.email_normalized
+                not in IrMailServer._from_filter_index(server.from_filter).emails
+            ):
+                server = IrMailServer.browse()
+            user.outgoing_mail_server_id = server.id
+            user.outgoing_mail_server_type = (
+                server.smtp_authentication
+                if server.smtp_authentication in type_options
+                else "default"
+            )
+
+    def _inverse_notification_type(self) -> None:
+        inbox_group = self.env.ref("mail.group_mail_notification_type_inbox")
+        inbox_users = self.filtered(lambda user: user.notification_type == "inbox")
+        inbox_users.write({"group_ids": [Command.link(inbox_group.id)]})
+        (self - inbox_users).write({"group_ids": [Command.unlink(inbox_group.id)]})
+
+    @api.model
+    def action_setup_outgoing_mail_server(self, server_type: str) -> dict:
+        user = self.env.user
+        self._check_personal_mail_server_access(user)
+        existing_server = (
+            self.env["ir.mail_server"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([("owner_user_id", "=", user.id)])
+        )
+
+        if server_type == "default":
+            existing_server.unlink()
+            return {
+                "type": "ir.actions.client",
+                "tag": "display_notification",
+                "params": {
+                    "message": _("Switching back to the default server."),
+                    "type": "warning",
+                },
+            }
+
+        self._check_personal_mail_server_type(server_type)
+        self._check_personal_mail_server_address(user)
+
+        if server_type == user.outgoing_mail_server_type and (
+            server := user.outgoing_mail_server_id
+        ):
+            return self._get_mail_server_setup_end_action(server)
+
+        existing_server.unlink()
+        smtp_server = (
+            self.env["ir.mail_server"]
+            .sudo()
+            .create(self._prepare_personal_mail_server_vals(user, server_type))
+        )
+        return self._get_mail_server_setup_end_action(smtp_server)
+
+    @api.model
+    def action_test_outgoing_mail_server(self) -> dict:
+        user = self.env.user
+        if not user.has_external_mail_server:
+            raise UserError(_("You are not allowed to test personal mail servers."))
+
+        if not user._is_internal():
+            raise UserError(
+                _("Only internal users can configure personal mail servers.")
+            )
+
+        server_sudo = user.outgoing_mail_server_id.sudo()
+        if not server_sudo:
+            raise UserError(_("No mail server configured"))
+        server_sudo.test_smtp_connection()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "message": _("Connection Test Successful!"),
+                "type": "success",
+            },
+        }
+
+    def _notify_security_settings_updated(
+        self, vals: ValuesType, previous_email_by_user: dict[Self, str]
+    ) -> None:
+        if self.env.context.get("mail_notify_security_skip"):
+            return
+        if "login" in vals:
+            self._notify_security_setting_update(
+                _("Security Update: Login Changed"),
+                _("Your account login has been updated"),
+            )
+        if "password" in vals:
+            self._notify_security_setting_update(
+                _("Security Update: Password Changed"),
+                _("Your account password has been updated"),
+            )
+        for user, previous_email in previous_email_by_user.items():
+            user._notify_security_setting_update(
+                _("Security Update: Email Changed"),
+                _(
+                    "Your account email has been changed from %(old_email)s to %(new_email)s.",
+                    old_email=previous_email,
+                    new_email=user.email or _("no address"),
+                ),
+                mail_values={"email_to": previous_email},
+                suggest_password_reset=False,
+            )
+
+    def _notify_security_setting_update(
+        self,
+        subject: str,
+        content: str,
+        mail_values: dict | None = None,
+        *,
+        force_email: str | None = None,
+        **kwargs,
+    ) -> MailMail:
+        mail_create_values = [
+            self._prepare_security_alert_mail_vals(
+                user, subject, content, force_email=force_email, **kwargs
+            )
+            | (mail_values or {})
+            for user in self
+        ]
+        mails = self.env["mail.mail"].sudo().create(mail_create_values)
+        try:
+            mails.send_after_commit()
+        except Exception:
+            _logger.warning(
+                "Could not send security notification email(s) %s",
+                mails.ids,
+                exc_info=True,
+            )
+        return mails
+
+    def _prepare_security_alert_mail_vals(
+        self,
+        user: Self,
+        subject: str,
+        content: str,
+        *,
+        force_email: str | None = None,
+        **kwargs,
+    ) -> dict:
+        Render = self.env["mixin.mail.render"]
+        body_html = Render._render_template(
+            "mail.account_security_alert",
+            model="res.users",
+            res_ids=user.ids,
+            engine="qweb_view",
+            options={"post_process": True},
+            add_context=user._notify_security_setting_update_prepare_values(
+                content, **kwargs
+            ),
+        )[user.id]
+        body_html = Render._render_encapsulate(
+            "mail.mail_notification_light",
+            body_html,
+            add_context={"model_description": _("Account")},
+            context_record=user,
+        )
+        return {
+            "auto_delete": True,
+            "body_html": body_html,
+            "author_id": self.env.user.partner_id.id,
+            "email_from": (
+                user.company_id.partner_id.email_formatted
+                or self.env.user.email_formatted
+                or self.env.ref("base.user_root").email_formatted
+            ),
+            "email_to": force_email or user.email_formatted,
+            "subject": subject,
+        }
+
+    def _notify_security_setting_update_prepare_values(
+        self,
+        content: str,
+        *,
+        suggest_password_reset: bool = True,
+        **kwargs,
+    ) -> dict:
+        reset_password_enabled = str2bool(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("auth_signup.reset_password", True)
+        )
+
+        values = {
+            "browser": False,
+            "content": content,
+            "event_datetime": fields.Datetime.now(),
+            "ip_address": False,
+            "location_address": False,
+            "suggest_password_reset": suggest_password_reset and reset_password_enabled,
+            "user": self,
+            "useros": False,
+        }
+        if not request:
+            return values
+
+        geoip = request.geoip
+        city = geoip.city.name or False
+        region = (geoip.subdivisions[0].name if geoip.subdivisions else False) or False
+        country = geoip.country_name or False
+        if country:
+            if region and city:
+                values["location_address"] = _(
+                    "Near %(city)s, %(region)s, %(country)s",
+                    city=city,
+                    region=region,
+                    country=country,
+                )
+            elif region:
+                values["location_address"] = _(
+                    "Near %(region)s, %(country)s", region=region, country=country
+                )
+            else:
+                values["location_address"] = _("In %(country)s", country=country)
+        values["ip_address"] = request.httprequest.remote_addr or False
+        if request.httprequest.user_agent:
+            if request.httprequest.user_agent.browser:
+                values["browser"] = request.httprequest.user_agent.browser.capitalize()
+            if request.httprequest.user_agent.platform:
+                values["useros"] = request.httprequest.user_agent.platform.capitalize()
+        return values
+
     @api.model
     def _init_store_data(self, store: Store) -> None:
         xmlid_to_res_id = self.env["ir.model.data"]._xmlid_to_res_id
+        user = self.env.user
+        is_identified = not user._is_public()
         odoobot = self.env.ref("base.partner_root").sudo()
-        if not self.env.user._is_public():
-            odoobot = odoobot.with_prefetch((odoobot + self.env.user.partner_id).ids)
+        if is_identified:
+            odoobot = odoobot.with_prefetch((odoobot + user.partner_id).ids)
         store.add_global_values(
             action_discuss_id=xmlid_to_res_id("mail.action_discuss"),
             hasLinkPreviewFeature=self.env[
@@ -457,13 +535,11 @@ class ResUsers(models.Model):
             mt_note=xmlid_to_res_id("mail.mt_note"),
             odoobot=Store.One(odoobot),
         )
-        if not self.env.user._is_public():
-            settings = self.env["res.users.settings"]._find_or_create_for_user(
-                self.env.user
-            )
+        if is_identified:
+            settings = self.env["res.users.settings"]._find_or_create_for_user(user)
             store.add_global_values(
                 self_partner=Store.One(
-                    self.env.user.partner_id,
+                    user.partner_id,
                     [
                         "active",
                         "avatar_128",
@@ -490,143 +566,24 @@ class ResUsers(models.Model):
 
     def _init_messaging(self, store: Store) -> None:
         self.ensure_one()
-        self = self.with_user(self)
-        bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()
+        user = self.with_user(self)
+        bus_last_id = user.env["bus.bus"].sudo()._bus_last_id()
         store.add_global_values(
             inbox={
-                "counter": self.partner_id._get_needaction_count(),
+                "counter": user.partner_id._get_needaction_count(),
                 "counter_bus_id": bus_last_id,
                 "id": "inbox",
                 "model": "mail.box",
             },
             starred={
-                "counter": self.env["mail.message"].search_count(
-                    [("starred_partner_ids", "in", self.partner_id.ids)]
+                "counter": user.env["mail.message"].search_count(
+                    [("starred_partner_ids", "in", user.partner_id.ids)]
                 ),
                 "counter_bus_id": bus_last_id,
                 "id": "starred",
                 "model": "mail.box",
             },
         )
-
-    @api.model
-    def _get_activity_groups(self) -> list:
-        search_limit = self.env["ir.config_parameter"]._get_int_param(
-            "mail.activity.systray.limit", 1000
-        )
-        activities = self.env["mail.activity"].search(
-            [("user_id", "=", self.env.uid)],
-            order="id desc",
-            limit=search_limit,
-        )
-
-        user_company_ids = self.env.user.company_ids.ids
-        is_all_user_companies_allowed = set(user_company_ids) == set(
-            self.env.context.get("allowed_company_ids") or []
-        )
-
-        activities_model_ids = defaultdict(list)
-        activities_rec_ids = defaultdict(lambda: defaultdict(list))
-
-        for activity in activities:
-            if activity.res_model and activity.res_model in self.env:
-                activities_rec_ids[activity.res_model][activity.res_id].append(
-                    activity.id
-                )
-            else:
-                activities_rec_ids["mail.activity"][activity.id].append(activity.id)
-        activities.mapped("state")
-        model_activity_states = {
-            "mail.activity": {
-                "overdue_count": 0,
-                "today_count": 0,
-                "planned_count": 0,
-                "total_count": 0,
-            }
-        }
-        Activity = self.env["mail.activity"]
-        for model_name, record_activity_ids in activities_rec_ids.items():
-            res_ids = record_activity_ids.keys()
-            Model = self.env[model_name]
-            has_model_access_right = Model.has_access("read")
-            existing = Model.browse(res_ids).exists()
-            if has_model_access_right:
-                allowed_records = existing._filtered_access("read")
-            else:
-                allowed_records = Model
-            unallowed_records = Model.browse(res_ids) - allowed_records
-            if (
-                has_model_access_right
-                and unallowed_records
-                and not is_all_user_companies_allowed
-            ):
-                unallowed_records -= (
-                    (unallowed_records & existing)
-                    .with_context(allowed_company_ids=user_company_ids)
-                    ._filtered_access("read")
-                )
-            model_activity_states.setdefault(
-                model_name,
-                {
-                    "overdue_count": 0,
-                    "today_count": 0,
-                    "planned_count": 0,
-                    "total_count": 0,
-                },
-            )
-            unallowed_ids = set(unallowed_records._ids)
-            allowed_ids = set(allowed_records._ids)
-            for record_id, activity_ids in record_activity_ids.items():
-                if record_id in unallowed_ids:
-                    model_key = "mail.activity"
-                    activities_model_ids["mail.activity"].extend(activity_ids)
-                elif record_id in allowed_ids:
-                    model_key = model_name
-                    activities_model_ids[model_name].extend(activity_ids)
-                elif record_id:
-                    continue
-
-                rec_activities = Activity.browse(activity_ids)
-                states = set(rec_activities.mapped("state"))
-                if "overdue" in states:
-                    model_activity_states[model_key]["overdue_count"] += 1
-                    model_activity_states[model_key]["total_count"] += 1
-                elif "today" in states:
-                    model_activity_states[model_key]["today_count"] += 1
-                    model_activity_states[model_key]["total_count"] += 1
-                else:
-                    model_activity_states[model_key]["planned_count"] += 1
-
-        model_ids = [
-            self.env["ir.model"]._get_id(name) for name in activities_model_ids
-        ]
-        user_activities = {}
-        for model_name, activity_ids in activities_model_ids.items():
-            activities = Activity.browse(activity_ids)
-            Model = self.env[model_name]
-            module = Model._original_module
-            icon = module and modules.module.get_module_icon(module)
-            model = self.env["ir.model"]._get(model_name).with_prefetch(model_ids)
-            user_activities[model_name] = {
-                "id": model.id,
-                "name": model.name
-                if model_name != "mail.activity"
-                else _("Other activities"),
-                "model": model_name,
-                "type": "activity",
-                "icon": icon,
-                "domain": [("active", "in", [True, False])]
-                if model_name != "mail.activity" and "active" in Model
-                else [],
-                "total_count": model_activity_states[model_name]["total_count"],
-                "today_count": model_activity_states[model_name]["today_count"],
-                "overdue_count": model_activity_states[model_name]["overdue_count"],
-                "planned_count": model_activity_states[model_name]["planned_count"],
-                "view_type": getattr(Model, "_systray_view", "list"),
-            }
-            if model_name == "mail.activity":
-                user_activities[model_name]["activity_ids"] = activities.ids
-        return list(user_activities.values())
 
     def _get_store_avatar_card_fields(
         self, target: Store.Target
@@ -638,127 +595,256 @@ class ResUsers(models.Model):
             ),
         ]
 
-    @api.autovacuum
-    def _gc_personal_mail_servers(self) -> None:
-        self.env["ir.mail_server"].with_context(active_test=False).search(
-            [("owner_user_id", "!=", False)]
-        ).filtered(
-            lambda s: s.owner_user_id.outgoing_mail_server_id != s or not s.active
-        ).unlink()
+    @api.model
+    def _get_activity_groups(self) -> list:
+        activities = self._get_systray_activities()
+        activities.mapped("state")
+        activity_ids_by_record = self._group_activity_ids_by_record(activities)
+        counts_by_bucket, activity_ids_by_bucket = self._count_activities_per_bucket(
+            activity_ids_by_record
+        )
+        return self._prepare_activity_group_values(
+            counts_by_bucket, activity_ids_by_bucket
+        )
 
     @api.model
-    def _get_mail_server_values(self, server_type: str) -> dict:
-        return {}
+    def _get_systray_activities(self) -> MailActivity:
+        limit = self.env["ir.config_parameter"]._get_positive_int_param(
+            "mail.activity.systray.limit", 1000
+        )
+        activities = self.env["mail.activity"].search(
+            [("user_id", "=", self.env.uid)],
+            order="id desc",
+            limit=limit,
+        )
+        if len(activities) >= limit:
+            _logger.warning(
+                "Activity systray for user %s read %s activities, its limit "
+                "(mail.activity.systray.limit): the counters are undercounts.",
+                self.env.uid,
+                limit,
+            )
+        return activities
 
     @api.model
-    def action_setup_outgoing_mail_server(self, server_type: str) -> dict:
-        user = self.env.user
+    def _group_activity_ids_by_record(
+        self, activities: MailActivity
+    ) -> dict[str, dict[int, list[int]]]:
+        activity_ids_by_record = defaultdict(lambda: defaultdict(list))
+        for activity in activities:
+            if activity.res_model and activity.res_model in self.env:
+                activity_ids_by_record[activity.res_model][activity.res_id].append(
+                    activity.id
+                )
+            else:
+                activity_ids_by_record[ORPHAN_BUCKET][activity.id].append(activity.id)
+        return activity_ids_by_record
+
+    @api.model
+    def _get_readable_activity_record_ids(
+        self, model_name: str, res_ids: Collection[int]
+    ) -> tuple[set[int], set[int]]:
+        Model = self.env[model_name]
+        if not Model.has_access("read"):
+            return set(), set(Model.browse(res_ids)._ids)
+        existing = Model.browse(res_ids).exists()
+        allowed = existing._filtered_access("read")
+        unallowed = Model.browse(res_ids) - allowed
+        user_company_ids = self.env.user.company_ids.ids
+        is_all_user_companies_allowed = set(user_company_ids) == set(
+            self.env.context.get("allowed_company_ids") or []
+        )
+        if unallowed and not is_all_user_companies_allowed:
+            unallowed -= (
+                (unallowed & existing)
+                .with_context(allowed_company_ids=user_company_ids)
+                ._filtered_access("read")
+            )
+        return set(allowed._ids), set(unallowed._ids)
+
+    @api.model
+    def _count_activities_per_bucket(
+        self, activity_ids_by_record: dict[str, dict[int, list[int]]]
+    ) -> tuple[dict[str, dict[str, int]], dict[str, list[int]]]:
+        counts_by_bucket = defaultdict(
+            lambda: {
+                "overdue_count": 0,
+                "today_count": 0,
+                "planned_count": 0,
+                "due_count": 0,
+            }
+        )
+        activity_ids_by_bucket = defaultdict(list)
+        Activity = self.env["mail.activity"]
+        for model_name, activity_ids_by_res_id in activity_ids_by_record.items():
+            allowed_ids, unallowed_ids = self._get_readable_activity_record_ids(
+                model_name, activity_ids_by_res_id.keys()
+            )
+            for res_id, activity_ids in activity_ids_by_res_id.items():
+                if res_id in unallowed_ids:
+                    bucket = ORPHAN_BUCKET
+                elif res_id in allowed_ids:
+                    bucket = model_name
+                else:
+                    continue
+                activity_ids_by_bucket[bucket].extend(activity_ids)
+                states = set(Activity.browse(activity_ids).mapped("state"))
+                if "overdue" in states:
+                    counts_by_bucket[bucket]["overdue_count"] += 1
+                    counts_by_bucket[bucket]["due_count"] += 1
+                elif "today" in states:
+                    counts_by_bucket[bucket]["today_count"] += 1
+                    counts_by_bucket[bucket]["due_count"] += 1
+                else:
+                    counts_by_bucket[bucket]["planned_count"] += 1
+        return counts_by_bucket, activity_ids_by_bucket
+
+    @api.model
+    def _prepare_activity_group_values(
+        self,
+        counts_by_bucket: dict[str, dict[str, int]],
+        activity_ids_by_bucket: dict[str, list[int]],
+    ) -> list:
+        model_ids = [
+            self.env["ir.model"]._get_id(name) for name in activity_ids_by_bucket
+        ]
+        groups = []
+        for model_name, activity_ids in activity_ids_by_bucket.items():
+            Model = self.env[model_name]
+            module = Model._original_module
+            model = self.env["ir.model"]._get(model_name).with_prefetch(model_ids)
+            is_orphan_bucket = model_name == ORPHAN_BUCKET
+            group = {
+                "id": model.id,
+                "name": _("Other activities") if is_orphan_bucket else model.name,
+                "model": model_name,
+                "type": "activity",
+                "icon": module and modules.module.get_module_icon(module),
+                "domain": []
+                if is_orphan_bucket or "active" not in Model
+                else [("active", "in", [True, False])],
+                "view_type": getattr(Model, "_systray_view", "list"),
+                **counts_by_bucket[model_name],
+            }
+            if is_orphan_bucket:
+                group["activity_ids"] = activity_ids
+            groups.append(group)
+        return groups
+
+    @api.model
+    @tools.ormcache(cache="stable")
+    def _has_out_of_office_configured(self) -> bool:
+        return bool(
+            self.sudo()
+            .with_context(active_test=False)
+            .search_count([("out_of_office_from", "!=", False)], limit=1)
+        )
+
+    def _get_portal_access_update_body(self, access_granted: bool) -> str:
+        body = (
+            _("Portal Access Granted") if access_granted else _("Portal Access Revoked")
+        )
+        if self.partner_id.email:
+            return "%s (%s)" % (body, self.partner_id.email)
+        return body
+
+    def _remove_assigned_activities(self) -> None:
+        self.env["mail.activity"].sudo().search([("user_id", "in", self.ids)]).unlink()
+
+    def _remove_inbox_group_from_shared_users(self) -> None:
+        inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
+            "mail.group_mail_notification_type_inbox"
+        )
+        shared_with_inbox = self.filtered_domain(
+            [("share", "=", True), ("group_ids", "in", inbox_group_id)]
+        )
+        if shared_with_inbox:
+            shared_with_inbox.write({"group_ids": [Command.unlink(inbox_group_id)]})
+
+    @api.model
+    def _check_personal_mail_server_access(self, user: Self) -> None:
         if not user.has_external_mail_server:
             raise UserError(_("You are not allowed to create a personal mail server."))
-
         if not user._is_internal():
             raise UserError(
                 _("Only internal users can configure a personal mail server.")
             )
 
-        existing_mail_server = (
-            self.env["ir.mail_server"]
-            .sudo()
-            .with_context(active_test=False)
-            .search([("owner_user_id", "=", user.id)])
+    @api.model
+    def _check_personal_mail_server_type(self, server_type: str) -> None:
+        selection = self._fields["outgoing_mail_server_type"]._description_selection(
+            self.env
         )
+        if server_type not in dict(selection):
+            raise UserError(
+                _(
+                    "Unknown outgoing mail server type %(server_type)s.",
+                    server_type=server_type,
+                )
+            )
 
-        if server_type == "default":
-            if existing_mail_server:
-                existing_mail_server.unlink()
-
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "message": _("Switching back to the default server."),
-                    "type": "warning",
-                },
-            }
-
-        email = user.email
-        if not email:
+    @api.model
+    def _check_personal_mail_server_address(self, user: Self) -> None:
+        if not user.email:
             raise UserError(
                 _("Please set your email before connecting your mail server.")
             )
-
-        normalized_email = tools.email_normalize(email)
+        address = user.email_normalized
         if (
-            not normalized_email
-            or "@" not in normalized_email
-            or self.env["ir.mail_server"]._parse_from_filter(normalized_email)
-            != [normalized_email]
+            not address
+            or address.startswith("@")
+            or self.env["ir.mail_server"]._parse_from_filter(address) != [address]
         ):
-            raise UserError(_("Wrong email address %s.", email))
+            raise UserError(_("Wrong email address %s.", user.email))
 
-        alias_domain = self.env["mail.alias.domain"].sudo().search([])
-        cli_default_from = tools.config.get("email_from")
+        alias_domains = self.env["mail.alias.domain"].sudo().search([])
         match_from_filter = self.env["ir.mail_server"]._match_from_filter
+        cli_default_from = tools.config.get("email_from")
         if any(
-            match_from_filter(e, normalized_email)
-            for e in alias_domain.mapped("default_from_email")
-        ) or (
-            cli_default_from and match_from_filter(cli_default_from, normalized_email)
-        ):
+            match_from_filter(default_from, address)
+            for default_from in alias_domains.mapped("default_from_email")
+        ) or (cli_default_from and match_from_filter(cli_default_from, address)):
             raise UserError(
                 _(
                     "Your email address is used by an alias domain, and so you can not create a mail server for it."
                 )
             )
 
-        if (
-            server_type == user.outgoing_mail_server_type
-            and user.outgoing_mail_server_id.from_filter == normalized_email
-            and user.outgoing_mail_server_id.smtp_user == normalized_email
-        ):
-            return self._get_mail_server_setup_end_action(user.outgoing_mail_server_id)
-
-        if existing_mail_server:
-            existing_mail_server.unlink()
-
-        values = {
+    @api.model
+    def _prepare_personal_mail_server_vals(self, user: Self, server_type: str) -> dict:
+        return {
             "active": False,
             "name": _("%s's outgoing email", user.name),
-            "smtp_user": normalized_email,
+            "smtp_user": user.email_normalized,
             "smtp_pass": False,
-            "from_filter": normalized_email,
-            "smtp_port": 587,
-            "smtp_encryption": "starttls",
+            "from_filter": user.email_normalized,
+            "smtp_port": PERSONAL_MAIL_SERVER_SMTP_PORT,
+            "smtp_encryption": PERSONAL_MAIL_SERVER_SMTP_ENCRYPTION,
             "owner_user_id": user.id,
             **self._get_mail_server_values(server_type),
         }
-        smtp_server = self.env["ir.mail_server"].sudo().create(values)
-        return self._get_mail_server_setup_end_action(smtp_server)
 
     @api.model
-    def action_test_outgoing_mail_server(self) -> dict:
-        user = self.env.user
-        if not user.has_external_mail_server:
-            raise UserError(_("You are not allowed to test personal mail servers."))
-
-        if not user.has_group("base.group_user"):
-            raise UserError(
-                _("Only internal users can configure personal mail servers.")
-            )
-
-        server_sudo = user.outgoing_mail_server_id.sudo()
-        if not server_sudo:
-            raise UserError(_("No mail server configured"))
-        server_sudo.test_smtp_connection()
-        return {
-            "type": "ir.actions.client",
-            "tag": "display_notification",
-            "params": {
-                "message": _("Connection Test Successful!"),
-                "type": "success",
-            },
-        }
+    def _get_mail_server_values(self, server_type: str) -> dict:
+        return {}
 
     @api.model
     def _get_mail_server_setup_end_action(self, smtp_server: IrMail_Server) -> dict:
         raise NotImplementedError
+
+    @api.autovacuum
+    def _gc_personal_mail_servers(self) -> None:
+        IrMailServer = self.env["ir.mail_server"]
+        servers = IrMailServer.with_context(active_test=False).search(
+            [("owner_user_id", "!=", False)]
+        )
+        cutoff = self.env.cr.now() - timedelta(
+            minutes=IrMailServer._get_personal_mail_server_grace()
+        )
+        servers.filtered(
+            lambda server: (
+                server.owner_user_id.outgoing_mail_server_id != server
+                if server.active
+                else server.create_date < cutoff
+            )
+        ).unlink()

@@ -1,5 +1,8 @@
 import base64
+import contextlib
 import logging
+import re
+import threading
 import typing
 from ast import literal_eval
 from collections.abc import Collection
@@ -11,6 +14,7 @@ from odoo import _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.tools.rendering_tools import parse_inline_template
 from odoo.tools.safe_eval import safe_eval, time
 
 if typing.TYPE_CHECKING:
@@ -23,6 +27,8 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+
+type RenderResults = dict[int, dict[str, Any]]
 
 DYNAMIC_FIELD_NAMES = frozenset(
     {
@@ -58,25 +64,61 @@ RECIPIENT_FIELD_NAMES = frozenset({"email_cc", "email_to", "partner_to"})
 
 ATTACHMENT_FIELD_NAMES = frozenset({"attachment_ids", "report_template_ids"})
 
-VALIDATION_RES_ID = 0
-"""Sentinel record id used to render without a record.
+SEND_RENDER_FIELDS = frozenset(
+    {
+        "attachment_ids",
+        "auto_delete",
+        "body_html",
+        "email_cc",
+        "email_from",
+        "email_to",
+        "mail_server_id",
+        "model",
+        "partner_to",
+        "reply_to",
+        "report_template_ids",
+        "res_id",
+        "scheduled_date",
+        "subject",
+    }
+)
 
-Not usable for the save-time render probe, which must keep sampling a real record:
-against ``browse(0)`` every Many2one resolves to an empty recordset, so a valid
-expression traversing one — ``{{ object.event_id.event_date_range }}``, shipped by
-``event`` — hits a compute that calls ``ensure_one()`` and raises. Rejecting a template
-that renders fine in production is worse than the sampling non-determinism the sentinel
-would have removed. See the 2026-08-15 audit, §2.1.
-"""
+ACCUMULATED_VALUE_KEYS = frozenset({"attachment_ids", "attachments", "partner_ids"})
+
+NO_RECORD_RES_ID = 0
+"""Stand-in res_id for rendering a template with no record behind it."""
+
+
+_MODIFYING_STATEMENT = re.compile(
+    r"(INSERT|UPDATE|DELETE|COPY|TRUNCATE)\b", re.IGNORECASE
+)
+
+
+def _merge_render_results(
+    target: RenderResults, contribution: RenderResults
+) -> RenderResults:
+    for res_id, values in contribution.items():
+        merged = target.setdefault(res_id, {})
+        for key, value in values.items():
+            if key in ACCUMULATED_VALUE_KEYS and isinstance(value, list):
+                merged.setdefault(key, []).extend(value)
+            else:
+                merged[key] = value
+    return target
 
 
 class MailTemplate(models.Model):
     _name = "mail.template"
-    _inherit = ["mail.render.mixin", "template.reset.mixin"]
+    _inherit = [
+        "mixin.mail.attachment.owner",
+        "mixin.mail.render",
+        "mixin.template.reset",
+    ]
     _description = "Email Templates"
     _order = "user_id, name, id"
 
     _unrestricted_rendering = True
+    _dynamic_field_names = DYNAMIC_FIELD_NAMES
 
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:
@@ -211,20 +253,17 @@ class MailTemplate(models.Model):
 
     @api.depends("model")
     def _compute_has_dynamic_reports(self) -> None:
-        number_of_dynamic_reports_per_model = dict(
-            self.env["ir.actions.report"]
+        models_with_reports = {
+            model
+            for (model,) in self.env["ir.actions.report"]
             .sudo()
             ._read_group(
                 domain=[("model", "in", self.mapped("model"))],
                 groupby=["model"],
-                aggregates=["id:count"],
-                having=[("__count", ">", 0)],
             )
-        )
+        }
         for template in self:
-            template.has_dynamic_reports = (
-                template.model in number_of_dynamic_reports_per_model
-            )
+            template.has_dynamic_reports = template.model in models_with_reports
 
     @api.depends()
     def _compute_has_mail_server(self) -> None:
@@ -329,85 +368,188 @@ class MailTemplate(models.Model):
             if upd_values := self._get_model_template_defaults(template.model):
                 template.update(upd_values)
 
-    def _update_attachment_ownership(self) -> Self:
-        for record in self:
-            misowned = record.attachment_ids.filtered(
-                lambda attachment, record=record: (
-                    attachment.res_model != record._name
-                    or attachment.res_id != record.id
-                )
+    def _get_render_error_label(self) -> str:
+        if not self.id:
+            return super()._get_render_error_label()
+        return _(
+            "Mail Template: '%(name)s' (ID: %(record_id)s)",
+            name=self.name or _("Unnamed Mail Template"),
+            record_id=self.id,
+        )
+
+    def _check_rendering(
+        self,
+        fnames: Collection[str] | None = None,
+        render_options: dict | None = None,
+    ) -> None:
+
+        if self.env.context.get("install_mode"):
+            return
+        checked_fnames = self._get_dynamic_field_names()
+        if fnames is not None:
+            checked_fnames &= set(fnames)
+        if not checked_fnames:
+            return
+        for template in self:
+            if failure := template._compile_dynamic_fields(checked_fnames):
+                template._raise_rendering_error(*failure)
+        samples = self.sudo()._get_rendering_samples()
+        if samples and (
+            failure := self.sudo()._render_dynamic_fields(
+                samples, checked_fnames, render_options
             )
-            if misowned:
-                misowned.write({"res_model": record._name, "res_id": record.id})
-        return self
+        ):
+            template_id, fname, error = failure
+            self.browse(template_id)._raise_rendering_error(
+                fname, error, sample=samples.get(self.browse(template_id).model)
+            )
+
+    def _get_rendering_samples(self) -> dict[str, models.BaseModel]:
+
+        samples = {}
+        for model in set(self.mapped("model_id.model")):
+            if not model or model not in self.env:
+                continue
+            if record := self.env[model].search([], limit=1):
+                samples[model] = record
+        return samples
+
+    def _compile_dynamic_fields(
+        self, fnames: Collection[str]
+    ) -> tuple[str, Exception] | None:
+        self.ensure_one()
+        for fname in sorted(fnames):
+            source = self[fname]
+            if not source:
+                continue
+            engine = getattr(self._fields[fname], "render_engine", "inline_template")
+            try:
+                if engine == "qweb":
+                    node = self._get_qweb_template_node(str(source))[0]
+                    self.env["ir.qweb"]._generate_code(node)
+                elif engine == "inline_template":
+                    for _string, expression, _default in parse_inline_template(
+                        str(source)
+                    ):
+                        if expression:
+                            compile(expression, "<mail.template>", "eval")
+            except (UserError, ValueError, SyntaxError) as error:
+                return (fname, error)
+        return None
+
+    @contextlib.contextmanager
+    def _probe_isolation(self) -> typing.Iterator[None]:
+
+        cr = self.env.cr
+        thread = threading.current_thread()
+        hooks = getattr(thread, "query_hooks", None)
+        if hooks is None:
+            hooks = thread.query_hooks = []
+        modified = False
+
+        def watch(_cr, query, _params, _start, _delay):
+            nonlocal modified
+            if not modified:
+                code = getattr(query, "code", query)
+                modified = bool(_MODIFYING_STATEMENT.match(str(code).lstrip()))
+
+        savepoint = cr.savepoint()
+        hooks.append(watch)
+        try:
+            yield
+
+            self.env.flush_all()
+        except BaseException:
+            modified = True
+            raise
+        finally:
+            hooks.remove(watch)
+            savepoint.close(rollback=modified)
+
+    def _render_dynamic_fields(
+        self,
+        samples: dict[str, models.BaseModel],
+        fnames: Collection[str],
+        render_options: dict | None,
+    ) -> tuple[int, str, Exception] | None:
+        failures: list[tuple[int, str, Exception]] = []
+        with self._probe_isolation():
+            for template in self:
+                record = samples.get(template.model_id.model)
+                if not record:
+                    continue
+                for fname in sorted(fnames):
+                    try:
+                        template._render_field(
+                            fname, record.ids, options=render_options
+                        )
+                    except AccessError, MissingError:
+                        raise
+                    except (UserError, ValueError, SyntaxError) as error:
+                        failures.append((template.id, fname, error))
+                        break
+                if failures:
+                    break
+        return failures[0] if failures else None
+
+    def _raise_rendering_error(
+        self,
+        fname: str,
+        error: Exception,
+        sample: models.BaseModel | None = None,
+    ) -> typing.NoReturn:
+
+        self.ensure_one()
+        _logger.info(
+            "mail.template %s: field %s does not render", self.id, fname, exc_info=error
+        )
+        disclosable = (
+            sample is None
+            or self.env.su
+            or sample.with_user(self.env.user).has_access("read")
+        )
+        if disclosable:
+            message = _(
+                "Oops! We couldn't save your template due to an issue.\n\n"
+                "Field: %(field_name)s\n"
+                "Error: %(error_details)s\n\n"
+                "Correct it and try again.",
+                field_name=self._fields[fname].string or fname,
+                error_details=str(error),
+            )
+        else:
+            message = _(
+                "Oops! We couldn't save your template due to an issue.\n\n"
+                "Field: %(field_name)s\n"
+                "It could not be rendered on a sample record. Ask an administrator "
+                "to read the server log for the details.\n\n"
+                "Correct it and try again.",
+                field_name=self._fields[fname].string or fname,
+            )
+        raise ValidationError(message) from error
 
     @api.constrains("model_id")
     def _check_model_not_abstract(self) -> None:
         for model in set(self.mapped("model_id.model")):
-            if self.env[model]._abstract:
+            if model in self.env and self.env[model]._abstract:
                 raise ValidationError(
                     _("You may not define a template on an abstract model: %s", model)
                 )
 
-    def _check_rendering(
-        self, fnames: set[str] | None = None, render_options: dict | None = None
-    ) -> None:
-        if self.env.context.get("install_mode"):
-            return
-        dynamic_fnames = self._get_dynamic_field_names()
-
-        for template in self.sudo():
-            template_fnames = fnames & dynamic_fnames if fnames else dynamic_fnames
-            if not template_fnames:
-                continue
-            model = template.model_id.model
-            if not model:
-                continue
-            record = template.env[model].search([], limit=1)
-            if not record:
-                continue
-
-            for fname in template_fnames:
-                try:
-                    template._render_field(fname, record.ids, options=render_options)
-                except AccessError, MissingError:
-                    raise
-                except (UserError, ValueError, SyntaxError) as e:
-                    _logger.info(
-                        "mail.template %s: field %s does not render",
-                        template.id,
-                        fname,
-                        exc_info=True,
-                    )
-                    raise ValidationError(
-                        _(
-                            "Oops! We couldn't save your template due to an issue.\n\n"
-                            "Error: %(error_details)s\n\n"
-                            "Correct it and try again.",
-                            error_details=str(e),
-                        )
-                    ) from e
-
-    @api.model
-    def _get_dynamic_field_names(self) -> set[str]:
-        return set(DYNAMIC_FIELD_NAMES)
-
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         records = super().create(vals_list)
-        records._check_rendering(fnames=None)
-        records._update_attachment_ownership()
+        records._check_rendering(fnames={fname for vals in vals_list for fname in vals})
+        records._update_attachment_ownership(self._get_linked_attachment_ids(vals_list))
         return records
 
     def write(self, vals: ValuesType) -> Literal[True]:
         super().write(vals)
         self._check_rendering(
-            fnames=vals.keys()
-            if {"model", "model_id"}.isdisjoint(vals.keys())
-            else None
+            fnames=None if not {"model", "model_id"}.isdisjoint(vals) else vals.keys()
         )
         if "attachment_ids" in vals:
-            self._update_attachment_ownership()
+            self._update_attachment_ownership(self._get_linked_attachment_ids([vals]))
         return True
 
     def unlink(self) -> Literal[True]:
@@ -416,7 +558,7 @@ class MailTemplate(models.Model):
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
-        for vals, template in zip(vals_list, self, strict=False):
+        for vals, template in zip(vals_list, self, strict=True):
             if "name" not in (default or {}) and vals.get("name") == template.name:
                 vals["name"] = self.env._("%s (copy)", template.name)
         return vals_list
@@ -447,6 +589,7 @@ class MailTemplate(models.Model):
         return True
 
     def create_action(self) -> bool:
+        self.unlink_action()
         view = self.env.ref("mail.email_compose_message_wizard_form")
         actions = self.env["ir.actions.act_window"].create(
             [
@@ -487,7 +630,7 @@ class MailTemplate(models.Model):
 
     def _render_report_per_record(
         self, report: IrActionsReport, res_ids: list[int]
-    ) -> dict:
+    ) -> dict[int, tuple[bytes, str]]:
         IrActionsReport = self.env["ir.actions.report"]
 
         if report.report_type in ("qweb-html", "qweb-pdf"):
@@ -515,9 +658,9 @@ class MailTemplate(models.Model):
     def _get_report_streams_batch(
         self, report: IrActionsReport, res_ids: list[int]
     ) -> dict | None:
-        if len(res_ids) < 2 or report.attachment:
-            return None
         IrActionsReport = self.env["ir.actions.report"]
+        if len(res_ids) < 2 or report.attachment or not IrActionsReport._renders_pdf():
+            return None
         collected, report_type = IrActionsReport._pre_render_qweb_pdf(
             report, res_ids=list(res_ids)
         )
@@ -533,39 +676,37 @@ class MailTemplate(models.Model):
 
     def _prepare_attachment_vals(
         self,
-        res_ids: list[int],
+        res_ids: Collection[int],
         render_fields: Collection[str],
-        render_results: dict | None = None,
-    ) -> dict:
+        render_results: RenderResults | None = None,
+    ) -> RenderResults:
         self.ensure_one()
-        if render_results is None:
-            render_results = {}
         res_ids = list(res_ids)
         render_fields = set(render_fields)
+        contribution: RenderResults = {}
 
-        if "attachment_ids" in render_fields:
+        if "attachment_ids" in render_fields and self.attachment_ids:
             for res_id in res_ids:
-                render_results.setdefault(res_id, {})["attachment_ids"] = (
+                contribution.setdefault(res_id, {})["attachment_ids"] = (
                     self.attachment_ids.ids
                 )
 
         if "report_template_ids" in render_fields and res_ids:
-            records_by_id = {}
+            for res_id in res_ids:
+                contribution.setdefault(res_id, {}).setdefault("attachments", [])
             if self.report_template_ids:
                 records_by_id = {
                     record.id: record for record in self._get_records(res_ids)
                 }
-            for res_id in res_ids:
-                render_results.setdefault(res_id, {}).setdefault("attachments", [])
-            for report in self.report_template_ids:
-                rendered = self._render_report_per_record(report, res_ids)
-                for res_id, (report_content, report_format) in rendered.items():
-                    report_name = self._get_report_attachment_name(
-                        report, records_by_id[res_id], report_format
-                    )
-                    render_results[res_id]["attachments"].append(
-                        (report_name, base64.b64encode(report_content))
-                    )
+                for report in self.report_template_ids:
+                    rendered = self._render_report_per_record(report, res_ids)
+                    for res_id, (report_content, report_format) in rendered.items():
+                        report_name = self._get_report_attachment_name(
+                            report, records_by_id[res_id], report_format
+                        )
+                        contribution[res_id]["attachments"].append(
+                            (report_name, base64.b64encode(report_content))
+                        )
 
         if render_fields & ATTACHMENT_FIELD_NAMES and self._is_thread_model():
             records_attachments = self._get_records(
@@ -574,17 +715,14 @@ class MailTemplate(models.Model):
             for res_id, additional_attachments in records_attachments.items():
                 if not additional_attachments:
                     continue
-                values = render_results.setdefault(res_id, {})
-                if additional_attachments.get("attachment_ids"):
-                    values.setdefault("attachment_ids", []).extend(
-                        additional_attachments["attachment_ids"]
-                    )
-                if additional_attachments.get("attachments"):
-                    values.setdefault("attachments", []).extend(
-                        additional_attachments["attachments"]
-                    )
+                values = contribution.setdefault(res_id, {})
+                for key in ("attachment_ids", "attachments"):
+                    if additional_attachments.get(key):
+                        values.setdefault(key, []).extend(additional_attachments[key])
 
-        return render_results
+        return _merge_render_results(
+            {} if render_results is None else render_results, contribution
+        )
 
     def _get_report_attachment_name(
         self, report: IrActionsReport, record: models.BaseModel, report_format: str
@@ -598,17 +736,18 @@ class MailTemplate(models.Model):
 
     def _prepare_recipient_vals(
         self,
-        res_ids: list[int],
+        res_ids: Collection[int],
         render_fields: Collection[str],
         allow_suggested: bool = False,
         find_or_create_partners: bool = False,
-        render_results: dict | None = None,
-    ) -> dict:
+        render_results: RenderResults | None = None,
+    ) -> RenderResults:
         self.ensure_one()
-        if render_results is None:
-            render_results = {}
         res_ids = list(res_ids)
         render_fields = set(render_fields)
+        contribution: RenderResults = {}
+        partner_to_by_res_id = {}
+        emails_by_res_id: dict[int, dict[str, str]] = {}
 
         if self.use_default_to and self.model:
             if allow_suggested:
@@ -619,123 +758,165 @@ class MailTemplate(models.Model):
                     no_create=not find_or_create_partners,
                 )
                 for res_id, suggested_list in suggested_recipients.items():
-                    pids = [r["partner_id"] for r in suggested_list if r["partner_id"]]
-                    email_to_lst = [
+                    contribution.setdefault(res_id, {})["partner_ids"] = [
+                        r["partner_id"] for r in suggested_list if r["partner_id"]
+                    ]
+                    emails_by_res_id.setdefault(res_id, {})["email_to"] = ", ".join(
                         tools.mail.formataddr((r["name"] or "", r["email"] or ""))
                         for r in suggested_list
                         if not r["partner_id"]
-                    ]
-                    render_results.setdefault(res_id, {})
-                    render_results[res_id]["partner_ids"] = pids
-                    render_results[res_id]["email_to"] = ", ".join(email_to_lst)
+                    )
             else:
                 default_recipients = self._get_records(
                     res_ids
                 )._message_get_default_recipients()
                 for res_id, recipients in default_recipients.items():
-                    render_results.setdefault(res_id, {}).update(recipients)
+                    values = dict(recipients)
+                    partner_to_by_res_id[res_id] = values.pop("partner_to", "")
+                    emails_by_res_id.setdefault(res_id, {}).update(
+                        {
+                            key: values.pop(key)
+                            for key in ("email_to", "email_cc")
+                            if key in values
+                        }
+                    )
+                    if values:
+                        contribution.setdefault(res_id, {}).update(values)
         else:
             for field in RECIPIENT_FIELD_NAMES & render_fields:
                 generated_field_values = self._render_field(field, res_ids)
                 for res_id in res_ids:
-                    render_results.setdefault(res_id, {})[field] = (
-                        generated_field_values[res_id]
-                    )
+                    value = generated_field_values[res_id]
+                    if field == "partner_to":
+                        partner_to_by_res_id[res_id] = value
+                    else:
+                        emails_by_res_id.setdefault(res_id, {})[field] = value
+
+        for res_id in res_ids:
+            incoming = (render_results or {}).get(res_id)
+            if incoming and "partner_to" in incoming:
+                partner_to_by_res_id.setdefault(res_id, incoming.pop("partner_to"))
 
         if find_or_create_partners:
+            records = self._get_records(res_ids)
             records_emails = {}
-            for record in self._get_records(res_ids):
-                record_values = render_results.setdefault(record.id, {})
-                mails = tools.email_split(
-                    record_values.pop("email_to", "")
-                ) + tools.email_split(record_values.pop("email_cc", ""))
-                records_emails[record] = mails
-
-            if self._is_thread_model():
-                finder = self._get_records(res_ids)
-            else:
-                finder = self.env["mail.thread"]
-            records_partners = finder._partner_find_from_emails(records_emails)
-            for res_id, partners in records_partners.items():
-                render_results.setdefault(res_id, {}).setdefault(
+            for record in records:
+                emails = emails_by_res_id.pop(record.id, {})
+                records_emails[record] = tools.email_split(
+                    emails.get("email_to", "")
+                ) + tools.email_split(emails.get("email_cc", ""))
+            for res_id, partners in records._partner_find_from_emails(
+                records_emails
+            ).items():
+                contribution.setdefault(res_id, {}).setdefault(
                     "partner_ids", []
                 ).extend(partners.ids)
 
-        parsed_partner_to = {}
-        for res_id in res_ids:
-            partner_to = render_results.get(res_id, {}).pop("partner_to", "")
-            if partner_to:
-                parsed_partner_to[res_id] = self._parse_partner_to(partner_to)
-        if parsed_partner_to:
-            all_partner_to = set().union(*parsed_partner_to.values())
-            existing_pids = set(
-                self.env["res.partner"].sudo().browse(list(all_partner_to)).exists().ids
-            )
-            for res_id, pids in parsed_partner_to.items():
-                render_results[res_id].setdefault("partner_ids", []).extend(
-                    set(pids) & existing_pids
-                )
+        for res_id, emails in emails_by_res_id.items():
+            contribution.setdefault(res_id, {}).update(emails)
 
-        return render_results
+        self._resolve_partner_to(partner_to_by_res_id, contribution)
+
+        return _merge_render_results(
+            {} if render_results is None else render_results, contribution
+        )
+
+    def _resolve_partner_to(
+        self, partner_to_by_res_id: dict[int, str], contribution: RenderResults
+    ) -> None:
+
+        parsed = {
+            res_id: self._parse_partner_to(partner_to)
+            for res_id, partner_to in partner_to_by_res_id.items()
+            if partner_to
+        }
+        if not parsed:
+            return
+        existing_pids = set(
+            self.env["res.partner"]
+            .sudo()
+            .browse(list(set().union(*(map(set, parsed.values())))))
+            .exists()
+            ._ids
+        )
+        for res_id, pids in parsed.items():
+            contribution.setdefault(res_id, {}).setdefault("partner_ids", []).extend(
+                pid for pid in dict.fromkeys(pids) if pid in existing_pids
+            )
 
     def _prepare_scheduled_date_vals(
-        self, res_ids: list[int], render_results: dict | None = None
-    ) -> dict:
+        self, res_ids: Collection[int], render_results: RenderResults | None = None
+    ) -> RenderResults:
         self.ensure_one()
-        if render_results is None:
-            render_results = {}
-
+        res_ids = list(res_ids)
         scheduled_dates = self._render_field("scheduled_date", res_ids)
-        for res_id in res_ids:
-            scheduled_date = self._process_scheduled_date(scheduled_dates.get(res_id))
-            render_results.setdefault(res_id, {})["scheduled_date"] = scheduled_date
-
-        return render_results
+        contribution = {
+            res_id: {
+                "scheduled_date": self.env["mail.mail"]._normalize_scheduled_date(
+                    scheduled_dates.get(res_id)
+                )
+            }
+            for res_id in res_ids
+        }
+        return _merge_render_results(
+            {} if render_results is None else render_results, contribution
+        )
 
     def _prepare_static_vals(
         self,
-        res_ids: list[int],
+        res_ids: Collection[int],
         render_fields: Collection[str],
-        render_results: dict | None = None,
-    ) -> dict:
+        render_results: RenderResults | None = None,
+    ) -> RenderResults:
         self.ensure_one()
-        if render_results is None:
-            render_results = {}
-
+        render_fields = set(render_fields)
+        static = {
+            "auto_delete": self.auto_delete,
+            "email_layout_xmlid": self.email_layout_xmlid,
+            "mail_server_id": self.mail_server_id.id,
+            "model": self.model,
+        }
+        contribution = {}
         for res_id in res_ids:
-            values = render_results.setdefault(res_id, {})
-
-            if "auto_delete" in render_fields:
-                values["auto_delete"] = self.auto_delete
-            if "email_layout_xmlid" in render_fields:
-                values["email_layout_xmlid"] = self.email_layout_xmlid
-            if "mail_server_id" in render_fields:
-                values["mail_server_id"] = self.mail_server_id.id
-            if "model" in render_fields:
-                values["model"] = self.model
+            values = {
+                fname: value
+                for fname, value in static.items()
+                if fname in render_fields
+            }
             if "res_id" in render_fields:
                 values["res_id"] = res_id or False
-
-        return render_results
+            contribution[res_id] = values
+        return _merge_render_results(
+            {} if render_results is None else render_results, contribution
+        )
 
     def _prepare_mail_vals(
         self,
-        res_ids: list[int],
+        res_ids: Collection[int],
         render_fields: Collection[str],
         recipients_allow_suggested: bool = False,
         find_or_create_partners: bool = False,
-    ) -> dict:
+        res_ids_lang: dict[int, str] | None = None,
+    ) -> RenderResults:
         self.ensure_one()
         self._check_has_model()
+        res_ids = list(res_ids)
         render_fields_set = set(render_fields)
         fields_torender = render_fields_set - TEMPLATE_SPECIFIC_FIELD_NAMES
 
-        render_results = {}
-        for template, template_res_ids in self._classify_per_lang(res_ids).values():
+        render_results: RenderResults = {}
+        for template, template_res_ids in self._classify_per_lang(
+            res_ids, res_ids_lang=res_ids_lang
+        ).values():
             for field in fields_torender:
                 generated_field_values = template._render_field(field, template_res_ids)
-                for res_id, field_value in generated_field_values.items():
-                    render_results.setdefault(res_id, {})[field] = field_value
+                _merge_render_results(
+                    render_results,
+                    {
+                        res_id: {field: field_value}
+                        for res_id, field_value in generated_field_values.items()
+                    },
+                )
 
             if render_fields_set & RECIPIENT_FIELD_NAMES:
                 template._prepare_recipient_vals(
@@ -787,7 +968,10 @@ class MailTemplate(models.Model):
         return self._get_model().browse(res_ids)
 
     def _is_thread_model(self) -> bool:
-        return self.model and isinstance(self.env[self.model], self.pool["mail.thread"])
+        return bool(
+            self.model
+            and isinstance(self.env[self.model], self.pool["mixin.mail.thread"])
+        )
 
     def _check_has_model(self) -> None:
         if not self.model:
@@ -799,7 +983,7 @@ class MailTemplate(models.Model):
                 )
             )
 
-    def _send_check_access(self, res_ids: list[int]) -> None:
+    def _send_check_access(self, res_ids: Collection[int]) -> None:
         self._get_records(res_ids).check_access("read")
 
     def send_mail(
@@ -821,114 +1005,133 @@ class MailTemplate(models.Model):
 
     def send_mail_batch(
         self,
-        res_ids: list[int],
+        res_ids: Collection[int],
         force_send: bool = False,
         raise_exception: bool = False,
         email_values: dict | None = None,
         email_layout_xmlid: str | Literal[False] = False,
     ) -> MailMail:
         self.ensure_one()
+        res_ids = list(dict.fromkeys(res_ids))
         self._send_check_access(res_ids)
-        sending_email_layout_xmlid = email_layout_xmlid or self.email_layout_xmlid
+        layout_xmlid = email_layout_xmlid or self.email_layout_xmlid
 
         mails_sudo = self.env["mail.mail"].sudo()
-        batch_size = self._get_mail_batch_size()
-        RecordModel = self._get_model()
-        record_ir_model = self.env["ir.model"]._get(self.model)
-
+        batch_size = self.env["mail.mail"]._get_send_batch_size()
         for res_ids_chunk in batched(res_ids, batch_size, strict=False):
-            res_ids_values = self._prepare_mail_vals(
-                res_ids_chunk,
-                (
-                    "attachment_ids",
-                    "auto_delete",
-                    "body_html",
-                    "email_cc",
-                    "email_from",
-                    "email_to",
-                    "mail_server_id",
-                    "model",
-                    "partner_to",
-                    "reply_to",
-                    "report_template_ids",
-                    "res_id",
-                    "scheduled_date",
-                    "subject",
-                ),
+            mails_sudo += self._send_chunk(
+                list(res_ids_chunk), layout_xmlid, email_values
             )
-            values_list = [res_ids_values[res_id] for res_id in res_ids_chunk]
-
-            records = RecordModel.browse(res_ids_chunk)
-            attachments_list = []
-
-            res_ids_langs, res_ids_companies = {}, {}
-            if sending_email_layout_xmlid:
-                res_ids_langs = self._render_lang(list(res_ids_chunk))
-                res_ids_companies = records._mail_get_companies(
-                    default=self.env.company
-                )
-
-            for record in records:
-                values = res_ids_values[record.id]
-                values["recipient_ids"] = [
-                    Command.link(pid) for pid in (values.pop("partner_ids", None) or [])
-                ]
-                values["attachment_ids"] = [
-                    Command.link(aid) for aid in (values.get("attachment_ids") or [])
-                ]
-                values.update(email_values or {})
-
-                attachments_list.append(values.pop("attachments", []))
-
-                if "email_from" in values and not values.get("email_from"):
-                    values.pop("email_from")
-
-                if not sending_email_layout_xmlid:
-                    values["body"] = values["body_html"]
-                    continue
-
-                lang = res_ids_langs.get(record.id) or self.env.lang
-                company = res_ids_companies.get(record.id) or self.env.company
-                model_lang = record_ir_model.with_context(lang=lang)
-                self_lang = self.with_context(lang=lang)
-                record_lang = record.with_context(lang=lang)
-
-                values["body_html"] = self_lang._render_encapsulate(
-                    sending_email_layout_xmlid,
-                    values["body_html"],
-                    add_context={
-                        "company": company,
-                        "model_description": model_lang.display_name,
-                    },
-                    context_record=record_lang,
-                )
-                values["body"] = values["body_html"]
-
-            mails = self.env["mail.mail"].sudo().create(values_list)
-
-            for mail, attachments in zip(mails, attachments_list, strict=True):
-                if attachments:
-                    attachments_values = [
-                        Command.create(
-                            {
-                                "name": name,
-                                "datas": datas,
-                                "type": "binary",
-                                "res_model": "mail.message",
-                                "res_id": mail.mail_message_id.id,
-                            }
-                        )
-                        for (name, datas) in attachments
-                    ]
-                    mail.with_context(default_type=None).write(
-                        {"attachment_ids": attachments_values}
-                    )
-
-            mails_sudo += mails
 
         if force_send:
             mails_sudo.send(raise_exception=raise_exception)
         return mails_sudo
+
+    def _send_chunk(
+        self,
+        res_ids: list[int],
+        layout_xmlid: str | Literal[False],
+        email_values: dict | None,
+    ) -> MailMail:
+        self.ensure_one()
+        res_ids_lang = self._get_res_ids_lang(res_ids)
+        values_by_res_id = self._prepare_mail_vals(
+            res_ids, SEND_RENDER_FIELDS, res_ids_lang=res_ids_lang
+        )
+        records = self._get_model().browse(res_ids).with_prefetch(res_ids)
+        values_list = [values_by_res_id[res_id] for res_id in res_ids]
+        attachments_list = [values.pop("attachments", []) for values in values_list]
+
+        res_ids_companies = (
+            records._mail_get_companies(default=self.env.company)
+            if layout_xmlid
+            else {}
+        )
+        for record, values in zip(records, values_list, strict=True):
+            self._finalize_mail_vals(
+                values,
+                record,
+                layout_xmlid,
+                res_ids_lang.get(record.id),
+                res_ids_companies.get(record.id),
+                email_values,
+            )
+
+        mails = self.env["mail.mail"].sudo().create(values_list)
+        self._attach_rendered_reports(mails, attachments_list)
+        return mails
+
+    def _finalize_mail_vals(
+        self,
+        values: dict[str, Any],
+        record: models.BaseModel,
+        layout_xmlid: str | Literal[False],
+        lang: str | Literal[False] | None,
+        company: models.BaseModel | None,
+        email_values: dict | None,
+    ) -> None:
+        self.ensure_one()
+        values["recipient_ids"] = [
+            Command.link(pid) for pid in (values.get("partner_ids") or [])
+        ]
+        values["attachment_ids"] = [
+            Command.link(aid) for aid in (values.get("attachment_ids") or [])
+        ]
+        values.update(email_values or {})
+
+        if "email_from" in values and not values.get("email_from"):
+            values.pop("email_from")
+
+        if layout_xmlid:
+            lang = lang or self.env.lang
+            values["body_html"] = self.with_context(lang=lang)._render_encapsulate(
+                layout_xmlid,
+                values.get("body_html", ""),
+                add_context={
+                    "company": company or self.env.company,
+                    "model_description": self.env["ir.model"]
+                    ._get(self.model)
+                    .with_context(lang=lang)
+                    .display_name,
+                },
+                context_record=record.with_context(lang=lang),
+            )
+        values.setdefault("body", values.get("body_html", ""))
+
+    def _attach_rendered_reports(
+        self, mails: MailMail, attachments_list: list[list[tuple[str, bytes]]]
+    ) -> None:
+
+        attachment_vals, owners = [], []
+        for mail, attachments in zip(mails, attachments_list, strict=True):
+            for name, datas in attachments:
+                attachment_vals.append(
+                    {
+                        "name": name,
+                        "datas": datas,
+                        "type": "binary",
+                        "res_model": "mail.message",
+                        "res_id": mail.mail_message_id.id,
+                    }
+                )
+                owners.append(mail)
+        if not attachment_vals:
+            return
+
+        created = (
+            self.env["ir.attachment"]
+            .sudo()
+            .with_context(default_type=None)
+            .create(attachment_vals)
+        )
+        commands_per_mail: dict[int, list] = {}
+        for mail, attachment in zip(owners, created, strict=True):
+            commands_per_mail.setdefault(mail.id, []).append(
+                Command.link(attachment.id)
+            )
+        for mail in mails:
+            if commands := commands_per_mail.get(mail.id):
+                mail.with_context(default_type=None).write({"attachment_ids": commands})
 
     def _has_unsafe_expression_template_qweb(
         self, template_src: str, model: str, fname: str | None = None
@@ -957,5 +1160,7 @@ class MailTemplate(models.Model):
 
     @api.model
     def _get_model_template_defaults(self, model: str) -> dict:
+        if model not in self.env:
+            return {}
         defaults = getattr(self.env[model], "_mail_template_default_values", None)
         return (defaults and defaults()) or {}

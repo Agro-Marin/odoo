@@ -12,8 +12,8 @@ from odoo.tools.misc import file_path
 from odoo.tools.translate import TranslationImporter, get_po_paths
 
 
-class TemplateResetMixin(models.AbstractModel):
-    _name = "template.reset.mixin"
+class MixinTemplateReset(models.AbstractModel):
+    _name = "mixin.template.reset"
     _description = "Template Reset Mixin"
 
     template_fs = fields.Char(

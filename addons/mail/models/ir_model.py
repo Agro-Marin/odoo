@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
@@ -117,12 +117,12 @@ class IrModel(models.Model):
             res = super().write(vals)
         return res
 
-    def _reflect_model_params(self, model: models.Model) -> dict:
+    def _reflect_model_params(self, model: models.BaseModel) -> dict[str, Any]:
         vals = super()._reflect_model_params(model)
-        vals["is_mail_thread"] = isinstance(model, self.pool["mail.thread"])
-        vals["is_mail_activity"] = isinstance(model, self.pool["mail.activity.mixin"])
+        vals["is_mail_thread"] = isinstance(model, self.pool["mixin.mail.thread"])
+        vals["is_mail_activity"] = isinstance(model, self.pool["mixin.mail.activity"])
         vals["is_mail_blacklist"] = isinstance(
-            model, self.pool["mail.thread.blacklist"]
+            model, self.pool["mixin.mail.thread.blacklist"]
         )
         return vals
 
@@ -131,24 +131,24 @@ class IrModel(models.Model):
         attrs = super()._instantiate_attrs(model_data)
         if (
             model_data.get("is_mail_blacklist")
-            and attrs["_name"] != "mail.thread.blacklist"
+            and attrs["_name"] != "mixin.mail.thread.blacklist"
         ):
             parents = attrs.get("_inherit") or []
             parents = [parents] if isinstance(parents, str) else parents
-            attrs["_inherit"] = parents + ["mail.thread.blacklist"]
+            attrs["_inherit"] = parents + ["mixin.mail.thread.blacklist"]
             if attrs["_custom"]:
                 attrs["_primary_email"] = "x_email"
-        elif model_data.get("is_mail_thread") and attrs["_name"] != "mail.thread":
+        elif model_data.get("is_mail_thread") and attrs["_name"] != "mixin.mail.thread":
             parents = attrs.get("_inherit") or []
             parents = [parents] if isinstance(parents, str) else parents
-            attrs["_inherit"] = parents + ["mail.thread"]
+            attrs["_inherit"] = parents + ["mixin.mail.thread"]
         if (
             model_data.get("is_mail_activity")
-            and attrs["_name"] != "mail.activity.mixin"
+            and attrs["_name"] != "mixin.mail.activity"
         ):
             parents = attrs.get("_inherit") or []
             parents = [parents] if isinstance(parents, str) else parents
-            attrs["_inherit"] = parents + ["mail.activity.mixin"]
+            attrs["_inherit"] = parents + ["mixin.mail.activity"]
         return attrs
 
     def _get_definitions(self, model_names: list[str]) -> dict:
@@ -156,13 +156,15 @@ class IrModel(models.Model):
         for model_name, model_definition in model_definitions.items():
             model = self.env[model_name]
             tracked_field_names = (
-                model._track_get_fields() if "mail.thread" in model._inherit else []
+                model._track_get_fields()
+                if "mixin.mail.thread" in model._inherit
+                else []
             )
             for fname in tracked_field_names:
                 if fname in model_definition["fields"]:
                     model_definition["fields"][fname]["tracking"] = True
             if isinstance(
-                self.env[model_name], self.env.registry["mail.activity.mixin"]
+                self.env[model_name], self.env.registry["mixin.mail.activity"]
             ):
                 model_definition["has_activities"] = True
         return model_definitions
@@ -172,13 +174,15 @@ class IrModel(models.Model):
         for model_name, model_definition in model_definitions.items():
             model = self.env[model_name]
             tracked_field_names = (
-                model._track_get_fields() if "mail.thread" in model._inherit else []
+                model._track_get_fields()
+                if "mixin.mail.thread" in model._inherit
+                else []
             )
             for fname, field in model_definition["fields"].items():
                 if fname in tracked_field_names:
                     field["tracking"] = True
             if isinstance(
-                self.env[model_name], self.env.registry["mail.activity.mixin"]
+                self.env[model_name], self.env.registry["mixin.mail.activity"]
             ):
                 model_definition["has_activities"] = True
         return model_definitions

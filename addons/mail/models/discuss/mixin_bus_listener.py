@@ -3,8 +3,8 @@ from markupsafe import Markup
 from odoo import models
 
 
-class BusListenerMixin(models.AbstractModel):
-    _inherit = "bus.listener.mixin"
+class MixinBusListener(models.AbstractModel):
+    _inherit = "mixin.bus.listener"
 
     def _bus_send_transient_message(self, channel: models.Model, content: str) -> None:
         self._bus_send(

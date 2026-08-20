@@ -42,7 +42,7 @@ class MailMessageSchedule(models.Model):
 
     @api.model
     def _send_notifications_cron(self) -> None:
-        batch_size = self.env["ir.config_parameter"]._get_int_param(
+        batch_size = self.env["ir.config_parameter"]._get_positive_int_param(
             "mail.scheduled_notification.batch.size", 500
         )
         messages_scheduled = self.env["mail.message.schedule"].search(
@@ -107,7 +107,7 @@ class MailMessageSchedule(models.Model):
                     if record.id not in existing_ids:
                         continue
                 else:
-                    record = self.env["mail.thread"]
+                    record = self.env["mixin.mail.thread"]
                 notify_kwargs = dict(default_notify_kwargs or {}, skip_existing=True)
                 try:
                     schedule_notify_kwargs = (

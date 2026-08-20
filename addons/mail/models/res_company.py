@@ -9,33 +9,51 @@ if typing.TYPE_CHECKING:
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    def _default_alias_domain_id(self) -> MailAliasDomain:
-        return self.env["mail.alias.domain"]._get_default_domain()
-
     alias_domain_id: MailAliasDomain = fields.Many2one(
         "mail.alias.domain",
         string="Email Domain",
         index="btree_not_null",
         default=lambda self: self._default_alias_domain_id(),
     )
-    bounce_email = fields.Char(string="Bounce Email", compute="_compute_bounce")
-    bounce_formatted = fields.Char(string="Bounce", compute="_compute_bounce")
-    catchall_email = fields.Char(string="Catchall Email", compute="_compute_catchall")
-    catchall_formatted = fields.Char(string="Catchall", compute="_compute_catchall")
+    bounce_email = fields.Char(
+        string="Bounce Email",
+        compute="_compute_bounce",
+    )
+    bounce_formatted = fields.Char(
+        string="Bounce",
+        compute="_compute_bounce",
+    )
+    catchall_email = fields.Char(
+        string="Catchall Email",
+        compute="_compute_catchall",
+    )
+    catchall_formatted = fields.Char(
+        string="Catchall",
+        compute="_compute_catchall",
+    )
     default_from_email = fields.Char(
         string="Default From",
         related="alias_domain_id.default_from_email",
         readonly=True,
     )
     email_formatted = fields.Char(
-        string="Formatted Email", compute="_compute_email_formatted", compute_sudo=True
+        string="Formatted Email",
+        compute="_compute_email_formatted",
+        compute_sudo=True,
     )
     email_primary_color = fields.Char(
-        "Email Button Text", default="#FFFFFF", readonly=False
+        "Email Button Text",
+        default="#FFFFFF",
+        readonly=False,
     )
     email_secondary_color = fields.Char(
-        "Email Button Color", default="#875A7B", readonly=False
+        "Email Button Color",
+        default="#875A7B",
+        readonly=False,
     )
+
+    def _default_alias_domain_id(self) -> MailAliasDomain:
+        return self.env["mail.alias.domain"]._get_default_domain()
 
     @api.depends("alias_domain_id.bounce_email", "name")
     def _compute_bounce(self) -> None:

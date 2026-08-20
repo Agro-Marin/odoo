@@ -2,14 +2,15 @@ import typing
 from typing import Literal, Self
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 
 if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.base import SuggestionSources
 
 
-class MailThreadCc(models.AbstractModel):
-    _name = "mail.thread.cc"
-    _inherit = ["mail.thread"]
+class MixinMailThreadCc(models.AbstractModel):
+    _name = "mixin.mail.thread.cc"
+    _inherit = ["mixin.mail.thread"]
     _description = "Email CC management"
 
     email_cc = fields.Char("Email cc")
@@ -37,7 +38,9 @@ class MailThreadCc(models.AbstractModel):
         cc_values.update(custom_values)
         return super().message_new(msg_dict, cc_values)
 
-    def message_update(self, msg_dict: dict, update_vals: dict | None = None) -> bool:
+    def message_update(
+        self, msg_dict: dict, update_vals: ValuesType | None = None
+    ) -> bool:
         if update_vals is None:
             update_vals = {}
         cc_values = {}

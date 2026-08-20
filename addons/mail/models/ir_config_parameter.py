@@ -1,8 +1,11 @@
+import logging
 from collections import defaultdict
 from typing import Any, Literal, Self
 
 from odoo import api, models
 from odoo.api import ValuesType
+
+_logger = logging.getLogger(__name__)
 
 
 class IrConfig_Parameter(models.Model):
@@ -11,6 +14,21 @@ class IrConfig_Parameter(models.Model):
     @api.model
     def _get_int_param(self, key: str, default: int) -> int:
         return self.sudo().get_param_int(key, default)
+
+    @api.model
+    def _get_positive_int_param(self, key: str, default: int) -> int:
+        value = self._get_int_param(key, default)
+        if value < 1:
+            if value != 0:
+                _logger.warning(
+                    "Ignoring %s = %s: a count below one has no meaning here, "
+                    "falling back to %s",
+                    key,
+                    value,
+                    default,
+                )
+            return default
+        return value
 
     @api.model
     def _get_bool_param(self, key: str, default: bool = False) -> bool:
@@ -29,7 +47,7 @@ class IrConfig_Parameter(models.Model):
                 group_user._remove_group(group_mail_template_editor)
         elif key == "mail.catchall.domain.allowed":
             value = (
-                self.env["mail.alias"]._sanitize_allowed_domains(value)
+                self.env["mail.alias.domain"]._sanitize_allowed_domains(value)
                 if value
                 else False
             )
@@ -38,7 +56,7 @@ class IrConfig_Parameter(models.Model):
 
     def _sanitize_param_value(self, key: str, value: Any) -> str:
         if key == "mail.catchall.domain.allowed" and value:
-            return self.env["mail.alias"]._sanitize_allowed_domains(value)
+            return self.env["mail.alias.domain"]._sanitize_allowed_domains(value)
         return value
 
     @api.model_create_multi

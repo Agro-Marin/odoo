@@ -10,6 +10,7 @@ from odoo.models import GC_UNLINK_LIMIT
 from odoo.tools.translate import _
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+from odoo.addons.mail.tools.failure_type import DELIVERY_FAILURE_TYPES
 
 if typing.TYPE_CHECKING:
     from .mail_mail import MailMail
@@ -67,19 +68,7 @@ class MailNotification(models.Model):
     is_read = fields.Boolean("Is Read", index=True)
     read_date = fields.Datetime("Read Date", copy=False)
     failure_type = fields.Selection(
-        selection=[
-            ("unknown", "Unknown error"),
-            ("mail_bounce", "Bounce"),
-            ("mail_spam", "Detected As Spam"),
-            ("mail_email_invalid", "Invalid email address"),
-            ("mail_email_missing", "Missing email address"),
-            ("mail_from_invalid", "Invalid from address"),
-            ("mail_from_missing", "Missing from address"),
-            ("mail_smtp", "Connection failed (outgoing mail server problem)"),
-            ("mail_bl", "Blacklisted Address"),
-            ("mail_optout", "Opted Out"),
-            ("mail_dup", "Duplicated Email"),
-        ],
+        selection=DELIVERY_FAILURE_TYPES,
         string="Failure type",
     )
     failure_reason = fields.Text("Failure reason", copy=False)

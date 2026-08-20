@@ -8,7 +8,7 @@ from . import discuss_gif_favorite
 from . import discuss_voice_metadata
 from . import mail_guest
 
-from . import bus_listener_mixin
+from . import mixin_bus_listener
 from . import ir_attachment
 from . import ir_websocket
 from . import res_groups

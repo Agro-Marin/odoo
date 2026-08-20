@@ -16,7 +16,9 @@ class ResRole(models.Model):
 
     name = fields.Char(required=True)
     user_ids: ResUsers = fields.Many2many(
-        "res.users", relation="res_role_res_users_rel", string="Users"
+        "res.users",
+        relation="res_role_res_users_rel",
+        string="Users",
     )
 
     _unique_name = models.UniqueIndex(

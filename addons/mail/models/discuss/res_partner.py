@@ -25,13 +25,16 @@ class ResPartner(models.Model):
         copy=False,
     )
     channel_member_ids: DiscussChannelMember = fields.One2many(
-        "discuss.channel.member", "partner_id"
+        "discuss.channel.member",
+        "partner_id",
     )
     is_in_call = fields.Boolean(
-        compute="_compute_is_in_call", groups="base.group_system"
+        compute="_compute_is_in_call",
+        groups="base.group_system",
     )
     rtc_session_ids: DiscussChannelRtcSession = fields.One2many(
-        "discuss.channel.rtc.session", "partner_id"
+        "discuss.channel.rtc.session",
+        "partner_id",
     )
 
     @api.depends("rtc_session_ids")

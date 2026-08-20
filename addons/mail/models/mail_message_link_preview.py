@@ -12,7 +12,7 @@ if typing.TYPE_CHECKING:
 
 class MessageMailLinkPreview(models.Model):
     _name = "mail.message.link.preview"
-    _inherit = ["bus.listener.mixin"]
+    _inherit = ["mixin.bus.listener"]
     _description = "Link between link previews and messages"
     _order = "sequence, id"
 

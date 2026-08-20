@@ -14,52 +14,42 @@ class ResUsers(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         users = super().create(vals_list)
-        self.env["discuss.channel"].search(
-            [("group_ids", "in", users.all_group_ids.ids)]
-        )._subscribe_users_automatically()
+        users._subscribe_to_group_restricted_channels()
         return users
 
     def write(self, vals: ValuesType) -> Literal[True]:
         res = super().write(vals)
         if "active" in vals and not vals["active"]:
             self._unsubscribe_from_non_public_channels()
-        if vals.get("group_ids"):
-            user_group_ids = [
-                command[1] for command in vals["group_ids"] if command[0] == 4
-            ]
-            user_group_ids += [
-                id
-                for command in vals["group_ids"]
-                if command[0] == 6
-                for id in command[2]
-            ]
-            user_group_ids += (
-                self.env["res.groups"].browse(user_group_ids).all_implied_ids._ids
-            )
-            self.env["discuss.channel"].search(
-                [("group_ids", "in", user_group_ids)]
-            )._subscribe_users_automatically()
+        if "group_ids" in vals:
+            self._subscribe_to_group_restricted_channels()
         return res
 
     def unlink(self) -> Literal[True]:
         self._unsubscribe_from_non_public_channels()
         return super().unlink()
 
+    def _subscribe_to_group_restricted_channels(self) -> None:
+        if not self.all_group_ids:
+            return
+        self.env["discuss.channel"].search(
+            [("group_ids", "in", self.all_group_ids.ids)]
+        )._subscribe_users_automatically()
+
     def _unsubscribe_from_non_public_channels(self) -> None:
-        domain = [("partner_id", "in", self.partner_id.ids)]
-        current_cm = self.env["discuss.channel.member"].sudo().search(domain)
-        current_cm.filtered(
-            lambda cm: (
-                cm.channel_id.channel_type == "channel"
-                and cm.channel_id.group_public_id
-            )
+        self.env["discuss.channel.member"].sudo().search(
+            [
+                ("partner_id", "in", self.partner_id.ids),
+                ("channel_id.channel_type", "=", "channel"),
+                ("channel_id.group_public_id", "!=", False),
+            ]
         ).unlink()
 
     def _init_messaging(self, store: Store) -> None:
-        self = self.with_user(self)
-        channels = self.env["discuss.channel"]._get_channels_as_member()
+        user = self.with_user(self)
+        channels = user.env["discuss.channel"]._get_channels_as_member()
         domain = [("channel_id", "in", channels.ids), ("is_self", "=", True)]
-        members = self.env["discuss.channel.member"].search(domain)
+        members = user.env["discuss.channel.member"].search(domain)
         members_with_unread = members.filtered(
             lambda member: member.message_unread_counter
         )

@@ -1,7 +1,7 @@
 import logging
 import typing
 from collections.abc import Collection
-from typing import Any, Literal, Self
+from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
@@ -13,8 +13,8 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-class MailAliasMixinOptional(models.AbstractModel):
-    _name = "mail.alias.mixin.optional"
+class MixinMailAliasMixinOptional(models.AbstractModel):
+    _name = "mixin.mail.alias.optional"
     _description = "Email Aliases Mixin (light)"
     ALIAS_WRITEABLE_FIELDS = [
         "alias_domain_id",
@@ -36,18 +36,7 @@ class MailAliasMixinOptional(models.AbstractModel):
     )
     alias_domain = fields.Char("Alias Domain Name", related="alias_id.alias_domain")
     alias_defaults = fields.Text(related="alias_id.alias_defaults")
-    alias_email = fields.Char(
-        "Email Alias", compute="_compute_alias_email", search="_search_alias_email"
-    )
-
-    @api.depends("alias_domain", "alias_name")
-    def _compute_alias_email(self) -> None:
-        self.alias_email = False
-        for record in self.filtered(lambda rec: rec.alias_name and rec.alias_domain):
-            record.alias_email = f"{record.alias_name}@{record.alias_domain}"
-
-    def _search_alias_email(self, operator: str, operand: Any) -> list:
-        return [("alias_id.alias_full_name", operator, operand)]
+    alias_email = fields.Char("Email Alias", related="alias_id.alias_full_name")
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -66,11 +55,8 @@ class MailAliasMixinOptional(models.AbstractModel):
             company_prefetch_ids = {company_id_default}
 
         alias_vals_list, record_vals_list = [], []
-        for vals in vals_list:
-            if vals.get("alias_name"):
-                vals["alias_name"] = self.env["mail.alias"]._sanitize_alias_name(
-                    vals["alias_name"]
-                )
+        overrides_by_index = {}
+        for index, vals in enumerate(vals_list):
             if self._require_new_alias(vals):
                 company_id = vals.get(company_fname) or company_id_default
                 company = (
@@ -79,7 +65,7 @@ class MailAliasMixinOptional(models.AbstractModel):
                     .browse(company_id)
                 )
                 alias_vals, record_vals = self._alias_filter_fields(vals)
-                alias_vals.update(
+                creation_vals = (
                     self.env[self._name]
                     .with_context(
                         default_alias_domain_id=alias_vals.get(
@@ -88,8 +74,14 @@ class MailAliasMixinOptional(models.AbstractModel):
                     )
                     ._alias_get_creation_values()
                 )
-                alias_vals_list.append(alias_vals)
+                overrides = {
+                    fname: value
+                    for fname, value in alias_vals.items()
+                    if fname in creation_vals
+                }
+                alias_vals_list.append({**creation_vals, **alias_vals})
                 record_vals_list.append(record_vals)
+                overrides_by_index[index] = overrides
 
         alias_ids = []
         if alias_vals_list:
@@ -107,9 +99,18 @@ class MailAliasMixinOptional(models.AbstractModel):
 
         records = super().create(valid_vals_list)
 
-        records_walias = records.filtered("alias_id")
-        for record in records_walias:
+        for index, record in enumerate(records):
+            if not record.alias_id:
+                continue
             alias_values = record._alias_get_creation_values()
+            overrides = overrides_by_index.get(index, {})
+            alias_values.update(
+                {
+                    fname: value
+                    for fname, value in overrides.items()
+                    if fname in alias_values
+                }
+            )
             record.alias_id.sudo().write(alias_values)
 
         return records
@@ -117,12 +118,7 @@ class MailAliasMixinOptional(models.AbstractModel):
     def write(self, vals: ValuesType) -> Literal[True]:
         if vals.get("alias_name"):
             alias_create_values = [
-                dict(
-                    record._alias_get_creation_values(),
-                    alias_name=self.env["mail.alias"]._sanitize_alias_name(
-                        vals["alias_name"]
-                    ),
-                )
+                dict(record._alias_get_creation_values(), alias_name=vals["alias_name"])
                 for record in self.filtered(lambda rec: not rec.alias_id)
             ]
             if alias_create_values:
@@ -181,6 +177,12 @@ class MailAliasMixinOptional(models.AbstractModel):
                 or self.env.company.alias_domain_id
             )
         return alias_domain_values
+
+    def _get_alias_defaults(self) -> dict:
+        if not self:
+            return {}
+        self.ensure_one()
+        return self.alias_id._get_alias_defaults() if self.alias_id else {}
 
     def _alias_get_creation_values(self) -> dict:
         values = {

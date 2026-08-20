@@ -13,6 +13,20 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.res_currency import ResCurrency
 
 
+def _tracking_sort_key(
+    tracking: MailTrackingValue, fields_sequence_map: dict[str, int]
+) -> tuple:
+    field_info = tracking.field_info or {}
+    field_name = tracking.field_id.name or field_info.get("name", "unknown")
+    return (
+        fields_sequence_map.get(field_name, 100),
+        tracking.field_id.ttype == "properties",
+        field_name,
+        field_info.get("definition_index", 0),
+        -tracking.id,
+    )
+
+
 class MailTrackingValue(models.Model):
     _name = "mail.tracking.value"
     _description = "Mail Tracking Value"
@@ -220,6 +234,7 @@ class MailTrackingValue(models.Model):
         col_name: str,
         col_info: dict,
         record: models.Model,
+        definition_index: int = 0,
     ) -> dict:
         property_col_info = col_info | {
             "type": initial_value["type"],
@@ -229,6 +244,7 @@ class MailTrackingValue(models.Model):
             property_col_info["currency_field"] = initial_value.get("currency_field")
 
         field_info = {
+            "definition_index": definition_index,
             "desc": f"{property_col_info['string']}: {initial_value['string']}",
             "name": col_name,
             "type": initial_value["type"],
@@ -261,10 +277,8 @@ class MailTrackingValue(models.Model):
             tracked_fields = TrackedModel.fields_get(
                 self.field_id.mapped("name"), attributes={"digits", "string", "type"}
             )
-            model_sequence_info = (
-                dict(TrackedModel._mail_track_order_fields(tracked_fields))
-                if model
-                else {}
+            model_sequence_info = TrackedModel._mail_track_field_sequences(
+                tracked_fields
             )
         else:
             tracked_fields, model_sequence_info = {}, {}
@@ -290,17 +304,6 @@ class MailTrackingValue(models.Model):
             for tracking in self
         )
 
-        def sort_tracking_info(tracking_info_tuple: tuple) -> tuple:
-            tracking = tracking_info_tuple[0]
-            field_name = tracking.field_id.name or (
-                tracking.field_info["name"] if tracking.field_info else "unknown"
-            )
-            return (
-                fields_sequence_map.get(field_name, 100),
-                tracking.field_id.ttype == "properties",
-                field_name,
-            )
-
         return [
             {
                 "id": tracking.id,
@@ -319,7 +322,8 @@ class MailTrackingValue(models.Model):
                 ],
             }
             for tracking, col_info in sorted(
-                zip(self, fields_col_info, strict=False), key=sort_tracking_info
+                zip(self, fields_col_info, strict=False),
+                key=lambda pair: _tracking_sort_key(pair[0], fields_sequence_map),
             )
         ]
 

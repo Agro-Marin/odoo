@@ -12,20 +12,19 @@ from typing import Any, Literal, Self
 from lxml import html
 from psycopg import IntegrityError
 
-from odoo import _, api, fields, models, modules, tools
+from odoo import _, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
-from odoo.exceptions import AccessError, MissingError
+from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.fields import Command, Domain
-from odoo.tools import SQL, clean_context, groupby
+from odoo.tools import SQL, clean_context
 from odoo.tools.misc import OrderedSet
 
-from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
+from odoo.addons.mail.tools.discuss import Store
 
 if typing.TYPE_CHECKING:
     from .discuss.mail_guest import MailGuest
     from .mail_activity_type import MailActivityType
     from .mail_alias_domain import MailAliasDomain
-    from .mail_followers import MailFollowers
     from .mail_mail import MailMail
     from .mail_message_link_preview import MessageMailLinkPreview
     from .mail_message_reaction import MailMessageReaction
@@ -44,16 +43,13 @@ _image_dataurl = re.compile(
 )
 
 
-MESSAGE_FETCH_LIMIT_MAX = 100
-MESSAGE_FETCH_LIMIT_DEFAULT = 30
-MESSAGE_FETCH_PARAMS = frozenset(
-    {"search_term", "is_notification", "before", "after", "around", "limit"}
-)
+PREVIEW_LENGTH = 190
+PREVIEW_PLACEHOLDER = "[...]"
 
 
 class MailMessage(models.Model):
     _name = "mail.message"
-    _inherit = ["bus.listener.mixin"]
+    _inherit = ["mixin.bus.listener"]
     _description = "Message"
     _order = "id desc"
     _rec_name = "subject"
@@ -63,17 +59,28 @@ class MailMessage(models.Model):
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:
         res = super().default_get(fields)
-        missing_author = "author_id" in fields and "author_id" not in res
-        missing_email_from = "email_from" in fields and "email_from" not in res
-        if missing_author or missing_email_from:
-            author_id, email_from = self.env["mail.thread"]._message_compute_author(
-                res.get("author_id"), res.get("email_from")
-            )
-            if missing_email_from:
-                res["email_from"] = email_from
-            if missing_author:
-                res["author_id"] = author_id
+        self._update_author(
+            res,
+            author="author_id" in fields,
+            email_from="email_from" in fields,
+        )
         return res
+
+    @api.model
+    def _update_author(
+        self, values: ValuesType, *, author: bool = True, email_from: bool = True
+    ) -> None:
+        wants_author = author and "author_id" not in values
+        wants_email_from = email_from and "email_from" not in values
+        if not (wants_author or wants_email_from):
+            return
+        author_id, computed_email_from = self.env[
+            "mixin.mail.thread"
+        ]._message_compute_author(values.get("author_id"), values.get("email_from"))
+        if wants_email_from:
+            values["email_from"] = computed_email_from
+        if wants_author:
+            values["author_id"] = author_id
 
     subject = fields.Char("Subject")
     date = fields.Datetime("Date", default=fields.Datetime.now)
@@ -253,12 +260,24 @@ class MailMessage(models.Model):
     def _compute_preview(self) -> None:
         for message in self:
             plaintext_ct = tools.mail.html_to_inner_content(message.body)
-            message.preview = textwrap.shorten(plaintext_ct, 190)
+            message.preview = self._shorten_preview(plaintext_ct)
 
-    def _get_linked_messages(self) -> tuple[dict[int, Self], Self]:
+    @api.model
+    def _shorten_preview(self, text: str) -> str:
+        collapsed = " ".join(text.split())
+        if len(collapsed) <= PREVIEW_LENGTH:
+            return collapsed
+        shortened = textwrap.shorten(collapsed, PREVIEW_LENGTH)
+        if shortened != PREVIEW_PLACEHOLDER:
+            return shortened
+        return (
+            collapsed[: PREVIEW_LENGTH - len(PREVIEW_PLACEHOLDER)] + PREVIEW_PLACEHOLDER
+        )
+
+    def _get_linked_message_ids(self) -> dict[int, list[int]]:
         ids_by_message = defaultdict(list)
         for message in self:
-            if tools.is_html_empty(message.body):
+            if not message.body or "o_message_redirect" not in message.body:
                 continue
             str_ids = html.fromstring(message.body).xpath(
                 "//a[contains(@class, 'o_message_redirect') and @data-oe-model='mail.message']/@data-oe-id",
@@ -266,6 +285,10 @@ class MailMessage(models.Model):
             for str_id in str_ids:
                 with contextlib.suppress(ValueError, TypeError):
                     ids_by_message[message.id].append(int(str_id))
+        return ids_by_message
+
+    def _get_linked_messages(self) -> tuple[dict[int, Self], Self]:
+        ids_by_message = self._get_linked_message_ids()
         mids = {mid for mids in ids_by_message.values() for mid in mids}
         if not mids:
             return {}, self.browse()
@@ -316,7 +339,7 @@ class MailMessage(models.Model):
         for message in self:
             message.needaction = message.id in flagged
 
-    def _get_message_ids_with_notification(self, domain) -> set[int]:
+    def _get_message_ids_with_notification(self, domain: DomainType) -> set[int]:
         return set(
             self.env["mail.notification"]
             .sudo()
@@ -387,12 +410,14 @@ class MailMessage(models.Model):
     @api.model
     def _is_thread_model_name(self, model_name: str) -> bool:
         return bool(model_name) and isinstance(
-            self.env.get(model_name), self.pool["mail.thread"]
+            self.env.get(model_name), self.pool["mixin.mail.thread"]
         )
 
     def _get_thread_model(self) -> models.Model:
         self.ensure_one()
-        return self.env[self.sudo().model if self._is_thread_model() else "mail.thread"]
+        return self.env[
+            self.sudo().model if self._is_thread_model() else "mixin.mail.thread"
+        ]
 
     @api.model
     def _get_with_access(self, message_id: int, mode: str = "read", **kwargs) -> Self:
@@ -402,7 +427,7 @@ class MailMessage(models.Model):
 
         allowed_params = message._get_thread_model()._get_allowed_access_params()
         if invalid := (set(kwargs) - allowed_params):
-            _logger.warning("Invalid parameters to _get_with_access: %s", invalid)
+            _logger.debug("Ignoring parameters to _get_with_access: %s", invalid)
             kwargs = {
                 key: value for key, value in kwargs.items() if key in allowed_params
             }
@@ -443,12 +468,7 @@ class MailMessage(models.Model):
                 }
             )
 
-        for values in vals_list:
-            if "email_from" not in values:
-                _author_id, email_from = self.env[
-                    "mail.thread"
-                ]._message_compute_author(values.get("author_id"), email_from=None)
-                values["email_from"] = email_from
+        self._update_email_from(vals_list)
 
         reply_tos = self._get_reply_to_batch(vals_list)
         tracking_values_list = []
@@ -460,22 +480,65 @@ class MailMessage(models.Model):
             if not values.get("attachment_ids", True):
                 del values["attachment_ids"]
             if "body" in values:
-                values["body"] = self._extract_body_attachments(values)
+                values["body"], inline_commands = self._extract_body_attachments(
+                    values, *self._resolve_thread_target(values)
+                )
+                if inline_commands:
+                    values["attachment_ids"] = [
+                        *values.get("attachment_ids", ()),
+                        *inline_commands,
+                    ]
             tracking_values_list.append(values.pop("tracking_value_ids", False))
 
         messages = super().create(vals_list)
 
         self._check_created_attachments_access(messages, vals_list)
 
+        commands_per_message = {}
+        visible = self.browse()
         for message, values, tracking_values_cmd in zip(
             messages, vals_list, tracking_values_list, strict=True
         ):
             if tracking_values_cmd:
-                message._create_tracking_values(tracking_values_cmd)
+                commands_per_message[message] = tracking_values_cmd
             if message._is_thread_message_visible(vals=values):
-                message._invalidate_documents(values.get("model"), values.get("res_id"))
+                visible |= message
+        visible._invalidate_documents()
+        if commands_per_message:
+            self._create_tracking_values(commands_per_message)
 
         return messages
+
+    def _update_email_from(self, vals_list: list[ValuesType]) -> None:
+        pending = [values for values in vals_list if "email_from" not in values]
+        if not pending:
+            return
+        self._prefetch_authors(pending, "email_formatted")
+        for values in pending:
+            self._update_author(values, author=False)
+
+    def _prefetch_authors(self, vals_list: list[ValuesType], *field_names: str) -> None:
+        authors = OrderedSet(
+            values["author_id"] for values in vals_list if values.get("author_id")
+        )
+        if authors:
+            self.env["res.partner"].sudo().browse(authors).fetch(list(field_names))
+
+    @api.model
+    def _resolve_thread_target(
+        self, values: dict
+    ) -> tuple[str | None, int | Literal[False]]:
+        model = values.get("model", self.env.context.get("default_model"))
+        res_id = values.get("res_id", self.env.context.get("default_res_id")) or False
+        if model and model not in self.env:
+            _logger.warning(
+                "mail.message created with a model that is not in the registry: %s",
+                model,
+            )
+            model, res_id = None, False
+        if not self._is_thread_message(vals={"model": model, "res_id": res_id}):
+            res_id = False
+        return model, res_id
 
     def _get_reply_to_batch(self, vals_list: list[ValuesType]) -> list:
         out: list = [None] * len(vals_list)
@@ -483,20 +546,12 @@ class MailMessage(models.Model):
         for index, values in enumerate(vals_list):
             if "reply_to" in values:
                 continue
-            model = values.get("model", self.env.context.get("default_model"))
-            res_id = (
-                values.get("res_id", self.env.context.get("default_res_id")) or False
-            )
-            if model and model not in self.env:
-                _logger.warning(
-                    "mail.message created with a model that is not in the registry: %s",
-                    model,
-                )
-                model, res_id = None, False
-            is_thread = self._is_thread_message(vals={"model": model, "res_id": res_id})
-            if not is_thread:
-                res_id = False
-            by_group[(model, is_thread)].append((index, res_id, values))
+            model, res_id = self._resolve_thread_target(values)
+            by_group[(model, bool(res_id))].append((index, res_id, values))
+
+        self._prefetch_authors(
+            [values for items in by_group.values() for _i, _r, values in items], "name"
+        )
 
         for (model, is_thread), items in by_group.items():
             if is_thread:
@@ -504,16 +559,9 @@ class MailMessage(models.Model):
                     {res_id for _index, res_id, _values in items}
                 )
             else:
-                records = self.env[model] if model else self.env["mail.thread"]
+                records = self.env[model] if model else self.env["mixin.mail.thread"]
             records_su = records.sudo()
             addresses = records_su._notify_get_reply_to_addresses()
-            self.env["res.partner"].browse(
-                {
-                    values["author_id"]
-                    for _index, res_id, values in items
-                    if values.get("author_id") and res_id in addresses
-                }
-            ).mapped("name")
             for index, res_id, values in items:
                 address = addresses.get(res_id)
                 out[index] = (
@@ -525,10 +573,16 @@ class MailMessage(models.Model):
                 )
         return out
 
-    def _extract_body_attachments(self, values: ValuesType) -> str:
+    def _extract_body_attachments(
+        self,
+        values: ValuesType,
+        model: str | None = None,
+        res_id: int | Literal[False] = False,
+    ) -> tuple[str, list[tuple[int, int]]]:
         Attachments = self.env["ir.attachment"].with_context(
             clean_context(self.env.context)
         )
+        commands: list[tuple[int, int]] = []
         data_to_url = {}
 
         def base64_to_boundary(match: re.Match) -> str:
@@ -540,8 +594,8 @@ class MailMessage(models.Model):
                         {
                             "name": name,
                             "datas": match.group(2),
-                            "res_model": values.get("model"),
-                            "res_id": values.get("res_id"),
+                            "res_model": model,
+                            "res_id": res_id,
                         }
                     )
                 except binascii_error:
@@ -551,8 +605,7 @@ class MailMessage(models.Model):
                     return match.group(3)
                 else:
                     attachment.generate_access_token()
-                    attachments = values.setdefault("attachment_ids", [])
-                    attachments.append((4, attachment.id))
+                    commands.append((4, attachment.id))
                     data_to_url[key] = [
                         "/web/image/%s?access_token=%s"
                         % (attachment.id, attachment.access_token),
@@ -561,24 +614,23 @@ class MailMessage(models.Model):
                     ]
             return f'{data_to_url[key][0]}{match.group(3)} alt="{data_to_url[key][1]}" data-attachment-id="{data_to_url[key][2]}"'
 
-        return _image_dataurl.sub(base64_to_boundary, values["body"] or "")
+        body = _image_dataurl.sub(base64_to_boundary, values["body"] or "")
+        return body, commands
 
     def _check_created_attachments_access(
         self, messages: Self, vals_list: list[ValuesType]
     ) -> None:
         doc_to_attachment_ids = defaultdict(set)
-        if not all(
-            isinstance(command, int) or command[0] in (4, 6)
-            for values in vals_list
-            for command in values.get("attachment_ids", ())
-        ):
-            if messages.attachment_ids:
-                messages.attachment_ids.check_access("read")
-            return
-
-        for values in vals_list:
+        opaque_messages = self.browse()
+        for message, values in zip(messages, vals_list, strict=True):
+            commands = values.get("attachment_ids", ())
+            if not all(
+                isinstance(command, int) or command[0] in (4, 6) for command in commands
+            ):
+                opaque_messages |= message
+                continue
             message_attachment_ids = set()
-            for command in values.get("attachment_ids", ()):
+            for command in commands:
                 if isinstance(command, int):
                     message_attachment_ids.add(command)
                 elif command[0] == 6:
@@ -589,6 +641,11 @@ class MailMessage(models.Model):
                 key = (values.get("model"), values.get("res_id"))
                 doc_to_attachment_ids[key] |= message_attachment_ids
 
+        if opaque_messages.attachment_ids:
+            opaque_messages.attachment_ids.check_access("read")
+        if not doc_to_attachment_ids:
+            return
+
         attachment_ids_all = {
             attachment_id
             for doc_attachment_ids in doc_to_attachment_ids.values()
@@ -597,32 +654,36 @@ class MailMessage(models.Model):
         AttachmentSudo = (
             self.env["ir.attachment"].sudo().with_prefetch(list(attachment_ids_all))
         )
-        attachments_tocheck = self.env["ir.attachment"]
+        foreign_ids = OrderedSet()
         for (model, res_id), doc_attachment_ids in doc_to_attachment_ids.items():
-            attachments_tocheck += (
+            foreign_ids.update(
                 AttachmentSudo.browse(doc_attachment_ids)
                 .filtered(
                     lambda att, model=model, res_id=res_id: (
                         att.res_model != model or att.res_id != res_id
                     )
                 )
-                .sudo(False)
+                ._ids
             )
-        if attachments_tocheck:
-            attachments_tocheck.check_access("read")
+        if foreign_ids:
+            self.env["ir.attachment"].browse(foreign_ids).check_access("read")
 
-    def _create_tracking_values(self, tracking_values_cmd: list) -> None:
-        self.ensure_one()
-        vals_lst = [
-            dict(cmd[2], mail_message_id=self.id)
-            for cmd in tracking_values_cmd
-            if len(cmd) == 3 and cmd[0] == 0
-        ]
-        other_cmd = [cmd for cmd in tracking_values_cmd if len(cmd) != 3 or cmd[0] != 0]
-        if vals_lst:
-            self.env["mail.tracking.value"].sudo().create(vals_lst)
-        if other_cmd:
-            self.sudo().write({"tracking_value_ids": other_cmd})
+    @api.model
+    def _create_tracking_values(self, commands_per_message: dict) -> None:
+        vals_list = []
+        for message, tracking_values_cmd in commands_per_message.items():
+            vals_list += [
+                dict(cmd[2], mail_message_id=message.id)
+                for cmd in tracking_values_cmd
+                if len(cmd) == 3 and cmd[0] == 0
+            ]
+            other_cmd = [
+                cmd for cmd in tracking_values_cmd if len(cmd) != 3 or cmd[0] != 0
+            ]
+            if other_cmd:
+                message.sudo().write({"tracking_value_ids": other_cmd})
+        if vals_list:
+            self.env["mail.tracking.value"].sudo().create(vals_list)
 
     def read(
         self, fields: Sequence[str] | None = None, load: str = "_classic_read"
@@ -670,15 +731,15 @@ class MailMessage(models.Model):
                 and (attach.res_id in own_ids or attach.res_id == 0)
             )
         ).unlink()
-        messages_by_partner = defaultdict(lambda: self.env["mail.message"])
+        message_ids_by_partner = defaultdict(OrderedSet)
         partners_with_user = self.partner_ids.filtered("user_ids")
         for elem in self:
             for partner in (
                 elem.partner_ids & partners_with_user | elem.notification_ids.author_id
             ):
-                messages_by_partner[partner] |= elem
-        for partner, messages in messages_by_partner.items():
-            partner._bus_send("mail.message/delete", {"message_ids": messages.ids})
+                message_ids_by_partner[partner].add(elem.id)
+        for partner, message_ids in message_ids_by_partner.items():
+            partner._bus_send("mail.message/delete", {"message_ids": list(message_ids)})
         return super().unlink()
 
     def export_data(self, fields_to_export: list[str]) -> dict:
@@ -691,6 +752,8 @@ class MailMessage(models.Model):
 
     def action_open_document(self) -> dict:
         self.ensure_one()
+        if not self._is_thread_message() or self.sudo().model not in self.env:
+            raise UserError(self.env._("This message is not attached to a document."))
         return {
             "res_id": self.res_id,
             "res_model": self.model,
@@ -701,11 +764,16 @@ class MailMessage(models.Model):
 
     @api.model
     def mark_all_as_read(self, domain: DomainType | None = None) -> list[int]:
+        notification_domain = [("res_partner_id", "=", self.env.user.partner_id.id)]
         if domain:
-            return self.search(domain).set_message_done()
-        return self.browse()._mark_notifications_read(
-            [("res_partner_id", "=", self.env.user.partner_id.id)]
-        )
+            notification_domain.append(
+                (
+                    "mail_message_id",
+                    "in",
+                    self._search(Domain(domain), bypass_access=True),
+                )
+            )
+        return self.browse()._mark_notifications_read(notification_domain)
 
     def set_message_done(self) -> list[int]:
         return self._mark_notifications_read(
@@ -736,10 +804,10 @@ class MailMessage(models.Model):
 
     @api.model
     def unstar_all(self) -> None:
-        starred_messages = self.search(
+        starred_messages = self.sudo().search(
             [("starred_partner_ids", "in", self.env.user.partner_id.id)]
         )
-        starred_messages.sudo().starred_partner_ids = [
+        starred_messages.starred_partner_ids = [
             Command.unlink(self.env.user.partner_id.id)
         ]
         self.env.user._bus_send(
@@ -762,171 +830,7 @@ class MailMessage(models.Model):
         self.env.user._bus_send(
             "mail.message/toggle_star", {"message_ids": [self.id], "starred": starred}
         )
-        return Store().add(self, {"starred": self.starred}).get_result()
-
-    @api.model
-    def _clamp_fetch_limit(self, limit: int) -> int:
-        try:
-            limit = int(limit)
-        except TypeError, ValueError:
-            return MESSAGE_FETCH_LIMIT_DEFAULT
-        return max(1, min(limit, MESSAGE_FETCH_LIMIT_MAX))
-
-    @api.model
-    def _to_message_cursor(
-        self, value: int | str | Literal[False] | None
-    ) -> int | None:
-        if value is None or value is False:
-            return None
-        try:
-            return int(value)
-        except TypeError, ValueError:
-            return None
-
-    @api.model
-    def _sanitize_fetch_params(self, fetch_params: dict | None) -> dict:
-        return {
-            key: value
-            for key, value in (fetch_params or {}).items()
-            if key in MESSAGE_FETCH_PARAMS
-        }
-
-    def _message_fetch(
-        self,
-        domain: DomainType | None,
-        *,
-        thread: models.BaseModel | None = None,
-        search_term: str | None = None,
-        is_notification: bool | None = None,
-        before: int | Literal[False] | None = None,
-        after: int | Literal[False] | None = None,
-        around: int | Literal[False] | None = None,
-        limit: int = MESSAGE_FETCH_LIMIT_DEFAULT,
-    ) -> dict:
-        limit = self._clamp_fetch_limit(limit)
-        before = self._to_message_cursor(before)
-        after = self._to_message_cursor(after)
-        around = self._to_message_cursor(around)
-        res = {}
-        domain = Domain(True if domain is None else domain)
-        if thread:
-            domain &= (
-                Domain("res_id", "=", thread.id)
-                & Domain("model", "=", thread._name)
-                & Domain("message_type", "!=", "user_notification")
-            )
-        if is_notification is True:
-            domain &= Domain("message_type", "=", "notification")
-        elif is_notification is False:
-            domain &= Domain("message_type", "!=", "notification")
-        if search_term:
-            search_term = (
-                search_term.replace("\\", "\\\\")
-                .replace("%", "\\%")
-                .replace("_", "\\_")
-                .replace(" ", "%")
-            )
-            attachment_domain = Domain("name", "ilike", search_term)
-            if thread:
-                attachment_domain &= Domain("res_model", "=", thread._name) & Domain(
-                    "res_id", "=", thread.id
-                )
-            message_domain = Domain.OR(
-                [
-                    [
-                        (
-                            "attachment_ids",
-                            "in",
-                            self.env["ir.attachment"].sudo()._search(attachment_domain),
-                        )
-                    ],
-                    [("body", "ilike", search_term)],
-                    [("subject", "ilike", search_term)],
-                    [("subtype_id.description", "ilike", search_term)],
-                ]
-            )
-            if thread and is_notification is not False:
-                tracking_value_domain = (
-                    Domain("mail_message_id.res_id", "=", thread.id)
-                    & Domain("mail_message_id.model", "=", thread._name)
-                    & self._get_tracking_values_domain(search_term)
-                )
-                tracking_values = (
-                    self.env["mail.tracking.value"].sudo().search(tracking_value_domain)
-                )
-                accessible_tracking_value_ids = (
-                    tracking_values._filter_has_field_access(self.env)
-                )
-                message_domain |= Domain(
-                    "id", "in", accessible_tracking_value_ids.mail_message_id.ids
-                )
-            domain &= message_domain
-        if search_term or is_notification is not None:
-            res["count"] = self.search_count(domain, limit=self._SEARCH_COUNT_CAP)
-        if around is not None:
-            after_limit = limit // 2
-            before_limit = limit - after_limit
-            messages_before = self.search(
-                domain & Domain("id", "<=", around),
-                limit=before_limit,
-                order="id DESC",
-            )
-            messages_after = (
-                self.search(
-                    domain & Domain("id", ">", around),
-                    limit=after_limit,
-                    order="id ASC",
-                )
-                if after_limit
-                else self.browse()
-            )
-            return {
-                **res,
-                "messages": (messages_after + messages_before).sorted(
-                    "id", reverse=True
-                ),
-            }
-        if before:
-            domain &= Domain("id", "<", before)
-        if after:
-            domain &= Domain("id", ">", after)
-        res["messages"] = self.search(
-            domain, limit=limit, order="id ASC" if after else "id DESC"
-        )
-        if after:
-            res["messages"] = res["messages"].sorted("id", reverse=True)
-        return res
-
-    def _get_tracking_values_domain(self, search_term: str) -> Domain:
-        numeric_term = None
-        with contextlib.suppress(ValueError, TypeError):
-            numeric_term = float(search_term)
-        domain = Domain.OR(
-            Domain(field_name, "ilike", search_term)
-            for field_name in (
-                "old_value_char",
-                "new_value_char",
-                "old_value_text",
-                "new_value_text",
-                "old_value_datetime",
-                "new_value_datetime",
-                "field_id.name",
-                "field_id.field_description",
-            )
-        )
-        if numeric_term is not None:
-            epsilon = 1e-9
-            domain |= Domain("field_id.ttype", "in", ("float", "monetary")) & Domain.OR(
-                Domain(field_name, ">=", numeric_term - epsilon)
-                & Domain(field_name, "<=", numeric_term + epsilon)
-                for field_name in ("old_value_float", "new_value_float")
-            )
-            if numeric_term.is_integer():
-                domain |= Domain("field_id.ttype", "=", "integer") & Domain.OR(
-                    Domain(field_name, "=", int(numeric_term))
-                    for field_name in ("old_value_integer", "new_value_integer")
-                )
-        return domain
+        return Store().add(self, {"starred": starred}).get_result()
 
     def _message_reaction(
         self,
@@ -939,14 +843,13 @@ class MailMessage(models.Model):
         self.ensure_one()
         if action not in ("add", "remove"):
             raise ValueError(f"Wrong reaction action ({action})")
-        domain = [
-            ("message_id", "=", self.id),
-            ("partner_id", "=", partner.id),
-            ("guest_id", "=", guest.id),
-            ("content", "=", content),
-        ]
-        reaction = self.env["mail.message.reaction"].search(domain)
-        if action == "add" and not reaction:
+        group = self._reaction_group(content)
+        own = group.filtered(
+            lambda reaction: (
+                reaction.partner_id == partner and reaction.guest_id == guest
+            )
+        )
+        if action == "add" and not own:
             create_values = {
                 "message_id": self.id,
                 "content": content,
@@ -955,357 +858,43 @@ class MailMessage(models.Model):
             }
             try:
                 with self.env.cr.savepoint():
-                    self.env["mail.message.reaction"].create(create_values)
+                    group |= self.env["mail.message.reaction"].create(create_values)
             except IntegrityError:
-                pass
-        if action == "remove" and reaction:
-            reaction.unlink()
+                group = self._reaction_group(content)
+        if action == "remove" and own:
+            own.unlink()
+            group -= own
         if store:
-            self._reaction_group_to_store(store, content)
-        self._bus_send_reaction_group(content)
+            self._reaction_group_to_store(store, content, group)
+        self._bus_send_reaction_group(content, group)
 
-    def _bus_send_reaction_group(self, content: str) -> None:
+    def _reaction_group(self, content: str) -> MailMessageReaction:
+        return (
+            self.env["mail.message.reaction"]
+            .search_fetch(
+                [("message_id", "=", self.id), ("content", "=", content)],
+                ["partner_id", "guest_id"],
+            )
+            .sorted("id", reverse=True)
+        )
+
+    def _bus_send_reaction_group(
+        self, content: str, group: MailMessageReaction | None = None
+    ) -> None:
         store = Store(bus_channel=self._bus_channel())
-        self._reaction_group_to_store(store, content)
+        self._reaction_group_to_store(store, content, group)
         store.bus_send()
 
-    def _reaction_group_to_store(self, store: Store, content: str) -> None:
-        group_domain = [("message_id", "=", self.id), ("content", "=", content)]
-        reactions = self.env["mail.message.reaction"].search(group_domain)
+    def _reaction_group_to_store(
+        self, store: Store, content: str, group: MailMessageReaction | None = None
+    ) -> None:
+        reactions = self._reaction_group(content) if group is None else group
         reaction_group = (
             Store.Many(reactions, mode="ADD")
             if reactions
             else [("DELETE", {"message": self.id, "content": content})]
         )
         store.add(self, {"reactions": reaction_group})
-
-    def _field_store_repr(self, field_name: str) -> list:
-        if field_name == "message_link_preview_ids":
-            return [
-                Store.Many(
-                    "message_link_preview_ids",
-                    value=lambda m: (
-                        m.sudo()
-                        .message_link_preview_ids.filtered(
-                            lambda message_link_preview: (
-                                not message_link_preview.is_hidden
-                            )
-                        )
-                        .sorted(
-                            lambda message_link_preview: (
-                                message_link_preview.sequence,
-                                message_link_preview.id,
-                            )
-                        )
-                    ),
-                )
-            ]
-        return [field_name]
-
-    def _is_envelope_visible(self, target: Store.Target) -> bool:
-        self.ensure_one()
-        return target.is_internal(self.env) or not (
-            self.author_id or self.author_guest_id
-        )
-
-    def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
-        field_names = [
-            Store.Many(
-                "attachment_ids",
-                sort="id",
-                dynamic_fields=lambda m: m._get_store_attachment_fields(target),
-                sudo=True,
-            ),
-            Store.One("author_guest_id", ["avatar_128", "name"], sudo=True),
-            Store.One(
-                "author_id",
-                [
-                    "avatar_128",
-                    "is_company",
-                    Store.One("main_user_id", ["partner_id", "share"]),
-                ],
-                dynamic_fields=lambda m: m._get_store_partner_name_fields(),
-                sudo=True,
-            ),
-            "body",
-            "create_date",
-            "date",
-            Store.Attr(
-                "email_from", predicate=lambda m: m._is_envelope_visible(target)
-            ),
-            Store.Attr(
-                "incoming_email_cc", predicate=lambda m: m._is_envelope_visible(target)
-            ),
-            Store.Attr(
-                "incoming_email_to", predicate=lambda m: m._is_envelope_visible(target)
-            ),
-            "message_format",
-            "message_link_preview_ids",
-            "message_type",
-            "model",
-            Store.Many(
-                "partner_ids",
-                "avatar_128",
-                dynamic_fields=lambda m: m._get_store_partner_name_fields(),
-                sort="id",
-                sudo=True,
-            ),
-            "pinned_at",
-            Store.Attr("reactions", value=lambda m: Store.Many(m.sudo().reaction_ids)),
-            "record_name",
-            "res_id",
-            "subject",
-            Store.One("subtype_id", ["description"], sudo=True),
-            "write_date",
-            *self._get_store_linked_messages_fields(),
-        ]
-        if target.is_internal(self.env) and not self.env.context.get(
-            "mail_notify_inbox"
-        ):
-            field_names.append(
-                Store.Many(
-                    "notification_ids",
-                    value=lambda m: (
-                        m.sudo().notification_ids._filtered_for_web_client()
-                    ),
-                ),
-            )
-        return field_names
-
-    def _to_store(
-        self,
-        store: Store,
-        fields: list[StoreFieldSpec],
-        *,
-        format_reply: bool = True,
-        msg_vals: dict | Literal[False] = False,
-        add_followers: bool = False,
-        followers: MailFollowers | None = None,
-    ) -> None:
-        fields = list(fields)
-        if "message_format" not in fields:
-            store.add_records_fields(self, fields)
-            return
-        fields.remove("message_format")
-        scheduled_dt_by_msg_id = {}
-        if msg_vals:
-            scheduled_dt_by_msg_id = {
-                msg.id: msg_vals.get("scheduled_date", False) for msg in self
-            }
-        elif self:
-            schedulers = (
-                self.env["mail.message.schedule"]
-                .sudo()
-                .search([("mail_message_id", "in", self.ids)])
-            )
-            for scheduler in schedulers:
-                scheduled_dt_by_msg_id[scheduler.mail_message_id.id] = (
-                    scheduler.scheduled_datetime
-                )
-        record_by_message = self._record_by_message()
-        records = record_by_message.values()
-        non_channel_records = sorted(
-            (record for record in records if record._name != "discuss.channel"),
-            key=lambda record: record._name,
-        )
-        target_user = store.target.get_user(self.env)
-        if target_user and add_followers and non_channel_records:
-            if followers is None:
-                domain = Domain.OR(
-                    [
-                        ("res_model", "=", model),
-                        ("res_id", "in", [r.id for r in records]),
-                    ]
-                    for model, records in groupby(
-                        non_channel_records, key=lambda r: r._name
-                    )
-                )
-                domain &= Domain("partner_id", "=", target_user.partner_id.id)
-                followers = self.env["mail.followers"].sudo().search(domain)
-            follower_by_record_and_partner = {
-                (
-                    self.env[follower.res_model].browse(follower.res_id),
-                    follower.partner_id,
-                ): follower
-                for follower in followers
-                if follower.res_model in self.env
-            }
-        record_fields = [
-            Store.Attr("display_name", sudo=True),
-            Store.Attr(
-                "has_mail_thread",
-                lambda record: isinstance(record, self.pool["mail.thread"]),
-            ),
-            Store.Attr(
-                "module_icon",
-                lambda record: modules.module.get_module_icon(
-                    self.env[record._name]._original_module
-                ),
-                predicate=lambda record: self.env[record._name]._original_module,
-            ),
-        ]
-        if target_user and add_followers and non_channel_records:
-            record_fields.append(
-                Store.One(
-                    "selfFollower",
-                    ["is_active", Store.One("partner_id", [])],
-                    value=lambda r: follower_by_record_and_partner.get(
-                        (r, target_user.partner_id)
-                    ),
-                ),
-            )
-        for record in records:
-            store.add(record, record_fields, as_thread=True)
-        if store.target.is_current_user(self.env):
-            fields.append("starred")
-        store.add(self, fields)
-        for message in self:
-            record = record_by_message.get(message)
-            if record:
-                try:
-                    if isinstance(record, self.pool["mail.thread"]):
-                        default_subject = record.sudo()._message_compute_subject()
-                    else:
-                        default_subject = message.record_name
-                except MissingError:
-                    record = None
-                    default_subject = False
-            else:
-                default_subject = False
-            data = {
-                "default_subject": default_subject,
-                "scheduledDatetime": scheduled_dt_by_msg_id.get(message.id, False),
-                "thread": Store.One(record, [], as_thread=True),
-            }
-
-            envelope_visible = message._is_envelope_visible(store.target)
-            if envelope_visible and message.incoming_email_cc:
-                data["incoming_email_cc"] = tools.mail.email_split_tuples(
-                    message.incoming_email_cc
-                )
-            if envelope_visible and message.incoming_email_to:
-                data["incoming_email_to"] = tools.mail.email_split_tuples(
-                    message.incoming_email_to
-                )
-            if store.target.is_current_user(self.env):
-                displayed_tracking_ids = (
-                    message.sudo().tracking_value_ids._filter_has_field_access(self.env)
-                )
-                if record and isinstance(record, self.pool["mail.thread"]):
-                    displayed_tracking_ids = record._track_filter_for_display(
-                        displayed_tracking_ids
-                    )
-                notifications_partners = (
-                    message.sudo()
-                    .notification_ids.filtered(lambda n: not n.is_read)
-                    .res_partner_id
-                )
-                data["needaction"] = (
-                    not self.env.user._is_public()
-                    and self.env.user.partner_id in notifications_partners
-                )
-                data["trackingValues"] = displayed_tracking_ids._tracking_value_format()
-            store.add(message, data)
-        self._extras_to_store(store, format_reply=format_reply)
-
-    def _get_store_partner_name_fields(self) -> list[StoreFieldSpec]:
-        self.ensure_one()
-        return ["name"]
-
-    def _get_store_attachment_fields(
-        self, target: Store.Target
-    ) -> list[StoreFieldSpec]:
-        self.ensure_one()
-        if target.is_current_user(self.env) and self.is_current_user_or_guest_author:
-            return self.env["ir.attachment"]._get_store_ownership_fields()
-        return []
-
-    def _get_store_linked_messages_fields(self) -> list[StoreFieldSpec]:
-        by_message, linked_messages = self._get_linked_messages()
-        record_by_message = linked_messages._record_by_message()
-        return [
-            Store.Many(
-                "linked_message_ids",
-                [
-                    "model",
-                    "res_id",
-                    Store.Attr(
-                        "thread",
-                        lambda m: Store.One(
-                            record_by_message.get(m),
-                            [Store.Attr("display_name", sudo=True)],
-                            as_thread=True,
-                        ),
-                    ),
-                ],
-                value=lambda m: by_message.get(m.id, m.browse()),
-                only_data=True,
-            ),
-        ]
-
-    def _extras_to_store(self, store: Store, format_reply: bool) -> None:
-        pass
-
-    def _message_notifications_to_store(self, store: Store) -> None:
-        store.add(
-            self,
-            [
-                Store.One("author_id", []),
-                Store.One("author_guest_id", []),
-                "body",
-                "date",
-                "message_type",
-                Store.Many(
-                    "notification_ids",
-                    value=lambda m: m.notification_ids._filtered_for_web_client(),
-                ),
-                Store.One(
-                    "thread",
-                    [
-                        Store.Attr(
-                            "modelName",
-                            lambda thread: (
-                                self.env["ir.model"]._get(thread._name).display_name
-                            ),
-                        ),
-                        Store.Attr("display_name", sudo=True),
-                    ],
-                    as_thread=True,
-                ),
-            ],
-        )
-
-    def _notify_message_notification_update(self) -> None:
-        messages = self.env["mail.message"]
-        record_by_message = self._record_by_message()
-        ids_by_model = defaultdict(list)
-        for record in record_by_message.values():
-            ids_by_model[record._name].append(record.id)
-        accessible_ids_by_model = {
-            model: set(
-                self.env[model].browse(ids).exists()._filtered_access("read")._ids
-            )
-            for model, ids in ids_by_model.items()
-        }
-        for message in self:
-            if (record := record_by_message.get(message)) and record.id in (
-                accessible_ids_by_model.get(record._name, ())
-            ):
-                messages += message
-        messages_per_partner = defaultdict(lambda: self.env["mail.message"])
-        for message in messages:
-            if not self.env.user._is_public():
-                messages_per_partner[self.env.user.partner_id] |= message
-            if message.author_id and not any(
-                user._is_public()
-                for user in message.author_id.with_context(active_test=False).user_ids
-            ):
-                messages_per_partner[message.author_id] |= message
-        for partner, messages in messages_per_partner.items():
-            if user := partner.main_user_id:
-                store = Store(bus_channel=user)
-                messages.with_user(user)._message_notifications_to_store(store)
-                store.bus_send()
 
     def _bus_channel(self) -> models.Model:
         self.ensure_one()
@@ -1328,39 +917,21 @@ class MailMessage(models.Model):
 
     @api.model
     def _get_reply_to(self, values: dict) -> str:
-        author_id = values.get("author_id")
-        model = values.get("model", self.env.context.get("default_model"))
-        res_id = values.get("res_id", self.env.context.get("default_res_id")) or False
-        email_from = values.get("email_from")
-        if model and model not in self.env:
-            _logger.warning(
-                "mail.message created with a model that is not in the registry: %s",
-                model,
-            )
-            model, res_id = None, False
-        if self._is_thread_message(vals={"model": model, "res_id": res_id}):
-            records = self.env[model].browse([res_id])
-        else:
-            records = self.env[model] if model else self.env["mail.thread"]
-            res_id = False
-        return records.sudo()._notify_get_reply_to(
-            default=email_from, author_id=author_id
-        )[res_id]
+        if "reply_to" in values:
+            return values["reply_to"]
+        return self._get_reply_to_batch([values])[0]
 
     @api.model
     def _get_message_id(self, values: dict) -> str:
-        if values.get("reply_to_force_new", False) is True:
-            message_id = tools.mail.generate_tracking_message_id("reply_to")
-        elif self._is_thread_message(vals=values):
-            message_id = tools.mail.generate_tracking_message_id(
-                "%(res_id)s-%(model)s" % values
-            )
-        else:
-            message_id = tools.mail.generate_tracking_message_id("private")
-        return message_id
+        if values.get("reply_to_force_new"):
+            return tools.mail.generate_tracking_message_id("reply_to")
+        model, res_id = self._resolve_thread_target(values)
+        if res_id:
+            return tools.mail.generate_tracking_message_id(f"{res_id}-{model}")
+        return tools.mail.generate_tracking_message_id("private")
 
     def _is_thread_message(
-        self, vals: dict | Literal[False] = False, thread: models.Model | None = None
+        self, vals: ValuesType | None = None, thread: models.Model | None = None
     ) -> bool:
         vals = vals or {}
         if "model" in vals:
@@ -1375,10 +946,12 @@ class MailMessage(models.Model):
             res_id = thread.ids[0]
         else:
             res_id = self.res_id
-        return bool(res_id) if (res_model and res_model != "mail.thread") else False
+        return (
+            bool(res_id) if (res_model and res_model != "mixin.mail.thread") else False
+        )
 
     def _is_thread_message_visible(
-        self, vals: dict | Literal[False] = False, thread: models.Model | None = None
+        self, vals: ValuesType | None = None, thread: models.Model | None = None
     ) -> bool:
         if not self._is_thread_message(vals=vals, thread=thread):
             return False
@@ -1388,30 +961,43 @@ class MailMessage(models.Model):
             message_type = self.message_type
         return message_type != "user_notification"
 
-    def _invalidate_documents(
-        self, model: str | None = None, res_id: int | None = None
-    ) -> None:
+    def _invalidate_documents(self) -> None:
         fnames = ["message_ids", "message_needaction", "message_needaction_counter"]
         self.flush_recordset(["model", "res_id"])
         ids_by_model = defaultdict(OrderedSet)
         for record in self:
-            rec_model = model or record.model
-            rec_res_id = res_id or record.res_id
-            if rec_res_id and self._is_thread_model_name(rec_model):
-                ids_by_model[rec_model].add(rec_res_id)
+            if record.res_id and self._is_thread_model_name(record.model):
+                ids_by_model[record.model].add(record.res_id)
         for rec_model, rec_ids in ids_by_model.items():
             self.env[rec_model].browse(rec_ids).invalidate_recordset(fnames)
+
+    def _thread_pointers(self) -> list[tuple[Self, str, int]]:
+        return [
+            (message, message.model, message.res_id)
+            for message in self
+            if message.model in self.env and message.res_id
+        ]
+
+    def _prefetch_thread_pointers(self) -> list[tuple[str, int]]:
+        own_ids = set(self._ids)
+        peers = self.browse([mid for mid in self._prefetch_ids if mid not in own_ids])
+        if not peers:
+            return []
+        try:
+            return [(model, res_id) for _msg, model, res_id in peers._thread_pointers()]
+        except MissingError:
+            return [
+                (model, res_id)
+                for _msg, model, res_id in peers.exists()._thread_pointers()
+            ]
 
     def _records_by_model_name(self) -> dict:
         ids_by_model = defaultdict(OrderedSet)
         prefetch_ids_by_model = defaultdict(OrderedSet)
-        prefetch_messages = self | self.browse(self._prefetch_ids)
-        own_ids = set(self._ids)
-        for message in prefetch_messages.filtered(
-            lambda m: m.model in self.env and m.res_id
-        ):
-            target = ids_by_model if message.id in own_ids else prefetch_ids_by_model
-            target[message.model].add(message.res_id)
+        for _message, model, res_id in self._thread_pointers():
+            ids_by_model[model].add(res_id)
+        for model, res_id in self._prefetch_thread_pointers():
+            prefetch_ids_by_model[model].add(res_id)
         return {
             model_name: self.env[model_name]
             .browse(ids)
@@ -1422,8 +1008,8 @@ class MailMessage(models.Model):
     def _record_by_message(self) -> dict:
         records_by_model_name = self._records_by_model_name()
         return {
-            message: self.env[message.model]
-            .browse(message.res_id)
-            .with_prefetch(records_by_model_name[message.model]._prefetch_ids)
-            for message in self.filtered(lambda m: m.model in self.env and m.res_id)
+            message: self.env[model]
+            .browse(res_id)
+            .with_prefetch(records_by_model_name[model]._prefetch_ids)
+            for message, model, res_id in self._thread_pointers()
         }

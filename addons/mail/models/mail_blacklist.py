@@ -9,7 +9,7 @@ from odoo.tools import Query
 
 class MailBlacklist(models.Model):
     _name = "mail.blacklist"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _description = "Mail Blacklist"
     _rec_name = "email"
 

@@ -113,5 +113,7 @@ class MailMessageSubtype(models.Model):
             ("res_model", "=", False),
         ]
         subtypes = self.search(domain)
+        if not self.env.su and self.env.user.share:
+            subtypes = self.sudo().search(domain)
         internal = subtypes.filtered("internal")
         return subtypes.ids, internal.ids, (subtypes - internal).ids

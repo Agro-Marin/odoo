@@ -21,7 +21,7 @@ if typing.TYPE_CHECKING:
 
 class MailLinkPreview(models.Model):
     _name = "mail.link.preview"
-    _inherit = ["bus.listener.mixin"]
+    _inherit = ["mixin.bus.listener"]
     _description = "Store link preview data"
     _rec_name = "source_url"
 
@@ -70,11 +70,13 @@ class MailLinkPreview(models.Model):
             for message_link_preview in message.sudo().message_link_preview_ids
         }
         link_preview_by_url = {}
-        if len(message_link_preview_by_url) != len(urls):
+        if uncovered_urls := [
+            url for url in urls if url not in message_link_preview_by_url
+        ]:
             link_preview_by_url = {
                 link_preview.source_url: link_preview
                 for link_preview in self.env["mail.link.preview"].search(
-                    [("source_url", "in", urls)]
+                    [("source_url", "in", uncovered_urls)]
                 )
             }
         for index, url in enumerate(urls):
@@ -83,7 +85,7 @@ class MailLinkPreview(models.Model):
                 message_link_previews_ok += message_link_preview
             elif link_preview := link_preview_by_url.get(url):
                 message_link_previews_values.append((index, link_preview))
-            elif not self._is_domain_thottled(url):
+            elif not self._is_domain_throttled(url):
                 if link_preview_values := get_link_preview_from_url(
                     url, requests_session
                 ):
@@ -136,7 +138,7 @@ class MailLinkPreview(models.Model):
         for preview in self:
             preview.source_url_netloc = urlparse(preview.source_url or "").netloc
 
-    def _is_domain_thottled(self, url: str) -> bool:
+    def _is_domain_throttled(self, url: str) -> bool:
         domain = urlparse(url).netloc
         date_interval = fields.Datetime.to_string(
             self.env.cr.now() - relativedelta(seconds=10)
@@ -166,9 +168,11 @@ class MailLinkPreview(models.Model):
 
     @api.model
     def _search_or_create_from_url(self, url: str) -> Self:
-        preview = self.env["mail.link.preview"].search([("source_url", "=", url)])
+        preview = self.env["mail.link.preview"].search(
+            [("source_url", "=", url)], limit=1
+        )
         if not preview:
-            if self._is_domain_thottled(url):
+            if self._is_domain_throttled(url):
                 return self.env["mail.link.preview"]
             preview_values = get_link_preview_from_url(url)
             if not preview_values:

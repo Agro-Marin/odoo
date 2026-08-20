@@ -43,6 +43,38 @@ class IrAttachment(models.Model):
 
         return all(map(is_owned, self, attachment_tokens, strict=True))
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        attachments = super().create(vals_list)
+        attachments._invalidate_thread_attachment_count()
+        return attachments
+
+    def write(self, vals):
+        invalidate = "res_model" in vals or "res_id" in vals
+        if invalidate:
+            self._invalidate_thread_attachment_count()
+        res = super().write(vals)
+        if invalidate:
+            self._invalidate_thread_attachment_count()
+        return res
+
+    def unlink(self):
+        self._invalidate_thread_attachment_count()
+        return super().unlink()
+
+    def _invalidate_thread_attachment_count(self) -> None:
+        by_model = {}
+        for attachment in self:
+            if attachment.res_model and attachment.res_id:
+                by_model.setdefault(attachment.res_model, set()).add(attachment.res_id)
+        for model_name, res_ids in by_model.items():
+            model = self.env.get(model_name)
+            if model is None or "message_attachment_count" not in model._fields:
+                continue
+            model.browse(res_ids).invalidate_recordset(
+                ["message_attachment_count"], flush=False
+            )
+
     def _post_add_create(self, **kwargs) -> None:
         super()._post_add_create(**kwargs)
         self.register_as_main_attachment(force=False)

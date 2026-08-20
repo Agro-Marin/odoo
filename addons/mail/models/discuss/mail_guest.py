@@ -11,7 +11,7 @@ from odoo.tools import consteq, get_lang
 from odoo.tools.misc import limited_field_access_token
 
 from odoo.addons.base.models.res_partner import _tz_get
-from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
 
 if typing.TYPE_CHECKING:
     from ..mail_presence import MailPresence
@@ -22,7 +22,7 @@ if typing.TYPE_CHECKING:
 class MailGuest(models.Model):
     _name = "mail.guest"
     _description = "Guest"
-    _inherit = ["avatar.mixin", "bus.listener.mixin"]
+    _inherit = ["mixin.avatar", "mixin.bus.listener"]
     _avatar_name_field = "name"
     _cookie_name = "dgid"
     _cookie_separator = "|"
@@ -55,13 +55,19 @@ class MailGuest(models.Model):
         copy=False,
     )
     presence_ids: MailPresence = fields.One2many(
-        "mail.presence", "guest_id", groups="base.group_system"
+        "mail.presence",
+        "guest_id",
+        groups="base.group_system",
     )
     im_status = fields.Char(
-        "IM Status", compute="_compute_im_status", compute_sudo=True
+        "IM Status",
+        compute="_compute_im_status",
+        compute_sudo=True,
     )
     offline_since = fields.Datetime(
-        "Offline since", compute="_compute_im_status", compute_sudo=True
+        "Offline since",
+        compute="_compute_im_status",
+        compute_sudo=True,
     )
 
     @api.depends("presence_ids.status")
@@ -124,11 +130,15 @@ class MailGuest(models.Model):
         if len(name) > 512:
             raise UserError(_("Guest's name is too long."))
         self.name = name
-        for channel in self.channel_ids:
-            Store(bus_channel=channel).add(self, ["avatar_128", "name"]).bus_send()
-        Store(bus_channel=self).add(self, ["avatar_128", "name"]).bus_send()
+        payload = Store(bus_channel=self).add(self, ["avatar_128", "name"]).get_result()
+        if payload:
+            targets = self.channel_ids
+            for target in (targets, self):
+                if target:
+                    target._bus_send("mail.record/insert", payload)
 
     def _update_timezone(self, timezone: str) -> None:
+        self.ensure_one()
         query = """
             UPDATE mail_guest
             SET timezone = %s
@@ -144,8 +154,8 @@ class MailGuest(models.Model):
         self.ensure_one()
         return limited_field_access_token(self, "im_status", scope="mail.presence")
 
-    def _field_store_repr(self, field_name: str) -> list:
-        if field_name == "avatar_128":
+    def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:
+        if field_spec == "avatar_128":
             return [
                 Store.Attr(
                     "avatar_128_access_token",
@@ -153,14 +163,14 @@ class MailGuest(models.Model):
                 ),
                 "write_date",
             ]
-        if field_name == "im_status":
+        if field_spec == "im_status":
             return [
                 "im_status",
                 Store.Attr(
                     "im_status_access_token", lambda g: g._get_im_status_access_token()
                 ),
             ]
-        return [field_name]
+        return [field_spec]
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return ["avatar_128", "im_status", "name"]

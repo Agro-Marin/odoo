@@ -15,7 +15,10 @@ class ResConfigSettings(models.TransientModel):
         "Use Custom Email Servers",
         config_parameter="base_setup.default_external_email_server",
     )
-    fail_counter = fields.Integer("Fail Mail", compute="_compute_fail_counter")
+    fail_counter = fields.Integer(
+        "Fail Mail",
+        compute="_compute_fail_counter",
+    )
     alias_domain_id: MailAliasDomain = fields.Many2one(
         "mail.alias.domain",
         "Alias Domain",
@@ -50,7 +53,8 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="mail.use_sfu_server",
     )
     sfu_server_url = fields.Char(
-        "SFU Server URL", config_parameter="mail.sfu_server_url"
+        "SFU Server URL",
+        config_parameter="mail.sfu_server_url",
     )
     sfu_server_key = fields.Char(
         "SFU Server key",
@@ -58,10 +62,12 @@ class ResConfigSettings(models.TransientModel):
         help="Base64 encoded key",
     )
     email_primary_color = fields.Char(
-        related="company_id.email_primary_color", readonly=False
+        related="company_id.email_primary_color",
+        readonly=False,
     )
     email_secondary_color = fields.Char(
-        related="company_id.email_secondary_color", readonly=False
+        related="company_id.email_secondary_color",
+        readonly=False,
     )
 
     tenor_api_key = fields.Char(

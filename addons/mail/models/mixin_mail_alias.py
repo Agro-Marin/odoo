@@ -9,9 +9,9 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-class MailAliasMixin(models.AbstractModel):
-    _name = "mail.alias.mixin"
-    _inherit = ["mail.alias.mixin.optional"]
+class MixinMailAlias(models.AbstractModel):
+    _name = "mixin.mail.alias"
+    _inherit = ["mixin.mail.alias.optional"]
     _inherits = {"mail.alias": "alias_id"}
     _description = "Email Aliases Mixin"
 

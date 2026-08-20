@@ -248,16 +248,16 @@ class MailActivityType(models.Model):
         )
         return super().unlink()
 
-    def _get_date_deadline(self) -> date:
+    def _get_date_deadline(self, user: ResUsers | None = None) -> date:
         self.ensure_one()
         if self.delay_from == "previous_activity" and self.env.context.get(
             "activity_previous_deadline"
         ):
-            base = fields.Date.from_string(
+            base = fields.Date.to_date(
                 self.env.context.get("activity_previous_deadline")
             )
         else:
-            base = fields.Date.context_today(self)
+            base = self.env["mail.activity"]._today_for(user)
         return base + relativedelta(**{self.delay_unit: self.delay_count})
 
     @api.model

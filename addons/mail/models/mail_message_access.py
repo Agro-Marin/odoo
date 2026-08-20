@@ -1,13 +1,17 @@
 import logging
 from collections import defaultdict
+from collections.abc import Collection
 
-from odoo import _, api, models
+from odoo import api, models
 from odoo.api import DomainType
 from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.tools import SQL, Query
 
-from odoo.addons.mail.tools.access_scan import scan_accessible_ids
+from odoo.addons.mail.tools.access_scan import (
+    make_document_access_error,
+    scan_accessible_query,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -17,7 +21,6 @@ class MailMessage(models.Model):
 
     _SEARCH_ACCESS_CHUNK_MIN = 30
     _SEARCH_ACCESS_CHUNK_MAX = 8192
-    _SEARCH_COUNT_CAP = 1000
 
     @api.model
     def _search(
@@ -113,7 +116,7 @@ class MailMessage(models.Model):
                     model_ids[model][res_id].add(id_)
             return direct_allowed | self._find_allowed_doc_ids(model_ids)
 
-        ids = scan_accessible_ids(
+        return scan_accessible_query(
             self,
             domain,
             offset,
@@ -127,7 +130,6 @@ class MailMessage(models.Model):
             tiebreak="id desc",
             **kwargs,
         )
-        return self.browse(ids)._as_query()
 
     def _get_search_domain_non_internal(self) -> Domain:
         return Domain("message_type", "!=", "comment") | self._get_search_domain_share()
@@ -140,7 +142,7 @@ class MailMessage(models.Model):
         )
 
     def _filter_records_for_message_operation(
-        self, doc_model: str, doc_res_ids: list[int], operation: str
+        self, doc_model: str, doc_res_ids: Collection[int], operation: str
     ) -> models.Model:
         documents_all = (
             self.env[doc_model].with_context(active_test=False).browse(doc_res_ids)
@@ -355,32 +357,33 @@ class MailMessage(models.Model):
             for mid in parent_ids_msg_ids[parent_id]:
                 remaining.pop(mid, None)
 
+    @api.model
+    def _filter_records_followed_by_self(
+        self, doc_model: str, doc_res_ids: Collection[int]
+    ) -> set[int]:
+        if not doc_res_ids:
+            return set()
+        return set(
+            self.env["mail.followers"]
+            .sudo()
+            .search_fetch(
+                [
+                    ("res_model", "=", doc_model),
+                    ("res_id", "in", list(doc_res_ids)),
+                    ("partner_id", "=", self.env.user.partner_id.id),
+                ],
+                ["res_id"],
+            )
+            .mapped("res_id")
+        )
+
     def _discard_followed_documents(self, remaining: dict, documents: dict) -> None:
         if not remaining:
             return
         for model, docid_msgids in documents.items():
-            domain = [
-                ("res_model", "=", model),
-                ("res_id", "in", list(docid_msgids)),
-                ("partner_id", "=", self.env.user.partner_id.id),
-            ]
-            followers = (
-                self.env["mail.followers"].sudo().search_fetch(domain, ["res_id"])
-            )
-            for follower in followers:
-                for mid in docid_msgids[follower.res_id]:
+            for res_id in self._filter_records_followed_by_self(model, docid_msgids):
+                for mid in docid_msgids[res_id]:
                     remaining.pop(mid, None)
 
     def _make_access_error(self, operation: str) -> AccessError:
-        return AccessError(
-            _(
-                "The requested operation cannot be completed due to security restrictions. "
-                "Please contact your system administrator.\n\n"
-                "(Document type: %(type)s, Operation: %(operation)s)\n\n"
-                "Records: %(records)s, User: %(user)s",
-                type=self._description,
-                operation=operation,
-                records=self.ids[:6],
-                user=self.env.uid,
-            )
-        )
+        return make_document_access_error(self, operation)

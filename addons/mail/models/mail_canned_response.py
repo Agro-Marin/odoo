@@ -3,6 +3,7 @@ from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.tools import SQL
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
@@ -95,3 +96,26 @@ class MailCannedResponse(models.Model):
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return ["source", "substitution"]
+
+    @api.model
+    def _register_usage(self, canned_response_ids: object) -> None:
+        ids = [
+            cid
+            for cid in (canned_response_ids or [])
+            if isinstance(cid, int) and not isinstance(cid, bool)
+        ]
+        if not ids:
+            return
+        self.env.cr.execute(
+            SQL(
+                """
+                UPDATE mail_canned_response SET last_used = %(last_used)s
+                WHERE id IN (
+                    SELECT id FROM mail_canned_response WHERE id = ANY(%(ids)s)
+                    FOR NO KEY UPDATE SKIP LOCKED
+                )
+                """,
+                last_used=fields.Datetime.now(),
+                ids=ids,
+            )
+        )
