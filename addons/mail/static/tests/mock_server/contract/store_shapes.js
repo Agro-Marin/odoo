@@ -10,7 +10,7 @@ export default {
         "ir.attachment",
         "mail.followers",
         "mail.message",
-        "mail.thread",
+        "mixin.mail.thread",
         "res.partner"
     ],
     "scenarios": {
@@ -99,7 +99,7 @@ export default {
                 "trackingValues",
                 "write_date"
             ],
-            "mail.thread": [
+            "mixin.mail.thread": [
                 "display_name",
                 "has_mail_thread",
                 "id",
@@ -195,7 +195,7 @@ export default {
                 "trackingValues",
                 "write_date"
             ],
-            "mail.thread": [
+            "mixin.mail.thread": [
                 "display_name",
                 "has_mail_thread",
                 "id",
@@ -241,7 +241,7 @@ export default {
                 "partner_id",
                 "thread"
             ],
-            "mail.thread": [
+            "mixin.mail.thread": [
                 "areAttachmentsLoaded",
                 "attachments",
                 "canPostOnReadonly",
@@ -362,7 +362,7 @@ export default {
                 "trackingValues",
                 "write_date"
             ],
-            "mail.thread": [
+            "mixin.mail.thread": [
                 "display_name",
                 "has_mail_thread",
                 "id",

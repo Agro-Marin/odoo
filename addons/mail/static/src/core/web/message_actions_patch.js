@@ -46,7 +46,7 @@ registerMessageAction("reply-all", {
             thread_id: thread.id,
             message_id: message.id,
         });
-        const recipientIds = recipients.map((r) => r.id);
+        const recipientIds = recipients.map((r) => r.partner_id);
         const emailFrom = message.author_id?.email || message.email_from;
         const [name, email] = emailFrom ? parseEmail(emailFrom) : ["", ""];
         const datetime = _t("%(date)s at %(time)s", {

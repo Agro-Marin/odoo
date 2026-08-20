@@ -25,7 +25,11 @@ patch(DiscussClientAction.prototype, {
     getActiveId() {
         const currentURL = new URL(browser.location);
         if (!/\/discuss\/channel\/\d+$/.test(currentURL.pathname)) {
-            return null;
+            return (
+                this.store.Thread.localIdToActiveId(
+                    this.store.discuss.thread?.localId,
+                ) ?? null
+            );
         }
         return `discuss.channel_${currentURL.pathname.split("/")[3]}`;
     },

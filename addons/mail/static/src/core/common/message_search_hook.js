@@ -88,9 +88,10 @@ export function useMessageSearch(thread) {
                 if (!data) {
                     return;
                 }
-                const { count, loadMore, messages } = data;
+                const { count, countIsCapped, loadMore, messages } = data;
                 this.searched = true;
                 this.count = count;
+                this.countIsCapped = countIsCapped;
                 this.loadMore = loadMore;
                 if (before) {
                     const known = new Set(this.messages.map((m) => m.id));
@@ -103,6 +104,7 @@ export function useMessageSearch(thread) {
             }
         },
         count: 0,
+        countIsCapped: false,
         clear() {
             this.is_notification = undefined;
             this.messages = [];

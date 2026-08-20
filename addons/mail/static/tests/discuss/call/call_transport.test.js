@@ -32,8 +32,8 @@ class MockP2p extends EventTarget {
     removePeer(...args) {
         this.calls.push(["removePeer", ...args]);
     }
-    removeALlPeers() {
-        this.calls.push(["removeALlPeers"]);
+    removeAllPeers() {
+        this.calls.push(["removeAllPeers"]);
     }
     async updateUpload(...args) {
         this.calls.push(["updateUpload", ...args]);
@@ -99,7 +99,7 @@ test("SFU connect reaches CONNECTED and clears the watchdog", async () => {
     expect(sfu.calls.filter(([name]) => name === "connect")).toHaveLength(1);
     expect(sfu.calls[0][1]).toBe(SERVER_INFO.url);
     expect(steps.connectionStates).toInclude(MOCK_SFU_CLIENT_STATE.AUTHENTICATED);
-    expect(p2p.calls.map(([name]) => name)).toInclude("removeALlPeers");
+    expect(p2p.calls.map(([name]) => name)).toInclude("removeAllPeers");
     expect(sfu.calls.some(([name]) => name === "broadcast")).toBe(true);
     const uploadsBeforeConnected = steps.updateUpload;
     sfu.simulateConnected();

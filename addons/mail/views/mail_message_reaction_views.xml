@@ -9,12 +9,12 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="message_id"/>
-                            <field name="content"/>
+                            <field name="message_id" />
+                            <field name="content" />
                         </group>
                         <group>
-                            <field name="partner_id"/>
-                            <field name="guest_id"/>
+                            <field name="partner_id" />
+                            <field name="guest_id" />
                         </group>
                     </group>
                 </sheet>
@@ -28,11 +28,11 @@
         <field name="priority">10</field>
         <field name="arch" type="xml">
             <list string="Reactions" create="0" edit="0">
-                <field name="id"/>
-                <field name="message_id"/>
-                <field name="content"/>
-                <field name="partner_id"/>
-                <field name="guest_id"/>
+                <field name="id" />
+                <field name="message_id" />
+                <field name="content" />
+                <field name="partner_id" />
+                <field name="guest_id" />
             </list>
         </field>
     </record>

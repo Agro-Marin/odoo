@@ -304,3 +304,73 @@ onlineTest("can reject arbitrary offers", async () => {
     await waitForSteps(["offer rejected"]);
     network.close();
 });
+
+test("an unparsable data-channel frame is discarded, not raised", async () => {
+    // `content` is whatever a peer put on the wire. handleNotification is
+    // awaited by the "message" listener, so a throw here is an unhandled
+    // rejection any peer could trigger by sending one bad frame.
+    await mountWebClient();
+    const p2p = new PeerToPeer();
+    p2p.connect(1, 10);
+    p2p._emitLog = (id, message) => asyncStep(message);
+    await p2p.handleNotification(2, "this is not json");
+    await waitForSteps(["discarded unparsable notification"]);
+    p2p.disconnect();
+});
+
+onlineTest(
+    "camera and screen stay distinguishable when both are uploaded",
+    async () => {
+        // Transceivers are addressed by their position in getTransceivers(), so the
+        // only thing keeping a screen track from arriving as a camera track is that
+        // both ends build them in ORDERED_TRANSCEIVER_TYPES order. Send both at once
+        // and check the receiver agrees about which is which.
+        mockGetMedia();
+        await mountWebClient();
+        const channelId = 7;
+        const network = new Network();
+        const user1 = network.register(1);
+        const user2 = network.register(2);
+        /** @type {Map<string, MediaStreamTrack>} */
+        const receivedByType = new Map();
+        const bothReceived = new Promise((resolve) => {
+            user2.p2p.addEventListener("update", ({ detail: { name, payload } }) => {
+                if (name !== UPDATE_EVENT.TRACK) {
+                    return;
+                }
+                receivedByType.set(payload.type, payload.track);
+                if (receivedByType.size === 2) {
+                    resolve();
+                }
+            });
+        });
+        user2.p2p.connect(user2.id, channelId);
+        user1.p2p.connect(user1.id, channelId);
+        await user1.p2p.addPeer(user2.id);
+        const cameraTrack = (
+            await browser.navigator.mediaDevices.getUserMedia({ video: true })
+        ).getVideoTracks()[0];
+        const screenTrack = (
+            await browser.navigator.mediaDevices.getUserMedia({ video: true })
+        ).getVideoTracks()[0];
+        await user1.p2p.updateUpload(STREAM_TYPE.CAMERA, cameraTrack);
+        await user1.p2p.updateUpload(STREAM_TYPE.SCREEN, screenTrack);
+        await bothReceived;
+        expect([...receivedByType.keys()].sort()).toEqual([
+            STREAM_TYPE.CAMERA,
+            STREAM_TYPE.SCREEN,
+        ]);
+        // and the two are not the same transceiver
+        const peer = user2.p2p.peers.get(user1.id);
+        expect(peer.getTransceiver(STREAM_TYPE.CAMERA)).not.toBe(
+            peer.getTransceiver(STREAM_TYPE.SCREEN),
+        );
+        expect(
+            peer.getTransceiverStreamType(peer.getTransceiver(STREAM_TYPE.AUDIO)),
+        ).toBe(STREAM_TYPE.AUDIO);
+        expect(
+            peer.getTransceiverStreamType(peer.getTransceiver(STREAM_TYPE.SCREEN)),
+        ).toBe(STREAM_TYPE.SCREEN);
+        network.close();
+    },
+);

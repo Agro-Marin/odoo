@@ -169,22 +169,17 @@ async function load_attachments(request) {
     /** @type {import("mock_models").IrAttachment} */
     const IrAttachment = this.env["ir.attachment"];
 
-    const {
-        channel_id,
-        limit = 30,
-        older_attachment_id = null,
-    } = await parseRequestParams(request);
-    const attachmentIds = IrAttachment.filter(
+    const { channel_id, limit = 30, before = null } = await parseRequestParams(request);
+    const matching = IrAttachment.filter(
         ({ id, res_id, res_model }) =>
             res_id === channel_id &&
             res_model === "discuss.channel" &&
-            (!older_attachment_id || id < older_attachment_id),
-    )
-        .sort((a1, a2) => a2.id - a1.id)
-        .slice(0, limit)
-        .map(({ id }) => id);
+            (!before || id < before),
+    ).sort((a1, a2) => a2.id - a1.id);
+    const attachmentIds = matching.slice(0, limit).map(({ id }) => id);
     return {
         count: attachmentIds.length,
+        has_more: matching.length > limit,
         store_data: new mailDataHelpers.Store(
             IrAttachment.browse(attachmentIds),
         ).get_result(),
@@ -548,7 +543,30 @@ async function discuss_channel_set_new_message_separator(request) {
 registerRoute("/discuss/gif/favorites", get_favorites);
 /** @type {RouteCallback} */
 async function get_favorites(request) {
-    return [[]];
+    return [[], false];
+}
+registerRoute("/discuss/gif/add_favorite", add_favorite);
+/** @type {RouteCallback} */
+async function add_favorite(request) {
+    /** @type {import("mock_models").DiscussGifFavorite} */
+    const DiscussGifFavorite = this.env["discuss.gif.favorite"];
+    const { tenor_gif_id } = await parseRequestParams(request);
+    if (
+        !DiscussGifFavorite.search([["tenor_gif_id", "=", String(tenor_gif_id)]]).length
+    ) {
+        DiscussGifFavorite.create({ tenor_gif_id: String(tenor_gif_id) });
+    }
+}
+
+registerRoute("/discuss/gif/remove_favorite", remove_favorite);
+/** @type {RouteCallback} */
+async function remove_favorite(request) {
+    /** @type {import("mock_models").DiscussGifFavorite} */
+    const DiscussGifFavorite = this.env["discuss.gif.favorite"];
+    const { tenor_gif_id } = await parseRequestParams(request);
+    DiscussGifFavorite.unlink(
+        DiscussGifFavorite.search([["tenor_gif_id", "=", String(tenor_gif_id)]]),
+    );
 }
 
 registerRoute("/mail/history/messages", discuss_history_messages);
@@ -711,7 +729,7 @@ export async function mail_message_post(request) {
     /** @type {import("mock_models").MailMessage} */
     const MailMessage = this.env["mail.message"];
     /** @type {import("mock_models").MailThread} */
-    const MailThread = this.env["mail.thread"];
+    const MailThread = this.env["mixin.mail.thread"];
     /** @type {import("mock_models").ResPartner} */
     const ResPartner = this.env["res.partner"];
 
@@ -1095,7 +1113,11 @@ registerRoute("/mail/thread/unsubscribe", mail_thread_unsubscribe);
 async function mail_thread_unsubscribe(request) {
     const { res_model, res_id, partner_ids } = await parseRequestParams(request);
     const thread = this.env[res_model].browse(res_id);
-    this.env["mail.thread"].message_unsubscribe.call(thread, [res_id], partner_ids);
+    this.env["mixin.mail.thread"].message_unsubscribe.call(
+        thread,
+        [res_id],
+        partner_ids,
+    );
     return new mailDataHelpers.Store(
         thread,
         makeKwArgs({
@@ -1110,7 +1132,7 @@ registerRoute("/mail/thread/subscribe", mail_thread_subscribe);
 async function mail_thread_subscribe(request) {
     const { res_model, res_id, partner_ids } = await parseRequestParams(request);
     const thread = this.env[res_model].browse(res_id);
-    this.env["mail.thread"].message_subscribe.call(thread, [res_id], partner_ids);
+    this.env["mixin.mail.thread"].message_subscribe.call(thread, [res_id], partner_ids);
     return new mailDataHelpers.Store(
         thread,
         makeKwArgs({
@@ -1218,7 +1240,7 @@ function _process_request_for_all(store, name, params, context = {}) {
         );
         store.add(channels);
     }
-    if (name === "mail.thread") {
+    if (name === "mixin.mail.thread") {
         store.add(
             this.env[params.thread_model].browse(params.thread_id),
             makeKwArgs({ as_thread: true, request_list: params.request_list }),
@@ -1274,7 +1296,7 @@ function _process_request_for_internal_user(store, name, params) {
         const groups = ResUsers._get_activity_groups();
         store.add({
             activityCounter: groups.reduce(
-                (counter, group) => counter + (group.total_count || 0),
+                (counter, group) => counter + (group.due_count || 0),
                 0,
             ),
             activity_counter_bus_id: bus_last_id,
@@ -1306,7 +1328,7 @@ function _process_request_for_internal_user(store, name, params) {
 }
 
 const ids_by_model = {
-    "mail.thread": ["model", "id"],
+    "mixin.mail.thread": ["model", "id"],
     MessageReactions: ["message", "content"],
     Rtc: [],
     Store: [],
@@ -1579,7 +1601,7 @@ class Store {
             if (_delete) {
                 if (as_thread) {
                     this._add_model_values(
-                        "mail.thread",
+                        "mixin.mail.thread",
                         { id: data[0].id, model: data._name },
                         makeKwArgs({ delete: _delete }),
                     );
@@ -1602,7 +1624,7 @@ class Store {
                     this._format_fields(extra_fields),
                 );
                 if (as_thread) {
-                    MockServer.env["mail.thread"]._thread_to_store.call(
+                    MockServer.env["mixin.mail.thread"]._thread_to_store.call(
                         data,
                         this,
                         fields,
@@ -1684,7 +1706,7 @@ class Store {
         for (const index in data_list) {
             for (const data of data_list[index]) {
                 if (as_thread) {
-                    this._add_model_values("mail.thread", {
+                    this._add_model_values("mixin.mail.thread", {
                         id: records[index].id,
                         model: model_name,
                         ...data,

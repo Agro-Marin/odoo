@@ -5,8 +5,60 @@ import { IS_DELETED_SYM, isRelation, modelRegistry, STORE_SYM } from "./misc.js"
 import { Record } from "./record.js";
 
 /** @typedef {import("./record_list").RecordList} RecordList */
+/** @typedef {import("./record").RecordData} RecordData */
 /** @typedef {import("./record").RecordFields} RecordFields */
 /** @typedef {import("./record").StoreModels} StoreModels */
+
+/**
+ * Subscribe to one key (or several) of a reactive target and re-read it deeply
+ * enough that adding to a collection notifies, not only replacing it.
+ *
+ * The callback is handed the re-observe function rather than being run after an
+ * automatic re-observe, because a subscriber may need to defer: `Store.onChange`
+ * queues its reaction until the update flushes, and the observation has to
+ * happen then, not now.
+ *
+ * @param {Object} target
+ * @param {string|string[]} key
+ * @param {(observe: () => void) => any} callback
+ * @returns {() => void} disposer
+ */
+export function observeKey(target, key, callback) {
+    if (Array.isArray(key)) {
+        const disposers = key.map((k) => observeKey(target, k, callback));
+        return () => {
+            for (const dispose of disposers) {
+                dispose();
+            }
+        };
+    }
+    /** @type {Object<string, any>} */
+    let proxy;
+    function observe() {
+        // optional: a deferred subscriber can reach this after the disposer ran
+        const val = proxy?.[key];
+        if (typeof val === "object" && val !== null) {
+            void Object.keys(val);
+        }
+        if (Array.isArray(val)) {
+            void val.length;
+            void toRaw(val).forEach.call(val, (i) => i);
+        }
+    }
+    let ready = true;
+    proxy = reactive(target, () => {
+        if (ready) {
+            callback(observe);
+        }
+    });
+    observe();
+    return () => {
+        ready = false;
+        proxy = undefined;
+        target = undefined;
+        callback = undefined;
+    };
+}
 export class Store extends Record {
     /**
      * @returns {any|void}
@@ -41,21 +93,32 @@ export class Store extends Record {
     }
 
     /**
+     * Route an error raised inside the update cycle. Inside an update it is
+     * collected and rethrown when the flush ends; outside one it is raised at
+     * once. Either way it is raised: `logErrors` only decides whether it is
+     * also printed.
+     *
      * @param {Error} err
      * @throws {Error}
      */
     handleError(err) {
         if (this._.UPDATE === 0) {
-            if (this.warnErrors) {
+            if (this.logErrors) {
                 console.warn(err);
-                return;
             }
             throw err;
         }
         this._.ERRORS.push(err);
     }
 
-    warnErrors = true;
+    /**
+     * Print collected errors to the console before they are rethrown. Set it to
+     * false to keep a test that asserts a throw from also asserting the noise.
+     * It never decides whether an error throws.
+     *
+     * @type {boolean}
+     */
+    logErrors = true;
 
     /** @param {() => any} fn */
     MAKE_UPDATE(fn) {
@@ -256,7 +319,7 @@ export class Store extends Record {
                 this._.UPDATE--;
             }
             if (this._.ERRORS.length) {
-                if (this.warnErrors) {
+                if (this.logErrors) {
                     console.warn("Store data insert aborted due to following errors:");
                     for (const err of this._.ERRORS) {
                         console.warn(err);
@@ -270,6 +333,21 @@ export class Store extends Record {
         return res;
     }
     /**
+     * Upsert a `{modelName: rows}` payload.
+     *
+     * Rows are resolved per record identity in payload order, so a `_DELETE`
+     * row followed by a row that repopulates the same record leaves the record
+     * alive — the same last-write-wins resolution `Store.add_model_values`
+     * performs server-side (`tools/discuss.py`), where the rows of one model
+     * are a dict keyed by identity and re-adding values drops a pending
+     * `_DELETE`. Deletions are still applied after every model's inserts, so a
+     * row may reference a record another model's rows delete.
+     *
+     * A model whose rows fail does not abort the models after it: the error is
+     * collected and rethrown when the update flushes, as errors raised inside
+     * the flush already are. `insert()` is best-effort, not atomic — it can
+     * both apply part of a payload and throw.
+     *
      * @param {Object} [dataByModelName={}]
      * @param {Object} [options={}]
      * @returns {void}
@@ -279,7 +357,9 @@ export class Store extends Record {
         const rawStore = toRaw(this)._raw;
         const ctx = store._makeInsertContext();
         rawStore.MAKE_UPDATE(function storeInsert() {
-            const recordsDataToDelete = [];
+            /** @type {Map<string|number, [string, RecordData]>} */
+            const recordsDataToDelete = new Map();
+            let unresolvedIdentity = 0;
             for (const [pyOrJsModelName, data] of Object.entries(dataByModelName)) {
                 const modelName = store._insertModelName(ctx, pyOrJsModelName);
                 const models = /** @type {StoreModels} */ (
@@ -297,19 +377,32 @@ export class Store extends Record {
                     if (extraFields) {
                         vals = { ...vals, ...extraFields };
                     }
+                    let identity;
+                    try {
+                        identity = `${modelName}:${models[modelName].localId(vals)}`;
+                    } catch {
+                        // an identity this payload cannot express cannot be
+                        // matched against another row either: keep both.
+                        identity = ++unresolvedIdentity;
+                    }
                     if (vals._DELETE) {
                         if (!extraFields) {
                             vals = { ...vals };
                         }
                         delete vals._DELETE;
-                        recordsDataToDelete.push([modelName, vals]);
+                        recordsDataToDelete.set(identity, [modelName, vals]);
                     } else {
+                        recordsDataToDelete.delete(identity);
                         insertData.push(vals);
                     }
                 }
-                models[modelName].insert(insertData, options);
+                try {
+                    models[modelName].insert(insertData, options);
+                } catch (error) {
+                    rawStore.handleError(error);
+                }
             }
-            for (const [modelName, vals] of recordsDataToDelete) {
+            for (const [modelName, vals] of recordsDataToDelete.values()) {
                 store[modelName].get(vals)?.delete();
             }
         });
@@ -344,39 +437,7 @@ export class Store extends Record {
      * @returns {function}
      */
     _onChange(record, key, callback) {
-        /** @type {RecordFields} */
-        let proxy;
-        function _observe() {
-            const val = proxy[key];
-            if (typeof val === "object" && val !== null) {
-                void Object.keys(val);
-            }
-            if (Array.isArray(val)) {
-                void val.length;
-                void toRaw(val).forEach.call(val, (i) => i);
-            }
-        }
-        if (Array.isArray(key)) {
-            const disposers = key.map((k) => this._onChange(record, k, callback));
-            return () => {
-                for (const dispose of disposers) {
-                    dispose();
-                }
-            };
-        }
-        let ready = true;
-        proxy = reactive(record, () => {
-            if (ready) {
-                callback(_observe);
-            }
-        });
-        _observe();
-        return () => {
-            ready = false;
-            proxy = undefined;
-            record = undefined;
-            callback = undefined;
-        };
+        return observeKey(record, key, callback);
     }
     /** @param {Object} data */
     _cleanupData(data) {

@@ -8,9 +8,9 @@
             <form string="GIF favorite">
                 <sheet>
                     <group>
-                        <field name="id"/>
-                        <field name="tenor_gif_id"/>
-                        <field name="create_uid"/>
+                        <field name="id" />
+                        <field name="tenor_gif_id" />
+                        <field name="create_uid" />
                     </group>
                 </sheet>
             </form>
@@ -23,9 +23,9 @@
         <field name="priority">10</field>
         <field name="arch" type="xml">
             <list string="GIF favorite">
-                <field name="id"/>
-                <field name="tenor_gif_id"/>
-                <field name="create_uid"/>
+                <field name="id" />
+                <field name="tenor_gif_id" />
+                <field name="create_uid" />
             </list>
         </field>
     </record>

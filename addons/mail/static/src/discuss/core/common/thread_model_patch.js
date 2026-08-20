@@ -702,7 +702,7 @@ const threadPatch = {
                 limit,
             });
             this.store.insert(data.store_data);
-            if (data.count < limit) {
+            if (!data.has_more) {
                 this.areAttachmentsLoaded = true;
             }
         } finally {

@@ -4,7 +4,6 @@ import { _t } from "@web/core/translation";
 
 import { MessageCardList } from "./message_card_list.js";
 
-const SEARCH_COUNT_CAP = 1000;
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
@@ -20,9 +19,12 @@ export class SearchMessageResult extends Component {
         if (this.props.messageSearch.messages.length === 0) {
             return false;
         }
-        const count = this.props.messageSearch.count;
-        if (count >= SEARCH_COUNT_CAP) {
-            return _t("%s+ messages found", SEARCH_COUNT_CAP);
+        // The server reports whether its own cap truncated the total; a second
+        // copy of that cap here would silently print a truncated count as exact
+        // the moment the two drifted apart.
+        const { count, countIsCapped } = this.props.messageSearch;
+        if (countIsCapped) {
+            return _t("%s+ messages found", count);
         }
         return _t("%s messages found", count);
     }

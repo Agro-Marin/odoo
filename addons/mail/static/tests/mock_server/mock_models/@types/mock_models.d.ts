@@ -77,7 +77,7 @@ declare module "mock_models" {
         "mail.scheduled.message": MailScheduledMessage,
         "mail.shortcode": MailShortcode,
         "mail.template": MailTemplate,
-        "mail.thread": MailThread,
+        "mixin.mail.thread": MailThread,
         "mail.tracking.value": MailTrackingValue,
         "res.fake": ResFake,
         "res.groups": ResGroups,

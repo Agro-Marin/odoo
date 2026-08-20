@@ -244,19 +244,6 @@ registerCallAction("auto-focus", {
     sequence: 50,
     sequenceGroup: 200,
 });
-export const blurBackgroundAction = {
-    condition: false,
-    /** @param {ActionParams} params */
-    name: ({ store }) =>
-        store.settings.useBlur ? _t("Remove Blur") : _t("Blur Background"),
-    /** @param {ActionParams} params */
-    isActive: ({ store }) => store?.settings?.useBlur,
-    icon: "fa-regular fa-image",
-    /** @param {ActionParams} params */
-    onSelected: ({ store }) => store.settings.setUseBlur(!store.settings.useBlur),
-    sequence: 60,
-    sequenceGroup: 200,
-};
 registerCallAction("fullscreen", {
     /** @param {ActionParams} params */
     btnClass: ({ thread }) =>

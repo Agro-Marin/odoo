@@ -9,21 +9,22 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="source_url"/>
-                            <field name="og_type"/>
-                            <field name="og_title"/>
+                            <field name="source_url" />
+                            <field name="og_type" />
+                            <field name="og_title" />
                         </group>
                         <group>
-                            <field name="og_image"/>
-                            <field name="og_image" nolabel="1" widget="image_url" options="{'size': [150, 150]}" />
-                            <field name="og_mimetype"/>
-                            <field name="image_mimetype"/>
-                            <field name="create_date"/>
+                            <field name="og_image" />
+                            <field name="og_image" nolabel="1" widget="image_url"
+                                options="{'size': [150, 150]}" />
+                            <field name="og_mimetype" />
+                            <field name="image_mimetype" />
+                            <field name="create_date" />
                         </group>
                     </group>
-                    <label for="og_description"/>
-                    <field name="og_description"/>
-                    <field name="message_link_preview_ids"/>
+                    <label for="og_description" />
+                    <field name="og_description" />
+                    <field name="message_link_preview_ids" />
                 </sheet>
             </form>
         </field>
@@ -35,11 +36,11 @@
         <field name="priority">10</field>
         <field name="arch" type="xml">
             <list string="Link Previews">
-                <field name="id"/>
-                <field name="source_url"/>
-                <field name="og_title"/>
-                <field name="og_type"/>
-                <field name="image_mimetype"/>
+                <field name="id" />
+                <field name="source_url" />
+                <field name="og_title" />
+                <field name="og_type" />
+                <field name="image_mimetype" />
             </list>
         </field>
     </record>
@@ -56,8 +57,8 @@
         <field name="priority">10</field>
         <field name="arch" type="xml">
             <list string="messages">
-                <field name="author_id"/>
-                <field name="is_hidden"/>
+                <field name="author_id" />
+                <field name="is_hidden" />
             </list>
         </field>
     </record>

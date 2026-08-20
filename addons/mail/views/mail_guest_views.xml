@@ -7,11 +7,11 @@
         <field name="priority">10</field>
         <field name="arch" type="xml">
             <list string="Guests">
-                <field name="id"/>
-                <field name="name"/>
-                <field name="country_id"/>
-                <field name="lang"/>
-                <field name="timezone"/>
+                <field name="id" />
+                <field name="name" />
+                <field name="country_id" />
+                <field name="lang" />
+                <field name="timezone" />
             </list>
         </field>
     </record>
@@ -24,13 +24,13 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="name"/>
-                            <field name="country_id"/>
+                            <field name="name" />
+                            <field name="country_id" />
                         </group>
                         <group>
-                            <field name="lang"/>
-                            <field name="timezone"/>
-                            <field name="channel_ids" widget="many2many_tags"/>
+                            <field name="lang" />
+                            <field name="timezone" />
+                            <field name="channel_ids" widget="many2many_tags" />
                         </group>
                     </group>
                 </sheet>

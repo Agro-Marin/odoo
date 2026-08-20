@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
+
     <record id="mail_gateway_allowed_view_tree" model="ir.ui.view">
         <field name="name">mail.gateway.allowed.view.list</field>
         <field name="model">mail.gateway.allowed</field>
         <field name="arch" type="xml">
             <list string="Mail Gateway Allowed" editable="top">
-                <field name="email"/>
+                <field name="email" />
             </list>
         </field>
     </record>
@@ -15,7 +16,7 @@
         <field name="model">mail.gateway.allowed</field>
         <field name="arch" type="xml">
             <search>
-                <field name="email"/>
+                <field name="email" />
             </search>
         </field>
     </record>
@@ -25,4 +26,5 @@
         <field name="res_model">mail.gateway.allowed</field>
         <field name="view_mode">list</field>
     </record>
+
 </odoo>

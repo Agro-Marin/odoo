@@ -1,15 +1,16 @@
 <?xml version="1.0"?>
-<odoo><data>
+<odoo>
+
     <record id="mail_notification_view_tree" model="ir.ui.view">
         <field name="name">mail.notification.view.list</field>
         <field name="model">mail.notification</field>
         <field name="arch" type="xml">
             <list string="Notifications">
-                <field name="mail_message_id"/>
-                <field name="notification_type"/>
-                <field name="res_partner_id"/>
-                <field name="is_read"/>
-                <field name="failure_type"/>
+                <field name="mail_message_id" />
+                <field name="notification_type" />
+                <field name="res_partner_id" />
+                <field name="is_read" />
+                <field name="failure_type" />
             </list>
         </field>
     </record>
@@ -20,21 +21,22 @@
         <field name="arch" type="xml">
             <form string="Notification" duplicate="0">
                 <header>
-                    <field name="notification_status" widget="statusbar" statusbar_visible="ready,sent"/>
+                    <field name="notification_status" widget="statusbar"
+                        statusbar_visible="ready,sent" />
                 </header>
                 <sheet>
                     <group>
                         <group string="Source">
-                            <field name="mail_message_id"/>
-                            <field name="notification_type"/>
-                            <field name="mail_mail_id"/>
-                            <field name="res_partner_id"/>
+                            <field name="mail_message_id" />
+                            <field name="notification_type" />
+                            <field name="mail_mail_id" />
+                            <field name="res_partner_id" />
                         </group>
                         <group string="Status">
-                            <field name="is_read"/>
-                            <field name="read_date"/>
-                            <field name="failure_type"/>
-                            <field name="failure_reason" class="o_text_overflow"/>
+                            <field name="is_read" />
+                            <field name="read_date" />
+                            <field name="failure_type" />
+                            <field name="failure_reason" class="o_text_overflow" />
                         </group>
                     </group>
                 </sheet>
@@ -48,4 +50,4 @@
         <field name="view_mode">list,form</field>
     </record>
 
-</data></odoo>
+</odoo>

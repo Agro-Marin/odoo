@@ -1163,7 +1163,7 @@ test("Inserting single-id data on non-single id Model throws human-readable erro
         author = fields.One("Persona");
     }).register(localRegistry);
     const store = await start();
-    store.warnErrors = false;
+    store.logErrors = false;
     const paul = store.Persona.insert({ partner_id: 1 });
     store.Persona.insert({ guest_id: 2 });
     expect(store.Persona.get({ partner_id: 1 }).exists()).toBe(true);
@@ -1414,7 +1414,7 @@ test("error in nested update propagates and store still works afterwards", async
         body;
     }).register(localRegistry);
     const store = await start();
-    store.warnErrors = false;
+    store.logErrors = false;
     expect(() =>
         store.MAKE_UPDATE(() => {
             store.Message.insert(1);
@@ -1532,7 +1532,7 @@ test("errors from direct-assignment hooks are reported immediately", async () =>
         body;
     }).register(localRegistry);
     const store = await start();
-    store.warnErrors = false;
+    store.logErrors = false;
     const message = store.Message.insert(1);
     Record.onChange(message, "body", () => {
         throw new Error("boom");
@@ -1575,7 +1575,7 @@ test("throwing compute preserves the previous value instead of clearing it", asy
         name;
     }).register(localRegistry);
     const store = await start();
-    store.warnErrors = false;
+    store.logErrors = false;
     const thread = store.Thread.insert("General");
     expect(thread.title).toBe("title of General");
     expect(thread.members.length).toBe(1);
@@ -1611,7 +1611,7 @@ test("record list index assignment", async () => {
         thread = fields.One("Thread", { inverse: "files" });
     }).register(localRegistry);
     const store = await start();
-    store.warnErrors = false;
+    store.logErrors = false;
     const thread = store.Thread.insert("General");
     const file1 = store.File.insert("file1.txt");
     const file2 = store.File.insert("file2.txt");
@@ -1649,7 +1649,7 @@ test("id fields are immutable once the record is inserted", async () => {
         thread = fields.One("Thread");
     }).register(localRegistry);
     const store = await start();
-    store.warnErrors = false;
+    store.logErrors = false;
     const message = store.Message.insert({ id: 1, body: "a" });
     store.Message.insert({ id: 1, body: "b" });
     expect(message.body).toBe("b");

@@ -44,7 +44,7 @@ export class ResFake extends models.Model {
      * @param {number[]} ids
      * @returns {Object}
      */
-    _get_customer_information(ids) {
+    _mail_get_customer_information(ids) {
         const record = this.browse(ids)[0];
         if (!record.email_cc) {
             return;
@@ -64,7 +64,7 @@ export class ResFake extends models.Model {
         primary_email = false,
     ) {
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 

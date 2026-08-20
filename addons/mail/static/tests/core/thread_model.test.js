@@ -56,7 +56,7 @@ test("thread needaction counter decrements when needaction message is deleted", 
     const env = await start();
     const store = getService("mail.store");
     store.insert({
-        "mail.thread": [
+        "mixin.mail.thread": [
             {
                 id: partnerId,
                 message_needaction_counter: 1,
@@ -108,7 +108,7 @@ async function setupNeedactionThread(pyEnv) {
     await start();
     const store = getService("mail.store");
     store.insert({
-        "mail.thread": [
+        "mixin.mail.thread": [
             {
                 id: partnerId,
                 message_needaction_counter: 1,
@@ -187,7 +187,7 @@ test("plain document threads answer the channel-behavior hooks with neutral defa
     expect(thread.newMessageSeparatorId).toBe(undefined);
     expect(thread.openChannel()).toBe(false);
     expect(thread.fullNameWithParent).toBe(thread.displayName);
-    expect(thread._getActualModelName()).toBe("mail.thread");
+    expect(thread._getActualModelName()).toBe("mixin.mail.thread");
     await thread.rename("new name");
     expect(thread.displayName).toBe(thread.display_name);
 });

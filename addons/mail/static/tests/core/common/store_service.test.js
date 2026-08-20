@@ -75,17 +75,17 @@ test("malformed fetched data does not block later fetches", async () => {
         const isMalformedTarget = args.fetch_params.some(
             (param) =>
                 Array.isArray(param) &&
-                param[0] === "mail.thread" &&
+                param[0] === "mixin.mail.thread" &&
                 param[1]?.thread_id === partnerId,
         );
         if (isMalformedTarget) {
-            return { "mail.thread": [1] };
+            return { "mixin.mail.thread": [1] };
         }
     });
     const lastDataRequestId = store.DataResponse._lastId;
     let error;
     try {
-        await store.fetchStoreData("mail.thread", {
+        await store.fetchStoreData("mixin.mail.thread", {
             thread_model: "res.partner",
             thread_id: partnerId,
             request_list: [],
@@ -100,7 +100,7 @@ test("malformed fetched data does not block later fetches", async () => {
             (dataRequest) => dataRequest.id > lastDataRequestId,
         ),
     ).toHaveLength(0);
-    await store.fetchStoreData("mail.thread", {
+    await store.fetchStoreData("mixin.mail.thread", {
         thread_model: "res.partner",
         thread_id: serverState.partnerId,
         request_list: [],
@@ -155,7 +155,7 @@ test("store.insert different PY model having same JS model", async () => {
             { id: 1, name: "General" },
             { id: 2, name: "Sales" },
         ],
-        "mail.thread": [
+        "mixin.mail.thread": [
             { id: 1, model: "discuss.channel" },
             { id: 3, name: "R&D", model: "discuss.channel" },
         ],

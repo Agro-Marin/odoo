@@ -39,6 +39,8 @@ export class Notification extends Record {
         switch (this.failure_type) {
             case "mail_smtp":
                 return _t("Connection failed");
+            case "mail_server_unauthorized":
+                return _t("Mail server not available");
             case "mail_bounce":
                 return _t("Bounce");
             case "mail_email_invalid":

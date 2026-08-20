@@ -109,12 +109,12 @@ export class ResUsers extends webModels.ResUsers {
                     overdue_count: 0,
                     planned_count: 0,
                     today_count: 0,
-                    total_count: 0,
+                    due_count: 0,
                     type: "activity",
                 };
             }
             userActivitiesByModelName[modelName][`${activity["states"]}_count`] += 1;
-            userActivitiesByModelName[modelName]["total_count"] += 1;
+            userActivitiesByModelName[modelName]["due_count"] += 1;
             userActivitiesByModelName[modelName].actions = [
                 {
                     icon: "fa-regular fa-clock",
@@ -199,12 +199,12 @@ export class ResUsers extends webModels.ResUsers {
                     overdue_count: 0,
                     planned_count: 0,
                     today_count: 0,
-                    total_count: 0,
+                    due_count: 0,
                     type: "activity",
                 };
             }
             userActivitiesByModelName[modelName][`${activity["states"]}_count`] += 1;
-            userActivitiesByModelName[modelName]["total_count"] += 1;
+            userActivitiesByModelName[modelName]["due_count"] += 1;
             userActivitiesByModelName[modelName].actions = [
                 {
                     icon: "fa-regular fa-clock",

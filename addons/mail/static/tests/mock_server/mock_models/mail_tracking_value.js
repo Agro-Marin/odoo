@@ -6,7 +6,7 @@ patch(models.ServerModel.prototype, {
     /** @type {typeof models.Model["prototype"]["write"]} */
     write() {
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
 
         const initialTrackedFieldValuesByRecordId =
             MailThread._track_prepare.call(this);

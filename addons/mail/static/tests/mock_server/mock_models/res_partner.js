@@ -10,7 +10,7 @@ import {
 
 /** @typedef {import("@web/../tests/web_test_helpers").ModelRecord} ModelRecord */
 export class ResPartner extends webModels.ResPartner {
-    _inherit = ["mail.thread"];
+    _inherit = ["mixin.mail.thread"];
 
     description = fields.Char({ string: "Description" });
     hasWriteAccess = fields.Boolean({ default: true });

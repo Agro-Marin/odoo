@@ -148,9 +148,9 @@ test("attachment counter while loading attachments", async () => {
     const def = new Deferred();
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    listenStoreFetch("mail.thread", {
+    listenStoreFetch("mixin.mail.thread", {
         async onRpc() {
-            asyncStep("before mail.thread");
+            asyncStep("before mixin.mail.thread");
             await def;
         },
     });
@@ -160,18 +160,18 @@ test("attachment counter while loading attachments", async () => {
     await advanceTime(DELAY_FOR_SPINNER);
     await contains("button[aria-label='Attach files'] .fa-spin");
     await contains("button[aria-label='Attach files']", { count: 0, text: "0" });
-    await waitForSteps(["before mail.thread"]);
+    await waitForSteps(["before mixin.mail.thread"]);
     def.resolve();
-    await waitStoreFetch("mail.thread");
+    await waitStoreFetch("mixin.mail.thread");
 });
 
 test("attachment counter transition when attachments become loaded", async () => {
     const def = new Deferred();
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({});
-    listenStoreFetch("mail.thread", {
+    listenStoreFetch("mixin.mail.thread", {
         async onRpc() {
-            asyncStep("before mail.thread");
+            asyncStep("before mixin.mail.thread");
             await def;
         },
     });
@@ -180,9 +180,9 @@ test("attachment counter transition when attachments become loaded", async () =>
     await contains("button[aria-label='Attach files']");
     await advanceTime(DELAY_FOR_SPINNER);
     await contains("button[aria-label='Attach files'] .fa-spin");
-    await waitForSteps(["before mail.thread"]);
+    await waitForSteps(["before mixin.mail.thread"]);
     def.resolve();
-    await waitStoreFetch("mail.thread");
+    await waitStoreFetch("mixin.mail.thread");
     await contains("button[aria-label='Attach files'] .fa-spin", { count: 0 });
 });
 

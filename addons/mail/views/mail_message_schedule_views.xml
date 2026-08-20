@@ -1,20 +1,20 @@
 <?xml version="1.0"?>
-<odoo><data>
+<odoo>
     <record id="mail_message_schedule_view_form" model="ir.ui.view">
         <field name="name">mail.message.schedule.view.form</field>
         <field name="model">mail.message.schedule</field>
         <field name="arch" type="xml">
             <form string="Scheduled Message" duplicate="0">
                 <header>
-                    <button name="force_send" string="Force Send" type="object"/>
+                    <button name="force_send" string="Force Send" type="object" />
                 </header>
                 <sheet>
                     <group>
-                        <field name="mail_message_id"/>
-                        <field name="scheduled_datetime"/>
+                        <field name="mail_message_id" />
+                        <field name="scheduled_datetime" />
                     </group>
                     <group>
-                        <field name="notification_parameters"/>
+                        <field name="notification_parameters" />
                     </group>
                 </sheet>
             </form>
@@ -26,8 +26,8 @@
         <field name="model">mail.message.schedule</field>
         <field name="arch" type="xml">
             <list string="Emails">
-                <field name="mail_message_id"/>
-                <field name="scheduled_datetime"/>
+                <field name="mail_message_id" />
+                <field name="scheduled_datetime" />
             </list>
         </field>
     </record>
@@ -37,7 +37,7 @@
         <field name="model">mail.message.schedule</field>
         <field name="arch" type="xml">
             <search string="Scheduled Messages">
-                <field name="mail_message_id"/>
+                <field name="mail_message_id" />
             </search>
         </field>
     </record>
@@ -49,4 +49,4 @@
         <field name="context">{}</field>
     </record>
 
-</data></odoo>
+</odoo>

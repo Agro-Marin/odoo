@@ -8,7 +8,6 @@ import { rpc } from "@web/core/network";
 import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-const GIF_FAVORITES_LIMIT = 20;
 /**
  * @param {...any} args
  * @returns {ReturnType<typeof usePicker>}
@@ -60,7 +59,6 @@ export class GifPicker extends Component {
 
     setup() {
         super.setup();
-        this.orm = useService("orm");
         this.store = useService("mail.store");
         this.sequential = makeSequential();
         this.inputRef = useAutofocus();
@@ -262,9 +260,11 @@ export class GifPicker extends Component {
     async onClickFavorite(gif) {
         if (!this.isFavorite(gif)) {
             this.state.favorites.gifs.push(gif);
-            await this.orm.silent.create("discuss.gif.favorite", [
+            await rpc(
+                "/discuss/gif/add_favorite",
                 { tenor_gif_id: gif.id },
-            ]);
+                { silent: true },
+            );
         } else {
             const index = this.state.favorites.gifs.findIndex(
                 ({ id }) => id === gif.id,
@@ -297,7 +297,7 @@ export class GifPicker extends Component {
         this._loadingFavorites = true;
         this.state.loadingGif = true;
         try {
-            const [results] = await rpc(
+            const [results, hasMore] = await rpc(
                 "/discuss/gif/favorites",
                 { offset: this.offset },
                 { silent: true },
@@ -309,7 +309,7 @@ export class GifPicker extends Component {
                     this.pushGif(gif);
                 }
             }
-            if (results.length < GIF_FAVORITES_LIMIT) {
+            if (!hasMore) {
                 this.favoritesAllLoaded = true;
             }
         } catch {

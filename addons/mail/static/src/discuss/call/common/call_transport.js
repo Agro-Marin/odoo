@@ -391,7 +391,7 @@ export class CallTransport {
         this.hooks.setLocalConnectionState(state);
         switch (state) {
             case this.SFU_CLIENT_STATE.AUTHENTICATED:
-                this.p2p.removeALlPeers();
+                this.p2p.removeAllPeers();
                 this.sfuClient.broadcast({ sequence: getSequence() });
                 break;
             case this.SFU_CLIENT_STATE.CONNECTED:

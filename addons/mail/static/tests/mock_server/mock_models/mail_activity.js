@@ -257,9 +257,7 @@ export class MailActivity extends models.ServerModel {
                     ...Object.fromEntries(
                         Object.entries(
                             groupBy(ongoing, (a) =>
-                                this._compute_state_from_date(
-                                    deserializeDate(a.date_deadline),
-                                ),
+                                this._state_for(deserializeDate(a.date_deadline)),
                             ),
                         ).map(([state, activities]) => [state, activities.length]),
                     ),
@@ -269,9 +267,7 @@ export class MailActivity extends models.ServerModel {
                 reporting_date: reportingDate
                     ? reportingDate.toFormat("yyyy-LL-dd")
                     : false,
-                state: ongoing.length
-                    ? this._compute_state_from_date(dateDeadline)
-                    : "done",
+                state: ongoing.length ? this._state_for(dateDeadline) : "done",
                 user_assigned_ids: userAssignedIds,
                 summaries: ongoing
                     .concat(completed)
@@ -316,7 +312,7 @@ export class MailActivity extends models.ServerModel {
      * @param {DateTime} date_deadline
      * @returns {"today" | "planned" | "overdue"}
      */
-    _compute_state_from_date(date_deadline) {
+    _state_for(date_deadline) {
         const now = DateTime.now();
         if (date_deadline.hasSame(now, "day")) {
             return "today";

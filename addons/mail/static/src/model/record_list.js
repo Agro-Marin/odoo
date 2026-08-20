@@ -50,6 +50,49 @@ function recordByLocalIdFor(recordList, recordListFullProxy) {
     return subscribes ? recordByLocalId : toRaw(recordByLocalId);
 }
 
+/**
+ * Everything a read method of a `RecordList` needs, resolved once.
+ *
+ * `data` and `byLocalId` must both be taken from the *downgraded* receiver: a
+ * read arriving through `_proxy` should subscribe, a read the engine makes
+ * internally should not, and getting that wrong in one method silently gives it
+ * different reactivity from its neighbours. Reading them here is what keeps the
+ * rule in one place instead of in fourteen copies of a three-line preamble.
+ *
+ * @template {Record} R
+ * @param {RecordList<R>} receiver `this`, as the method was called
+ * @returns {{list: RecordList<R>, proxy: RecordList<R>, byLocalId: Map<string, R>, data: string[]}}
+ */
+function cursorOf(receiver) {
+    const list = toRaw(receiver)._raw;
+    const proxy = list._.downgradeProxy(list, receiver);
+    return {
+        list,
+        proxy,
+        byLocalId: recordByLocalIdFor(list, proxy),
+        data: proxy.data,
+    };
+}
+
+/**
+ * The raw list, the downgraded receiver and the store — what a mutator needs.
+ *
+ * Deliberately does NOT read `data`, unlike {@link cursorOf}: a method that only
+ * writes must not pick up a read subscription on its way in.
+ *
+ * @template {Record} R
+ * @param {RecordList<R>} receiver `this`, as the method was called
+ * @returns {{list: RecordList<R>, proxy: RecordList<R>, store: import("models").Store}}
+ */
+function mutatorOf(receiver) {
+    const list = toRaw(receiver)._raw;
+    return {
+        list,
+        proxy: list._.downgradeProxy(list, receiver),
+        store: list._store,
+    };
+}
+
 export class RecordListInternal {
     /** @type {string} */
     name;
@@ -467,9 +510,7 @@ export class RecordList extends Array {
     }
     /** @param {R[]} records */
     push(...records) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const store = recordList._store;
+        const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListPush() {
             for (const val of records) {
                 const record = recordList._.insert(
@@ -501,9 +542,7 @@ export class RecordList extends Array {
     }
     /** @returns {R} */
     pop() {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const store = recordList._store;
+        const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListPop() {
             /** @type {R} */
             const oldRecordProxy = recordListFullProxy.at(-1);
@@ -519,9 +558,7 @@ export class RecordList extends Array {
     }
     /** @returns {R} */
     shift() {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const store = recordList._store;
+        const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListShift() {
             const recordProxy = recordListFullProxy._store.recordByLocalId.get(
                 recordList._proxy.data.shift(),
@@ -547,9 +584,7 @@ export class RecordList extends Array {
     }
     /** @param {R[]} records */
     unshift(...records) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const store = recordList._store;
+        const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListUnshift() {
             for (let i = records.length - 1; i >= 0; i--) {
                 const record = recordList._.insert(
@@ -581,9 +616,7 @@ export class RecordList extends Array {
     }
     /** @param {R} recordProxy */
     indexOf(recordProxy) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        return recordListFullProxy.data.indexOf(toRaw(recordProxy)?._raw.localId);
+        return cursorOf(this).data.indexOf(toRaw(recordProxy)?._raw.localId);
     }
     /**
      * @param {number} [start]
@@ -591,9 +624,7 @@ export class RecordList extends Array {
      * @param {...R} [newRecordsProxy]
      */
     splice(start, deleteCount, ...newRecordsProxy) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const store = recordList._store;
+        const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         const length = recordList.data.length;
         const relativeStart = Math.trunc(start) || 0;
         const actualStart =
@@ -667,9 +698,7 @@ export class RecordList extends Array {
     }
     /** @param {(a: R, b: R) => number} func */
     sort(func) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const store = recordList._store;
+        const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
         return store.MAKE_UPDATE(function recordListSort() {
             recordList._store._.sortRecordList(recordListFullProxy, func);
             return recordListFullProxy;
@@ -677,11 +706,9 @@ export class RecordList extends Array {
     }
     /** @param {...(R[]|RecordList<R>)} collections */
     concat(...collections) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        return recordListFullProxy.data
-            .map((localId) => recordByLocalId.get(localId))
+        const { data, byLocalId } = cursorOf(this);
+        return data
+            .map((localId) => byLocalId.get(localId))
             .concat(...collections.map((c) => [...c]));
     }
     /**
@@ -808,42 +835,30 @@ export class RecordList extends Array {
     }
     /** @yields {R} */
     *[Symbol.iterator]() {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        for (const localId of recordListFullProxy.data) {
-            yield recordByLocalId.get(localId);
+        const { data, byLocalId } = cursorOf(this);
+        for (const localId of data) {
+            yield byLocalId.get(localId);
         }
     }
     /** @param {number} index */
     at(index) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        return recordByLocalIdFor(recordList, recordListFullProxy).get(
-            recordListFullProxy.data.at(index),
-        );
+        const { data, byLocalId } = cursorOf(this);
+        return byLocalId.get(data.at(index));
     }
     /** @param {(record: R, index: number, recordList: this) => any} fn */
     map(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        return recordListFullProxy.data.map((localId, index) =>
-            fn(recordByLocalId.get(localId), index, this),
-        );
+        const { data, byLocalId } = cursorOf(this);
+        return data.map((localId, index) => fn(byLocalId.get(localId), index, this));
     }
     /**
      * @param {(record: R, index: number, recordList: this) => boolean} fn
      * @returns {R[]}
      */
     filter(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
+        const { data, byLocalId } = cursorOf(this);
         const result = [];
-        const data = recordListFullProxy.data;
         for (let index = 0; index < data.length; index++) {
-            const recordProxy = recordByLocalId.get(data[index]);
+            const recordProxy = byLocalId.get(data[index]);
             if (fn(recordProxy, index, this)) {
                 result.push(recordProxy);
             }
@@ -855,49 +870,37 @@ export class RecordList extends Array {
      * @returns {R|undefined}
      */
     find(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        const data = recordListFullProxy.data;
+        const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
-            const recordProxy = recordByLocalId.get(data[index]);
+            const recordProxy = byLocalId.get(data[index]);
             if (fn(recordProxy, index, this)) {
                 return recordProxy;
             }
         }
         return undefined;
     }
-
     /**
      * @param {(record: R, index: number, recordList: this) => boolean} fn
      * @returns {R|undefined}
      */
     findLast(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        const data = recordListFullProxy.data;
+        const { data, byLocalId } = cursorOf(this);
         for (let index = data.length - 1; index >= 0; index--) {
-            const recordProxy = recordByLocalId.get(data[index]);
+            const recordProxy = byLocalId.get(data[index]);
             if (fn(recordProxy, index, this)) {
                 return recordProxy;
             }
         }
         return undefined;
     }
-
     /**
      * @param {(record: R, index: number, recordList: this) => boolean} fn
      * @returns {number}
      */
     findLastIndex(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        const data = recordListFullProxy.data;
+        const { data, byLocalId } = cursorOf(this);
         for (let index = data.length - 1; index >= 0; index--) {
-            const recordProxy = recordByLocalId.get(data[index]);
-            if (fn(recordProxy, index, this)) {
+            if (fn(byLocalId.get(data[index]), index, this)) {
                 return index;
             }
         }
@@ -905,12 +908,9 @@ export class RecordList extends Array {
     }
     /** @param {(record: R, index: number, recordList: this) => boolean} fn */
     findIndex(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        const data = recordListFullProxy.data;
+        const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
-            if (fn(recordByLocalId.get(data[index]), index, this)) {
+            if (fn(byLocalId.get(data[index]), index, this)) {
                 return index;
             }
         }
@@ -922,12 +922,9 @@ export class RecordList extends Array {
     }
     /** @param {(record: R, index: number, recordList: this) => boolean} fn */
     every(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        const data = recordListFullProxy.data;
+        const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
-            if (!fn(recordByLocalId.get(data[index]), index, this)) {
+            if (!fn(byLocalId.get(data[index]), index, this)) {
                 return false;
             }
         }
@@ -935,12 +932,9 @@ export class RecordList extends Array {
     }
     /** @param {(record: R, index: number, recordList: this) => void} fn */
     forEach(fn) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        const data = recordListFullProxy.data;
+        const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
-            fn(recordByLocalId.get(data[index]), index, this);
+            fn(byLocalId.get(data[index]), index, this);
         }
     }
     /**
@@ -949,10 +943,7 @@ export class RecordList extends Array {
      * @returns {any}
      */
     reduce(fn, ...init) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        const data = recordListFullProxy.data;
+        const { data, byLocalId } = cursorOf(this);
         let acc;
         let start = 0;
         if (init.length) {
@@ -963,11 +954,11 @@ export class RecordList extends Array {
                     "Reduce of empty record list with no initial value",
                 );
             }
-            acc = recordByLocalId.get(data[0]);
+            acc = byLocalId.get(data[0]);
             start = 1;
         }
         for (let index = start; index < data.length; index++) {
-            acc = fn(acc, recordByLocalId.get(data[index]), index, this);
+            acc = fn(acc, byLocalId.get(data[index]), index, this);
         }
         return acc;
     }
@@ -977,18 +968,12 @@ export class RecordList extends Array {
      * @returns {R[]}
      */
     slice(start, end) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
-        return recordListFullProxy.data
-            .slice(start, end)
-            .map((localId) => recordByLocalId.get(localId));
+        const { data, byLocalId } = cursorOf(this);
+        return data.slice(start, end).map((localId) => byLocalId.get(localId));
     }
     /** @param {R} recordProxy */
     includes(recordProxy) {
-        const recordList = toRaw(this)._raw;
-        const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        return recordListFullProxy.data.includes(toRaw(recordProxy)?._raw.localId);
+        return cursorOf(this).data.includes(toRaw(recordProxy)?._raw.localId);
     }
     reverse() {
         const recordList = toRaw(this)._raw;

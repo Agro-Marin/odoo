@@ -24,7 +24,7 @@ import { session } from "@web/session";
  */
 export const pyToJsModels = {
     "discuss.channel": "Thread",
-    "mail.thread": "Thread",
+    "mixin.mail.thread": "Thread",
 };
 
 export const addFieldsByPyModel = {
@@ -153,6 +153,8 @@ export class Store extends BaseStore {
 
     /** @type {Map<string, Mutex>} */
     messagePostMutexes = new Map();
+    /** @type {Map<number, Promise<number|undefined>>} */
+    _partnerIdByUserIdFetches = new Map();
 
     /**
      * @param {{env?: import("@web/env").OdooEnv}} [ctx]
@@ -162,11 +164,11 @@ export class Store extends BaseStore {
         return (
             (ctx?.env?.inDiscussCallView ||
                 ctx?.env?.inCallInvitation ||
-                ctx?.env.isDiscussPipBanner ||
+                ctx?.env?.isDiscussPipBanner ||
                 ctx?.env?.inWelcomePage) &&
             this.isOdooWhiteTheme &&
-            !ctx?.env.inMeetingSideActions &&
-            !ctx?.env.inDiscussActionPanel
+            !ctx?.env?.inMeetingSideActions &&
+            !ctx?.env?.inDiscussActionPanel
         );
     }
 
@@ -215,6 +217,12 @@ export class Store extends BaseStore {
                     if (!tmpMessage) {
                         throw err;
                     }
+                    // The optimistic message stays on screen with a retry
+                    // attached, so the failure is not raised -- but it must
+                    // still be traceable: returning undefined and saying
+                    // nothing makes a failed post indistinguishable from a
+                    // post that returned no data.
+                    console.warn("Failed to post message, retry offered", err);
                     tmpMessage.postFailRedo = async () => {
                         tmpMessage.postFailRedo = undefined;
                         const thread = tmpMessage.thread;
@@ -242,7 +250,7 @@ export class Store extends BaseStore {
      * @param {boolean} [options.requestData=false]
      * @param {boolean} [options.readonly=true]
      * @param {boolean} [options.silent=true]
-     * @returns {Deferred}
+     * @returns {Promise<any>} what the server resolved this request with
      */
     async fetchStoreData(
         name,
@@ -450,7 +458,7 @@ export class Store extends BaseStore {
 
     /** @param {{model: string, res_id: number}} payload */
     onPushNotificationDisplayed(payload) {
-        if (["mail.thread", "discuss.channel"].includes(payload.model)) {
+        if (["mixin.mail.thread", "discuss.channel"].includes(payload.model)) {
             this.env.services["mail.out_of_focus"]._playSound();
         }
     }
@@ -520,14 +528,21 @@ export class Store extends BaseStore {
                 user = this.users[userId];
             }
             if (!user.partner_id) {
-                const [userData] = await this.env.services.orm.silent.read(
-                    "res.users",
-                    [user.id],
-                    ["partner_id"],
-                    { context: { active_test: false } },
-                );
-                if (userData) {
-                    user.partner_id = userData.partner_id[0];
+                // Two callers wanting the same user at once each saw an empty
+                // cache and each issued the read. Share the in-flight one.
+                let fetch = this._partnerIdByUserIdFetches.get(userId);
+                if (!fetch) {
+                    fetch = this.env.services.orm.silent
+                        .read("res.users", [user.id], ["partner_id"], {
+                            context: { active_test: false },
+                        })
+                        .then(([userData]) => userData?.partner_id[0])
+                        .finally(() => this._partnerIdByUserIdFetches.delete(userId));
+                    this._partnerIdByUserIdFetches.set(userId, fetch);
+                }
+                const partner_id = await fetch;
+                if (partner_id) {
+                    user.partner_id = partner_id;
                 }
             }
             if (!user.partner_id) {
@@ -621,17 +636,21 @@ export class Store extends BaseStore {
      * @param {true|false|undefined} is_notification
      */
     async searchMessagesInThread(searchTerm, thread, before, is_notification) {
-        const { count, data, messages } = await rpc(thread.getFetchRoute(), {
-            ...thread.getFetchParams(),
-            fetch_params: {
-                is_notification,
-                search_term: await prettifyMessageText(searchTerm),
-                before,
+        const { count, count_is_capped, data, messages } = await rpc(
+            thread.getFetchRoute(),
+            {
+                ...thread.getFetchParams(),
+                fetch_params: {
+                    is_notification,
+                    search_term: await prettifyMessageText(searchTerm),
+                    before,
+                },
             },
-        });
+        );
         this.insert(data);
         return {
             count,
+            countIsCapped: Boolean(count_is_capped),
             loadMore: messages.length === this.FETCH_LIMIT,
             messages: this["mail.message"].insert(messages),
         };

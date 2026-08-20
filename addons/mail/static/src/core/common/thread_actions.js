@@ -6,7 +6,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
-export const threadActionsRegistry = registry.category("mail.thread/actions");
+export const threadActionsRegistry = registry.category("mixin.mail.thread/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {import("models").Thread} Thread */

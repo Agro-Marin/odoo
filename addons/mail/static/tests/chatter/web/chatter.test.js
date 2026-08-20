@@ -47,7 +47,7 @@ test("simple chatter on a record", async () => {
             asyncStep(`${route} - ${JSON.stringify(args)}`);
         }
     });
-    listenStoreFetch(undefined, { logParams: ["mail.thread"] });
+    listenStoreFetch(undefined, { logParams: ["mixin.mail.thread"] });
     await start();
     await waitStoreFetch(["failures", "systray_get_activities", "init_messaging"]);
     const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
@@ -57,7 +57,7 @@ test("simple chatter on a record", async () => {
     await waitStoreFetch(
         [
             [
-                "mail.thread",
+                "mixin.mail.thread",
                 {
                     access_params: {},
                     request_list: [
@@ -171,9 +171,9 @@ test("No attachment loading spinner when creating records", async () => {
 test("No attachment loading spinner when switching from loading record to creation of record", async () => {
     const def = new Deferred();
     const pyEnv = await startServer();
-    listenStoreFetch("mail.thread", {
+    listenStoreFetch("mixin.mail.thread", {
         async onRpc() {
-            asyncStep("before mail.thread");
+            asyncStep("before mixin.mail.thread");
             await def;
         },
     });
@@ -185,9 +185,9 @@ test("No attachment loading spinner when switching from loading record to creati
     await contains("button[aria-label='Attach files'] .fa-spin");
     await click(".o_control_panel_main_buttons .o_form_button_create");
     await contains("button[aria-label='Attach files'] .fa-spin", { count: 0 });
-    await waitForSteps(["before mail.thread"]);
+    await waitForSteps(["before mixin.mail.thread"]);
     def.resolve();
-    await waitStoreFetch("mail.thread");
+    await waitStoreFetch("mixin.mail.thread");
 });
 
 test("Composer toggle state is kept when switching from aside to bottom", async () => {
@@ -891,7 +891,7 @@ test("leaving a record does not re-fetch the record being left", async () => {
             return;
         }
         for (const [name, params] of args.fetch_params ?? []) {
-            if (name === "mail.thread") {
+            if (name === "mixin.mail.thread") {
                 fetchedThreadIds.push(params.thread_id);
             }
         }
@@ -917,7 +917,7 @@ test("saving a record still refreshes its chatter data", async () => {
             return;
         }
         for (const [name, params] of args.fetch_params ?? []) {
-            if (name === "mail.thread") {
+            if (name === "mixin.mail.thread") {
                 fetchedThreadIds.push(params.thread_id);
             }
         }

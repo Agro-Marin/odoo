@@ -251,8 +251,11 @@ export class Rtc extends Record {
         this.dialog = services.dialog;
         this.soundEffectsService = services["mail.sound_effects"];
         this.pttExtService = services["discuss.ptt_extension"];
-        /** @type {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} */
-        this.p2pService = services["discuss.p2p"];
+        // p2pService is assigned by rtcService.start(), which is the one that
+        // declares "discuss.p2p" as a dependency. Rtc.start() runs from
+        // Store.onStarted(), i.e. while mail.store starts, so the service is not
+        // guaranteed to exist here yet. Nothing below needs it before then --
+        // CallTransport reads it lazily through getP2p().
         this.transport = new CallTransport({
             getP2p: () => this.p2pService,
             state: this.state,
@@ -509,7 +512,7 @@ export class Rtc extends Record {
                  */
                 onRemove: ({ stopScreensharing } = {}) => {
                     if (stopScreensharing) {
-                        this.toggleVideo("screen", false);
+                        this.toggleVideo("screen", { force: false });
                     }
                     this.state.screenTrack?.removeEventListener("ended", trackEndedFn);
                     this.removeMirroringWarning = null;
@@ -938,9 +941,7 @@ export class Rtc extends Record {
                     if (value === this.localSession.is_deaf) {
                         break;
                     }
-                    value
-                        ? promises.push(this.deafen())
-                        : promises.push(this.undeafen());
+                    promises.push(value ? this.deafen() : this.undeafen());
                     break;
                 case "raisingHand":
                     if (value === Boolean(this.localSession.raisingHand)) {
@@ -988,7 +989,7 @@ export class Rtc extends Record {
             toRaw(session)._raw,
             param2,
         );
-        if (!this.state.logs) {
+        if (!this.state.logs?.entriesBySessionId) {
             return;
         }
         let sessionEntry = this.state.logs.entriesBySessionId[session.id];
@@ -1337,7 +1338,7 @@ export class Rtc extends Record {
                     : {}),
             };
             server.state = this.sfuClient?.state;
-            server.errors = this.sfuClient?.errors.map((error) => error.message);
+            server.errors = this.sfuClient?.errors?.map((error) => error.message);
         }
         const sessions = this.state.channel.rtc_session_ids.map((session) => {
             /**
@@ -1475,6 +1476,11 @@ export class Rtc extends Record {
             updateAndBroadcastDebounce: undefined,
             channel: undefined,
         });
+        // The server hands out ICE servers per join, TURN ones carrying
+        // short-lived credentials. Dropping them returns the field to its
+        // computed STUN default until the next join replaces it, rather than
+        // keeping one call's credentials for the life of the page.
+        this.update({ iceServers: undefined });
         this.pipService?.closePip();
     }
 
@@ -1548,17 +1554,7 @@ export class Rtc extends Record {
      * @param {boolean} [param1.env]
      * @param {boolean} [param1.refreshStream]
      */
-    async toggleVideo(type, options) {
-        let force;
-        let env;
-        let refreshStream;
-        if (typeof options === "boolean") {
-            force = options;
-        } else {
-            force = options?.force;
-            env = options?.env;
-            refreshStream = options?.refreshStream;
-        }
+    async toggleVideo(type, { force, env, refreshStream } = {}) {
         if (this.isRemote) {
             this.notification.add(UNAVAILABLE_AS_REMOTE, {
                 type: "warning",
@@ -1930,7 +1926,7 @@ export const rtcService = {
                     return;
                 }
                 if (rtc.serverInfo?.channelUUID === serverInfo.channelUUID) {
-                    rtc.p2pService.removeALlPeers();
+                    rtc.p2pService.removeAllPeers();
                     return;
                 }
                 rtc.serverInfo = serverInfo;

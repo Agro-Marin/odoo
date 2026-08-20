@@ -9,7 +9,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 
 export class MailThread extends models.ServerModel {
-    _name = "mail.thread";
+    _name = "mixin.mail.thread";
     _inherit = ["base"];
 
     /**
@@ -31,7 +31,7 @@ export class MailThread extends models.ServerModel {
         limit = kwargs.limit || 100;
         filter_recipients = kwargs.filter_recipients || false;
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
 
         const store = new mailDataHelpers.Store();
         MailThread._message_followers_to_store.call(
@@ -105,7 +105,7 @@ export class MailThread extends models.ServerModel {
         /** @type {import("mock_models").MailNotification} */
         const MailNotification = this.env["mail.notification"];
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
         /** @type {import("mock_models").ResUsers} */
         const ResUsers = this.env["res.users"];
         /** @type {import("mock_models").MailMessageSubtype} */
@@ -336,7 +336,7 @@ export class MailThread extends models.ServerModel {
                 create_values: {},
             });
         } else {
-            const partnerCreateValues = this._get_customer_information(id);
+            const partnerCreateValues = this._mail_get_customer_information(id);
             result.push({
                 email,
                 name,
@@ -348,7 +348,7 @@ export class MailThread extends models.ServerModel {
         return result;
     }
 
-    _get_customer_information(id) {
+    _mail_get_customer_information(id) {
         return {};
     }
 
@@ -398,7 +398,7 @@ export class MailThread extends models.ServerModel {
         primary_email = false,
     ) {
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
         /** @type {import("mock_models").ResFake} */
         const ResFake = this.env["res.fake"];
         /** @type {import("mock_models").ResPartner} */
@@ -534,7 +534,7 @@ export class MailThread extends models.ServerModel {
         /** @type {import("mock_models").Base} */
         const Base = this.env["base"];
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
 
         const trackFieldNamesToField = this.env[this._name].fields_get(fields_iter);
         const tracking = {};
@@ -577,7 +577,7 @@ export class MailThread extends models.ServerModel {
         initial_values = kwargs.initial_values;
 
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
 
         MailThread._message_track.call(
             this,
@@ -597,7 +597,7 @@ export class MailThread extends models.ServerModel {
 
     _track_prepare() {
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
 
         const trackedFieldNames = MailThread._track_get_fields.call(this);
         if (!trackedFieldNames.length) {
@@ -632,7 +632,7 @@ export class MailThread extends models.ServerModel {
         /** @type {import("mock_models").MailFollowers} */
         const MailFollowers = this.env["mail.followers"];
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
         /** @type {import("mock_models").MailScheduledMessage} */
         const MailScheduledMessage = this.env["mail.scheduled.message"];
 

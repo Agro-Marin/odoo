@@ -145,12 +145,12 @@ test("mock /mail/data channels_as_member matches the committed store contract", 
     expectShape(payload, EXPECTED.channels_as_member);
 });
 
-test("mock /mail/data mail.thread (chatter) matches the committed store contract", async () => {
+test("mock /mail/data mixin.mail.thread (chatter) matches the committed store contract", async () => {
     const { recordId } = await seedContractScenario();
     const payload = await rpc("/mail/data", {
         fetch_params: [
             [
-                "mail.thread",
+                "mixin.mail.thread",
                 {
                     request_list: ["followers", "attachments"],
                     thread_id: recordId,

@@ -273,7 +273,7 @@ export class PeerToPeer extends EventTarget {
     /**
      * @param {object} [options]
      * @param {String} [options.notificationRoute]
-     * @param {LOG_LEVEL[keyof LOG_LEVEL]} [options.logLevel=LOG_LEVEL.NONE]
+     * @param {LOG_LEVEL[keyof LOG_LEVEL]} [options.logLevel=LOG_LEVEL.ERROR]
      * @param {boolean} [options.antiGlare=true]
      * @param {number} [options.batchDelay=DEFAULT_BUS_BATCH_DELAY]
      * @param {boolean} [options.enableStreaming=true]
@@ -310,7 +310,7 @@ export class PeerToPeer extends EventTarget {
         this._localInfo = Object.assign(this._localInfo, info);
     }
 
-    removeALlPeers() {
+    removeAllPeers() {
         for (const peer of this.peers.values()) {
             this.removePeer(peer.id);
         }
@@ -318,7 +318,7 @@ export class PeerToPeer extends EventTarget {
     }
 
     disconnect() {
-        this.removeALlPeers();
+        this.removeAllPeers();
         this.selfId = undefined;
         this.channelId = undefined;
         this._isPendingNotify = false;
@@ -454,7 +454,17 @@ export class PeerToPeer extends EventTarget {
         /**
          * @type {{ event: INTERNAL_EVENT[keyof INTERNAL_EVENT], channelId: number, payload: NotificationPayload, }}
          */
-        const { event, channelId, payload } = JSON.parse(content);
+        let notification;
+        try {
+            notification = JSON.parse(content);
+        } catch {
+            // `content` is whatever a peer put on the data channel, so a frame
+            // that does not parse is a remote input, not a local bug: drop it
+            // rather than reject out of the `message` listener that awaits us.
+            this._emitLog(id, `discarded unparsable notification`, LOG_LEVEL.WARN);
+            return;
+        }
+        const { event, channelId, payload } = notification;
         this._emitLog(id, `received notification: ${event}`, LOG_LEVEL.DEBUG);
         if (channelId !== this.channelId) {
             return;
@@ -699,7 +709,7 @@ export class PeerToPeer extends EventTarget {
      */
     _recover(id, reason = "") {
         this._emitLog(id, `connection recovery candidate: ${reason}`, LOG_LEVEL.WARN);
-        if (this._recoverTimeouts.get(id)) {
+        if (this._recoverTimeouts.has(id)) {
             return;
         }
         const peer = this.peers.get(id);
@@ -883,6 +893,9 @@ export class PeerToPeer extends EventTarget {
             ...options,
             connection: peerConnection,
             dataChannel,
+            // derived, never an option: glare resolution only works if exactly
+            // one of the two sides yields, so both must compute it the same way
+            // from the pair of ids.
             hasPriority: id > this.selfId,
         });
         this._emitUpdate({

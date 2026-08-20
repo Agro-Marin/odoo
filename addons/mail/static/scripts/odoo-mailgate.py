@@ -9,26 +9,33 @@ EX_TEMPFAIL = 75
 EX_NOPERM = 77
 EX_CONFIG = 78
 
+FAULT_APPLICATION_ERROR = 1
+FAULT_ACCESS_DENIED = 3
+
+RETRYABLE_HTTP_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+DEFAULT_TIMEOUT = 60
+
 
 import sys  # noqa: E402
 
 try:
+    import argparse
+    import pathlib
     import socket
     import traceback
     import xmlrpc.client as xmlrpclib
-    from optparse import OptionParser as _OptionParser  # noqa: TID251
     from typing import NoReturn
 except ImportError as e:
     sys.stderr.write("%s\n" % e)
     sys.exit(EX_SOFTWARE)
 
 
-class OptionParser(_OptionParser):
-    def exit(self, status: int = 0, msg: str | None = None) -> NoReturn:
-        if msg:
-            sys.stderr.write(msg)
-        sys.stderr.write(" optparse status: %s\n" % status)
-        sys.exit(EX_USAGE)
+class ArgumentParser(argparse.ArgumentParser):
+    def exit(self, status: int = 0, message: str | None = None) -> NoReturn:
+        if message:
+            sys.stderr.write(message)
+        sys.exit(0 if status == 0 else EX_USAGE)
 
 
 def postfix_exit(
@@ -45,109 +52,136 @@ def postfix_exit(
         sys.exit(exit_code)
 
 
-def main() -> None:
-    op = OptionParser(usage="usage: %prog [options]", version="%prog v1.3")
-    op.add_option(
+def build_parser() -> ArgumentParser:
+    parser = ArgumentParser(
+        prog="odoo-mailgate.py", description="Pipe an incoming email into Odoo."
+    )
+    parser.add_argument("--version", action="version", version="%(prog)s v2.0")
+    parser.add_argument(
         "-d",
         "--database",
-        dest="database",
-        help="Odoo database name (default: %default)",
         default="odoo",
+        help="Odoo database name (default: %(default)s)",
     )
-    op.add_option(
+    parser.add_argument(
         "-u",
         "--userid",
-        dest="userid",
-        help="Odoo user id to connect with (default: %default)",
-        default=1,
         type=int,
+        default=1,
+        help="Odoo user id to connect with (default: %(default)s)",
     )
-    op.add_option(
+    parser.add_argument(
         "-p",
         "--password",
-        dest="password",
-        help="Odoo user password (default: %default)",
         default="admin",
+        help="Odoo user password (default: %(default)s)",
     )
-    op.add_option(
-        "--host", dest="host", help="Odoo host (default: %default)", default="localhost"
+    parser.add_argument(
+        "--password-file",
+        help="Read the password from this file instead of the command line, "
+        "where every local user can read it out of the process table",
     )
-    op.add_option(
-        "--port",
-        dest="port",
-        help="Odoo port (default: %default)",
-        default=8069,
-        type=int,
+    parser.add_argument(
+        "--host", default="localhost", help="Odoo host (default: %(default)s)"
     )
-    op.add_option(
+    parser.add_argument(
+        "--port", type=int, default=8069, help="Odoo port (default: %(default)s)"
+    )
+    parser.add_argument(
         "--proto",
         dest="protocol",
-        help="Protocol to use (default: %default), http or https",
+        choices=("http", "https"),
         default="http",
+        help="Protocol to use (default: %(default)s)",
     )
-    op.add_option(
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT,
+        help="Seconds to wait for Odoo before giving up (default: %(default)s). "
+        "Without one a stalled server holds this delivery slot indefinitely",
+    )
+    parser.add_argument(
         "--debug",
-        dest="debug",
         action="store_true",
         help="Enable debug (may lead to stack traces in bounce mails)",
-        default=False,
     )
-    op.add_option(
+    parser.add_argument(
         "--retry-status",
         dest="retry",
         action="store_true",
         help="Send temporary failure status code on connection errors.",
-        default=False,
     )
-    (o, args) = op.parse_args()
-    if args:
-        op.print_help()
-        sys.stderr.write("unknown arguments: %s\n" % args)
-        sys.exit(EX_USAGE)
-    if o.protocol not in ["http", "https"]:
-        op.print_help()
-        sys.stderr.write("unknown protocol: %s\n" % o.protocol)
-        sys.exit(EX_USAGE)
+    return parser
+
+
+def read_password(options: argparse.Namespace) -> str:
+    if not options.password_file:
+        return options.password
+    try:
+        return (
+            pathlib.Path(options.password_file).read_text(encoding="utf-8").strip("\n")
+        )
+    except OSError as err:
+        postfix_exit(EX_CONFIG, "cannot read password file: %s\n" % err, options.debug)
+
+
+def handle_fault(err: xmlrpclib.Fault, options: argparse.Namespace) -> NoReturn:
+    if err.faultCode == FAULT_ACCESS_DENIED:
+        postfix_exit(EX_NOPERM, debug=False)
+    if err.faultCode != FAULT_APPLICATION_ERROR:
+        postfix_exit(EX_SOFTWARE, "xmlrpclib.Fault\n", options.debug)
+    if "database" in err.faultString and "does not exist" in err.faultString:
+        postfix_exit(
+            EX_CONFIG, "database does not exist: %s\n" % options.database, options.debug
+        )
+    if "No possible route" in err.faultString:
+        postfix_exit(EX_NOUSER, "alias does not exist in odoo\n", options.debug)
+    postfix_exit(EX_SOFTWARE, "xmlrpclib.Fault\n", options.debug)
+
+
+def main() -> None:
+    options = build_parser().parse_args()
+    password = read_password(options)
+
+    msg = sys.stdin.buffer.read()
+
+    socket.setdefaulttimeout(options.timeout)
 
     try:
-        msg = sys.stdin.read()
-        msg = msg.encode()
         models = xmlrpclib.ServerProxy(
-            "%s://%s:%s/xmlrpc/2/object" % (o.protocol, o.host, o.port), allow_none=True
+            "%s://%s:%s/xmlrpc/2/object"
+            % (options.protocol, options.host, options.port),
+            allow_none=True,
         )
         models.execute_kw(
-            o.database,
-            o.userid,
-            o.password,
-            "mail.thread",
+            options.database,
+            options.userid,
+            password,
+            "mixin.mail.thread",
             "message_process",
             [False, xmlrpclib.Binary(msg)],
             {},
         )
-    except xmlrpclib.Fault as e:
-        if e.faultString == "Access denied" and e.faultCode == 3:
-            postfix_exit(EX_NOPERM, debug=False)
-        elif (
-            "database" in e.faultString
-            and "does not exist" in e.faultString
-            and e.faultCode == 1
-        ):
-            postfix_exit(
-                EX_CONFIG, "database does not exist: %s\n" % o.database, o.debug
-            )
-        elif "No possible route" in e.faultString and e.faultCode == 1:
-            postfix_exit(EX_NOUSER, "alias does not exist in odoo\n", o.debug)
-        else:
-            postfix_exit(EX_SOFTWARE, "xmlrpclib.Fault\n", o.debug)
-    except (OSError, socket.gaierror) as e:
+    except xmlrpclib.Fault as err:
+        handle_fault(err, options)
+    except xmlrpclib.ProtocolError as err:
+        retryable = err.errcode in RETRYABLE_HTTP_STATUSES
         postfix_exit(
-            exit_code=EX_TEMPFAIL if o.retry else EX_NOHOST,
+            exit_code=EX_TEMPFAIL if (retryable and options.retry) else EX_UNAVAILABLE,
+            message="http error: %s %s (%s)\n"
+            % (err.errcode, err.errmsg, options.host),
+            debug=options.debug,
+        )
+    except OSError as err:
+        postfix_exit(
+            exit_code=EX_TEMPFAIL if options.retry else EX_NOHOST,
             message="connection error: %s: %s (%s)\n"
-            % (e.__class__.__name__, e, o.host),
-            debug=o.debug,
+            % (err.__class__.__name__, err, options.host),
+            debug=options.debug,
         )
     except Exception:
-        postfix_exit(EX_SOFTWARE, "", o.debug)
+        postfix_exit(EX_SOFTWARE, "", options.debug)
 
 
 try:

@@ -18,7 +18,7 @@ const { DateTime } = luxon;
 
 export class DiscussChannel extends models.ServerModel {
     _name = "discuss.channel";
-    _inherit = ["mail.thread"];
+    _inherit = ["mixin.mail.thread"];
     _mail_post_access = "read";
 
     author_id = fields.Many2one({
@@ -930,7 +930,7 @@ export class DiscussChannel extends models.ServerModel {
         /** @type {import("mock_models").DiscussChannelMember} */
         const DiscussChannelMember = this.env["discuss.channel.member"];
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
 
         kwargs.message_type ||= "notification";
         const [channel] = this.browse(id);

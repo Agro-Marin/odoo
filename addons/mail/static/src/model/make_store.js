@@ -189,6 +189,11 @@ export function makeStore(env, { localRegistry } = {}) {
             }
             if (inverse) {
                 const OtherModel = Models[targetModel];
+                if (!isRelation(OtherModel, inverse)) {
+                    throw new Error(
+                        `Field ${Model.getName()}.${name} declares inverse "${inverse}", but ${OtherModel.getName()} has no fields.One()/fields.Many() named "${inverse}"`,
+                    );
+                }
                 const rel2TargetModel = OtherModel._.fieldsTargetModel.get(inverse);
                 const rel2Inverse = OtherModel._.fieldsInverse.get(inverse);
                 if (rel2TargetModel && rel2TargetModel !== Model.getName()) {

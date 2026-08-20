@@ -61,7 +61,7 @@ export class Thread extends Record {
         }
         const promise = (async () => {
             try {
-                await store.fetchStoreData("mail.thread", {
+                await store.fetchStoreData("mixin.mail.thread", {
                     thread_model: data.model,
                     thread_id: data.id,
                     request_list: missingFieldNames,
@@ -973,7 +973,7 @@ export class Thread extends Record {
 
     /** @returns {string} */
     _getActualModelName() {
-        return "mail.thread";
+        return "mixin.mail.thread";
     }
 
     /** @returns {import("models").ChannelMember|undefined} */

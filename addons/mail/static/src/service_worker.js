@@ -1,10 +1,6 @@
 /** @odoo-module native */
 
-/* global idbKeyval, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url, planPushNotification, notificationTargetPath */
-/**
- * @type {ServiceWorkerGlobalScope}
- */
-const sw = /** @type {any} */ (self);
+/* global idbKeyval, sw, PUSH_NOTIFICATION_ACTION, arrayBufferToBase64Url, planPushNotification, notificationTargetPath */
 
 importScripts("/mail/static/lib/idb-keyval/idb-keyval.js");
 

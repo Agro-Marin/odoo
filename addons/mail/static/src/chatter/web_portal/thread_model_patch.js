@@ -7,7 +7,7 @@ patch(Thread.prototype, {
         if (requestList.includes("messages")) {
             this.fetchNewMessages();
         }
-        await this.store.fetchStoreData("mail.thread", {
+        await this.store.fetchStoreData("mixin.mail.thread", {
             access_params: this.rpcParams,
             request_list: requestList,
             thread_id: this.id,

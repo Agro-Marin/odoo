@@ -10,8 +10,11 @@ import {
 import { Domain } from "@web/core/domain";
 
 /** @typedef {import("@web/core/domain").DomainListRepr} DomainListRepr */
+
 export class MailMessage extends models.ServerModel {
     _name = "mail.message";
+    /** Mirrors ``mail.message._SEARCH_COUNT_CAP``; a field so tests can patch it. */
+    _search_count_cap = 1000;
 
     author_id = fields.Generic({ default: () => serverState.partnerId });
     pinned_at = fields.Generic({ default: false });
@@ -83,7 +86,7 @@ export class MailMessage extends models.ServerModel {
         /** @type {import("mock_models").MailNotification} */
         const MailNotification = this.env["mail.notification"];
         /** @type {import("mock_models").MailThread} */
-        const MailThread = this.env["mail.thread"];
+        const MailThread = this.env["mixin.mail.thread"];
         /** @type {import("mock_models").MailTrackingValue} */
         const MailTrackingValue = this.env["mail.tracking.value"];
         /** @type {import("mock_models").ResFake} */
@@ -108,7 +111,7 @@ export class MailMessage extends models.ServerModel {
                 const thread_data = {
                     display_name: thread.name ?? thread.display_name,
                     has_mail_thread:
-                        this.env[message.model]._inherit?.includes("mail.thread"),
+                        this.env[message.model]._inherit?.includes("mixin.mail.thread"),
                     module_icon: "/base/static/description/icon.png",
                 };
                 if (for_current_user && add_followers) {
@@ -569,7 +572,8 @@ export class MailMessage extends models.ServerModel {
             domain = Domain.and([domain, message_domain]).toList();
         }
         if (search_term || is_notification !== undefined) {
-            res.count = this.search_count(domain);
+            res.count = Math.min(this.search_count(domain), this._search_count_cap);
+            res.count_is_capped = res.count >= this._search_count_cap;
         }
         if (around !== undefined) {
             const afterLimit = Math.floor(limit / 2);

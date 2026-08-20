@@ -13,7 +13,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { HIGHLIGHT_CLASS } from "@mail/core/common/message_search_hook";
 import { describe, test } from "@odoo/hoot";
-import { serverState } from "@web/../tests/web_test_helpers";
+import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -117,4 +117,51 @@ test("Scrolling bottom in non-aside chatter should load more searched message", 
     await contains(".o-mail-SearchMessageResult .o-mail-Message", { count: 30 });
     await scroll(".o_content", "bottom");
     await contains(".o-mail-SearchMessageResult .o-mail-Message", { count: 60 });
+});
+
+test("Search result count renders exactly when the server did not cap it", async () => {
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    for (let i = 0; i < 3; i++) {
+        pyEnv["mail.message"].create({
+            author_id: serverState.partnerId,
+            body: "This is a message",
+            attachment_ids: [],
+            message_type: "comment",
+            model: "res.partner",
+            res_id: partnerId,
+        });
+    }
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click("[title='Search Messages']");
+    await insertText(".o_searchview_input", "message");
+    triggerHotkey("Enter");
+    await contains(".o-mail-SearchMessageResult", { text: "3 messages found" });
+});
+
+test("Search result count renders as N+ when the server says it capped", async () => {
+    // The cap lives on the server (`mail.message._SEARCH_COUNT_CAP`); the client
+    // is told *that* it bit, never the number. Holding a second copy of 1000
+    // here is what this test exists to prevent, so the cap is patched rather
+    // than reproduced -- the python twin patches the same attribute.
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
+    for (let i = 0; i < 3; i++) {
+        pyEnv["mail.message"].create({
+            author_id: serverState.partnerId,
+            body: "This is a message",
+            attachment_ids: [],
+            message_type: "comment",
+            model: "res.partner",
+            res_id: partnerId,
+        });
+    }
+    patchWithCleanup(pyEnv["mail.message"], { _search_count_cap: 2 });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click("[title='Search Messages']");
+    await insertText(".o_searchview_input", "message");
+    triggerHotkey("Enter");
+    await contains(".o-mail-SearchMessageResult", { text: "2+ messages found" });
 });

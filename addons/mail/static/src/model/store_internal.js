@@ -316,40 +316,47 @@ export class StoreInternal extends RecordInternal {
         }
     }
     /**
+     * Apply one relational command. The `.noinv` variants skip inverse
+     * maintenance — they are what the inverse side emits, so honouring them
+     * again would recurse.
+     *
+     * @param {RecordList} recordList
+     * @param {"ADD"|"DELETE"|"ADD.noinv"|"DELETE.noinv"} cmd
+     * @param {any[]} args
+     */
+    applyRelationCommand(recordList, cmd, args) {
+        switch (cmd) {
+            case "ADD":
+                recordList.add(...args);
+                break;
+            case "ADD.noinv":
+                recordList._.addNoinv(recordList, ...args);
+                break;
+            case "DELETE.noinv":
+                recordList._.deleteNoinv(recordList, ...args);
+                break;
+            default:
+                recordList.delete(...args);
+                break;
+        }
+    }
+    /**
      * @param {RecordList} recordList
      * @param {any} value
      */
     updateRelationMany(recordList, value) {
         if (isCommand(value)) {
             for (const [cmd, cmdData] of value) {
-                if (Array.isArray(cmdData)) {
-                    if (cmd === "ADD") {
-                        recordList.add(...cmdData);
-                    } else if (cmd === "ADD.noinv") {
-                        recordList._.addNoinv(recordList, ...cmdData);
-                    } else if (cmd === "DELETE.noinv") {
-                        recordList._.deleteNoinv(recordList, ...cmdData);
-                    } else {
-                        recordList.delete(...cmdData);
-                    }
-                } else {
-                    if (cmd === "ADD") {
-                        recordList.add(cmdData);
-                    } else if (cmd === "ADD.noinv") {
-                        recordList._.addNoinv(recordList, cmdData);
-                    } else if (cmd === "DELETE.noinv") {
-                        recordList._.deleteNoinv(recordList, cmdData);
-                    } else {
-                        recordList.delete(cmdData);
-                    }
-                }
+                this.applyRelationCommand(
+                    recordList,
+                    cmd,
+                    Array.isArray(cmdData) ? cmdData : [cmdData],
+                );
             }
         } else if ([null, false, undefined].includes(value)) {
             recordList.clear();
-        } else if (!Array.isArray(value)) {
-            recordList._.assign(recordList, [value]);
         } else {
-            recordList._.assign(recordList, value);
+            recordList._.assign(recordList, Array.isArray(value) ? value : [value]);
         }
     }
     /**
@@ -359,15 +366,7 @@ export class StoreInternal extends RecordInternal {
     updateRelationOne(recordList, value) {
         if (isCommand(value)) {
             const [cmd, cmdData] = value.at(-1);
-            if (cmd === "ADD") {
-                recordList.add(cmdData);
-            } else if (cmd === "ADD.noinv") {
-                recordList._.addNoinv(recordList, cmdData);
-            } else if (cmd === "DELETE.noinv") {
-                recordList._.deleteNoinv(recordList, cmdData);
-            } else {
-                recordList.delete(cmdData);
-            }
+            this.applyRelationCommand(recordList, cmd, [cmdData]);
         } else if ([null, false, undefined].includes(value)) {
             recordList.clear();
         } else {
